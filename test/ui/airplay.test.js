@@ -87,10 +87,12 @@ ui.test("a server that requires sign-in: the TV's link plays with no credential,
 
     await player.waitClock(page, 3, 40);
     const before = await player.clock(page);
+    // (a subtitle on here is what makes the TV's stream the master that carries it)
+    assert.deepEqual((await player.state(page)).showing, ["English"]);
     await wireless(page, true);
     await page.waitForFunction(() => /\/air\//.test(document.querySelector(".player video").getAttribute("src") || ""), null, { timeout: 10000 });
     const given = await page.evaluate(() => document.querySelector(".player video").getAttribute("src"));
-    // absolute (the TV is another device), signed, the AirPlay master (Film Two has subtitles).
+    // absolute (the TV is another device), signed, the AirPlay master (a subtitle of Film Two is on: the player put English on by itself).
     // This page is on 127.0.0.1, which a TV can't reach: the server gives
     // its home-network address instead when this machine has one.
     const u = new URL(given);
@@ -107,7 +109,9 @@ ui.test("a server that requires sign-in: the TV's link plays with no credential,
     assert.equal(master.status, 200, master.text);
     assert.match(master.type, /mpegurl/i);
     assert.match(master.text, /#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs"/);
-    assert.match(master.text, /#EXT-X-STREAM-INF:BANDWIDTH=\d+,SUBTITLES="subs"/);
+    // the variant says what it is: a picture of this size, these codecs
+    // (2026-10-26: a receiver left to guess may play the sound alone)
+    assert.match(master.text, /#EXT-X-STREAM-INF:BANDWIDTH=\d+,RESOLUTION=\d+x\d+,(FRAME-RATE=[0-9.]+,)?CODECS="avc1\.[0-9a-f]{6},mp4a\.40\.2",SUBTITLES="subs"/);
     const variant = new URL(uris(master.text)[0], src).href;
     assert.ok(variant.includes(u.pathname.split("/stream/")[0] + "/stream/transcode/"), "the variant keeps the token");
     const media = await bare(variant);

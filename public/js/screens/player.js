@@ -900,6 +900,18 @@ export const renderPlayer = async (root, { id }) => {
   // when AirPlay ends (airBack).
   let air = null;
   const onAir = () => !!air && air.active();
+  // The address a local stream is put on the element at: on an element that
+  // plays a plain address (an iPhone's native HLS, a file), its AirPlay twin
+  // once a TV is in reach and the server requires sign-in — so whatever iOS
+  // hands the TV when AirPlay is picked is an address the TV can fetch
+  // (js/airplay.js, "THE IPHONE"). Else the address itself.
+  const airSrc = (u) => {
+    try { return (air && air.twin(u)) || u; } catch { return u; }
+  };
+  // Set while the element is re-pointed at the same stream (the twin, a
+  // retry): the timeline that comes back is the one it had, so the
+  // loadedmetadata handler below must not apply the saved resume point.
+  let quietLoad = false;
   // Rebuilds after a FATAL hls.js error (see the ERROR handler). Bounded per
   // BURST rather than for the whole session: four quick attempts, then an honest
   // message — but if the next failure comes more than a window later the budget
@@ -968,7 +980,7 @@ export const renderPlayer = async (root, { id }) => {
         if (ms >= 2000 && video.currentSrc && video.currentSrc.includes(item.videoUrl)) rememberLine((item.index.bytes * 8) / ms);
       }, { once: true });
     }
-    video.src = item.videoUrl;
+    video.src = airSrc(item.videoUrl);
     tryPlay();
   };
   // ---- the quality ladder: hls.js levels (see ladderOn) ----
@@ -1334,7 +1346,7 @@ export const renderPlayer = async (root, { id }) => {
         } catch {}
         hls = null;
       }
-      video.src = url;
+      video.src = airSrc(url);
       if (startAt > 0) {
         const once = () => {
           video.removeEventListener("loadedmetadata", once);
@@ -1581,7 +1593,7 @@ export const renderPlayer = async (root, { id }) => {
           };
           setTimeout(() => kick(5), 5000);
         } else {
-          video.src = url; // Safari plays HLS natively
+          video.src = airSrc(url); // Safari plays HLS natively
         }
         tryPlay();
       })
@@ -1949,7 +1961,7 @@ export const renderPlayer = async (root, { id }) => {
         try { video.currentTime = at; } catch {}
         tryPlay();
       }, { once: true });
-      video.src = item.videoUrl;
+      video.src = airSrc(item.videoUrl);
       return;
     }
     // back to the untouched picture: the copy path when this device decodes
@@ -2746,6 +2758,10 @@ export const renderPlayer = async (root, { id }) => {
     if (exited) return;
     excuseUntil = Date.now() + 15000;
     watchFrom = Date.now() + 6000;
+    // the film comes back where the TV got to: not the saved resume point,
+    // and no resume card (the loadedmetadata handler, see quietLoad)
+    quietLoad = true;
+    video.addEventListener("loadedmetadata", () => { quietLoad = false; }, { once: true });
     // a paused TV comes back paused
     // (the stream's own start plays it: that first play only — a press on
     // Play a little later is the viewer's)
@@ -2770,8 +2786,36 @@ export const renderPlayer = async (root, { id }) => {
         try { video.currentTime = pos; } catch {}
         if (playing) tryPlay();
       }, { once: true });
-      video.src = src;
+      video.src = airSrc(src);
     }
+  };
+  // The same stream at another address (js/airplay.js: its twin, a fresh
+  // link, the plain address again): the element is re-pointed where it is,
+  // playing or paused as it was. Nothing else about the stream changes — the
+  // clock, the subtitles, the stream state all stay.
+  const repoint = (url, { mediaPos = null, play = false } = {}) => {
+    if (exited || hls || !url) return false;
+    const pos = mediaPos != null ? mediaPos : video.currentTime || 0;
+    const playing = play || !video.paused;
+    // this stream's timeline was there already: a reload, not its start
+    // (before that, the start's own resume seek is still to come, and stays)
+    const known = video.readyState >= 1;
+    excuseUntil = Math.max(excuseUntil, Date.now() + 15000);
+    watchFrom = Math.max(watchFrom, Date.now() + 6000);
+    if (known) quietLoad = true;
+    video.addEventListener("loadedmetadata", () => {
+      quietLoad = false;
+      try { if (pos > 0.5 && Math.abs((video.currentTime || 0) - pos) > 0.5) video.currentTime = pos; } catch {}
+    }, { once: true });
+    video.src = url;
+    if (playing || (!known && !playBlocked)) tryPlay();
+    return true;
+  };
+  const airRetarget = (url) => {
+    if (onAir()) return false;
+    const ok = repoint(url);
+    if (ok) mark("airplay", { did: /\/air\//.test(url) ? "twin" : "plain" });
+    return ok;
   };
   const airBtn = btn("AirPlay", icons.airplay, () => { if (air) air.pick(); }, "airplay-btn hidden");
   air = item._local ? null : createAirplay({
@@ -2783,10 +2827,16 @@ export const renderPlayer = async (root, { id }) => {
       audioIdx: () => audioIdx,
       // (declared with the subtitle menu further down)
       subIdx: () => { try { return activeTrack; } catch { return -1; } },
-      plainSrc: () => !hls && !!video.currentSrc && !/^blob:/i.test(video.currentSrc),
+      // the plain address on the element (hls.js's MediaSource is none)
+      src: () => {
+        if (hls) return null;
+        const s = video.getAttribute("src");
+        return s && !/^blob:/i.test(s) ? s : null;
+      },
+      retarget: airRetarget,
       leave: airLeave,
       back: airBack,
-      toast: (text, icon) => toast(text, icon),
+      toast: (text, icon, action) => toast(text, icon, action || null),
       track: (f) => track("feat", { f }),
       onAvailable: (on) => { try { airBtn.classList.toggle("hidden", !on); } catch {} },
       onActive: (on) => { try { airBtn.classList.toggle("active", on); } catch {} },
@@ -5382,7 +5432,12 @@ export const renderPlayer = async (root, { id }) => {
     // Transcoded streams resume by starting the transcode at the saved offset
     // (baked into streamOffset at startup), so no client-side seek here. Direct
     // and library playback seek natively.
-    if (
+    // (the same stream re-pointed — repoint — comes back where it was, and the
+    // TV's stream is put at the TV's spot by js/airplay.js: no resume point,
+    // no resume card for either)
+    if (quietLoad || onAir()) {
+      // nothing to resume
+    } else if (
       !usingTranscode &&
       !restart &&
       prog &&
@@ -5520,6 +5575,11 @@ export const renderPlayer = async (root, { id }) => {
     // on a ladder hls.js does the stepping, both ways
     if (ladderAsked) return;
     if (!autoQuality || steppingDown || exited || capH === 480 || probing || seekLocked()) return;
+    // On AirPlay the TV fetches the film itself: this device's buffer and its
+    // line say nothing about it (and every switch below stands down there —
+    // which used to read as "the server can't spare an encode" and turned
+    // automatic quality off for the rest of the film)
+    if (onAir() || video.webkitCurrentPlaybackTargetIsWireless) return;
     steppingDown = true;
     try {
       let kbps;
@@ -5561,6 +5621,7 @@ export const renderPlayer = async (root, { id }) => {
         return;
       }
       reportMark("client_switch", { reason, to: `h264-${next}`, position: effTime() });
+      mark("step-down", { reason, to: next }); // (in a problem report's marks: what the stream became)
       track("feat", { f: `quality_stepdown_${next}` });
       showQualityPill(next, prev);
     } finally {
@@ -5600,7 +5661,7 @@ export const renderPlayer = async (root, { id }) => {
       // starving: with segments played as they arrive its buffer is short by
       // design in those seconds, and a step down here rebuilt the stream it
       // was about to show — the start has its own watch, see ladderWire)
-      if (ladderAsked || !autoQuality || video.paused || video.seeking || probing || steppingDown || holdEl || now < watchFrom || (hls && !firstFrameMarked)) {
+      if (ladderAsked || !autoQuality || video.paused || video.seeking || probing || steppingDown || holdEl || now < watchFrom || (hls && !firstFrameMarked) || onAir() || video.webkitCurrentPlaybackTargetIsWireless) {
         win.length = 0;
         thinSince = richSince = 0;
         return;
@@ -5618,7 +5679,19 @@ export const renderPlayer = async (root, { id }) => {
       // growing because there is nothing left to fetch — found by the browser
       // tests, 2026-10-08: every film ended on a 480p re-encode)
       const atEnd = Number.isFinite(video.duration) && end >= video.duration - 1.5;
-      const starving = capH !== 480 && !atEnd && ahead < 8 && fill < 0.9;
+      // NOT on an iPhone's native HLS (2026-10-26, Matan: "it still gets
+      // stuck"). This reading was made for hls.js, which keeps 45 s in hand
+      // (maxBufferLength): less than 8 s there is a line falling behind. Safari's
+      // own player decides its buffer for itself (how much: not measured on a
+      // real iPhone) and its edge moves a whole 6-second segment at a time, so
+      // "under 8 s and nothing arrived for 3 s" can be its ordinary rhythm on
+      // a good line — and the step-down it set off took the phone off the
+      // film's own picture (the jit copy, every seek native) onto a live
+      // 480p/720p encode, one encoder slot, segments made as fast as the
+      // encoder runs: the stream that stalls. There, a real stall decides
+      // (the "waiting" listener below), and only when a measurement of the
+      // line agrees it is thin.
+      const starving = capH !== 480 && !atEnd && ahead < 8 && fill < 0.9 && !(nativeHlsOnly && !hls);
       if (starving) {
         thinSince = thinSince || now;
         // two seconds of it — or at once when there is almost nothing left
@@ -5653,7 +5726,7 @@ export const renderPlayer = async (root, { id }) => {
     }, 1000);
   }
   video.addEventListener("waiting", () => {
-    if (!autoQuality || video.paused || probing) return;
+    if (!autoQuality || video.paused || probing || onAir() || video.webkitCurrentPlaybackTargetIsWireless) return;
     const left = excuseUntil - Date.now();
     if (left <= 0) return beginStall();
     // Still inside the grace period: look again when it ends. A start that
@@ -5850,8 +5923,10 @@ export const renderPlayer = async (root, { id }) => {
   //         the swarm's, and the overlay already says so), a watch party (the
   //         host's clock would yank everyone back), native HLS on an iPhone
   //         (reassigning src there throws the viewer out of fullscreen / PiP,
-  //         and AVPlayer retries by itself), and plain file playback — see
-  //         below. At most two rebuilds in five minutes.
+  //         and AVPlayer retries by itself — it gets its own ladder: a seek
+  //         where it stands at 20 s, the stream re-pointed at 45 s, the card
+  //         at 90 s; see the native kick below), and plain file playback —
+  //         see below. At most two rebuilds in five minutes.
   //  +45 s  the rebuilt stream never came back: the error card, with Try
   //         again at the same spot. Nothing further happens by itself.
   //
@@ -5867,6 +5942,7 @@ export const renderPlayer = async (root, { id }) => {
   const STALL_NUDGE_S = 6;
   const STALL_REBUILD_S = 20;
   const STALL_LEAVE_S = 90;
+  const STALL_REPOINT_S = 45; // native HLS: the same stream re-pointed (see the kick)
   const STALL_CARD_MS = 45000;
   const STALL_IDLE_MS = 8000;
   const STALL_NUDGE_EVERY_MS = 30000; // a stream that stutters is not nudged on every stutter
@@ -5876,7 +5952,7 @@ export const renderPlayer = async (root, { id }) => {
   let stLastCt = video.currentTime || 0;
   let stMoved = false; // this stream has really played
   let stStalled = 0; // seconds counted
-  let stStage = 0; // 0 watching · 1 nudged · 2 done with this stall
+  let stStage = 0; // 0 watching · 1 nudged · 2 done with this stall · 3 native: kicked · 4 native: re-pointed
   let stLastTick = Date.now();
   let stGraceUntil = 0;
   let stSeenUser = 0;
@@ -5980,7 +6056,9 @@ export const renderPlayer = async (root, { id }) => {
     // transcode still being made): not a stall this can do anything about
     if (isFinite(video.duration) && video.duration > 0 && ct >= video.duration - 1.5) return stReset();
     // waits that are already understood: paused, not forgotten
-    if (video.seeking || now < excuseUntil || now < stGraceUntil) return;
+    // (a native kick below is a seek that may hang where the stream hangs:
+    // from then on a seek in flight no longer pauses the count)
+    if ((video.seeking && stStage < 3) || now < excuseUntil || now < stGraceUntil) return;
 
     stStalled++;
 
@@ -6009,9 +6087,43 @@ export const renderPlayer = async (root, { id }) => {
       return;
     }
 
+    // NATIVE HLS (an iPhone): no hls.js to rebuild, and AVPlayer's loader is
+    // out of reach — but a seek is not. A seek to where it stands makes it
+    // drop what it waits on and ask again: a request hung on a connection
+    // that died (a far server, a Wi-Fi hand-over, a server restart), a
+    // segment the server never finished. On the AirPlay twin, the link may
+    // be what ended: a fresh one (js/airplay.js recover). Still frozen 25 s
+    // later: the same stream re-pointed at this spot (this may take the
+    // phone out of fullscreen — the film has been frozen for 45 s by then).
+    // At 90 s: the card, with Try again.
+    if (stStage === 3 && stStalled >= STALL_REPOINT_S) {
+      stStage = 4;
+      stNote("reload", ct);
+      spinner.classList.remove("hidden");
+      repoint(airSrc(video.getAttribute("src")), { mediaPos: ct, play: true });
+      return;
+    }
+    if (stStage === 4 && stStalled >= STALL_LEAVE_S) {
+      stStage = 2;
+      stNote("card", ct);
+      const src = video.getAttribute("src");
+      showErrorCard(
+        "The stream stopped and didn't come back by itself. Try again from the same spot, or go back.",
+        () => { if (!exited && !onAir()) repoint(airSrc(src), { mediaPos: ct, play: true }); },
+      );
+      return;
+    }
     if (stStage === 1 && stStalled >= STALL_REBUILD_S) {
       while (stRebuilds.length && now - stRebuilds[0] > STALL_BUDGET_MS) stRebuilds.shift();
       const swarmBound = isTorrent && !(serverLoaded != null && serverLoaded >= 0.99);
+      if (nativeHlsOnly && !hls && !swarmBound && !inParty() && video.getAttribute("src")) {
+        stStage = 3;
+        let did = "seek";
+        if (air && air.recover()) did = "link";
+        else { try { video.currentTime = Math.max(0, ct - 0.05); } catch {} }
+        stNote("kick", ct, { did });
+        return;
+      }
       const why =
         !hls || nativeHlsOnly || !stall.url ? "not-hls"
         : swarmBound ? "swarm"
@@ -6104,11 +6216,48 @@ export const renderPlayer = async (root, { id }) => {
     };
   }
 
+  // Seconds this device has really played of a COPY stream (jit, or an
+  // offset copy): the proof that it decodes the file's video as it is (see
+  // the "error" listener below).
+  let copyPlayed = 0;
+  let copyLastT = null;
+  video.addEventListener("timeupdate", () => {
+    const t = video.currentTime || 0;
+    if (copyLastT != null && usingTranscode && currentV === "copy" && !video.paused && !onAir()) {
+      const d = t - copyLastT;
+      if (d > 0 && d < 2) copyPlayed += d;
+    }
+    copyLastT = t;
+  });
+  // The same native stream again, where it stopped: at most three times in
+  // five minutes (then the escalation as before), each a moment later than
+  // the last. Returns false when that budget is spent.
+  const nativeRetries = [];
+  const nativeAgain = () => {
+    const now = Date.now();
+    while (nativeRetries.length && now - nativeRetries[0] > 5 * 60000) nativeRetries.shift();
+    const src = video.getAttribute("src");
+    if (nativeRetries.length >= 3 || !src || hls) return false;
+    nativeRetries.push(now);
+    const mediaPos = video.currentTime || 0;
+    const n = nativeRetries.length;
+    mark("media-error", { did: "again", n, at: Math.round(effTime()), played: Math.round(copyPlayed) });
+    spinner.classList.remove("hidden");
+    const gen = hlsGen;
+    setTimeout(() => {
+      if (exited || onAir() || gen !== hlsGen) return;
+      repoint(airSrc(src), { mediaPos, play: true });
+    }, 1000 * n);
+    return true;
+  };
   video.addEventListener("error", () => {
     // On AirPlay the error is the TV's: a fresh link, or a word on why
     // (js/airplay.js) — never this device's fallbacks below
     if (air && air.onError()) return;
     if (onAir()) return;
+    // the phone's own stream on its AirPlay twin: the link ended (expired,
+    // the server restarted) — a fresh one, same stream, same spot
+    if (air && air.recover()) return;
     // a file from this device: no server to convert it — say why, once
     if (item._local) return void localRefused("file");
     // A decode/format error on a direct torrent stream → try the transcode
@@ -6122,11 +6271,21 @@ export const renderPlayer = async (root, { id }) => {
     // 2026-08-26, with only the "codec unsupported" dead-end below). The
     // h264 encode is the one thing every device decodes: escalate to it
     // from the current position instead of giving up.
+    // …but a copy this device HAS been playing (half a minute of it, here)
+    // is not one it refuses. On an iPhone the element's error is also how a
+    // dropped connection, a segment the server was slow to make or a restart
+    // of the server can end — native HLS has no other way to say them, where
+    // hls.js reports them through its own events (startHls). Escalating
+    // those to the full encode put a far-away iPhone on a live encode for
+    // the rest of the film (and, on a busy server, back at 0:00 —
+    // fallbackToZero). That stream again, at this spot, a few times first.
+    if (nativeHlsOnly && usingTranscode && currentV === "copy" && copyPlayed >= 30 && nativeAgain()) return;
     if (usingTranscode && currentV === "copy" && !switchedToTranscode) {
       switchedToTranscode = true;
       copyRefused = true; // remember: no later "upgrade" may ping-pong back to copy
       toast("This device refused the fast path — re-encoding instead…", "⚙️");
       reportMark("client_switch", { reason: "media-error", to: "h264", position: effTime() });
+      mark("media-error", { did: "h264", played: Math.round(copyPlayed) });
       startTranscodeAt(effTime(), "h264", { fallbackToZero: true });
       return;
     }

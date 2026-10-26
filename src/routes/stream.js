@@ -823,10 +823,32 @@ const airQuery = (q) => {
   return parts.length ? `?${parts.join("&")}` : "";
 };
 const airLabel = (s) => String(s || "Subtitles").replace(/["\r\n]/g, "'").slice(0, 60);
-router.get("/stream/airplay/:id/master.m3u8", (req, res) => {
+// What the one variant IS — its picture size, frame rate and codecs — as the
+// ladder's own master says it of the same stream (media/ladder.js describe):
+// a receiver that is told there is a picture, and which, never has to guess
+// (one that cannot decode it refuses the variant — an error the player
+// answers with the H.264 encode — instead of playing the sound alone).
+// Whatever cannot be said for certain is left out, never guessed; a probe
+// that is slow to answer leaves it all out.
+const airVariant = async (entry, v) => {
+  if (v !== "copy" && v !== "h264") return null;
+  try {
+    const st = fs.statSync(entry.path);
+    const key = `${entry.id || ""}-${Math.floor(st.mtimeMs)}`;
+    const facts = await Promise.race([
+      ladder.probe(key, entry.path),
+      new Promise((r) => setTimeout(() => r(null), 3000)),
+    ]);
+    if (!facts) return null;
+    return ladder.describe({ facts, rate: null, top: v, lower: false, anyRate: true })[0] || null;
+  } catch {
+    return null;
+  }
+};
+router.get("/stream/airplay/:id/master.m3u8", async (req, res) => {
   const found = airItem(req.params.id);
   if (!found) return res.status(404).send("Not found");
-  const { item } = found;
+  const { entry, item } = found;
   const subs = Array.isArray(item.subtitles) ? item.subtitles.slice(0, 40) : [];
   const def = parseInt(req.query.sub, 10);
   // BANDWIDTH is required on a variant: the file's own rate (the copy) or
@@ -835,6 +857,7 @@ router.get("/stream/airplay/:id/master.m3u8", (req, res) => {
   const v = ladder.renditionFromQuery(req.query.v);
   const fileBps = item.sizeBytes && item.duration ? (item.sizeBytes * 8) / item.duration : 0;
   const bandwidth = Math.ceil(v === "copy" && fileBps > 0 ? fileBps * 1.25 + 192000 : 12000000);
+  const rung = await airVariant({ ...entry, id: req.params.id }, v);
   const lines = ["#EXTM3U", "#EXT-X-VERSION:7", "#EXT-X-INDEPENDENT-SEGMENTS"];
   subs.forEach((s, i) => {
     // LANGUAGE from the track's language (media/subnames.js: ISO 639-1, or
@@ -842,7 +865,15 @@ router.get("/stream/airplay/:id/master.m3u8", (req, res) => {
     const lang = /^[a-z]{2,3}$/i.test(String(s.lang || "")) ? `,LANGUAGE="${String(s.lang).toLowerCase()}"` : "";
     lines.push(`#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="${airLabel(s.label)}"${lang},DEFAULT=${i === def ? "YES" : "NO"},AUTOSELECT=YES,FORCED=NO,URI="sub/${i}.m3u8"`);
   });
-  lines.push(`#EXT-X-STREAM-INF:BANDWIDTH=${bandwidth}${subs.length ? ',SUBTITLES="subs"' : ""}`);
+  const attrs = [`BANDWIDTH=${bandwidth}`];
+  if (rung && rung.w > 0 && rung.h > 0) attrs.push(`RESOLUTION=${rung.w}x${rung.h}`);
+  if (rung && rung.fps > 0) attrs.push(`FRAME-RATE=${rung.fps.toFixed(3)}`);
+  // (the hvc1 tag is what the copy carries when the player asked for it —
+  // every HEVC title it sends here does; without it the string would be a lie)
+  const hevcUntagged = rung && /^hvc1\./.test(rung.codecs || "") && req.query.vtag !== "hvc1";
+  if (rung && rung.codecs && !hevcUntagged) attrs.push(`CODECS="${rung.codecs}"`);
+  if (subs.length) attrs.push('SUBTITLES="subs"');
+  lines.push(`#EXT-X-STREAM-INF:${attrs.join(",")}`);
   // relative: under /air/<token>/stream/airplay/<id>/ this is
   // /air/<token>/stream/transcode/<id>/jit/index.m3u8 — the token rides along
   lines.push(`../../transcode/${encodeURIComponent(req.params.id)}/jit/index.m3u8${airQuery(req.query)}`);
