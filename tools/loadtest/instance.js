@@ -235,10 +235,12 @@ const genMedia = ({ films = 300, log = () => {} } = {}) => {
 // the OS page cache is shared, so disk reads are flattered: see the report),
 // two subtitle sidecars per title, plus small films and shows for browsing.
 const CAP_SECS = 1800;
-// v2: the H.264 masters in High profile, level 4.1, as every H.264 file of the house
-// library is (v1's were Main 4.0, which the card's decoder refuses with the ladder's
-// -extra_hw_frames 4 — CUDA_ERROR_INVALID_VALUE — so their encodes fell back to the CPU)
-const CAP_VERSION = 2;
+// v3: the H.264 masters made by x264 (High 4.1), as the house library's H.264 files
+// are. v1/v2 made them with the card's own encoder, whose streams the card's DECODER
+// refuses under the ladder's -extra_hw_frames 4 (CUDA_ERROR_INVALID_VALUE): their
+// encodes fell back to the CPU — a property of those generated files; the house's
+// H.264 files decode on the card with the same arguments (REPORT.md).
+const CAP_VERSION = 3;
 const CAP_COPIES = 8;
 const CAP_MASTERS = [
   // direct play everywhere
@@ -281,14 +283,14 @@ const genMediaCap = ({ films = 300, log = () => {} } = {}) => {
     // (noise keeps the picture from compressing below the target rate)
     const hw = m.codec === "hevc"
       ? ["-vf", `noise=alls=12:allf=t,format=${m.tenBit ? "p010le" : "yuv420p"}`, "-c:v", "hevc_nvenc", ...(m.tenBit ? ["-profile:v", "main10"] : []), "-rc", "cbr", ...rate, "-g", String(gop)]
-      : ["-vf", "noise=alls=12:allf=t,format=yuv420p", "-c:v", "h264_nvenc", "-profile:v", "high", "-level", "4.1", "-rc", "cbr", ...rate, "-g", String(gop)];
+      : ["-vf", "noise=alls=12:allf=t,format=yuv420p", "-c:v", "libx264", "-preset", "veryfast", "-profile:v", "high", "-level", "4.1", ...rate, "-g", String(gop)];
     const sw = m.codec === "hevc"
       ? ["-vf", `noise=alls=12:allf=t,format=${m.tenBit ? "yuv420p10le" : "yuv420p"}`, "-c:v", "libx265", "-preset", "ultrafast", ...rate, "-x265-params", `keyint=${gop}:min-keyint=${gop}:log-level=error`]
       : ["-vf", "noise=alls=12:allf=t,format=yuv420p", "-c:v", "libx264", "-preset", "ultrafast", "-profile:v", "high", "-level", "4.1", ...rate, "-g", String(gop)];
     // an unchanged master of an earlier version is reused (hard link), not made again
-    const prev = path.join(WORK, `media-cap-v${CAP_VERSION - 1}-${films}`, "masters", `${m.key}.${m.ext}`);
+    const prev = [1, 2].map((v) => path.join(WORK, `media-cap-v${v}-${films}`, "masters", `${m.key}.${m.ext}`)).find((p) => fs.existsSync(p));
     let err = null;
-    if (m.codec !== "h264" && fs.existsSync(prev)) { try { fs.linkSync(prev, out); } catch { fs.copyFileSync(prev, out); } }
+    if (m.codec !== "h264" && prev) { try { fs.linkSync(prev, out); } catch { fs.copyFileSync(prev, out); } }
     else err = ff([...src, ...hw, ...tail]);
     if (err) { log(`[lt] (no graphics-card encoder for ${m.key}: software instead)`); const e2 = ff([...src, ...sw, ...tail]); if (e2) throw new Error(`ffmpeg: ${e2}`); }
     fs.writeFileSync(path.join(masters, `${m.key}.en.srt`), srtText(CAP_SECS, "en"));
