@@ -40,6 +40,13 @@ const FEATURES = [
     go: { label: "Open Movies", to: "#/movies" },
   },
   {
+    since: ROUND, cue: "hold", glyph: "🔎",
+    title: "Search that doesn't give up",
+    what: "When the catalogue is slow, search keeps the matches from your library on screen, says Still searching… and tries again by itself, so a film is no longer “not found” only because the answer came late. If the catalogue can't be reached, it says so, with Try again.",
+    how: "Nothing to do. Aurora also stopped calling a good connection slow while it opens; it tells you only when a film has to start at a lower quality.",
+    go: { label: "Open Search", to: "#/search" },
+  },
+  {
     webOnly: true, since: ROUND, cue: "tap", glyph: "📺",
     title: "AirPlay from an iPhone, fixed",
     what: "Sending a film from an iPhone to an Apple TV brings the picture along, not only the sound, and on a slow line the iPhone recovers where it is instead of dropping to a blurry copy or starting over.",

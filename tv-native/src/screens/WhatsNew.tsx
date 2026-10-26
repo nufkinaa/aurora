@@ -51,6 +51,14 @@ export const FEATURES: Feature[] = [
     how: 'Open a film that is still in cinemas: the line sits under its button, which reads ≡ Sources, and the sources there carry the mark.',
     go: {label: 'Open Movies', act: 'movies'},
   },
+  {
+    since: ROUND,
+    glyph: '🔎',
+    title: "Search that doesn't give up",
+    what: "When the catalogue is slow, search keeps the matches from your library on screen, says Still searching… and tries again by itself, so a film is no longer “not found” only because the answer came late. If the catalogue can't be reached, it says so, with Try again.",
+    how: 'Nothing to do. When the catalogue did not answer, Try again sits right above the results.',
+    go: {label: 'Open Search', act: 'search'},
+  },
   // ---- end of the reports round ----
   // ---- the TV round (2026-10-19/20): the same cards, the same words, on the website ----
   {
