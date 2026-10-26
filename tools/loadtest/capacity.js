@@ -333,6 +333,11 @@ const main = async () => {
 
   const machine = machineSampler();
   const gpu = gpuSampler(2000);
+  // what the rest of the PC is doing before anything of this run exists (other programs share it)
+  const tIdle = Date.now();
+  await sleep((Number(a["idle-s"]) || 30) * 1000);
+  const pcBefore = { ...machine.summary(tIdle), gpu: gpu.summary(tIdle) };
+  say(`the PC before the run: CPU ${pcBefore.cpuPctMean} % (p95 ${pcBefore.cpuPctP95}), free RAM ${pcBefore.freeMbMin} MB, GPU encoder sessions ${pcBefore.gpu ? pcBefore.gpu.sessionsMax : "?"}`);
   const media = genMediaCap({ log: say });
   // torrents: hard links of one house-like release (HEVC + AAC in MKV) under their own names
   let sw = null;
@@ -368,7 +373,7 @@ const main = async () => {
   ctx.link = link === "off" ? null : Object.fromEntries(link.split(",").map((x) => x.split("=")).map(([k, v]) => [k, Number(v)]));
   const crowd = new Crowd(ctx, srv, { seekMin });
   const result = { meta: { at: new Date().toISOString(), mix, note: MIX_NOTE[mix], cycle: MIXES[mix], steps, stepMin, warm, downloads: { k: nDl, mbsEach: 4 }, seekMin, rule: RULE,
-    link: link,
+    link: link, pcBefore,
     host: { cpus: os.cpus().length, cpu: os.cpus()[0].model, memGb: Math.round(os.totalmem() / 1073741824), platform: process.platform, node: process.version },
     ref: srv.ref, head: srv.head, dirty: srv.dirty, args: a }, steps: [] };
   try {
