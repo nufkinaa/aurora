@@ -14,10 +14,12 @@ export type Overlay =
   | {kind: 'trailer'; ids: string[]; title: string; imdbId?: string | null; type: 'movie' | 'show'; year?: number | null}
   | {kind: 'actions'; title: string; sub?: string; items: ActionItem[]}
   | {kind: 'xray'; query: XrayQuery; title: string; onClose?: () => void}
+  | {kind: 'replace'; libraryId: string; title: string; context?: Record<string, unknown>; onClose?: () => void}
   | null;
 
 // One row of the actions sheet (an episode's long-press menu).
-export type ActionItem = {label: string; tag?: string; danger?: boolean; onPress: () => void};
+// (uiId: [analytics] which control the row is — "actions.pick" when absent)
+export type ActionItem = {label: string; tag?: string; danger?: boolean; uiId?: string; onPress: () => void};
 
 let current: Overlay = null;
 const subs = new Set<(o: Overlay) => void>();
@@ -51,6 +53,10 @@ export const openUpdate = (info: UpdateInfo) => openOverlay({kind: 'update', inf
 export const openUpdateReady = (info: UpdateInfo) => openOverlay({kind: 'updateReady', info});
 export const openActions = (o: {title: string; sub?: string; items: ActionItem[]}) => openOverlay({kind: 'actions', ...o});
 export const openXray = (o: {query: XrayQuery; title: string; onClose?: () => void}) => openOverlay({kind: 'xray', ...o});
+// "Problem with this copy? → Get another version" for one library copy (a
+// film, or one episode) — components/ReplaceSheet.tsx.
+export const openReplace = (o: {libraryId: string; title: string; context?: Record<string, unknown>; onClose?: () => void}) =>
+  openOverlay({kind: 'replace', ...o});
 
 export const useOverlay = () => {
   const [o, setO] = useState<Overlay>(current);

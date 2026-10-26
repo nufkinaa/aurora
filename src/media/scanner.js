@@ -18,6 +18,7 @@ const sublang = require("./sublang");
 const subaudio = require("./subaudio");
 const online = require("./online");
 const scanwalk = require("./scanwalk");
+const idpins = require("./idpins");
 const scanworkerLib = require("../lib/lazy")(require, "./scanworker");
 const statsnap = require("../lib/statsnap");
 
@@ -89,8 +90,12 @@ const relTo = (from, to) => {
 };
 
 const byPath = new Map(); // absPath -> id (the downloads queue asks "what did my file become?")
+// A replaced file keeps the id of the file it replaced (media/idpins.js):
+// the pins in force for the build that is running, by normalised path.
+let pinsNow = null;
 const register = (kind, absPath, relPath) => {
-  const id = makeId(kind, relPath);
+  const pinned = kind === "video" && pinsNow && pinsNow.size ? pinsNow.get(idpins.norm(absPath)) : null;
+  const id = pinned || makeId(kind, relPath);
   registry.set(id, { path: absPath, kind });
   byPath.set(absPath, id);
   return id;
@@ -956,6 +961,7 @@ const storeRevs = () => {
   try { s += `|${sublang.rev()}`; } catch {}
   try { s += `|${subaudio.rev()}`; } catch {}
   try { s += `|${online.rev()}`; } catch {}
+  try { s += `|${idpins.rev()}`; } catch {}
   return s;
 };
 const walkOpts = (skipUnchanged) => ({
@@ -983,6 +989,7 @@ const build = (snap) => {
   siblingVideos.clear();
   const lookup = snapLookup(snap);
   building = { snap, lists: new Map(), lookup };
+  try { pinsNow = idpins.active(lookup); } catch { pinsNow = null; }
   try {
     return statsnap.within(lookup, () => {
       const movies = scanMovies();
@@ -991,6 +998,7 @@ const build = (snap) => {
     });
   } finally {
     building = null;
+    pinsNow = null;
   }
 };
 const hashOf = (next) => crypto.createHash("sha1").update(JSON.stringify(next)).digest("base64");

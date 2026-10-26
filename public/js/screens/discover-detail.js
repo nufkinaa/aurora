@@ -54,6 +54,7 @@ import { pickOfflineQuality } from "../offlinePicker.js";
 import { onMessage } from "../ws.js";
 import { attachHold } from "../peek.js";
 import * as narrator from "../narrator.js";
+import { copyProblemButton, canOfferReplace } from "../replaceCopy.js";
 
 // "My List" toggle for a streamable (Discover) title — stores a stream ref.
 import * as surprise from "../surprise.js";
@@ -806,6 +807,17 @@ const ownedRow = ({ id, label, onDownload, item }) =>
     }),
   );
 
+// The copy you own, and — for an episode (`owned.replace`) — the way to swap
+// a bad one for another version ("Problem with this copy?", js/replaceCopy.js).
+const ownedRows = (owned) => {
+  if (!owned) return [];
+  const rows = [ownedRow(owned)];
+  if (owned.replace && canOfferReplace()) {
+    rows.push(el("div", { class: "copy-problem-line" }, copyProblemButton({ libraryId: owned.id, title: owned.replace.title, ui: "detail.episode.replace", className: "in-sources" })));
+  }
+  return rows;
+};
+
 // Render a sources list into a host element (with loading + empty states)
 // `owned` (optional) is the library copy of exactly this title/episode —
 // `{ id, label }` — which gets its own row above every torrent.
@@ -836,7 +848,7 @@ const loadSources = async (
     // The copy on disk is offered whatever the swarm says: a provider that is
     // down or a title nobody seeds must never hide the file we already have.
     const bailEmpty = (what) => {
-      if (owned) host.append(ownedRow(owned));
+      host.append(...ownedRows(owned));
       host.append(
         el(
           "div",
@@ -966,7 +978,7 @@ const loadSources = async (
     // No paragraph of advice and no "save it, then watch it" panel any more:
     // the copy you own (when there is one), the quality filter, the list.
     host.append(
-      ...(owned ? [ownedRow(owned)] : []),
+      ...ownedRows(owned),
       buildFilterBar(streams, renderList),
       listHost,
     );
@@ -975,7 +987,7 @@ const loadSources = async (
   } catch {
     host.innerHTML = "";
     // the copy you own stays playable when the provider is down
-    if (owned) host.append(ownedRow(owned));
+    host.append(...ownedRows(owned));
     host.append(
       el(
         "div",
@@ -1791,6 +1803,12 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       serverInfo: serverInfoFor(),
     }),
   );
+  // A film you own with a bad copy (burned-in subtitles, a wrong dub…):
+  // "Problem with this copy? → Get another version" — no admin needed
+  // (js/replaceCopy.js; the server's rules are src/media/replace.js).
+  if (!isShow && lib && imdbId && canSource && canOfferReplace()) {
+    screen.append(el("div", { class: "copy-problem-line page-pad" }, copyProblemButton({ libraryId: lib.id, title: view.title })));
+  }
   if (keepY) restoreScrollY(keepY);
 
   // Who is in it and who made it, each name a press away from that person's
@@ -2089,6 +2107,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
               id: row.local.id,
               item: { ...row.local, showTitle: view.title, showId: lib && lib.id, season: row.season, episode: row.episode, title: row.title || row.local.title, cover: row.local.cover || view.cover },
               label: `${view.title} · S${row.season} E${row.episode} — in your library`,
+              replace: { title: `${view.title} · S${row.season} E${row.episode}` },
               onDownload: row.local.downloadUrl
                 ? () =>
                     openDownload(

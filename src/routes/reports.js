@@ -23,17 +23,17 @@ const adminOnly = (req, res, next) => {
 
 const clean = (v, n) => String(v == null ? "" : v).trim().slice(0, n);
 
-router.post("/api/reports", (req, res) => {
-  const b = req.body || {};
-  const text = clean(b.text, 2000);
-  if (!text) return res.status(400).json({ error: "say what went wrong" });
-  const ctx = b.context && typeof b.context === "object" ? b.context : {};
+// File one report. `extra` is what a feature adds to it (a "Get another
+// version" request carries `replace`: media/replace.js); `quiet` skips the
+// admin's phone (the feature has told them already).
+const add = ({ text, profile = null, context = {}, ip = null, extra = null, quiet = false }) => {
+  const ctx = context && typeof context === "object" ? context : {};
   const report = {
     id: crypto.randomBytes(6).toString("hex"),
     at: Date.now(),
     status: "open",
-    text,
-    profile: clean(b.profile, 40) || null,
+    text: clean(text, 2000),
+    profile: clean(profile, 40) || null,
     context: {
       route: clean(ctx.route, 200),
       title: clean(ctx.title, 200) || null,
@@ -50,19 +50,31 @@ router.post("/api/reports", (req, res) => {
         .map((m) => ({ name: clean(m && m.name, 32), ms: Math.max(0, parseInt(m && m.ms, 10) || 0), path: clean(m && m.path, 24) || undefined }))
         .filter((m) => m.name),
     },
-    ip: realtime.clientIp(req), // (req.ip is the reverse proxy itself behind one)
+    ip, // (req.ip is the reverse proxy itself behind one)
+    ...(extra && typeof extra === "object" ? extra : {}),
   };
   store.data.reports.unshift(report);
   if (store.data.reports.length > MAX) store.data.reports.length = MAX;
   store.save();
-  console.log(`[report] ${report.profile || "someone"} on ${report.context.route}: ${text.slice(0, 120)}`);
-  notify.send("Aurora: problem reported", `${report.profile || "Someone"}: ${text.slice(0, 200)}${report.context.title ? ` (${report.context.title})` : ""}`);
+  console.log(`[report] ${report.profile || "someone"} on ${report.context.route}: ${report.text.slice(0, 120)}`);
+  if (!quiet) notify.send("Aurora: problem reported", `${report.profile || "Someone"}: ${report.text.slice(0, 200)}${report.context.title ? ` (${report.context.title})` : ""}`);
   realtime.broadcastAdmins({ type: "report_new", report: { id: report.id, at: report.at, profile: report.profile, text: report.text.slice(0, 200), route: report.context.route } });
+  return report;
+};
+
+router.post("/api/reports", (req, res) => {
+  const b = req.body || {};
+  const text = clean(b.text, 2000);
+  if (!text) return res.status(400).json({ error: "say what went wrong" });
+  const report = add({ text, profile: b.profile, context: b.context, ip: realtime.clientIp(req) });
   res.json({ ok: true, id: report.id });
 });
 
 router.get("/api/admin/reports", adminOnly, (req, res) => {
-  res.json({ reports: store.data.reports });
+  // a "Get another version" report says where its replacement stands now
+  let replaced = null;
+  try { replaced = require("../media/replace").statusById(); } catch {}
+  res.json({ reports: replaced ? store.data.reports.map((r) => (r.replace && replaced.has(r.replace.id) ? { ...r, replace: { ...r.replace, ...replaced.get(r.replace.id) } } : r)) : store.data.reports });
 });
 router.post("/api/admin/reports/:id/status", adminOnly, (req, res) => {
   const r = store.data.reports.find((x) => x.id === req.params.id);
@@ -83,3 +95,4 @@ const openCount = () => store.data.reports.filter((r) => r.status === "open").le
 
 module.exports = router;
 module.exports.openCount = openCount;
+module.exports.add = add;

@@ -60,9 +60,10 @@ const nextEpisode = (meta, season, episode) => {
 
 // The source to fetch: same quality as what's playing when there is one,
 // never CAM/dubbed, the ranked list's order otherwise (it is sorted by
-// value already, ★ BEST first among them).
+// value already, ★ BEST first among them). Never a release somebody here
+// reported bad ("Get another version": media/badreleases.js).
 const pickSource = (streams, quality) => {
-  const ok = (streams || []).filter((s) => !s.cam && !s.dubbed && s.infoHash);
+  const ok = (streams || []).filter((s) => !s.cam && !s.dubbed && !s.badHere && s.infoHash);
   if (!ok.length) return null;
   return (quality && ok.find((s) => s.quality === quality)) || ok.find((s) => s.recommended) || ok[0];
 };

@@ -24,6 +24,7 @@ module.exports = {
   "detail.episode.download": "w",
   "detail.episode.offline": "w",
   "detail.episode.play": "wt",
+  "detail.episode.replace": "wt",
   "detail.episode.playontv": "w", // [phone-remote]
   "detail.episode.watched": "w",
   "detail.follow": "wt",
@@ -32,6 +33,7 @@ module.exports = {
   "detail.offline.season": "w",
   "detail.offline.seasonall": "w",
   "detail.play": "wt",
+  "detail.replace": "wt",
   "detail.playontv": "w", // [phone-remote]
   "detail.restart": "wt",
   "detail.rollagain": "w",
@@ -122,6 +124,7 @@ module.exports = {
   "player.playpause": "wt",
   "player.playontv": "w", // [phone-remote]
   "player.quality.pick": "w",
+  "player.replace": "wt",
   "player.retry": "wt",
   "player.scrub": "wt",
   "player.seek.back": "wt",
@@ -179,6 +182,10 @@ module.exports = {
   "remote.volume": "w",
   // report
   "report.send": "wt",
+  // replace ("Problem with this copy? → Get another version")
+  "replace.cancel": "wt",
+  "replace.pick": "wt",
+  "replace.reason": "wt",
   // row
   "row.arrow": "w",
   // saved

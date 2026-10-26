@@ -1178,6 +1178,13 @@
         </table></div>
       </section>
       <section>
+        <h2>Replaced copies <span class="note">"Problem with this copy? → Get another version": who replaced what, why, and how it went (the old copy stays until the new one lands; a cancel leaves it as it was)</span></h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>When</th><th>Who</th><th>Title</th><th>Why</th><th>Old → new</th><th>Status</th></tr></thead>
+          <tbody id="replacements"></tbody>
+        </table></div>
+      </section>
+      <section>
         <h2>Requests <span class="note">titles people asked for from the app</span></h2>
         <div class="table-scroll"><table>
           <thead><tr><th>When</th><th>Type</th><th>Title</th><th>From</th><th>Status</th><th></th></tr></thead>
@@ -2173,6 +2180,15 @@
             <span class="m">${esc(j.quality || "")}${j.sizeBytes ? ` · ${fmtBytes(j.sizeBytes)}` : ""} · asked ${esc(whenAgo(j.at))}${j.doneAt ? ` · finished ${esc(whenAgo(j.doneAt))}` : ""}</span>
           </div>`).join("")
         : `<div class="empty-note" style="padding:6px 0">Hasn't asked for a download.</div>`;
+      // the copies this person replaced ("Get another version")
+      const replaced = (p.replaced || []).length
+        ? `<div><h4>${ICO.download} Replaced copies ${count(`· ${p.replaced.length}`)}</h4><div class="plist">${p.replaced.map((e) => `
+          <div class="pitem">
+            <span class="t" title="${esc(e.display || e.title || "")}">${esc(e.display || e.title || "—")}</span>
+            <span class="pill">${esc(replaceStatus(e))}</span>
+            <span class="m">${esc(e.reasonLabel || e.reason)}${e.note ? ` — ${esc(e.note)}` : ""} · ${esc(whenAgo(new Date(e.at).toISOString()))} · ${esc((e.old && (e.old.release || e.old.fileName)) || "?")} → ${esc((e.new && (e.new.release || e.new.provider)) || "?")}</span>
+          </div>`).join("")}</div></div>`
+        : "";
       const addr = p.access.length
         ? p.access.map((a) => `
           <div class="pitem"${a.banned ? ' style="opacity:0.6"' : ""}>
@@ -2220,6 +2236,7 @@
           ].map(([v, k]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join("")}</div>
           ${live}
           <div><h4>${ICO.download} Recent downloads ${p.downloadsTotal ? count(`· last ${Math.min(5, p.downloads.length)} of ${p.downloadsTotal}`) : ""}</h4><div class="plist">${dl}</div></div>
+          ${replaced}
           <div><h4>${ICO.pin} Devices &amp; addresses ${p.access.length ? count(`· last ${p.access.length} of ${p.ipCount} ${p.ipCount === 1 ? "address" : "addresses"}`) : ""}</h4><div class="plist">${addr}</div></div>
           <div><h4>${ICO.shield} Kids profile ${p.kids ? count("· on") : ""}</h4><div class="kids-admin">
             <div class="range-chips">${[["off", "Off"], ...((PEOPLE && PEOPLE.kidsAges) || [0, 7, 12, 16]).map((a) => [String(a), a === 0 ? "All ages" : a + "+"])]
@@ -3009,7 +3026,7 @@
           <tr class="${r.status === "closed" ? "muted" : ""}">
             <td class="muted" style="white-space:nowrap">${ago(new Date(r.at).toISOString())}</td>
             <td>${esc(r.profile || "—")}</td>
-            <td style="max-width:460px;min-width:240px"><div style="white-space:pre-wrap">${esc(r.text)}</div>
+            <td style="max-width:460px;min-width:240px"><div style="white-space:pre-wrap">${esc(r.text)}</div>${r.replace && r.replace.status ? `<div style="margin-top:4px"><span class="pill">another version: ${esc(r.replace.status)}</span></div>` : ""}
               <details style="margin-top:6px"><summary class="muted" style="cursor:pointer;font-size:0.8rem">context${r.context.errors && r.context.errors.length ? ` · ${r.context.errors.length} error${r.context.errors.length > 1 ? "s" : ""}` : ""}</summary>
                 <div class="muted" style="font-size:0.78rem;margin-top:4px;line-height:1.5">
                   ${esc(r.context.look || "")} · ${esc(r.context.viewport || "")} · v${esc(r.context.version || "?")}${r.context.online === false ? " · offline" : ""}${r.context.net ? ` · connection: ${esc(r.context.net)}` : ""}<br>
@@ -3026,6 +3043,25 @@
             </td>
           </tr>`).join("")
         : `<tr><td colspan="6" class="empty-note">Nothing reported. (Profile menu → Report a problem, or the player's gear menu.)</td></tr>`;
+    }
+    // ---------- replaced copies (media/replace.js) ----------
+    const REPLACE_PILL = { done: "", canceled: "", declined: "warn", failed: "warn", waiting: "warn" };
+    const replaceStatus = (e) => e.status === "downloading" ? `downloading ${Math.round((e.progress || 0) * 100)}%` : e.status === "waiting" ? "ready · old copy in use" : e.status;
+    async function loadReplacements() {
+      let data;
+      try { data = await json("/api/admin/replacements"); } catch { return; }
+      const items = data.replacements || [];
+      $("#replacements").innerHTML = items.length
+        ? items.map((e) => `
+          <tr class="${["canceled", "declined"].includes(e.status) ? "muted" : ""}">
+            <td class="muted" style="white-space:nowrap">${ago(new Date(e.at).toISOString())}</td>
+            <td>${esc(e.byName || e.by || "—")}</td>
+            <td>${esc(e.display || e.title || "—")}</td>
+            <td>${esc(e.reasonLabel || e.reason)}${e.note ? `<div class="muted" style="font-size:0.8rem">${esc(e.note)}</div>` : ""}</td>
+            <td style="max-width:420px;font-size:0.8rem"><span class="muted">${esc((e.old && (e.old.release || e.old.fileName)) || "?")}${e.old && e.old.quality ? ` · ${esc(e.old.quality)}` : ""}</span><br>→ ${esc((e.new && (e.new.release || e.new.provider)) || "?")}${e.new && e.new.quality ? ` · ${esc(e.new.quality)}` : ""}${e.new && e.new.sizeBytes ? ` · ${fmtBytes(e.new.sizeBytes)}` : ""}</td>
+            <td><span class="pill ${REPLACE_PILL[e.status] || ""}">${esc(replaceStatus(e))}</span>${e.error ? `<div class="muted" style="font-size:0.78rem">${esc(e.error)}</div>` : ""}</td>
+          </tr>`).join("")
+        : `<tr><td colspan="6" class="empty-note">No copy has been replaced. (A title page → "Problem with this copy?", or the player's menu.)</td></tr>`;
     }
     $("#reports").addEventListener("click", async (e) => {
       const st = e.target.closest("[data-report-status]");
@@ -3559,6 +3595,8 @@
     const phaseLabel = (j) => {
       // A My List download that gave way to the others (media/dlslots.js).
       if (j.held) return "on hold";
+      // "Get another version": finished, waiting for nobody to be playing the old copy
+      if (j.replaceWait) return "ready · old copy in use";
       if (j.status !== "downloading" || !j.phase || j.phase === "downloading") return j.status;
       if (j.phase === "copying" && j.copyProgress != null) {
         return `copying ${Math.round(j.copyProgress * 100)}%`;
@@ -3566,7 +3604,8 @@
       return j.phase;
     };
     // who started a download, after its name (elia 2026-10-11)
-    const byTag = (j) => j.by ? ` <span class="muted" style="font-size:0.8rem;font-weight:600">· by ${esc(j.by)}</span>` : "";
+    const byTag = (j) => (j.by ? ` <span class="muted" style="font-size:0.8rem;font-weight:600">· by ${esc(j.by)}</span>` : "") +
+      (j.replaces ? ` <span class="pill warn" title="Replaces the copy in the library when it lands">replaces · ${esc(j.replaces.reasonLabel || j.replaces.reason || "")}</span>` : "");
     async function loadDownloads() {
       const jobs = await json("/api/downloads");
       const pending = jobs.filter((j) => j.status === "pending");
@@ -4230,7 +4269,7 @@
       profiles: () => { loadPeople(); loadRemote(); },
       server: () => { loadServer(); loadMetrics(); loadHealth(); loadEncoding(); loadHealer(); loadTimeseries(); loadUpdateCheck(); loadTvApp(); },
       downloads: () => { loadDownloads(); loadDisk(); loadLibraryTree(); loadCopies(); loadLimits(); loadMyList(); },
-      moderation: () => { loadReports(); loadRequests(); loadIntros(); },
+      moderation: () => { loadReports(); loadReplacements(); loadRequests(); loadIntros(); },
       logs: () => loadLogs(),
       actions: () => { loadActions(); loadDataSafety(); loadBackups(); loadAlerts(); },
     };

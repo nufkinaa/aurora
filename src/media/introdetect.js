@@ -863,4 +863,13 @@ const coverage = () => {
   return { episodes, analyzed, intro, credits, chapters, fromDb, recaps, picture };
 };
 
-module.exports = { run, get, coverage, busy, fillEpisode, refreshFromDatabases, _internals: { fingerprint, fingerprintAsync, longestRun, consensus, fromChapters, similar, tightenStart, parseBlackdetect, snapToBlack, INVALID, FRAME, HOP, SR, ANALYSIS_V, analysisDue, noneRecord, NONE_RETRY_MS, mtimeOf, chooseCredits, cvDue, cvRecord, CV_V, CV_SURE, CV_ALONE, AGREE_S, cvAborts: () => cvAborts, mtimeMemoFor: (fn) => { mtimeMemo = new Map(); try { return fn(); } finally { mtimeMemo = null; } } } };
+// A file replaced under the same library id (media/replace.js): what was
+// measured on the old file is not the new one's — measured afresh.
+const forget = (episodeId) => {
+  if (!episodeId || !store.data[episodeId]) return false;
+  delete store.data[episodeId];
+  store.save();
+  return true;
+};
+
+module.exports = { run, get, forget, coverage, busy, fillEpisode, refreshFromDatabases, _internals: { fingerprint, fingerprintAsync, longestRun, consensus, fromChapters, similar, tightenStart, parseBlackdetect, snapToBlack, INVALID, FRAME, HOP, SR, ANALYSIS_V, analysisDue, noneRecord, NONE_RETRY_MS, mtimeOf, chooseCredits, cvDue, cvRecord, CV_V, CV_SURE, CV_ALONE, AGREE_S, cvAborts: () => cvAborts, mtimeMemoFor: (fn) => { mtimeMemo = new Map(); try { return fn(); } finally { mtimeMemo = null; } } } };

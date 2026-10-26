@@ -131,7 +131,8 @@ import {
   stallClockOn,
   upNextState,
 } from '../playerRules';
-import {openReport, overlayOpen} from '../overlay';
+import {openReplace, openReport, overlayOpen} from '../overlay';
+import {replaceOffered, WORDS as REPLACE_WORDS} from '../replaceLogic';
 import {onPersonPrefs, setPersonPref} from '../personSync';
 // [player-options] night mode, dialogue boost, the look of subtitles (2026-10-19)
 import {CueText, SubStylePreview, useAudioFx} from '../playerOptions';
@@ -549,6 +550,16 @@ export default function Player({
   }, [lowRam]);
   const {profileId} = useApp();
   const me = useMe(profileId);
+  // "Problem with this copy?" is not offered to a kids profile, nor while the
+  // admin has torrents switched off (the site's rule; replaceLogic.ts)
+  const [torrentsOff, setTorrentsOff] = useState(false);
+  useEffect(() => {
+    let live = true;
+    api.torrentsOff().then(off => live && setTorrentsOff(off));
+    return () => {
+      live = false;
+    };
+  }, []);
   const videoRef = useRef<VideoRef>(null);
   // The web's `exited` flag: every async continuation checks it before touching
   // the player, so a late fetch can't setState on a screen that is gone.
@@ -4494,6 +4505,28 @@ export default function Player({
               openReport(`In the player: ${activityLabel()} at ${fmt(curRef.current)}${usingTranscodeRef.current ? `, ${currentV.current}` : ', direct'}`);
             }}
           />
+          {/* "Problem with this copy? → Get another version" — the copy in the
+              library only (never a stream from a torrent). The film waits
+              while the sheet is up, as for a report; the copy keeps playing
+              until the new one has landed (the server swaps it then). */}
+          {replaceOffered({libraryId: itemRef.current?.id || id, isTorrent, kids: me?.kids, torrentsOff}) ? (
+            <MenuItem uiId="player.replace"
+              label={REPLACE_WORDS.entry}
+              sub={REPLACE_WORDS.entrySub}
+              onFocusChange={markZone('menu')}
+              onPress={() => {
+                setMenu(null);
+                if (!party.current) setPaused(true);
+                track('feat', {f: 'replace_player'});
+                const libId = itemRef.current?.id || id;
+                openReplace({
+                  libraryId: libId,
+                  title: activityLabel(),
+                  context: {title: activityLabel(), itemId: libId, position: Math.floor(curRef.current || 0)},
+                });
+              }}
+            />
+          ) : null}
           </ScrollView>
         </TVFocusGuideView>
       ) : null}

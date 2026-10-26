@@ -64,9 +64,13 @@ const describeBase = (job) => {
   switch (job.status) {
     case "done":
       return job.libraryId
-        ? { tone: "ok", head: "Ready to play", line: [when(job.doneAt), job.sizeBytes && fmtBytes(job.sizeBytes)].filter(Boolean).join(" · ") }
+        ? { tone: "ok", head: "Ready to play", line: [job.replaces ? `Replaced the old copy (${job.replaces.reasonLabel || "another version"})` : null, when(job.doneAt), job.sizeBytes && fmtBytes(job.sizeBytes)].filter(Boolean).join(" · ") }
         : { tone: "busy", head: "Finished", line: "Adding it to the library…", spin: true };
     case "downloading": {
+      // "Get another version": finished, and waiting to take over the copy
+      // somebody is playing right now (src/media/replace.js)
+      if (job.replaceWait)
+        return { tone: "wait", head: "Ready", line: "Waiting for nobody to be playing the old copy" };
       if (job.phase === "copying")
         return { tone: "busy", head: "Almost there", line: `Copying into the library · ${Math.round((job.copyProgress || 0) * 100)}%`, spin: true };
       if (job.phase === "finding" || job.phase === "starting" || !(job.progress > 0))
@@ -300,7 +304,7 @@ const row = (job, { others = false } = {}) => {
 // it, and only rows whose state actually changed are rebuilt.
 const rowCache = new Map(); // id -> { sig, node }
 const rowSig = (j, others) =>
-  [j.status, j.phase || "", j.libraryId || "", !!j.seenAt, j.error || "", j.holdReason || "", j.label || j.title, others, busy.has(j.id), j.held ? j.heldReason || "held" : "", j.auto || "", j.by || ""].join("|");
+  [j.status, j.phase || "", j.libraryId || "", !!j.seenAt, j.error || "", j.holdReason || "", j.label || j.title, others, busy.has(j.id), j.held ? j.heldReason || "held" : "", j.auto || "", j.by || "", !!j.replaceWait].join("|");
 const rowFor = (j, others) => {
   const sig = rowSig(j, others);
   const hit = rowCache.get(j.id);
@@ -476,7 +480,8 @@ export const renderDownloads = async (root) => {
     }
     const sameShape =
       prev && prev.status === job.status && (prev.phase || null) === (job.phase || null) &&
-      (prev.libraryId || null) === (job.libraryId || null) && !!prev.seenAt === !!job.seenAt && !!prev.held === !!job.held;
+      (prev.libraryId || null) === (job.libraryId || null) && !!prev.seenAt === !!job.seenAt && !!prev.held === !!job.held &&
+      !!prev.replaceWait === !!job.replaceWait;
     if (!(sameShape && patchRow(job))) paint();
   });
   return () => {

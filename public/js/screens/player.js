@@ -8,6 +8,7 @@ import { pushScope, popScope } from "../focus.js";
 import { reportActivity, onMessage } from "../ws.js";
 import { party, createParty, joinParty, leaveParty, sendPartyState, setPartyItem, onPartyState, onPartyUpdate, onPartyEnded, onPartyItem } from "../party.js";
 import { showReportSheet, setPlayingContext } from "../report.js";
+import { openReplaceSheet, canOfferReplace, COPY_PROBLEM, GET_ANOTHER } from "../replaceCopy.js";
 import * as offline from "../offline.js";
 import { localItem, localNext, localPosition, saveLocalPosition, sniffLocal } from "../localplay.js";
 import { failureSentence } from "../localsubs.js";
@@ -4215,6 +4216,14 @@ export const renderPlayer = async (root, { id }) => {
         // under Inbox → Skip-intro marks.)
         if (!item._local) {
           menu.append(menuTitle("info", "Help"));
+          // A bad copy of a library title (burned-in subtitles, a wrong dub…):
+          // another version swaps in once it has landed (js/replaceCopy.js).
+          if (!isTorrent && !item._offline && item.id && canOfferReplace()) {
+            menu.append(el("button", { "data-ui": "player.replace", class: "menu-item focusable", onclick: () => {
+              closeMenu();
+              openReplaceSheet({ libraryId: item.id, title: isEpisode ? `${item.showTitle} · S${item.season} E${item.episode}` : item.title });
+            } }, COPY_PROBLEM, el("span", { class: "tag" }, GET_ANOTHER)));
+          }
           menu.append(entry("Report a problem", "with this title", () => { closeMenu(); showReportSheet({ hint: "from the player" }); }));
         }
       };

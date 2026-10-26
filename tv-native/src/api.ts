@@ -598,7 +598,51 @@ export type MyDownload = DownloadJob & {
   // (server publicJobFor) — the home-screen row and the TV notification.
   showId?: string;
   epTitle?: string | null;
+  // "Get another version": the library copy this download
+  // replaces — when done, its libraryId IS that copy's id — and `replaceWait`:
+  // finished, waiting for nobody to be playing the old copy.
+  replaces?: {id: string; libraryId: string; reason: string; reasonLabel: string | null} | null;
+  replaceWait?: boolean;
 };
+
+// "Problem with this copy? → Get another version" (src/routes/replace.js).
+export type Replacement = {
+  id: string | null;
+  libraryId: string | null;
+  reason: string;
+  reasonLabel: string;
+  status: 'pending' | 'approved' | 'downloading' | string;
+  phase: string | null;
+  progress: number; // 0..1
+  waiting: boolean; // finished, waiting for nobody to be playing the old copy
+  jobId: string | null;
+  by: string | null; // who asked, by name
+  mine: boolean;
+  at: number | null;
+  quality: string | null;
+  sizeBytes: number;
+  release: string | null;
+};
+export type ReplaceCopy = {
+  infoHash: string | null;
+  release: string | null;
+  provider: string | null;
+  quality: string | null;
+  sizeBytes: number;
+  fileName: string;
+};
+export type ReplaceView = {
+  item: {id: string; type: 'movie' | 'episode'; title: string; display: string; season: number | null; episode: number | null; showId: string | null; imdbId: string | null};
+  current: ReplaceCopy;
+  active: Replacement | null;
+  can: boolean;
+  why: string | null;
+  code: string | null;
+  reasons: {id: string; label: string}[];
+};
+// A source of the same title, ranked by the server (the copy being replaced
+// left out); `badHere`: somebody here already replaced that release.
+export type ReplaceStream = Stream & {pack?: boolean; badHere?: {reason: string; label: string} | null};
 
 // A watch party as the server describes it (src/lib/party.js publicParty).
 export type PartyMember = {
@@ -718,7 +762,7 @@ class ApiError extends Error {
 // one. Small reads 45 s; the big lists (home, library, a catalogue page) and
 // the calls that think (the recommender, a source lookup, a search) 90 s;
 // writes 30 s.
-const BIG_PATHS = /^\/api\/(ai\/recommend|torrents\/sources|discover\/(search|catalog)|catalog|xray|home|library|browse)/;
+const BIG_PATHS = /^\/api\/(ai\/recommend|torrents\/sources|replace\/[^/?]+\/sources|discover\/(search|catalog)|catalog|xray|home|library|browse)/;
 export const requestLimitMs = (path: string, options: RequestInit = {}) => {
   if (BIG_PATHS.test(path)) return 90000;
   const m = String(options.method || 'GET').toUpperCase();
@@ -1731,6 +1775,21 @@ export const api = {
   // how it goes about once a second. A server from before these answers 404.
   subtitleResync: (body: ResyncBody) => post<ResyncAnswer>('/api/subtitles/resync', body),
   subtitleResyncStatus: (body: ResyncBody) => post<ResyncAnswer>('/api/subtitles/resync/status', body),
+  // "Problem with this copy? → Get another version": what the sheet needs,
+  // the title's other sources, ask for one, take it back. Errors carry the
+  // server's words and its `code` (kids, busy, provider, …) — ApiError.
+  replaceView: (libraryId: string, profileId: string) =>
+    request<ReplaceView>(`/api/replace/${encodeURIComponent(libraryId)}?profile=${encodeURIComponent(profileId)}`),
+  replaceSources: (libraryId: string, profileId: string) =>
+    request<{streams: ReplaceStream[]; current: ReplaceCopy}>(
+      `/api/replace/${encodeURIComponent(libraryId)}/sources?profile=${encodeURIComponent(profileId)}`,
+    ),
+  replaceRequest: (
+    libraryId: string,
+    body: {profile: string; reason: string; note?: string; source: {infoHash: string; fileIdx: number}; context?: Record<string, unknown>},
+  ) => post<{ok: boolean; replacement: Replacement; job: DownloadJob}>(`/api/replace/${encodeURIComponent(libraryId)}`, body),
+  replaceCancel: (libraryId: string, profileId: string) =>
+    post<{ok: boolean}>(`/api/replace/${encodeURIComponent(libraryId)}/cancel`, {profile: profileId}),
   report: (text: string, context: Record<string, unknown>, profile: string | null) =>
     post<{ok: boolean; id: string}>('/api/reports', {text, context, profile}),
   changelog: () =>

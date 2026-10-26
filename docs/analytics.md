@@ -137,14 +137,14 @@ A control is tagged where it is built:
 - website: `"data-ui": "detail.play"` on the element (one delegated click listener reads it; nothing is ever guessed from a control's text). A control that is not a click on an element — a keyboard shortcut, a tap zone — calls `uiHit("player.seek.fwd")`.
 - TV: `uiId="detail.play"` on a `Focusable`, `Btn` or `Chip` (and the small wrappers that pass it through). Without it nothing happens.
 
-The vocabulary (`src/lib/tel/controls-vocab.js`) — 208 ids: 155 on the website, 121 on the TV, 68 on both.
+The vocabulary (`src/lib/tel/controls-vocab.js`) — 229 ids: 168 on the website, 140 on the TV, 79 on both.
 
 | Area | Website only | TV app only | Both |
 |---|---|---|---|
 | actions | – | `actions.pick` | – |
 | browse | `browse.chip.pick` `browse.filter.clear` `browse.genre.open` `browse.loadmore` `browse.option.pick` `browse.sort.open` | `browse.retry` | `browse.category.pick` `browse.surprise` `browse.unwatched` |
 | card | `card.remove` | – | `card.open` |
-| detail | `detail.download.device` `detail.episode.download` `detail.episode.offline` `detail.episode.playontv` `detail.episode.watched` `detail.offline.season` `detail.offline.seasonall` `detail.offline` `detail.playontv` `detail.rollagain` `detail.save` `detail.season.open` `detail.sources.fold` `detail.sources.more` `detail.sources.retry` `detail.synopsis.more` `detail.trailer.close` `detail.trailer.pick` | `detail.season.pick` `detail.season.watched` `detail.similar` `detail.source.pick` | `detail.episode.play` `detail.follow` `detail.mylist` `detail.play` `detail.restart` `detail.source.download` `detail.source.play` `detail.sources` `detail.trailer` `detail.watched` `detail.xray` |
+| detail | `detail.download.device` `detail.episode.download` `detail.episode.offline` `detail.episode.playontv` `detail.episode.watched` `detail.offline.season` `detail.offline.seasonall` `detail.offline` `detail.playontv` `detail.rollagain` `detail.save` `detail.season.open` `detail.sources.fold` `detail.sources.more` `detail.sources.retry` `detail.synopsis.more` `detail.trailer.close` `detail.trailer.pick` | `detail.season.pick` `detail.season.watched` `detail.similar` `detail.source.pick` | `detail.episode.play` `detail.episode.replace` `detail.follow` `detail.mylist` `detail.play` `detail.replace` `detail.restart` `detail.source.download` `detail.source.play` `detail.sources` `detail.trailer` `detail.watched` `detail.xray` |
 | downloadpicker | `downloadpicker.confirm` | – | – |
 | downloads | `downloads.cancel` `downloads.open` `downloads.play` `downloads.remove` `downloads.retry` | `downloads.row` | – |
 | home | `home.hero.pick` | `home.hero.party` `home.switchprofile` | `home.hero.details` `home.hero.mute` `home.hero.play` `home.retry` |
@@ -155,10 +155,11 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 208 ids: 155 on the website
 | peek | `peek.close` `peek.playontv` `peek.remove` | – | `peek.details` `peek.mylist` `peek.play` |
 | pick | – | `pick.retry` `pick.unfold` | `pick.example` `pick.go` `pick.option` |
 | picker | – | `picker.open` `picker.pick` | – |
-| player | `player.airplay` `player.fullscreen` `player.pip` `player.playontv` `player.quality.pick` `player.subtitles.undo` | `player.autoplay` `player.back` `player.slowstart.lower` `player.slowstart.wait` `player.stall.lower` `player.stall.retry` | `player.audio.dialogue` `player.audio.night` `player.audio.pick` `player.mute` `player.next` `player.party` `player.party.start` `player.playpause` `player.retry` `player.scrub` `player.seek.back` `player.seek.fwd` `player.settings.open` `player.skipintro` `player.speed.open` `player.speed.pick` `player.startover` `player.stillwatching.done` `player.stillwatching.keep` `player.subtitles.open` `player.subtitles.pick` `player.subtitles.resync` `player.subtitles.style` `player.upnext.dismiss` `player.upnext.play` `player.xray` |
+| player | `player.airplay` `player.fullscreen` `player.pip` `player.playontv` `player.quality.pick` `player.subtitles.undo` | `player.autoplay` `player.back` `player.slowstart.lower` `player.slowstart.wait` `player.stall.lower` `player.stall.retry` | `player.audio.dialogue` `player.audio.night` `player.audio.pick` `player.mute` `player.next` `player.party` `player.party.start` `player.playpause` `player.replace` `player.retry` `player.scrub` `player.seek.back` `player.seek.fwd` `player.settings.open` `player.skipintro` `player.speed.open` `player.speed.pick` `player.startover` `player.stillwatching.done` `player.stillwatching.keep` `player.subtitles.open` `player.subtitles.pick` `player.subtitles.resync` `player.subtitles.style` `player.upnext.dismiss` `player.upnext.play` `player.xray` |
 | profile | `profile.add` `profile.gate.close` `profile.save` | `profile.pin.submit` | `profile.pick` `profile.unlock` |
 | rating | `rating.star` | – | – |
 | remote | `remote.audio` `remote.back` `remote.close` `remote.device.open` `remote.device.pick` `remote.dpad` `remote.home` `remote.more` `remote.mute` `remote.next` `remote.padmode` `remote.play` `remote.playpause` `remote.rename` `remote.seek` `remote.sheet.pick` `remote.skip` `remote.stop` `remote.subdelay` `remote.subtitles` `remote.view` `remote.volume` | – | – |
+| replace | – | – | `replace.cancel` `replace.pick` `replace.reason` |
 | report | – | – | `report.send` |
 | row | `row.arrow` | – | – |
 | saved | `saved.play` `saved.remove` | – | – |
