@@ -357,7 +357,10 @@ const main = async () => {
   // profiles: each gives one web and one TV session; viewers + browsers + idle at the largest step
   const profiles = Math.max(8, Math.ceil(nMax * 0.7) + 6);
   say(`starting ${a.ref || "HEAD"} (${profiles} profiles, media cap${hasTorrent ? ", torrents on a local swarm" : ""})`);
-  const srv = await start({ ref: a.ref, profiles, media: "cap", verbose: !!a.verbose, torrents: hasTorrent, network: false, config: { prewarmStreams: false, ...(a.config ? JSON.parse(a.config) : {}) } });
+  // libuv's thread pool (every async file call waits for one of its threads): the house server
+  // runs under scripts/keeper.js, which starts it with UV_THREADPOOL_SIZE 6 (lib/keeper.js); --uv to try others
+  const uv = String(a.uv || "6");
+  const srv = await start({ ref: a.ref, profiles, media: "cap", verbose: !!a.verbose, torrents: hasTorrent, network: false, env: { UV_THREADPOOL_SIZE: uv }, config: { prewarmStreams: false, ...(a.config ? JSON.parse(a.config) : {}) } });
   say(`up: ${srv.ref} at ${srv.url} in ${srv.upMs} ms (pid ${srv.pid})`);
   if (sw) {
     const dir = path.join(srv.dataDir, "cache", "torrents");
@@ -373,7 +376,7 @@ const main = async () => {
   ctx.link = link === "off" ? null : Object.fromEntries(link.split(",").map((x) => x.split("=")).map(([k, v]) => [k, Number(v)]));
   const crowd = new Crowd(ctx, srv, { seekMin });
   const result = { meta: { at: new Date().toISOString(), mix, note: MIX_NOTE[mix], cycle: MIXES[mix], steps, stepMin, warm, downloads: { k: nDl, mbsEach: 4 }, seekMin, rule: RULE,
-    link: link, pcBefore,
+    link: link, pcBefore, uvThreadpool: uv,
     host: { cpus: os.cpus().length, cpu: os.cpus()[0].model, memGb: Math.round(os.totalmem() / 1073741824), platform: process.platform, node: process.version },
     ref: srv.ref, head: srv.head, dirty: srv.dirty, args: a }, steps: [] };
   try {
