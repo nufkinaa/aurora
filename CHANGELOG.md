@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.10.1 — 2026-10-26
+
+- **Admin → Downloads → Suggest what to delete** now lists its suggestions with a tick box each (all ticked at first): poster, size and why it is suggested, episodes under their show with one box for the whole show, Select all / Select none, and a live "N items · X GB will be freed". Delete selected asks first and deletes only what is ticked; afterwards it says what was deleted and what was kept and why. A file someone is watching right now is shown greyed and can't be chosen. Works on a phone and with the keyboard.
+
 ## 1.10.0 — 2026-10-26
 
 **The reports round: a bad copy can be swapped, cinema copies stay out, AirPlay on iPhone, search that doesn't give up.**
