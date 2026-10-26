@@ -235,7 +235,10 @@ ui.test("nothing found: it says so, and what the house is watching sits under th
   const box = page.locator(BOX);
   await box.fill("zzqqxxyy");
   await box.press("Enter");
-  await page.waitForFunction(() => /zzqqxxyy/.test(document.querySelector("#app .screen .empty:not(.hidden)")?.innerText || ""));
+  // (this instance is offline: the catalogue cannot be asked, and the screen
+  // says THAT — never "No results" for a search that could not be made;
+  // search-net.test.js has the real "No results" from a catalogue that answered)
+  await page.waitForFunction(() => /Couldn't reach the catalogue — try again/.test(document.querySelector("#app .screen .empty:not(.hidden)")?.innerText || ""));
   await page.waitForSelector("#app .search-popular:not(.hidden) .card");
   assert.match(await page.textContent("#app .search-popular .row-title"), /Popular in this house/);
   assert.deepEqual(await results(page), []);

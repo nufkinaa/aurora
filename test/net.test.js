@@ -94,3 +94,77 @@ test("a video element's own download is never a measurement", async () => {
   assert.equal(sampleFrom(e), null);
   assert.equal(sampleFrom({ ...e, name: "http://x/img/a", initiatorType: "video" }), null);
 });
+
+// ---------- 2026-10-26: "almost always says I have a slow connection when I get in" ----------
+test("responses that arrived together are one reading: thirty posters at once are the line, not thirty slow lines", async () => {
+  const { bursts, BURST_MIN_BYTES } = await load();
+  // 30 posters of 40 kB, all in flight together over 960 ms on a 10 Mbit/s line:
+  // one at a time each reads 333 kbit/s — "slow" thirty times over
+  const posters = Array.from({ length: 30 }, (_, i) => ({ start: 100 + i * 2, end: 1000 + i * 2, bytes: 40000 }));
+  const one = (40000 * 8) / 900;
+  assert.ok(one < 400, "one poster alone reads as a very slow line");
+  const b = bursts(posters);
+  assert.equal(b.length, 1);
+  assert.equal(b[0].n, 30);
+  assert.ok(b[0].kbps > 9000 && b[0].kbps < 11000, String(b[0].kbps));
+  // two bursts apart are two readings
+  const later = posters.map((p) => ({ ...p, start: p.start + 5000, end: p.end + 5000 }));
+  assert.equal(bursts([...posters, ...later]).length, 2);
+  // too little to say anything about the line: no reading
+  assert.deepEqual(bursts([{ start: 0, end: 150, bytes: BURST_MIN_BYTES - 1 }]), []);
+  assert.deepEqual(bursts([{ start: 5, end: 5, bytes: 500000 }, null]), [], "nothing measurable");
+});
+
+test("the round trip leaves out the server's own time (Server-Timing)", async () => {
+  const { sampleFrom } = await load();
+  const e = { name: "http://x/img/ext?u=a", requestStart: 10, responseStart: 1410, responseEnd: 1420, transferSize: 3000, serverTiming: [{ name: "app", duration: 1350 }] };
+  assert.equal(sampleFrom(e).rtt, 50, "1.4 s of which 1.35 s the server fetching a poster from far away");
+  assert.equal(sampleFrom({ ...e, serverTiming: [] }).rtt, 1400, "no header: as measured");
+  assert.ok(sampleFrom({ ...e, serverTiming: [{ name: "app", duration: 5000 }] }).rtt >= 1, "never below a millisecond");
+});
+
+test("a measured slow line has to last: 20 s and three fresh readings, before Aurora goes lighter by itself", async () => {
+  const { sustain, SUSTAIN_MS, SUSTAIN_READINGS } = await load();
+  const slow = { tier: "slow", source: "measured", strong: true };
+  let st = { since: 0, seen: 0 };
+  let g = sustain(st, slow, "ok", 1000);
+  assert.equal(g.apply, false, "the first slow reading at page entry changes nothing");
+  st = g.st;
+  for (let i = 1; i < SUSTAIN_READINGS + 3; i++) {
+    g = sustain(st, slow, "ok", 1000 + i * 100);
+    st = g.st;
+  }
+  assert.equal(g.apply, false, "many readings within seconds are not 20 s of evidence");
+  g = sustain(st, slow, "ok", 1000 + SUSTAIN_MS, null);
+  assert.equal(g.apply, false, "time alone is not evidence: a fresh reading has to agree");
+  g = sustain(g.st, slow, "ok", 1000 + SUSTAIN_MS + 50, "kbps");
+  assert.equal(g.apply, true, "slow for 20 s, over several readings: now it is acted on");
+  // round trips are evidence for a latency verdict only
+  let lat = sustain({ since: 1, seen: 0 }, { tier: "slow", source: "latency", strong: false }, "ok", 1 + SUSTAIN_MS, "rtt");
+  assert.equal(lat.st.seen, 1);
+  lat = sustain({ since: 1, seen: 0 }, slow, "ok", 1 + SUSTAIN_MS, "rtt");
+  assert.equal(lat.st.seen, 0, "an API answer's round trip is not a throughput reading");
+  // a reading that is not slow starts it over
+  g = sustain({ since: 1000, seen: 2 }, { tier: "ok", source: "measured", strong: false }, "ok", 5000);
+  assert.deepEqual(g, { apply: true, st: { since: 0, seen: 0 } });
+});
+
+test("Data Saver, 2G, the person's own choice — and leaving slow — still count at once", async () => {
+  const { sustain } = await load();
+  const st = { since: 0, seen: 0 };
+  assert.equal(sustain(st, { tier: "slow", source: "data-saver", strong: true }, "ok", 1).apply, true);
+  assert.equal(sustain(st, { tier: "slow", source: "2g", strong: true }, "ok", 1).apply, true);
+  assert.equal(sustain(st, { tier: "slow", source: "preference", strong: true }, "fast", 1).apply, true);
+  assert.equal(sustain(st, { tier: "ok", source: "measured", strong: false }, "slow", 1).apply, true);
+  assert.equal(sustain(st, { tier: "slow", source: "measured", strong: true }, "slow", 1).apply, true, "already slow: nothing to wait for");
+});
+
+test("the viewer is told at most once a session, and not for a day after OK", async () => {
+  const { slowNoteAllowed, SLOW_NOTE_QUIET_MS } = await load();
+  const now = 1_000_000;
+  assert.equal(slowNoteAllowed(false, 0, now), true);
+  assert.equal(slowNoteAllowed(true, 0, now), false, "once a session");
+  assert.equal(slowNoteAllowed(false, now + SLOW_NOTE_QUIET_MS, now + 1000), false, "OK pressed: quiet for the day");
+  assert.equal(slowNoteAllowed(false, now + SLOW_NOTE_QUIET_MS, now + SLOW_NOTE_QUIET_MS + 1), true, "…and after it, again");
+  assert.equal(SLOW_NOTE_QUIET_MS, 24 * 3600 * 1000);
+});

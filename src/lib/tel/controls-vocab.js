@@ -195,7 +195,7 @@ module.exports = {
   // search
   "search.clear": "w",
   "search.recent.pick": "wt",
-  "search.retry": "w",
+  "search.retry": "wt",
   "search.suggestion.pick": "wt",
   "search.voice": "wt",
   "search.voice.lang": "wt",

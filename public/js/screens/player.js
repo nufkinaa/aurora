@@ -14,7 +14,7 @@ import { localItem, localNext, localPosition, saveLocalPosition, sniffLocal } fr
 import { failureSentence } from "../localsubs.js";
 import { track } from "../usage.js";
 import { uiHit, reportError, playMounted, playFirstFrame, playGone } from "../telemetry.js"; // [analytics]
-import { playCap, capFor, netTier, measured, probe, dataMode } from "../net.js";
+import { playCap, capFor, netTier, measured, probe, dataMode, slowNoteDue, slowNoteShown, slowNoteDismissed } from "../net.js";
 import { followVideo } from "../glassTone.js";
 import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio, langOf } from "../lang.js";
 import { savedDelay, saveDelay } from "../subdelay.js";
@@ -2211,6 +2211,15 @@ export const renderPlayer = async (root, { id }) => {
       : needA ? "copy" : item.transcodeV;
   }
 
+  // The one time the viewer hears about the line: it changed what they
+  // watch. Automatic only (Data saver is their own choice), once a session,
+  // and not for a day after OK (net.js slowNoteDue).
+  const tellSlowLine = (h) => {
+    if (dataMode() !== "auto" || !slowNoteDue()) return;
+    slowNoteShown();
+    toast(`Slow connection — playing at ${h}p so it doesn't stop. Settings → More settings → Internet changes that.`, "📶",
+      { label: "OK", onClick: slowNoteDismissed });
+  };
   // A slow line: try the capped stream first. The request below is the same
   // claim a seek makes; if the server can't do it (no ffmpeg, both encode
   // slots taken) the cap is dropped and the title plays the way it always did.
@@ -2229,6 +2238,7 @@ export const renderPlayer = async (root, { id }) => {
       mark("decision", { why: `slow line (${netTier()}) → ladder from ${want}p` });
       cappedStart = true;
       track("feat", { f: `quality_auto_${want}` });
+      tellSlowLine(want);
     } else if (!ok) capH = want;
   }
   if (capH && !cappedStart) {
@@ -2249,6 +2259,7 @@ export const renderPlayer = async (root, { id }) => {
         cappedStart = true;
         bootCapped = true;
         track("feat", { f: `quality_auto_${capH}` });
+        tellSlowLine(capH);
       }
     } catch {}
     clearTimeout(giveUp);

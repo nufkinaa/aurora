@@ -39,6 +39,11 @@ const PAGE_ASK = { deadlineMs: PAGE_WAIT_MS, ttlMs: 10 * 60 * 1000 };
 let fetchJsonImpl = null; // (tests stand in for the network here)
 const fetchJson = (url, opts) => (fetchJsonImpl ? fetchJsonImpl(url, opts) : upstream.json(url, { headers: UA, timeoutMs: 12000, ...(opts || {}) }));
 const ask = (waiting) => (waiting ? PAGE_ASK : undefined);
+// A search is often slower than the page waits while the host is fine: past
+// the deadline it is not a strike against the host (lib/upstream.js `strike`)
+// — typing into a slow Cinemeta used to open its breaker for everything.
+const SEARCH_ASK = { ...PAGE_ASK, strike: false };
+const searchAsk = (waiting) => (waiting ? SEARCH_ASK : undefined);
 
 const normalize = (s) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
@@ -418,7 +423,7 @@ const catalog = async ({ type, category = "trending", genre = null, page = 0, wa
 
 const searchShows = async (q, waiting = false) => {
   const results = await fetchJson(
-    `https://api.tvmaze.com/search/shows?q=${encodeURIComponent(q)}`, ask(waiting)
+    `https://api.tvmaze.com/search/shows?q=${encodeURIComponent(q)}`, searchAsk(waiting)
   );
   const seen = new Set();
   return results
@@ -482,7 +487,7 @@ const searchMoviesWiki = async (q) => {
 // Wikipedia, with posters and IMDb ids baked in.
 const searchCinemeta = async (q, type, waiting = false) => {
   const data = await fetchJson(
-    `https://v3-cinemeta.strem.io/catalog/${type}/top/search=${encodeURIComponent(q)}.json`, ask(waiting)
+    `https://v3-cinemeta.strem.io/catalog/${type}/top/search=${encodeURIComponent(q)}.json`, searchAsk(waiting)
   );
   return (data.metas || []).slice(0, 14).map((m) => ({
     type: type === "series" ? "show" : "movie",
@@ -498,7 +503,7 @@ const searchCinemeta = async (q, type, waiting = false) => {
 
 const searchMoviesTmdb = async (q, waiting = false) => {
   const data = await fetchJson(
-    `https://api.themoviedb.org/3/search/movie?api_key=${config.TMDB_KEY}&query=${encodeURIComponent(q)}`, ask(waiting)
+    `https://api.themoviedb.org/3/search/movie?api_key=${config.TMDB_KEY}&query=${encodeURIComponent(q)}`, searchAsk(waiting)
   );
   return (data.results || []).slice(0, 12).map((r) => ({
     type: "movie",
@@ -555,17 +560,24 @@ const searchLive = async (q, waiting = false) => {
   // nothing. The person is looking at "Searching…" the whole time.
   // (when Cinemeta itself failed or was slow, the fallbacks get what is left
   // of a ~3 s page budget, not 4 s more on top of it)
-  const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r([]), ms))]);
+  // A fallback that failed or ran out of time answered nothing — which is not
+  // the same as "there is nothing": that answer is not kept for the hour
+  // either (`partial`), so the next ask tries again. (It is not a failure for
+  // the person: the primary catalogue did answer.) 2026-10-26: "La Cocina"
+  // said "no results" until Search was left and opened again.
+  let partial = false;
+  const missed = () => { partial = true; return []; };
+  const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r(missed()), ms))]);
   const fallbackMs = degraded && waiting ? Math.max(500, 3000 - (Date.now() - t0)) : 4000;
   [shows, movies] = await Promise.all([
-    shows.length === 0 ? within(searchShows(q, waiting).catch(() => []), fallbackMs) : shows,
+    shows.length === 0 ? within(searchShows(q, waiting).catch(missed), fallbackMs) : shows,
     movies.length === 0
-      ? within((config.TMDB_KEY ? searchMoviesTmdb(q, waiting) : searchMoviesWiki(q)).catch(() => []), fallbackMs)
+      ? within((config.TMDB_KEY ? searchMoviesTmdb(q, waiting) : searchMoviesWiki(q)).catch(missed), fallbackMs)
       : movies,
   ]);
 
   const result = { movies, shows };
-  if (!degraded) searchCache.set(key, { at: Date.now(), result });
+  if (!degraded && !partial) searchCache.set(key, { at: Date.now(), result });
   // (said to callers that keep what they conclude — IMDb id matching must
   // not file "no match" for an answer made while Cinemeta was failing)
   if (degraded) {

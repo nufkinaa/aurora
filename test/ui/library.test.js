@@ -107,7 +107,9 @@ ui.test("Search finds a show by part of its name; nonsense finds nothing and say
   await page.goBack();
   await page.waitForFunction(() => location.hash === "#/search");
   await page.locator('.screen input[type="search"]').fill("zzqqxxyy");
-  await page.waitForFunction(() => !document.querySelector("#app .screen > .grid .card") && /zzqqxxyy|Nothing|No /i.test(document.querySelector("#app .screen").innerText));
+  // (this instance is offline: the catalogue cannot be asked, and the screen
+  // says that rather than "No results" — search-net.test.js has both)
+  await page.waitForFunction(() => !document.querySelector("#app .screen > .grid .card") && /zzqqxxyy|Nothing|No |Couldn't reach the catalogue/i.test(document.querySelector("#app .screen").innerText), null, { timeout: 20000 });
 });
 
 ui.test("My List: add from a title page, see it in the list, survive a reload, remove it", async ({ page, goto, signIn, freshProfile, api, lib }) => {

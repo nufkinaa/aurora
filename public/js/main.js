@@ -27,7 +27,7 @@ import { initScreensaver } from "./screensaver.js";
 import { initPrefetch } from "./prefetch.js";
 import { track } from "./usage.js";
 import "./telemetry.js"; // [analytics] error reports, timings, control counts — behind the same switch
-import { onNet, netInfo, dataMode } from "./net.js";
+import { onNet, netInfo } from "./net.js";
 
 // "The first screen is done": it has painted and the pictures in view have
 // arrived (or enough time has passed that waiting longer helps nobody). Work
@@ -225,21 +225,18 @@ initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
 initPrefetch(); // the next screen's data, fetched while this one is read
 // The connection (net.js): one usage event per tab once it is known, another
 // when it changes — so the admin can see how many sessions are on a thin
-// line — and one quiet toast the first time Aurora goes lighter by itself.
+// line. NOT a toast: lighter pictures are not worth interrupting anyone for
+// (2026-10-26: "almost always says when I get into the site that I have a
+// slow connection — an annoying message"). The viewer hears about the line
+// only when it changes what they watch — the player says so when it starts a
+// film on a lighter stream (net.js slowNoteDue).
 {
-  let told = false;
   const report = () => {
     const n = netInfo();
     track("net", { tier: n.tier, src: n.source, ...(n.kbps != null ? { kbps: n.kbps } : {}), ...(n.rtt != null ? { rtt: n.rtt } : {}) });
   };
   setTimeout(report, 15000); // after the first screens have given it something to measure
-  onNet((tier) => {
-    report();
-    if (tier === "slow" && dataMode() === "auto" && !told && !document.querySelector(".player")) {
-      told = true;
-      toast("Slow connection — Aurora is loading lighter pictures. Settings → More settings → Internet changes that.", "📶");
-    }
-  });
+  onNet(() => report());
 }
 // usage stats: which tab gets tapped (the screens themselves report via the router)
 $("#nav").addEventListener("click", (e) => {
