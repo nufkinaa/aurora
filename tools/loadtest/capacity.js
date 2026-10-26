@@ -396,6 +396,13 @@ const main = async () => {
     result.meta.pools = Object.fromEntries(Object.entries(pools).map(([k, v]) => [k, v.length]));
     result.meta.titles = cap.map((it) => ({ title: it.title, video: it.video && it.video.codec, audio: it.audio && it.audio.codec, mbit: round(it.cls.kbps / 1000, 2), web: it.cls.web, tv: it.cls.tv }));
     say(`pools ${JSON.stringify(result.meta.pools)}`);
+    // a server that has been up all evening has its torrent engine loaded: load it now (the first
+    // torrent request loads webtorrent's modules on the event loop, once per server life)
+    if (sw) {
+      const d = new Device(ctx, { ...srv.sessions.find((x) => x.kind === "tv"), kind: "tv" });
+      await d.hit("setup", "GET", `/stream/torrent/${sw.torrents[0].infoHash}/0`, { headers: { Range: "bytes=0-65535" }, compressed: false, timeoutMs: 60000 });
+      d.stop();
+    }
     // the boot's background work and the graphics-card probe first
     for (let t0 = Date.now(), calm = 0; Date.now() - t0 < 300000;) {
       await sleep(5000);
