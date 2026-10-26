@@ -1003,6 +1003,14 @@ const advance = (dir, job, run) => {
       stopRun(job, run);
       return wake(job);
     }
+    // Well ahead of its reader: the lowest CPU priority until the reader is
+    // near again, so viewers still waiting for a first segment come first
+    // (lib/leadprio.js — Windows; the same guard as parking, below)
+    if (run.warm == null && !waitedOn(job, run) && (job.enc || job.readers.length)) {
+      try { require("../lib/leadprio").step(run, run.proc && run.proc.pid, usage(job, run, Date.now()).lead); } catch {}
+    } else if (run.leadLow) {
+      try { require("../lib/leadprio").step(run, run.proc && run.proc.pid, 0); } catch {}
+    }
     // An encoder far ahead of anything its reader asked for stops here.
     // (a warm-up has its own bound, above; a copy with no reader at all yet
     // — its playlist asked for, no segment — is not "ahead" of anyone)

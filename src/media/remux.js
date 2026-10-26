@@ -233,7 +233,7 @@ const touch = (id, mtime, vcodec, ss, fmt, audio = 0, viewer = null, file = null
     if (m) {
       const k = parseInt(m[1], 10);
       if (!(job.readSeg >= k)) job.readSeg = k;
-      if (job.paused) pace(job); // (a reader catching up: resumed at once if it must be)
+      if (job.paused || job.leadLow) pace(job); // (a reader catching up: resumed / raised at once if it must be)
     }
   }
 };
@@ -270,6 +270,9 @@ const pace = async (job) => {
     const read = job.readSeg >= 0 ? job.readSeg : 0;
     const ahead = made - 1 - read;
     const now = Date.now();
+    // well ahead of its reader: the lowest CPU priority until the reader is
+    // near again (lib/leadprio.js — Windows), so others' first segments come first
+    if (!job.paused) { try { require("../lib/leadprio").step(job, job.proc && job.proc.pid, ahead); } catch {} }
     if (!job.paused && ahead >= AHEAD_MAX) {
       // (a pause the OS refused is not asked again for this job for a minute:
       // on Windows every ask is a PowerShell — lib/procpause.js has the bounds)
