@@ -131,7 +131,7 @@ const diskSampler = (drive, everyMs = 5000) => {
   if (process.platform !== "win32" || !drive) return { samples, stop: () => {}, summary: () => null };
   const d = String(drive).slice(0, 1).toUpperCase();
   const BS = String.fromCharCode(92); // a backslash (counter paths), spelled so no tool can eat it
-  const script = `$ErrorActionPreference='SilentlyContinue'; $inst = (Get-Counter -ListSet PhysicalDisk).PathsWithInstances | Where-Object { $_ -like '*${d}:)${BS}% Idle Time' } | Select-Object -First 1; if (-not $inst) { exit }; $base = $inst.Substring(0, $inst.LastIndexOf('${BS}')); while ($true) { $c = Get-Counter -Counter @("$base${BS}% Idle Time", "$base${BS}Disk Read Bytes/sec") -SampleInterval ${Math.max(1, Math.round(everyMs / 1000))} -MaxSamples 1; $v = $c.CounterSamples | ForEach-Object { $_.CookedValue }; [Console]::Out.WriteLine(('{0},{1},{2}' -f [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds(), $v[0], $v[1])) }`;
+  const script = `$ErrorActionPreference='SilentlyContinue'; $inst = (Get-Counter -ListSet PhysicalDisk).PathsWithInstances | Where-Object { $_ -like '*${d}:)${BS}% Idle Time' } | Select-Object -First 1; if (-not $inst) { exit }; $base = $inst.Substring(0, $inst.LastIndexOf('${BS}')); while ($true) { $c = Get-Counter -Counter @("$base${BS}% Idle Time", "$base${BS}Disk Read Bytes/sec", "$base${BS}Disk Write Bytes/sec", "$base${BS}Avg. Disk Queue Length") -SampleInterval ${Math.max(1, Math.round(everyMs / 1000))} -MaxSamples 1; $v = $c.CounterSamples | ForEach-Object { $_.CookedValue }; [Console]::Out.WriteLine(('{0},{1},{2},{3},{4}' -f [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds(), $v[0], $v[1], $v[2], $v[3])) }`;
   const child = spawn("powershell", ["-NoProfile", "-Command", script], { stdio: ["ignore", "pipe", "ignore"], windowsHide: true });
   let buf = "";
   child.stdout.setEncoding("utf8");
@@ -139,9 +139,9 @@ const diskSampler = (drive, everyMs = 5000) => {
     buf += x;
     let i;
     while ((i = buf.indexOf(String.fromCharCode(10))) >= 0) {
-      const [t, idle, rd] = buf.slice(0, i).trim().split(",").map(Number);
+      const [t, idle, rd, wr, ql] = buf.slice(0, i).trim().split(",").map(Number);
       buf = buf.slice(i + 1);
-      if (Number.isFinite(idle)) samples.push({ t, busyPct: Math.max(0, 100 - idle), readMBs: rd / 1048576 });
+      if (Number.isFinite(idle)) samples.push({ t, busyPct: Math.max(0, 100 - idle), readMBs: rd / 1048576, writeMBs: Number.isFinite(wr) ? wr / 1048576 : null, queue: Number.isFinite(ql) ? ql : null });
     }
   });
   return {
@@ -150,7 +150,10 @@ const diskSampler = (drive, everyMs = 5000) => {
     summary: (from = 0) => {
       const s = samples.filter((x) => x.t >= from);
       if (!s.length) return null;
-      return { drive: d, n: s.length, busyPctMean: round(s.reduce((a, x) => a + x.busyPct, 0) / s.length), readMBsMean: round(s.reduce((a, x) => a + x.readMBs, 0) / s.length, 2) };
+      const w = s.filter((x) => x.writeMBs != null), qd = s.filter((x) => x.queue != null);
+      return { drive: d, n: s.length, busyPctMean: round(s.reduce((a, x) => a + x.busyPct, 0) / s.length), readMBsMean: round(s.reduce((a, x) => a + x.readMBs, 0) / s.length, 2),
+        writeMBsMean: w.length ? round(w.reduce((a, x) => a + x.writeMBs, 0) / w.length, 2) : null, writeMBsMax: w.length ? round(Math.max(...w.map((x) => x.writeMBs)), 1) : null,
+        queueMean: qd.length ? round(qd.reduce((a, x) => a + x.queue, 0) / qd.length, 2) : null, queueMax: qd.length ? round(Math.max(...qd.map((x) => x.queue)), 1) : null };
     },
   };
 };

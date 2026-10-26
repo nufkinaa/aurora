@@ -289,7 +289,7 @@ const readWindow = (ctx, list, before, w, secs) => {
     stallLoopMsPerMin: w.server.stalls ? round(w.server.stalls.totalMs / (secs / 60), 0) : null, stallLoopMax: w.server.stalls ? w.server.stalls.max : null,
     serverCores: w.tree.serverCores, ffmpegCores: w.tree.kidsCores, ffmpegAlive: w.tree.kidsAlive, rssMb: w.tree.rssMb, ffmpegRssMb: w.tree.kidsRssMb,
     pcCpuPct: w.machine ? w.machine.cpuPctMean : null, pcCpuP95: w.machine ? w.machine.cpuPctP95 : null, pcFreeMbMin: w.machine ? w.machine.freeMbMin : null,
-    diskBusyPct: w.disk ? w.disk.busyPctMean : null, diskReadMBs: w.disk ? w.disk.readMBsMean : null,
+    diskBusyPct: w.disk ? w.disk.busyPctMean : null, diskReadMBs: w.disk ? w.disk.readMBsMean : null, diskWriteMBs: w.disk ? w.disk.writeMBsMean : null, diskQueue: w.disk ? w.disk.queueMean : null,
     dataGrewMb: round(w.dataDir.grewBytes / 1048576, 1), driverCores: w.driverCores,
     detail: rows.map((r) => ({ kind: r.kind, title: r.title, state: r.state, ttff: r.ttffMs, stalls: r.stalls, stallMs: r.stallMs, seeks: r.seeks, seekMs: r.seekMs, segN: r.segN, late: r.segLate, starved: r.segStarve, refused: r.refused, segFails: r.segFails, mbit: round((r.bytes * 8) / 1e6 / secs, 2) })),
   };
@@ -444,6 +444,7 @@ const main = async () => {
       burst.lag = { n: lag.length, p50: q(lag, 50), p99: q(lag, 99), max: q(lag, 100) };
       burst.tree = tree.between(tb, tbe);
       burst.machine = machine.summary(tb);
+      burst.disk = tree.disk ? tree.disk.summary(tb) : null;
       burst.driverCores = round((((c) => c.user + c.system)(process.cpuUsage(cpu0)) / 1e6) / ((tbe - tb) / 1000), 3);
       burst.egressMbit = round((list.reduce((x, v) => x + (v.current ? v.current.bytes : 0), 0) * 8) / 1e6 / ((tbe - tb) / 1000), 1);
       say(`  burst: TTFF p50/p95/max ${burst.ttffP50}/${burst.ttffP95}/${burst.ttffMax} ms, never ${burst.neverStarted}, refused ${burst.refused}, API p95/p99 ${burst.apiP95}/${burst.apiP99}, lag p99/max ${burst.lag.p99}/${burst.lag.max}, loop stalls>1s ${burst.server.stalls ? burst.server.stalls.n1000 : "?"}, server ${burst.tree ? burst.tree.serverCores : "?"} + ffmpeg ${burst.tree ? burst.tree.kidsCores : "?"} cores, driver ${burst.driverCores}, PC ${burst.machine.cpuPctMean} %, ${burst.egressMbit} Mbit/s`);
