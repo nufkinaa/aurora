@@ -75,3 +75,29 @@ test("a chosen audio stream names its own transcode job; the default keeps the o
   assert.equal(jobKey(h, 0, 120, "fmp4", 2), `${h}-0-120-f4-a2`);
   assert.notEqual(jobKey(h, 0, 0, null, 1), jobKey(h, 0, 0, null, 0));
 });
+
+// The verified-bitfield sidecar is saved OFF the event loop (capacity-2026-10:
+// its statSync + writeFileSync waited 6–13 s on a busy disk, freezing every
+// request); what is saved still round-trips through loadStartupBitfield.
+test("saveBitfield: asynchronous, one save at a time, and it round-trips", async () => {
+  const { saveBitfield, loadStartupBitfield, bitfieldPath } = torrent._internals;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aurora-bf-"));
+  fs.writeFileSync(path.join(dir, "film.mkv"), Buffer.alloc(4096, 1));
+  const bits = new Uint8Array([0xff, 0x0f]);
+  const t = { infoHash: HASH, ready: true, progress: 0.5, path: dir, files: [{ path: "film.mkv" }], bitfield: { buffer: bits.buffer } };
+  const real = { stat: fs.statSync, write: fs.writeFileSync };
+  let sync = 0;
+  fs.statSync = (...a) => { sync++; return real.stat(...a); };
+  fs.writeFileSync = (...a) => { sync++; return real.write(...a); };
+  try {
+    saveBitfield(t);
+    saveBitfield(t); // (a second sweep while the first save is still on its way: skipped)
+  } finally { fs.statSync = real.stat; fs.writeFileSync = real.write; }
+  assert.equal(sync, 0, "no synchronous file call on the event loop");
+  for (let i = 0; i < 50 && !fs.existsSync(bitfieldPath(HASH)); i++) await new Promise((r) => setTimeout(r, 20));
+  const back = loadStartupBitfield(HASH);
+  assert.ok(back, "the sidecar was written");
+  assert.deepStrictEqual([...back], [...bits]);
+  fs.rmSync(bitfieldPath(HASH), { force: true });
+  fs.rmSync(dir, { recursive: true, force: true });
+});

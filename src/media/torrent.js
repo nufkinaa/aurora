@@ -74,24 +74,27 @@ const sweepMetadataCache = (dir = CACHE_DIR, max = MAX_CACHED_TORRENTS) => {
 // the store BEFORE its bit is set, so a saved bit can never describe
 // unwritten data. Eviction destroys the store, so it drops the sidecar too.
 const bitfieldPath = (infoHash) => path.join(CACHE_DIR, `${infoHash}.bitfield.json`);
+// OFF the event loop (2026-10-26): the sweep ran a statSync per file and a
+// writeFileSync per torrent every minute, and on a busy disk — a torrent
+// arriving fast while streams are written — those waited 6–13 s each, with
+// every request in the house waiting behind them (docs/qa/capacity-2026-10).
+// The map is taken first, the sizes after: a bit is set only once its piece
+// is in the store, so the sizes can only be at least what the map describes.
+const savingBitfield = new Set(); // infoHash: one save at a time per torrent
 const saveBitfield = (t) => {
   try {
     if (!t || !t.ready || !t.bitfield || !t.files || t.files.length === 0) return;
     if (!(t.progress > 0)) return; // nothing verified yet — nothing to save
-    const files = t.files.map((f) => {
-      const abs = path.join(t.path, f.path);
-      return { abs, size: fs.statSync(abs).size };
-    });
-    fs.writeFileSync(
-      bitfieldPath(t.infoHash),
-      JSON.stringify({
-        v: 1,
-        savedAt: Date.now(),
-        files,
-        bitfield: Buffer.from(t.bitfield.buffer).toString("base64"),
-      }),
-    );
-  } catch {} // a missed save just means a re-verify next boot
+    if (savingBitfield.has(t.infoHash)) return;
+    const infoHash = t.infoHash;
+    const bitfield = Buffer.from(t.bitfield.buffer).toString("base64");
+    const abs = t.files.map((f) => path.join(t.path, f.path));
+    savingBitfield.add(infoHash);
+    Promise.all(abs.map((a) => fs.promises.stat(a).then((st) => ({ abs: a, size: st.size }))))
+      .then((files) => fs.promises.writeFile(bitfieldPath(infoHash), JSON.stringify({ v: 1, savedAt: Date.now(), files, bitfield })))
+      .catch(() => {}) // a missed save just means a re-verify next boot
+      .finally(() => savingBitfield.delete(infoHash));
+  } catch {}
 };
 const loadStartupBitfield = (infoHash) => {
   try {
@@ -1542,6 +1545,9 @@ module.exports = {
   CACHE_DIR,
   // Test-only: the metadata-cache mechanics (see test/torrent-metadata-cache).
   _internals: {
+    saveBitfield,
+    loadStartupBitfield,
+    bitfieldPath,
     metadataCachePath,
     readCachedMetadata,
     saveMetadata,
