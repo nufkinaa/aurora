@@ -59,9 +59,13 @@ const classify = (it) => {
 
 class Device {
   // kind "web" | "tv"
-  constructor(ctx, { profileId, sid, kind, i, name }) {
+  // form: "desktop" | "phone" for the website (tools/loadtest/capacity.js mixes phones in), "tv" for the TV
+  constructor(ctx, { profileId, sid, kind, i, name, form }) {
     this.ctx = ctx; this.profileId = profileId; this.sid = sid; this.kind = kind; this.i = i; this.name = name || `Load ${i + 1}`;
-    const ua = kind === "tv" ? "okhttp/4.12.0 AuroraTV/5.3.0" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
+    this.form = kind === "tv" ? "tv" : form || "desktop";
+    const ua = kind === "tv" ? "okhttp/4.12.0 AuroraTV/5.3.0"
+      : this.form === "phone" ? "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1"
+      : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
     const extra = kind === "tv" ? { "X-Session": sid, "X-Profile": profileId } : { Cookie: `aurora_session=${sid}` };
     this.c = new Client(ctx.url, { maxSockets: 6, ua, extra });
     this.viewerId = `${kind}${crypto.randomBytes(4).toString("hex")}${Date.now().toString(36)}`;
@@ -124,7 +128,7 @@ class Device {
       const events = this.usage.splice(0, 25);
       const body = this.kind === "tv"
         ? { profile: this.profileId, sid: this.viewerId, device: "tv", look: "tv", iid: this.viewerId, app: "tv", v: "5.3.0", model: TV_MODEL, events }
-        : { profile: this.profileId, sid: this.viewerId, device: "desktop", look: "glass", net: { tier: "fast" }, events };
+        : { profile: this.profileId, sid: this.viewerId, device: this.form === "phone" ? "phone" : "desktop", look: "glass", net: { tier: "fast" }, events };
       this.hit("telemetry", "POST", "/api/usage", { body });
     }, jitter(20000, 0.1));
     this.timers.push(t);
@@ -240,8 +244,8 @@ class Device {
       this.ctx.learn(cards);
       // hero backdrop (innerWidth x DPR, <= 1920), then the cards in view (w=360 at DPR 2)
       const hero = r.json.hero && r.json.hero[0];
-      if (hero) await this.pictures([{ poster: hero.backdrop }], 1920, 1);
-      await this.pictures(cards, 360, 16);
+      if (hero) await this.pictures([{ poster: hero.backdrop }], this.form === "phone" ? 1280 : 1920, 1);
+      await this.pictures(cards, this.form === "phone" ? 256 : 360, this.form === "phone" ? 8 : 16);
     }
     if (!early) { this.hit("api-other", "GET", `/api/profiles/${this.profileId}/wrapped`); this.hit("api-other", "GET", "/api/party"); }
     this.note("route", { r: "home", ms: Math.round(r.ms) });
@@ -371,20 +375,27 @@ class Device {
 
   // ---------- playing ----------
   // mode: "direct" | "jit" (web jit ladder, copy) | "offset" (TV, v=copy) | "transcode" (web jit, an encoded 720p rung)
-  async play(item, mode, { minutes = Infinity, seekEveryMin = 12 } = {}) {
+  // opts (tools/loadtest/capacity.js): variant (jit rendition: copy | h264-720 | h264-480), seg ("fmp4": Apple's
+  // native HLS), startAt (s), subs (load the first subtitle the title has, as the player does with a language set)
+  async play(item, mode, { minutes = Infinity, seekEveryMin = 12, variant = null, seg = null, startAt: at = null, subs = false } = {}) {
     const ctx = this.ctx;
     const duration = item.duration || 5400;
-    const startAt = Math.random() < 0.4 ? Math.floor(Math.random() * duration * 0.6) : 0;
+    const startAt = at != null ? Math.max(0, Math.min(Math.floor(at), Math.floor(duration - 120))) : Math.random() < 0.4 ? Math.floor(Math.random() * duration * 0.6) : 0;
     const buf = new PlayBuffer({
       startSec: this.kind === "tv" ? 2 : 2.5, rebufferSec: this.kind === "tv" ? 8 : 5, durationSec: duration, startAt,
     });
-    const p = { item, mode, title: item.title, duration, buf, bytes: 0, segs: 0, segFails: 0, refused: 0, t0: Date.now(), startAt };
+    const p = { item, mode, title: item.title, duration, buf, bytes: 0, segs: 0, segFails: 0, refused: 0, t0: Date.now(), startAt, segN: 0, segLate: 0, segStarve: 0, segMs: [], form: this.form, variant, seg };
     this.playing = p;
     ctx.viewers.add(p);
     p.device = `${this.kind}:${this.profileId}`;
     // play marks (player.js:751-763): mount, decision, path, first frame
     const mark = (name, ms) => this.hit("telemetry", "POST", `/api/play-mark/${item.id}`, { body: { name, ms, ...(this.kind === "tv" ? { app: "tv" } : {}) } });
     mark("mount", 0); mark("decision", 3);
+    // the subtitle, beside the stream (web player.js / TV Player.tsx load the chosen language's track at start)
+    if (subs && Array.isArray(item.subtitles) && item.subtitles.length) {
+      const sub = item.subtitles.find((x) => x && typeof x.url === "string" && x.url.startsWith("/")) || null;
+      if (sub) this.hit("subtitle", "GET", sub.url);
+    }
     if (this.kind === "tv") {
       await Promise.all([this.hit("title", "GET", `/api/item/${item.id}?profile=${this.profileId}`), Date.now() - (this.lastTuning || 0) > 60000 ? this.hit("tv", "GET", `/api/tv/tuning?model=${TV_MODEL}`) : null]);
       this.lastTuning = Date.now();
@@ -415,13 +426,15 @@ class Device {
       if (mode === "direct") await this.directPlay(p, until, ac);
       else if (mode === "torrent") await this.directPlay(p, until, ac, `/stream/torrent/${item.infoHash}/${item.fileIdx || 0}`);
       else if (mode === "offset") await this.offsetPlay(p, until, ac);
-      else await this.jitPlay(p, until, ac, mode === "transcode" ? "h264-720" : "copy");
+      else if (mode === "torrent-jit") await this.jitPlay(p, until, ac, variant || "copy", { base: `/stream/torrent/hls/${item.infoHash}/${item.fileIdx || 0}/jit`, seg });
+      else await this.jitPlay(p, until, ac, variant || (mode === "transcode" ? "h264-720" : "copy"), { seg });
     } catch (e) { ctx.counters.deviceErrors++; p.error = String(e && e.message || e); }
     clearInterval(hb); clearInterval(tick); clearInterval(seekTimer);
     // exit: one last save, "Browsing", the goodbye for streams (player.js:6188-6222)
     await this.hit("progress", "POST", `/api/profiles/${this.profileId}/progress`, { body: { itemId: item.id, position: Math.floor(buf.pos), duration: Math.floor(duration) } });
     if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify({ type: "activity", action: "Browsing", details: null }));
-    if (mode !== "direct" && mode !== "torrent") await this.hit("stream-other", "POST", `/stream/transcode/${item.id}/jit/bye`, { headers: { "X-Aurora-Viewer": this.viewerId } });
+    if (mode === "torrent-jit") await this.hit("stream-other", "POST", `/stream/torrent/hls/${item.infoHash}/${item.fileIdx || 0}/bye`, { headers: { "X-Aurora-Viewer": this.viewerId } });
+    else if (mode !== "direct" && mode !== "torrent") await this.hit("stream-other", "POST", `/stream/transcode/${item.id}/jit/bye`, { headers: { "X-Aurora-Viewer": this.viewerId } });
     this.playing = null;
     p.endedAt = Date.now();
     p.report = buf.report();
@@ -469,19 +482,20 @@ class Device {
   }
   // hls.js on the jit ladder: master, the rendition, segments one after
   // another while less than 45 s is buffered (player.js:1302 maxBufferLength 45)
-  async jitPlay(p, until, ac, variant) {
+  async jitPlay(p, until, ac, variant, { base = null, seg = null } = {}) {
     const { item, buf } = p;
-    const base = `/stream/transcode/${item.id}/jit`;
+    base = base || `/stream/transcode/${item.id}/jit`;
     const t0 = Date.now();
-    const m = await this.hit("playlist", "GET", `${base}/master.m3u8`, { keepBody: true, compressed: false, headers: { "X-Aurora-Start": `at=${p.startAt}` } });
-    if (m.status !== 200) { p.refused++; return this.retryLater(p, until, ac, () => this.jitPlay(p, until, ac, variant)); }
+    const q = seg === "fmp4" ? `?seg=fmp4${item.video && item.video.codec === "hevc" ? "&vtag=hvc1" : ""}` : "";
+    const m = await this.hit("playlist", "GET", `${base}/master.m3u8${q}`, { keepBody: true, compressed: false, headers: { "X-Aurora-Start": `at=${p.startAt}` } });
+    if (m.status !== 200) { p.refused++; return this.retryLater(p, until, ac, () => this.jitPlay(p, until, ac, variant, { base, seg })); }
     const lines = m.body.toString("utf8").split(/\r?\n/);
     const variants = lines.filter((l) => l && !l.startsWith("#"));
     const want = variants.find((v) => new RegExp(`[?&]v=${variant}(&|$)`).test(v)) || variants[0];
     if (!want) { p.refused++; return; }
     const rendUrl = want.startsWith("/") ? want : `${base}/${want}`;
     const rp = await this.hit("playlist", "GET", rendUrl, { keepBody: true, compressed: false });
-    if (rp.status !== 200) { p.refused++; return this.retryLater(p, until, ac, () => this.jitPlay(p, until, ac, variant)); }
+    if (rp.status !== 200) { p.refused++; return this.retryLater(p, until, ac, () => this.jitPlay(p, until, ac, variant, { base, seg })); }
     const segs = parseMedia(rp.body.toString("utf8"), rendUrl);
     await this.playSegments(p, segs, until, ac, 45, t0, "segment");
   }
@@ -528,8 +542,10 @@ class Device {
       const next = (p.list || []).find((s) => !done.has(s.uri));
       if (!next) { await sleep(1000); continue; }
       if (buf.ahead() >= 120) { await sleep(500); continue; }
+      const aheadAt = buf.ahead();
       const r = await this.hit("segment", "GET", next.uri, { compressed: false, headers: { "X-Aurora-Viewer": this.viewerId } });
       if (r.status !== 200) { p.segFails++; await sleep(1000); continue; }
+      segTiming(p, r.ms, next.dur, aheadAt, firstSeg);
       if (firstSeg) { firstSeg = false; this.stats.add("first-segment", { status: 200, ms: Date.now() - t0, bytes: 0 }); }
       done.add(next.uri);
       p.segs++; p.bytes += r.bytes;
@@ -554,7 +570,9 @@ class Device {
       }
       if (buf.ahead() >= goal) { await sleep(250); continue; }
       const s = segs[k];
+      const aheadAt = buf.ahead();
       const r = await this.hit(group, "GET", s.uri, { compressed: false });
+      if (r.status === 200) segTiming(p, r.ms, s.dur, aheadAt, firstSeg || buf.state === "seeking");
       if (r.status !== 200) {
         p.segFails++;
         if (r.status === 503) p.refused++;
@@ -609,6 +627,20 @@ class Device {
   }
 }
 
+// One segment's delivery (capacity.js): "late" = it took longer to arrive than the
+// media it carries lasts (the server is not keeping up with real time); "starved" =
+// it arrived after the buffer that was there when it was asked for had run out
+// (the viewer saw it, as a stall). The first segment of a start or a seek counts
+// as neither: an empty buffer is the start, not a fault (time to first frame and
+// seek time measure those).
+const segTiming = (p, ms, dur, aheadAt, starting) => {
+  p.segN++;
+  if (p.segMs.length < 4000) p.segMs.push(Math.round(ms));
+  if (starting) return;
+  if (ms > dur * 1000) p.segLate++;
+  if (aheadAt > 0.5 && ms / 1000 > aheadAt) p.segStarve++;
+};
+
 // an HLS media playlist -> [{ uri (absolute path), dur, start }]
 const parseMedia = (text, url) => {
   const dir = url.split("?")[0].replace(/\/[^/]*$/, "");
@@ -625,4 +657,4 @@ const parseMedia = (text, url) => {
   return out;
 };
 
-module.exports = { Device, classify, artUrl, cardsOf, parseMedia };
+module.exports = { Device, classify, artUrl, cardsOf, parseMedia, segTiming };

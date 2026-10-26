@@ -225,6 +225,95 @@ const genMedia = ({ films = 300, log = () => {} } = {}) => {
   return { movies, shows };
 };
 
+// ---------- a library shaped like the household's (media: "cap") ----------
+// tools/loadtest/capacity.js. The house library (probed read-only, 2026-10-26:
+// 61 files) is web-sized 1080p: median 2.5 Mbit/s, p90 4.2, max 6.4; half
+// HEVC 10-bit MKV with E-AC-3 or AAC, half H.264 MP4 with AAC (some AC-3).
+// Five 30-minute masters at those bitrates (graphics-card encoders when the
+// machine has them: minutes, not hours), each hard-linked under CAP_COPIES
+// names so viewers watch different titles (their own ids, jobs and caches;
+// the OS page cache is shared, so disk reads are flattered: see the report),
+// two subtitle sidecars per title, plus small films and shows for browsing.
+const CAP_SECS = 1800;
+const CAP_COPIES = 8;
+const CAP_MASTERS = [
+  // direct play everywhere
+  { key: "web-h264", name: "Cap Web H264", year: 2020, ext: "mp4", codec: "h264", kbps: 2600, audio: ["-c:a", "aac", "-b:a", "128k"], tenBit: false },
+  // web: repackaged (HEVC in MKV); TV: the offset copy (E-AC-3)
+  { key: "hevc10-eac3", name: "Cap Release Hevc", year: 2021, ext: "mkv", codec: "hevc", kbps: 2500, audio: ["-c:a", "eac3", "-b:a", "384k", "-ac", "6"], tenBit: true },
+  // web: repackaged (AC-3 sound); TV: the offset copy
+  { key: "h264-ac3", name: "Cap Episode Ac3", year: 2019, ext: "mp4", codec: "h264", kbps: 4200, audio: ["-c:a", "ac3", "-b:a", "384k", "-ac", "6"], tenBit: false },
+  // web: repackaged (HEVC in MKV); TV: direct
+  { key: "hevc-aac", name: "Cap Release Aac", year: 2022, ext: "mkv", codec: "hevc", kbps: 2000, audio: ["-c:a", "aac", "-b:a", "160k"], tenBit: false },
+  // the heaviest file in the house
+  { key: "hevc10-heavy", name: "Cap Heavy Hevc", year: 2023, ext: "mkv", codec: "hevc", kbps: 6400, audio: ["-c:a", "eac3", "-b:a", "640k", "-ac", "6"], tenBit: true },
+];
+const srtText = (secs, lang) => {
+  const out = [];
+  const two = (x) => String(x).padStart(2, "0");
+  const ts = (t) => `${two(Math.floor(t / 3600))}:${two(Math.floor((t % 3600) / 60))}:${two(Math.floor(t % 60))},${String(Math.round((t % 1) * 1000)).padStart(3, "0")}`;
+  const words = lang === "he" ? ["shalom", "laila", "tov", "eifo", "ata", "holech", "achshav", "bevakasha"] : ["hello", "night", "where", "are", "you", "going", "now", "please"];
+  const NL = String.fromCharCode(10);
+  let k = 1;
+  for (let t = 2; t < secs - 3; t += 3.1) { out.push(`${k}${NL}${ts(t)} --> ${ts(t + 2.4)}${NL}${Array.from({ length: 6 }, (_, i) => words[(k + i) % words.length]).join(" ")}${NL}`); k++; }
+  return out.join(NL);
+};
+const genMediaCap = ({ films = 300, log = () => {} } = {}) => {
+  const dir = path.join(WORK, `media-cap-v1-${films}`);
+  const movies = path.join(dir, "movies"), shows = path.join(dir, "shows");
+  if (fs.existsSync(path.join(dir, ".ready"))) return { movies, shows, dir };
+  removeDir(dir);
+  fs.mkdirSync(movies, { recursive: true }); fs.mkdirSync(shows, { recursive: true });
+  const masters = path.join(dir, "masters");
+  fs.mkdirSync(masters, { recursive: true });
+  const ff = (args) => { const r = spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", ...args], { stdio: "pipe", windowsHide: true }); return r.status === 0 ? null : String(r.stderr).slice(-600); };
+  log(`[lt] generating the house-shaped library in ${dir} (${CAP_MASTERS.length} x ${CAP_SECS / 60} min masters, once)`);
+  for (const m of CAP_MASTERS) {
+    const out = path.join(masters, `${m.key}.${m.ext}`);
+    const src = ["-f", "lavfi", "-i", `testsrc2=size=1920x1080:rate=24:duration=${CAP_SECS}`, "-f", "lavfi", "-i", `sine=frequency=440:sample_rate=48000:duration=${CAP_SECS}`];
+    const rate = ["-b:v", `${m.kbps}k`, "-maxrate", `${m.kbps}k`, "-bufsize", `${m.kbps * 2}k`];
+    const gop = m.codec === "hevc" ? 120 : 96;
+    const tail = [...m.audio, ...(m.ext === "mp4" ? ["-movflags", "+faststart"] : []), "-shortest", out];
+    // (noise keeps the picture from compressing below the target rate)
+    const hw = m.codec === "hevc"
+      ? ["-vf", `noise=alls=12:allf=t,format=${m.tenBit ? "p010le" : "yuv420p"}`, "-c:v", "hevc_nvenc", ...(m.tenBit ? ["-profile:v", "main10"] : []), "-rc", "cbr", ...rate, "-g", String(gop)]
+      : ["-vf", "noise=alls=12:allf=t,format=yuv420p", "-c:v", "h264_nvenc", "-rc", "cbr", ...rate, "-g", String(gop)];
+    const sw = m.codec === "hevc"
+      ? ["-vf", `noise=alls=12:allf=t,format=${m.tenBit ? "yuv420p10le" : "yuv420p"}`, "-c:v", "libx265", "-preset", "ultrafast", ...rate, "-x265-params", `keyint=${gop}:min-keyint=${gop}:log-level=error`]
+      : ["-vf", "noise=alls=12:allf=t,format=yuv420p", "-c:v", "libx264", "-preset", "ultrafast", ...rate, "-g", String(gop)];
+    const err = ff([...src, ...hw, ...tail]);
+    if (err) { log(`[lt] (no graphics-card encoder for ${m.key}: software instead)`); const e2 = ff([...src, ...sw, ...tail]); if (e2) throw new Error(`ffmpeg: ${e2}`); }
+    fs.writeFileSync(path.join(masters, `${m.key}.en.srt`), srtText(CAP_SECS, "en"));
+    fs.writeFileSync(path.join(masters, `${m.key}.he.srt`), srtText(CAP_SECS, "he"));
+    for (let c = 1; c <= CAP_COPIES; c++) {
+      const name = `${m.name}${c > 1 ? ` ${c}` : ""} (${m.year})`;
+      const d = path.join(movies, name);
+      fs.mkdirSync(d, { recursive: true });
+      for (const [from, to] of [[out, `${name}.${m.ext}`], [path.join(masters, `${m.key}.en.srt`), `${name}.English.srt`], [path.join(masters, `${m.key}.he.srt`), `${name}.Hebrew.srt`]]) {
+        try { fs.linkSync(from, path.join(d, to)); } catch { fs.copyFileSync(from, path.join(d, to)); }
+      }
+    }
+  }
+  const small = path.join(dir, "small.mp4");
+  const e3 = ff(["-f", "lavfi", "-i", "testsrc2=size=640x360:rate=24:duration=20", "-f", "lavfi", "-i", "sine=frequency=330:sample_rate=48000:duration=20", "-c:v", "libx264", "-preset", "ultrafast", "-g", "24", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", small]);
+  if (e3) throw new Error(`ffmpeg: ${e3}`);
+  const W1 = ["Silent", "Broken", "Golden", "Last", "Hidden", "Crimson", "Electric", "Paper", "Midnight", "Northern", "Hollow", "Burning", "Quiet", "Wild", "Glass"];
+  const W2 = ["River", "Empire", "Garden", "Signal", "Harbor", "Kingdom", "Mirror", "Orchard", "Station", "Voyage", "Shadow", "Promise", "Engine", "Theory", "Summer", "Witness", "Machine", "Canyon", "Lantern", "Parade"];
+  for (let i = 0; i < films; i++) {
+    const name = `${W1[i % W1.length]} ${W2[Math.floor(i / W1.length) % W2.length]} ${Math.floor(i / 300) || ""}`.trim() + ` (${1975 + (i % 50)})`;
+    const d = path.join(movies, name);
+    fs.mkdirSync(d, { recursive: true });
+    try { fs.linkSync(small, path.join(d, `${name}.mp4`)); } catch { fs.copyFileSync(small, path.join(d, `${name}.mp4`)); }
+  }
+  for (let s = 0; s < 10; s++) {
+    const sd = path.join(shows, `Lt Show ${s + 1}`, "Season 1");
+    fs.mkdirSync(sd, { recursive: true });
+    for (let e = 1; e <= 8; e++) { const f = path.join(sd, `Lt Show ${s + 1} S01E0${e}.mp4`); try { fs.linkSync(small, f); } catch { fs.copyFileSync(small, f); } }
+  }
+  fs.writeFileSync(path.join(dir, ".ready"), new Date().toISOString());
+  return { movies, shows, dir };
+};
+
 const harvest = (data, to) => {
   if (!fs.existsSync(path.join(data, "metadata-cache.json"))) return;
   removeDir(to);
@@ -316,7 +405,7 @@ const sweep = () => {
 // opts:
 //   ref        git ref / sha, or a directory (default HEAD of this worktree)
 //   profiles   number of synthetic profiles (default 8)
-//   media      "real" (default: the live config's libraries, read only) | "gen"
+//   media      "real" (default: the live config's libraries, read only) | "gen" | "cap" (house-shaped, capacity.js)
 //   config     extra config.json keys      env  extra environment
 //   nodeArgs   extra node flags            verbose  echo the server's output
 //   refreshSeed  copy the live caches again
@@ -357,12 +446,13 @@ const start = async (opts = {}) => {
     const media = opts.media || "real";
     let libraries, prodKeys = {};
     if (media === "gen") { const g = genMedia({ log }); libraries = { movies: [g.movies], shows: [g.shows] }; }
+    else if (media === "cap") { const g = genMediaCap({ log }); libraries = { movies: [g.movies], shows: [g.shows] }; }
     else if (path.isAbsolute(media)) libraries = { movies: [path.join(media, "movies")], shows: [path.join(media, "shows")] }; // a library folder of one's own (WSL)
     else { const l = liveLibraries(); libraries = l.libraries; prodKeys = { scanIntervalMinutes: l.scanIntervalMinutes, autoOcrSubtitles: l.autoOcrSubtitles }; }
 
     const data = path.join(root, "data");
     fs.mkdirSync(path.join(data, "cache"), { recursive: true });
-    const genSeed = media === "gen" ? path.join(WORK, "seed-gen-v1") : path.join(WORK, `seed-dir-${crypto.createHash("md5").update(String(media)).digest("hex").slice(0, 8)}`);
+    const genSeed = media === "gen" ? path.join(WORK, "seed-gen-v1") : media === "cap" ? path.join(WORK, "seed-cap-v1") : path.join(WORK, `seed-dir-${crypto.createHash("md5").update(String(media)).digest("hex").slice(0, 8)}`);
     if (media !== "real" && !fs.existsSync(path.join(genSeed, ".ready"))) inst.harvest = genSeed;
     if (media === "real" || (media !== "real" && !inst.harvest)) {
       const seed = media === "real" ? realSeed({ refresh: opts.refreshSeed, log }) : genSeed;
@@ -487,7 +577,7 @@ const dirSize = (dir) => {
   return { bytes, files, by };
 };
 
-module.exports = { start, dirSize, resolveRef, household, removeDir, genMedia, machineProfile, MACHINES, LIVE_DATA };
+module.exports = { start, dirSize, resolveRef, household, removeDir, genMedia, genMediaCap, CAP_MASTERS, machineProfile, MACHINES, LIVE_DATA };
 
 if (require.main === module) {
   const { parseArgs } = require("./lib");

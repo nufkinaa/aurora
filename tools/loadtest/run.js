@@ -441,5 +441,5 @@ const main = async () => {
   process.exit(0);
 };
 
-module.exports = { SCENARIOS, verdict, measure };
+module.exports = { SCENARIOS, verdict, measure, makeCtx, loadLibrary, BROWSE, notable };
 if (require.main === module) main().catch((e) => { console.error(e.stack || e); process.exit(1); });

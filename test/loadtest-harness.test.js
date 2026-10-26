@@ -105,3 +105,23 @@ test("devices: pictures are asked for the way the clients rewrite them", () => {
   const segs = parseMedia("#EXTM3U\n#EXTINF:6.0,\nseg00000.ts?v=copy\n#EXTINF:4.5,\nseg00001.ts?v=copy\n#EXT-X-ENDLIST\n", "/stream/transcode/x/jit/index.m3u8?v=copy");
   assert.deepStrictEqual(segs.map((s) => [s.uri, s.start]), [["/stream/transcode/x/jit/seg00000.ts?v=copy", 0], ["/stream/transcode/x/jit/seg00001.ts?v=copy", 6]]);
 });
+
+test("capacity: segment timing counts late and starved, never the first of a start", () => {
+  const { segTiming } = require("../tools/loadtest/devices");
+  const p = { segN: 0, segLate: 0, segStarve: 0, segMs: [] };
+  segTiming(p, 9000, 6, 0, true); // the first segment of a start: neither
+  segTiming(p, 7000, 6, 30, false); // slower than its own 6 s: late, not starved (30 s buffered)
+  segTiming(p, 4000, 6, 3, false); // in time for real time, but after the 3 s buffer ran out: starved
+  segTiming(p, 500, 6, 20, false);
+  assert.deepStrictEqual([p.segN, p.segLate, p.segStarve], [4, 1, 1]);
+});
+
+test("capacity: a step is supported only when every rule holds", () => {
+  const { supported } = require("../tools/loadtest/capacity");
+  const ok = { burst: { ttffP95: 2000, neverStarted: 0, refused: 0, s429: 0 }, window: { ttffP95: 1500, lateSegPct: 0.2, stallPct: 0, apiP99: 120, refused: 0, neverStarted: 0, s429: 0 } };
+  assert.strictEqual(supported(ok).ok, true);
+  assert.strictEqual(supported({ ...ok, burst: { ...ok.burst, ttffP95: 4500 } }).ok, false);
+  assert.strictEqual(supported({ ...ok, window: { ...ok.window, apiP99: 301 } }).ok, false);
+  assert.strictEqual(supported({ ...ok, window: { ...ok.window, refused: 1 } }).ok, false);
+  assert.strictEqual(supported({ ...ok, window: { ...ok.window, lateSegPct: 1.5 } }).ok, false);
+});

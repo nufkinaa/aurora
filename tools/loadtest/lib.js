@@ -155,6 +155,42 @@ const diskSampler = (drive, everyMs = 5000) => {
   };
 };
 
+// ---------- the graphics card (NVIDIA), while a run goes on ----------
+// nvidia-smi every `everyMs`: GPU %, encoder %, decoder %, encoder sessions
+// open on the card (EVERY program's: the live server and other agents count
+// too, so this is context beside the server's own count), memory. No card or
+// no nvidia-smi: an empty sampler.
+const gpuSampler = (everyMs = 2000) => {
+  const samples = [];
+  let child = null;
+  try {
+    child = spawn("nvidia-smi", ["--query-gpu=utilization.gpu,utilization.encoder,utilization.decoder,encoder.stats.sessionCount,encoder.stats.averageFps,memory.used", "--format=csv,noheader,nounits", "-lms", String(everyMs)], { stdio: ["ignore", "pipe", "ignore"], windowsHide: true });
+    child.on("error", () => {});
+    let buf = "";
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (x) => {
+      buf += x;
+      let i;
+      while ((i = buf.indexOf(String.fromCharCode(10))) >= 0) {
+        const v = buf.slice(0, i).split(",").map((y) => Number(y.trim()));
+        buf = buf.slice(i + 1);
+        if (v.length >= 6 && Number.isFinite(v[0])) samples.push({ t: Date.now(), gpu: v[0], enc: v[1], dec: v[2], sessions: v[3], encFps: v[4], memMb: v[5] });
+      }
+    });
+  } catch { child = null; }
+  return {
+    samples,
+    stop: () => { if (child) try { child.kill(); } catch {} },
+    summary: (from = 0, to = Infinity) => {
+      const s = samples.filter((x) => x.t >= from && x.t <= to);
+      if (!s.length) return null;
+      const mean = (k) => round(s.reduce((a, x) => a + x[k], 0) / s.length);
+      const max = (k) => Math.max(...s.map((x) => x[k]));
+      return { n: s.length, gpuPctMean: mean("gpu"), gpuPctMax: max("gpu"), encPctMean: mean("enc"), encPctMax: max("enc"), decPctMean: mean("dec"), decPctMax: max("dec"), sessionsMean: mean("sessions"), sessionsMax: max("sessions"), memMbMax: max("memMb") };
+    },
+  };
+};
+
 // ---------- the server process tree, seen from outside ----------
 // CPU seconds of the server process AND of every child it ever started
 // (ffmpeg, ffprobe): one long-lived helper asks the OS every `everyMs`
@@ -251,4 +287,4 @@ const git = (args, opts = {}) => execFileSync("git", ["-C", REPO, ...args], { en
 
 const writeJson = (file, data) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(data, null, 2)); return file; };
 
-module.exports = { HERE, REPO, WORK, sleep, jitter, round, pct, median, parseArgs, Rec, Stats, machineSampler, diskSampler, treeSampler, table, git, writeJson };
+module.exports = { HERE, REPO, WORK, sleep, jitter, round, pct, median, parseArgs, Rec, Stats, machineSampler, diskSampler, gpuSampler, treeSampler, table, git, writeJson };
