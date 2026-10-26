@@ -87,7 +87,7 @@ for (const m of mixes) {
   const pick = (kind) => {
     const [form, how] = kind.split("-");
     const t = titles.filter((x) => (how === "direct" ? (form === "tv" ? x.tv === "direct" : x.web === "direct") : how === "offset" ? x.tv !== "direct" : how === "jit" ? x.web !== "direct" : how === "transcode" ? !/Heavy/.test(x.title) : /Release Aac/.test(x.title)));
-X
+    if (how === "transcode") return form === "phone" ? 1.1 : 2.33; // the 480p / 720p rungs' ceilings + sound, Mbit/s (ladder.js CAPS)
     return avg(t.map((x) => x.mbit));
   };
   fileMbit[m] = round(avg(cycle.map(pick).filter((x) => x != null)), 2);
