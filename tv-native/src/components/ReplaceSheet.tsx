@@ -2,7 +2,13 @@
 // words; the rules are the server's, src/media/replace.js).
 //
 //   step 1  What's wrong with this copy?   five reasons, focus on the first
-//   step 2  Get another version            the title's other sources, ★ BEST first
+//   step 2  Get another version            the title's other sources, ★ BEST first,
+//                                          each marked as the title page marks it
+//                                          (CAM / TS / BURNED-IN SUBS + its line)
+//   asked   This is not the real release   a pre-release copy picked: the title
+//                                          page's question, in the sheet (one
+//                                          sheet at a time); Back / Cancel →
+//                                          the list, focus on that row
 //   on its way                             status, reason, Cancel (the one who asked)
 //   refused                                the server's why (a kids profile…)
 //
@@ -25,12 +31,14 @@ import {
   reasonsOf,
   replaceFace,
   replaceReasonText,
+  replaceAsksFirst,
   replaceRowText,
   replaceStatusText,
   replaceWho,
   sourcesError,
   WORDS,
 } from '../replaceLogic';
+import {EARLY_CONFIRM} from '../releaseWords';
 import theme from '../theme';
 
 const {colors, fontSize, radius, spacing} = theme;
@@ -78,6 +86,10 @@ export default function ReplaceSheet({
   // the source being asked for (its row spins), and a refusal of it
   const [picking, setPicking] = useState<string | null>(null);
   const [pickErr, setPickErr] = useState<string | null>(null);
+  // a pre-release copy picked: asked first (the title page's words)
+  const [asked, setAsked] = useState<ReplaceStream | null>(null);
+  // the row focus goes back to when that question is answered "Cancel"
+  const [focusKey, setFocusKey] = useState<string | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelErr, setCancelErr] = useState<string | null>(null);
   const live = useRef(true);
@@ -95,9 +107,16 @@ export default function ReplaceSheet({
   // BACK: from the list of versions back to the reasons; anywhere else, closes.
   const step2Ref = useRef(step2);
   step2Ref.current = step2;
+  const askedRef = useRef(asked);
+  askedRef.current = asked;
   const back = useCallback(() => {
+    if (askedRef.current) {
+      setAsked(null);
+      return;
+    }
     if (step2Ref.current) {
       setStep2(null);
+      setFocusKey(null);
       setPickErr(null);
       return;
     }
@@ -143,9 +162,16 @@ export default function ReplaceSheet({
   );
 
   const pickSource = useCallback(
-    (s: ReplaceStream) => {
+    (s: ReplaceStream, sure = false) => {
       if (!step2 || picking) return;
       const key = `${s.infoHash}:${s.fileIdx || 0}`;
+      if (!sure && replaceAsksFirst(s)) {
+        setFocusKey(key);
+        setAsked(s);
+        return;
+      }
+      setAsked(null);
+      setFocusKey(key);
       setPicking(key);
       setPickErr(null);
       api
@@ -222,6 +248,18 @@ export default function ReplaceSheet({
     );
   }
 
+  if (step2 && asked) {
+    return (
+      <Sheet kicker={kicker} title={EARLY_CONFIRM.title} width={640} onClose={back}>
+        <Text style={styles.body}>{EARLY_CONFIRM.text(asked)}</Text>
+        <View style={styles.actions}>
+          <Ghost label={EARLY_CONFIRM.cancel} onPress={back} focus />
+          <Primary uiId="replace.early" label={EARLY_CONFIRM.download} onPress={() => pickSource(asked, true)} />
+        </View>
+      </Sheet>
+    );
+  }
+
   if (step2) {
     const streams = step2.streams;
     return (
@@ -238,7 +276,7 @@ export default function ReplaceSheet({
         ) : (
           <View style={styles.list}>
             {streams.map((s, i) => {
-              const t = replaceRowText(s);
+              const t = replaceRowText(s, step2.reason);
               const key = `${s.infoHash}:${s.fileIdx || 0}`;
               const q = QUALITY_COLOR[t.quality] || QUALITY_COLOR.SD;
               return (
@@ -246,7 +284,7 @@ export default function ReplaceSheet({
                   key={key}
                   uiId="replace.pick"
                   scaleTo={1.01}
-                  hasTVPreferredFocus={i === 0}
+                  hasTVPreferredFocus={focusKey && streams.some(x => `${x.infoHash}:${x.fileIdx || 0}` === focusKey) ? key === focusKey : i === 0}
                   onPress={() => pickSource(s)}
                   highlightColor={colors.surfaceHover}
                   style={styles.row}>
@@ -268,6 +306,11 @@ export default function ReplaceSheet({
                     <Text style={styles.meta} numberOfLines={1}>
                       {t.meta}
                     </Text>
+                    {t.early ? (
+                      <Text style={styles.early} numberOfLines={1}>
+                        {t.early}
+                      </Text>
+                    ) : null}
                     {t.warn ? (
                       <Text style={styles.warn} numberOfLines={1}>
                         {t.warn}
@@ -357,5 +400,6 @@ const styles = StyleSheet.create({
   best: {color: '#f5c542', fontSize: 12, fontWeight: '900', borderWidth: 1, borderColor: 'rgba(245,197,66,0.45)', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden', flexShrink: 0},
   tag: {color: '#fbbf24', fontSize: 12, fontWeight: '900', borderWidth: 1, borderColor: 'rgba(251,191,36,0.45)', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden', flexShrink: 0},
   meta: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '600', marginTop: 4},
+  early: {color: '#fcd34d', fontSize: fontSize.small, fontWeight: '700', marginTop: 2},
   warn: {color: '#ff8080', fontSize: fontSize.small, fontWeight: '700', marginTop: 2},
 });

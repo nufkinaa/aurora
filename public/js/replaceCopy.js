@@ -16,6 +16,7 @@ import { state } from "./state.js";
 import { pushScope, popScope } from "./focus.js";
 import { onMessage } from "./ws.js";
 import { track } from "./usage.js";
+import { earlyOk, isEarly, sourceBadge } from "./releaseWords.js";
 
 export const COPY_PROBLEM = "Problem with this copy?";
 export const GET_ANOTHER = "Get another version";
@@ -39,6 +40,13 @@ export const replaceStatusText = (r) => {
 
 // One source as a line of facts: "1080p · 2.1 GB · 120 seeders".
 const factsOf = (s) => [s.qualityLabel || s.quality, s.sizeBytes ? fmtBytes(s.sizeBytes) : s.sizeString, s.seeders ? `${s.seeders} seeders` : null, s.provider].filter(Boolean).join(" · ");
+
+// The ★ on a row: the server's (never a pre-release copy or a dub, never a
+// release reported bad here — src/media/replace.js sources) — and a person
+// replacing a copy BECAUSE of burned-in subtitles is never pointed at another
+// copy with burned-in subtitles (then there is no clean one left: no ★). The
+// TV's replaceRowText says the same.
+export const replaceBestOf = (s, reason) => !!(s && s.recommended && !isEarly(s) && !s.dubbed && !(reason === "burned" && s.hardsub));
 
 // Who may see the entry at all: a grown-up profile on a server with sources.
 export const canOfferReplace = () => !!(state.profile && !state.profile.kids && state.torrents !== false);
@@ -71,6 +79,7 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
   let reason = null;
   let unsub = null;
   let info = null;
+  let asking = false; // the "not the real release" question is up over the sheet (its own Back closes it)
 
   const close = () => {
     document.removeEventListener("ui-back", onBack);
@@ -81,6 +90,7 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
     setTimeout(() => wrap.remove(), 220);
   };
   const onBack = (e) => {
+    if (asking) return;
     e.preventDefault();
     if (step === "sources") return showReasons();
     close();
@@ -205,16 +215,19 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
         ...shown.map((s, i) => el("button", {
           "data-ui": "replace.pick",
           type: "button",
-          class: `rc-src focusable${i === 0 ? " rc-first" : ""}${s.badHere ? " bad" : ""}`,
+          class: `rc-src focusable${i === 0 ? " rc-first" : ""}${s.badHere ? " bad" : ""}${isEarly(s) ? " early" : ""}`,
           onclick: (ev) => pick(s, ev.currentTarget, note.value),
         },
         el("span", { class: "rc-src-q" }, s.quality || "?"),
         el("span", { class: "rc-src-main" },
           el("span", { class: "rc-src-name" }, s.release || s.provider || "Unnamed release"),
           el("span", { class: "rc-src-meta" },
-            s.recommended ? el("b", { class: "rc-best" }, "★ BEST") : null,
+            replaceBestOf(s, reason) ? el("b", { class: "rc-best" }, "★ BEST") : null,
+            // what kind of copy it is — the title page's marks (CAM, TS, BURNED-IN SUBS)
+            sourceBadge(s) ? el("b", { class: "rc-kind", title: s.warning || "" }, sourceBadge(s)) : null,
             s.badHere ? el("b", { class: "rc-bad" }, `Reported here: ${s.badHere.label}`) : null,
-            factsOf(s))))),
+            factsOf(s)),
+          (isEarly(s) || s.hardsub) && s.warning ? el("span", { class: "rc-warn" }, s.warning) : null))),
         shown.length < streams.length
           ? el("button", { type: "button", class: "focusable src-more", onclick: () => { expanded = true; render(); focusFirst(); } }, `Show all ${streams.length}`)
           : null,
@@ -225,6 +238,13 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
   };
 
   const pick = async (s, btn, noteText) => {
+    // a copy made before the film is out at home: asked first, the title
+    // page's words ("This is not the real release" — js/releaseWords.js)
+    asking = isEarly(s);
+    const go = await earlyOk(s, "download");
+    asking = false;
+    if (!go) return btn.isConnected && btn.focus({ preventScroll: true });
+    if (!wrap.isConnected || step !== "sources") return;
     for (const b of body.querySelectorAll(".rc-src")) b.disabled = true;
     btn.classList.add("busy");
     try {

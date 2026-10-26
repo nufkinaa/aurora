@@ -1,8 +1,11 @@
 // "Problem with this copy? → Get another version" — the words and the small
-// decisions, PURE (no imports): components/ReplaceSheet.tsx draws them, the
+// decisions, PURE (no React, no network — its one import, releaseWords.ts, is
+// pure too): components/ReplaceSheet.tsx draws them, the
 // player, the title page and My downloads ask them, and the logic test runs
 // this file as it is. The rules themselves are the server's
 // (src/media/replace.js); the words are the website's, letter for letter.
+
+import {isEarly, pickable, sourceBadge} from './releaseWords';
 
 export type ReplaceReason = {id: string; label: string};
 
@@ -114,28 +117,46 @@ export type ReplaceStreamLike = {
   filename?: string | null;
   recommended?: boolean | null;
   cam?: boolean | null;
+  prerelease?: string | null;
+  hardsub?: boolean | null;
+  badge?: string | null;
+  warning?: string | null;
   dubbed?: boolean | null;
   badHere?: {reason?: string; label?: string | null} | null;
 };
 
-/** One source row: quality, size, seeders, the release name; ★ BEST; a
- *  "Reported here" warning for a release somebody here already replaced. */
+/** One source row: quality, size, seeders, the release name; ★ BEST; the
+ *  server's mark for what kind of copy it is ("CAM", "TS", "BURNED-IN SUBS"
+ *  as a tag, "CAM — filmed in a cinema" as the `early` line — the title
+ *  page's words, releaseWords.ts); a "Reported here" warning for a release
+ *  somebody here already replaced. `reason` is the one picked on step 1: a
+ *  person replacing a copy BECAUSE of burned-in subtitles is never pointed at
+ *  another copy with burned-in subtitles as the ★ (there is no clean one
+ *  left then, so no ★ at all). */
 export const replaceRowText = (
   s: ReplaceStreamLike,
-): {quality: string; name: string; meta: string; best: string | null; warn: string | null; tags: string[]} => {
+  reason?: string | null,
+): {quality: string; name: string; meta: string; best: string | null; warn: string | null; early: string | null; tags: string[]} => {
   const quality = s.quality || s.qualityLabel || 'SD';
   const size = s.sizeString || fmtSize(s.sizeBytes);
   const seeds = typeof s.seeders === 'number' ? `${s.seeders} seeder${s.seeders === 1 ? '' : 's'}` : null;
-  const tags = [s.cam ? 'Cam' : null, s.dubbed ? 'Dub' : null].filter(Boolean) as string[];
+  const tags = [sourceBadge(s), s.dubbed ? 'Dub' : null].filter(Boolean) as string[];
+  const best = !!s.recommended && pickable(s) && !(reason === 'burned' && s.hardsub);
   return {
     quality,
     name: s.release || s.filename || '',
     meta: [quality, size, seeds].filter(Boolean).join(' · '),
-    best: s.recommended ? WORDS.best : null,
+    best: best ? WORDS.best : null,
     warn: s.badHere ? `Reported here: ${s.badHere.label || 'a problem'}` : null,
+    early: isEarly(s) || s.hardsub ? s.warning || null : null,
     tags,
   };
 };
+
+/** Picking a copy made before the film is out at home is asked about first —
+ *  the title page's words (releaseWords.ts EARLY_CONFIRM, "Download it
+ *  anyway": a replacement is a download). */
+export const replaceAsksFirst = (s: ReplaceStreamLike | null | undefined): boolean => isEarly(s);
 
 /** The failure line of the source list: the server's own words, else the fallback. */
 export const sourcesError = (e: unknown): string => {

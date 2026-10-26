@@ -52,6 +52,12 @@ describe('the pick (the same rule the title page always used)', () => {
     expect(pickBest([hard, clean])).toBe(clean);
     expect(pickBest([hard])).toBe(hard);
   });
+  test('never a release somebody here reported bad ("Get another version")', () => {
+    const bad = st({infoHash: 'b', seeders: 900, recommended: true, badHere: {reason: 'picture', label: 'Bad picture'}});
+    const ok = st({infoHash: 'o', seeders: 3});
+    expect(pickBest([bad, ok])).toBe(ok);
+    expect(pickBest([bad])).toBeNull();
+  });
 });
 
 describe('what the player is handed', () => {

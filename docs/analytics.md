@@ -159,7 +159,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 229 ids: 168 on the website
 | profile | `profile.add` `profile.gate.close` `profile.save` | `profile.pin.submit` | `profile.pick` `profile.unlock` |
 | rating | `rating.star` | – | – |
 | remote | `remote.audio` `remote.back` `remote.close` `remote.device.open` `remote.device.pick` `remote.dpad` `remote.home` `remote.more` `remote.mute` `remote.next` `remote.padmode` `remote.play` `remote.playpause` `remote.rename` `remote.seek` `remote.sheet.pick` `remote.skip` `remote.stop` `remote.subdelay` `remote.subtitles` `remote.view` `remote.volume` | – | – |
-| replace | – | – | `replace.cancel` `replace.pick` `replace.reason` |
+| replace | – | – | `replace.cancel` `replace.early` `replace.pick` `replace.reason` |
 | report | – | – | `report.send` |
 | row | `row.arrow` | – | – |
 | saved | `saved.play` `saved.remove` | – | – |

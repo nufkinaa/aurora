@@ -1,7 +1,7 @@
 // "Has it really come out, and is this a good copy?" — the TV side. Pure: no
 // React, no network, so __tests__/logic/release-words.test.ts holds it to the
-// website's words (public/js/screens/discover-detail.js EARLY_CONFIRM,
-// releaseNote) to the letter.
+// website's words (public/js/releaseWords.js EARLY_CONFIRM,
+// screens/discover-detail.js releaseNote) to the letter.
 //
 // The server reads every release name (src/media/releasekind.js) and sends,
 // per source: `cam` (any copy made before the film is out at home — CAM, TS,
@@ -19,10 +19,10 @@ export type ReleaseStatus = {
 };
 
 type SourceLike = {
-  cam?: boolean;
+  cam?: boolean | null;
   prerelease?: string | null;
-  hardsub?: boolean;
-  dubbed?: boolean;
+  hardsub?: boolean | null;
+  dubbed?: boolean | null;
   badge?: string | null;
   warning?: string | null;
 };

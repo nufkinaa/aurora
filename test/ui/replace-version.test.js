@@ -150,6 +150,64 @@ for (const look of ["glass", "legacy"]) {
   }
 }
 
+for (const [vp, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
+  ui.test(`${vp}: the versions carry the title page's marks (CAM, BURNED-IN SUBS); a cinema recording is asked about first; replacing burned-in subtitles never stars another burned-in copy`, { viewport }, async ({ page, signIn, freshProfile, goto, lib }) => {
+    const marked = [
+      stream("h", { recommended: true, hardsub: true, badge: "BURNED-IN SUBS", warning: "Subtitles burned into the picture", release: "Test.Film.One.2020.KORSUB.1080p" }),
+      stream("p", { cam: true, prerelease: "cam", badge: "CAM", warning: "CAM — filmed in a cinema", seeders: 900, release: "Test.Film.One.2020.HDCAM" }),
+    ];
+    const calls = await stubReplace(page, { streams: marked });
+    await signIn(await freshProfile());
+    await goto(`#/movie/${lib.film1.id}`);
+    await openFromTitle(page);
+    const card = page.locator(sheet);
+    const rows = page.locator(`${sheet} [data-ui="replace.pick"]`);
+    // another reason: the burned-in copy keeps the server's ★
+    await page.click(`${sheet} [data-ui="replace.reason"]:has-text("Bad picture")`);
+    await rows.first().waitFor();
+    assert.match(await rows.nth(0).innerText(), /★ BEST/);
+    assert.match(await rows.nth(0).innerText(), /BURNED-IN SUBS/);
+    assert.match(await rows.nth(0).innerText(), /Subtitles burned into the picture/);
+    assert.match(await rows.nth(1).innerText(), /CAM/);
+    assert.match(await rows.nth(1).innerText(), /CAM — filmed in a cinema/);
+    assert.doesNotMatch(await rows.nth(1).innerText(), /★ BEST/);
+    assert.equal(await rows.nth(1).evaluate((n) => n.classList.contains("early")), true);
+    if (vp === "phone") await assertNoHorizontalOverflow(page, "the marked versions");
+    await shot(page, `${vp}-glass-9-marks`);
+    // the cinema recording: "This is not the real release" first — Cancel sends nothing
+    await rows.nth(1).click();
+    const ask = page.locator(".look-notice-wrap:not(.replace-wrap) .look-notice");
+    await ask.waitFor();
+    assert.equal(await ask.locator(".look-notice-title").innerText(), "This is not the real release");
+    assert.match(await ask.innerText(), /CAM — filmed in a cinema\. Picture and sound are usually poor/);
+    assert.match(await ask.innerText(), /Download it anyway/);
+    await shot(page, `${vp}-glass-10-early-confirm`);
+    await ask.locator("button", { hasText: "Cancel" }).click();
+    await page.waitForSelector(".look-notice-wrap:not(.replace-wrap)", { state: "detached" });
+    assert.equal(calls.posts.length, 0, "nothing was asked for");
+    assert.ok(await page.locator(`${sheet} [data-ui="replace.pick"]`).count(), "the sheet is still on the versions");
+    // Back on the question closes the question only
+    await rows.nth(1).click();
+    await ask.waitFor();
+    await page.keyboard.press("Escape");
+    await page.waitForSelector(".look-notice-wrap:not(.replace-wrap)", { state: "detached" });
+    assert.ok(await page.locator(`${sheet} [data-ui="replace.pick"]`).count(), "Back closed the question, not the sheet");
+    // replacing BECAUSE of burned-in subtitles: no ★ on another burned-in copy
+    await page.click(`${sheet} .rc-back`);
+    await page.click(`${sheet} [data-ui="replace.reason"]:has-text("Burned-in subtitles")`);
+    await rows.first().waitFor();
+    assert.doesNotMatch(await card.innerText(), /★ BEST/);
+    // …and "Download it anyway" goes ahead
+    await rows.nth(1).click();
+    await ask.waitFor();
+    await ask.locator("button", { hasText: "Download it anyway" }).click();
+    await page.waitForSelector(`${sheet} [data-ui="replace.cancel"]`);
+    assert.equal(calls.posts.length, 1);
+    assert.deepEqual(calls.posts[0].body.source, { infoHash: HASH("p"), fileIdx: 0 });
+    assert.equal(calls.posts[0].body.reason, "burned");
+  });
+}
+
 ui.test("opened again while a replacement is on its way: its state, the reason — and live progress, then ‘waiting for nobody to be playing it’", async ({ page, signIn, freshProfile, goto, lib }) => {
   await page.addInitScript(() => {
     const Real = window.WebSocket;

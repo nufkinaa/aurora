@@ -184,6 +184,7 @@ module.exports = {
   "report.send": "wt",
   // replace ("Problem with this copy? → Get another version")
   "replace.cancel": "wt",
+  "replace.early": "t", // "Download it anyway" on a pre-release copy (the site asks with its shared confirm sheet)
   "replace.pick": "wt",
   "replace.reason": "wt",
   // row

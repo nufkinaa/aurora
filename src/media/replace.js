@@ -217,9 +217,14 @@ const sources = async (libraryId, viewer, opts = {}) => {
   let streams = ((found && found.streams) || []).filter((x) => x && x.infoHash && !isCurrent(cur, x));
   // dead torrents out, but only when the provider reports seeders at all
   if (streams.some((x) => x.seeders > 0)) streams = streams.filter((x) => x.seeders > 0);
-  // (the ★ pick may have been the copy being replaced: it moves to the next good one)
+  // (the ★ pick may have been the copy being replaced: it moves to the next
+  // good one — the same rule as torrent.js markBest: never a pre-release copy
+  // or a dub (media/releasekind.js), never a release reported bad here, a
+  // clean copy before one with burned-in subtitles; none at all when every
+  // copy left is a cinema recording)
   if (!streams.some((x) => x.recommended)) {
-    const best = streams.find((x) => !x.cam && !x.dubbed && !x.badHere);
+    const ok = (x) => require("./releasekind").pickable(x) && !x.badHere;
+    const best = streams.find((x) => ok(x) && !x.hardsub) || streams.find(ok);
     if (best) streams = streams.map((x) => (x === best ? { ...x, recommended: true } : x));
   }
   return { status: 200, body: { streams, current: (({ jobId, ...c }) => c)(cur) } };

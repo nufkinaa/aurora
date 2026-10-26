@@ -468,6 +468,49 @@ test("bad-release memory: marked, sunk below the rest, never ★, never picked b
   assert.equal(badreleases.apply(key, list), list);
 });
 
+test("with the release markers (releasekind.js): bad below burned-in, pre-release last; the ★ never on a pre-release or a bad copy", async () => {
+  await reset();
+  const key = "tt8899998";
+  const H = src(HASH("h"), { hardsub: true, release: "Mark.2020.KORSUB.1080p" });
+  const P = src(HASH("p"), { cam: true, prerelease: "telesync", release: "Mark.2020.HDTS", seeders: 900 });
+  const list = [src(A, { release: "Mark.Release.1080p", recommended: true }), src(B), H, P];
+  badreleases.record(key, { infoHash: B, reason: "picture", by: GROWN.id, rid: "rk1" });
+  badreleases.record(key, { infoHash: A, reason: "sound", by: GROWN.id, rid: "rk2" });
+  const out = badreleases.apply(key, list);
+  assert.deepEqual(out.map((s) => s.infoHash), [H.infoHash, A, B, P.infoHash], "burned-in, then the bad ones, the pre-release copy last of all");
+  assert.equal(out.filter((s) => s.recommended).map((s) => s.infoHash).join(), H.infoHash, "no clean copy left that is not bad: the ★ goes to the burned-in one, never the TS");
+  // only bad and pre-release copies: no ★ at all
+  const none = badreleases.apply(key, [src(A), src(B), P]);
+  assert.equal(none.filter((s) => s.recommended).length, 0);
+  badreleases.unrecord(key, "rk1");
+  badreleases.unrecord(key, "rk2");
+});
+
+test("Get another version's list: the ★ moves off the copy being replaced — never onto a pre-release copy", async () => {
+  await reset();
+  const f = seedFilm();
+  const P = src(HASH("q"), { cam: true, prerelease: "cam", badge: "CAM", warning: "CAM — filmed in a cinema", seeders: 999 });
+  const H = src(HASH("r"), { hardsub: true, badge: "BURNED-IN SUBS", warning: "Subtitles burned into the picture" });
+  // the copy on disk was the ★; what is left: a CAM (best seeded) and a burned-in copy
+  sources[f.imdbId] = [src(A, { release: "Rep.Film.2020.1080p.HC.WEB", recommended: true }), H, P];
+  const r = await replace.sources(f.id, GROWN);
+  assert.equal(r.status, 200);
+  const best = r.body.streams.filter((s) => s.recommended);
+  assert.deepEqual(best.map((s) => s.infoHash), [H.infoHash], "the ★ is the burned-in copy, not the cinema recording");
+  const cam = r.body.streams.find((s) => s.infoHash === P.infoHash);
+  assert.equal(cam.badge, "CAM", "the marks reach the sheet as they are");
+  assert.equal(cam.warning, "CAM — filmed in a cinema");
+  // nothing but a cinema recording left: no ★
+  sources[f.imdbId] = [src(A, { release: "Rep.Film.2020.1080p.HC.WEB", recommended: true }), P];
+  const r2 = await replace.sources(f.id, GROWN);
+  assert.equal(r2.body.streams.filter((s) => s.recommended).length, 0);
+  // a person may still pick it (the sheet asks first): it is one of the title's sources
+  const asked = await ask(f.id, GROWN, P.infoHash, "picture");
+  assert.equal(asked.status, 200, JSON.stringify(asked.body));
+  replace.cancel(f.id, GROWN);
+  await flush();
+});
+
 test("the copy's old name is free again; a title replaced twice keeps one pin and its id", async () => {
   await reset();
   const f = seedFilm({ ext: ".mp4" });

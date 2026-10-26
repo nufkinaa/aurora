@@ -55,11 +55,12 @@ export const runtimeToSeconds = (runtime?: string | number | null): number => {
  *  recommended source among those with peers, else the best listed (the
  *  server lists them best first) — but NEVER a copy made before the film is
  *  out at home (CAM, TS, TC, screener, HC) and never a dub (releaseWords.ts
- *  pickable), and one with burned-in subtitles only when there is no clean
- *  copy. Nothing pickable: null — nothing starts by itself, the page says why
+ *  pickable), never a release somebody here reported bad (badHere — "Get
+ *  another version"), and one with burned-in subtitles only when there is no
+ *  clean copy. Nothing pickable: null — nothing starts by itself, the page says why
  *  and the list (marked, asking first) is one press away. */
 export const pickBest = (streams: Stream[] | null | undefined): Stream | null => {
-  const all = (streams || []).filter(pickable);
+  const all = (streams || []).filter(x => pickable(x) && !x.badHere);
   const alive = all.filter(x => x.seeders > 0);
   const pool = alive.length ? alive : all;
   const clean = pool.filter(x => !x.hardsub);

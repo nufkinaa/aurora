@@ -1,13 +1,14 @@
 // "Has it really come out, and is this a good copy?" on the TV
 // (src/releaseWords.ts): the words are the website's to the letter
-// (public/js/screens/discover-detail.js EARLY_CONFIRM), and what may be
+// (public/js/releaseWords.js EARLY_CONFIRM — the title page's source list
+// and "Get another version" share it), and what may be
 // picked for someone is the server's rule (src/media/releasekind.js pickable).
 import {EARLY_CONFIRM, heroRelease, isEarly, pickable, sourceBadge} from '../../src/releaseWords';
 
 const fs = require('fs');
 const path = require('path');
 
-const WEB = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'public', 'js', 'screens', 'discover-detail.js'), 'utf8');
+const WEB = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'public', 'js', 'releaseWords.js'), 'utf8');
 
 test('the confirm before a pre-release copy downloads or plays: the website\'s words', () => {
   expect(WEB).toContain(`title: "${EARLY_CONFIRM.title}"`);

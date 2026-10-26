@@ -1,6 +1,6 @@
 // Releases a person said were BAD here — burned-in subtitles, a bad picture,
 // the wrong dub — remembered per title so nothing automatic picks one of
-// them again: smart downloads, My List downloads, follows (smartdl.pickSource)
+// them again: smart downloads, follows (smartdl.pickSource)
 // and the second-source race skip them, and the ★ BEST mark never lands on
 // one. A person choosing by hand still sees them, at the foot of the list,
 // marked "Reported here" with the reason.
@@ -87,14 +87,20 @@ const unrecord = (key, rid) => {
 };
 
 // A ranked source list with this title's bad releases marked (`badHere`)
-// and moved below the others, CAM rips still last of all; the ★ pick moves
-// to the first source that is neither CAM, dubbed nor bad. A list with no
-// bad release in it comes back as it was given — same array, same order.
+// and moved below the others — below the copies with burned-in subtitles
+// too; pre-release copies (CAM, TS, TC, screener: media/releasekind.js) still
+// last of all. The ★ pick moves to the first source that may be picked for
+// someone (releasekind.pickable: no pre-release copy, no dub) and is not
+// bad here, a clean one before one with burned-in subtitles — the same rule
+// as torrent.js markBest. A list with no bad release in it comes back as it
+// was given — same array, same order.
 const apply = (key, streams) => {
   if (!Array.isArray(streams) || !streams.length || !forTitle(key).length) return streams;
   const marks = streams.map((s) => match(key, s));
   if (!marks.some(Boolean)) return streams;
-  const rank = (s, m) => (s.cam ? 2 : m ? 1 : 0);
+  const releasekind = require("./releasekind");
+  // 0 clean, 1 burned-in subtitles, 2 reported bad here, 3 pre-release
+  const rank = (s, m) => { const t = releasekind.tierOf(s); return t === 2 ? 3 : m ? 2 : t; };
   const out = streams
     .map((s, i) => ({ s, m: marks[i], i }))
     .sort((a, b) => rank(a.s, a.m) - rank(b.s, b.m) || a.i - b.i)
@@ -104,7 +110,8 @@ const apply = (key, streams) => {
       if (m) c.badHere = { reason: m.why, label: reasonLabel(m.why), at: m.at };
       return c;
     });
-  const best = out.find((s) => !s.cam && !s.dubbed && !s.badHere);
+  const ok = (s) => releasekind.pickable(s) && !s.badHere;
+  const best = out.find((s) => ok(s) && !s.hardsub) || out.find(ok);
   if (best) best.recommended = true;
   return out;
 };

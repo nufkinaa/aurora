@@ -378,6 +378,9 @@ export type Stream = {
   sizeBytes: number;
   languages: string[];
   recommended?: boolean;
+  // a release somebody here reported bad ("Get another version":
+  // src/media/badreleases.js) — listed last, never picked for anyone
+  badHere?: {reason: string; label: string} | null;
   // how this source plays on THIS box, by the server's table (sent when the
   // read carried ?caps= — avCaps.ts streamPlan)
   play?: Play;

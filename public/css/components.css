@@ -1573,6 +1573,12 @@
 .rc-src-meta { display: flex; flex-wrap: wrap; gap: 2px 8px; font-size: 0.78rem; color: var(--text-dim); }
 .rc-best { color: #fbbf24; }
 .rc-bad { color: #ff9b7a; }
+/* what kind of copy it is — the title page's marks (src/media/releasekind.js):
+   CAM / TS / BURNED-IN SUBS as a tag, its sentence on a line of its own */
+.rc-kind { color: #fcd34d; }
+.rc-warn { font-size: 0.78rem; font-weight: 600; color: #fcd34d; line-height: 1.3; }
+.rc-src.early { opacity: 0.86; }
+.rc-src.early:hover, .rc-src.early:focus-visible { opacity: 1; }
 .rc-note {
   width: 100%; margin-top: 12px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.06); color: var(--text); font: inherit;

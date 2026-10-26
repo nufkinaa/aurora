@@ -10,6 +10,7 @@ import {
   replaceJobLine,
   replaceOffered,
   replaceReasonText,
+  replaceAsksFirst,
   replaceRowText,
   replaceStatusText,
   replaceWho,
@@ -101,12 +102,27 @@ test("the server's reasons when it sent them, else the five", () => {
 
 test('a source row: quality, size, seeders, release; ★ BEST; Reported here', () => {
   const r = replaceRowText({quality: '1080p', sizeString: '2.1 GB', seeders: 45, release: 'Film.2020.1080p.BluRay', recommended: true});
-  expect(r).toEqual({quality: '1080p', name: 'Film.2020.1080p.BluRay', meta: '1080p · 2.1 GB · 45 seeders', best: '★ BEST', warn: null, tags: []});
+  expect(r).toEqual({quality: '1080p', name: 'Film.2020.1080p.BluRay', meta: '1080p · 2.1 GB · 45 seeders', best: '★ BEST', warn: null, early: null, tags: []});
   const bad = replaceRowText({quality: '720p', sizeBytes: 900 * 1024 ** 2, seeders: 1, release: 'Film.HC', badHere: {reason: 'burned', label: 'Burned-in subtitles'}, cam: true, dubbed: true});
   expect(bad.meta).toBe('720p · 900 MB · 1 seeder');
   expect(bad.best).toBeNull();
   expect(bad.warn).toBe('Reported here: Burned-in subtitles');
   expect(bad.tags).toEqual(['Cam', 'Dub']);
+  // the server's marks for what kind of copy it is (releasekind.js): its badge as a tag, its words as a line
+  const ts = replaceRowText({quality: '1080p', release: 'Film.2026.HDTS.x264', cam: true, prerelease: 'telesync', badge: 'TS', warning: 'TS — recorded in a cinema', recommended: true});
+  expect(ts.tags).toEqual(['TS']);
+  expect(ts.early).toBe('TS — recorded in a cinema');
+  expect(ts.best).toBeNull(); // never ★ on a pre-release copy, whatever an old server said
+  expect(replaceAsksFirst({cam: true})).toBe(true);
+  expect(replaceAsksFirst({hardsub: true})).toBe(false);
+  expect(replaceAsksFirst({})).toBe(false);
+  const hs = {quality: '1080p', release: 'Film.2020.KORSUB.1080p', hardsub: true, badge: 'BURNED-IN SUBS', warning: 'Subtitles burned into the picture', recommended: true};
+  expect(replaceRowText(hs).tags).toEqual(['BURNED-IN SUBS']);
+  expect(replaceRowText(hs).early).toBe('Subtitles burned into the picture');
+  expect(replaceRowText(hs).best).toBe('★ BEST');
+  // replacing a copy BECAUSE of burned-in subtitles: another such copy is never the ★
+  expect(replaceRowText(hs, 'burned').best).toBeNull();
+  expect(replaceRowText(hs, 'picture').best).toBe('★ BEST');
   // nothing known: still a row
   expect(replaceRowText({}).quality).toBe('SD');
   expect(replaceRowText({filename: 'film.mkv'}).name).toBe('film.mkv');
