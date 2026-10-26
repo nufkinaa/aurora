@@ -410,12 +410,10 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
   // Disk guard (learned 2026-08-26 the ENOSPC way: a full disk truncates
   // store writes into "corrupt" pieces and kills segment muxing with noise
   // instead of answers). Refuse loudly while there is still headroom.
-  try {
-    const sfs = fs.statfsSync(HLS_ROOT);
-    if (sfs.bavail * sfs.bsize < 2 * 1024 * 1024 * 1024) {
-      return Promise.reject(new Error("Server disk is nearly full — free space to stream"));
-    }
-  } catch {}
+  // (the free space as last read, kept fresh off the event loop: lib/disk.js freeBytesCached)
+  if (require("../lib/disk").freeBytesCached(HLS_ROOT) < 2 * 1024 * 1024 * 1024) {
+    return Promise.reject(new Error("Server disk is nearly full — free space to stream"));
+  }
   const heavy = isHeavy(vcodec);
   const cap = capOf(vcodec);
 

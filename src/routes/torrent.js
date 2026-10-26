@@ -295,12 +295,10 @@ const jitTorrentInput = (t, file, infoHash, fileIdx) => {
 // routes/stream.js and media/ladder.js (master) for the parameters.
 router.get("/stream/torrent/hls/:infoHash/:fileIdx/jit/master.m3u8", async (req, res) => {
   if (!config.ffmpegAvailable) return res.status(503).send("ffmpeg not available");
-  try {
-    const sfs = require("fs").statfsSync(config.CACHE_DIR);
-    if (sfs.bavail * sfs.bsize < 2 * 1024 * 1024 * 1024) {
-      return res.status(503).send("Server disk is nearly full — free space to stream");
-    }
-  } catch {}
+  // (the free space as last read, kept fresh off the event loop: lib/disk.js freeBytesCached)
+  if (require("../lib/disk").freeBytesCached(config.CACHE_DIR) < 2 * 1024 * 1024 * 1024) {
+    return res.status(503).send("Server disk is nearly full — free space to stream");
+  }
   try {
     const t = await torrent.readyTorrent(req.params.infoHash);
     const fileIdx = parseInt(req.params.fileIdx, 10);
@@ -329,12 +327,10 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/jit/index.m3u8", async (req, 
   if (!config.ffmpegAvailable) return res.status(503).send("ffmpeg not available");
   // Same disk guard as every transcoder: a full disk makes producers grind
   // silently and segment requests hang to their deadline.
-  try {
-    const sfs = require("fs").statfsSync(config.CACHE_DIR);
-    if (sfs.bavail * sfs.bsize < 2 * 1024 * 1024 * 1024) {
-      return res.status(503).send("Server disk is nearly full — free space to stream");
-    }
-  } catch {}
+  // (the free space as last read, kept fresh off the event loop: lib/disk.js freeBytesCached)
+  if (require("../lib/disk").freeBytesCached(config.CACHE_DIR) < 2 * 1024 * 1024 * 1024) {
+    return res.status(503).send("Server disk is nearly full — free space to stream");
+  }
   try {
     const t0 = Date.now();
     const t = await torrent.readyTorrent(req.params.infoHash);

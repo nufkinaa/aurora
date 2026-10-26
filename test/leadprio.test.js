@@ -45,3 +45,4 @@ test("an OS that refuses changes nothing and the state stays honest", () => {
   assert.strictEqual(lp.step(run, null, 20), null);
   assert.strictEqual(lp.step(null, 42, 20), null);
 });
+

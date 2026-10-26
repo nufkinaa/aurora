@@ -512,12 +512,10 @@ router.get("/stream/transcode/:id/jit/master.m3u8", async (req, res) => {
   const entry = resolveKind(req.params.id, "video");
   if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
   if (!configLib().ffmpegAvailable) return res.status(503).send("ffmpeg not available");
-  try {
-    const sfs = fs.statfsSync(configLib().CACHE_DIR);
-    if (sfs.bavail * sfs.bsize < 2 * 1024 * 1024 * 1024) {
-      return res.status(503).send("Server disk is nearly full — free space to stream");
-    }
-  } catch {}
+  // (the free space as last read, kept fresh off the event loop: lib/disk.js freeBytesCached)
+  if (require("../lib/disk").freeBytesCached(configLib().CACHE_DIR) < 2 * 1024 * 1024 * 1024) {
+    return res.status(503).send("Server disk is nearly full — free space to stream");
+  }
   try {
     const st = fs.statSync(entry.path);
     const key = `${req.params.id}-${Math.floor(st.mtimeMs)}`;
@@ -545,12 +543,10 @@ router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
   // Same disk guard as the other transcoders: on a nearly-full disk the
   // producer grinds/fails silently and every segment request hangs to its
   // 90s deadline — refuse up front so the player falls back cleanly.
-  try {
-    const sfs = fs.statfsSync(configLib().CACHE_DIR);
-    if (sfs.bavail * sfs.bsize < 2 * 1024 * 1024 * 1024) {
-      return res.status(503).send("Server disk is nearly full — free space to stream");
-    }
-  } catch {}
+  // (the free space as last read, kept fresh off the event loop: lib/disk.js freeBytesCached)
+  if (require("../lib/disk").freeBytesCached(configLib().CACHE_DIR) < 2 * 1024 * 1024 * 1024) {
+    return res.status(503).send("Server disk is nearly full — free space to stream");
+  }
   try {
     const st = fs.statSync(entry.path);
     const key = `${req.params.id}-${Math.floor(st.mtimeMs)}`;
