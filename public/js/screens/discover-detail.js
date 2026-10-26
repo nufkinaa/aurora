@@ -323,6 +323,7 @@ const whyNotBest = (s, best) => {
   if (s.cam) r.push(earlyWhy(s));
   else if (s.hardsub) r.push("subtitles burned into the picture");
   if (s.dubbed) r.push("dubbed audio");
+  if (s.badHere) r.push(`reported here: ${String(s.badHere.label || "a problem").toLowerCase()}`);
   if ((QUALITY_RANK[s.quality] ?? 0) < (QUALITY_RANK[best.quality] ?? 0))
     r.push(`lower resolution than ${best.quality}`);
   if (s.quality === "2160p" && best.quality !== "2160p")
@@ -441,7 +442,10 @@ const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
       ),
       // what kind of copy it is, in plain words ("CAM — filmed in a cinema"),
       // on a line of its own so a phone never cuts it short
-      stream.warning && el("div", { class: "src-warn" }, stream.warning),
+      // …and a release somebody here replaced ("Get another version":
+      // src/media/badreleases.js), with their reason — the sheet's words
+      (stream.warning || stream.badHere) &&
+        el("div", { class: "src-warn" }, [stream.warning, stream.badHere && `Reported here: ${stream.badHere.label}`].filter(Boolean).join(" · ")),
     ),
   );
 

@@ -536,9 +536,10 @@ export function SourcesPanel({
                 )}
                 {s.sizeString ? <Text style={styles.meta}>{s.sizeString}</Text> : null}
                 {/* what kind of copy it is, in plain words ("CAM — filmed in a cinema") */}
-                {s.warning && !jobLine && !playsCopy ? (
+                {/* …and a release somebody here replaced ("Get another version"), with their reason */}
+                {(s.warning || s.badHere) && !jobLine && !playsCopy ? (
                   <Text style={styles.warnLine} numberOfLines={1}>
-                    {s.warning}
+                    {[s.warning, s.badHere ? `Reported here: ${s.badHere.label}` : null].filter(Boolean).join(' · ')}
                   </Text>
                 ) : null}
                 {jobLine || playsCopy ? null : s.languages?.length ? (
