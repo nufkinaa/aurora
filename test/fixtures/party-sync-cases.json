@@ -264,7 +264,7 @@
   "landTolerance": [
     {
       "heavy": false,
-      "want": 0.3
+      "want": 0.15
     },
     {
       "heavy": true,

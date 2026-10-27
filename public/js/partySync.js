@@ -18,7 +18,7 @@
 //   every farEveryMs
 export const SYNC = {
   tickMs: 1000, // how often a member looks (it acts only as below)
-  landOver: 0.3, // s: joining lands closer than this (direct file)
+  landOver: 0.15, // s: joining lands closer than this (direct file)
   landOverHeavy: 3, // s: … on a transcode / torrent (lands on a chunk)
   alignEveryMs: 1200000, // the quiet look: every 20 minutes
   alignOver: 1, // s: a bigger gap at the look is one seek
