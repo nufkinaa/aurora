@@ -22,7 +22,7 @@ import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio, langOf } from "
 import { savedDelay, saveDelay } from "../subdelay.js";
 import { createAirplay } from "../airplay.js";
 import { registerPlayerTarget, takeRemoteStart, playerChanged, onDevices, getDevices, chooseDevice, playOn, ICONS as REMOTE_ICONS } from "../remote.js"; // [phone-remote]
-import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM } from "../playstart.js";
+import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM, decodeStalled } from "../playstart.js";
 // [player-options] night mode, dialogue boost, the look of subtitles (2026-10-19)
 import { readStyle, nextChoice, styleLabel, cueCss, cueShadow, cueBackdrop, CUE_VW, CUE_MIN_PX, RAISED_PCT, SUB_STYLE_KEYS, SUB_STYLE_NAMES, SUB_COLORS } from "../subStyle.js";
 import { audioFxFor, AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES } from "../audiofx.js";
@@ -2538,11 +2538,11 @@ export const renderPlayer = async (root, { id }) => {
     stallTimer = setInterval(() => {
       if (exited || switchedToTranscode || onAir()) return; // (the TV's clock is not this device's decoder)
       const ct = video.currentTime;
-      const ahead =
-        video.buffered.length &&
-        video.buffered.end(video.buffered.length - 1) - ct > 3;
-      // frozen clock WITH data waiting ahead = decode stall (not a peer stall)
-      if (!video.paused && ahead && ct === lastCT) {
+      const ranges = [];
+      for (let i = 0; i < video.buffered.length; i++) ranges.push([video.buffered.start(i), video.buffered.end(i)]);
+      // frozen clock WITH data waiting at the playhead = decode stall (not a
+      // peer stall, not a seek still fetching its spot) — playstart.js
+      if (decodeStalled({ ranges, ct, lastCT, paused: video.paused, seeking: video.seeking, readyState: video.readyState })) {
         if (++stalls >= 3) { mark("stall-switch", { at: ct }); fallbackToTranscode(); } // ~3s
       } else {
         stalls = 0;

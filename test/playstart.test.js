@@ -211,3 +211,16 @@ test("startStepUp: a line known to be too thin for the film's own video waits fo
   assert.equal(startStepUp({ waited: 12000, encoded: true, copyTop: true, thin: true }), true);
   assert.equal(startStepUp({ waited: 3000, encoded: true, copyTop: true, thin: false }), true);
 });
+
+test("the decode-stall watchdog: film in hand AT the playhead and a frozen clock — not a seek still fetching its spot", async () => {
+  const { decodeStalled } = await load();
+  const base = { ct: 50, lastCT: 50, paused: false, seeking: false, readyState: 4 };
+  assert.equal(decodeStalled({ ...base, ranges: [[40, 120]] }), true, "frozen with 70 s in hand: the decoder");
+  // a seek back from 300 to 50: what is buffered is far ahead of the new spot
+  assert.equal(decodeStalled({ ...base, readyState: 1, ranges: [[280, 400]] }), false, "the element has nothing at the playhead");
+  assert.equal(decodeStalled({ ...base, ranges: [[280, 400]] }), false, "the only film in hand is elsewhere");
+  assert.equal(decodeStalled({ ...base, seeking: true, ranges: [[40, 120]] }), false, "a seek under way");
+  assert.equal(decodeStalled({ ...base, paused: true, ranges: [[40, 120]] }), false);
+  assert.equal(decodeStalled({ ...base, lastCT: 49, ranges: [[40, 120]] }), false, "the clock moved");
+  assert.equal(decodeStalled({ ...base, ranges: [[40, 52]] }), false, "two seconds in hand: a starving line, not the decoder");
+});

@@ -120,3 +120,19 @@ export const segmentAt = (playlistText, sec) => {
   }
   return last;
 };
+
+// PURE. The decode-stall watchdog's reading, once a second: is the picture
+// frozen with film in hand — the device failing to DECODE (then the player
+// takes the server's copy or encode instead)? Only with film buffered AT the
+// playhead (the range that holds it, more than 3 s of it) and the element
+// saying it has it (readyState 3+), not while a seek is under way. It used to
+// look at the LAST buffered range: after a seek back, film far ahead of the
+// new playhead read as "in hand" while the browser was still fetching the new
+// spot — three seconds of a slow disk or line, and a file that plays as it
+// is went to the server's transcode for the rest of the film.
+//   ranges: [[start, end], …] (video.buffered)  -> true when it counts
+export const decodeStalled = ({ ranges = [], ct = 0, lastCT = -1, paused = false, seeking = false, readyState = 0 } = {}) => {
+  if (paused || seeking || readyState < 3 || ct !== lastCT) return false;
+  for (const [a, b] of ranges) if (a <= ct + 0.3 && b > ct) return b - ct > 3;
+  return false;
+};
