@@ -112,7 +112,7 @@ import {
   serverNow,
   setPartyItem,
 } from '../party';
-import {decide, landTolerance, startsIn, SYNC, targetOf, waitingWords} from '../partySync';
+import {decide, landTolerance, startsIn, SYNC, SyncState, targetOf, waitingWords} from '../partySync';
 import {holdLibraryRefresh, isOpen as socketOpen, onLibraryNews, onMessage, reportActivity} from '../realtime';
 import {ignoreIntro, loadIgnoredIntros, loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS} from '../storage';
 import {PERSON_KEYS, PersonKey} from '../personPrefs';
@@ -203,6 +203,10 @@ const HIDE_MS = 7000;
 // seekTo()'s debounce: a burst of remote presses moves the scrubber instantly
 // but touches the network once, after the presses stop.
 const SEEK_DEBOUNCE_MS = 450;
+// A watch party's landing on a direct file: how far ahead of the party the
+// picture is held before it is set going (holdAndGo) — above the slowest seek
+// measured on the Mi TV (1.5 s), so the frame is there when the party arrives.
+const LAND_HOLD_MS = 2000;
 // The web's HLS recovery budget: four attempts per burst, and the budget
 // refreshes if the next failure comes more than a window later — so an outage
 // that ends (server restarted, swarm woke up) is picked up again instead of
@@ -777,6 +781,7 @@ export default function Player({
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingSeek = useRef<number | null>(null);
+  const seekNowRef = useRef<(sec: number) => void>(() => {});
   const seekPreviewRef = useRef<number | null>(null);
   const skipStreak = useRef(0);
   const skipAccum = useRef(0);
@@ -843,6 +848,9 @@ export default function Player({
   const partyEcho = useRef(0);
   const keepParty = useRef(false);
   const pendingLand = useRef<PartyStateMsg | null>(null);
+  // This player's film has loaded once (onLoad): before that a party landing
+  // waits for it (a seek sent to a player that is still preparing is lost).
+  const loadedRef = useRef(false);
   // Auto-subtitles: the server was asked once for a track in the person's language.
   const subsFetched = useRef(false);
   const playTracked = useRef(false);
@@ -966,6 +974,13 @@ export default function Player({
   useEffect(() => {
     showControls();
   }, [showControls]);
+  // A film set going again by someone else — a watch party's play, a start
+  // together after waiting for a friend — re-arms the chrome's auto-hide: the
+  // timer that ran out while it was paused does not come back by itself, so
+  // the controls stayed up over the film (and the first Back only hid them).
+  useEffect(() => {
+    if (!paused && controlsRef.current) showControls();
+  }, [paused]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The site flashes a big play/pause glyph in the middle of the picture on every
   // toggle (.player-flash). It's the confirmation that the keypress landed, which
@@ -1798,6 +1813,84 @@ export default function Player({
   // quiet look every 20 minutes, and a TV far off is moved at once. A TV
   // whose film stalls says so, and the party waits for it.
   const partyStartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The landing look (the site's landCheck): a moment after this TV landed on
+  // the party — joining, coming back, or a start together — where is it
+  // really? Off by more than the landing tolerance: land again (holdAndGo
+  // below), and one more look; never more than two corrections. A look that
+  // finds the film still loading waits (up to eight times) without counting as
+  // one. `line`: the start together's own instant, for a host (its ticks
+  // replace the party's state with where its own film is, so that cannot be
+  // the measure); a guest measures against the party's state, which by then
+  // is the host's real position.
+  const partyLandTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const landCheck = (fixes: number, line: SyncState, delay = 2500, waits = 0) => {
+    if (partyLandTimer.current) clearTimeout(partyLandTimer.current);
+    partyLandTimer.current = setTimeout(() => {
+      partyLandTimer.current = null;
+      if (exited.current || !party.current || !uriRef.current) return;
+      const st = line && party.role === 'host' ? line : party.current.state;
+      if (!st || !st.playing || startsIn(st, serverNow()) > 0) return console.log('[party] no landing look: the party is not playing');
+      // still loading, or our own hold not over yet: look again in a moment
+      if (bufferingRef.current || pendingSeek.current != null || partyStartTimer.current) {
+        if (waits < 8) landCheck(fixes, line, 1500, waits + 1);
+        else console.log('[party] no landing look: still loading');
+        return;
+      }
+      if (pausedRef.current) return console.log('[party] no landing look: paused'); // someone paused meanwhile
+      const heavy = usingTranscodeRef.current || isTorrent;
+      const drift = timeRef.current() - targetOf(st, serverNow());
+      console.log(`[party] landed ${drift >= 0 ? '+' : ''}${drift.toFixed(2)} s from the party (after ${fixes} correction${fixes === 1 ? '' : 's'})`);
+      // a timed start (a hold, a start together) from a frame that was ready
+      // and came out a little late or early teaches how long this TV takes
+      // from "play" to a moving picture (a bigger miss is something else —
+      // a seek that outlasted the hold — and teaches nothing)
+      if (timedStart.current && !heavy && Math.abs(drift) < 0.4) {
+        startLag.current = Math.min(0.35, Math.max(0, startLag.current - drift));
+      }
+      timedStart.current = false;
+      if (Math.abs(drift) <= landTolerance(heavy) || fixes >= 2) return;
+      if (heavy) {
+        partyEcho.current = Date.now() + 1500;
+        seekNowRef.current(targetOf(st, serverNow()));
+        return;
+      }
+      holdAndGo(st);
+      landCheck(fixes + 1, line, LAND_HOLD_MS + 2500);
+    }, delay);
+  };
+  // Landing a DIRECT file: hold a frame a moment ahead of the party and set it
+  // going when the party's film gets there. Aiming a moving seek (the site's
+  // way: seek a hair ahead and play) misses on this TV, because a seek's own
+  // time here is all over the place — 0.4 to 1.5 s on the Mi TV over the same
+  // line (it landed 0.83 s, then 0.46 s behind, then 0.25 s ahead) — while a
+  // start from a held, buffered frame barely varies (a start together
+  // measured 0.05 s off). The hold is a short still picture; a frame that is
+  // still loading when the party gets there is held again, further on (three
+  // times at most, each hold longer), instead of starting late.
+  const landHold = useRef(false); // a holdAndGo is waiting for the party's film
+  // From "play" on a held, buffered frame to the picture moving, on this TV
+  // (measured 0.16 s on the Mi TV): a timed start is set going this much early.
+  const startLag = useRef(0.12);
+  const timedStart = useRef(false); // the last landing was a timed start
+  const holdAndGo = (st: NonNullable<SyncState>, tries = 0) => {
+    // (each hold that was not enough is longer: 2, 4, 6 s ahead)
+    const aim = targetOf(st, serverNow()) + (LAND_HOLD_MS * (tries + 1)) / 1000;
+    if (partyStartTimer.current) clearTimeout(partyStartTimer.current);
+    partyStartTimer.current = null;
+    landHold.current = true;
+    partyEcho.current = Date.now() + LAND_HOLD_MS * (tries + 1) + 1500;
+    if (!pausedRef.current) setPaused(true);
+    seekNowRef.current(aim);
+    partyStartTimer.current = setTimeout(() => {
+      partyStartTimer.current = null;
+      landHold.current = false;
+      if (exited.current || !party.current?.state?.playing) return;
+      const ready = !bufferingRef.current && pendingSeek.current == null;
+      if (!ready && tries < 3) return holdAndGo(st, tries + 1);
+      timedStart.current = ready;
+      setPaused(false);
+    }, Math.max(0, (aim - targetOf(st, serverNow()) - startLag.current) * 1000));
+  };
   const [partyWaiting, setPartyWaiting] = useState<string[]>([]);
   const [reactions, setReactions] = useState<{key: number; emoji: string; by?: string; left: number}[]>([]);
   const applyPartyState = useCallback(
@@ -1805,19 +1898,40 @@ export default function Player({
       const heavy = usingTranscodeRef.current || isTorrent;
       const now = timeRef.current();
       const target = targetOf(st, serverNow());
-      // the host's tick moves nobody unless far off
+      // the host's tick moves nobody unless far off — and nobody at all while
+      // this TV holds a frame to land on (holdAndGo: it starts on the line by
+      // itself; a tick taken as "the party plays, so play" set it going early)
+      if (st.kind === 'sync' && !st.rejoined && landHold.current) return;
       if (st.kind === 'sync' && !st.rejoined && st.playing === !pausedRef.current) {
         if (Math.abs(now - target) <= (heavy ? SYNC.farOverHeavy : SYNC.farOver)) return;
       }
       if (partyStartTimer.current) clearTimeout(partyStartTimer.current);
+      partyStartTimer.current = null;
+      landHold.current = false;
       setPartyWaiting(st.kind === 'wait' ? st.waiting || [] : []);
       const lead = startsIn(st, serverNow());
       if (st.playing && lead > 0) {
         // a start together: on the frame now, moving when the clock gets there
         partyEcho.current = Date.now() + lead + 1500;
         if (!pausedRef.current) setPaused(true);
-        if (Math.abs(now - (st.position || 0)) > (heavy ? 3 : 0.05) && uriRef.current) seekTo(st.position || 0);
-        partyStartTimer.current = setTimeout(() => !exited.current && setPaused(false), lead);
+        if (Math.abs(now - (st.position || 0)) > (heavy ? 3 : 0.05) && uriRef.current) seekNowRef.current(st.position || 0);
+        const line = {playing: true, position: st.position || 0, at: st.at};
+        partyStartTimer.current = setTimeout(() => {
+          partyStartTimer.current = null;
+          if (exited.current) return;
+          // the frame is not there yet (a far jump: the seek outlasts the
+          // lead) — playing now would start late by however long it takes;
+          // hold a frame a moment further on and start on the line there
+          if (!heavy && (bufferingRef.current || pendingSeek.current != null) && party.current) {
+            holdAndGo(party.role === 'host' ? line : party.current.state || line);
+            landCheck(1, line, LAND_HOLD_MS + 2500);
+            return;
+          }
+          timedStart.current = !heavy && !bufferingRef.current;
+          setPaused(false);
+        }, Math.max(0, lead - (heavy ? 0 : startLag.current * 1000)));
+        // …and one look once it moves: did this TV start on the line?
+        landCheck(0, line, lead + 2500);
       } else {
         partyEcho.current = Date.now() + 1500;
         const tol = st.rejoined
@@ -1825,9 +1939,23 @@ export default function Player({
           : st.kind === 'sync'
             ? heavy ? SYNC.farOverHeavy : SYNC.farOver
             : heavy ? SYNC.alignOverHeavy : st.playing ? SYNC.alignOver : 0.05;
-        if (Math.abs(now - target) > tol && uriRef.current) seekTo(target + (st.playing && !heavy ? SYNC.seekLead : 0));
-        if (st.playing && pausedRef.current) setPaused(false);
-        else if (!st.playing && !pausedRef.current) setPaused(true);
+        const off = Math.abs(now - target) > tol && !!uriRef.current;
+        // joining a film that plays — or a start together that reached this TV
+        // after its instant (a busy moment: the lead was gone, the TV would
+        // seek a moving film and stay wherever that landed): land still, and
+        // start on the line
+        const late = st.kind === 'resume' || st.kind === 'seek';
+        if (st.rejoined) console.log(`[party] landing at ${target.toFixed(2)} (here ${now.toFixed(2)}, ${st.kind}${off ? '' : ', close enough'})`);
+        if (off && (st.rejoined || late) && st.playing && !heavy) {
+          holdAndGo(st);
+          landCheck(1, late ? {playing: true, position: st.position || 0, at: st.at} : null, LAND_HOLD_MS + 2500);
+        } else {
+          if (off) seekNowRef.current(target + (st.playing && !heavy ? SYNC.seekLead : 0));
+          // joining is "sync once": one more look when the landing has settled
+          if (st.rejoined && st.playing) landCheck(0, null);
+          if (st.playing && pausedRef.current) setPaused(false);
+          else if (!st.playing && !pausedRef.current) setPaused(true);
+        }
       }
       if (st.kind === 'resume' && st.gaveUp && st.gaveUp.length) toast(`Going on without ${st.gaveUp.join(' and ')} — they'll catch up`);
       if (announce && st.by && !st.self && (st.kind === 'play' || st.kind === 'pause' || st.kind === 'seek')) {
@@ -1838,7 +1966,12 @@ export default function Player({
   );
   useEffect(() => {
     const offs = [
-      onPartyState(st => applyPartyState(st, true)),
+      // (before this film has loaded there is nothing to move yet: onLoad lands
+      // on whatever the party is doing by then)
+      onPartyState(st => {
+        if (pendingLand.current) return;
+        applyPartyState(st, true);
+      }),
       onPartyUpdate(p => {
         setPartyInfo({...p});
         setPartyWaiting(p.waiting || []);
@@ -1852,6 +1985,8 @@ export default function Player({
         setPartyInfo(null);
         setPartyWaiting([]);
         if (partyStartTimer.current) clearTimeout(partyStartTimer.current);
+        partyStartTimer.current = null;
+        if (partyLandTimer.current) clearTimeout(partyLandTimer.current);
         partyBuffering.current = false;
         setMenu(m => (m === 'party' ? null : m));
       }),
@@ -1896,7 +2031,8 @@ export default function Player({
         // Land where they are — once the clock is valid (onLoad), or now.
         const waiting = p.waiting || [];
         const land: PartyStateMsg = {...p.state, now: p.now, kind: waiting.length ? 'wait' : 'sync', waiting, rejoined: true};
-        if (uriRef.current && durRef.current) applyPartyState(land, false);
+        console.log(`[party] joined ${p.code}${loadedRef.current ? '' : ' — landing once the film has loaded'}`);
+        if (loadedRef.current) applyPartyState(land, false);
         else pendingLand.current = land;
       } catch (e) {
         if (live) toast(`Couldn't join: ${(e as Error).message}`);
@@ -1913,7 +2049,11 @@ export default function Player({
   useEffect(() => {
     const iv = setInterval(() => {
       const st = party.current?.state;
+      // (nor while this film is not moving — buffering, a seek still landing, a
+      // source being swapped: the position then is not where the picture is, and
+      // a tick is the line everyone far off is moved to)
       if (!party.current || party.role !== 'host' || pausedRef.current || !uriRef.current || partyBuffering.current) return;
+      if (bufferingRef.current || pendingSeek.current != null) return;
       if (!st || !st.playing || startsIn(st, serverNow()) > 0) return;
       sendPartyState(true, timeRef.current(), 'sync');
     }, 3000);
@@ -1963,7 +2103,7 @@ export default function Player({
       if (d.act === 'seek') {
         partyLastFix.current = now;
         partyEcho.current = now + 4000; // let the jump land before looking again
-        seekTo(targetOf(st, serverNow()) + (heavy ? 0 : SYNC.seekLead));
+        seekNowRef.current(targetOf(st, serverNow()) + (heavy ? 0 : SYNC.seekLead));
       }
     }, SYNC.tickMs);
     return () => clearInterval(iv);
@@ -1975,6 +2115,8 @@ export default function Player({
   useEffect(
     () => () => {
       if (partyStartTimer.current) clearTimeout(partyStartTimer.current);
+      partyStartTimer.current = null;
+      if (partyLandTimer.current) clearTimeout(partyLandTimer.current);
       if (party.current && !keepParty.current) {
         leaveParty({handover: party.role === 'host' && (party.current.members?.length || 0) > 1});
       }
@@ -2503,6 +2645,19 @@ export default function Player({
     },
     [commitSeek, totalDuration],
   );
+  // The party's own moves (a landing, a start together, a far-off fix) seek AT
+  // ONCE. The debounce above is for a burst of remote presses — and at 450 ms
+  // it was longer than a start together's whole lead (400 ms): the film was
+  // set going before its seek had even been sent, so the TV began every jump
+  // late by the debounce plus the seek (Mi TV, 2026-10-27: 0.45 s behind the
+  // phone after a jump; 0.05 s after a start the TV was already buffered for).
+  // A ref, so the party's callbacks always reach this render's seek.
+  seekNowRef.current = (sec: number) => {
+    seekTo(sec);
+    if (seekTimer.current) clearTimeout(seekTimer.current);
+    seekTimer.current = null;
+    commitSeek();
+  };
 
   // Accelerating skip, straight from the web player: 10s a press, and a fast
   // chain escalates to 30s / 1m / 2m / 5m. A flat 10s step is what made getting
@@ -3440,8 +3595,16 @@ export default function Player({
     // The new stream's clock is valid from here, so the held seek target can
     // hand the scrubber back to it without the bar ever stepping backwards.
     setSeekPreview(null);
+    loadedRef.current = true;
     if (pendingLand.current) {
-      const land = pendingLand.current;
+      // the party as it is NOW — not the answer to the join, which is seconds
+      // old by the time the film has loaded (the party may have paused, or
+      // gone on to wait for this TV, since: landing on that old answer moved
+      // the TV away from where the party then started it)
+      const p = party.current;
+      const waiting = p?.waiting || [];
+      const land: PartyStateMsg =
+        p && p.state ? {...p.state, now: serverNow(), kind: waiting.length ? 'wait' : 'sync', waiting, rejoined: true} : pendingLand.current;
       pendingLand.current = null;
       resumeAt.current = 0; // the party's position wins over our saved one
       setTimeout(() => !exited.current && applyPartyState(land, false), 50);
