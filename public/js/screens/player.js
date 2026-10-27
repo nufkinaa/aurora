@@ -372,6 +372,24 @@ const resumePoint = (item, restart = false) => {
 };
 // The track a title starts on: the one the server marked `original`, unless
 // this viewer chose a dub last time (the language follows the profile).
+// Subtitle tracks are put on the element WITHOUT their address (data-src),
+// and get it only when one is switched on (armTrackSrc). A <track> with a
+// src is fetched by the browser the moment its mode leaves "disabled" — and
+// hls.js does exactly that to EVERY track of the element each time it
+// (re)loads a stream (it clears their cues by flipping them to "hidden" and
+// back). Each fetch of an embedded track is a read of the whole film on the
+// server: a series episode with 43 text tracks asked for all 43 at once at
+// every start, 43 ffmpeg processes reading the same file while the first
+// segment waited for the same disk (measured, docs/qa/ttff-vps/REPORT.md).
+export const trackSrcOf = (trackEl) => (trackEl ? trackEl.getAttribute("src") || trackEl.getAttribute("data-src") || null : null);
+export const armTrackSrc = (trackEl) => {
+  if (!trackEl || trackEl.hasAttribute("src")) return false;
+  const url = trackEl.getAttribute("data-src");
+  if (!url) return false;
+  trackEl.setAttribute("src", url);
+  return true;
+};
+
 const startAudioIdx = (item) => {
   const tracks = (item && item.audioTracks) || [];
   const orig = tracks.find((t) => t.original);
@@ -933,6 +951,14 @@ export const renderPlayer = async (root, { id }) => {
   //  hold     — {gen, pos, at, carded}: a rebuild is coming back to media time `pos`
   //  userAt   — when the viewer (or the party) last asked for a seek
   const stall = { url: null, lad: null, inFlight: false, netAt: 0, hold: null, userAt: 0 };
+  // Where a stream just put on the element is heading, on its own clock
+  // (startHls's startAt; a direct file's seek after its metadata) — until the
+  // element's clock gets there. Meanwhile the element reads 0, and everything
+  // that restarts the stream "from here" (a step down, a quality or sound
+  // change, a fall-back to the encode) read that 0 through effTime() and
+  // opened the film at 0:00, an hour in (the web ladder "sitting at 0:00
+  // while segments are rebuilt" after a step-down far into a film).
+  let landing = null;
   // Start playback and cope with the browser refusing to.
   //
   // iOS (and Chrome without media engagement for this origin) blocks
@@ -1325,6 +1351,7 @@ export const renderPlayer = async (root, { id }) => {
   // tryJitSwitch). Anything else is a single stream and the ladder is off.
   const startHls = (url, startAt = 0, lad = null) => {
     if (onAir()) return;
+    landing = startAt > 0.5 ? startAt : null;
     if (holdNext) {
       holdNext = false;
       holdFrame();
@@ -1963,6 +1990,7 @@ export const renderPlayer = async (root, { id }) => {
       mark("path", { path: "direct", from: at });
       holdNext = false;
       holdFrame();
+      landing = at > 0.5 ? at : null;
       video.addEventListener("loadedmetadata", () => {
         try { video.currentTime = at; } catch {}
         tryPlay();
@@ -2600,7 +2628,7 @@ export const renderPlayer = async (root, { id }) => {
     const track = el("track", {
       kind: "subtitles",
       label: t.label || `Track ${i + 1}`,
-      src: t.url,
+      "data-src": t.url,
     });
     armTrackOffset(track);
     video.append(track);
@@ -3704,6 +3732,7 @@ export const renderPlayer = async (root, { id }) => {
 
   const selectTrack = (idx) => {
     const tracks = video.textTracks;
+    if (idx >= 0) armTrackSrc([...video.querySelectorAll("track")][idx]);
     for (let i = 0; i < tracks.length; i++) {
       tracks[i].mode = i === idx ? "showing" : "disabled";
     }
@@ -3755,6 +3784,14 @@ export const renderPlayer = async (root, { id }) => {
     enforcingTracks = false;
   };
   video.textTracks.addEventListener("change", enforceSingleSub);
+  // A track switched on by anything else (the browser's own menu, AirPlay)
+  // gets its address then — see armTrackSrc. (hls.js flips every track to
+  // "hidden" and straight back while it clears cues: by the time this runs
+  // that track reads "disabled" again and stays unfetched.)
+  video.textTracks.addEventListener("change", () => {
+    const els = [...video.querySelectorAll("track")];
+    for (const t of els) if (t.track && t.track.mode !== "disabled") armTrackSrc(t);
+  });
   // AirPlay sends the subtitle that is on here (js/airplay.js): ask for it now
   video.textTracks.addEventListener("change", () => { if (air) air.changed(); });
 
@@ -3781,7 +3818,7 @@ export const renderPlayer = async (root, { id }) => {
     const t = (item.subtitles || [])[idx];
     if (t && t.url) return t.url;
     const el = [...video.querySelectorAll("track")][idx];
-    return el ? el.getAttribute("src") : null;
+    return el ? trackSrcOf(el) : null;
   };
   let delayStore = null;
   try { delayStore = window.localStorage; } catch {}
@@ -3844,15 +3881,16 @@ export const renderPlayer = async (root, { id }) => {
   // never retry a failed track on their own, so subs stay silently missing
   // forever. Recreate the <track> element with a cache-buster to refetch.
   const reloadTrackEl = (trackEl) => {
-    const src = trackEl.getAttribute("src") || "";
+    const src = trackSrcOf(trackEl) || "";
     // (an object URL takes no query — and is never stale: the same one again)
     const bust = /^(blob|data):/i.test(src) ? src : `${src}${src.includes("?") ? "&" : "?"}retry=${Date.now()}`;
     const fresh = el("track", {
       kind: "subtitles",
       label: trackEl.label || "",
-      src: bust,
+      "data-src": bust,
       srclang: trackEl.getAttribute("srclang") || "",
     });
+    if (trackEl.hasAttribute("src")) fresh.setAttribute("src", bust);
     armTrackOffset(fresh);
     const wasShowing = trackEl.track && trackEl.track.mode === "showing";
     video.insertBefore(fresh, trackEl); // same position keeps textTracks order
@@ -4423,8 +4461,13 @@ export const renderPlayer = async (root, { id }) => {
   // Effective content time. h264 transcodes re-base their clock at
   // clockBase = streamOffset; PTS-honest copy jobs keep the source clock
   // (clockBase 0), so this is exact for both.
-  const effTime = () =>
-    (usingTranscode ? clockBase : 0) + (video.currentTime || 0);
+  // While a new stream is still landing (see `landing`), the element's 0 is
+  // not where the film is: where that stream was asked to begin is.
+  const effTime = () => {
+    const ct = video.currentTime || 0;
+    return (usingTranscode ? clockBase : 0) + (landing != null && ct < 0.5 ? landing : ct);
+  };
+  video.addEventListener("timeupdate", () => { if (landing != null && (video.currentTime || 0) >= 0.5) landing = null; });
 
   // ---- torrent far-seek prefetch ----
   // Restarting a torrent transcode at an offset makes ffmpeg -ss read the
@@ -6784,7 +6827,7 @@ export const renderPlayer = async (root, { id }) => {
   // starts — add them as switchable tracks the moment they arrive.
   const addTracks = (tracks) => {
     const have = new Set(
-      [...video.querySelectorAll("track")].map((t) => t.getAttribute("src")),
+      [...video.querySelectorAll("track")].map(trackSrcOf),
     );
     let firstNew = -1;
     for (const t of tracks) {
@@ -6792,7 +6835,7 @@ export const renderPlayer = async (root, { id }) => {
       const trackEl = el("track", {
         kind: "subtitles",
         label: t.label,
-        src: t.url,
+        "data-src": t.url,
         srclang: t.lang || "",
       });
       armTrackOffset(trackEl);
@@ -6876,7 +6919,7 @@ export const renderPlayer = async (root, { id }) => {
         const trackEl = el("track", {
           kind: "subtitles",
           label: t.label,
-          src: t.url,
+          "data-src": t.url,
         });
         armTrackOffset(trackEl);
         video.append(trackEl);
