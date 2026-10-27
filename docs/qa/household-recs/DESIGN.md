@@ -82,11 +82,15 @@ store). Website and TV app use the same routes and print the same words (table b
 - **New ones**: when something arrives, the recipient's open apps get a content-free ping over the
   live socket (`{ type: "household_recs" }`); the app then asks its own gated route and shows a
   toast — **"Dana recommended Dune"** (one) / **"3 new recommendations from your household"**
-  (several) — with **Show**. The row's quiet line says **"2 new"** while some are unseen (unseen =
-  not looked at for 7 days at most). Opening the Show all page marks all seen. **No phone push**,
+  (several) — with **Show** (one: its title page; several: the Show all page). A card not yet
+  looked at carries the usual **NEW** tag (unseen = not looked at, for 7 days at most); the row
+  also carries a quiet `sub` "2 new" for where row lines are drawn (the website draws none now).
+  An installed web app whose window is in the background also gets its icon badge bumped. Opening the Show all page marks all seen. **No phone push**,
   no ntfy/Telegram: in-app only.
 
 ### The sender's side
+- **"What you sent"** in Settings → Recommendations always leads there (Home's link only shows
+  past 15); the website's address is `#/household/sent`.
 - The Show all page has a second tab, **"You sent"**: what you recommended, newest first, and per
   person what became of it: **Sent → Seen → In their list → Watching → Watched**.
 - Not too nosy, on purpose: it says no more than the household already sees on a shared server
@@ -128,8 +132,10 @@ store). Website and TV app use the same routes and print the same words (table b
   page), `hhrec-toast`.
 - Controls (`src/lib/tel/controls-vocab.js`): `detail.recommend`, `detail.hh.dismiss`,
   `peek.recommend`, `peek.hh.dismiss`, `card.hh.add`, `recommend.person`, `recommend.send`,
-  `recommend.close`, `home.hh.all`, `household.tab`, `household.filter`, `prefs.hh.toggle`,
-  `prefs.hh.mute`, `player.recommend` (see the vocab for which app has which).
+  `recommend.close`, `home.hh.all`, `household.tab`, `household.filter`, `settings.hh.toggle`
+  (the website's switch is its usual `settings.toggle`), `settings.hh.mute`, `settings.hh.sent`
+  (the website's row is its usual `settings.link`), `player.recommend` (see the vocab for which
+  app has which).
 - Route words in SEGMENTS: `household`, `sent`, `?from`, `?key` (`recommend`, `people`, `for`,
   `dismiss`, `seen`, `settings` were there).
 
@@ -183,10 +189,16 @@ Home's row: `{ id: "household", title: "Recommended by your household", sub?: "2
 | Settings section | Recommendations |
 | Settings switch | Recommendations from the household — "People on this server can recommend films and shows to you. They show on Home." |
 | Mute line | Mute someone and their recommendations stop reaching you. They aren't told. |
-| Mute buttons | Mute · Muted |
+| Mute buttons | <name> · Mute / <name> · Muted |
+| Settings row | What you sent — "What you recommended, and whether each person saw it, put it on their list or watched it." |
+| Picker, nobody else on the server | There's nobody else on this server yet. |
+| A film's credits card | ENJOYED IT? (small heading) — Recommend “<title>” to someone in your household — Recommend · Dismiss |
 
 ## Where the button is
 - **Website**: the title pages (library film, library show, catalogue film/show), the hold/peek
-  sheet of any title card, and the player's end-of-film card (credits / Up next) for a film.
+  sheet of any title card, and a film's credits card in the player ("Enjoyed it?", shown once in
+  the last stretch — at the detected credits, or the same runtime-scaled window Up next uses for
+  episodes; it never takes the focus from the film; the player's keys stay away from the sheet).
+  An episode's end already has Up next; recommending a show is on its page and its peek sheet.
 - **TV**: the title page (Detail), the hold-OK sheet, and the end of a film (the player's
   end card) where the TV player has one.

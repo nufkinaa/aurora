@@ -25,6 +25,7 @@ import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, se
 // [player-options] night mode, dialogue boost, the look of subtitles (2026-10-19)
 import { readStyle, nextChoice, styleLabel, cueCss, cueShadow, cueBackdrop, CUE_VW, CUE_MIN_PX, RAISED_PCT, SUB_STYLE_KEYS, SUB_STYLE_NAMES, SUB_COLORS } from "../subStyle.js";
 import { audioFxFor, AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES } from "../audiofx.js";
+import { recommendButton, canRecommend } from "../recommend.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -5711,8 +5712,37 @@ export const renderPlayer = async (root, { id }) => {
   // The credits window scales with runtime — a fixed 30s missed the long
   // credits of hour-long episodes and fired mid-scene on very short ones.
   const upNextWindow = (d) => Math.max(30, Math.min(90, d * 0.05));
+  // A FILM at its credits: "Enjoyed it?" — Recommend it to someone in the
+  // household (js/recommend.js). Once per play, only while playing, never
+  // taking the focus from the film; Dismiss or seeking back takes it away.
+  let filmEndEl = null;
+  let filmEndShown = false;
+  const filmEnd = () => {
+    const d = totalDuration();
+    if (!d || !state.profile || item._offline || item._local) return;
+    const recItem = { ...item, type: "movie", title: item.title };
+    if (!canRecommend(recItem)) return;
+    const remaining = d - effTime();
+    const win = creditsStart && creditsStart < d - 5 ? d - creditsStart : upNextWindow(d);
+    if (remaining <= win && !video.paused && !filmEndShown) {
+      filmEndShown = true;
+      const rb = recommendButton(recItem, { ui: "player.recommend", className: "btn btn-primary focusable" }); // data-ui
+      if (!rb) return;
+      filmEndEl = el("div", { class: "upnext film-end" },
+        el("div", { class: "k" }, "Enjoyed it?"),
+        el("div", { class: "t" }, `Recommend “${item.title}” to someone in your household`),
+        el("div", { class: "upnext-actions" },
+          rb,
+          el("button", { "data-ui": "player.upnext.dismiss", class: "btn focusable", onclick: () => { if (filmEndEl) filmEndEl.remove(); filmEndEl = null; } }, "Dismiss")));
+      overlay.append(filmEndEl);
+    } else if (remaining > win + 15 && filmEndShown) {
+      if (filmEndEl) filmEndEl.remove();
+      filmEndEl = null;
+      filmEndShown = false;
+    }
+  };
   const maybeUpNext = () => {
-    if (!isEpisode && !isStreamEpisode && !localEpisode) return;
+    if (!isEpisode && !isStreamEpisode && !localEpisode) return filmEnd();
     const d = totalDuration();
     if (!d) return;
     const t = effTime();
@@ -6669,8 +6699,9 @@ export const renderPlayer = async (root, { id }) => {
   overlay.addEventListener("touchstart", onPointerMove, { passive: true });
   overlay.addEventListener("wheel", onPointerMove, { passive: true });
 
+  // (the Recommend sheet over the film counts too: its keys are its own)
   const typing = () =>
-    !!document.querySelector(".look-notice-wrap") || /INPUT|TEXTAREA/.test((document.activeElement && document.activeElement.tagName) || "");
+    !!document.querySelector(".look-notice-wrap, .rec-wrap") || /INPUT|TEXTAREA/.test((document.activeElement && document.activeElement.tagName) || "");
   const onNavMove = (e) => {
     if (typing()) return;
     const dir = e.detail;

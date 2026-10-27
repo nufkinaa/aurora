@@ -19,6 +19,7 @@ module.exports = {
   // card
   "card.open": "wt",
   "card.remove": "w",
+  "card.hh.add": "w", // household recommendations: the "+" on a recommended card
   // detail
   "detail.download.device": "w",
   "detail.episode.download": "w",
@@ -28,6 +29,7 @@ module.exports = {
   "detail.episode.playontv": "w", // [phone-remote]
   "detail.episode.watched": "w",
   "detail.follow": "wt",
+  "detail.hh.dismiss": "w", // "Not for me" on a recommended title
   "detail.mylist": "wt",
   "detail.offline": "w",
   "detail.offline.season": "w",
@@ -35,6 +37,7 @@ module.exports = {
   "detail.play": "wt",
   "detail.replace": "wt",
   "detail.playontv": "w", // [phone-remote]
+  "detail.recommend": "w",
   "detail.restart": "wt",
   "detail.rollagain": "w",
   "detail.save": "w",
@@ -71,6 +74,7 @@ module.exports = {
   "home.hero.pick": "w",
   "home.hero.play": "wt",
   "home.retry": "wt",
+  "home.hh.all": "w", // "Show all recommended"
   "home.switchprofile": "t",
   // mylist
   "mylist.filter": "t",
@@ -94,6 +98,8 @@ module.exports = {
   "party.join": "t",
   // peek
   "peek.close": "w",
+  "peek.hh.dismiss": "w",
+  "peek.recommend": "w",
   "peek.details": "wt",
   "peek.mylist": "wt",
   "peek.play": "wt",
@@ -128,6 +134,7 @@ module.exports = {
   "player.playpause": "wt",
   "player.playontv": "w", // [phone-remote]
   "player.quality.pick": "w",
+  "player.recommend": "w", // a film's credits card
   "player.replace": "wt",
   "player.retry": "wt",
   "player.scrub": "wt",
@@ -159,6 +166,9 @@ module.exports = {
   "profile.pin.submit": "t",
   "profile.save": "w",
   "profile.unlock": "wt",
+  // household (the "Show all recommended" page)
+  "household.filter": "w",
+  "household.tab": "w",
   // rating
   "rating.star": "w",
   // remote (the phone as a remote, #/remote) [phone-remote]
@@ -184,6 +194,10 @@ module.exports = {
   "remote.subtitles": "w",
   "remote.view": "w",
   "remote.volume": "w",
+  // recommend (the Recommend sheet)
+  "recommend.close": "w",
+  "recommend.person": "w",
+  "recommend.send": "w",
   // report
   "report.send": "wt",
   // replace ("Problem with this copy? → Get another version")
@@ -213,6 +227,7 @@ module.exports = {
   "settings.done": "w",
   "settings.downloads": "t",
   "settings.genre": "t",
+  "settings.hh.mute": "w", // Recommendations: Mute / Muted
   "settings.link": "w",
   "settings.look": "w",
   "settings.notices": "t",

@@ -55,6 +55,7 @@ import { attachHold } from "../peek.js";
 import * as narrator from "../narrator.js";
 import { copyProblemButton, canOfferReplace } from "../replaceCopy.js";
 import { EARLY_CONFIRM, earlyOk } from "../releaseWords.js";
+import { recommendButton, recBanner } from "../recommend.js";
 
 // "My List" toggle for a streamable (Discover) title — stores a stream ref.
 import * as surprise from "../surprise.js";
@@ -1491,6 +1492,15 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   if (state.profile) {
     actions.push(lib ? watchlistButton(lib) : streamWatchlistButton(meta));
   }
+  // Recommend it to people of the household (js/recommend.js): the library
+  // copy by its id, a catalogue title as it is described here
+  const recItem = lib
+    ? { ...lib, imdbId: lib.imdbId || imdbId || null }
+    : { source: "stream", imdbId, type: isShow ? "show" : "movie", title: view.title, cover: view.cover, year: view.year, genres: view.genres, rating: view.rating };
+  {
+    const rb = recommendButton(recItem);
+    if (rb) actions.push(rb);
+  }
   // Follow a show (2026-10-07): its new episodes download by themselves when
   // they air, and this device hears about it if notifications are on.
   if (state.profile && isShow && imdbId && canSource) {
@@ -1853,6 +1863,11 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   // (js/replaceCopy.js; the server's rules are src/media/replace.js).
   if (!isShow && lib && imdbId && canSource && canOfferReplace()) {
     screen.append(el("div", { class: "copy-problem-line page-pad" }, copyProblemButton({ libraryId: lib.id, title: view.title })));
+  }
+  // Somebody in the household recommended this to you: who, their notes, Not for me
+  {
+    const banner = recBanner(recItem);
+    if (banner) (screen.querySelector(".detail-hero") || screen.lastElementChild).after(banner);
   }
   if (keepY) restoreScrollY(keepY);
 

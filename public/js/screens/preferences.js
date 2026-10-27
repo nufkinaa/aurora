@@ -43,6 +43,9 @@ const ICONS = {
   "Watch without internet": '<rect x="6" y="2.500" width="12" height="19" rx="2.500"/><path d="M12 8v6M9.500 12l2.500 2.500 2.500-2.500"/>',
   "Subtitles": '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 14h4M14 14h3M7 10.500h2M12 10.500h5"/>',
   "Privacy": '<path d="M12 3l8 3v6c0 4.500-3.200 8-8 9-4.800-1-8-4.500-8-9V6z"/>',
+  // household recommendations: a paper plane
+  "Recommendations": '<path d="M3.500 20 21 12 3.500 4l2.500 8-2.500 8z"/><path d="M6 12h15"/>',
+  "Recommendations from the household": '<path d="M3.500 20 21 12 3.500 4l2.500 8-2.500 8z"/><path d="M6 12h15"/>',
   "Genres you like": '<path d="M12 20s-7-4.300-7-9.500A4 4 0 0112 8a4 4 0 017 2.500C19 15.700 12 20 12 20z"/>',
   // settings
   "Trailers on the home page": '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 5v14M16 5v14M3 10h5M3 14h5M16 10h5M16 14h5"/>',
@@ -303,11 +306,67 @@ const ROW_NAMES = {
   mylist: "My List", "next-watch": "Your Next Watch", "trending-stream": "Trending to Stream",
   "top-rated": "Top Rated by You", "new-movies": "New Movies", upcoming: "Upcoming",
   "recent-movies": "Recently Added", movies: "All Movies", shows: "All Shows",
+  household: "Recommended by your household",
 };
 const rowName = (id, title) => title || ROW_NAMES[id] || (id.startsWith("liked-") ? "More " + id.slice(6) : id);
 
 const CHEV_UP = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>';
 const CHEV_DOWN = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+
+// Recommendations between the people of the household (js/recommend.js):
+// the switch, and who is muted. Kept on the server, for the person — the
+// TV's Settings shows the same two (tv-native/src/screens/Settings.tsx).
+const householdSection = async (linkRow) => {
+  const host = el("div", { class: "pref-list page-pad hh-prefs" });
+  let s = null;
+  try { s = await api.householdSettings(state.profile.id); } catch {}
+  if (!s) {
+    host.append(el("div", { class: "empty-note" }, "Couldn't load these right now."));
+    return host;
+  }
+  const save = async (body) => {
+    try {
+      s = await api.setHouseholdSettings(state.profile.id, body);
+    } catch (e) {
+      toast(e.message || "Couldn't save that", "⚠️");
+    }
+    paintMutes();
+  };
+  const mutes = el("div", { class: "hh-mutes" });
+  const muteWrap = el("div", { class: "hh-mute-wrap" },
+    el("div", { class: "pref-item-note hh-mute-line" }, "Mute someone and their recommendations stop reaching you. They aren't told."),
+    mutes);
+  const paintMutes = () => {
+    mutes.replaceChildren();
+    muteWrap.classList.toggle("hidden", !s.on || !(s.people || []).length);
+    for (const p of s.people || []) {
+      const b = el("button", {
+        "data-ui": "settings.hh.mute",
+        type: "button",
+        class: `chip focusable${p.muted ? " on" : ""}`,
+        "aria-pressed": p.muted ? "true" : "false",
+        "aria-label": `${p.muted ? "Muted" : "Mute"} ${p.name}`,
+        onclick: () => {
+          const muted = (s.people || []).filter((x) => (x.id === p.id ? !x.muted : x.muted)).map((x) => x.id);
+          save({ muted });
+        },
+      }, `${p.name} · ${p.muted ? "Muted" : "Mute"}`);
+      mutes.append(b);
+    }
+  };
+  host.append(
+    prefRow(
+      "Recommendations from the household",
+      "People on this server can recommend films and shows to you. They show on Home.",
+      () => (s.on ? "On" : "Off"),
+      async () => { await save({ on: !s.on }); },
+    ),
+    muteWrap,
+    linkRow("What you sent", "What you recommended, and whether each person saw it, put it on their list or watched it.", () => navigate("#/household/sent")),
+  );
+  paintMutes();
+  return host;
+};
 
 const homeRowsSection = async () => {
   const host = el("div", { class: "rows-editor" });
@@ -776,7 +835,7 @@ export const renderPreferences = async (root) => {
       el("span", { class: "pref-icon", html: svg('<circle cx="5" cy="12" r="1.500"/><circle cx="12" cy="12" r="1.500"/><circle cx="19" cy="12" r="1.500"/>') }),
       el("span", { class: "pref-more-text" },
         el("b", {}, "More settings"),
-        el("small", {}, "Home rows, downloads, the TV, internet, saving for later, privacy, sign-in, what's new")),
+        el("small", {}, "Home rows, recommendations, downloads, the TV, internet, saving for later, privacy, sign-in, what's new")),
       chev);
     const wrap = el("div", { class: "pref-more" + (open ? " open" : "") }, btn, grid);
     btn.onclick = () => {
@@ -860,6 +919,8 @@ export const renderPreferences = async (root) => {
     moreSettings(
       section("Your home page", "Change the order of the rows on Home, or hide some. The TV follows too.",
         await homeRowsSection()),
+      section("Recommendations", "What the people of your household recommend to you. The TV follows too.",
+        await householdSection(linkRow)),
       !kid && section("Downloads", "What Aurora fetches for you while you watch.",
         el("div", { class: "pref-list page-pad" },
           prefRow(

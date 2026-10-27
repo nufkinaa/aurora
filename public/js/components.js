@@ -7,6 +7,7 @@ import { attachRowArrows } from "./rowArrows.js";
 import * as narrator from "./narrator.js";
 import { attachPeek } from "./peek.js";
 import { warmTitle } from "./prefetch.js";
+import { addFromRec } from "./recommend.js";
 
 // A flat "Rated 3★" wastes a moment the viewer just chose to have; the
 // reaction scales with the score instead.
@@ -86,7 +87,8 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
     prog && prog.duration > 0 && !prog.finished
       ? Math.min(100, (prog.position / prog.duration) * 100)
       : null;
-  const isNew = item.addedAt && Date.now() - item.addedAt < NEW_WINDOW_MS && !prog;
+  // (a household recommendation not looked at yet is new too)
+  const isNew = ((item.addedAt && Date.now() - item.addedAt < NEW_WINDOW_MS) || (item.hh && item.hh.unseen)) && !prog;
   // Glass look only: how much is left, under the label of a card mid-way.
   const glass = document.documentElement.dataset.look === "glass";
   const left =
@@ -130,6 +132,7 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
         "card focusable",
         wide || isEpisode ? "wide" : "poster",
         showLabel && "has-label",
+        item.hh && "hh",
       ]
         .filter(Boolean)
         .join(" "),
@@ -193,6 +196,22 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
     isNew && el("span", { class: "card-new", "aria-hidden": "true", "data-t": "NEW" }),
     pct !== null && el("div", { class: "card-progress" }, el("div", { style: { width: pct + "%" } })),
     showLabel && label,
+    // a household recommendation: one press puts it on My List (the card
+    // stays, marked, until Home is next refreshed — then it has left the row)
+    item.hh && state.profile && !onRemove &&
+      el("span", { "data-ui": "card.hh.add",
+        class: "card-hhadd",
+        role: "button",
+        title: "Add to My List",
+        "aria-label": "Add to My List",
+        html: icons.plus,
+        onclick: async (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          if (node.classList.contains("hh-added")) return;
+          if (await addFromRec(item)) markListed(true);
+        },
+      }),
     onRemove && !item._noRemove &&
       el("span", { "data-ui": "card.remove",
         class: "card-remove",
@@ -208,6 +227,33 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
   // the title this card draws, by identity: a shelf patched in place
   // (patchShelf) and Home's view of what is on screen read it
   node._item = item;
+  // a household recommendation: what its peek sheet's buttons do to this card
+  function markListed(on) {
+    node.classList.toggle("hh-added", !!on);
+    const b = node.querySelector(".card-hhadd");
+    if (b) {
+      b.innerHTML = on ? icons.check : icons.plus;
+      b.title = on ? "In My List" : "Add to My List";
+      b.setAttribute("aria-label", b.title);
+    }
+  }
+  if (item.hh) {
+    item._onListed = (on) => { if (node.isConnected) markListed(on); };
+    item._onDismissed = () => {
+      const parent = node.parentNode;
+      if (!parent) return;
+      node._hhAnchor = node.nextSibling;
+      node.remove();
+      parent.dispatchEvent(new CustomEvent("aurora-shelf-changed", { bubbles: true }));
+      node._hhParent = parent;
+    };
+    item._onUndismissed = () => {
+      const parent = node._hhParent;
+      if (!parent || !parent.isConnected || node.isConnected) return;
+      parent.insertBefore(node, node._hhAnchor && node._hhAnchor.isConnected ? node._hhAnchor : null);
+      parent.dispatchEvent(new CustomEvent("aurora-shelf-changed", { bubbles: true }));
+    };
+  }
   // Hold (or right-click) for the peek sheet — synthesized cards (a party to
   // join, a download that landed) have nothing to peek at.
   if (typeof item._open !== "function") {

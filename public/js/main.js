@@ -26,6 +26,7 @@ import { initAurora } from "./aurora.js";
 import { initScreensaver } from "./screensaver.js";
 import { initPrefetch } from "./prefetch.js";
 import { track } from "./usage.js";
+import { watchArrivals } from "./recommend.js";
 import "./telemetry.js"; // [analytics] error reports, timings, control counts — behind the same switch
 import { onNet, netInfo } from "./net.js";
 
@@ -148,6 +149,8 @@ route("/taste", lazy("./screens/taste.js", "renderTaste"));
 route("/taste/list", lazy("./screens/taste.js", "renderTasteList"));
 route("/pick", lazy("./screens/pickforme.js", "renderPickForMe"));
 route("/new", lazy("./screens/whatsnew.js", "renderWhatsNew"));
+route("/household", lazy("./screens/household.js", "renderHousehold")); // "Show all recommended" (js/recommend.js)
+route("/household/sent", withSkeleton((root) => import("./screens/household.js").then((m) => m.renderHousehold(root, { tab: "sent" })))); // …on its "You sent" tab
 route("/pair/:code", (root, p) => import("./screens/pair.js").then((m) => m.renderPair(root, p)));
 // no code in the address ({host}/link, typed by hand off the TV): the code field
 route("/pair", (root) => import("./screens/pair.js").then((m) => m.renderPair(root, {})));
@@ -426,6 +429,12 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     if (state.profile && state.profile.id === profileId) refreshPersonPrefs();
   });
   onMessage("server_notice", ({ message }) => { if (message) toast(message, "🛠️"); });
+  // Somebody in the household recommended something to this person: a toast
+  // (js/recommend.js), and the icon's badge when the app is in the background
+  watchArrivals();
+  onMessage("household_recs", (msg) => {
+    if (state.profile && (!msg || !msg.profile || msg.profile === state.profile.id)) bumpBadge();
+  });
   // The admin removed a request (or its file left the library): the row goes
   // everywhere it was drawn.
   onMessage("download_removed", ({ id }) => {

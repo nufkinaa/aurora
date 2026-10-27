@@ -64,6 +64,15 @@ const titleFromKey = (key, type) => {
   return null;
 };
 
+// A key as the store keeps it: a client that names a library title by its id
+// ("lib:<id>") gets the IMDb id the server knows for it, when it knows one.
+const normKey = (key) => {
+  const k = String(key || "").slice(0, 100);
+  if (!k.startsWith("lib:")) return k;
+  const t = titleFromKey(k);
+  return (t && t.key) || k;
+};
+
 // The card a recommended title is drawn as: the library copy when the
 // server has one (it plays from disk), else the catalogue title.
 const cardFor = (title, slim) => {
@@ -147,13 +156,13 @@ router.get("/api/profiles/:id/household", gate, (req, res) => {
 router.get("/api/profiles/:id/household/for", gate, (req, res) => {
   const key = String(req.query.key || "");
   if (!key) return res.json({ from: [], dismissed: false });
-  res.json(hh().forTitle(req.params.id, key, { seen: true }));
+  res.json(hh().forTitle(req.params.id, normKey(key), { seen: true }));
 });
 
 router.post("/api/profiles/:id/household/dismiss", gate, (req, res) => {
   const { key, undo } = req.body || {};
   if (typeof key !== "string" || !key || key.length > 100) return res.status(400).json({ error: "key required" });
-  res.json(hh().dismiss(req.params.id, key, undo === true));
+  res.json(hh().dismiss(req.params.id, normKey(key), undo === true));
 });
 
 router.post("/api/profiles/:id/household/seen", gate, (req, res) => {
@@ -193,5 +202,5 @@ const homeRow = (profileId, { slim = false } = {}) => {
   };
 };
 
-router._internals = { titleFrom, titleFromKey, cardFor, recCard, homeRow };
+router._internals = { titleFrom, titleFromKey, normKey, cardFor, recCard, homeRow };
 module.exports = router;
