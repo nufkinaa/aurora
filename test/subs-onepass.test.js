@@ -17,6 +17,8 @@ const config = require("../src/config");
 const HAVE_FFMPEG = !!config.FFMPEG && config.ffmpegAvailable;
 const realCache = config.CACHE_DIR;
 let tmp, film, server, base, subtitles, spawned;
+const pids = [];
+const lowered = [];
 
 const srt = (tag) => {
   let out = "";
@@ -37,7 +39,9 @@ before(async () => {
   subtitles._deps.textTracks = () => [0, 1, 2];
   const realSpawn = subtitles._deps.spawn;
   spawned = [];
-  subtitles._deps.spawn = (cmd, args, o) => { spawned.push(args.filter((a) => /^0:s:\d+$/.test(a))); return realSpawn(cmd, args, o); };
+  subtitles._deps.spawn = (cmd, args, o) => { spawned.push(args.filter((a) => /^0:s:\d+$/.test(a))); const c = realSpawn(cmd, args, o); pids.push(c.pid); return c; };
+  const realLower = subtitles._deps.lower;
+  subtitles._deps.lower = (pid) => { lowered.push(pid); return realLower(pid); };
   const app = express();
   app.get("/e/:t", (req, res) => subtitles.serveEmbedded(film, parseInt(req.params.t, 10), res));
   server = http.createServer(app);
@@ -65,6 +69,7 @@ test("three tracks asked for at once: one read of the file, each answered with i
   const [a, b, c] = await Promise.all([get("/e/0"), get("/e/1"), get("/e/2")]);
   assert.equal(spawned.length, 1, `ffmpeg runs: ${JSON.stringify(spawned)}`);
   assert.deepEqual(spawned[0], ["0:s:0", "0:s:1", "0:s:2"]);
+  assert.deepEqual(lowered, pids, "the read runs at the lowest priority");
   for (const [r, tag] of [[a, "alpha"], [b, "bravo"], [c, "charlie"]]) {
     assert.equal(r.status, 200);
     assert.match(r.text, /^WEBVTT/);

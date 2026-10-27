@@ -201,7 +201,15 @@ const deps = {
     } catch { return []; }
   },
   spawn: (...a) => spawn(...a),
-  lower: (pid) => { try { require("os").setPriority(pid, require("os").constants.priority.PRIORITY_BELOW_NORMAL); } catch {} },
+  // the lowest CPU priority, and on Linux the idle I/O class: the read is
+  // the whole film, on the disk the viewer's own stream is being read from
+  // (measured, stall-rig media on a hard disk: a 16.5 s freeze right after a
+  // start while one track was read at normal priority)
+  lower: (pid) => {
+    const os = require("os");
+    try { os.setPriority(pid, os.constants.priority.PRIORITY_LOW); } catch {}
+    if (process.platform === "linux") { try { require("child_process").execFile("ionice", ["-c", "3", "-p", String(pid)], { timeout: 3000 }, () => {}); } catch {} }
+  },
 };
 
 // The extraction itself (the file's own timing).
@@ -214,8 +222,8 @@ const deps = {
 // instead of starting its own). It used to be one full read per track, each
 // at once: an episode with 43 tracks was 43 ffmpeg processes on the same file
 // (the player's hls.js fetched them all at every start), beside the segment
-// the viewer was waiting for. The read runs below normal priority: the
-// picture comes first.
+// the viewer was waiting for. The read runs at the lowest priority (deps.lower):
+// the picture comes first.
 const extractEmbedded = (videoPath, trackIndex, res, { alone = false } = {}) => {
 
   let mtime = 0;
