@@ -456,3 +456,42 @@ test("real ffmpeg: an encoder runs at normal priority until the segment it was s
     forget();
   }
 });
+
+// ---------- the first segment fast ----------
+test("real ffmpeg: an encode a viewer waits on makes its first segment at ultrafast, then hands over to the ladder's preset from the next one", async (t) => {
+  if (!haveX264()) return t.skip("no ffmpeg with libx264 on this machine");
+  forget();
+  J.setOutsideEncodes(() => 0);
+  const ladder = require("../src/media/ladder");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aurora-jitfast-"));
+  J.setDeclinedFile(path.join(dir, "declined.json"));
+  const d = path.join(dir, "viewer");
+  try {
+    const file = makeFilm(dir);
+    const buf = fs.readFileSync(file);
+    const key = `fast-${Date.now()}`;
+    const entry = await jit.tableFor(key, async (s, l) => buf.subarray(s, s + l), buf.length);
+    const base = { url: file, extra: [], fmt: null, vtagHvc1: false, audio: 0 };
+    const input = await ladder.encInput(base, { key, name: "h264", fmt: null, audio: 0, jit });
+    assert.ok(input && input.enc);
+    assert.equal(J.fastArgs(["-c:v", "libx264", "-preset", "superfast"]).join(" "), "-c:v libx264 -preset ultrafast");
+    const job = jit.jobFor(d, entry, { enc: true });
+    const seg0 = jit.ensureSegment(d, job, input, 4);
+    const first = job.producers[0];
+    assert.ok(first && first.fast, "the run a viewer waits on is the fast one");
+    assert.ok(await seg0, `segment 4 made (${job.broken || "ok"})`);
+    // …and the rest is made by an ordinary producer from the next segment
+    assert.ok(await until(() => first.stopped && job.producers.some((r) => r !== first && !r.fast && r.fromSeg >= 5), 30000), "handed over");
+    const next = job.producers.find((r) => r !== first);
+    assert.equal(next.fast, false);
+    const seg5 = await jit.ensureSegment(d, job, input, 5);
+    assert.ok(seg5, `segment 5 made by the successor (${job.broken || "ok"})`);
+    assert.ok(!job.broken, "jit's own boundary check held across the hand-over");
+    // a look-ahead nobody waits on is not fast
+    assert.equal(J.FAST_PRESET, "ultrafast");
+  } finally {
+    J.dropJob(d);
+    await rmWhenFree(dir);
+    forget();
+  }
+});
