@@ -371,17 +371,16 @@ const resumePoint = (item, restart = false) => {
     ? Math.max(0, Math.floor(p.position) - 4)
     : 0;
 };
-// The track a title starts on: the one the server marked `original`, unless
-// this viewer chose a dub last time (the language follows the profile).
 // Subtitle tracks are put on the element WITHOUT their address (data-src),
 // and get it only when one is switched on (armTrackSrc). A <track> with a
 // src is fetched by the browser the moment its mode leaves "disabled" — and
 // hls.js does exactly that to EVERY track of the element each time it
 // (re)loads a stream (it clears their cues by flipping them to "hidden" and
 // back). Each fetch of an embedded track is a read of the whole film on the
-// server: a series episode with 43 text tracks asked for all 43 at once at
-// every start, 43 ffmpeg processes reading the same file while the first
-// segment waited for the same disk (measured, docs/qa/ttff-vps/REPORT.md).
+// server: a Silo episode with 22 text tracks asked for all 22 at once at a
+// rebuild of its stream (a stall's recovery, a sound or quality change), 22
+// ffmpeg processes reading the same file while the next segment waited for
+// the same disk (tools/stall-rig, docs/qa/ttff-vps/REPORT.md).
 export const trackSrcOf = (trackEl) => (trackEl ? trackEl.getAttribute("src") || trackEl.getAttribute("data-src") || null : null);
 export const armTrackSrc = (trackEl) => {
   if (!trackEl || trackEl.hasAttribute("src")) return false;
@@ -391,6 +390,8 @@ export const armTrackSrc = (trackEl) => {
   return true;
 };
 
+// The track a title starts on: the one the server marked `original`, unless
+// this viewer chose a dub last time (the language follows the profile).
 const startAudioIdx = (item) => {
   const tracks = (item && item.audioTracks) || [];
   const orig = tracks.find((t) => t.original);
