@@ -56,7 +56,8 @@ export interface NativeProps extends ViewProps {
   // src/cardDecor.ts's JSON of Card.tsx's own text / tag / bar styles (the same on every card).
   // Empty: the view draws only its picture layers, as before.
   decor?: string;
-  // '' | 'label' (t1) | 'labelEp' (t1 the show, t2 "S1 E2 · …") | 'frame' (t1, t3) | 'frameEp' (t1, t2, t3)
+  // '' | 'label' (t1) | 'labelEp' (t1 the show, t2 "S1 E2 · …") | 'labelMeta' (t1 the title, t2 its
+  // line "From Dana" — the household row) | 'frame' (t1, t3) | 'frameEp' (t1, t2, t3)
   textMode?: CT.WithDefault<string, ''>;
   t1?: string;
   t2?: string;

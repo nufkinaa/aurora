@@ -6,6 +6,7 @@ import {ActivityIndicator, Animated, AppState, BackHandler, Easing, FlatList, Im
 import Focusable from './Focusable';
 import PersonSheet from './PersonSheet';
 import ReplaceSheet from './ReplaceSheet';
+import RecommendSheet from './RecommendSheet'; // [household]
 import Sheet, {glass} from './Sheet';
 import TrailerFrame, {TrailerState} from './Trailer';
 import {prepareTrailer, ResolvedTrailer} from '../trailers';
@@ -13,7 +14,9 @@ import type {ActionItem} from '../overlay';
 import {api, artSrc, HeroItem, imgSrc, ImgSource, LIST_ADDED, StreamRef, XrayData, XrayPerson, XrayQuery} from '../api';
 import {playingContext, recentErrors} from '../errors';
 import {useKeyTrap} from '../focus';
-import {closeOverlay, useOverlay} from '../overlay';
+import {closeOverlay, openRecommend, useOverlay} from '../overlay';
+import {fromLine, noteLine, titleKey, WORDS as HH} from '../householdRecs'; // [household]
+import {householdChanged} from '../householdLive'; // [household]
 import {openItem} from '../openItem';
 import {resolvePartyRoute} from '../party';
 import {currentRouteName, pushScreen, rootNav} from '../rootNav';
@@ -136,10 +139,42 @@ function PeekSheet({item, onRemove}: {item: HeroItem; onRemove?: (item: HeroItem
     if (isEpisode && item.showId) pushScreen('Detail', {item: {id: item.showId, title: item.showTitle || item.title, type: 'show'}});
     else pushScreen('Detail', {item});
   };
+  // [household] a recommended card (item.hh): who and the note, "Add to My
+  // List", "Not for me" (→ Undo, here: a toast on the TV takes no button)
+  const hh = item.hh && item.hh.from && item.hh.from.length ? item.hh : null;
+  const canRecommend = !item.cta && !!titleKey(item);
+  const [hidden, setHidden] = useState(false);
+  const hhChanged = useRef(false);
+  useEffect(
+    () => () => {
+      // the sheet went: Home's row follows what was done here
+      if (hhChanged.current) householdChanged();
+    },
+    [],
+  );
+  const notForMe = async () => {
+    if (!profileId || !hh) return;
+    const undo = hidden;
+    setHidden(!undo);
+    try {
+      await api.householdDismiss(profileId, hh.key, undo);
+      hhChanged.current = true;
+      if (!undo) {
+        track('feat', {f: 'hhrec-dismiss'});
+        showToast(HH.hidden, '✓');
+      }
+    } catch {
+      setHidden(undo);
+    }
+  };
   const toggleList = async () => {
     if (!profileId || inList === null) return;
     const next = !inList;
     setInList(next);
+    if (next && hh) {
+      track('feat', {f: 'hhrec-add'});
+      hhChanged.current = true;
+    }
     try {
       if (item.source === 'stream' || !item.id) {
         const ref: StreamRef = {
@@ -180,8 +215,15 @@ function PeekSheet({item, onRemove}: {item: HeroItem; onRemove?: (item: HeroItem
           {pct != null && prog ? (
             <Text style={styles.peekLeft}>{`${pct}% watched · ${fmtLeft(prog.duration - prog.position)}`}</Text>
           ) : null}
+          {/* the website's peek: "From Ben and Dana" and the newest note */}
+          {hh ? <Text style={styles.peekHh}>{item.meta || fromLine(hh.from.map(f => f.name))}</Text> : null}
+          {hh && hh.note && hh.noteBy ? (
+            <Text style={styles.peekHhNote} numberOfLines={2}>
+              {noteLine(hh.note, hh.noteBy)}
+            </Text>
+          ) : null}
           {synopsis ? (
-            <Text style={styles.peekSynopsis} numberOfLines={4}>
+            <Text style={styles.peekSynopsis} numberOfLines={hh ? 2 : 4}>
               {synopsis}
             </Text>
           ) : null}
@@ -190,7 +232,11 @@ function PeekSheet({item, onRemove}: {item: HeroItem; onRemove?: (item: HeroItem
       <View style={styles.actions}>
         <Primary uiId="peek.play" focus label={isEpisode || (item.type === 'movie' && item.source !== 'stream') ? '▶  Play' : '▶  Open'} onPress={play} />
         <Ghost uiId="peek.details" label="Details" onPress={details} />
-        {inList !== null ? <Ghost uiId="peek.mylist" label={inList ? '✓  In My List' : '+  My List'} onPress={toggleList} /> : null}
+        {inList !== null ? (
+          <Ghost uiId="peek.mylist" label={inList ? `✓  ${HH.inList}` : hh ? `+  ${HH.addToList}` : '+  My List'} onPress={toggleList} />
+        ) : null}
+        {canRecommend ? <Ghost uiId="peek.recommend" label={HH.recommend} onPress={() => openRecommend(item)} /> : null}
+        {hh ? <Ghost uiId="peek.hh.dismiss" label={hidden ? HH.undo : HH.notForMe} onPress={notForMe} /> : null}
         {onRemove ? (
           <Ghost
             label="Remove from Continue Watching"
@@ -897,6 +943,7 @@ export default function Overlays() {
       {o?.kind === 'trailer' ? <TrailerModal ids={o.ids} title={o.title} imdbId={o.imdbId} type={o.type} year={o.year} /> : null}
       {o?.kind === 'actions' ? <ActionsSheet title={o.title} sub={o.sub} body={o.body} items={o.items} /> : null}
       {o?.kind === 'xray' ? <XraySheet query={o.query} title={o.title} onClose={o.onClose} /> : null}
+      {o?.kind === 'recommend' ? <RecommendSheet title={o.title} imdbId={o.imdbId} /> : null}
       {o?.kind === 'replace' ? <ReplaceSheet libraryId={o.libraryId} title={o.title} context={o.context} onClose={o.onClose} /> : null}
       <Toasts />
     </>
@@ -1033,6 +1080,9 @@ const styles = StyleSheet.create({
   peekTitle: {color: colors.text, fontSize: fontSize.title, fontWeight: '900', letterSpacing: -0.5},
   peekSub: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '700', marginTop: 4},
   peekLeft: {color: colors.accent, fontSize: fontSize.small, fontWeight: '700', marginTop: 4},
+  // [household] "Recommended by Dana" and the note
+  peekHh: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800', marginTop: spacing.sm},
+  peekHhNote: {color: colors.text, fontSize: fontSize.small, fontStyle: 'italic', marginTop: 2},
   peekSynopsis: {color: colors.textDim, fontSize: fontSize.body, lineHeight: 23, marginTop: spacing.sm},
 
   // trailer, full screen

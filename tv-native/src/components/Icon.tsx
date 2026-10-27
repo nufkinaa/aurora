@@ -42,7 +42,8 @@ export type IconName =
   | 'calendar'
   | 'clock'
   | 'refresh'
-  | 'warning';
+  | 'warning'
+  | 'send';
 
 type Props = {name: IconName; size?: number; color?: string};
 
@@ -60,6 +61,9 @@ function glyph(name: IconName, color: string) {
       return (
         <Path d="M8 5.14v13.72c0 .8.87 1.3 1.56.88l10.98-6.86a1.03 1.03 0 0 0 0-1.76L9.56 4.26A1.03 1.03 0 0 0 8 5.14z" />
       );
+    case 'send':
+      // [household] a paper plane: Recommend (the site's icon)
+      return <Path d="M3.4 20.4 21 12 3.4 3.6 3.4 10.2 15 12 3.4 13.8z" />;
     case 'xray':
       // an eye: who is in this scene
       return (

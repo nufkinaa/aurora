@@ -121,6 +121,8 @@ export const icons = {
   chevronLeft: svg('<path d="M14.7 5.3 8 12l6.7 6.7 1.4-1.4L10.8 12l5.3-5.3z"/>'),
   chevronRight: svg('<path d="M9.3 5.3 7.9 6.7 13.2 12l-5.3 5.3 1.4 1.4L16 12z"/>'),
   plus: svg('<path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z"/>'),
+  // Recommend (to someone in the household): a paper plane
+  recommend: svg('<path d="M3.4 20.4 21 12 3.4 3.6 3.4 10.2 15 12 3.4 13.8z"/>'),
   check: svg('<path d="M9.6 16.4 5.2 12l-1.7 1.7 6.1 6.1L20.5 9l-1.7-1.7z"/>'),
   cc: svg('<path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h2v2H6v-2zm0 4h8v2H6v-2zm10 0h2v2h-2v-2zm-6-4h8v2h-8v-2z"/>'),
   forward10: svg('<path d="M12 3V1.8L16.2 5 12 8.2V6c-3.3 0-6 2.7-6 6s2.7 6 6 6 6-2.7 6-6h2c0 4.4-3.6 8-8 8s-8-3.6-8-8 3.6-8 8-8z"/><text x="8.2" y="15.5" font-size="7.5" font-weight="800" fill="currentColor">10</text>'),

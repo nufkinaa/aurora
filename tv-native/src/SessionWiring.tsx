@@ -17,6 +17,7 @@ import {loadPrefs} from './storage';
 import {showToast} from './toast';
 import {setUsageEnabled, setUsageProfile, track} from './usage';
 import {startTarget, stopTarget} from './remote/target'; // [phone-remote]
+import {startHouseholdLive} from './householdLive'; // [household]
 
 export default function SessionWiring() {
   const {profileId} = useApp();
@@ -83,6 +84,10 @@ export default function SessionWiring() {
     setRootIdentity(profileId, me.name);
     setIdentity({id: profileId, name: me.name, avatar: me.avatar, avatarImage: me.avatarImage || null});
   }, [me, profileId]);
+
+  // [household] someone recommended a title to this profile: a toast and a
+  // fresh Home row (householdLive.ts)
+  useEffect(() => startHouseholdLive(profileId), [profileId]);
 
   useEffect(() => {
     // this person's settings changed on another device (server: PUT

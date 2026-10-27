@@ -14,7 +14,7 @@ const path = require('path');
 
 const SRC = path.join(__dirname, '../../src');
 
-const GUARDED = ['components/NavRail.tsx', 'screens/Browse.tsx', 'screens/Home.tsx', 'screens/MyList.tsx', 'screens/Pick.tsx', 'screens/Search.tsx', 'screens/Taste.tsx'];
+const GUARDED = ['components/NavRail.tsx', 'screens/Browse.tsx', 'screens/Home.tsx', 'screens/Household.tsx', 'screens/MyList.tsx', 'screens/Pick.tsx', 'screens/Search.tsx', 'screens/Taste.tsx'];
 const EXEMPT: Record<string, string> = {
   'focus.ts': 'the hook itself',
   'playback/Player.tsx': 'acts on what was pressed, never on where focus is',

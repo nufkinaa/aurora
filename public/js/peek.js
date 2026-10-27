@@ -11,6 +11,9 @@ import { api } from "./api.js";
 import { navigate } from "./router.js";
 import { pushScope, popScope } from "./focus.js";
 import { track } from "./usage.js";
+import { recommendButton, dismissRec, fromLine } from "./recommend.js";
+
+const escapeHtml = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 const HOLD_MS = 480;
 const MOVE_PX = 10;
@@ -79,8 +82,9 @@ export const openPeek = (item, { open = null, onRemove = null } = {}) => {
   // same shapes the detail pages send).
   const listBtn = el("button", { "data-ui": "peek.mylist", class: "btn focusable" });
   let inList = false;
+  // (a household recommendation's sheet says what the press does: "Add to My List")
   const paintList = () => {
-    listBtn.innerHTML = (inList ? icons.check : icons.plus) + `<span>${inList ? "In My List" : "My List"}</span>`;
+    listBtn.innerHTML = (inList ? icons.check : icons.plus) + `<span>${inList ? "In My List" : item.hh ? "Add to My List" : "My List"}</span>`;
   };
   paintList();
   const listable = state.profile && !isEpisode && (item.imdbId || (item.id && !String(item.id).startsWith("torrent|")));
@@ -99,6 +103,8 @@ export const openPeek = (item, { open = null, onRemove = null } = {}) => {
         : item.id;
       await api.toggleWatchlist(state.profile.id, ref, inList);
       toast(inList ? LIST_ADDED : LIST_REMOVED, inList ? "➕" : "➖");
+      if (inList && item.hh) track("feat", { f: "hhrec-add" });
+      if (item._onListed) item._onListed(inList);
     } catch {
       // it did not happen: the button goes back, and says so
       const adding = inList;
@@ -128,12 +134,18 @@ export const openPeek = (item, { open = null, onRemove = null } = {}) => {
       el("div", { class: "peek-title" }, item.title),
       el("div", { class: "peek-sub" }, subline(item), formatRow(item, { max: 4 })),
       pct !== null && el("div", { class: "peek-progress" }, el("div", { class: "peek-bar" }, el("i", { style: { width: pct + "%" } })), el("span", {}, left)),
+      // a household recommendation: who, and the note
+      item.hh && el("div", { class: "peek-hh" },
+        el("div", { class: "peek-hh-from", html: icons.recommend + `<span>${escapeHtml(fromLine((item.hh.from || []).map((f) => f.name)))}</span>` }),
+        item.hh.note && el("div", { class: "peek-hh-note" }, `“${item.hh.note}” — ${item.hh.noteBy || ""}`)),
       synopsis,
       el("div", { class: "peek-actions" },
         playable && el("button", { "data-ui": "peek.play", class: "btn btn-primary focusable", html: icons.play + `<span>${pct !== null ? "Resume" : "Play"}</span>`, onclick: play }),
         open && el("button", { "data-ui": "peek.details", class: "btn focusable", html: `<span>${playable ? "Details" : "Open"}</span>`, onclick: details }),
         listable && listBtn,
         onRemove && el("button", { "data-ui": "peek.remove", class: "btn focusable peek-remove", html: "<span>Remove from Continue Watching</span>", onclick: go(() => onRemove(item)) }),
+        recommendButton(item, { ui: "peek.recommend", onOpen: () => closePeek() }), // data-ui
+        item.hh && el("button", { "data-ui": "peek.hh.dismiss", class: "btn focusable", onclick: go(() => dismissRec(item, { onDone: item._onDismissed || null, onUndo: item._onUndismissed || null })) }, "Not for me"),
       ),
     ),
   );

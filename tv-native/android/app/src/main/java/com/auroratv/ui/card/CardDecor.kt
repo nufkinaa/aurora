@@ -157,7 +157,7 @@ class CardDecor private constructor(o: JSONObject) {
 
 /** What one card shows (AuroraCard props, Card.tsx DeepCard). */
 data class CardContent(
-  /** '' | 'label' | 'labelEp' | 'frame' | 'frameEp' */
+  /** '' | 'label' | 'labelEp' | 'labelMeta' | 'frame' | 'frameEp' */
   val mode: String = "",
   val t1: String = "",
   val t2: String = "",

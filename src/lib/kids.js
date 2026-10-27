@@ -389,6 +389,9 @@ const createGate = (deps) => {
           return deny("A kids profile can't change that — ask a grown-up.");
         }
         if (method === "GET" && rest === "/watchlist") return fields("items");
+        // what the household recommended to it, and what it sent (media/household.js
+        // already leaves out what it may not see; this is the gate's own word)
+        if (method === "GET" && (rest === "/household" || rest === "/household/sent")) return fields("items");
       }
       return next();
     }

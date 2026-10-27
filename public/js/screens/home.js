@@ -12,6 +12,7 @@ import { createHeroTrailer } from "../heroTrailer.js";
 import { fromHome as prefetchFromHome, warmHero } from "../prefetch.js";
 import { homeUsable } from "../telemetry.js"; // [analytics]
 import { toneNavFromImage } from "../glassTone.js";
+import { SHOW_ALL } from "../recommend.js";
 
 // Home's last answer, per profile. Coming back to Home paints from it at
 // once and the rows are refreshed underneath when the server answers — no
@@ -564,8 +565,26 @@ export const renderHome = async (root) => {
       node.dataset.rowId = r.id;
       node.dataset.kind = r.id === "continue" ? "continue" : "shelf";
       node.dataset.sig = rowSig(r);
+      if (r.id === "household") syncShowAll(node, r);
     }
     return node;
+  };
+  // "Recommended by your household": after the row, "Show all recommended" —
+  // only when there are more than the row shows (the server says: `more`)
+  const syncShowAll = (node, r) => {
+    let link = node.querySelector(".hh-all");
+    if (!r.more) { if (link) link.remove(); return; }
+    if (!link) {
+      link = el("button", {
+        "data-ui": "home.hh.all",
+        type: "button",
+        class: "btn small focusable hh-all",
+        onclick: () => navigate("#/household"),
+      });
+      node.append(link);
+    }
+    link.textContent = SHOW_ALL;
+    link.setAttribute("aria-label", `${SHOW_ALL} (${r.total})`);
   };
   // Append, then put the shelf back where it was (a detached node can't scroll).
   const place = (node, r) => {
@@ -669,6 +688,7 @@ export const renderHome = async (root) => {
       if (node &&
           patchShelf(node, r.items, before && before.title === r.title && (before.sub || "") === (r.sub || "") ? {} : { title: r.title, sub: r.sub || "" })) {
         node.dataset.sig = rowSig(r);
+        if (r.id === "household") syncShowAll(node, r);
         return nodes.push(node);
       }
       const built = buildRow(r, i);
@@ -788,6 +808,17 @@ export const renderHome = async (root) => {
     } catch {}
   });
 
+  // Something was recommended to this person: the row takes it in (the toast
+  // is js/recommend.js watchArrivals, wherever the person is)
+  const unsubHh = onMessage("household_recs", async (msg) => {
+    if (!state.profile || (msg && msg.profile && msg.profile !== state.profile.id)) return;
+    try {
+      const next = await api.home(state.profile.id);
+      if (!screen.isConnected) return rememberHome(state.profile.id, next);
+      takeFresh(next);
+    } catch {}
+  });
+
   // Coming back from a title lands where you left, not at the hero again.
   const stopRestore = restoreScrollY(homeScrollY);
 
@@ -801,6 +832,7 @@ export const renderHome = async (root) => {
     if (heroTimer) clearInterval(heroTimer);
     for (const fn of cleanups) fn();
     unsub();
+    unsubHh();
     unsubParties();
   };
 };

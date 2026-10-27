@@ -41,7 +41,10 @@ import {autoPlayStep, jobSource, pickBest, runningJobFor, streamPlayItem} from '
 import {heroRelease, ReleaseStatus} from '../releaseWords';
 import {isOpen, onMessage} from '../realtime';
 import {canNavigate} from '../navLock';
-import {openTrailer, openActions, openReplace, openXray} from '../overlay';
+import {openTrailer, openActions, openRecommend, openReplace, openXray} from '../overlay';
+import {bannerLine, notesOf, titleKey, WORDS as HH} from '../householdRecs'; // [household]
+import {householdChanged} from '../householdLive'; // [household]
+import {track} from '../usage';
 import {replaceOffered, WORDS as REPLACE_WORDS} from '../replaceLogic';
 import {prepareTrailer} from '../trailers';
 import {showToast} from '../toast';
@@ -238,6 +241,39 @@ const Badge = ({text}: {text: string}) => (
 // scrolls the page back to the top (a no-op when it is there already).
 const ToTop = createContext<(() => void) | null>(null);
 
+// [household] What the household recommended this title to the viewer for:
+// "Recommended by Dana and Avi", each note as “note” — Dana, and Not for me
+// (which turns into Undo in place: a toast on the TV never takes a button).
+function HhBanner({
+  from,
+  hidden,
+  onNotForMe,
+}: {
+  from: {name: string; note?: string}[];
+  hidden: boolean;
+  onNotForMe: () => void;
+}) {
+  const toTop = useContext(ToTop);
+  const notes = notesOf(from).slice(0, 3);
+  return (
+    <View style={styles.hhBanner}>
+      <View style={styles.hhText}>
+        <Text style={styles.hhLine} numberOfLines={1}>
+          {bannerLine(from)}
+        </Text>
+        {notes.map(n => (
+          <Text key={n} style={styles.hhNote} numberOfLines={2}>
+            {n}
+          </Text>
+        ))}
+      </View>
+      <Focusable uiId="detail.hh.dismiss" round onFocusChange={f => f && toTop?.()} onPress={onNotForMe} style={styles.hhBtn}>
+        <Text style={styles.hhBtnText}>{hidden ? HH.undo : HH.notForMe}</Text>
+      </Focusable>
+    </View>
+  );
+}
+
 function DetailHero({
   kicker,
   title,
@@ -253,6 +289,7 @@ function DetailHero({
   bottomInset = 0,
   poster,
   secondary,
+  banner,
   children,
 }: {
   kicker: string;
@@ -277,6 +314,8 @@ function DetailHero({
   poster?: ImgSource | null;
   // A second, smaller row of actions under the main one (the site's icon row).
   secondary?: React.ReactNode;
+  // [household] "Recommended by Dana and Avi", the notes, Not for me — under the icon row
+  banner?: React.ReactNode;
   children?: React.ReactNode; // the actions row
 }) {
   const meta = metaParts.filter(Boolean).map(String);
@@ -309,6 +348,7 @@ function DetailHero({
           <View style={[styles.actions, dense && styles.actionsDense]}>{children}</View>
         ) : null}
         {secondary ? <View style={styles.actionsSecondary}>{secondary}</View> : null}
+        {banner}
         {synopsis ? (
           <Text style={styles.synopsis} numberOfLines={synopsisLines}>
             {unescapeHtml(synopsis)}
@@ -1315,9 +1355,53 @@ export default function Detail({
     };
   }, [stream, item.type, item.imdbId, item.id]);
 
+  // [household] the key this title is recommended by (an IMDb id, else lib:<id>
+  // — the server maps that to the IMDb id it knows), who recommended it to
+  // this profile (asking also counts them as seen), and Not for me / Undo.
+  const hhKey = titleKey(item);
+  const [hhFrom, setHhFrom] = useState<{id: string; name: string; note?: string}[]>([]);
+  const [hhHidden, setHhHidden] = useState(false);
+  useEffect(() => {
+    if (!hhKey) return;
+    let live = true;
+    api
+      .householdFor(profileId, hhKey)
+      .then(r => {
+        if (!live || !r || r.dismissed || !(r.from || []).length) return;
+        setHhFrom(r.from);
+        householdChanged(); // now seen: Home's "new" follows
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [profileId, hhKey]);
+  const hhNotForMe = useCallback(async () => {
+    if (!hhKey) return;
+    const undo = hhHidden;
+    setHhHidden(!undo);
+    try {
+      await api.householdDismiss(profileId, hhKey, undo);
+      householdChanged();
+      if (!undo) {
+        track('feat', {f: 'hhrec-dismiss'});
+        showToast(HH.hidden, '✓');
+      }
+    } catch {
+      setHhHidden(undo);
+    }
+  }, [profileId, hhKey, hhHidden]);
+  const hhBanner = hhFrom.length ? <HhBanner from={hhFrom} hidden={hhHidden} onNotForMe={hhNotForMe} /> : null;
+  // the picker (an episode's page is its show's; the page's own IMDb lookups help a catalogue title)
+  const recommend = () => openRecommend(item, libImdb || full?.imdbId || streamMeta?.imdbId || null);
+
   const toggleList = async () => {
     const next = !inList;
     setInList(next); // optimistic
+    if (next && hhFrom.length) {
+      track('feat', {f: 'hhrec-add'});
+      householdChanged();
+    }
     try {
       if (stream) {
         const ref: StreamRef = {
@@ -2782,9 +2866,11 @@ export default function Detail({
           cast={streamMeta?.cast}
           note={srcNote}
           bottomInset={0}
+          banner={hhBanner}
           secondary={
             <>
               <IconBtn uiId="detail.mylist" ref={listBtnRef} edgeLeft icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
+              {hhKey ? <IconBtn uiId="detail.recommend" icon="send" label={HH.recommend} onPress={recommend} /> : null}
               {/* Follow: only once the show's IMDb id is known — that is what the server follows by */}
               {followImdb && !torrentsOff ? (
                 <IconBtn uiId="detail.follow" icon={following ? 'check' : 'plus'} on={following} label={following ? 'Following' : 'Follow'} onPress={toggleFollow} />
@@ -2940,9 +3026,11 @@ export default function Detail({
         cast={streamMeta?.cast}
         note={srcNote}
         bottomInset={0}
+        banner={hhBanner}
         secondary={
           <>
             <IconBtn uiId="detail.mylist" ref={listBtnRef} edgeLeft icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
+            {hhKey ? <IconBtn uiId="detail.recommend" icon="send" label={HH.recommend} onPress={recommend} /> : null}
             {/* Start over — the site's button, under the site's condition: only
                 beside a Resume (a film you hold and are part-way through). The
                 function had been here since 5.1.4 with no button calling it. */}
@@ -3266,6 +3354,13 @@ const styles = StyleSheet.create({
   ghostSmall: {paddingVertical: 6, paddingHorizontal: 12, minHeight: 32, backgroundColor: 'rgba(255,255,255,0.09)'},
   ghostTextSmall: {fontSize: fontSize.small},
   note: {color: colors.accent, fontSize: fontSize.small, fontWeight: '700', marginTop: spacing.sm},
+  // [household] the recommendation banner under the icon row
+  hhBanner: {flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.sm, maxWidth: 720},
+  hhText: {flexShrink: 1},
+  hhLine: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800'},
+  hhNote: {color: colors.text, fontSize: fontSize.small, fontStyle: 'italic', marginTop: 2},
+  hhBtn: {backgroundColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', paddingVertical: 7, paddingHorizontal: 16},
+  hhBtnText: {color: colors.text, fontSize: fontSize.small, fontWeight: '700'},
   loading: {position: 'absolute', bottom: spacing.xl, left: spacing.contentLeft},
 
   // ---- the season dock ----------------------------------------------------

@@ -547,6 +547,22 @@ export const api = {
   },
   watchlist: (id, { low = false } = {}) => warmed(`/api/profiles/${id}/watchlist`, 60 * 1000, { low }),
   rate: (id, itemId, stars) => post(`/api/profiles/${id}/rating`, { itemId, stars }),
+
+  // Recommendations between the people of the household (src/routes/household.js;
+  // the rules: src/media/household.js). `id` is the acting profile.
+  //   recommendPeople -> { people: [{ id, name, avatar, avatarImage, color, state, line, waitMin, note? }], noteMax }
+  recommendPeople: (id, key, type) =>
+    json(`/api/profiles/${encodeURIComponent(id)}/recommend/people?key=${encodeURIComponent(key || "")}${type ? `&type=${encodeURIComponent(type)}` : ""}`),
+  //   recommend -> { sent: [{ to, name, updated }], refused: [{ to, name, reason, line }], line }
+  recommend: (id, to, title, note) => post(`/api/profiles/${encodeURIComponent(id)}/recommend`, { to, title, note }),
+  household: (id, from = null) =>
+    json(`/api/profiles/${encodeURIComponent(id)}/household${from ? `?from=${encodeURIComponent(from)}` : ""}`),
+  householdFor: (id, key) => json(`/api/profiles/${encodeURIComponent(id)}/household/for?key=${encodeURIComponent(key)}`),
+  householdDismiss: (id, key, undo = false) => post(`/api/profiles/${encodeURIComponent(id)}/household/dismiss`, { key, ...(undo ? { undo: true } : {}) }),
+  householdSeen: (id) => post(`/api/profiles/${encodeURIComponent(id)}/household/seen`, {}),
+  householdSent: (id) => json(`/api/profiles/${encodeURIComponent(id)}/household/sent`),
+  householdSettings: (id) => json(`/api/profiles/${encodeURIComponent(id)}/household/settings`),
+  setHouseholdSettings: (id, body) => post(`/api/profiles/${encodeURIComponent(id)}/household/settings`, body),
   setPreferences: (id, likedGenres) => post(`/api/profiles/${id}/preferences`, { likedGenres }),
 
   // AI recommender (the "AI" tab). Status is what decides whether the nav

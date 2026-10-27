@@ -95,6 +95,7 @@ function JsCard({
   edgeRight,
   compact,
   noPeek,
+  caption,
   ref,
 }: {
   item: HeroItem;
@@ -135,6 +136,11 @@ function JsCard({
   // over X-Ray) — overlay.ts holds ONE sheet, so a peek opened from there
   // would replace X-Ray and take the person sheet down with it.
   noPeek?: boolean;
+  // [household] Draw the card's own line under its title (`item.meta`: "From
+  // Dana and Avi") — the household row and the Show all page; a poster with a
+  // meta line is labelled, as the site's card is (components.js `showLabel`).
+  // Off everywhere else, so no other shelf's look changes.
+  caption?: boolean;
   // Forwarded to the Focusable, so a grid can hold its first card as a focus
   // target (requestTVFocus lives on the host instance).
   ref?: React.Ref<View>;
@@ -240,7 +246,9 @@ function JsCard({
     markDrawn(src.uri);
     if (showBlur) setLoadedUri(src.uri);
   };
-  const showLabel = !hideLabel && (landscape || item.upNext);
+  // [household] the card's line ("From Dana"), when the shelf asks for it
+  const metaLine = caption && !frame && !isEpisode && item.meta ? String(item.meta) : '';
+  const showLabel = !hideLabel && (landscape || item.upNext || !!metaLine);
   // "N min left", under the title of a card mid-way (the site's glass look).
   const left =
     frame && prog && pct != null && prog.duration > 0
@@ -258,8 +266,9 @@ function JsCard({
   // leaves STREAM protruding from behind the shorter NEW pill, which is an
   // accident. ONE resolved value, computed here, makes the both-drawn state
   // unreachable: NEW wins.
+  // [household] a recommendation not looked at yet carries the same NEW (the website's card)
   const isNew =
-    !!item.addedAt && Date.now() - item.addedAt < NEW_WINDOW_MS && !prog;
+    (!!item.addedAt && Date.now() - item.addedAt < NEW_WINDOW_MS && !prog) || !!item.hh?.unseen;
   //
   // STREAM is drawn on LANDSCAPE cards only. Measured on the Streamer at the
   // pinned type: the pill is ~75dp on a 124dp poster — 60% of its width, sitting
@@ -273,10 +282,10 @@ function JsCard({
   const leftTag: 'new' | null = isNew ? 'new' : null;
   // components.js:129 suppresses the kind tag whenever the ✕ is present — that
   // corner belongs to the ✕.
-  const kind = showKind && !landscape && !onRemove;
+  const kind = showKind && !landscape && !onRemove && !item.cta;
 
   return (
-    <Focusable uiId="card.open"
+    <Focusable uiId={item.cta ? 'home.hh.all' : 'card.open'} // [household] the row's Show all tile
       // components.css:255 — scale(1.055) translateY(-3px).
       scaleTo={1.055}
       lift={cardAura.lift}
@@ -294,7 +303,7 @@ function JsCard({
       onPress={() => onPress(item)}
       // Hold OK: the peek sheet (site: peek.js). Continue Watching's ✕ lives
       // inside it as "Remove", so the drawn hint still tells the truth.
-      onLongPress={noPeek ? undefined : () => openPeek(item, removable || undefined)}
+      onLongPress={noPeek || item.cta ? undefined : () => openPeek(item, removable || undefined)}
       onFocusChange={onFocus ? f => f && onFocus(item, index ?? 0) : undefined}
       focusOverlay={
         <>
@@ -394,6 +403,15 @@ function JsCard({
                 {`S${item.season} E${item.episode} · ${item.title}`}
               </Text>
             </>
+          ) : metaLine ? (
+            <>
+              <Text style={styles.labelText} numberOfLines={1} ellipsizeMode="tail">
+                {item.title}
+              </Text>
+              <Text style={styles.labelSub} numberOfLines={1} ellipsizeMode="tail">
+                {metaLine}
+              </Text>
+            </>
           ) : (
             <Text style={styles.labelText} numberOfLines={1} ellipsizeMode="tail">
               {item.title}
@@ -484,6 +502,7 @@ function NativeCard({
   edgeRight,
   compact,
   noPeek,
+  caption,
   ref,
 }: CardProps) {
   // ---- the derivation, line for line with JsCard --------------------------
@@ -502,15 +521,17 @@ function NativeCard({
   const backup = backupPath ? imgSrc(artPath(backupPath, artPx(artDp)) || backupPath) : null;
   const retryUri = src ? `${src.uri}${src.uri.includes('?') ? '&' : '?'}r=1` : undefined;
   const blur = blurOf(blurKey);
-  const showLabel = !hideLabel && (landscape || item.upNext);
+  // [household] the card's line ("From Dana"), when the shelf asks for it
+  const metaLine = caption && !frame && !isEpisode && item.meta ? String(item.meta) : '';
+  const showLabel = !hideLabel && (landscape || item.upNext || !!metaLine);
   const left =
     frame && prog && pct != null && prog.duration > 0
       ? `${Math.max(1, Math.round((prog.duration - prog.position) / 60))} min left`
       : null;
   const removable = onRemove;
-  const isNew = !!item.addedAt && Date.now() - item.addedAt < NEW_WINDOW_MS && !prog;
+  const isNew = (!!item.addedAt && Date.now() - item.addedAt < NEW_WINDOW_MS && !prog) || !!item.hh?.unseen;
   const leftTag: 'new' | null = isNew ? 'new' : null;
-  const kind = showKind && !landscape && !onRemove;
+  const kind = showKind && !landscape && !onRemove && !item.cta;
 
   // ---- what JS still owns of the picture's life -----------------------------
   const art = React.useRef<React.ElementRef<typeof AuroraCard> | null>(null);
@@ -550,7 +571,7 @@ function NativeCard({
   const blurUri = blur && src && !wasDrawn(src.uri) ? blur : undefined;
 
   return (
-    <Focusable uiId="card.open"
+    <Focusable uiId={item.cta ? 'home.hh.all' : 'card.open'} // [household] the row's Show all tile
       scaleTo={1.055}
       lift={cardAura.lift}
       ringWidth={cardAura.edge.width}
@@ -562,7 +583,7 @@ function NativeCard({
       holdLeft={holdLeft}
       edgeRight={edgeRight}
       onPress={() => onPress(item)}
-      onLongPress={noPeek ? undefined : () => openPeek(item, removable || undefined)}
+      onLongPress={noPeek || item.cta ? undefined : () => openPeek(item, removable || undefined)}
       onFocusChange={onFocus ? f => f && onFocus(item, index ?? 0) : undefined}
       focusOverlay={
         <>
@@ -629,6 +650,15 @@ function NativeCard({
               </Text>
               <Text style={styles.labelText} numberOfLines={1} ellipsizeMode="tail">
                 {`S${item.season} E${item.episode} · ${item.title}`}
+              </Text>
+            </>
+          ) : metaLine ? (
+            <>
+              <Text style={styles.labelText} numberOfLines={1} ellipsizeMode="tail">
+                {item.title}
+              </Text>
+              <Text style={styles.labelSub} numberOfLines={1} ellipsizeMode="tail">
+                {metaLine}
               </Text>
             </>
           ) : (
@@ -734,6 +764,7 @@ function DeepCard({
   edgeRight,
   compact,
   noPeek,
+  caption,
   ref,
 }: CardProps) {
   // ---- the derivation, line for line with JsCard / NativeCard ---------------
@@ -752,23 +783,26 @@ function DeepCard({
   const backup = backupPath ? imgSrc(artPath(backupPath, artPx(artDp)) || backupPath) : null;
   const retryUri = src ? `${src.uri}${src.uri.includes('?') ? '&' : '?'}r=1` : undefined;
   const blur = blurOf(blurKey);
-  const showLabel = !hideLabel && (landscape || item.upNext);
+  // [household] the card's line ("From Dana"), when the shelf asks for it
+  const metaLine = caption && !frame && !isEpisode && item.meta ? String(item.meta) : '';
+  const showLabel = !hideLabel && (landscape || item.upNext || !!metaLine);
   const left =
     frame && prog && pct != null && prog.duration > 0
       ? `${Math.max(1, Math.round((prog.duration - prog.position) / 60))} min left`
       : null;
   const removable = onRemove;
-  const isNew = !!item.addedAt && Date.now() - item.addedAt < NEW_WINDOW_MS && !prog;
-  const kind = showKind && !landscape && !onRemove;
+  const isNew = (!!item.addedAt && Date.now() - item.addedAt < NEW_WINDOW_MS && !prog) || !!item.hh?.unseen;
+  const kind = showKind && !landscape && !onRemove && !item.cta;
 
   // ---- what the RN children said, as props ---------------------------------
   // JsCard: frame → title (the show's name on an episode), "S1 E2 · …" on an
   // episode, "▶  N min left"; label → the show's name ('' allowed: an empty line
   // still takes its height) over "S1 E2 · …" on an episode, the title otherwise.
   const epLine = isEpisode ? `S${item.season} E${item.episode} · ${item.title}` : '';
-  const textMode = !showLabel ? '' : frame ? (isEpisode ? 'frameEp' : 'frame') : isEpisode ? 'labelEp' : 'label';
+  // [household] 'labelMeta': the title over the card's line (t2 "From Dana").
+  const textMode = !showLabel ? '' : frame ? (isEpisode ? 'frameEp' : 'frame') : isEpisode ? 'labelEp' : metaLine ? 'labelMeta' : 'label';
   const t1 = !showLabel ? '' : frame ? String((isEpisode ? item.showTitle || item.title : item.title) ?? '') : String((isEpisode ? item.showTitle || '' : item.title) ?? '');
-  const t2 = showLabel && isEpisode ? epLine : '';
+  const t2 = showLabel && isEpisode ? epLine : showLabel && metaLine ? metaLine : '';
   const t3 = showLabel && frame && left ? `▶  ${left}` : '';
 
   // ---- what JS still owns of the picture's life (NativeCard's) ------------
@@ -817,7 +851,7 @@ function DeepCard({
   const decor = draws ? decorJson() : undefined;
 
   return (
-    <Focusable uiId="card.open"
+    <Focusable uiId={item.cta ? 'home.hh.all' : 'card.open'} // [household] the row's Show all tile
       scaleTo={1.055}
       lift={cardAura.lift}
       ringWidth={cardAura.edge.width}
@@ -829,7 +863,7 @@ function DeepCard({
       holdLeft={holdLeft}
       edgeRight={edgeRight}
       onPress={() => onPress(item)}
-      onLongPress={noPeek ? undefined : () => openPeek(item, removable || undefined)}
+      onLongPress={noPeek || item.cta ? undefined : () => openPeek(item, removable || undefined)}
       onFocusChange={onFocus ? f => f && onFocus(item, index ?? 0) : undefined}
       focusOverlay={
         // brighten, the poster shade of a label-less card, the ✕ — JsCard's overlay, one view
