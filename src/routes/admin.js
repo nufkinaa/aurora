@@ -150,16 +150,19 @@ const insideARoot = (dir, roots) =>
 // the deletion are removed too (never a library root), then a rescan.
 // Registered BEFORE the generic /:type/:id delete so "file" can't parse
 // as a type.
-router.delete("/api/admin/library/file/:id", async (req, res) => {
-  const entry = scanner.resolve(req.params.id);
+// The delete itself, shared with "Delete selected" of the suggestions below:
+// { status, body } — the answer the route sends. `rescan: false` leaves the
+// rescan to the caller (one rescan after a batch, not one per file).
+const deleteLibraryFile = async (id, { rescan = true } = {}) => {
+  const entry = scanner.resolve(id);
   if (!entry || entry.kind !== "video" || !fs.existsSync(entry.path)) {
-    return res.status(404).json({ error: "File not found" });
+    return { status: 404, body: { error: "File not found" } };
   }
   // Never from under a viewer (lib/fileinuse.js): refused, the page says why.
   const inUse = require("../lib/fileinuse");
   if (inUse.fileInUse(entry.path)) {
     console.warn(`[admin] file delete refused (someone is playing it): ${entry.path}`);
-    return res.status(409).json({ error: inUse.MESSAGE, code: "streaming" });
+    return { status: 409, body: { error: inUse.MESSAGE, code: "streaming" } };
   }
   const roots = [...config.LIBRARIES.movies, ...config.LIBRARIES.shows];
   let result;
@@ -174,35 +177,41 @@ router.delete("/api/admin/library/file/:id", async (req, res) => {
       const busy = err && /^(EBUSY|EPERM|EACCES)$/.test(err.code || "") && fs.existsSync(entry.path);
       if (busy && tries < 40) { await new Promise((r) => setTimeout(r, 250)); continue; }
       // (503, not 409: the page reads every 409 as "someone is playing it")
-      if (busy) return res.status(503).json({ error: "The server is still reading this file — try again in a minute.", code: "busy" });
+      if (busy) return { status: 503, body: { error: "The server is still reading this file — try again in a minute.", code: "busy" } };
       const refusal = /outside the library/.test(err.message);
-      return res.status(refusal ? 400 : 500).json({ error: refusal ? err.message : `Delete failed: ${err.message}` });
+      return { status: refusal ? 400 : 500, body: { error: refusal ? err.message : `Delete failed: ${err.message}` } };
     }
   }
-  scanner.scan();
-  realtime.libraryUpdated();
-  console.log(`[admin] deleted file ${req.params.id} → ${result.deleted.join(", ")} (${result.freedBytes} bytes)`);
-  res.json({ ok: true, ...result });
+  if (rescan) {
+    scanner.scan();
+    realtime.libraryUpdated();
+  }
+  console.log(`[admin] deleted file ${id} → ${result.deleted.join(", ")} (${result.freedBytes} bytes)`);
+  return { status: 200, body: { ok: true, ...result } };
+};
+router.delete("/api/admin/library/file/:id", async (req, res) => {
+  const r = await deleteLibraryFile(req.params.id);
+  res.status(r.status).json(r.body);
 });
 
 // Delete a movie's folder or a whole show's folder from disk, then rescan.
-router.delete("/api/admin/library/:type/:id", (req, res) => {
-  const { type, id } = req.params;
+const deleteLibraryTitle = (type, id, { rescan = true } = {}) => {
+  const R = (status, body) => ({ status, body });
   let folder = null;
 
   if (type === "movie") {
     const movie = scanner.index.movies.find((m) => m.id === id);
     const entry = movie && scanner.resolve(id);
-    if (!entry || entry.kind !== "video") return res.status(404).json({ error: "Movie not found" });
+    if (!entry || entry.kind !== "video") return R(404, { error: "Movie not found" });
     folder = path.dirname(entry.path); // one folder per movie, under the root
     if (!insideARoot(folder, config.LIBRARIES.movies)) {
-      return res.status(400).json({ error: "Refusing to delete outside the movies library" });
+      return R(400, { error: "Refusing to delete outside the movies library" });
     }
   } else if (type === "show") {
     const show = scanner.index.shows.find((s) => s.id === id);
     const firstEp = show && show.seasons[0] && show.seasons[0].episodes[0];
     const entry = firstEp && scanner.resolve(firstEp.id);
-    if (!entry) return res.status(404).json({ error: "Show not found" });
+    if (!entry) return R(404, { error: "Show not found" });
     // The show folder is the first path segment under whichever root holds it.
     for (const root of config.LIBRARIES.shows) {
       const rel = path.relative(path.resolve(root), path.resolve(entry.path));
@@ -212,28 +221,34 @@ router.delete("/api/admin/library/:type/:id", (req, res) => {
       }
     }
     if (!folder || !insideARoot(folder, config.LIBRARIES.shows)) {
-      return res.status(400).json({ error: "Refusing to delete outside the shows library" });
+      return R(400, { error: "Refusing to delete outside the shows library" });
     }
   } else {
-    return res.status(400).json({ error: "type must be movie or show" });
+    return R(400, { error: "type must be movie or show" });
   }
   // Not while anybody is playing a file in it (lib/fileinuse.js).
   const inUse = require("../lib/fileinuse");
   if (inUse.folderInUse(folder)) {
     console.warn(`[admin] ${type} delete refused (someone is playing a file in it): ${folder}`);
-    return res.status(409).json({ error: inUse.FOLDER_MESSAGE, code: "streaming" });
+    return R(409, { error: inUse.FOLDER_MESSAGE, code: "streaming" });
   }
 
   try {
     fs.rmSync(folder, { recursive: true, force: true });
   } catch (err) {
     // A file can be locked mid-stream on Windows — report instead of half-deleting silently.
-    return res.status(500).json({ error: `Delete failed: ${err.message}` });
+    return R(500, { error: `Delete failed: ${err.message}` });
   }
-  scanner.scan();
-  realtime.libraryUpdated();
-  console.log(`[admin] deleted ${type} "${req.params.id}" → ${folder}`);
-  res.json({ ok: true });
+  if (rescan) {
+    scanner.scan();
+    realtime.libraryUpdated();
+  }
+  console.log(`[admin] deleted ${type} "${id}" → ${folder}`);
+  return R(200, { ok: true });
+};
+router.delete("/api/admin/library/:type/:id", (req, res) => {
+  const r = deleteLibraryTitle(req.params.type, req.params.id);
+  res.status(r.status).json(r.body);
 });
 
 // ---------- D1: per-file library management ----------
@@ -242,73 +257,9 @@ router.delete("/api/admin/library/:type/:id", (req, res) => {
 // every row with its size on disk, plus the disk-free headline. This is the
 // data the downloads page's ON DISK zone renders; sizes come from the scan.
 router.get("/api/admin/library/tree", (req, res) => {
-  // watchedBy: how many profiles FINISHED each item — the number that
-  // answers "is this safe to delete" (elia's catalog-cleanup ask).
-  // midway: how many profiles are PART-WAY through it (deleting it would
-  // take it from under them); lastWatched: when it was last finished — the
-  // two numbers the "free up space" helper needs to pick what is safe to go.
-  const watchedBy = new Map();
-  const midway = new Map();
-  const lastWatched = new Map();
-  for (const p of profiles.list()) {
-    const prog = profiles.getProgress(p.id) || {};
-    for (const [itemId, pr] of Object.entries(prog)) {
-      if (!pr) continue;
-      if (pr.finished) {
-        watchedBy.set(itemId, (watchedBy.get(itemId) || 0) + 1);
-        lastWatched.set(itemId, Math.max(lastWatched.get(itemId) || 0, pr.updatedAt || 0));
-      } else if ((pr.position || 0) > 60) midway.set(itemId, (midway.get(itemId) || 0) + 1);
-    }
-  }
-  // mylist: a copy the removed My List downloads fetched that nobody has watched yet —
-  // { state: "fresh" | "stale", why, by, addedAt, staleAt, deleteAt }. A stale
-  // one is a free pick for "free up space" (media/mylistdl.js).
-  const inuse = require("../lib/inuse");
-  let marks = new Map();
-  try { marks = require("../media/mylistdl").libraryMarks(); } catch (e) {
-    console.warn("[mylist] pass failed:", e && e.message ? e.message : e);
-  }
-  const movies = scanner.index.movies.map((m) => ({
-    id: m.id,
-    title: m.title,
-    year: m.year,
-    cover: m.cover || null,
-    addedAt: m.addedAt || 0,
-    mylist: marks.get(m.id) || null,
-    watched: watchedBy.get(m.id) || 0,
-    midway: midway.get(m.id) || 0,
-    streaming: inuse.streamingNow(m.id), // someone is playing it right now: not a delete suggestion
-    lastWatched: lastWatched.get(m.id) || 0,
-    sizeBytes: m.sizeBytes || 0,
-  }));
-  const shows = scanner.index.shows.map((s) => {
-    const seasons = (s.seasons || []).map((se) => ({
-      season: se.number,
-      sizeBytes: (se.episodes || []).reduce((n, e) => n + (e.sizeBytes || 0), 0),
-      episodes: (se.episodes || []).map((e) => ({
-        id: e.id,
-        season: e.season,
-        episode: e.episode,
-        title: e.title,
-        fileName: e.fileName,
-        addedAt: e.addedAt || 0,
-        mylist: marks.get(e.id) || null,
-        watched: watchedBy.get(e.id) || 0,
-        midway: midway.get(e.id) || 0,
-        streaming: inuse.streamingNow(e.id),
-        lastWatched: lastWatched.get(e.id) || 0,
-        sizeBytes: e.sizeBytes || 0,
-      })),
-    }));
-    return {
-      id: s.id,
-      title: s.title,
-      cover: s.cover || null,
-      addedAt: s.addedAt || 0,
-      sizeBytes: seasons.reduce((n, se) => n + se.sizeBytes, 0),
-      seasons,
-    };
-  });
+  // watchedBy / midway / lastWatched / streaming / mylist per row: what
+  // answers "is this safe to delete" (media/freeup.js builds it).
+  const { movies, shows } = require("../media/freeup").tree();
   const totalBytes =
     movies.reduce((n, m) => n + m.sizeBytes, 0) +
     shows.reduce((n, s) => n + s.sizeBytes, 0);
@@ -318,6 +269,67 @@ router.get("/api/admin/library/tree", (req, res) => {
     if (roots[0]) free = disk.spaceSync(roots[0]);
   } catch {}
   res.json({ movies, shows, totalBytes, disk: free });
+});
+
+// ---------- "Suggest what to delete" (media/freeup.js) ----------
+// The suggestions to free about `gb` GB, as a list the page ticks and
+// unticks: each { id, kind, name, cover, show?, sizeBytes, reason, why, inUse }.
+router.get("/api/admin/library/suggest", (req, res) => {
+  const gb = parseFloat(req.query.gb);
+  if (!(gb > 0) || gb > 100000) return res.status(400).json({ error: "How many GB should be freed?" });
+  const freeup = require("../media/freeup");
+  res.json(freeup.suggest(freeup.tree(), gb * 1024 ** 3));
+});
+
+// Delete what the admin kept ticked: { ids: [...] }. Each id is deleted only
+// if it is STILL a suggestion right now (somebody may have started it since
+// the list was shown) and nobody is playing it — through the same delete as
+// the On disk buttons (a film's folder, an episode's file). Answers what was
+// deleted and what was skipped, with why; one rescan at the end.
+router.post("/api/admin/library/suggest/delete", async (req, res) => {
+  const raw = req.body && req.body.ids;
+  if (!Array.isArray(raw)) return res.status(400).json({ error: "ids must be a list" });
+  const ids = [...new Set(raw.filter((x) => typeof x === "string" && x && x.length <= 200))];
+  if (!ids.length) return res.status(400).json({ error: "Nothing was chosen." });
+  if (ids.length > 5000) return res.status(400).json({ error: "Too many at once" });
+  const freeup = require("../media/freeup");
+  const t = freeup.tree();
+  const byId = new Map(freeup.candidates(t).map((c) => [c.id, c]));
+  const deleted = [];
+  const skipped = [];
+  let freedBytes = 0;
+  for (const id of ids) {
+    const c = byId.get(id);
+    if (!c) {
+      const name = freeup.nameOf(t, id);
+      skipped.push(name
+        ? { id, name, reason: "not-suggested", why: "Not a suggestion any more — somebody is part-way through it, or it was never finished" }
+        : { id, name: null, reason: "unknown", why: "Not in the library (any more)" });
+      continue;
+    }
+    if (c.inUse) {
+      skipped.push({ id, name: c.name, reason: "in-use", why: "Being watched right now — kept" });
+      continue;
+    }
+    const r = c.kind === "movie"
+      ? deleteLibraryTitle("movie", id, { rescan: false })
+      : await deleteLibraryFile(id, { rescan: false });
+    if (r.status === 200) {
+      const bytes = typeof r.body.freedBytes === "number" ? r.body.freedBytes : c.sizeBytes;
+      freedBytes += bytes;
+      deleted.push({ id, name: c.name, sizeBytes: bytes });
+    } else if (r.status === 409) {
+      skipped.push({ id, name: c.name, reason: "in-use", why: "Being watched right now — kept" });
+    } else {
+      skipped.push({ id, name: c.name, reason: r.status === 404 ? "unknown" : "failed", why: r.body.error || "Delete failed" });
+    }
+  }
+  if (deleted.length) {
+    scanner.scan();
+    realtime.libraryUpdated();
+  }
+  console.log(`[admin] suggestions: deleted ${deleted.length} of ${ids.length} (${freedBytes} bytes)${skipped.length ? `; skipped ${skipped.map((x) => `${x.id} (${x.reason})`).join(", ")}` : ""}`);
+  res.json({ ok: true, deleted, skipped, freedBytes });
 });
 
 // ---------- more than one copy of a title (media/copies.js) ----------

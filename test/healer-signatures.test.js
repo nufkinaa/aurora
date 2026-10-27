@@ -58,7 +58,7 @@ const REAL = [
   ["routine", "src/media/downloads.js", "re-queued: ${why", "[download] a1b2c3 re-queued: restarted by the healer: stuck at 40% for 16 min"],
   ["routine", "src/media/mylistdl.js", "download failed ${labelOf(rec)}: ", "[mylist] download failed Some Show · S1 E1: no peers for 30 minutes"],
   ["routine", "src/media/mylistdl.js", "could not delete ${labelOf(rec)} yet:", "[mylist] could not delete Some Film yet: EBUSY: resource busy or locked, unlink"],
-  ["background", "src/routes/admin.js", '"[mylist] pass failed:"', "[mylist] pass failed: boom"],
+  ["background", "src/media/freeup.js", '"[mylist] pass failed:"', "[mylist] pass failed: boom"],
   ["background", "src/media/mylistdl.js", "pass failed: ${(e && e.message) || e}", "[mylist] pass failed: Cannot read properties of undefined"],
   ["background", "src/lib/daily.js", "[daily] ${name} failed:", "[daily] backup failed: the backup folder is not reachable"],
   ["background", "src/media/follows.js", '"[follow] check failed:"', "[follow] check failed: fetch failed"],
