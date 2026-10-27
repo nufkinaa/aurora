@@ -3,6 +3,13 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.12.0 — 2026-10-28
+
+- **Aurora TV 5.6.0** (checked on the Mi TV, also with sign-in required): the reworked watch party on the TV — host or join (from Home or by code), lands within a tenth of a second, follows every play, pause and jump, waits for a friend who stalls and starts together, rejoins by itself after a dropped connection, eight reactions, and "Leave — Dana hosts" to hand over. A TV joining a party now holds a frame just ahead and starts exactly when the party gets there (this TV's seeks take 0.4–1.5 s, so aiming a moving seek kept missing).
+- **TV: no more 30-second freezes on a connection that dies silently** (Wi-Fi hand-over, a router dropping it): the player now gives up on a dead connection after 10–20 s and quietly reconnects, with the picture still playing from its buffer.
+- Watch party host on the website only sends its position while its film is really playing (a host stuck at 0:00 after a quality change could pull guests back to 0:00).
+- The New screen has "Watch together, calmly" and "Fewer freezes mid-film".
+
 ## 1.11.1 — 2026-10-27
 
 **Five reasons a film got stuck mid-way, fixed** (found with long plays on every path; none was load or the viewer's internet):
