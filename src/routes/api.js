@@ -134,18 +134,20 @@ router.post("/api/play-mark/:id", (req, res) => {
   const tidy = (v, n) => String(v == null ? "" : v).replace(/[\x00-\x1f\x7f]/g, "").slice(0, n);
   const name = tidy(b.name, 32);
   const ms = Math.max(0, Math.min(600000, parseInt(b.ms, 10) || 0));
-  const extra = Object.entries(b)
-    .filter(([k]) => !["name", "ms"].includes(k))
-    .slice(0, 6)
-    .map(([k, v]) => `${tidy(k, 16)}=${tidy(v, 40)}`)
-    .join(" ");
+  // (a start-up's steps are one longer field: "open:12,item:40,…,frame:3100")
+  const lenOf = (k) => (name === "start-up" && k === "steps" ? 240 : 40);
+  const fields = Object.entries(b).filter(([k]) => !["name", "ms"].includes(k)).slice(0, name === "start-up" ? 8 : 6);
+  const extra = fields.map(([k, v]) => `${tidy(k, 16)}=${tidy(v, lenOf(k))}`).join(" ");
   if (name) console.log(`[play] ${tidy(req.params.id, 12)} +${ms}ms ${name}${extra ? " " + extra : ""}`);
   // the same mark as a number, for the healer's playback statistics (lib/playmarks.js)
   if (name) {
     try {
       const rest = {};
-      for (const [k, v] of Object.entries(b).filter(([k]) => !["name", "ms"].includes(k)).slice(0, 6)) rest[tidy(k, 16)] = tidy(v, 40);
-      require("../lib/playmarks").record({ id: tidy(req.params.id, 12), name, ms, extra: rest, ip: require("../realtime").clientIp(req), ua: req.get("user-agent") });
+      for (const [k, v] of fields) rest[tidy(k, 16)] = tidy(v, lenOf(k));
+      const pm = require("../lib/playmarks");
+      const who = { id: tidy(req.params.id, 12), extra: rest, ip: require("../realtime").clientIp(req), ua: req.get("user-agent") };
+      if (name === "start-up") pm.recordStart(who);
+      else pm.record({ ...who, name, ms });
     } catch {}
   }
   res.json({ ok: true });

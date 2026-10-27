@@ -25,9 +25,14 @@ let cameFromHash = null;
 export const cameFrom = () => cameFromHash;
 
 export const navigate = (hash) => {
+  navAt = performance.now();
   if (location.hash === hash) render();
   else location.hash = hash;
 };
+// When the screen now being drawn was asked for (performance.now()): a press
+// on Play is the moment the player's start-up is counted from (startline.js).
+let navAt = 0;
+export const navStartedAt = () => navAt;
 
 const markNav = (hash) => {
   $$("[data-route]").forEach((a) => {
@@ -130,6 +135,8 @@ const render = async () => {
 export const startRouter = (root) => {
   appRoot = root;
   window.addEventListener("hashchange", (e) => {
+    // (a navigate() of a moment ago set it already, at the press itself)
+    if (performance.now() - navAt > 1000) navAt = performance.now();
     try {
       cameFromHash = new URL(e.oldURL).hash || "#/";
     } catch {

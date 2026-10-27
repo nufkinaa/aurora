@@ -127,7 +127,75 @@ const summarize = (list, now = Date.now(), sinceMs = 24 * 3600 * 1000) => {
   return out;
 };
 
-const list = () => plays;
-const _reset = () => { plays.length = 0; latest.clear(); };
+// ---------- start-ups, step by step (the "start-up" mark) ----------
+// One per play that reached its first frame, from the website
+// (public/js/startline.js) and the TV app (tv-native/src/startline.ts): the
+// moments after the press on Play at which each step was done. Kept apart
+// from the plays above (a torrent's start has no mount mark, a saved copy's
+// none of the others), bounded like them. The admin's App health → Slow
+// starts reads them: how long starts take by path, and for the slow ones,
+// WHICH STEP took the time.
+const STEPS = ["open", "item", "history", "probe", "mount", "decide", "claim", "ask", "byte", "frame"];
+const SLOW_START_MS = 6000;
+const MAX_STARTS = 600;
+const starts = []; // oldest first
+const parseSteps = (text) => {
+  const out = [];
+  let prev = 0;
+  for (const part of String(text || "").split(",").slice(0, 12)) {
+    const [n, v] = part.split(":");
+    const ms = parseInt(v, 10);
+    if (!STEPS.includes(n) || !Number.isFinite(ms) || ms < 0 || ms > 3600000) continue;
+    out.push([n, Math.max(prev, ms)]);
+    prev = Math.max(prev, ms);
+  }
+  return out;
+};
+const recordStart = ({ id, extra = {}, ip = "", ua = "", now = Date.now() }) => {
+  const steps = parseSteps(extra.steps);
+  if (!id || !steps.length) return null;
+  let slow = null;
+  let slowMs = -1;
+  let prev = 0;
+  for (const [n, ms] of steps) { if (ms - prev > slowMs) { slowMs = ms - prev; slow = n; } prev = ms; }
+  const total = steps[steps.length - 1][1];
+  const app = extra.app === "tv" ? "tv" : "web";
+  const s = {
+    at: now, id: String(id), ip, app, device: deviceOf(ua, extra.app),
+    path: String(extra.path || "").replace(/[^a-z0-9-]/gi, "").slice(0, 12) || null,
+    total, slow, slowMs, steps,
+    seg: Number.isFinite(parseInt(extra.seg, 10)) ? parseInt(extra.seg, 10) : null,
+    pl: Number.isFinite(parseInt(extra.pl, 10)) ? parseInt(extra.pl, 10) : null,
+  };
+  starts.push(s);
+  while (starts.length > MAX_STARTS || (starts.length && now - starts[0].at > KEEP_MS)) starts.shift();
+  return s;
+};
+// PURE: start records -> { n, p50, p90, byPath, slow: { n, byStep }, stepP50, recent }
+const startSummary = (list = starts, now = Date.now(), sinceMs = 24 * 3600 * 1000) => {
+  const win = list.filter((s) => now - s.at <= sinceMs);
+  const totals = win.map((s) => s.total);
+  const byPath = {};
+  for (const s of win) (byPath[s.path || "?"] = byPath[s.path || "?"] || []).push(s.total);
+  const gaps = {};
+  for (const s of win) {
+    let prev = 0;
+    for (const [n, ms] of s.steps) { (gaps[n] = gaps[n] || []).push(ms - prev); prev = ms; }
+  }
+  const slowOnes = win.filter((s) => s.total >= SLOW_START_MS);
+  const byStep = {};
+  for (const s of slowOnes) byStep[s.slow] = (byStep[s.slow] || 0) + 1;
+  return {
+    n: win.length,
+    p50: pct(totals, 50), p90: pct(totals, 90),
+    byPath: Object.fromEntries(Object.entries(byPath).map(([k, a]) => [k, { n: a.length, p50: pct(a, 50), p90: pct(a, 90) }])),
+    stepP50: Object.fromEntries(STEPS.filter((k) => gaps[k]).map((k) => [k, { p50: pct(gaps[k], 50), p90: pct(gaps[k], 90) }])),
+    slow: { n: slowOnes.length, overMs: SLOW_START_MS, byStep },
+    recent: slowOnes.slice(-12).reverse().map((s) => ({ at: s.at, id: s.id, app: s.app, device: s.device, path: s.path, total: s.total, slow: s.slow, slowMs: s.slowMs, steps: s.steps, seg: s.seg, pl: s.pl })),
+  };
+};
 
-module.exports = { record, summarize, troubledJustNow, list, deviceOf, START_GRACE_MS, _reset };
+const list = () => plays;
+const _reset = () => { plays.length = 0; latest.clear(); starts.length = 0; };
+
+module.exports = { record, summarize, troubledJustNow, list, deviceOf, START_GRACE_MS, _reset, recordStart, startSummary, SLOW_START_MS, STEPS };

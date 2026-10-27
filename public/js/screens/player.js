@@ -3,7 +3,8 @@
 import { el, icons, fmtClock, toast, formatRow } from "../ui.js";
 import { api } from "../api.js";
 import { state, progressFor, titleProgressFor, refreshProgress, progressAge, readyDownloads, setPersonPref } from "../state.js";
-import { navigate, cameFrom } from "../router.js";
+import { navigate, cameFrom, navStartedAt } from "../router.js";
+import { startupOf, stepsText, serverSide, firstMedia, SLOW_START_MS } from "../startline.js";
 import { pushScope, popScope } from "../focus.js";
 import { reportActivity, onMessage } from "../ws.js";
 import { party, createParty, joinParty, leaveParty, sendPartyState, setPartyItem, onPartyState, onPartyUpdate, onPartyEnded, onPartyItem, onPartyReact, serverNow, sendPartyBuffering, sendPartyReaction, partyInviteUrl, REACTIONS } from "../party.js";
@@ -636,6 +637,10 @@ export const renderPlayer = async (root, { id }) => {
   const restart = location.hash.includes("restart=1");
   const itemId = id.split("?")[0];
   const entryHash = location.hash;
+  // The start-up, step by step from the press (startline.js): when Play was
+  // pressed (the navigation to this player), and each step as it happens.
+  const startSteps = { open: performance.now() };
+  const pressAt = (() => { const n = navStartedAt(); return n > 0 && startSteps.open - n < 60000 ? n : startSteps.open; })();
 
   let item;
   // Offline mode (#/play/<id>?offline=1, from the Saved screen): the item
@@ -686,6 +691,7 @@ export const renderPlayer = async (root, { id }) => {
       return navigate("#/");
     }
   }
+  startSteps.item = performance.now();
   // Detect torrent playback
   const isTorrent =
     item._isTorrent || item.magnet || item.id?.startsWith("torrent|");
@@ -725,6 +731,7 @@ export const renderPlayer = async (root, { id }) => {
   // no saving over a history that could not be read — is not got round.
   const historyFresh = progressAge() < PROGRESS_FRESH_MS;
   const [owned, historyRead0] = await Promise.all([ownedP, historyFresh || localMode ? true : refreshProgress()]);
+  startSteps.history = performance.now();
   if (location.hash !== entryHash) return;
   // A file from this device resumes where it was left ON this device (by
   // its name and size — localplay.js); nothing about it is on the server.
@@ -791,6 +798,7 @@ export const renderPlayer = async (root, { id }) => {
       probeResult = first;
       probeP = null; // consumed pre-play; no late correction needed
     }
+    startSteps.probe = performance.now();
   }
 
   // The user may have pressed Back (or navigated anywhere else) while the
@@ -840,8 +848,10 @@ export const renderPlayer = async (root, { id }) => {
   const t0 = performance.now();
   const playMarks = [];
   // (`at`: the moment it happened, when that is not now — a frame's own stamp)
+  startSteps.mount = t0;
   const mark = (name, extra = {}, at = null) => {
     const ms = Math.round((at == null ? performance.now() : at) - t0);
+    if ((name === "path" || name === "decision") && startSteps.decide == null) startSteps.decide = at == null ? performance.now() : at;
     playMarks.push({ name, ms, ...extra });
     if (isTorrent || item._offline) return;
     try {
@@ -856,7 +866,8 @@ export const renderPlayer = async (root, { id }) => {
   mark("mount", { container: item.container || null, video: item.video && item.video.codec, audio: item.audio && item.audio.codec });
   playMounted(); // [analytics] a play is starting: nothing is sent until its first frame
   // (a file from this device: its name stays here — not in a report either)
-  if (!item._local) setPlayingContext({ id: item.id, title: isEpisode ? `${item.showTitle} S${item.season}E${item.episode}` : item.title, marks: () => playMarks.slice() });
+  let startup = null; // this play's start-up, once its first frame is in (startline.js)
+  if (!item._local) setPlayingContext({ id: item.id, title: isEpisode ? `${item.showTitle} S${item.season}E${item.episode}` : item.title, marks: () => playMarks.slice(), startup: () => startup });
 
   // ---------- element tree ----------
   const video = el("video", {
@@ -1012,6 +1023,7 @@ export const renderPlayer = async (root, { id }) => {
         if (ms >= 2000 && video.currentSrc && video.currentSrc.includes(item.videoUrl)) rememberLine((item.index.bytes * 8) / ms);
       }, { once: true });
     }
+    if (startSteps.ask == null) startSteps.ask = performance.now();
     video.src = airSrc(item.videoUrl);
     tryPlay();
   };
@@ -1352,6 +1364,7 @@ export const renderPlayer = async (root, { id }) => {
   const startHls = (url, startAt = 0, lad = null) => {
     if (onAir()) return;
     landing = startAt > 0.5 ? startAt : null;
+    if (startSteps.ask == null) startSteps.ask = performance.now();
     if (holdNext) {
       holdNext = false;
       holdFrame();
@@ -4468,6 +4481,8 @@ export const renderPlayer = async (root, { id }) => {
     return (usingTranscode ? clockBase : 0) + (landing != null && ct < 0.5 ? landing : ct);
   };
   video.addEventListener("timeupdate", () => { if (landing != null && (video.currentTime || 0) >= 0.5) landing = null; });
+  // (the start-up's "first byte" where the browser keeps no timing of the request: a file it reads itself)
+  video.addEventListener("progress", () => { if (startSteps.byteSeen == null && startSteps.ask != null && startSteps.frame == null) startSteps.byteSeen = performance.now(); });
 
   // ---- torrent far-seek prefetch ----
   // Restarting a torrent transcode at an offset makes ffmpeg -ss read the
@@ -7033,6 +7048,34 @@ export const renderPlayer = async (root, { id }) => {
       kind: isTorrent ? "torrent" : item._offline ? "offline" : "library",
     });
     playFirstFrame(ms, { torrent: isTorrent, offline: !!item._offline, remux: jitMode, transcode: usingTranscode }); // [analytics]
+    startSteps.frame = at;
+    // A moment later (the first segment's timing entry lands when it has
+    // arrived whole): the start-up, step by step, from the press.
+    setTimeout(() => {
+      try {
+        const isMedia = (u) => /\/stream\/(video|transcode|torrent)\//.test(u) || /\/offline\/(media|file)\//.test(u);
+        const entries = (performance.getEntriesByType ? performance.getEntriesByType("resource") : []).filter((e) => e.startTime >= pressAt - 5);
+        const fm = firstMedia(entries, isMedia, pressAt);
+        const at2 = { ...startSteps };
+        if (fm) {
+          if (fm.ask != null) at2.ask = Math.min(at2.ask != null ? at2.ask : Infinity, fm.ask);
+          if (fm.byte != null) at2.byte = fm.byte;
+        }
+        if (at2.byte == null && startSteps.byteSeen != null) at2.byte = startSteps.byteSeen;
+        const path = isTorrent ? "torrent" : item._offline ? "offline" : jitMode ? "jit" : usingTranscode ? (currentV === "copy" ? "copy" : "encode") : "direct";
+        startup = startupOf({ press: pressAt, at: at2, path, srv: serverSide(entries, isMedia) });
+        if (!startup) return;
+        const body = { total: startup.total, slow: startup.slow, path, steps: stepsText(startup), ...(startup.srv && startup.srv.seg != null ? { seg: startup.srv.seg } : {}), ...(startup.srv && startup.srv.playlist != null ? { pl: startup.srv.playlist } : {}) };
+        playMarks.push({ name: "start-up", ms: startup.total, ...body });
+        if (startup.total >= SLOW_START_MS) console.info(`[player] slow start: ${startup.total} ms, mostly "${startup.slow}" (${body.steps})`);
+        // (a torrent's or a saved copy's marks are not posted — this one is:
+        // the admin's Slow starts card counts every way a film starts)
+        const markId = isTorrent ? String(item.infoHash || "").slice(0, 12) : item.id;
+        if (markId && !item._local) {
+          fetch(`/api/play-mark/${encodeURIComponent(markId)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "start-up", ms: Math.round(at - t0), ...body }), keepalive: true }).catch(() => {});
+        }
+      } catch {}
+    }, 2500);
   };
   // "At the resume point": within half a minute before it (a stream begins on
   // the keyframe before, and four seconds early by design) — and never more

@@ -86,7 +86,18 @@ router.get("/api/admin/telemetry", adminOnly, (req, res) => {
     device: pick(req.query.device, /^(phone|tablet|desktop|tv)$/),
     net: pick(req.query.net, /^(slow|ok|fast)$/),
   };
-  res.json({ ...tel.summary(q), text: tel.text() });
+  // (the start-ups come from the play marks, which every player posts — not
+  // from the usage stats: lib/playmarks.js startSummary)
+  let starts = null;
+  try {
+    starts = require("../lib/playmarks").startSummary();
+    const sc = require("../media/scanner");
+    for (const r of starts.recent) {
+      const it = sc.findById(r.id);
+      if (it) r.title = it.showTitle ? `${it.showTitle} S${it.season}E${it.episode}` : it.title;
+    }
+  } catch {}
+  res.json({ ...tel.summary(q), starts, text: tel.text() });
 });
 
 // Mark a kind of error known (still shown, never announced as new) or
