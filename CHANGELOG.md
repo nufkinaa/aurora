@@ -3,6 +3,15 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.11.1 — 2026-10-27
+
+**Five reasons a film got stuck mid-way, fixed** (found with long plays on every path; none was load or the viewer's internet):
+- **iPhone after a server restart or a short network drop:** the player gave up after three quick tries and switched to a full re-encode from 0:00. It now keeps the last place the film was really moving, keeps trying for about a minute (1, 2, 4, 8, 15, 30 s), and then offers Try again — never a restart from the beginning.
+- **A converted copy paused far ahead of its viewer still held an encoder,** so someone else got "busy" on every quality and sat at 0:00 (7 minutes in the test). A paused copy no longer counts.
+- **On this kind of server (Windows), a copy lowered to idle priority was only raised when it made its next piece** — under load it never did, so pieces took 40–50 s. The viewer's next request now raises it.
+- **Torrents played in one long stream** (a hidden tab, AirPlay, simple players) weren't counted as being watched, so at about 31 minutes the server let the torrent go and deleted what it had downloaded. An open stream now counts, and a player that is simply not reading isn't treated as a stalled swarm.
+- The TV app's part of this (a connection that dies silently no longer freezes the picture for 30 s) comes with the next TV release.
+
 ## 1.11.0 — 2026-10-27
 
 **Watch parties, reworked.**
