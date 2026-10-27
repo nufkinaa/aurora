@@ -424,15 +424,23 @@ const handleMessage = (client, data, ws) => {
     }
 
     // ---------- watch parties (lib/party.js) ----------
+    // (a member is a person + a device: the signed-in session names the
+    // person even before the socket's hello has)
     case "party_create": {
-      const r = party.create(client, data.item, sendTo);
+      if (!client.profileId && ws.profileId) client.profileId = ws.profileId;
+      const r = party.create(client, data.item, sendTo, { device: data.device });
       send(ws, JSON.stringify(r.error ? { type: "party_error", message: r.error } : { type: "party_created", party: r.party }));
       if (!r.error) broadcastAll({ type: "party_list", parties: party.list() });
       break;
     }
     case "party_join": {
-      const r = party.join(client, data.code, sendTo);
-      send(ws, JSON.stringify(r.error ? { type: "party_error", message: r.error } : { type: "party_joined", party: r.party }));
+      if (!client.profileId && ws.profileId) client.profileId = ws.profileId;
+      const r = party.join(client, data.code, sendTo, { device: data.device });
+      // `rejoin`: the client's own reconnect, answered as such (its player
+      // is not waiting on a create/join of its own)
+      send(ws, JSON.stringify(r.error
+        ? { type: "party_error", message: r.error, ...(data.rejoin ? { rejoin: true, code: String(data.code || "") } : {}) }
+        : { type: "party_joined", party: r.party, ...(data.rejoin ? { rejoin: true } : {}) }));
       if (!r.error) broadcastAll({ type: "party_list", parties: party.list() });
       break;
     }
@@ -445,8 +453,17 @@ const handleMessage = (client, data, ws) => {
       else broadcastAll({ type: "party_list", parties: party.list() });
       break;
     }
-    case "party_state":
-      party.setState(client, data, sendTo);
+    case "party_state": {
+      // a member whose socket is no longer in the party is told, not
+      // silently ignored: its client re-joins (or says the party is over)
+      const r = party.setState(client, data, sendTo);
+      if (r.error) send(ws, JSON.stringify({ type: "party_error", message: r.error, lost: true }));
+      break;
+    }
+    case "party_ping":
+      // clock sync: the client works out the server's clock from t0, now and
+      // the round trip (lib/party.js keeps every position in server time)
+      send(ws, JSON.stringify({ type: "party_pong", t0: Number(data.t0) || 0, now: Date.now() }));
       break;
     case "party_avatar":
       // presence knows the name; the party chips want the face too
@@ -612,8 +629,9 @@ const attach = (server) => {
     ws.on("close", () => {
       if (client.activity === "Watching") stoppedOn(client);
       telemetry.onStopWatching(client.id);
-      // a dropped socket leaves its party (the host's drop ends it)
-      if (party.leave(client, sendTo)) broadcastAll({ type: "party_list", parties: party.list() });
+      // a dropped socket does not leave its party: the member is away for a
+      // grace period and takes its place again on reconnect (lib/party.js)
+      if (party.drop(client, sendTo)) broadcastAll({ type: "party_list", parties: party.list() });
       devices.dropClient(client.id); // [phone-remote] a TV / a remote that went away
       clients.delete(client.id);
       logEvent({ event: "disconnected", ...publicClient(client) });
