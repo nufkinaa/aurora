@@ -144,10 +144,10 @@ router.post("/api/play-mark/:id", (req, res) => {
     try {
       const rest = {};
       for (const [k, v] of fields) rest[tidy(k, 16)] = tidy(v, lenOf(k));
-      const pm = require("../lib/playmarks");
       const who = { id: tidy(req.params.id, 12), extra: rest, ip: require("../realtime").clientIp(req), ua: req.get("user-agent") };
-      if (name === "start-up") pm.recordStart(who);
-      else pm.record({ ...who, name, ms });
+      // (a start-up is kept apart from the plays: lib/playmarks.js recordStart)
+      if (name === "start-up") require("../lib/playmarks").recordStart(who);
+      else require("../lib/playmarks").record({ ...who, name, ms });
     } catch {}
   }
   res.json({ ok: true });
