@@ -22,6 +22,8 @@ const imdbLib = lazy(require, "../media/imdb");
 const recsLib = lazy(require, "../media/recs");
 const settingsLib = lazy(require, "../lib/settings");
 const tasteLib = lazy(require, "../media/taste");
+const householdLib = lazy(require, "../media/household");
+const householdRoutes = lazy(require, "./household");
 
 const router = express.Router();
 
@@ -601,8 +603,10 @@ const libraryStamp = () => `${libRev}.${scanner.index.version}.${scanner.index.e
 // follows). Somebody else watching moves none of it. The day: the billboard
 // and the sampled rows are seeded per day.
 const recsRev = () => { try { return recsLib()._internals.state.gen; } catch { return 0; } };
+// (…and what the household recommended to this profile: media/household.js)
+const householdRev = (profileId) => { try { return householdLib().instance().stamp(profileId); } catch { return 0; } };
 const homeStamp = (profileId) =>
-  `${libraryStamp()}.${hero.poolStamp()}.${availability.stamp()}.${recsRev()}.${settingsLib().rev}.${profiles.shapeStamp()}.${profileId ? profiles.signalsStamp(profileId) : 0}.${dayNumber()}`;
+  `${libraryStamp()}.${hero.poolStamp()}.${availability.stamp()}.${recsRev()}.${settingsLib().rev}.${profiles.shapeStamp()}.${profileId ? profiles.signalsStamp(profileId) : 0}.${profileId ? householdRev(profileId) : 0}.${dayNumber()}`;
 
 const libraryKept = (req, res, next) => {
   if (answermemo.begin(req, res, { key: `library|${kidKey(req)}|${blurKey(req)}`, stamp: libraryStamp })) return;
@@ -853,6 +857,9 @@ const orderRows = (rows, prefs = null) => {
     // in the order a person reads them: why-rows first, the stretch row last.
     const GENERATED = [["because-", 0.5], ["theme-", 0.6], ["person-", 0.7]];
     const rec = ROW_ORDER.indexOf("recommended");
+    // "Recommended by your household" (routes/household.js) sits right under
+    // Recommended for You — before the recommender's why-rows
+    if (id === "household") return rec === -1 ? ROW_ORDER.length : rec + 0.3;
     for (const [prefix, offset] of GENERATED) {
       if (id.startsWith(prefix)) return rec === -1 ? ROW_ORDER.length : rec + offset;
     }
@@ -1132,6 +1139,16 @@ router.get("/api/home", homeWho, heavy.middleware(), keptMeanwhile, (req, res) =
         exclude: heroItems,
       });
       if (rec.length >= 4) rows.push({ id: "recommended", title: "Recommended for You", items: rec });
+    }
+
+    // Recommended by your household: what the people of this server
+    // recommended to this profile (routes/household.js — up to 15, ranked by
+    // how many recommended each; `more` when there are more than that)
+    try {
+      const hhRow = householdRoutes()._internals.homeRow(profileId, { slim: req.query.slim === "1" });
+      if (hhRow) rows.push(hhRow);
+    } catch (e) {
+      console.warn("[household] home row failed:", e && e.message ? e.message : e);
     }
 
     const list = profiles.watchlistItems(profileId);

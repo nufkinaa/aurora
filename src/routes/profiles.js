@@ -914,6 +914,6 @@ const tellSignedOut = (profileId, exceptClientId = "") => {
 };
 
 // Test-only: the PIN attempt limiter (test/kids.test.js).
-router._internals = { pinAttempt, kidsPinGuard, markEntry, tellSignedOut };
+router._internals = { pinAttempt, kidsPinGuard, markEntry, tellSignedOut, gate }; // (gate: routes/household.js guards its routes the same way)
 
 module.exports = router;

@@ -258,6 +258,7 @@ app.use(require("./src/lib/blurup").middleware);
 app.use(require("./src/routes/auth"));
 app.use(require("./src/routes/api"));
 app.use(require("./src/routes/profiles"));
+app.use(require("./src/routes/household")); // recommendations between the people of the household (media/household.js)
 app.use(require("./src/routes/stream"));
 app.use(require("./src/routes/airplay"));
 app.use(require("./src/routes/ai"));
@@ -559,6 +560,8 @@ require("./src/media/introdetect");
   // 2026-10-26) go stale, then leave, when nobody watches them
   // (media/mylistdl.js has the rules). Nothing new is ever fetched here.
   daily.register("my-list-downloads", () => require("./src/media/mylistdl").daily());
+  // household recommendations older than 90 days, or from / to a profile that is gone
+  daily.register("household-recs", () => require("./src/media/household").instance().daily());
   // The recommender's knowledge of titles (media/recs): what people watched,
   // the catalogue they browse, and a bounded step along what each person
   // likes — so Home is not limited to this week's trending. TMDB only, free,

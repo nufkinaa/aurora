@@ -46,6 +46,7 @@
 //   requests.json         title requests            (when present)
 //   reports.json          problem reports           (when present)
 //   intros.json           intro marks set by hand
+//   household-recs.json   what the household recommended to one another (media/household.js)
 //   intro-auto.json       detected intros/credits (hours of CPU to redo)
 //   imdb-map.json         title → IMDb id matches (tiny; saves re-asking)
 //   watch-history.json    the admin's "who watched what" log

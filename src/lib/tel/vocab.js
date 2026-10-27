@@ -102,6 +102,7 @@ const SEGMENTS = new Set((
   "copies delete " + // /api/admin/library/copies, …/copies/delete (media/copies.js)
   "replace replacements " + // "Get another version" (/api/replace/:id, …/sources, …/cancel, /api/admin/replacements)
   "js screens vendor ws " +
+  "household sent " + // recommendations between the people of the household (/api/profiles/:id/household, …/sent, /recommend/people)
   "deck answer " + // the taste picker (/api/profiles/:id/taste/deck, /taste/answer)
   "metrics " + // /api/admin/metrics (lib/metrics.js)
   "remote " + // /api/admin/remote (lib/devices.js: phone as a remote, Play on TV)
@@ -109,7 +110,7 @@ const SEGMENTS = new Set((
   "caps play " + // what a device can play (/api/caps, /api/caps/:id/play/:itemId — routes/avcaps.js)
   "uploads chunk retry " + // admin "Add your own file" (/api/admin/uploads, …/link, …/:id/chunk, …/cancel, …/retry, …/dismiss)
   ".m3u8 .ts .m4s .mp4 .mkv .webm .vtt .srt .jpg .jpeg .png .webp .avif .svg .gif .ico .js .css .json .html .txt .apk .woff2 .webmanifest " +
-  "?a ?blur ?caps ?category ?code ?days ?duration ?episode ?error ?fmt ?force ?genre ?head ?hevc ?imdbid ?intent ?itemid ?k ?kb ?keys ?limit ?page ?profile ?pw " +
+  "?a ?blur ?caps ?from ?key ?category ?code ?days ?duration ?episode ?error ?fmt ?force ?genre ?head ?hevc ?imdbid ?intent ?itemid ?k ?kb ?keys ?limit ?page ?profile ?pw " +
   "?n ?part ?offset ?queued ?q ?season ?seek ?seg ?slim ?state ?t ?title ?tmdbid ?type ?u ?url ?v ?vtag ?w ?h ?y ?year ?r"
 ).split(/\s+/));
 // the query keys whose (small, numeric) value is kept: a size, not content
