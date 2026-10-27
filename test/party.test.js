@@ -4,14 +4,14 @@ const test = require("node:test");
 const assert = require("node:assert");
 
 const party = require("../src/lib/party");
-const { parties, byClient } = party._internals;
+const { parties, byClient, keyOfClient } = party._internals;
 
 const mk = (id, name) => ({ id, profile: name, profileId: `p-${id}` });
 const sentTo = () => {
   const log = [];
   return { log, send: (id, data) => log.push({ id, type: data.type, data }) };
 };
-const reset = () => { parties.clear(); byClient.clear(); };
+const reset = () => { parties.clear(); byClient.clear(); keyOfClient.clear(); };
 
 test("create: a four-letter code, the host is the first member, the item is kept", () => {
   reset();
@@ -107,4 +107,71 @@ test("one party per socket: creating again leaves the old one", () => {
   assert.ok(party.get(b.code));
   assert.equal(party.list().length, 1);
   assert.equal(party.list()[0].host, "Elia");
+});
+
+// ---------- a person on a device, not a socket ----------
+const mkd = (id, name, profileId) => ({ id, profile: name, profileId });
+
+test("a dropped socket is away, not gone: the same person + device takes the place again (host too)", () => {
+  reset();
+  party.configure({ graceMs: 60000 });
+  const { log, send } = sentTo();
+  const { party: p } = party.create(mkd("h1", "Elia", "pe"), { id: "lib1" }, send, { device: "laptop" });
+  party.join(mkd("g1", "Dana", "pd"), p.code, send, { device: "phone" });
+  party.setState(mkd("h1", "Elia", "pe"), { playing: true, position: 50, kind: "play" }, send);
+  log.length = 0;
+  assert.equal(party.drop(mkd("h1", "Elia", "pe"), send), true);
+  assert.ok(party.get(p.code), "the host's dropped socket does not end the party");
+  assert.ok(log.some((m) => m.id === "g1" && m.type === "party_update" && m.data.away === "Elia"));
+  assert.equal(party.get(p.code).members.find((m) => m.name === "Elia").away, true);
+  // back on a new socket, same device: host again, at the party's state
+  const r = party.join(mkd("h2", "Elia", "pe"), p.code, send, { device: "laptop" });
+  assert.ok(!r.error && r.rejoined);
+  assert.equal(r.party.host.id, r.party.you, "still the host");
+  assert.equal(r.party.members.length, 2);
+  assert.equal(r.party.state.position, 50);
+  // the new socket is heard, the old one is not
+  log.length = 0;
+  party.setState(mkd("h2", "Elia", "pe"), { playing: false, position: 60, kind: "pause" }, send);
+  assert.deepEqual(log.filter((m) => m.type === "party_state").map((m) => m.id), ["g1"]);
+  assert.ok(party.setState(mkd("h1", "Elia", "pe"), { playing: true }, send).error, "the old socket is out");
+  // a stale close of the old socket after the new one joined changes nothing
+  assert.equal(party.drop(mkd("h1", "Elia", "pe"), send), false);
+  assert.equal(party.get(p.code).members.every((m) => !m.away), true);
+});
+
+test("a host away past the grace hands the party to the next member; a guest away past it is dropped", async () => {
+  reset();
+  party.configure({ graceMs: 30 });
+  const { log, send } = sentTo();
+  const { party: p } = party.create(mkd("h", "Elia", "pe"), { id: "lib1" }, send, { device: "a" });
+  party.join(mkd("g", "Dana", "pd"), p.code, send, { device: "b" });
+  party.join(mkd("k", "Kim", "pk"), p.code, send, { device: "c" });
+  party.drop(mkd("h", "Elia", "pe"), send);
+  await new Promise((r) => setTimeout(r, 80));
+  const now = party.get(p.code);
+  assert.ok(now, "handed over, not ended");
+  assert.equal(now.host.name, "Dana");
+  assert.equal(now.members.length, 2);
+  assert.ok(log.some((m) => m.id === "g" && m.type === "party_update" && m.data.host === "Dana" && m.data.party.you === m.data.party.host.id));
+  party.drop(mkd("k", "Kim", "pk"), send);
+  await new Promise((r) => setTimeout(r, 80));
+  assert.equal(party.get(p.code).members.length, 1);
+  // explicit End party from the (new) host ends it
+  party.leave(mkd("g", "Dana", "pd"), send);
+  assert.equal(party.get(p.code), null);
+  party.configure({ graceMs: 120000 });
+});
+
+test("state: a sender's server-time stamp is kept when it is believable", () => {
+  reset();
+  const { log, send } = sentTo();
+  const { party: p } = party.create(mk("h", "Elia"), { id: "lib1" }, send);
+  party.join(mk("g", "Dana"), p.code, send);
+  const at = Date.now() - 120;
+  party.setState(mk("h"), { playing: true, position: 10, kind: "sync", at }, send);
+  assert.equal(party.get(p.code).state.at, at);
+  party.setState(mk("h"), { playing: true, position: 10, kind: "sync", at: Date.now() - 60000 }, send);
+  assert.ok(Math.abs(party.get(p.code).state.at - Date.now()) < 50, "a wild stamp is replaced by now");
+  assert.ok(log.length > 0);
 });

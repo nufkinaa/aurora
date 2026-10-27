@@ -6,7 +6,7 @@ import { state, progressFor, titleProgressFor, refreshProgress, progressAge, rea
 import { navigate, cameFrom } from "../router.js";
 import { pushScope, popScope } from "../focus.js";
 import { reportActivity, onMessage } from "../ws.js";
-import { party, createParty, joinParty, leaveParty, sendPartyState, setPartyItem, onPartyState, onPartyUpdate, onPartyEnded, onPartyItem } from "../party.js";
+import { party, createParty, joinParty, leaveParty, sendPartyState, setPartyItem, onPartyState, onPartyUpdate, onPartyEnded, onPartyItem, serverNow } from "../party.js";
 import { showReportSheet, setPlayingContext } from "../report.js";
 import { openReplaceSheet, canOfferReplace, COPY_PROBLEM, GET_ANOTHER } from "../replaceCopy.js";
 import * as offline from "../offline.js";
@@ -4748,20 +4748,37 @@ export const renderPlayer = async (root, { id }) => {
   // not: the player's own transcode restarts and start-up juggling fire
   // those constantly, and a guest joining would announce "pressed play" to
   // the room before a single frame showed.
+  // (only the person's own presses come here, so the echo mute that keeps
+  // our remote-applied play/pause quiet does not apply: a press a moment
+  // after someone else's is still a press)
   partyUser = (playing) => {
-    if (!inParty() || Date.now() < partyEcho) return;
+    if (!inParty()) return;
     sendPartyState(playing, effTime(), playing ? "play" : "pause");
   };
+  // Where the party's film is right now: (position, at) with `at` in server
+  // time, moved on by the server's clock (party.js) while it plays.
+  const partyTarget = (st) => (st.position || 0) + (st.playing && st.at ? Math.max(0, serverNow() - st.at) / 1000 : 0);
   const applyPartyState = (st, announce) => {
+    // the host's periodic tick: the drift correction reads the party's state
+    // (party.js keeps it) and closes small gaps itself; only a far-off
+    // member is moved here
+    if (st.kind === "sync" && !st.rejoined && st.playing === !video.paused) {
+      const far = usingTranscode || isTorrent ? 8 : 2.5;
+      if (Math.abs(effTime() - partyTarget(st)) <= far) return;
+    }
     partyEcho = Date.now() + 1500;
-    const elapsed = st.playing && st.now && st.at ? Math.max(0, st.now - st.at) / 1000 : 0;
+    partyNudge(1);
+    const elapsed = st.playing && st.at ? Math.max(0, serverNow() - st.at) / 1000 : 0;
     const target = (st.position || 0) + elapsed;
     // A transcoded / torrent stream restarts its whole pipeline on a seek,
     // so a guest on one tolerates far more drift on the periodic sync (and
     // a few seconds on a deliberate jump). Exact jumps still land exactly.
     const heavy = usingTranscode || isTorrent;
     const drift = effTime() - target;
-    const tol = st.kind === "sync" ? (heavy ? 8 : 2.5) : heavy ? 3 : 1.2;
+    // a pause lines everyone up on the same frame (a seek on a paused
+    // direct file is cheap); a play or a jump within a second is left to
+    // the drift correction below, which closes it without a visible jump
+    const tol = st.kind === "sync" ? (heavy ? 8 : 2.5) : heavy ? 3 : st.playing ? 1 : 0.1;
     if (Math.abs(drift) > tol) seekTo(target);
     if (st.playing && video.paused) video.play().catch(() => {});
     else if (!st.playing && !video.paused) video.pause();
@@ -4892,7 +4909,43 @@ export const renderPlayer = async (root, { id }) => {
   // when they're more than 2.5s out).
   partySync = setInterval(() => {
     if (inParty() && !video.paused && party.role === "host") sendPartyState(true, effTime(), "sync");
-  }, 5000);
+  }, 3000);
+  // Staying in step: every half second a member that is not the host looks
+  // at how far it is from where the party's film is now. A small gap is
+  // closed by playing a few percent faster or slower (nobody sees it); a
+  // big one by a seek, at most every few seconds (a stream that is still
+  // loading must not be sent round in circles). The host is the clock.
+  let partyRated = false; // the rate is ours (a nudge), not the viewer's speed choice
+  let partyLastFix = 0;
+  function partyNudge(rate) {
+    if (rate === 1) {
+      if (partyRated) { partyRated = false; video.playbackRate = 1; }
+      return;
+    }
+    if (!partyRated && video.playbackRate !== 1) return; // the viewer chose a speed: leave it
+    partyRated = true;
+    if (video.playbackRate !== rate) video.playbackRate = rate;
+  }
+  const partyDrift = setInterval(() => {
+    if (!inParty() || party.role === "host" || !party.current.state) return partyNudge(1);
+    const st = party.current.state;
+    if (!st.playing || video.paused || video.seeking || video.readyState < 3 || Date.now() < partyEcho) return partyNudge(1);
+    const heavy = usingTranscode || isTorrent;
+    const drift = effTime() - partyTarget(st);
+    const abs = Math.abs(drift);
+    if (abs > (heavy ? 3 : 0.5)) {
+      partyNudge(1);
+      if (Date.now() - partyLastFix < 4000) return;
+      partyLastFix = Date.now();
+      partyEcho = Date.now() + 1500;
+      seekTo(partyTarget(st) + (heavy ? 0 : 0.1)); // a direct file lands a hair ahead: the seek itself takes a moment
+    } else if (abs > 0.04) {
+      // ±3..8 %: a gap of half a second closes in about six seconds, and a
+      // tenth in about three
+      const k = Math.min(0.08, Math.max(0.03, abs * 0.25));
+      partyNudge(drift > 0 ? 1 - k : 1 + k);
+    } else partyNudge(1);
+  }, 500);
 
   // ---------- resume card ----------
   // "Resuming from 12:34", with the frame at that spot for a library file
@@ -6840,6 +6893,7 @@ export const renderPlayer = async (root, { id }) => {
     playGone(); // [analytics]
     clearInterval(saveTimer);
     clearInterval(partySync);
+    clearInterval(partyDrift);
     for (const un of unsubParty) un();
     if (!keepParty) leaveParty();
     setPlayingContext(null);
