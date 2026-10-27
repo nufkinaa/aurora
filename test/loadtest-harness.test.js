@@ -93,7 +93,8 @@ test("machine profiles: affinity masks and limits combine", () => {
   assert.strictEqual(m.heapMb, 256);
   assert.ok(m.wsMb > 0);
   assert.strictEqual(machineProfile("4core").mask, 0x55);
-  assert.throws(() => machineProfile("8core"), /unknown machine profile/);
+  assert.strictEqual(machineProfile("8core").mask, 0x5555, "eight real cores (a root server like nufurora.com)");
+  assert.throws(() => machineProfile("16core"), /unknown machine profile/);
 });
 
 test("devices: pictures are asked for the way the clients rewrite them", () => {

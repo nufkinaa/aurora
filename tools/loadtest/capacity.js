@@ -56,13 +56,17 @@ const MIXES = {
   direct: ["tv-direct", "web-direct", "phone-direct", "tv-direct", "tv-direct", "phone-direct", "web-direct", "tv-direct", "phone-direct", "tv-direct"],
   // the worst evening: 40 % encoded, 30 % torrents, 30 % repackaged
   worst: ["web-transcode", "tv-torrent", "phone-transcode", "tv-offset", "web-tjit", "web-transcode", "tv-torrent", "phone-transcode", "phone-jit", "tv-offset"],
+  // one path each, to find how many of it can start at once (tools/ttff/vps.js's paths):
+  copy: ["web-jit", "tv-offset", "phone-jit"], // repackaged: the video copied, the sound to AAC
+  encode: ["web-encode"], // the full 1080p CPU encode (a device that cannot decode the file's video)
+  torrent: ["tv-torrent", "web-tjit"],
 };
 const MIX_NOTE = {
   typical: "typical (house-recorded): 30 % direct, 55 % repackaged (TV offset copy, web/phone jit copy), 10 % encoded (720p/480p rungs), 5 % torrent; TVs 55 %, phones 25 %, desktops 20 %",
   direct: "all direct play: TVs 50 %, phones 30 %, desktops 20 %",
   worst: "worst case: 40 % encoded (720p/480p rungs), 30 % torrent (TV file + web repackaged), 30 % repackaged",
 };
-const PATH_CLASS = { direct: "direct", offset: "copy", jit: "copy", transcode: "encode", torrent: "torrent", tjit: "torrent" };
+const PATH_CLASS = { direct: "direct", offset: "copy", jit: "copy", transcode: "encode", encode: "encode", torrent: "torrent", tjit: "torrent" };
 
 // ---------- "supported" ----------
 // A step is SUPPORTED when every one of these holds (REPORT.md §2 says why):
@@ -197,8 +201,8 @@ class Crowd {
           if (v.leaving) break;
           // half resume somewhere in the film, half start at the beginning
           const startAt = Math.random() < 0.5 ? Math.floor(item.duration * (0.05 + Math.random() * 0.7)) : 0;
-          const mode = how === "offset" ? "offset" : how === "jit" ? "jit" : how === "transcode" ? "transcode" : how === "torrent" ? "torrent" : how === "tjit" ? "torrent-jit" : "direct";
-          const variant = how === "transcode" ? (form === "phone" ? "h264-480" : "h264-720") : null;
+          const mode = how === "offset" ? "offset" : how === "jit" ? "jit" : how === "transcode" || how === "encode" ? "transcode" : how === "torrent" ? "torrent" : how === "tjit" ? "torrent-jit" : "direct";
+          const variant = how === "encode" ? "h264" : how === "transcode" ? (form === "phone" ? "h264-480" : "h264-720") : null;
           const seg = form === "phone" && (how === "jit" || how === "transcode" || how === "tjit") ? "fmp4" : null;
           const pr = d.play(item, mode, { seekEveryMin: this.opts.seekMin, variant, seg, startAt, subs: Math.random() < 0.6 && !String(item.id).startsWith("torrent|") });
           v.current = d.playing;
@@ -361,7 +365,8 @@ const main = async () => {
   // libuv's thread pool (every async file call waits for one of its threads): the house server
   // runs under scripts/keeper.js, which starts it with UV_THREADPOOL_SIZE 6 (lib/keeper.js); --uv to try others
   const uv = String(a.uv || "6");
-  const srv = await start({ ref: a.ref, profiles, media: "cap", verbose: !!a.verbose, torrents: hasTorrent, network: false, env: { UV_THREADPOOL_SIZE: uv }, config: { prewarmStreams: false, ...(a.config ? JSON.parse(a.config) : {}) } });
+  // --machine 8core (lib instance.js MACHINES) and --hw off: a server like nufurora.com (8 cores, no GPU)
+  const srv = await start({ ref: a.ref, profiles, media: "cap", verbose: !!a.verbose, torrents: hasTorrent, network: false, machine: a.machine || undefined, env: { UV_THREADPOOL_SIZE: uv }, config: { prewarmStreams: false, ...(a.hw ? { hwEncode: String(a.hw) } : {}), ...(a.config ? JSON.parse(a.config) : {}) } });
   say(`up: ${srv.ref} at ${srv.url} in ${srv.upMs} ms (pid ${srv.pid})`);
   if (sw) {
     const dir = path.join(srv.dataDir, "cache", "torrents");
@@ -390,6 +395,7 @@ const main = async () => {
       "web-direct": cap.filter((it) => it.cls.web === "direct"), "phone-direct": cap.filter((it) => it.cls.web === "direct"),
       "web-jit": cap.filter((it) => it.cls.web !== "direct"), "phone-jit": cap.filter((it) => it.cls.web !== "direct"),
       "web-transcode": cap.filter((it) => !/Heavy/.test(it.title)), "phone-transcode": cap.filter((it) => !/Heavy/.test(it.title)),
+      "web-encode": cap.filter((it) => !/Heavy/.test(it.title)),
     };
     if (sw) {
       const titems = sw.torrents.map((t) => ({ id: `torrent|${t.infoHash}|0`, title: t.name, infoHash: t.infoHash, fileIdx: 0, duration: 1800, sizeBytes: t.length, video: { codec: "hevc" } }));

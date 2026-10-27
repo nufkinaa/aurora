@@ -39,8 +39,12 @@ const arg = (name, dflt) => { const i = argv.indexOf(`--${name}`); if (i < 0) re
 const flag = (name) => argv.includes(`--${name}`);
 const LABEL = String(arg("label", `vps-${Date.now().toString(36)}`));
 const MEDIA = String(arg("media", "E:/aurora-stall-media"));
-const CPUS = Number(arg("cpus", 2));
+const CPUS = flag("cores8") ? 8 : Number(arg("cpus", 2));
 const CPU_OFFSET = Number(arg("cpu-offset", 0)); // which CPUs: from this one on (two runs side by side)
+// --cores8: eight REAL cores — one hardware thread of each of this PC's eight
+// (0,2,…,14), as a root server's eight dedicated cores (nufurora.com)
+const CORES8 = flag("cores8");
+const MASK = CORES8 ? 0x5555 : null;
 const RUNS = Number(arg("runs", 3));
 const LINE = String(arg("line", "LL-HB"));
 const UPSTREAM = String(arg("upstream", "refuse"));
@@ -99,8 +103,8 @@ for (const c of CASE_LIST) if (!CASES[c]) throw new Error(`unknown case ${c}: ${
 
 // ---- the instance's CPUs (as tools/stall-rig): set before any server code runs
 const affinityPreload = (cpus) => {
-  const file = path.join(OUT_DIR, `vps-affinity-${cpus}-${CPU_OFFSET}.js`);
-  const mask = ((2 ** cpus - 1) * 2 ** CPU_OFFSET).toString();
+  const file = path.join(OUT_DIR, `vps-affinity-${MASK ? "m" + MASK : cpus}-${CPU_OFFSET}.js`);
+  const mask = (MASK || (2 ** cpus - 1) * 2 ** CPU_OFFSET).toString();
   fs.writeFileSync(file, `"use strict";
 try { require("child_process").spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "(Get-Process -Id " + process.pid + ").ProcessorAffinity = ${mask}"], { windowsHide: true, timeout: 20000 }); } catch (e) {}
 `);
@@ -132,7 +136,7 @@ net.Socket.prototype.connect = function (...args) {
 // ---- CPU thieves on the same CPUs
 const startSteal = (k) => {
   const { spawn } = require("child_process");
-  const mask = ((2 ** CPUS - 1) * 2 ** CPU_OFFSET).toString();
+  const mask = (MASK || (2 ** CPUS - 1) * 2 ** CPU_OFFSET).toString();
   const kids = [];
   for (let i = 0; i < k; i++) {
     // (it watches for this harness on its own: a killed run leaves no thief behind)
