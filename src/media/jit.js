@@ -1074,7 +1074,7 @@ const yieldCpu = (run, proc = run.proc) => {
   try { os.setPriority(proc.pid, viewerPriority()); } catch {}
 };
 const viewerPriority = () => {
-  try { return require("./cpuwork").PRIORITY.viewer; } catch { return os.constants.priority.PRIORITY_BELOW_NORMAL; }
+  try { return require("../lib/prio").viewer(); } catch { return os.constants.priority.PRIORITY_BELOW_NORMAL; }
 };
 
 // Split a child's output stream into lines.

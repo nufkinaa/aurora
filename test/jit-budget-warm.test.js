@@ -283,7 +283,7 @@ test("real ffmpeg, budget fixed at 2: two viewers and one warm-up — both viewe
       assert.equal(wjob.producers.length, 0);
       assert.equal(cpuwork.speculative.count(), 0);
       assert.equal(cpuwork.viewer.count(), 1);
-      assert.notEqual(os.getPriority(arun.proc.pid), cpuwork.PRIORITY.viewer, "normal priority while A waits for the first segment");
+      assert.equal(os.getPriority(arun.proc.pid), os.constants.priority.PRIORITY_NORMAL, "normal priority while A waits for the first segment");
 
       // 3. viewer B, another film: the second slot
       const bjob = Bt.job("top");

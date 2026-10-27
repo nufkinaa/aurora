@@ -403,7 +403,9 @@ test("real ffmpeg: an encoder runs at normal priority until the segment it was s
   forget();
   J.setOutsideEncodes(() => 0);
   const ladder = require("../src/media/ladder");
-  const BELOW = os.constants.priority.PRIORITY_BELOW_NORMAL;
+  // (the viewers' priority: below normal where it can be raised again — on
+  // Linux without root it stays normal, lib/prio.js)
+  const BELOW = require("../src/lib/prio").viewer();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aurora-jitprio-"));
   J.setDeclinedFile(path.join(dir, "declined.json"));
   const dirs = [];
@@ -425,7 +427,7 @@ test("real ffmpeg: an encoder runs at normal priority until the segment it was s
     const run = job.producers[0];
     assert.ok(run && run.proc, "an encoder was started for it");
     assert.equal(run.yielding, false);
-    assert.notEqual(os.getPriority(run.proc.pid), BELOW, "normal priority while the viewer waits");
+    assert.equal(os.getPriority(run.proc.pid), os.constants.priority.PRIORITY_NORMAL, "normal priority while the viewer waits");
     const pid = run.proc.pid;
     assert.ok(await waiting, `the segment is made (${job.broken || "ok"})`);
     // …and has stepped down by the time that segment is served
