@@ -5035,8 +5035,14 @@ export const renderPlayer = async (root, { id }) => {
   // The host's tick: where its film really is, every 3 s while it plays —
   // the line late joiners land on (nobody already in is moved by it unless
   // far off). Not while the party waits or a start together is pending.
+  // (nor while the picture is not moving: a seek still landing, a source
+  // being swapped — after a step down to the ladder the element read 0:00
+  // for a while, and the party's line went to 0:00 with a TV guest moved
+  // there; Mi TV pass 2026-10-27. A tick is the line everyone far off is
+  // moved to, so it is only sent from a picture that is really playing.)
   partySync = setInterval(() => {
     if (!inParty() || video.paused || party.role !== "host" || partyBuffering) return;
+    if (video.seeking || video.readyState < 3 || pendingSeek != null) return;
     const st = party.current.state;
     if (!st || !st.playing || startsIn(st, serverNow()) > 0) return;
     sendPartyState(true, effTime(), "sync");
