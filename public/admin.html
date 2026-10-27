@@ -833,11 +833,11 @@
         <div class="muted" id="tel-starts-line"></div>
         <div class="empty-note hidden" id="tel-starts-empty">No start measured yet.</div>
         <div class="table-scroll dense"><table>
-          <thead><tr><th>Step</th><th>p50</th><th>p90</th><th>Slowest in slow starts</th></tr></thead>
+          <thead><tr><th>Step</th><th>p50</th><th>p90</th><th>Slowest in</th></tr></thead>
           <tbody id="tel-starts-steps"></tbody>
         </table></div>
         <div class="table-scroll dense" style="margin-top:10px"><table>
-          <thead><tr><th>When</th><th>What</th><th>Device</th><th>Start-up</th></tr></thead>
+          <thead><tr><th>Slow start</th><th>Step by step</th></tr></thead>
           <tbody id="tel-starts-recent"></tbody>
         </table></div>
       </div>
@@ -3344,7 +3344,7 @@
     }
     // A play's start-up (public/js/startline.js): "12.4 s from the press, mostly
     // the first byte (11.1 s) — open 0.0 · item 0.1 · … · frame 12.4 · segment made in 10.9 s"
-    const STEP_WORDS = { open: "player opened", item: "title known", history: "progress read", probe: "torrent probed", mount: "player built", decide: "way chosen", ask: "film asked for", byte: "first byte", frame: "first frame" };
+    const STEP_WORDS = { open: "player opened", item: "title known", history: "progress read", probe: "torrent probed", mount: "player built", decide: "way chosen", claim: "encode answered", ask: "film asked for", byte: "first byte", frame: "first frame" };
     const startSecs = (ms) => `${(ms / 1000).toFixed(ms >= 10000 ? 0 : 1)} s`;
     function startupLine(s) {
       if (!s || !s.steps || !s.steps.length) return "";
@@ -3365,9 +3365,9 @@
       const order = ["open", "item", "history", "probe", "mount", "decide", "claim", "ask", "byte", "frame"];
       $("#tel-starts-steps").innerHTML = order.filter((k) => st.stepP50[k]).map((k) => {
         const n = st.slow.byStep[k] || 0;
-        return `<tr><td>${esc(STEP_WORDS[k] || k)}<div class="muted" style="font-size:0.74rem">${esc(k)}</div></td><td>${telMs(st.stepP50[k].p50)}</td><td>${telMs(st.stepP50[k].p90)}</td><td>${n ? `<span class="pill bad">${n}</span>` : ""}</td></tr>`;
+        return `<tr><td>${esc(STEP_WORDS[k] || k)}<div class="muted" style="font-size:0.74rem">${esc(k)}</div></td><td style="white-space:nowrap">${telMs(st.stepP50[k].p50)}</td><td style="white-space:nowrap">${telMs(st.stepP50[k].p90)}</td><td>${n ? `<span class="pill bad">${n}</span>` : ""}</td></tr>`;
       }).join("");
-      $("#tel-starts-recent").innerHTML = (st.recent || []).map((r) => `<tr><td>${esc(telAgo(r.at))}</td><td>${esc(r.title || r.id)}</td><td>${r.app === "tv" ? "TV" : esc(r.device || "")}</td><td>${esc(startupLine({ ...r, srv: { seg: r.seg, playlist: r.pl } }))}</td></tr>`).join("");
+      $("#tel-starts-recent").innerHTML = (st.recent || []).map((r) => `<tr><td style="min-width:110px">${esc(r.title || r.id)}<div class="muted" style="font-size:0.74rem">${r.app === "tv" ? "TV" : esc(r.device || "")} · ${esc(telAgo(r.at))}</div></td><td>${esc(startupLine({ ...r, srv: { seg: r.seg, playlist: r.pl } }))}</td></tr>`).join("");
     }
     function paintTelTimings() {
       const rows = tel.data.timings.rows || [];
