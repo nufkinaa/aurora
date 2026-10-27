@@ -54,7 +54,7 @@ test("remux registers its encode as idle while it is paused", { skip: !hasX264 &
   cpuwork._internals._reset();
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "aurora-encpaused-"));
   const film = path.join(tmp, "f.mkv");
-  execFileSync(config.FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=24:duration=60", "-f", "lavfi", "-i", "sine=duration=60", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-shortest", film]);
+  execFileSync(config.FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24:duration=120", "-f", "lavfi", "-i", "sine=duration=60", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-shortest", film]);
   const id = "pausedtest01";
   const dir = await remux.ensure(film, id, { vcodec: "h264", ss: 0 });
   const job = remux._internals.jobs.get(dir);
