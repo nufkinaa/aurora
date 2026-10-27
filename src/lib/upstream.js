@@ -631,7 +631,77 @@ const within = (url, promise, ms, startedAt) => {
 
 const _reset = () => { hosts.clear(); cache.clear(); cacheBytes = 0; inflight.clear(); };
 
+
+// stream(url, opts): a LONG download (admin "Add your own file" → from a
+// link, media/uploads.js). Same breaker and stats as fetch(), but the body
+// is NOT read here and no host slot is held for it (a film takes hours):
+//   headersTimeoutMs  the answer's headers must arrive within this (30 s)
+//   idleTimeoutMs     after that, no byte for this long aborts the body (60 s)
+//   signal            the caller's own abort (Cancel)
+// → { res, chunks() } — chunks() yields Buffers and throws
+// UpstreamError("timeout") on a stall.
+const stream = async (url, opts = {}) => {
+  const host = hostOf(url);
+  const h = stateOf(host);
+  const s = settingsFor(host);
+  h.lastAt = clock.now();
+  h.n.calls++;
+  const probe = admitBreaker(h, s);
+  const ctrl = new AbortController();
+  const onAbort = () => ctrl.abort();
+  if (opts.signal) { if (opts.signal.aborted) ctrl.abort(); else opts.signal.addEventListener("abort", onAbort, { once: true }); }
+  const headersMs = opts.headersTimeoutMs || 30000;
+  const idleMs = opts.idleTimeoutMs || 60000;
+  let timedOut = false;
+  const ht = clock.setTimeout(() => { timedOut = true; ctrl.abort(); }, headersMs);
+  const t0 = clock.now();
+  let res;
+  try {
+    res = await globalThis.fetch(url, { method: "GET", headers: opts.headers || {}, redirect: "follow", signal: ctrl.signal });
+  } catch (e) {
+    clock.clearTimeout(ht);
+    if (opts.signal && opts.signal.aborted) { if (probe) h.probing = false; throw new UpstreamError("aborted", host, `${host}: the caller gave up`); }
+    const err = timedOut
+      ? new UpstreamError("timeout", host, `${host}: no answer in ${Math.round(headersMs / 1000)} s`, 504)
+      : new UpstreamError("network", host, `${host}: ${(e && e.cause && (e.cause.code || e.cause.message)) || (e && e.message) || "error"}`, 502);
+    if (timedOut) h.n.timeouts++;
+    h.n.failed++;
+    noteFailure(h, s, err.message, probe);
+    throw err;
+  }
+  clock.clearTimeout(ht);
+  noteLatency(h, clock.now() - t0);
+  if (isFailureStatus(res.status)) { h.n.failed++; noteFailure(h, s, `answered ${res.status}`, probe); }
+  else { noteSuccess(h, probe); h.n.ok++; }
+  async function* chunks() {
+    if (!res.body) return;
+    const reader = res.body.getReader();
+    try {
+      for (;;) {
+        let idle = null;
+        let stalled = false;
+        const r = await Promise.race([
+          reader.read(),
+          new Promise((_, rej) => { idle = clock.setTimeout(() => { stalled = true; ctrl.abort(); rej(new UpstreamError("timeout", host, `${host}: nothing arrived for ${Math.round(idleMs / 1000)} s`, 504)); }, idleMs); }),
+        ]).finally(() => clock.clearTimeout(idle));
+        if (stalled) throw new UpstreamError("timeout", host, `${host}: stalled`, 504);
+        if (r.done) return;
+        yield Buffer.from(r.value.buffer, r.value.byteOffset, r.value.byteLength);
+      }
+    } catch (e) {
+      if (e instanceof UpstreamError) throw e;
+      if (opts.signal && opts.signal.aborted) throw new UpstreamError("aborted", host, `${host}: the caller gave up`);
+      throw new UpstreamError("network", host, `${host}: ${(e && e.cause && e.cause.code) || (e && e.message) || "error"}`, 502);
+    } finally {
+      try { reader.cancel().catch(() => {}); } catch {}
+      if (opts.signal) opts.signal.removeEventListener("abort", onAbort);
+    }
+  }
+  return { res, chunks, abort: () => ctrl.abort() };
+};
+
 module.exports = {
+  stream,
   fetch: upFetch, json, within, status, openBreakers, failureCount, tooSlow, UpstreamError, hostOf,
   DEFAULTS, HOSTS,
   _internals: { clock, hosts, cache, inflight, settingsFor, stateOf, _reset },

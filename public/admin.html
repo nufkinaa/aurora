@@ -289,6 +289,46 @@
     .log-error { background: rgba(255,122,122,0.08); }
     .log-error .log-lvl { color: #ff7a7a; }
     .log-msg { flex: 1 1 auto; }
+    /* ---------- Add your own file (Downloads) ---------- */
+    .up-modes { margin: 8px 0 12px; flex-wrap: wrap; }
+    .up-drop { display: flex; flex-direction: column; gap: 6px; align-items: center; justify-content: center; text-align: center; padding: 26px 16px;
+      border: 2px dashed var(--line); border-radius: 14px; cursor: pointer; color: var(--text-dim); position: relative; }
+    .up-drop b { color: var(--text); font-size: 0.98rem; }
+    .up-drop span { font-size: 0.82rem; color: var(--text-faint); }
+    .up-drop.over, .up-drop:hover { border-color: var(--accent); background: rgba(var(--accent-rgb), 0.07); }
+    .up-drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+    .up-field { display: flex; flex-direction: column; gap: 5px; font-size: 0.8rem; color: var(--text-dim); font-weight: 700; min-width: 0; }
+    .up-field input, .up-field select { padding: 10px 12px; border-radius: var(--radius-s); background: rgba(0,0,0,0.25); border: 1px solid var(--line);
+      color: var(--text); font-size: 0.95rem; font-weight: 500; min-width: 0; width: 100%; }
+    .up-field input:focus, .up-field select:focus { border-color: var(--accent); outline: none; }
+    .up-hint { font-size: 0.8rem; padding: 6px 2px 2px; }
+    .up-item { border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-top: 12px; display: grid; gap: 10px; }
+    .up-item .up-file { font-size: 0.86rem; color: var(--text-dim); overflow-wrap: anywhere; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+    .up-item .up-file b { color: var(--text); }
+    .up-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(80px, 1fr); gap: 10px; }
+    .up-grid.ep { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .up-checks { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 0.86rem; color: var(--text-dim); }
+    .up-checks label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .up-checks input { width: 18px; height: 18px; accent-color: var(--accent-strong); }
+    .up-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+    .up-msg { font-size: 0.86rem; color: var(--text-dim); }
+    .up-msg.bad { color: #ff8c8c; font-weight: 600; }
+    .up-list-h { font-size: 0.9rem; font-weight: 800; margin: 22px 0 6px; color: var(--text-dim); }
+    .up-job { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; padding: 11px 0; border-top: 1px solid var(--line); }
+    .up-job:first-child { border-top: 0; }
+    .up-job .t { font-weight: 700; overflow-wrap: anywhere; }
+    .up-job .m { font-size: 0.8rem; color: var(--text-faint); overflow-wrap: anywhere; margin-top: 2px; }
+    .up-job .m.err { color: #ff8c8c; }
+    .up-job .bar { grid-column: 1 / -1; height: 6px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
+    .up-job .bar i { display: block; height: 100%; background: var(--progress); transition: width 0.4s; }
+    .up-job .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    @media (max-width: 640px) {
+      .up-grid, .up-grid.ep { grid-template-columns: minmax(0, 1fr); }
+      .up-job { grid-template-columns: minmax(0, 1fr); }
+      .up-job .acts { justify-content: flex-start; }
+      .up-job .acts .mini, .up-actions .btn { min-height: 42px; }
+      .up-actions .btn { flex: 1; }
+    }
     .mini-prog { display: inline-block; width: 70px; height: 5px; border-radius: 999px; background: rgba(255,255,255,0.08);
       vertical-align: middle; margin-right: 8px; overflow: hidden; }
     .mini-prog i { display: block; height: 100%; background: var(--progress); }
@@ -1023,6 +1063,39 @@
         <h2>Storage <span id="disk-headline" style="font-weight:600;font-size:0.95rem;color:var(--text-dim)"></span></h2>
         <div class="now-grid" id="disk-bars"></div>
       </div>
+      <!-- ================= ADD YOUR OWN FILE (media/uploads.js) ================= -->
+      <details class="acard" data-key="d-upload" id="up-card" open>
+        <summary><span class="chev">▶</span><h2>Add your own file <span class="pill" id="up-count">0</span>
+          <span class="note">a video of your own, or a film you keep in Google Drive or Dropbox — it lands in the library like any other title, ready to play and to watch together</span></h2></summary>
+        <div class="acard-body tall">
+          <div class="up-modes range-chips" role="tablist" aria-label="Where the file comes from">
+            <button type="button" class="active" data-up-mode="device" role="tab" aria-selected="true">From this device</button>
+            <button type="button" data-up-mode="link" role="tab" aria-selected="false">From a link</button>
+          </div>
+          <div id="up-device" class="up-pane">
+            <label class="up-drop" id="up-drop">
+              <input type="file" id="up-files" multiple accept="video/*,.mp4,.mkv,.webm,.avi,.mov,.m4v,.srt,.vtt" />
+              <b>Drop video files here, or tap to choose</b>
+              <span>MP4, MKV, WebM, AVI, MOV, M4V — any size. Subtitle files (.srt, .vtt) named like the video go with it.</span>
+            </label>
+          </div>
+          <div id="up-link" class="up-pane hidden">
+            <label class="up-field up-wide"><span>Link</span>
+              <input type="url" id="up-url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://drive.google.com/file/d/… · a Dropbox link · a direct link to the file" /></label>
+            <div class="muted up-hint">Google Drive: the file must be shared as “Anyone with the link”. Dropbox: any shared file link. Or any direct link to a video file. The server downloads it by itself — you can close this page.</div>
+          </div>
+          <div id="up-items"></div>
+          <div class="up-actions">
+            <button type="button" class="btn small btn-primary" id="up-go" disabled>Add to library</button>
+            <button type="button" class="mini hidden" id="up-clear">Clear</button>
+            <span class="up-msg" id="up-msg" role="status"></span>
+          </div>
+          <h3 class="up-list-h">In progress and done</h3>
+          <div id="up-jobs"></div>
+          <div class="empty-note hidden" id="up-jobs-empty">Nothing added yet.</div>
+          <input type="file" id="up-resume-files" multiple class="hidden" aria-hidden="true" tabindex="-1" />
+        </div>
+      </details>
       <details class="acard" data-key="d-needs" open>
         <summary><span class="chev">▶</span><h2>Needs you <span class="pill warn" id="dl-pending-count">0</span>
           <span class="note">approvals waiting on you — everything else runs by itself</span></h2></summary>
@@ -4380,6 +4453,342 @@
     });
     // ---------- [/phone-remote] ----------
 
+    // ---------- [add-your-own-file] Downloads → "Add your own file" (media/uploads.js) ----------
+    // From this device: the file goes up in chunks (8 MB to start, smaller on
+    // a slow line, bigger on a fast one), each one PUT with the offset it
+    // starts at; the server's count of what it has is the truth, so a dropped
+    // connection — or a reload, with the same file picked again ("Resume") —
+    // carries on from there. From a link: the server fetches it by itself.
+    const UP = { mode: "device", items: [], roots: { movies: [], shows: [] }, jobs: [], hand: new Map(), seq: 0, resumeFor: null, renderT: null };
+    const UP_VIDEO = /\.(mp4|mkv|webm|avi|mov|m4v)$/i;
+    const UP_SUB = /\.(srt|vtt)$/i;
+    const upTidy = (s) => String(s || "").replace(/[._]+/g, " ").replace(/[\s([-]+$/g, "").replace(/\s+/g, " ").trim();
+    // A first guess at the title from the file's name: "My.Film.2021.1080p.mkv"
+    // → "My Film", 2021; "Show.S01E02.mkv" → an episode of "Show".
+    const upGuess = (name) => {
+      const b = String(name || "").replace(/\.[^.]+$/, "");
+      const out = { title: "", year: "", isEp: false, season: "", episode: "" };
+      const ep = /^(.*?)[\s._-]*S(\d{1,2})[\s._-]*E(\d{1,3})/i.exec(b) || /^(.*?)[\s._-]+(\d{1,2})x(\d{1,3})\b/i.exec(b);
+      let head = b;
+      if (ep && ep[1]) { out.isEp = true; out.season = String(+ep[2]); out.episode = String(+ep[3]); head = ep[1]; }
+      const y = /^(.*?)[\s._([-]+((?:19|20)\d{2})(?=[\s._)\]-]|$)/.exec(head);
+      if (y && y[1]) { out.title = upTidy(y[1]); out.year = y[2]; }
+      else out.title = upTidy(head.split(/[\s._-](?:2160p|1080p|720p|480p|4k|uhd|x264|x265|h\.?264|h\.?265|hevc|web(?:-?dl|rip)?|blu-?ray|bdrip|hdtv|dvdrip)\b/i)[0]);
+      return out;
+    };
+    const upItem = (video, subs = []) => {
+      const g = video ? upGuess(video.name) : { title: "", year: "", isEp: false, season: "", episode: "" };
+      return { key: ++UP.seq, video, subs, title: g.title, year: g.year, isEp: g.isEp, season: g.season || "1", episode: g.episode || "1", root: "0", lookup: false };
+    };
+    // Subtitles go with the video whose name they start with ("Film.en.srt" →
+    // "Film.mkv"); with one video, every subtitle goes with it.
+    const upPick = (fileList) => {
+      const files = [...fileList];
+      const videos = files.filter((f) => UP_VIDEO.test(f.name));
+      const subs = files.filter((f) => UP_SUB.test(f.name));
+      const other = files.filter((f) => !UP_VIDEO.test(f.name) && !UP_SUB.test(f.name));
+      const items = videos.map((v) => upItem(v));
+      const stem = (n) => n.replace(/\.[^.]+$/, "").toLowerCase();
+      const lost = [];
+      for (const s of subs) {
+        const it = items.find((i) => stem(s.name).startsWith(stem(i.video.name))) || (items.length === 1 ? items[0] : null);
+        if (it) it.subs.push(s); else lost.push(s.name);
+      }
+      UP.items.push(...items);
+      const notes = [];
+      if (other.length) notes.push(`Left out (not a video or subtitle file): ${other.map((f) => f.name).join(", ")}`);
+      if (lost.length) notes.push(`No video to go with: ${lost.join(", ")}`);
+      if (!videos.length && !other.length && subs.length) notes.push("Pick the video too — subtitles go up with their video.");
+      upSay(notes.join(" · "), notes.length > 0);
+      upRenderItems();
+    };
+    const upSay = (text, bad = false) => { const m = $("#up-msg"); m.textContent = text || ""; m.classList.toggle("bad", !!bad); };
+    const upRootOptions = (it) => {
+      const roots = it.isEp ? UP.roots.shows : UP.roots.movies;
+      if (roots.length <= 1) return "";
+      return `<label class="up-field"><span>Library folder</span><select data-k="root">${roots.map((r, i) => `<option value="${i}"${String(i) === it.root ? " selected" : ""}>${esc(r)}</option>`).join("")}</select></label>`;
+    };
+    function upRenderItems() {
+      if (UP.mode === "link" && !UP.items.length) UP.items.push(upItem(null));
+      const box = $("#up-items");
+      box.innerHTML = UP.items.map((it) => `
+        <div class="up-item" data-up-item="${it.key}">
+          ${it.video ? `<div class="up-file"><b>${esc(it.video.name)}</b><span>${fmtBytes(it.video.size)}</span>${it.subs.length ? `<span>+ ${it.subs.map((s) => esc(s.name)).join(", ")}</span>` : ""}
+            <span style="flex:1"></span><button type="button" class="mini" data-up-drop="${it.key}">Remove</button></div>` : ""}
+          <div class="up-grid">
+            <label class="up-field"><span>${it.isEp ? "Show" : "Title"}</span><input type="text" data-k="title" value="${esc(it.title)}" maxlength="120" autocomplete="off" placeholder="${it.isEp ? "The show's name" : "What it's called"}" /></label>
+            <label class="up-field"><span>Year</span><input type="text" data-k="year" value="${esc(it.year)}" inputmode="numeric" maxlength="4" placeholder="2024" autocomplete="off" /></label>
+          </div>
+          ${it.isEp ? `<div class="up-grid ep">
+            <label class="up-field"><span>Season</span><input type="number" data-k="season" value="${esc(it.season)}" min="0" max="99" inputmode="numeric" /></label>
+            <label class="up-field"><span>Episode</span><input type="number" data-k="episode" value="${esc(it.episode)}" min="1" max="999" inputmode="numeric" /></label>
+          </div>` : ""}
+          ${upRootOptions(it)}
+          <div class="up-checks">
+            <label><input type="checkbox" data-k="isEp"${it.isEp ? " checked" : ""} /> It's an episode of a show</label>
+            <label><input type="checkbox" data-k="lookup"${it.lookup ? " checked" : ""} /> Find its poster and details online (a film or show that exists)</label>
+          </div>
+        </div>`).join("");
+      $("#up-go").disabled = !UP.items.length;
+      $("#up-clear").classList.toggle("hidden", !(UP.mode === "device" && UP.items.length));
+    }
+    const upFind = (el) => { const box = el.closest("[data-up-item]"); return box ? UP.items.find((i) => String(i.key) === box.dataset.upItem) : null; };
+    $("#up-items").addEventListener("input", (e) => {
+      const it = upFind(e.target); const k = e.target.dataset.k;
+      if (!it || !k) return;
+      if (e.target.type === "checkbox") {
+        it[k] = e.target.checked;
+        if (k === "isEp") { it.root = "0"; upRenderItems(); }
+      } else it[k] = e.target.value;
+    });
+    $("#up-items").addEventListener("change", (e) => {
+      const it = upFind(e.target);
+      if (!it) return;
+      if (e.target.dataset.k === "root") it.root = e.target.value;
+      if (e.target.type === "checkbox" && e.target.dataset.k && it[e.target.dataset.k] !== e.target.checked) {
+        it[e.target.dataset.k] = e.target.checked;
+        if (e.target.dataset.k === "isEp") { it.root = "0"; upRenderItems(); }
+      }
+    });
+    $("#up-items").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-up-drop]");
+      if (!b) return;
+      UP.items = UP.items.filter((i) => String(i.key) !== b.dataset.upDrop);
+      upRenderItems();
+    });
+    for (const b of document.querySelectorAll("[data-up-mode]")) b.addEventListener("click", () => {
+      UP.mode = b.dataset.upMode;
+      for (const x of document.querySelectorAll("[data-up-mode]")) { x.classList.toggle("active", x === b); x.setAttribute("aria-selected", x === b ? "true" : "false"); }
+      $("#up-device").classList.toggle("hidden", UP.mode !== "device");
+      $("#up-link").classList.toggle("hidden", UP.mode !== "link");
+      UP.items = [];
+      upSay("");
+      upRenderItems();
+    });
+    $("#up-files").addEventListener("change", (e) => { upPick(e.target.files); e.target.value = ""; });
+    {
+      const drop = $("#up-drop");
+      for (const ev of ["dragenter", "dragover"]) drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); });
+      for (const ev of ["dragleave", "drop"]) drop.addEventListener(ev, () => drop.classList.remove("over"));
+      drop.addEventListener("drop", (e) => { e.preventDefault(); if (e.dataTransfer && e.dataTransfer.files) upPick(e.dataTransfer.files); });
+    }
+    $("#up-clear").addEventListener("click", () => { UP.items = []; upSay(""); upRenderItems(); });
+
+    const upPlace = (it) => ({
+      title: it.title.trim(), year: it.year.trim(), root: it.root, lookup: !!it.lookup,
+      episode: it.isEp ? { season: it.season, episode: it.episode } : null,
+    });
+    const upSend = async (url, body) => {
+      const r = await adminFetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      let j = {}; try { j = await r.json(); } catch {}
+      if (!r.ok) throw new Error(j.error || `The server answered ${r.status}`);
+      return j;
+    };
+    $("#up-go").addEventListener("click", async () => {
+      const go = $("#up-go");
+      if (UP.mode === "link") UP.items[0].url = $("#up-url").value.trim();
+      for (const it of UP.items) {
+        if (UP.mode === "link" && !it.url) return upSay("Paste the link first.", true);
+        if (!it.title.trim()) return upSay(`Give ${it.video ? `“${it.video.name}”` : "it"} a title.`, true);
+        if (it.year.trim() && !/^(18|19|20|21)\d{2}$/.test(it.year.trim())) return upSay("The year should be four digits, like 2024.", true);
+      }
+      go.disabled = true;
+      const mode = UP.mode;
+      upSay(mode === "link" ? "Asking the server to fetch it…" : "Starting…");
+      const todo = UP.items.slice();
+      try {
+        for (const it of todo) {
+          if (mode === "link") {
+            const { job } = await upSend("/api/admin/uploads/link", { ...upPlace(it), url: it.url });
+            upMerge(job);
+            $("#up-url").value = "";
+          } else {
+            const files = [it.video, ...it.subs];
+            const { job } = await upSend("/api/admin/uploads", { ...upPlace(it), files: files.map((f) => ({ name: f.name, size: f.size })) });
+            upMerge(job);
+            // the server lists the video first, then the subtitles in the order sent
+            UP.hand.set(job.id, { files, ctrl: null, speed: 0 });
+            upQueue(job.id);
+          }
+          UP.items = UP.items.filter((x) => x !== it);
+        }
+        upSay(mode === "link" ? "The server is downloading it — progress below. You can close this page." : "Uploading — progress below. Keep this page open until it's done.");
+        toast(mode === "link" ? "Download started" : "Upload started");
+      } catch (e) {
+        upSay(e.message, true);
+      } finally {
+        upRenderItems();
+      }
+    });
+
+    // one upload at a time: the line is shared
+    const upWaiting = [];
+    let upBusy = false;
+    const upQueue = (id) => { if (!upWaiting.includes(id)) upWaiting.push(id); upNext(); };
+    const upNext = async () => {
+      if (upBusy) return;
+      const id = upWaiting.shift();
+      if (!id) return;
+      upBusy = true;
+      try { await upUpload(id); } catch (e) { const h = UP.hand.get(id); if (h) h.error = e.message; upRenderJobs(); } finally { upBusy = false; upNext(); }
+    };
+    const upSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    async function upUpload(id) {
+      const hand = UP.hand.get(id);
+      if (!hand) return;
+      hand.error = null;
+      hand.done = false;
+      let job = (await json(`/api/admin/uploads/${id}`)).job;
+      let chunk = 8 << 20;
+      let fails = 0;
+      hand.ctrl = new AbortController();
+      for (let i = 0; i < job.parts.length; i++) {
+        const file = hand.files[i];
+        let offset = job.parts[i].received;
+        while (offset < file.size) {
+          if (hand.ctrl.signal.aborted) return;
+          const end = Math.min(file.size, offset + chunk);
+          const t0 = performance.now();
+          let r = null;
+          try {
+            r = await adminFetch(`/api/admin/uploads/${id}/chunk?part=${i}&offset=${offset}`, {
+              method: "PUT", headers: { "Content-Type": "application/octet-stream" }, body: file.slice(offset, end), signal: hand.ctrl.signal,
+            });
+          } catch (e) {
+            if (hand.ctrl.signal.aborted) return;
+            r = null;
+          }
+          let body = {};
+          if (r) { try { body = await r.json(); } catch {} }
+          if (r && r.ok) {
+            const secs = (performance.now() - t0) / 1000;
+            const bps = (end - offset) / Math.max(0.05, secs);
+            hand.speed = hand.speed ? hand.speed * 0.6 + bps * 0.4 : bps;
+            hand.note = null;
+            // aim for chunks of a few seconds to ~30 s: well inside the server's 120 s per request
+            if (secs < 4 && chunk < (32 << 20)) chunk *= 2;
+            else if (secs > 30 && chunk > (1 << 20)) chunk = Math.max(1 << 20, chunk >> 1);
+            offset = body.offset;
+            fails = 0;
+            if (body.job) upMerge(body.job, true);
+            continue;
+          }
+          // a proxy in front that takes smaller bodies (nginx's default is 1 MB): smaller chunks
+          if (r && r.status === 413 && chunk > (512 << 10)) { chunk = Math.max(512 << 10, chunk >> 2); continue; }
+          if (r && (r.status === 409 || r.status === 400) && Number.isFinite(body.offset)) { offset = body.offset; if (body.job) upMerge(body.job, true); continue; }
+          if (r && r.status >= 400 && r.status < 500 || (r && r.status === 507)) {
+            hand.error = body.error || `The server answered ${r.status}`;
+            if (body.job) upMerge(body.job);
+            upRenderJobs();
+            return;
+          }
+          // the line dropped (or a 5xx): wait, ask the server what it has, go on
+          fails++;
+          if (fails > 30) { hand.error = "The connection keeps dropping — press Resume to try again."; upRenderJobs(); return; }
+          hand.note = `Connection lost — trying again (${fails})…`;
+          upRenderJobs();
+          await upSleep(Math.min(30000, 1000 * 2 ** Math.min(fails, 5)));
+          try { job = (await json(`/api/admin/uploads/${id}`)).job; offset = job.parts[i].received; hand.note = null; if (chunk > (2 << 20)) chunk = chunk >> 1; } catch {}
+        }
+      }
+      hand.done = true;
+      upRenderJobs();
+    }
+
+    const upMerge = (job, quick = false) => {
+      const i = UP.jobs.findIndex((j) => j.id === job.id);
+      if (i >= 0) UP.jobs[i] = job; else UP.jobs.unshift(job);
+      if (quick) { clearTimeout(UP.renderT); UP.renderT = setTimeout(upRenderJobs, 150); } else upRenderJobs();
+    };
+    const UP_STATUS = {
+      waiting: "Waiting for the file", uploading: "Uploading", queued: "Queued", downloading: "Downloading",
+      placing: "Putting it in the library", done: "In the library", error: "Failed", canceled: "Canceled",
+    };
+    const UP_PILL = { done: "live", error: "warn", placing: "live" };
+    function upRenderJobs() {
+      const list = UP.jobs;
+      $("#up-count").textContent = list.filter((j) => !["done", "error", "canceled"].includes(j.status)).length;
+      $("#up-jobs-empty").classList.toggle("hidden", list.length > 0);
+      $("#up-jobs").innerHTML = list.map((j) => {
+        const hand = UP.hand.get(j.id);
+        const pct = j.size ? Math.min(100, Math.floor((j.received / j.size) * 100)) : 0;
+        const moving = j.status === "uploading" || j.status === "downloading";
+        const speed = hand && hand.speed && j.kind === "file" && !hand.done ? hand.speed : j.speed;
+        const left = speed > 0 && j.size ? Math.max(0, (j.size - j.received) / speed) : null;
+        const what = `${esc(j.title)}${j.year ? ` (${j.year})` : ""}${j.type === "show" ? ` · S${String(j.season).padStart(2, "0")}E${String(j.episode).padStart(2, "0")}` : ""}`;
+        const src = j.kind === "link" ? ({ drive: "Google Drive", dropbox: "Dropbox", web: "link" }[j.source] || "link") : "this device";
+        const bytes = j.size ? `${fmtBytes(j.received)} of ${fmtBytes(j.size)}` : j.received ? fmtBytes(j.received) : "";
+        const bits = [src, j.status === "done" ? fmtBytes(j.size || j.received) : bytes, moving && speed ? fmtSpeed(speed) : "", moving && left != null ? `~${fmtDur(left)} left` : "",
+          j.status === "done" && j.dest ? esc(j.dest) : "", j.status === "done" && j.finishedAt ? ago(new Date(j.finishedAt).toISOString()) : ""].filter(Boolean);
+        // an upload whose file this page doesn't have (a reload, another device): pick it again to go on
+        const working = hand && hand.ctrl && !hand.ctrl.signal.aborted && !hand.error && !hand.done;
+        const queued = upWaiting.includes(j.id);
+        const needsFile = j.kind === "file" && ["waiting", "uploading"].includes(j.status) && !working && !queued;
+        const note = (hand && (hand.error || hand.note)) || (needsFile ? `Paused at ${pct}% — press Resume and choose the same file to go on.` : "");
+        const open = j.status === "done" && (j.showId || j.libId) ? `<a class="mini" href="/#/${j.type === "show" ? "show" : "movie"}/${esc(j.showId || j.libId)}" target="_blank" rel="noopener">Open</a>` : "";
+        return `<div class="up-job" data-up-job="${esc(j.id)}" data-status="${esc(j.status)}">
+          <div><div class="t">${what} <span class="pill ${UP_PILL[j.status] || ""}">${esc(UP_STATUS[j.status] || j.status)}${moving || j.status === "waiting" ? ` ${pct}%` : ""}</span></div>
+            <div class="m">${bits.join(" · ")}</div>
+            ${j.error ? `<div class="m err">${esc(j.error)}</div>` : note ? `<div class="m${hand && hand.error ? " err" : ""}">${esc(note)}</div>` : ""}</div>
+          <div class="acts">
+            ${needsFile ? `<button type="button" class="mini" data-up-act="resume">Resume</button>` : ""}
+            ${["waiting", "uploading", "queued", "downloading"].includes(j.status) ? `<button type="button" class="mini danger" data-up-act="cancel">Cancel</button>` : ""}
+            ${["error", "canceled"].includes(j.status) ? `<button type="button" class="mini" data-up-act="retry">Retry</button>` : ""}
+            ${open}
+            ${["done", "error", "canceled"].includes(j.status) ? `<button type="button" class="mini" data-up-act="dismiss">Remove</button>` : ""}
+          </div>
+          ${["uploading", "downloading", "waiting", "placing", "queued"].includes(j.status) ? `<div class="bar"><i style="width:${j.status === "placing" ? 100 : pct}%"></i></div>` : ""}
+        </div>`;
+      }).join("");
+    }
+    $("#up-jobs").addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-up-act]");
+      if (!b) return;
+      const id = b.closest("[data-up-job]").dataset.upJob;
+      const job = UP.jobs.find((j) => j.id === id);
+      const act = b.dataset.upAct;
+      if (act === "resume") { UP.resumeFor = id; $("#up-resume-files").click(); return; }
+      if (act === "cancel" && !await ask("Cancel this? What arrived so far is thrown away.")) return;
+      try {
+        if (act === "cancel") { const h = UP.hand.get(id); if (h && h.ctrl) h.ctrl.abort(); const w = upWaiting.indexOf(id); if (w >= 0) upWaiting.splice(w, 1); }
+        const r = await upSend(`/api/admin/uploads/${id}/${act}`, {});
+        if (act === "dismiss") { UP.jobs = UP.jobs.filter((j) => j.id !== id); UP.hand.delete(id); upRenderJobs(); return; }
+        if (r.job) upMerge(r.job);
+        if (act === "cancel") toast("Canceled");
+        // a retried upload needs its file: this page may still have it
+        if (act === "retry" && job && job.kind === "file" && r.job && r.job.status === "waiting") {
+          const h = UP.hand.get(id);
+          if (h && h.files) upQueue(id); else { UP.resumeFor = id; $("#up-resume-files").click(); }
+        }
+      } catch (err) { toast(err.message); }
+    });
+    $("#up-resume-files").addEventListener("change", (e) => {
+      const id = UP.resumeFor;
+      const job = UP.jobs.find((j) => j.id === id);
+      const picked = [...e.target.files];
+      e.target.value = "";
+      if (!job) return;
+      const files = job.parts.map((p) => picked.find((f) => f.name === p.name && f.size === p.size));
+      if (files.some((f) => !f)) {
+        const missing = job.parts.filter((p, i) => !files[i]).map((p) => `${p.name} (${fmtBytes(p.size)})`);
+        toast(`That isn't the same file — choose ${missing.join(", ")}`);
+        return;
+      }
+      UP.hand.set(id, { files, ctrl: null, speed: 0 });
+      upQueue(id);
+      upRenderJobs();
+    });
+    async function loadUploads() {
+      try {
+        const d = await json("/api/admin/uploads");
+        UP.roots = d.roots || UP.roots;
+        UP.jobs = d.jobs || [];
+        upRenderJobs();
+        if (!UP.items.length) upRenderItems();
+      } catch {}
+    }
+    // ---------- [/add-your-own-file] ----------
+
     // ---------- tabs ----------
     const tabLoaders = {
       overview: () => { loadOverview(); loadClients(); loadTimeseries(); loadOverviewTop(); },
@@ -4388,7 +4797,7 @@
       history: () => { loadSessionProfiles(); loadSessions(); loadHistory(); loadLog(); },
       profiles: () => { loadPeople(); loadRemote(); },
       server: () => { loadServer(); loadMetrics(); loadHealth(); loadEncoding(); loadHealer(); loadTimeseries(); loadUpdateCheck(); loadTvApp(); },
-      downloads: () => { loadDownloads(); loadDisk(); loadLibraryTree(); loadCopies(); loadLimits(); loadMyList(); },
+      downloads: () => { loadUploads(); loadDownloads(); loadDisk(); loadLibraryTree(); loadCopies(); loadLimits(); loadMyList(); },
       moderation: () => { loadReports(); loadReplacements(); loadRequests(); loadIntros(); },
       logs: () => loadLogs(),
       actions: () => { loadActions(); loadDataSafety(); loadBackups(); loadAlerts(); },
@@ -4541,6 +4950,13 @@
           } else if (data.type === "download_new" || data.type === "download_update") {
             if (activeTab === "downloads") loadDownloads();
             if (data.type === "download_new") { toast("New download request: " + (data.job?.title || "")); loadBadges(); if (activeTab === "downloads") loadCopies(); }
+          } else if (data.type === "upload_update") {
+            if (data.removed) { UP.jobs = UP.jobs.filter((j) => j.id !== data.removed); upRenderJobs(); }
+            else if (data.job) {
+              const was = UP.jobs.find((j) => j.id === data.job.id);
+              upMerge(data.job, true);
+              if (data.job.status === "done" && was && was.status !== "done") toast(`In the library: ${data.job.title}`);
+            }
           } else if (data.type === "healer_update") {
             if (data.report) { noteHealer(data.report); if (activeTab === "server") paintHealer(data.report); }
           } else if (data.type === "library_updated") {
@@ -4564,7 +4980,7 @@
     setInterval(() => {
       if (!ADMIN_PW || document.hidden) return;
       if (activeTab === "server") loadServer();
-      if (activeTab === "downloads") { loadDownloads(); loadLimits(); } // (the "holding" note follows who is watching)
+      if (activeTab === "downloads") { loadDownloads(); loadLimits(); loadUploads(); } // (the "holding" note follows who is watching)
     }, 8000);
 
     // Live tail. Guarded the same way as the refreshers above: only the tab

@@ -465,6 +465,10 @@ What Aurora expects of the proxy:
   styles and HLS playlists itself (Brotli/gzip, marked `Content-Encoding`) and
   never video. A proxy may compress the rest of the text; it must never
   compress `video/*` or a `206`.
+- **Request bodies up to 64 MB on `/api/admin/uploads/`.** Admin → Downloads
+  → "Add your own file" sends a video in chunks of 8–32 MB. Caddy has no
+  limit; nginx's default is 1 MB — set `client_max_body_size 64m;` (the page
+  falls back to 512 KB chunks on a 413, which works but is slow).
 - **Caching: the browser, not the proxy.** Everything a signed-in device
   fetches is marked `private` (films, segments, pictures behind the sign-in
   wall): a shared cache at the proxy would hand one person's answers to the

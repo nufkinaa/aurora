@@ -35,6 +35,7 @@ const resolve = async (title, type, year) => {
   const key = keyFor(kind, clean, year);
 
   const hit = store.data[key];
+  if (hit && hit.custom) return null; // someone's own video (markCustom)
   if (hit && (hit.imdbId || Date.now() - (hit.at || 0) < NEGATIVE_TTL)) {
     return hit.imdbId || null;
   }
@@ -99,4 +100,14 @@ const remember = (title, type, year, imdbId) => {
   store.save();
 };
 
-module.exports = { resolve, cachedIdFor, remember, version: () => version, _internals: { norm, keyFor } };
+// Someone's own video (admin "Add your own file", media/uploads.js): never
+// matched to a catalogue title by name.
+const markCustom = (title, type, year) => {
+  const clean = String(title || "").trim();
+  if (!clean) return;
+  store.data[keyFor(type, clean, year)] = { imdbId: null, custom: true, at: Date.now() };
+  version++;
+  store.save();
+};
+
+module.exports = { resolve, cachedIdFor, remember, markCustom, version: () => version, _internals: { norm, keyFor } };

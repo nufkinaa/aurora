@@ -220,6 +220,16 @@ const fetchMovieMeta = async (title, year) => {
   };
 };
 
+// A title that is someone's own video (admin "Add your own file", media/
+// uploads.js, with "look it up online" off): never matched by name — a
+// home video called "Summer" must not get a film's poster and synopsis.
+const markCustom = (type, title) => {
+  const t = String(title || "").trim();
+  if (!t) return;
+  store.data[keyFor(type === "show" ? "show" : "movie", t)] = { failed: true, custom: true, fetchedAt: Date.now() };
+  store.save();
+};
+
 const get = (type, title) => {
   const entry = store.data[keyFor(type, title)];
   return entry && !entry.failed ? entry : null;
@@ -249,6 +259,7 @@ const enrich = async (items) => {
     const key = keyFor(item.type, item.title);
     const existing = store.data[key];
     if (existing) {
+      if (existing.custom) continue; // someone's own video (media/uploads.js): never looked up
       if (!existing.failed) {
         // Metadata is fine but the poster download failed at the time —
         // retry it daily instead of leaving the tile grey forever (the URL
@@ -384,4 +395,4 @@ const posterFile = (name) => {
   return fs.existsSync(file) ? file : null;
 };
 
-module.exports = { rev: () => store.rev, get, enrich, refresh, posterFile, cachePoster, events, _internals: { refreshDue } };
+module.exports = { rev: () => store.rev, get, markCustom, enrich, refresh, posterFile, cachePoster, events, _internals: { refreshDue } };
