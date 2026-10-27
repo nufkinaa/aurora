@@ -200,5 +200,21 @@ Home's row: `{ id: "household", title: "Recommended by your household", sub?: "2
   the last stretch — at the detected credits, or the same runtime-scaled window Up next uses for
   episodes; it never takes the focus from the film; the player's keys stay away from the sheet).
   An episode's end already has Up next; recommending a show is on its page and its peek sheet.
-- **TV**: the title page (Detail), the hold-OK sheet, and the end of a film (the player's
-  end card) where the TV player has one.
+- **TV**: the title page (Detail, a "Recommend" disc after My List) and the hold-OK sheet.
+
+## Where the TV differs, and why
+- **No Recommend at the end of a film on the TV**: the TV player has no end card for films (Up
+  next is for episodes only) and a finished film returns to its title page, where Recommend is
+  one press away. The website has the credits card.
+- **TV toasts take no buttons** (a toast that took the D-pad would pull focus out of whatever
+  the person is browsing): Undo is the "Not for me" button itself — it reads "Undo" after the
+  press, on the hold-OK sheet and on the title page — and the arrival toast has no "Show" (the
+  row is already updated; the Show all screen is the row's last tile or Settings →
+  Recommendations → What you sent).
+- **"+" on the card** is the website's (a pointer can hit a corner); on the TV the same one
+  press is "+ Add to My List" on the hold-OK sheet.
+- **Show all recommended** is a link under the row on the website and the row's last tile on
+  the TV (D-pad: RIGHT to the end of the row) — both only when there are more than 15.
+- The TV toasts an arrival only for recommendations newer than the last one it showed; the
+  website toasts each unseen one it has not told in this tab (the first ping after a reload can
+  differ by one).
