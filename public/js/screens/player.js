@@ -2032,9 +2032,24 @@ export const renderPlayer = async (root, { id }) => {
       // background playlist refresh — the only kind of request allowed to
       // re-create an offset the server just retired (so skipping forward and
       // straight back still works). hls.js loads the URL WITHOUT it.
-      const res = await fetch(`${transcodeUrl(ss, v || currentV)}&seek=1`);
-      if (exited || token !== probeToken) return true;
-      if (!res.ok) throw new Error("not ready");
+      // A library file has every offset on disk: a refusal here is the
+      // SERVER for a moment — restarting (a deploy, the watchdog), or every
+      // encoder busy (503 + Retry-After) — not the spot. Asked again a few
+      // times, a little later each time, before anything else: the fall-back
+      // below used to start such a film again from 0:00 on the first refusal
+      // (seen: an iPhone after a server restart, tools/stall-rig). A torrent's
+      // refusal is the swarm's (the spot is not downloaded) — asked once, as before.
+      // (only where a refusal would otherwise end at 0:00 — a seek has its own retries)
+      const tries = isTorrent || !fallbackToZero ? [0] : [0, 2000, 4000, 8000];
+      let res = null;
+      for (const wait of tries) {
+        if (wait) await new Promise((r) => setTimeout(r, wait));
+        if (exited || token !== probeToken) return true;
+        try { res = await fetch(`${transcodeUrl(ss, v || currentV)}&seek=1`); } catch { res = null; }
+        if (exited || token !== probeToken) return true;
+        if (res && (res.ok || res.status === 404)) break; // (404: this file cannot be served that way — no point asking again)
+      }
+      if (!res || !res.ok) throw new Error("not ready");
       // The probe above was the claim; a PTS-honest copy playlist's clock
       // rides its response headers.
       const clock = clockFromHeaders(res);
@@ -2060,6 +2075,14 @@ export const renderPlayer = async (root, { id }) => {
     } catch {
       if (exited || token !== probeToken) return true;
       if (fallbackToZero) {
+        // (a library film well into it is not sent back to 0:00 because the
+        // server did not answer: the viewer is told, and Try again is there)
+        if (!isTorrent && target > 30) {
+          spinner.classList.add("hidden");
+          holdNext = false;
+          showErrorCard("The server didn't answer. Try again from the same spot, or go back.", () => { startTranscodeAt(target, v, { fallbackToZero: true }); });
+          return true;
+        }
         startTranscode(0, v);
         return true;
       }
@@ -6299,25 +6322,45 @@ export const renderPlayer = async (root, { id }) => {
   // the "error" listener below).
   let copyPlayed = 0;
   let copyLastT = null;
+  // Where the film was last seen MOVING, in content time. After a native
+  // stream errors, the element's own clock is not to be trusted: a reload
+  // that failed leaves it at 0. Every way back below starts from here.
+  let lastGood = null;
   video.addEventListener("timeupdate", () => {
     const t = video.currentTime || 0;
     if (copyLastT != null && usingTranscode && currentV === "copy" && !video.paused && !onAir()) {
       const d = t - copyLastT;
       if (d > 0 && d < 2) copyPlayed += d;
     }
+    if (copyLastT != null && !video.paused && !video.seeking && t > 0.5) {
+      const d = t - copyLastT;
+      if (d > 0 && d < 2) lastGood = effTime();
+    }
     copyLastT = t;
   });
-  // The same native stream again, where it stopped: at most three times in
-  // five minutes (then the escalation as before), each a moment later than
-  // the last. Returns false when that budget is spent.
+  // The content position to come back to: the playhead while it is real,
+  // else where the film was last seen moving.
+  const backTo = () => ((video.currentTime || 0) > 0.5 || lastGood == null ? effTime() : lastGood);
+  // The same native stream again, where it stopped, each try a little later
+  // than the last: 1, 2, 4, 8, 15 and 30 s — a minute in all, at most six in
+  // five minutes (then the escalation / the card below). It used to be three
+  // tries one, two and three seconds apart: a server restart (about ten
+  // seconds), a Wi-Fi hand-over or a mobile line changing cells outlasted
+  // them, and the fall-back that followed put the film on the full encode —
+  // from 0:00, because the reload that failed had left the clock at 0
+  // (measured: tools/stall-rig, an iPhone user agent, the server restarted
+  // mid-film). Returns false when that budget is spent.
+  const NATIVE_RETRY_S = [1, 2, 4, 8, 15, 30];
+  let nativeBeat = null; // the card's background retry (below): off the moment the film plays
+  video.addEventListener("playing", () => { clearTimeout(nativeBeat); nativeBeat = null; });
   const nativeRetries = [];
   const nativeAgain = () => {
     const now = Date.now();
     while (nativeRetries.length && now - nativeRetries[0] > 5 * 60000) nativeRetries.shift();
     const src = video.getAttribute("src");
-    if (nativeRetries.length >= 3 || !src || hls) return false;
+    if (nativeRetries.length >= NATIVE_RETRY_S.length || !src || hls) return false;
     nativeRetries.push(now);
-    const mediaPos = video.currentTime || 0;
+    const mediaPos = Math.max(0, backTo() - (usingTranscode ? clockBase : 0));
     const n = nativeRetries.length;
     mark("media-error", { did: "again", n, at: Math.round(effTime()), played: Math.round(copyPlayed) });
     spinner.classList.remove("hidden");
@@ -6325,7 +6368,7 @@ export const renderPlayer = async (root, { id }) => {
     setTimeout(() => {
       if (exited || onAir() || gen !== hlsGen) return;
       repoint(airSrc(src), { mediaPos, play: true });
-    }, 1000 * n);
+    }, 1000 * NATIVE_RETRY_S[n - 1]);
     return true;
   };
   video.addEventListener("error", () => {
@@ -6357,14 +6400,34 @@ export const renderPlayer = async (root, { id }) => {
     // those to the full encode put a far-away iPhone on a live encode for
     // the rest of the film (and, on a busy server, back at 0:00 —
     // fallbackToZero). That stream again, at this spot, a few times first.
-    if (nativeHlsOnly && usingTranscode && currentV === "copy" && copyPlayed >= 30 && nativeAgain()) return;
+    if (nativeHlsOnly && usingTranscode && currentV === "copy" && copyPlayed >= 30) {
+      if (nativeAgain()) return;
+      // Still failing after a minute of tries — but this device has played
+      // this copy, so it is not refusing it: the server or the line is away.
+      // The full encode would not come back sooner (and on a busy server not
+      // at all); say so, keep trying where the film was, and let the viewer
+      // try now.
+      const src = video.getAttribute("src");
+      const pos = backTo();
+      spinner.classList.add("hidden");
+      mark("media-error", { did: "card", at: Math.round(pos), played: Math.round(copyPlayed) });
+      const again = () => {
+        if (exited || onAir() || !src) return;
+        nativeRetries.length = 0;
+        repoint(airSrc(src), { mediaPos: Math.max(0, pos - (usingTranscode ? clockBase : 0)), play: true });
+      };
+      showErrorCard("The stream stopped answering. Aurora keeps trying in the background — or try again now.", again);
+      clearTimeout(nativeBeat);
+      nativeBeat = setTimeout(again, 30000);
+      return;
+    }
     if (usingTranscode && currentV === "copy" && !switchedToTranscode) {
       switchedToTranscode = true;
       copyRefused = true; // remember: no later "upgrade" may ping-pong back to copy
       toast("This device refused the fast path — re-encoding instead…", "⚙️");
-      reportMark("client_switch", { reason: "media-error", to: "h264", position: effTime() });
+      reportMark("client_switch", { reason: "media-error", to: "h264", position: backTo() });
       mark("media-error", { did: "h264", played: Math.round(copyPlayed) });
-      startTranscodeAt(effTime(), "h264", { fallbackToZero: true });
+      startTranscodeAt(backTo(), "h264", { fallbackToZero: true });
       return;
     }
     showErrorCard(

@@ -1107,6 +1107,7 @@ const recoveringStream = (file, { start = 0, end, torrent: t } = {}) => {
   let closed = false;
   let resumedAt = -1; // `sent` at the last resume, so we can tell progress from a spin
   let stuckSince = 0; // when `sent` stopped advancing across resumes
+  let waitingDrain = false; // the client is not reading: we are waiting for it, not for the swarm
   const RESUME_GIVE_UP_MS = 30000;
 
   // Pick up a range that ended early or failed. Measured live on a cold swarm:
@@ -1217,14 +1218,18 @@ const recoveringStream = (file, { start = 0, end, torrent: t } = {}) => {
   };
 
   const wire = () => {
+    const mine = inner;
     inner.on("data", (chunk) => {
       sent += chunk.length;
       lastData = Date.now();
       if (!out.write(chunk)) {
-        inner.pause();
+        mine.pause();
+        waitingDrain = true;
         out.once("drain", () => {
+          waitingDrain = false;
+          lastData = Date.now();
           try {
-            inner && inner.resume();
+            if (inner === mine) mine.resume();
           } catch {}
         });
       }
@@ -1254,6 +1259,22 @@ const recoveringStream = (file, { start = 0, end, torrent: t } = {}) => {
   const tick = setInterval(() => {
     if (closed) {
       clearInterval(tick);
+      return;
+    }
+    // A response still open is somebody watching this torrent, whether bytes
+    // are moving or not (a player with a full buffer, or paused). The sweeper
+    // used to hear of a viewer only when a REQUEST arrived — and a TV or a
+    // browser plays a whole film from ONE range request: thirty minutes in,
+    // the torrent was evicted as idle with its store destroyed, the read died
+    // with "File is destroyed", and the film froze while the player asked
+    // again and the swarm was joined from cold (measured: tools/stall-rig).
+    if (t && t.infoHash) touchTorrent(t.infoHash);
+    // The CLIENT not reading (its buffer is full, it paused) is not a stalled
+    // swarm: no bytes are asked for, so none arrive. Recreating the read every
+    // 10 s then only re-aimed the critical pieces at a paused position and
+    // left one more chunk queued per round.
+    if (waitingDrain) {
+      lastData = Date.now();
       return;
     }
     if (Date.now() - lastData > 10000) {
@@ -1556,6 +1577,7 @@ module.exports = {
     withHistory,
     liveStreams,
     pruneStreams,
+    lastAccessOf: (infoHash) => torrentAccess.get(infoHash) || 0,
     STORE,
     STREAMS_TTL,
     STREAMS_V,

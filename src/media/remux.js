@@ -603,7 +603,13 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
   require("../lib/children").track(proc, "remux");
   try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
   // a re-encode is somebody watching: background work stands back (cpuwork.js)
-  if (heavy) { try { require("./cpuwork").viewer.track(proc, { kind: "transcode", label: path.basename(videoPath), cost, memMb, encoder: vf ? "x264 on the CPU, tone-mapped" : "x264 on the CPU", why: "the single-rendition route (the TV's offsets) encodes on the CPU" }); } catch {} }
+  // `idle` while PAUSED far ahead of its reader (procpause, see pace): a
+  // suspended encoder takes no CPU, and it used to count all the same — on a
+  // small machine (one or two encoders) the next viewer who needed an encode
+  // was refused for as long as it slept: "Server is busy" on every rendition,
+  // the picture frozen for minutes (measured: tools/stall-rig, a 4-CPU
+  // instance). It counts again the moment it is resumed.
+  if (heavy) { try { require("./cpuwork").viewer.track(proc, { kind: "transcode", label: path.basename(videoPath), cost, memMb, encoder: vf ? "x264 on the CPU, tone-mapped" : "x264 on the CPU", why: "the single-rendition route (the TV's offsets) encodes on the CPU", idle: () => !!(jobs.get(dir) && jobs.get(dir).proc === proc && jobs.get(dir).paused) }); } catch {} }
 
   let stderr = "";
   proc.stderr.on("data", (d) => (stderr += d.toString()));

@@ -619,8 +619,11 @@ const encodeCount = (except = null) => {
 // single-rendition transcodes and the torrent transcodes, which register
 // themselves as viewer work (cpuwork.js). (A lazy require: the tests load
 // this module alone, and replace this.)
+// (what is RUNNING for its viewer: an encoder asleep far ahead of its reader,
+// or one whose viewer has gone, is not counted — cpuwork's viewer.load, the
+// same count the other transcoders admit by)
 let outsideEncodes = () => {
-  try { return require("./cpuwork").viewer.cost((v) => v.kind !== "ladder"); } catch { return 0; }
+  try { return require("./cpuwork").viewer.load((v) => v.kind !== "ladder"); } catch { return 0; }
 };
 // Is anything being encoded for a viewer, by anyone (the registry every
 // viewer-facing encoder is in)? — what a warm-up asks before it starts.
@@ -1281,6 +1284,18 @@ const ensureSegment = async (dir, job, input, k, { gone = null } = {}) => {
   noteReader(job, k, now);
   // a viewer is here: no warm-up bound applies, and what was speculative is theirs
   for (const run of job.producers) promote(dir, job, run);
+  // A producer that was lowered to the idle priority for running far ahead
+  // (lib/leadprio.js) is raised again HERE, by its reader's request, the
+  // moment that reader is near. It used to be looked at again only when it
+  // published its next segment — and a producer at the idle priority on a
+  // busy machine may publish nothing for a long time: the reader caught up
+  // with it, waited on it, and the one thing that would have raised it was
+  // the segment it could not make (measured 2026-10-27: copy producers at
+  // Idle with every core busy, the picture frozen at 0 s buffered).
+  for (const run of job.producers) {
+    if (!run.leadLow) continue;
+    try { require("../lib/leadprio").step(run, run.proc && run.proc.pid, usage(job, run, now).lead); } catch {}
+  }
   job.waiting = (job.waiting || 0) + 1;
   job.wanted.push(k);
   try {

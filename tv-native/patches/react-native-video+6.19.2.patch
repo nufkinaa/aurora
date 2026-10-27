@@ -1,3 +1,31 @@
+diff --git a/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/DataSourceUtil.kt b/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/DataSourceUtil.kt
+index 96a7887..8d4035b 100644
+--- a/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/DataSourceUtil.kt
++++ b/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/DataSourceUtil.kt
+@@ -59,7 +59,22 @@ object DataSourceUtil {
+         bandwidthMeter: DefaultBandwidthMeter?,
+         requestHeaders: Map<String, String>?
+     ): HttpDataSource.Factory {
+-        val client = OkHttpClientProvider.getOkHttpClient()
++        // Aurora: the player's own client, with timeouts. React Native's shared
++        // client has none at all (connect/read/write 0), so a connection that
++        // went silent without closing (a Wi-Fi hand-over, a router dropping
++        // the flow) left the loader waiting for ever: the buffer ran out, the
++        // picture froze, and only the app's watchdog got it going again, 20-30
++        // s later (measured on the Mi TV through a proxy that freezes its
++        // connections: a 29.8 s freeze with 100 s of film buffered before it).
++        // With a read timeout the loader gives up on the dead connection,
++        // retries on a fresh one, and the buffer covers the gap. 20 s is far
++        // above anything a working server keeps a player waiting for a byte
++        // on this app's paths; while the buffer is full the loader is not
++        // reading, so no timeout runs then. Same connection pool and cookies.
++        val client = OkHttpClientProvider.getOkHttpClient().newBuilder()
++            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
++            .readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
++            .build()
+         val container = client.cookieJar as CookieJarContainer
+         val handler = ForwardingCookieHandler(context)
+         container.setCookieJar(JavaNetCookieJar(handler))
 diff --git a/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/ExoPlayerView.kt b/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/ExoPlayerView.kt
 index bb945fe..41fc4a2 100644
 --- a/node_modules/react-native-video/android/src/main/java/com/brentvatne/exoplayer/ExoPlayerView.kt

@@ -41,3 +41,4 @@ test/ui/.cache/
 tools/ttff/.media/
 tools/ttff/.runs/
 .aurora-owner.json
+tools/stall-rig/.runs/
