@@ -224,3 +224,19 @@ test("the decode-stall watchdog: film in hand AT the playhead and a frozen clock
   assert.equal(decodeStalled({ ...base, lastCT: 49, ranges: [[40, 120]] }), false, "the clock moved");
   assert.equal(decodeStalled({ ...base, ranges: [[40, 52]] }), false, "two seconds in hand: a starving line, not the decoder");
 });
+
+test("a segment's load stats say what the line did: the server's time making it is taken off", async () => {
+  const { lineTimeOnly, SERVER_WAIT_FLOOR_MS } = await load();
+  // 7 s for the server to make it, then 10 MB in 0.8 s on a fast line
+  const st = { loading: { start: 1000, first: 8000, end: 8800 }, loaded: 10e6 };
+  assert.equal(lineTimeOnly(st), 7000 - SERVER_WAIT_FLOOR_MS);
+  assert.equal(st.loading.start, 8000 - SERVER_WAIT_FLOOR_MS);
+  assert.ok((st.loaded * 8) / (st.loading.end - st.loading.start) > 50000, "read as the fast line it is (bits per ms: over 50 Mbit/s)");
+  // a far line's own round trip is left alone
+  const near = { loading: { start: 1000, first: 1180, end: 2000 } };
+  assert.equal(lineTimeOnly(near), 0);
+  assert.equal(near.loading.start, 1000);
+  // nothing arrived: nothing to say
+  assert.equal(lineTimeOnly({ loading: { start: 1000, first: 0, end: 0 } }), 0);
+  assert.equal(lineTimeOnly(null), 0);
+});

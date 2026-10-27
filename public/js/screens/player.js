@@ -22,7 +22,7 @@ import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio, langOf } from "
 import { savedDelay, saveDelay } from "../subdelay.js";
 import { createAirplay } from "../airplay.js";
 import { registerPlayerTarget, takeRemoteStart, playerChanged, onDevices, getDevices, chooseDevice, playOn, ICONS as REMOTE_ICONS } from "../remote.js"; // [phone-remote]
-import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM, decodeStalled } from "../playstart.js";
+import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM, decodeStalled, lineTimeOnly } from "../playstart.js";
 // [player-options] night mode, dialogue boost, the look of subtitles (2026-10-19)
 import { readStyle, nextChoice, styleLabel, cueCss, cueShadow, cueBackdrop, CUE_VW, CUE_MIN_PX, RAISED_PCT, SUB_STYLE_KEYS, SUB_STYLE_NAMES, SUB_COLORS } from "../subStyle.js";
 import { audioFxFor, AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES } from "../audiofx.js";
@@ -461,6 +461,53 @@ const preLoaderFor = (Hls) => {
     }
   };
   return PreLoader;
+};
+
+// A fragment loader that tells hls.js about the line, not the server (see
+// lineTimeOnly): its load's start moves up when its first byte comes, before
+// hls.js's own rules look at it. One class per loader class.
+const lineLoaders = new WeakMap();
+const lineFirstLoader = (Base) => {
+  if (lineLoaders.has(Base)) return lineLoaders.get(Base);
+  const L = class extends Base {
+    load(context, config, callbacks) {
+      const shift = () => { try { lineTimeOnly(this.stats); } catch {} };
+      const wrapped = { ...callbacks };
+      if (callbacks && callbacks.onProgress) wrapped.onProgress = (...a) => { shift(); return callbacks.onProgress(...a); };
+      if (callbacks && callbacks.onSuccess) wrapped.onSuccess = (...a) => { shift(); return callbacks.onSuccess(...a); };
+      return super.load(context, config, wrapped);
+    }
+  };
+  lineLoaders.set(Base, L);
+  return L;
+};
+
+// …and hls.js's emergency rule does not give a fragment up before its first
+// byte. With nothing arrived it can only be guessing from its own estimate,
+// and what it is waiting on is the server MAKING the segment (an encode
+// after a seek: 3–7 s on two cores) — measured, a seek's 1080p segment given
+// up after 3.5 s for 480p, which the one encoder could not make (503), then
+// asked for again: the seek took 7.9 s where the segment took 3.5. The
+// fragment's own first-byte timeout (60 s) still applies.
+let PatientAbr = null;
+const patientAbrFor = (Hls) => {
+  if (PatientAbr) return PatientAbr;
+  const Base = Hls.DefaultConfig && Hls.DefaultConfig.abrController;
+  if (!Base) return null;
+  PatientAbr = class extends Base {
+    constructor(hls) {
+      super(hls);
+      const rule = this._abandonRulesCheck;
+      if (typeof rule !== "function") return;
+      this._abandonRulesCheck = (...a) => {
+        const f = this.fragCurrent;
+        const l = f && f.stats && f.stats.loading;
+        if (l && !(l.first > 0)) return undefined; // nothing has come yet: the server is still making it
+        return rule.apply(this, a);
+      };
+    }
+  };
+  return PatientAbr;
 };
 
 // A LONG INDEX ON A THIN LINE. An MP4 that this device plays as the file
@@ -1475,6 +1522,7 @@ export const renderPlayer = async (root, { id }) => {
             // The manifest and the first rendition playlist were asked for
             // while hls.js itself was loading (prestart): take those answers.
             pLoader: preLoaderFor(window.Hls),
+            ...(patientAbrFor(window.Hls) ? { abrController: patientAbrFor(window.Hls) } : {}),
             // …and hls.js's idea of the line starts from what it carried
             // last time (lineKbps), not from its stock half megabit.
             ...(lad && lineKbps() ? { abrEwmaDefaultEstimate: lineKbps() * 1000 } : {}),
@@ -1496,6 +1544,22 @@ export const renderPlayer = async (root, { id }) => {
             fragLoadingTimeOut: 60000,
             fragLoadingMaxRetry: 8,
             fragLoadingRetryDelay: 2000,
+          });
+          // The line, not the server: a segment's first-byte wait beyond a
+          // round trip was the server making it (an encode, a swarm), and
+          // hls.js counted it as a slow line — stepping down onto another
+          // rung, i.e. a new encode from scratch, slower still (playstart.js
+          // lineTimeOnly). Taken off before hls.js takes its sample (at
+          // FRAG_BUFFERED, which comes after this).
+          // …and at the first byte already, for hls.js's emergency rule: a
+          // fragment it has waited on longer than half its duration, with
+          // its stock half-megabit guess of the line, is given up the moment
+          // its first byte arrives — measured, a 1080p segment the server
+          // took 6.4 s to make abandoned 80 ms after it started to arrive at
+          // LAN speed, for 480p: another encoder from scratch.
+          try { if (hls.config && hls.config.loader) hls.config.fLoader = lineFirstLoader(hls.config.loader); } catch {}
+          if (window.Hls.Events.FRAG_LOADED) hls.on(window.Hls.Events.FRAG_LOADED, (_e, d) => {
+            try { lineTimeOnly(d && (d.part && d.part.stats && d.part.stats.loaded ? d.part.stats : d.frag && d.frag.stats)); } catch {}
           });
           hls.on(window.Hls.Events.ERROR, (_evt, data) => {
             // Recover from transient network/media errors instead of dying

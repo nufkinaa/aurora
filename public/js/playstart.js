@@ -136,3 +136,25 @@ export const decodeStalled = ({ ranges = [], ct = 0, lastCT = -1, paused = false
   for (const [a, b] of ranges) if (a <= ct + 0.3 && b > ct) return b - ct > 3;
   return false;
 };
+
+// PURE. A segment's load stats, made to say what the LINE did. hls.js
+// measures the line by a segment's bytes over the time from asking to the
+// last byte, less a first-byte wait up to what it expects one to be — so
+// the seconds the SERVER spent making the segment (an encode on a small CPU:
+// 5–7 s for one 1080p segment on two cores; a torrent's swarm) were counted
+// as a slow line. It then stepped down a rung — a new encode from scratch,
+// slower still — and down again: measured on a 2-CPU instance (tools/ttff
+// vps.js jit-encode-seek), 1080p → 720p → 480p within 25 s on a 100 Mbit/s
+// line, each step a new encoder, and the film stopped. The wait for the
+// first byte beyond `floor` ms (a far line's round trip) is not the line's:
+// the load's start is moved up to `floor` before its first byte.
+//   stats: hls.js LoadStats (mutated) -> the ms taken off (0 if none)
+export const SERVER_WAIT_FLOOR_MS = 250;
+export const lineTimeOnly = (stats, floor = SERVER_WAIT_FLOOR_MS) => {
+  const l = stats && stats.loading;
+  if (!l || !(l.first > 0) || !(l.start > 0)) return 0;
+  const wait = l.first - l.start;
+  if (wait <= floor) return 0;
+  l.start = l.first - floor;
+  return Math.round(wait - floor);
+};
