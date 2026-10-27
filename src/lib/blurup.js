@@ -63,7 +63,7 @@ const localUrl = (u) => {
 const shrink = (buf) => {
   if (!config.FFMPEG) return Promise.reject(new Error("no ffmpeg"));
   return spawnerLib()
-    .run(config.FFMPEG, ["-v", "error", "-i", "pipe:0", "-vf", `scale=${WIDTH}:-2`, "-frames:v", "1", "-c:v", "libwebp", "-quality", "40", "-f", "webp", "pipe:1"], { input: buf, timeoutMs: 15000, maxBuffer: 64 * 1024, name: "blur-up" })
+    .run(config.FFMPEG, ["-v", "error", "-i", "pipe:0", "-vf", `scale=${WIDTH}:-2`, "-frames:v", "1", "-c:v", "libwebp", "-quality", "40", "-f", "webp", "pipe:1"], { input: buf, timeoutMs: 15000, maxBuffer: 64 * 1024, name: "blur-up", lower: true })
     .then((r) => {
       const b = r.stdout || Buffer.alloc(0);
       if (r.code !== 0 || b.length < 30 || b.length > 4000) throw new Error(`ffmpeg ${r.code}, ${b.length} bytes`);
