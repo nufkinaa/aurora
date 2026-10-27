@@ -175,3 +175,117 @@ test("state: a sender's server-time stamp is kept when it is believable", () => 
   assert.ok(Math.abs(party.get(p.code).state.at - Date.now()) < 50, "a wild stamp is replaced by now");
   assert.ok(log.length > 0);
 });
+
+// ---------- start together, everyone waits, reactions, handover ----------
+const three = (send) => {
+  const { party: p } = party.create(mkd("h", "Elia", "pe"), { id: "lib1" }, send, { device: "a" });
+  party.join(mkd("g", "Dana", "pd"), p.code, send, { device: "b" });
+  party.join(mkd("k", "Kim", "pk"), p.code, send, { device: "c" });
+  return p;
+};
+
+test("a jump while playing is a start together: everyone (the jumper too) gets the same future server instant; a play goes to the others at once", () => {
+  reset();
+  party.configure({ startLeadMs: 400 });
+  const { log, send } = sentTo();
+  const p = three(send);
+  log.length = 0;
+  const before = Date.now();
+  party.setState(mkd("g", "Dana", "pd"), { playing: true, position: 42, kind: "seek" }, send);
+  const got = log.filter((m) => m.type === "party_state");
+  assert.deepEqual(got.map((m) => m.id).sort(), ["g", "h", "k"]);
+  const ats = new Set(got.map((m) => m.data.at));
+  assert.equal(ats.size, 1, "one instant for all");
+  assert.ok([...ats][0] >= before + 400, "in the future");
+  assert.equal(got.find((m) => m.id === "g").data.self, true, "the presser knows it was its own");
+  // a host tick before the start has started is not believed
+  party.setState(mkd("h", "Elia", "pe"), { playing: true, position: 40, kind: "sync" }, send);
+  assert.equal(party.get(p.code).state.position, 42);
+  // a play: the others, now (the presser is already moving)
+  log.length = 0;
+  party.setState(mkd("h", "Elia", "pe"), { playing: true, position: 42, kind: "play" }, send);
+  const play = log.filter((m) => m.type === "party_state");
+  assert.deepEqual(play.map((m) => m.id).sort(), ["g", "k"]);
+  assert.ok(play[0].data.at <= Date.now());
+  // a pause goes to the others only, now
+  log.length = 0;
+  party.setState(mkd("h", "Elia", "pe"), { playing: false, position: 43, kind: "pause" }, send);
+  assert.deepEqual(log.filter((m) => m.type === "party_state").map((m) => m.id).sort(), ["g", "k"]);
+});
+
+test("everyone waits for whoever buffers, and starts again together when all are ready", () => {
+  reset();
+  party.configure({ startLeadMs: 300, waitGiveUpMs: 60000 });
+  const { log, send } = sentTo();
+  const p = three(send);
+  party.setState(mkd("h", "Elia", "pe"), { playing: true, position: 100, kind: "play" }, send);
+  // buffering while paused does nothing
+  log.length = 0;
+  party.setState(mkd("h", "Elia", "pe"), { playing: false, position: 100, kind: "pause" }, send);
+  party.setBuffering(mkd("g", "Dana", "pd"), { buffering: true, position: 100 }, send);
+  assert.equal(log.filter((m) => m.data.kind === "wait").length, 0);
+  party.setState(mkd("h", "Elia", "pe"), { playing: true, position: 100, kind: "play" }, send);
+  log.length = 0;
+  party.setBuffering(mkd("g", "Dana", "pd"), { buffering: true, position: 99.5 }, send);
+  let waits = log.filter((m) => m.data.kind === "wait");
+  assert.deepEqual(waits.map((m) => m.id).sort(), ["g", "h", "k"], "everyone is told to wait");
+  assert.equal(waits[0].data.position, 99.5, "held where the slow one is");
+  assert.deepEqual(waits[0].data.waiting, ["Dana"]);
+  assert.deepEqual(party.get(p.code).waiting, ["Dana"], "a late joiner sees who is being waited for");
+  assert.equal(party.get(p.code).state.playing, false);
+  // a second one stalls too: the hold stays where it was
+  party.setBuffering(mkd("k", "Kim", "pk"), { buffering: true, position: 99 }, send);
+  assert.deepEqual(party.get(p.code).waiting, ["Dana", "Kim"]);
+  log.length = 0;
+  party.setBuffering(mkd("g", "Dana", "pd"), { buffering: false }, send);
+  assert.equal(log.filter((m) => m.data.kind === "resume").length, 0, "still waiting for Kim");
+  assert.deepEqual(log.find((m) => m.data.kind === "wait").data.waiting, ["Kim"]);
+  log.length = 0;
+  const before = Date.now();
+  party.setBuffering(mkd("k", "Kim", "pk"), { buffering: false }, send);
+  const res = log.filter((m) => m.data.kind === "resume");
+  assert.deepEqual(res.map((m) => m.id).sort(), ["g", "h", "k"]);
+  assert.equal(res[0].data.position, 99.5);
+  assert.ok(res[0].data.at >= before + 300 && res[0].data.playing === true);
+  assert.deepEqual(party.get(p.code).waiting, []);
+});
+
+test("a waiting member who goes away is not waited for; nor one who takes too long", async () => {
+  reset();
+  party.configure({ startLeadMs: 0, waitGiveUpMs: 40 });
+  const { log, send } = sentTo();
+  three(send);
+  party.setState(mkd("h", "Elia", "pe"), { playing: true, position: 10, kind: "play" }, send);
+  party.setBuffering(mkd("g", "Dana", "pd"), { buffering: true, position: 10 }, send);
+  log.length = 0;
+  party.drop(mkd("g", "Dana", "pd"), send);
+  assert.ok(log.some((m) => m.data.kind === "resume"), "away: the others go on");
+  party.setBuffering(mkd("k", "Kim", "pk"), { buffering: true, position: 12 }, send);
+  log.length = 0;
+  await new Promise((r) => setTimeout(r, 90));
+  const gave = log.find((m) => m.data.kind === "resume");
+  assert.ok(gave && gave.data.gaveUp && gave.data.gaveUp[0] === "Kim", "gave up on Kim, and says so");
+  party.configure({ startLeadMs: 400, waitGiveUpMs: 20000 });
+});
+
+test("reactions: one of a few faces, to everyone, a held key is one face", () => {
+  reset();
+  const { log, send } = sentTo();
+  three(send);
+  party.react(mkd("g", "Dana", "pd"), { emoji: "😂" }, send);
+  party.react(mkd("g", "Dana", "pd"), { emoji: "😂" }, send);
+  assert.deepEqual(log.filter((m) => m.type === "party_react").map((m) => m.id).sort(), ["g", "h", "k"]);
+  assert.ok(party.react(mkd("g", "Dana", "pd"), { emoji: "<script>" }, send).error);
+});
+
+test("the host can leave the party running: the next member hosts", () => {
+  reset();
+  const { log, send } = sentTo();
+  const p = three(send);
+  log.length = 0;
+  party.leave(mkd("h", "Elia", "pe"), send, { handover: true });
+  const now = party.get(p.code);
+  assert.ok(now);
+  assert.equal(now.host.name, "Dana");
+  assert.ok(log.some((m) => m.id === "g" && m.data.host === "Dana"));
+});

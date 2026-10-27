@@ -4,6 +4,7 @@
 import { state } from "./state.js";
 import { send, onMessage } from "./ws.js";
 import { toast } from "./ui.js";
+import { bestClock, clockFrom } from "./partySync.js";
 
 export const party = {
   current: null, // the public party object, or null
@@ -28,32 +29,28 @@ const deviceId = (() => {
 // each member can work out where the film is right now without trusting
 // its own clock. A few pings; the one with the shortest round trip wins.
 let clockOffset = null; // server clock - ours, in ms
-let bestRtt = Infinity;
-let bestAt = 0;
+let samples = []; // { rtt, offset, at }
 export const serverNow = () => Date.now() + (clockOffset || 0);
 export const clockKnown = () => clockOffset != null;
 const syncClock = () => {
-  // an old best sample ages out (clocks drift, networks change)
-  if (Date.now() - bestAt > 60000) bestRtt = Infinity;
   for (let i = 0; i < 5; i++) setTimeout(() => send({ type: "party_ping", t0: Date.now() }), i * 250);
 };
 onMessage("party_pong", ({ t0, now }) => {
   const t1 = Date.now();
-  const rtt = t1 - t0;
-  if (!(rtt >= 0) || !now) return;
-  if (rtt <= bestRtt) {
-    bestRtt = rtt;
-    bestAt = t1;
-    clockOffset = now - (t0 + t1) / 2;
-  } else if (clockOffset == null) clockOffset = now - (t0 + t1) / 2;
+  if (!now || !(t1 - t0 >= 0)) return;
+  // the last minute's samples; the shortest round trip is the most honest
+  samples = samples.filter((x) => t1 - x.at < 60000).concat({ ...clockFrom(t0, t1, now), at: t1 });
+  const best = bestClock(samples);
+  if (best) clockOffset = best.offset;
 });
 setInterval(() => { if (party.current) syncClock(); }, 30000);
 
-const listeners = { state: new Set(), update: new Set(), ended: new Set(), item: new Set() };
+const listeners = { state: new Set(), update: new Set(), ended: new Set(), item: new Set(), react: new Set() };
 export const onPartyState = (fn) => (listeners.state.add(fn), () => listeners.state.delete(fn));
 export const onPartyUpdate = (fn) => (listeners.update.add(fn), () => listeners.update.delete(fn));
 export const onPartyEnded = (fn) => (listeners.ended.add(fn), () => listeners.ended.delete(fn));
 export const onPartyItem = (fn) => (listeners.item.add(fn), () => listeners.item.delete(fn));
+export const onPartyReact = (fn) => (listeners.react.add(fn), () => listeners.react.delete(fn));
 const emit = (kind, data) => {
   for (const fn of listeners[kind]) {
     try { fn(data); } catch {}
@@ -103,9 +100,10 @@ export const joinParty = async (code) => {
   return p;
 };
 
-export const leaveParty = () => {
+// `handover`: a host leaves the party running — the next member hosts.
+export const leaveParty = ({ handover = false } = {}) => {
   if (!party.current) return;
-  send({ type: "party_leave" });
+  send({ type: "party_leave", ...(handover ? { handover: true } : {}) });
   party.current = null;
   party.role = null;
   party.me = null;
@@ -141,6 +139,19 @@ export const setPartyItem = (item) => {
   send({ type: "party_item", item });
 };
 
+// This member's film stalled while the party plays / has enough again: the
+// party waits for it (lib/party.js).
+export const sendPartyBuffering = (buffering, position) => {
+  if (!party.current) return;
+  send({ type: "party_buffer", buffering: !!buffering, position: Math.max(0, position || 0) });
+};
+export const REACTIONS = ["😂", "😮", "😍", "👏", "😱", "😢", "🔥", "👍"];
+export const sendPartyReaction = (emoji) => {
+  if (!party.current || !REACTIONS.includes(emoji)) return;
+  send({ type: "party_react", emoji });
+};
+export const partyInviteUrl = (code) => `${location.origin}${location.pathname}#/party/${code}`;
+
 export const sendPartyState = (playing, position, kind = "sync") => {
   if (!party.current) return;
   const msg = { type: "party_state", playing: !!playing, position: Math.max(0, position || 0), kind };
@@ -160,7 +171,8 @@ onMessage("party_joined", (data) => {
   party.me = p.you || party.me;
   emit("update", p);
   // where the party is now (the player lands there)
-  emit("state", { ...p.state, now: p.now, kind: "sync", rejoined: true });
+  party.current.waiting = p.waiting || [];
+  emit("state", { ...p.state, now: p.now, kind: p.waiting && p.waiting.length ? "wait" : "sync", waiting: p.waiting || [], rejoined: true });
 });
 onMessage("party_error", (data) => {
   if (data.rejoin) {
@@ -188,7 +200,13 @@ onMessage("party_update", (data) => {
 onMessage("party_state", (data) => {
   if (!party.current || data.code !== party.current.code) return;
   party.current.state = { playing: data.playing, position: data.position, at: data.at };
+  // who the party is waiting for (a "wait"), or nobody any more
+  party.current.waiting = data.kind === "wait" ? data.waiting || [] : [];
   emit("state", data);
+});
+onMessage("party_react", (data) => {
+  if (!party.current || data.code !== party.current.code) return;
+  emit("react", data);
 });
 onMessage("party_item", (data) => {
   if (!party.current || !data.party || data.party.code !== party.current.code) return;

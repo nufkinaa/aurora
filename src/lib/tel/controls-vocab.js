@@ -119,7 +119,11 @@ module.exports = {
   "player.mute": "wt",
   "player.next": "wt",
   "player.party": "wt",
+  "player.party.handover": "wt",
+  "player.party.react": "wt",
+  "player.party.share": "w",
   "player.party.start": "wt",
+  "player.party.tapjoin": "w",
   "player.pip": "w",
   "player.playpause": "wt",
   "player.playontv": "w", // [phone-remote]

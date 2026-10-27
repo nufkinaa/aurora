@@ -154,6 +154,30 @@ ui.test("the API is admin only, and refuses other kinds of file", async ({ api, 
   assert.equal((await api.call("POST", `/api/admin/uploads/${ok.body.job.id}/dismiss`, {}, api.admin)).status, 200);
 });
 
+ui.test("after a reload: a half-sent upload says Paused, Resume takes the same file again and goes on from where the server is", async ({ page, srv, api }) => {
+  const file = path.join(WORK, "Beach.Day.2024.1080p.mp4");
+  const bytes = fs.readFileSync(file);
+  const { job } = await api.adminPost("/api/admin/uploads", { title: "Half Sent", year: "2022", files: [{ name: path.basename(file), size: bytes.length }] });
+  const half = Math.floor(bytes.length / 2);
+  const put = await fetch(`${srv.url}/api/admin/uploads/${job.id}/chunk?part=0&offset=0`, { method: "PUT", headers: { ...api.admin, "Content-Type": "application/octet-stream" }, body: bytes.subarray(0, half) });
+  assert.equal(put.status, 200);
+  await enter(page, srv);
+  const row = job && page.locator(`#up-jobs [data-up-job="${job.id}"]`);
+  await row.waitFor();
+  assert.match(await row.innerText(), /Paused at 49%|Paused at 50%/);
+  // the wrong file is refused
+  let chooser = page.waitForEvent("filechooser");
+  await row.locator('[data-up-act="resume"]').click();
+  await (await chooser).setFiles(path.join(WORK, "Beach.Day.2024.1080p.en.srt"));
+  await page.waitForFunction(() => /That isn't the same file/.test(document.getElementById("toasts").innerText));
+  chooser = page.waitForEvent("filechooser");
+  await row.locator('[data-up-act="resume"]').click();
+  await (await chooser).setFiles(file);
+  await page.waitForFunction((id) => { const r = document.querySelector(`#up-jobs [data-up-job="${id}"]`); return r && r.dataset.status === "done"; }, job.id, { timeout: 60000 });
+  const landed = fs.readFileSync(path.join(srv.library.movies, "Half Sent (2022)", "Half Sent (2022).mp4"));
+  assert.ok(Buffer.compare(landed, bytes) === 0, "the second half joined the first");
+});
+
 ui.test("phone width: the card fits, the form and the list are usable", { viewport: PHONE }, async ({ page, srv }) => {
   await enter(page, srv);
   await page.locator("#up-card").scrollIntoViewIfNeeded();

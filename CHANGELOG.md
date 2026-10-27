@@ -3,6 +3,22 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.11.0 — 2026-10-27
+
+**Watch parties, reworked.**
+- **Calm and together.** A guest lands where the party is when they join; after that nobody is moved while watching and the film's speed is never touched — one quiet check every 20 minutes, and only someone far off (10 s, 15 s on a converted stream) is moved at once. A pause puts everyone on the same frame; a jump lands everyone and then starts them together.
+- **Waiting for a friend.** When someone's film stalls, the party waits ("Waiting for Dana…") and everyone starts again together; someone who drops out or takes longer than 20 s isn't waited for ("Going on without Dana").
+- **Hosts can leave.** Leaving the player hands the party to the next person; the panel offers "Leave — Dana hosts" and "End for everyone".
+- **Invite and react.** A big code with "Share the invite" (the share sheet on phones), who is here (host, you, anyone away), and eight reactions that float over everyone's picture with the sender's name.
+- **iPhone:** if the browser won't start the film by itself, a big "Tap to join in" starts it right where the party is.
+- Measured with three people (laptop, laptop, phone) over 3 minutes of watching: about 140 ms apart, no jumps, no speed changes; pause followed in 3–11 ms, a stall restarted everyone within 8 ms.
+- Sign-in answers with a clear error instead of hanging when the server can't check a password (it hung when the computer ran out of memory).
+- The TV app's side of this comes with the next TV release.
+
+## 1.10.5 — 2026-10-27
+
+- Add your own file (admin): Resume after a page reload says "Paused", refuses a different file and sends the rest from where the server stopped; a finished upload piece no longer stays in memory.
+
 ## 1.10.4 — 2026-10-27
 
 - **Watch parties play calmly.** The picture no longer jumps every few seconds to chase a fraction of a second. Everyone is lined up once when they join; after that every play, pause and jump goes to everyone, a pause puts everyone on the same frame, and a quiet look every 20 minutes moves anyone more than a second off (3 s on a converted or torrent stream) back into step with one jump. Only someone left far behind (10 s, or 15 s converted) is moved at once. The film's speed is never changed any more, so the sound stays clean.

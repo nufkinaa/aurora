@@ -4601,6 +4601,118 @@ html:not([data-fx="lite"]) .trailer-frame iframe {
 .party-actions {
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.party-member.away {
+  opacity: 0.5;
+}
+.party-share {
+  width: 100%;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+.party-reacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 14px;
+}
+.party-react-btn {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.party-react-btn:hover,
+.party-react-btn:focus {
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: var(--focus-ring);
+}
+/* "Waiting for Dana…": everyone holds while someone loads */
+.party-wait {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  transform: translateX(-50%);
+  z-index: 8;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(10, 11, 20, 0.82);
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  color: #dbeafe;
+  font-weight: 700;
+  font-size: 0.95rem;
+  pointer-events: none;
+  white-space: nowrap;
+  max-width: calc(100% - 32px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* the browser refused to start the film by itself (iPhones): one big tap */
+.party-tapjoin {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  z-index: 12;
+  width: min(280px, calc(100% - 48px));
+  height: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 22px;
+  border: 1px solid rgba(96, 165, 250, 0.6);
+  background: rgba(10, 11, 20, 0.88);
+  color: #fff;
+  font-size: 1.15rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.party-tapjoin-icon {
+  font-size: 2.2rem;
+  line-height: 1;
+}
+.party-reactions {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+  overflow: hidden;
+}
+.party-react-float {
+  position: absolute;
+  bottom: 18%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  animation: party-react-rise 2.6s ease-out forwards;
+}
+.party-react-emoji {
+  font-size: 2.4rem;
+  line-height: 1;
+}
+.party-react-by {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+@keyframes party-react-rise {
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  12% { transform: translateY(-20px) scale(1.1); opacity: 1; }
+  100% { transform: translateY(-220px) scale(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .party-react-float { animation-duration: 2.6s; animation-name: party-react-fade; }
+  @keyframes party-react-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
 }
 .party-code-input {
   width: 100%;

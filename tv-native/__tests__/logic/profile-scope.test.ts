@@ -44,6 +44,7 @@ const PROFILE: Record<string, string[]> = {
 
 // file → variable → why it is NOT a profile's
 const DEVICE: Record<string, Record<string, string>> = {
+  'party.ts': {deviceId: 'this TV, as a party member (person + device)', clockOffset: "the server's clock as this box sees it", samples: 'the clock pings behind it', rejoining: 'a rejoin in flight (the party itself is the profile’s and is left with it)'},
   'api.ts': {
     baseUrl: 'which server',
     token: 'a credential: App.tsx sets and clears it around every profile change',

@@ -100,13 +100,19 @@ import {
   leaveParty,
   onPartyEnded,
   onPartyItem,
+  onPartyReact,
   onPartyState,
   onPartyUpdate,
   party,
   PartyStateMsg,
+  REACTIONS,
+  sendPartyBuffering,
+  sendPartyReaction,
   sendPartyState,
+  serverNow,
   setPartyItem,
 } from '../party';
+import {decide, landTolerance, startsIn, SYNC, targetOf, waitingWords} from '../partySync';
 import {holdLibraryRefresh, isOpen as socketOpen, onLibraryNews, onMessage, reportActivity} from '../realtime';
 import {ignoreIntro, loadIgnoredIntros, loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS} from '../storage';
 import {PERSON_KEYS, PersonKey} from '../personPrefs';
@@ -967,9 +973,11 @@ export default function Player({
   const flashAnim = useRef(new Animated.Value(0)).current;
   const [flashPaused, setFlashPaused] = useState(false);
   // What the PERSON did goes to the party; what the party made us do does not.
+  // (only the person's own presses come here, so the echo mute does not
+  // apply: a press a moment after someone else's is still a press)
   const partyUser = useCallback((playing: boolean) => {
-    if (!party.current || Date.now() < partyEcho.current) return;
-    sendPartyState(playing, curRef.current, playing ? 'play' : 'pause');
+    if (!party.current) return;
+    sendPartyState(playing, timeRef.current(), playing ? 'play' : 'pause');
   }, []);
   const togglePlay = useCallback(() => {
     const next = !pausedRef.current;
@@ -1782,21 +1790,48 @@ export default function Player({
       type: it?.type,
     };
   }, [stream, id, title]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ---- staying in step: the site's rules (partySync.ts) ----
+  // Calm by design (elia): land on the party when joining, then follow each
+  // action — a play, a pause (the same frame), a jump (a start together:
+  // everyone lands, and moves when the server's clock gets there). Between
+  // actions nobody is moved and the film's speed is never touched — one
+  // quiet look every 20 minutes, and a TV far off is moved at once. A TV
+  // whose film stalls says so, and the party waits for it.
+  const partyStartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [partyWaiting, setPartyWaiting] = useState<string[]>([]);
+  const [reactions, setReactions] = useState<{key: number; emoji: string; by?: string; left: number}[]>([]);
   const applyPartyState = useCallback(
     (st: PartyStateMsg, announce: boolean) => {
-      partyEcho.current = Date.now() + 1500;
-      const elapsed = st.playing && st.now && st.at ? Math.max(0, st.now - st.at) / 1000 : 0;
-      const target = (st.position || 0) + elapsed;
-      // A transcoded / torrent stream restarts its pipeline on a seek, so it
-      // tolerates more drift on the periodic sync (the site's numbers).
       const heavy = usingTranscodeRef.current || isTorrent;
-      const drift = curRef.current - target;
-      const tol = st.kind === 'sync' ? (heavy ? 8 : 2.5) : heavy ? 3 : 1.2;
-      if (Math.abs(drift) > tol && uriRef.current) seekTo(target);
-      if (st.playing && pausedRef.current) setPaused(false);
-      else if (!st.playing && !pausedRef.current) setPaused(true);
-      if (announce && st.by && st.kind !== 'sync') {
-        toast(st.kind === 'pause' ? `${st.by} paused` : st.kind === 'play' ? `${st.by} pressed play` : `${st.by} jumped to ${fmt(target)}`);
+      const now = timeRef.current();
+      const target = targetOf(st, serverNow());
+      // the host's tick moves nobody unless far off
+      if (st.kind === 'sync' && !st.rejoined && st.playing === !pausedRef.current) {
+        if (Math.abs(now - target) <= (heavy ? SYNC.farOverHeavy : SYNC.farOver)) return;
+      }
+      if (partyStartTimer.current) clearTimeout(partyStartTimer.current);
+      setPartyWaiting(st.kind === 'wait' ? st.waiting || [] : []);
+      const lead = startsIn(st, serverNow());
+      if (st.playing && lead > 0) {
+        // a start together: on the frame now, moving when the clock gets there
+        partyEcho.current = Date.now() + lead + 1500;
+        if (!pausedRef.current) setPaused(true);
+        if (Math.abs(now - (st.position || 0)) > (heavy ? 3 : 0.05) && uriRef.current) seekTo(st.position || 0);
+        partyStartTimer.current = setTimeout(() => !exited.current && setPaused(false), lead);
+      } else {
+        partyEcho.current = Date.now() + 1500;
+        const tol = st.rejoined
+          ? landTolerance(heavy)
+          : st.kind === 'sync'
+            ? heavy ? SYNC.farOverHeavy : SYNC.farOver
+            : heavy ? SYNC.alignOverHeavy : st.playing ? SYNC.alignOver : 0.05;
+        if (Math.abs(now - target) > tol && uriRef.current) seekTo(target + (st.playing && !heavy ? SYNC.seekLead : 0));
+        if (st.playing && pausedRef.current) setPaused(false);
+        else if (!st.playing && !pausedRef.current) setPaused(true);
+      }
+      if (st.kind === 'resume' && st.gaveUp && st.gaveUp.length) toast(`Going on without ${st.gaveUp.join(' and ')} — they'll catch up`);
+      if (announce && st.by && !st.self && (st.kind === 'play' || st.kind === 'pause' || st.kind === 'seek')) {
+        toast(st.kind === 'pause' ? `${st.by} paused` : st.kind === 'play' ? `${st.by} pressed play` : `${st.by} jumped to ${fmt(st.position || 0)}`);
       }
     },
     [isTorrent, toast], // eslint-disable-line react-hooks/exhaustive-deps
@@ -1804,9 +1839,20 @@ export default function Player({
   useEffect(() => {
     const offs = [
       onPartyState(st => applyPartyState(st, true)),
-      onPartyUpdate(p => setPartyInfo({...p})),
+      onPartyUpdate(p => {
+        setPartyInfo({...p});
+        setPartyWaiting(p.waiting || []);
+      }),
+      onPartyReact(({emoji, by}) => {
+        const key = Date.now() + Math.random();
+        setReactions(r => [...r.slice(-5), {key, emoji, by, left: 10 + Math.random() * 70}]);
+        setTimeout(() => setReactions(r => r.filter(x => x.key !== key)), 2600);
+      }),
       onPartyEnded(() => {
         setPartyInfo(null);
+        setPartyWaiting([]);
+        if (partyStartTimer.current) clearTimeout(partyStartTimer.current);
+        partyBuffering.current = false;
         setMenu(m => (m === 'party' ? null : m));
       }),
       // The host moved to another title (Up next, mostly): follow it, party intact.
@@ -1848,7 +1894,8 @@ export default function Player({
         setPartyInfo(p);
         toast(`Joined ${p.host ? p.host.name + "'s" : 'the'} party`);
         // Land where they are — once the clock is valid (onLoad), or now.
-        const land: PartyStateMsg = {...p.state, now: p.now, kind: 'sync'};
+        const waiting = p.waiting || [];
+        const land: PartyStateMsg = {...p.state, now: p.now, kind: waiting.length ? 'wait' : 'sync', waiting, rejoined: true};
         if (uriRef.current && durRef.current) applyPartyState(land, false);
         else pendingLand.current = land;
       } catch (e) {
@@ -1860,20 +1907,77 @@ export default function Player({
       live = false;
     };
   }, [partyCode]); // eslint-disable-line react-hooks/exhaustive-deps
-  // The host's heartbeat: a sync every 5s while playing, for drifters and late joiners.
+  // The host's tick: where its film really is, every 3 s while it plays —
+  // the line late joiners land on. Not while the party waits for someone or
+  // a start together is pending.
   useEffect(() => {
     const iv = setInterval(() => {
-      if (party.current && party.role === 'host' && !pausedRef.current && uriRef.current) {
-        sendPartyState(true, curRef.current, 'sync');
-      }
-    }, 5000);
+      const st = party.current?.state;
+      if (!party.current || party.role !== 'host' || pausedRef.current || !uriRef.current || partyBuffering.current) return;
+      if (!st || !st.playing || startsIn(st, serverNow()) > 0) return;
+      sendPartyState(true, timeRef.current(), 'sync');
+    }, 3000);
     return () => clearInterval(iv);
   }, []);
+  // Each second: a stall while the party plays is said (the party waits for
+  // this TV) and its end too; a guest looks at its gap only when far off or
+  // at the 20-minute look (partySync.decide) — and then seeks once.
+  const partyBuffering = useRef(false);
+  const partyStall = useRef(0);
+  const partyLastFix = useRef(0);
+  const partyNextAlign = useRef(Date.now() + SYNC.alignEveryMs);
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const st = party.current?.state;
+      if (!party.current || !st || !uriRef.current || exited.current) {
+        partyBuffering.current = false;
+        return;
+      }
+      const now = Date.now();
+      const t = timeRef.current();
+      if (partyBuffering.current) {
+        // ExoPlayer says when it has enough to play on
+        if (!bufferingRef.current) {
+          partyBuffering.current = false;
+          sendPartyBuffering(false, t);
+        }
+        return;
+      }
+      const moving = st.playing && startsIn(st, serverNow()) === 0;
+      if (!moving || pausedRef.current || now < partyEcho.current) {
+        partyStall.current = 0;
+        return;
+      }
+      partyStall.current = bufferingRef.current ? partyStall.current + 1 : 0;
+      if (partyStall.current >= SYNC.stallTicks) {
+        partyStall.current = 0;
+        partyBuffering.current = true;
+        sendPartyBuffering(true, t);
+        return;
+      }
+      if (party.role === 'host' || bufferingRef.current) return;
+      const heavy = usingTranscodeRef.current || isTorrent;
+      const due = now >= partyNextAlign.current;
+      if (due) partyNextAlign.current = now + SYNC.alignEveryMs;
+      const d = decide(t - targetOf(st, serverNow()), {heavy, sinceFixMs: now - partyLastFix.current, due});
+      if (d.act === 'seek') {
+        partyLastFix.current = now;
+        partyEcho.current = now + 4000; // let the jump land before looking again
+        seekTo(targetOf(st, serverNow()) + (heavy ? 0 : SYNC.seekLead));
+      }
+    }, SYNC.tickMs);
+    return () => clearInterval(iv);
+  }, [isTorrent]); // eslint-disable-line react-hooks/exhaustive-deps
   // Leaving the player leaves the party — unless this player is handing over
   // to the next episode's player with the party still running.
+  // A host who walks out of the player leaves the party running for the
+  // others (the next member hosts); "End for everyone" is in the menu.
   useEffect(
     () => () => {
-      if (party.current && !keepParty.current) leaveParty();
+      if (partyStartTimer.current) clearTimeout(partyStartTimer.current);
+      if (party.current && !keepParty.current) {
+        leaveParty({handover: party.role === 'host' && (party.current.members?.length || 0) > 1});
+      }
     },
     [],
   );
@@ -1894,6 +1998,15 @@ export default function Player({
     leaveParty();
     setPartyInfo(null);
     toast(wasHost ? 'Party ended' : 'Left the party');
+    closeMenu();
+  }, [toast, closeMenu]);
+  // A host can leave the party running: the next member hosts.
+  const handOverParty = useCallback(() => {
+    const p = party.current;
+    const next = p?.members.find(m => m.id !== party.me && !m.away) || p?.members.find(m => m.id !== party.me);
+    leaveParty({handover: true});
+    setPartyInfo(null);
+    toast(`Left the party — ${next ? next.name : 'the next one'} is the host now`);
     closeMenu();
   }, [toast, closeMenu]);
 
@@ -2558,7 +2671,8 @@ export default function Player({
       if (party.current && party.role === 'host' && (party.current.members?.length || 0) > 1) {
         if (Date.now() - hostBackAt.current > 6000) {
           hostBackAt.current = Date.now();
-          toast('Press Back again to end the party for everyone');
+          const next = party.current.members.find(m => m.id !== party.me && !m.away) || party.current.members.find(m => m.id !== party.me);
+          toast(`Leaving hands the party to ${next ? next.name : 'the others'} — press Back again to leave`);
           return true;
         }
       }
@@ -4532,6 +4646,18 @@ export default function Player({
       ) : null}
 
       {/* Watch together — the party panel (site: .party-panel). */}
+      {/* "Waiting for Dana…" and the faces people send: over the picture, chrome or not */}
+      {partyInfo && partyWaiting.length ? (
+        <View style={styles.partyWait} pointerEvents="none">
+          <Text style={styles.partyWaitText} numberOfLines={1}>{waitingWords(partyWaiting)}</Text>
+        </View>
+      ) : null}
+      {reactions.map(r => (
+        <View key={r.key} style={[styles.partyReactFloat, {left: `${r.left}%`}]} pointerEvents="none">
+          <Text style={styles.partyReactEmoji}>{r.emoji}</Text>
+          {r.by ? <Text style={styles.partyReactBy}>{r.by}</Text> : null}
+        </View>
+      ))}
       {menu === 'party' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
           <MenuTitle icon="people" label="WATCH TOGETHER" />
@@ -4540,11 +4666,34 @@ export default function Player({
             <>
               <Text style={styles.partyCode}>{partyInfo.code.split('').join(' ')}</Text>
               <Text style={styles.partyHint}>
-                {`${partyInfo.members.map(m => m.name).join(', ')} · ${partyInfo.members.length} watching. On another device: Join a watch party (on a TV it is under Settings, on the website in the profile menu), and type the code. Anyone can play, pause or jump — everyone follows.`}
+                {`${partyInfo.members
+                  .map(m => m.name + (partyInfo.host && partyInfo.host.id === m.id ? ' (host)' : '') + (m.away ? ' (away)' : ''))
+                  .join(', ')} · ${partyInfo.members.filter(m => !m.away).length} watching. On another device: open the invite link, or Join a watch party (on a TV it is under Settings, on the website in the profile menu) and type the code. Anyone can play, pause or jump — everyone follows, and waits for whoever is still loading.`}
               </Text>
+              <View style={styles.partyReacts}>
+                {REACTIONS.map((e, i) => (
+                  <Focusable
+                    key={e}
+                    uiId="player.party.react"
+                    round
+                    hasTVPreferredFocus={i === 0}
+                    onFocusChange={markZone('menu')}
+                    onPress={() => sendPartyReaction(e)}
+                    style={styles.partyReactBtn}>
+                    <Text style={styles.partyReactBtnText}>{e}</Text>
+                  </Focusable>
+                ))}
+              </View>
+              {party.role === 'host' && partyInfo.members.length > 1 ? (
+                <MenuItem
+                  uiId="player.party.handover"
+                  label={`Leave — ${(partyInfo.members.find(m => m.id !== party.me && !m.away) || partyInfo.members.find(m => m.id !== party.me))?.name || 'the next one'} hosts`}
+                  onFocusChange={markZone('menu')}
+                  onPress={handOverParty}
+                />
+              ) : null}
               <MenuItem
-                label={party.role === 'host' ? 'End party' : 'Leave party'}
-                hasTVPreferredFocus
+                label={party.role === 'host' ? (partyInfo.members.length > 1 ? 'End for everyone' : 'End party') : 'Leave party'}
                 onFocusChange={markZone('menu')}
                 onPress={endParty}
               />
@@ -5083,6 +5232,27 @@ const styles = StyleSheet.create({
   partyPillText: {color: colors.white, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 1},
   partyCode: {color: colors.text, fontSize: 40, fontWeight: '900', letterSpacing: 6, marginBottom: spacing.sm},
   partyHint: {color: colors.textDim, fontSize: fontSize.small, lineHeight: 20, marginBottom: spacing.md},
+  partyReacts: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.md},
+  partyReactBtn: {width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)'},
+  partyReactBtnText: {fontSize: 26},
+  // .party-wait — everyone holds while someone loads
+  partyWait: {
+    position: 'absolute',
+    top: '22%',
+    alignSelf: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 22,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(10,11,20,0.82)',
+    borderWidth: 1,
+    borderColor: 'rgba(139,123,255,0.5)',
+  },
+  partyWaitText: {color: colors.white, fontSize: fontSize.body, fontWeight: '700'},
+  // .party-react-float — a face rises over the picture (held still: no
+  // animation on the TV, it disappears after 2.6 s)
+  partyReactFloat: {position: 'absolute', bottom: '22%', alignItems: 'center'},
+  partyReactEmoji: {fontSize: 54},
+  partyReactBy: {color: colors.white, fontSize: fontSize.small, fontWeight: '700'},
   // .skip-intro — a white key, bottom right, above the transport when it is up.
   skipIntro: {
     position: 'absolute',

@@ -118,7 +118,16 @@ router.post("/api/auth/login", async (req, res) => {
   if (tooMany("ip:" + ip) || tooMany(uKey)) {
     return res.status(429).json({ error: "too many attempts — try again in a few minutes" });
   }
-  const result = await profiles.login(username, password);
+  // (the password check can throw — scrypt fails when the machine is out of
+  // memory — and an async handler's throw is never answered under Express 4:
+  // the sign-in screen used to wait for ever)
+  let result;
+  try {
+    result = await profiles.login(username, password);
+  } catch (e) {
+    console.error("[auth] sign-in check failed:", e && e.message ? e.message : e);
+    return res.status(500).json({ error: "the server couldn't check that password right now — try again in a moment" });
+  }
   if (!result.ok) {
     recordFail("ip:" + ip);
     recordFail(uKey);
