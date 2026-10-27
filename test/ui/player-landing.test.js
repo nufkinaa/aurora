@@ -80,4 +80,34 @@ ui.test("the subtitle that is on is fetched once the picture is there, not besid
   assert.ok(seen[0] >= 2, `the first subtitle request went out with the picture at readyState ${seen[0]} (2+: a frame is there)`);
 });
 
+ui.test("a subtitle that is slow to come does not hold the picture — not at the start, not after a seek", async ({ page, srv, signIn, freshProfile, lib }) => {
+  await signIn(await freshProfile());
+  // the server takes 12 s to have the embedded track (it reads the whole film)
+  let asked = 0;
+  let answered = 0;
+  await page.route(/\/stream\/embedded\//, async (route) => { asked++; await new Promise((r) => setTimeout(r, 12000)); answered++; route.continue(); });
+  const marks = player.marks(page);
+  await goto0(page, srv, lib.film2.id);
+  await marks.wait((m) => m.name === "first-frame", 20000, "the first frame");
+  const deadline = Date.now() + 15000;
+  while (!asked && Date.now() < deadline) await page.waitForTimeout(200);
+  assert.ok(asked >= 1, "the subtitle was asked for");
+  const clock = () => page.evaluate(() => document.querySelector(".player video").currentTime);
+  // a seek while it is on its way: the picture has to rise again past "current data"
+  await player.scrubTo(page, 0.5);
+  await page.waitForTimeout(1500);
+  const t0 = await clock();
+  await page.waitForTimeout(3500);
+  const t1 = await clock();
+  assert.equal(answered, 0, "still waiting for the subtitle");
+  assert.ok(t1 - t0 >= 2, `the picture moved ${(t1 - t0).toFixed(2)} s in 3.5 s while the subtitle was on its way`);
+  // …and it comes on when it is here
+  await page.waitForFunction(() => [...document.querySelector(".player video").textTracks].some((t) => t.mode === "showing" && t.cues && t.cues.length > 0), null, { timeout: 25000 });
+});
+const goto0 = async (page, srv, id) => {
+  if (!page.url().startsWith(srv.url)) await page.goto(`${srv.url}/#/movies`);
+  await page.evaluate((h) => { location.hash = h; }, `#/play/${id}`);
+  await page.waitForSelector("#app .player video");
+};
+
 ui.run({ concurrency: 1 });

@@ -579,8 +579,13 @@ const main = async () => {
         await sleep(Number(arg("settle", 45)) * 1000);
         if (BUSY) { stopBusy = startBusy(inst, BUSY); await sleep(15000); }
         if (STEAL) stopSteal = startSteal(STEAL);
+        const os = require("os");
+        const cpuT = () => os.cpus().reduce((a, x) => { const t = x.times; a.idle += t.idle; a.all += t.user + t.nice + t.sys + t.irq + t.idle; return a; }, { idle: 0, all: 0 });
+        const c0 = cpuT();
         const r = cs.flavour === "tv" ? await tvStart(inst, cs) : await webStart(inst, cs, { swarm });
-        const row = { case: c, run, bootMs: inst.libraryMs, ...r };
+        const c1 = cpuT();
+        // how busy the whole PC was meanwhile (other work on it slows the server's part)
+        const row = { case: c, run, bootMs: inst.libraryMs, machineBusy: c1.all > c0.all ? Math.round(100 * (1 - (c1.idle - c0.idle) / (c1.all - c0.all))) : null, ...r };
         if (stopBusy) { await sleep(Number(arg("busy-watch", 0)) * 1000); row.neighbour = stopBusy.stats(); }
         write(row);
         const tl = row.timeline || {};

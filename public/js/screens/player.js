@@ -381,12 +381,37 @@ const resumePoint = (item, restart = false) => {
 // rebuild of its stream (a stall's recovery, a sound or quality change), 22
 // ffmpeg processes reading the same file while the next segment waited for
 // the same disk (measured with tools/stall-rig, 2026-10-27).
-export const trackSrcOf = (trackEl) => (trackEl ? trackEl.getAttribute("src") || trackEl.getAttribute("data-src") || null : null);
+//
+// …and the browser is not the one that fetches it. A <track> that is on
+// ("showing") and still LOADING holds the whole element back: the media may
+// not go past "current data" while a text track it shows is pending (the
+// HTML rule Chrome keeps), so the picture froze for as long as the
+// subtitle took to come — and an embedded track's first fetch is the server
+// reading the whole film (measured on a 2-CPU instance, a hard disk: 14.8,
+// 16.5, 17.3 s of a frozen picture right after the first frame; 28.7 s for
+// a Silo episode). So the player fetches the text itself and hands the
+// element a blob: URL that loads at once; the picture never waits for a
+// subtitle. data-src keeps the real address (the track's identity).
+export const trackSrcOf = (trackEl) => (trackEl ? trackEl.getAttribute("data-src") || trackEl.getAttribute("src") || null : null);
 export const armTrackSrc = (trackEl) => {
-  if (!trackEl || trackEl.hasAttribute("src")) return false;
+  if (!trackEl || trackEl.hasAttribute("src") || trackEl._arming) return false;
   const url = trackEl.getAttribute("data-src");
   if (!url) return false;
-  trackEl.setAttribute("src", url);
+  if (/^(blob|data):/i.test(url) || typeof fetch !== "function" || typeof URL.createObjectURL !== "function") {
+    trackEl.setAttribute("src", url);
+    return true;
+  }
+  trackEl._arming = true;
+  fetch(url, { credentials: "same-origin" })
+    .then((r) => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))))
+    .then((text) => {
+      if (!trackEl.isConnected) return;
+      trackEl.setAttribute("src", URL.createObjectURL(new Blob([text], { type: "text/vtt" })));
+    })
+    // (could not be read: the browser's own way, as before — an error state
+    // the player's empty-track repair knows how to retry)
+    .catch(() => { if (trackEl.isConnected && !trackEl.hasAttribute("src")) trackEl.setAttribute("src", url); })
+    .finally(() => { trackEl._arming = false; });
   return true;
 };
 
@@ -4011,12 +4036,14 @@ export const renderPlayer = async (root, { id }) => {
       "data-src": bust,
       srclang: trackEl.getAttribute("srclang") || "",
     });
-    if (trackEl.hasAttribute("src")) fresh.setAttribute("src", bust);
+    const wasArmed = trackEl.hasAttribute("src");
     armTrackOffset(fresh);
     const wasShowing = trackEl.track && trackEl.track.mode === "showing";
     video.insertBefore(fresh, trackEl); // same position keeps textTracks order
+    { const old = trackEl.getAttribute("src"); if (old && old.startsWith("blob:") && old !== bust) { try { URL.revokeObjectURL(old); } catch {} } }
     trackEl.remove();
     if (wasShowing) fresh.track.mode = "showing";
+    if (wasArmed) armTrackSrc(fresh);
     return fresh;
   };
   // readyState 2 = LOADED, 3 = ERROR — both "settled"; zero cues then means
