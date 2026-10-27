@@ -392,6 +392,10 @@ const judge = (key, p, now) => {
   if (s == null || s >= BEHIND_SPEED) return;
   // only when it was being waited on the whole time (a reader was short of film)…
   if (!p.samples.every((x) => x.waited || now - x.t > BEHIND_FOR_MS * 2)) return;
+  // (whoever the load is: the next encoders on this machine are started at
+  // the faster preset for a while — presetNow)
+  state.slowAt = now;
+  state.slowSpeed = s;
   // …and the CPUs are busy: a torrent that is slow to arrive also makes an
   // encoder slow, and refusing other viewers would not help it
   const busy = sampleCpu();
@@ -420,6 +424,17 @@ const judge = (key, p, now) => {
   state.overloadedUntil = now + OVERLOAD_HOLD_MS;
 };
 const overloaded = () => deps.now() < state.overloadedUntil;
+// The x264 preset for an encode started now. A viewer's encode that could
+// not keep up with the film while somebody waited on it (judge: behind real
+// time, a reader short of film) means this machine cannot make the film at
+// "superfast" right now: for the next half hour encodes start at
+// "ultrafast" — 1.6x the speed (measured on two of this PC's cores, 1080p
+// HEVC → H.264: 2.82x real time → 4.49x), a softer picture at the same
+// ceiling, and a film that does not stop to load every minute. A running
+// encoder keeps its preset; the next one (a seek, a resume, another rung,
+// the TV's next offset job) gets the faster one.
+const SLOW_PRESET_MS = 30 * 60 * 1000;
+const presetNow = () => (state.slowAt && deps.now() - state.slowAt < SLOW_PRESET_MS ? "ultrafast" : "superfast");
 // What share of the whole machine Aurora's own encoders are using now: each
 // running encoder's cost (thread-seconds per film-second, on the reference
 // machine) × the film it is making per second ÷ this machine's speed per
@@ -517,6 +532,8 @@ const _reset = () => {
   state.cpuSample = null;
   state.cpuBusy = null;
   state.refusedForLoad = 0;
+  state.slowAt = 0;
+  state.slowSpeed = null;
   state.other = { last: null, shares: [] };
   if (state.otherTimer) { clearInterval(state.otherTimer); state.otherTimer = null; }
 };
@@ -524,5 +541,6 @@ const _reset = () => {
 module.exports = {
   start, calibrate, refine, capacity, costFor, costOf, memOf, unit, reserve, slots, admit, progress, forget, overloaded, explain, override, ownShare,
   HEADROOM, COST_REF, REF_CAL, MAX_FIXED,
-  _internals: { deps, state, measure, calArgs, outDims, memBudgetMb, speed, sampleCpu, sampleOther, otherShare, _reset, BEHIND_FOR_MS, OVERLOAD_HOLD_MS, UNKNOWN_SPEED, MEM_RESERVE_MB },
+  presetNow,
+  _internals: { SLOW_PRESET_MS, deps, state, measure, calArgs, outDims, memBudgetMb, speed, sampleCpu, sampleOther, otherShare, _reset, BEHIND_FOR_MS, OVERLOAD_HOLD_MS, UNKNOWN_SPEED, MEM_RESERVE_MB },
 };

@@ -63,7 +63,7 @@ const videoArgsFor = (vcodec, vf = null) =>
         "-c:v", "libx264",
         // the same encode as remux.js — see the note there: crf 18 so a forced
         // re-encode looks like the file, superfast to keep real time
-        "-preset", "superfast",
+        "-preset", require("./encbudget").presetNow() /* superfast; ultrafast while this machine is behind real time */,
         "-crf", "18",
         "-pix_fmt", "yuv420p", // fold 10-bit down to 8-bit for browsers
         "-g", "48",
