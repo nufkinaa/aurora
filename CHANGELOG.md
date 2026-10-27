@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.10.3 — 2026-10-27
+
+- **Watch parties keep going.** A member is now a person on a device, not a connection: a reload, a phone lock, switching to the player or a short Wi-Fi drop no longer ends the party or drops a guest — the website rejoins by itself and lands where the party is. A host who stays away for 2 minutes hands the party to the next person instead of ending it. A press from someone who fell out is answered and they rejoin, or they're told the party ended.
+- **Tighter sync.** Positions are worked out against the server's clock; every half second each guest checks its gap to the host and closes small gaps by playing 3–8 % faster or slower, bigger ones with a jump; a pause puts everyone on the same frame. Measured with three people (laptop, laptop, phone) on a server with sign-in: median 12 ms apart, worst 22 ms.
+
 ## 1.10.2 — 2026-10-27
 
 - **Torrent streams on a server that needs sign-in** (like nufurora.com) no longer fail until the download finishes: the server's own picture and sound readers now carry its internal pass, so a stream that has to be repackaged or converted starts as it should, with the full quality ladder.
