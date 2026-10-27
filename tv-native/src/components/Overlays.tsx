@@ -230,6 +230,8 @@ function ReportSheet({hint}: {hint?: string}) {
           online: socketOpen(),
           version: APP_VERSION,
           errors: recentErrors(),
+          // what is playing, how it started: step by step from the press (src/startline.ts)
+          startup: playing && playing.startup ? playing.startup() : null,
         },
         rootNav().profileName,
       );
