@@ -42,4 +42,27 @@ ui.test("two sound switches in a row, the second before the first stream has lan
   const first = asked.find((u) => !/a=1/.test(u)) || "";
   assert.doesNotMatch(first, /seg00000\.ts/, `the second switch asked for ${first}`);
 });
+ui.test("only the subtitle that is on is fetched — at the start and after the stream is rebuilt", async ({ page, srv, signIn, freshProfile, lib }) => {
+  await signIn(await freshProfile());
+  const subs = [];
+  page.on("request", (r) => { const m = /\/stream\/embedded\/[^/]+\/(\d+)/.exec(r.url()); if (m) subs.push(Number(m[1])); });
+  await player.open(page, srv, lib.film2.id, { min: 1 });
+  const showing = async () => (await player.state(page)).showing;
+  // a rebuild of the stream (the other sound track), with a subtitle on or off
+  await menuPick(page, "Hebrew");
+  await player.playing(page, { timeout: 30000, min: 0.3 });
+  await page.waitForTimeout(1500);
+  const on = await showing();
+  assert.ok(new Set(subs).size <= on.length, `fetched tracks ${JSON.stringify([...new Set(subs)])} with ${JSON.stringify(on)} on`);
+  // switching one on fetches it
+  const items = (await player.menu(page, "Subtitles")).filter((i) => !/Resync|Off/.test(i.text));
+  const other = items.find((i) => !on.includes(i.text));
+  await page.locator(".player .menu .menu-item", { hasText: other.text }).click();
+  await page.waitForFunction((label) => {
+    const t = [...document.querySelector(".player video").textTracks].find((x) => x.label === label);
+    return t && t.mode === "showing" && t.cues && t.cues.length > 0;
+  }, other.text, { timeout: 15000 });
+  assert.equal(new Set(subs).size, on.length + 1);
+});
+
 ui.run({ concurrency: 1 });
