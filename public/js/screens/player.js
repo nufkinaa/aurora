@@ -380,7 +380,7 @@ const resumePoint = (item, restart = false) => {
 // server: a Silo episode with 22 text tracks asked for all 22 at once at a
 // rebuild of its stream (a stall's recovery, a sound or quality change), 22
 // ffmpeg processes reading the same file while the next segment waited for
-// the same disk (tools/stall-rig, docs/qa/ttff-vps/REPORT.md).
+// the same disk (measured with tools/stall-rig, 2026-10-27).
 export const trackSrcOf = (trackEl) => (trackEl ? trackEl.getAttribute("src") || trackEl.getAttribute("data-src") || null : null);
 export const armTrackSrc = (trackEl) => {
   if (!trackEl || trackEl.hasAttribute("src")) return false;
