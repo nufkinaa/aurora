@@ -17,12 +17,12 @@ import theme, {useTvMetrics} from '../theme';
 
 const {colors, fontSize, spacing, radius} = theme;
 
-// THIS ROUND: the TV app version the reports round (2026-10-26) ships in. A
+// THIS ROUND: the TV app version the watch-party round (2026-10-27) ships in. A
 // placeholder until the release sets it — the one place to change: its cards
 // say `since: ROUND`, and NEW_FROM = ROUND puts the New ribbon on them alone.
 // (The website has the same cards: public/js/screens/whatsnew.js, ROUND there;
 // its `webOnly` cards — AirPlay from an iPhone — have nothing to do on a TV.)
-export const ROUND = '5.5.0';
+export const ROUND = '5.6.0';
 const NEW_FROM = ROUND;
 const cmpVersion = (a: string, b: string) => {
   const pa = a.split('.').map(Number);
@@ -34,9 +34,27 @@ export const isNewCard = (f: {since?: string}) => !!f.since && cmpVersion(f.sinc
 
 type Feature = {since?: string; glyph: string; title: string; what: string; how: string; go?: {label: string; act: string}};
 export const FEATURES: Feature[] = [
-  // ---- the reports round (2026-10-26): the same cards, the same words, on the website ----
+  // ---- the watch-party round (2026-10-27): the same cards, the same words, on the website ----
   {
     since: ROUND,
+    glyph: '👥',
+    title: 'Watch together, calmly',
+    what: "Everyone in a watch party joins in step and stays there: a pause, a play or a jump reaches the whole room, and nobody's film speeds up or slows down. When a friend's film stalls, the party waits for them and starts again together. Share the invite, send a reaction, and a host who has to go hands the party to the next person.",
+    how: 'In the player press the 👥 button → Start a party and share the four-letter code. The reactions sit in the same menu; to go while the others watch on, press Leave — the next person hosts. Here, Settings → Join a watch party.',
+    go: {label: 'Join a party', act: 'join'},
+  },
+  {
+    since: ROUND,
+    glyph: '⏯️',
+    title: 'Fewer freezes mid-film',
+    what: 'A film that stops because the connection went quiet for a moment picks up again by itself in a few seconds, where it was, instead of freezing for half a minute or starting over from the beginning.',
+    how: 'Nothing to do: the TV gives up on a connection that stopped answering and carries on over a new one.',
+    go: {label: 'Open Movies', act: 'movies'},
+  },
+  // ---- end of the watch-party round ----
+  // ---- the reports round (2026-10-26): the same cards, the same words, on the website ----
+  {
+    since: '5.5.0',
     glyph: '🎞️',
     title: 'Get another version',
     what: "A copy with burned-in subtitles, a bad picture, bad sound or the wrong language? Say what is wrong and pick another version: it downloads and takes the old copy's place, and your place, My List and ratings stay. The copy you have plays until the new one is in.",
@@ -44,7 +62,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Open Movies', act: 'movies'},
   },
   {
-    since: ROUND,
+    since: '5.5.0',
     glyph: '🎬',
     title: 'Cinema copies are never picked for you',
     what: 'A film that is only out as a cinema recording says "Not out in good quality yet" instead of downloading it. Those copies are marked CAM or TS and asked about first, and nothing Aurora picks for you is ever one of them. Adding a film to My List no longer downloads it.',
@@ -52,7 +70,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Open Movies', act: 'movies'},
   },
   {
-    since: ROUND,
+    since: '5.5.0',
     glyph: '🔎',
     title: "Search that doesn't give up",
     what: "When the catalogue is slow, search keeps the matches from your library on screen, says Still searching… and tries again by itself, so a film is no longer “not found” only because the answer came late. If the catalogue can't be reached, it says so, with Try again.",

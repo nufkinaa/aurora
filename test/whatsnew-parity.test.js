@@ -66,6 +66,11 @@ test("every go of the round leads somewhere that exists", () => {
   for (const c of roundCards(web)) {
     const route = c.go.to.replace(/^#/, "");
     if (route === "/") continue;
+    // the screen's own actions (Join a party opens the join sheet, as on the TV)
+    if (route === "join-party" || route === "report") {
+      assert.ok(web.includes(`f.go.to === "${route}"`), `website: the action ${route} is not handled`);
+      continue;
+    }
     assert.ok(router.includes(`route("${route}"`), `website: no route for ${c.go.to}`);
   }
   // TV: an act the screen handles

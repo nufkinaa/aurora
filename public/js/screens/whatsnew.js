@@ -15,39 +15,55 @@ import { showReportSheet } from "../report.js";
 // stays on what is actually recent). `cue`: which small animation the glyph
 // tile plays. Cards are retired when the thing stops being news: the two
 // looks, the keyboard shortcuts and resume-with-the-frame went 2026-10-05.
-// THIS ROUND: the server version the reports round (2026-10-26) ships in. A
+// THIS ROUND: the server version the watch-party round (2026-10-27) ships in. A
 // placeholder until the release sets it — the one place to change: its cards
 // say `since: ROUND`, and NEW_FROM = ROUND puts the ribbon on them alone.
 // (The TV has the same cards: tv-native/src/screens/WhatsNew.tsx, ROUND there.
 // A card about something only a browser has says `webOnly: true` first —
 // test/whatsnew-parity.test.js leaves it out of the comparison.)
-export const ROUND = "1.10.0";
+export const ROUND = "1.12.0";
 const NEW_FROM = ROUND;
 const FEATURES = [
+  // ---- the watch-party round (2026-10-27): the same cards, the same words, on the TV ----
+  {
+    since: ROUND, cue: "party", glyph: "👥",
+    title: "Watch together, calmly",
+    what: "Everyone in a watch party joins in step and stays there: a pause, a play or a jump reaches the whole room, and nobody's film speeds up or slows down. When a friend's film stalls, the party waits for them and starts again together. Share the invite, send a reaction, and a host who has to go hands the party to the next person.",
+    how: "In the player press 👥 → Start a party, then Share the invite. The reactions sit in the same panel; to go while the others watch on, press Leave — the next person hosts.",
+    go: { label: "Join a party", to: "join-party" },
+  },
+  {
+    since: ROUND, cue: "hold", glyph: "⏯️",
+    title: "Fewer freezes mid-film",
+    what: "A film that stops because the connection went quiet for a moment picks up again by itself in a few seconds, where it was, instead of freezing for half a minute or starting over from the beginning.",
+    how: "Nothing to do. On an iPhone, if the server is away for longer, the film waits where it is and offers Try again.",
+    go: { label: "Open Movies", to: "#/movies" },
+  },
+  // ---- end of the watch-party round ----
   // ---- the reports round (2026-10-26): the same cards, the same words, on the TV ----
   {
-    since: ROUND, cue: "smart", glyph: "🎞️",
+    since: "1.10.0", cue: "smart", glyph: "🎞️",
     title: "Get another version",
     what: "A copy with burned-in subtitles, a bad picture, bad sound or the wrong language? Say what is wrong and pick another version: it downloads and takes the old copy's place, and your place, My List and ratings stay. The copy you have plays until the new one is in.",
     how: "On a film you own: Problem with this copy? under its buttons. For an episode, hold it and open its sources; in the player: ⚙ → Problem with this copy?",
     go: { label: "Open Movies", to: "#/movies" },
   },
   {
-    since: ROUND, cue: "look", glyph: "🎬",
+    since: "1.10.0", cue: "look", glyph: "🎬",
     title: "Cinema copies are never picked for you",
     what: "A film that is only out as a cinema recording says \"Not out in good quality yet\" instead of downloading it. Those copies are marked CAM or TS and asked about first, and nothing Aurora picks for you is ever one of them. Adding a film to My List no longer downloads it.",
     how: "Open a film that is still in cinemas: the line sits where Save & watch was, and its sources below carry the yellow mark.",
     go: { label: "Open Movies", to: "#/movies" },
   },
   {
-    since: ROUND, cue: "hold", glyph: "🔎",
+    since: "1.10.0", cue: "hold", glyph: "🔎",
     title: "Search that doesn't give up",
     what: "When the catalogue is slow, search keeps the matches from your library on screen, says Still searching… and tries again by itself, so a film is no longer “not found” only because the answer came late. If the catalogue can't be reached, it says so, with Try again.",
     how: "Nothing to do. Aurora also stopped calling a good connection slow while it opens; it tells you only when a film has to start at a lower quality.",
     go: { label: "Open Search", to: "#/search" },
   },
   {
-    webOnly: true, since: ROUND, cue: "tap", glyph: "📺",
+    webOnly: true, since: "1.10.0", cue: "tap", glyph: "📺",
     title: "AirPlay from an iPhone, fixed",
     what: "Sending a film from an iPhone to an Apple TV brings the picture along, not only the sound, and on a slow line the iPhone recovers where it is instead of dropping to a blurry copy or starting over.",
     how: "In the player press AirPlay and pick your Apple TV. Still only sound? Press No picture there? on the message the phone shows.",
