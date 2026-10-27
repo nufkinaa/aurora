@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.10.2 — 2026-10-27
+
+- **Torrent streams on a server that needs sign-in** (like nufurora.com) no longer fail until the download finishes: the server's own picture and sound readers now carry its internal pass, so a stream that has to be repackaged or converted starts as it should, with the full quality ladder.
+- **More people can start a film at the same moment.** Measured on this PC with everyone pressing Play in the same 10 seconds: about 25 people watching at once before, about 35 now. A copy running far ahead of its viewer drops to the lowest priority (Windows), the torrent progress save no longer holds the server up on a busy disk, and the "disk nearly full" check reads a cached value instead of asking the disk on every request.
+- The load-test harness that measures this ships in tools/loadtest (capacity.js); the full report is in docs/qa/capacity-2026-10/REPORT.md.
+
 ## 1.10.1 — 2026-10-26
 
 - **Admin → Downloads → Suggest what to delete** now lists its suggestions with a tick box each (all ticked at first): poster, size and why it is suggested, episodes under their show with one box for the whole show, Select all / Select none, and a live "N items · X GB will be freed". Delete selected asks first and deletes only what is ticked; afterwards it says what was deleted and what was kept and why. A file someone is watching right now is shown greyed and can't be chosen. Works on a phone and with the keyboard.
