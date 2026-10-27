@@ -4763,7 +4763,7 @@ export const renderPlayer = async (root, { id }) => {
     // (party.js keeps it) and closes small gaps itself; only a far-off
     // member is moved here
     if (st.kind === "sync" && !st.rejoined && st.playing === !video.paused) {
-      const far = usingTranscode || isTorrent ? 8 : 2.5;
+      const far = usingTranscode || isTorrent ? 15 : 10; // closer is left alone (the 20-minute look eases it)
       if (Math.abs(effTime() - partyTarget(st)) <= far) return;
     }
     partyEcho = Date.now() + 1500;
@@ -4778,7 +4778,7 @@ export const renderPlayer = async (root, { id }) => {
     // a pause lines everyone up on the same frame (a seek on a paused
     // direct file is cheap); a play or a jump within a second is left to
     // the drift correction below, which closes it without a visible jump
-    const tol = st.kind === "sync" ? (heavy ? 8 : 2.5) : heavy ? 3 : st.playing ? 1 : 0.1;
+    const tol = st.kind === "sync" ? (heavy ? 15 : 10) : heavy ? 3 : st.playing ? 1 : 0.1;
     if (Math.abs(drift) > tol) seekTo(target);
     if (st.playing && video.paused) video.play().catch(() => {});
     else if (!st.playing && !video.paused) video.pause();
@@ -4926,26 +4926,40 @@ export const renderPlayer = async (root, { id }) => {
     partyRated = true;
     if (video.playbackRate !== rate) video.playbackRate = rate;
   }
+  // Calm by design (elia, 2026-10-27): "sync once, then send each action
+  // (stop, play, skip); fix alignment only when someone stops, or once every
+  // 20 minutes" — and no speed changes: with the sound on, playing a few
+  // percent faster or slower is heard (and some browsers stutter on it). So:
+  //   joining                lands where the party is (once)
+  //   play / pause / jump    every member follows (applyPartyState); a pause
+  //                          lines everyone up on the same frame
+  //   every 20 minutes       one look: more than a second apart (3 s on a
+  //                          converted / torrent stream, which lands on a
+  //                          chunk boundary) → one jump to the right spot
+  //   far off                more than 10 s (15 s converted / torrent: stuck
+  //                          buffering, back from a dropped connection) is
+  //                          moved at once, at most every 30 s
+  // The film's own speed is never touched.
+  const PARTY_ALIGN_EVERY_MS = 20 * 60 * 1000;
+  const PARTY_SEEK_GAP_MS = 30000;
+  let partyNextAlign = Date.now() + PARTY_ALIGN_EVERY_MS;
   const partyDrift = setInterval(() => {
     if (!inParty() || party.role === "host" || !party.current.state) return partyNudge(1);
+    partyNudge(1); // undo a nudge an older build left behind
     const st = party.current.state;
-    if (!st.playing || video.paused || video.seeking || video.readyState < 3 || Date.now() < partyEcho) return partyNudge(1);
+    if (!st.playing || video.paused || video.seeking || video.readyState < 3 || Date.now() < partyEcho) return;
     const heavy = usingTranscode || isTorrent;
     const drift = effTime() - partyTarget(st);
     const abs = Math.abs(drift);
-    if (abs > (heavy ? 3 : 0.5)) {
-      partyNudge(1);
-      if (Date.now() - partyLastFix < 4000) return;
+    const far = abs > (heavy ? 15 : 10) && Date.now() - partyLastFix >= PARTY_SEEK_GAP_MS;
+    const due = Date.now() >= partyNextAlign;
+    if (due) partyNextAlign = Date.now() + PARTY_ALIGN_EVERY_MS;
+    if (far || (due && abs > (heavy ? 3 : 1))) {
       partyLastFix = Date.now();
-      partyEcho = Date.now() + 1500;
-      seekTo(partyTarget(st) + (heavy ? 0 : 0.1)); // a direct file lands a hair ahead: the seek itself takes a moment
-    } else if (abs > 0.04) {
-      // ±3..8 %: a gap of half a second closes in about six seconds, and a
-      // tenth in about three
-      const k = Math.min(0.08, Math.max(0.03, abs * 0.25));
-      partyNudge(drift > 0 ? 1 - k : 1 + k);
-    } else partyNudge(1);
-  }, 500);
+      partyEcho = Date.now() + 4000; // let the jump land before looking again
+      seekTo(partyTarget(st) + (heavy ? 0 : 0.2));
+    }
+  }, 1000);
 
   // ---------- resume card ----------
   // "Resuming from 12:34", with the frame at that spot for a library file

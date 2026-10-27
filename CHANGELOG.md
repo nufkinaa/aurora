@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.10.4 — 2026-10-27
+
+- **Watch parties play calmly.** The picture no longer jumps every few seconds to chase a fraction of a second. Everyone is lined up once when they join; after that every play, pause and jump goes to everyone, a pause puts everyone on the same frame, and a quiet look every 20 minutes moves anyone more than a second off (3 s on a converted or torrent stream) back into step with one jump. Only someone left far behind (10 s, or 15 s converted) is moved at once. The film's speed is never changed any more, so the sound stays clean.
+
 ## 1.10.3 — 2026-10-27
 
 - **Watch parties keep going.** A member is now a person on a device, not a connection: a reload, a phone lock, switching to the player or a short Wi-Fi drop no longer ends the party or drops a guest — the website rejoins by itself and lands where the party is. A host who stays away for 2 minutes hands the party to the next person instead of ending it. A press from someone who fell out is answered and they rejoin, or they're told the party ended.
