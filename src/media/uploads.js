@@ -302,6 +302,7 @@ const writeChunk = async (id, partIdx, offset, req) => {
     err = e;
   } finally {
     rec.busy = false;
+    if (live.get(job.id) === rec && !rec.link) live.delete(job.id);
   }
   // what is really on disk is the count (an aborted chunk keeps what arrived)
   let size = 0;
