@@ -641,17 +641,33 @@ export const renderPlayer = async (root, { id }) => {
   // pressed (the navigation to this player), and each step as it happens.
   const startSteps = { open: performance.now() };
   // Subtitles wait for the picture: a text track's first fetch — for an
-  // embedded track, a read of the whole film on the server — starts with the
-  // first frame (or 5 s in), not beside the first segment the viewer is
-  // waiting for on the same disk. (armSubs below; released in firstFrame.)
+  // embedded track, a read of the whole film on the server — starts once the
+  // first frame is on screen and the stream has some film in hand (15 s
+  // buffered, or 6 s after that frame), not beside the first segments the
+  // viewer is waiting for on the same disk (measured on master: a 16.5 s
+  // freeze right after the start while the track was read). (armSubs below;
+  // released from firstFrame.)
   const subsHeld = [];
-  const releaseSubs = () => { while (subsHeld.length) armTrackSrc(subsHeld.shift()); };
+  // (only what is still switched on by then: a track picked and left again meanwhile is not fetched)
+  const releaseSubs = () => { while (subsHeld.length) { const t = subsHeld.shift(); if (t.track && t.track.mode !== "disabled") armTrackSrc(t); } };
   const armSubs = (trackEl) => {
     if (!trackEl) return;
-    if (startSteps.frame != null || startSteps.subsFree) return void armTrackSrc(trackEl);
+    if (startSteps.subsFree) return void armTrackSrc(trackEl);
     if (!subsHeld.includes(trackEl)) subsHeld.push(trackEl);
   };
-  setTimeout(() => { startSteps.subsFree = true; releaseSubs(); }, 5000);
+  const subsLater = () => {
+    const t0s = performance.now();
+    const check = () => {
+      if (exited) return;
+      let ahead = 0;
+      try { for (let i = 0; i < video.buffered.length; i++) if (video.buffered.start(i) <= video.currentTime + 0.3 && video.buffered.end(i) > video.currentTime) ahead = video.buffered.end(i) - video.currentTime; } catch {}
+      if (ahead >= 15 || performance.now() - t0s >= 6000) { startSteps.subsFree = true; return releaseSubs(); }
+      setTimeout(check, 500);
+    };
+    check();
+  };
+  // (a start that never shows a frame still gets its subtitles in the end)
+  setTimeout(() => { startSteps.subsFree = true; releaseSubs(); }, 20000);
   const pressAt = (() => { const n = navStartedAt(); return n > 0 && startSteps.open - n < 60000 ? n : startSteps.open; })();
 
   let item;
@@ -7076,7 +7092,7 @@ export const renderPlayer = async (root, { id }) => {
     });
     playFirstFrame(ms, { torrent: isTorrent, offline: !!item._offline, remux: jitMode, transcode: usingTranscode }); // [analytics]
     startSteps.frame = at;
-    releaseSubs();
+    subsLater();
     // A moment later (the first segment's timing entry lands when it has
     // arrived whole): the start-up, step by step, from the press.
     setTimeout(() => {
