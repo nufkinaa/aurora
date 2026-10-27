@@ -429,7 +429,7 @@ class AuroraCardView(context: Context) : View(context) {
       return
     }
     // the label (`.card-label`), or the frame card's words
-    if (c.mode == "label" || c.mode == "labelEp" || c.mode == "frame" || c.mode == "frameEp") {
+    if (c.mode == "label" || c.mode == "labelEp" || c.mode == "labelMeta" || c.mode == "frame" || c.mode == "frameEp") {
       val frame = c.mode.startsWith("frame")
       val box = if (frame) d.frameLabel else if (c.raised) d.labelRaised else d.label
       val parts = ArrayList<Pair<CardStamps.TextStamp, String>>()
@@ -438,6 +438,11 @@ class AuroraCardView(context: Context) : View(context) {
         "labelEp" -> {
           parts.add(st.labelSub to c.t1)
           parts.add(st.labelText to c.t2)
+        }
+        // [household] the title over the card's line ("From Dana") — Card.tsx DeepCard
+        "labelMeta" -> {
+          parts.add(st.labelText to c.t1)
+          parts.add(st.labelSub to c.t2)
         }
         else -> {
           parts.add(st.frameTitle to c.t1)

@@ -207,9 +207,41 @@ export type HeroItem = {
   // synthesises for Continue Watching. The site labels those cards even when
   // they aren't in a wide row, so the card needs to see it.
   upNext?: boolean;
+  // [household] A card of "Recommended by your household" (Home's row and the
+  // Show all page): `meta` is the line it prints ("From Dana and Avi"), `hh`
+  // who recommended it and the newest note (routes/household.js recCard).
+  meta?: string;
+  hh?: HouseholdHh;
+  // [household] Not a title: the trailing "Show all recommended" tile of the
+  // household row (householdRecs.ts showAllTile). No peek, no kind tag.
+  cta?: boolean;
 };
 
-export type HomeRow = { id: string; title: string; items: HeroItem[] };
+// [household] what a recommended card carries (docs/qa/household-recs/DESIGN.md "API")
+export type HouseholdFrom = {id: string; name: string; note?: string; at: number};
+export type HouseholdHh = {key: string; from: HouseholdFrom[]; count?: number; at?: number; unseen?: boolean; note?: string; noteBy?: string};
+export type HouseholdSentTo = {id: string; name: string; status: string; at: number; note?: string};
+export type HouseholdSentCard = HeroItem & {hh: {key: string; to: HouseholdSentTo[]; at: number}};
+export type HouseholdPerson = {
+  id: string;
+  name: string;
+  avatar?: string | null;
+  avatarImage?: string | null;
+  color?: string | null;
+  kids?: boolean;
+  state: string;
+  line?: string;
+  waitMin?: number;
+  note?: string;
+};
+export type HouseholdSettings = {
+  on: boolean;
+  people: {id: string; name: string; avatar?: string | null; avatarImage?: string | null; color?: string | null; muted: boolean}[];
+};
+
+// `sub`: the row's quiet line ("2 new", the household row); `total` / `more`:
+// how many there are in all, and whether there are more than the row shows.
+export type HomeRow = { id: string; title: string; items: HeroItem[]; sub?: string; total?: number; more?: boolean };
 export type Home = { hero: HeroItem[]; rows: HomeRow[] };
 
 export type SubtitleTrack = {
@@ -1859,6 +1891,33 @@ export const api = {
         ? { itemId: itemOrRef, add }
         : { stream: itemOrRef, add },
     ),
+
+  // ---- [household] recommendations between the people of this server ----
+  // (routes/household.js; every route acts as the profile in the address and
+  // is guarded like its own data; `slim=1` is the TV's card shape)
+  recommendPeople: (profileId: string, key: string, type: 'movie' | 'show') =>
+    request<{people: HouseholdPerson[]; noteMax: number; perPerson: number; perHour: number}>(
+      `/api/profiles/${profileId}/recommend/people?key=${encodeURIComponent(key)}&type=${type}`,
+    ),
+  recommend: (profileId: string, body: {to: string[]; title: Record<string, unknown>; note: string}) =>
+    post<{sent: {to: string; name: string; updated: boolean}[]; refused: {to: string; name: string; reason: string; line: string; waitMin?: number}[]; line: string; key: string}>(
+      `/api/profiles/${profileId}/recommend`,
+      body,
+    ),
+  household: (profileId: string, from?: string | null) =>
+    request<{items: HeroItem[]; total: number; people: {id: string; name: string; n: number}[]; unseen: number}>(
+      `/api/profiles/${profileId}/household?slim=1${from ? `&from=${encodeURIComponent(from)}` : ''}`,
+    ),
+  householdFor: (profileId: string, key: string) =>
+    request<{from: HouseholdFrom[]; dismissed: boolean}>(`/api/profiles/${profileId}/household/for?key=${encodeURIComponent(key)}`),
+  householdDismiss: (profileId: string, key: string, undo = false) =>
+    post<{ok: boolean}>(`/api/profiles/${profileId}/household/dismiss`, undo ? {key, undo: true} : {key}),
+  householdSeen: (profileId: string) => post<{ok: boolean; n?: number}>(`/api/profiles/${profileId}/household/seen`, {}),
+  householdSent: (profileId: string) =>
+    request<{items: HouseholdSentCard[]}>(`/api/profiles/${profileId}/household/sent?slim=1`),
+  householdSettings: (profileId: string) => request<HouseholdSettings>(`/api/profiles/${profileId}/household/settings`),
+  setHouseholdSettings: (profileId: string, body: {on?: boolean; muted?: string[]}) =>
+    post<HouseholdSettings>(`/api/profiles/${profileId}/household/settings`, body),
 };
 
 export { ApiError };

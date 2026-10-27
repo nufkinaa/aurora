@@ -130,8 +130,11 @@ function Row({
   onRemove,
   store,
   storeKey,
+  caption,
 }: {
   title: string;
+  // [household] the cards print their own line (item.meta, "From Dana") — Card's `caption`
+  caption?: boolean;
   items: HeroItem[];
   onSelect: (item: HeroItem) => void;
   // Bubbled up from the cards so Home can spotlight whatever has focus. It is
@@ -446,6 +449,7 @@ function Row({
                   frame={wide}
                   showKind={showKind}
                   onRemove={onRemove ? removeCard : undefined}
+                  caption={caption}
                   // Nothing sits to the left of card 0, so LEFT from it belongs
                   // to the nav rail. trapFocusLeft below stops the platform
                   // moving focus; NavRail's own handler answers the press.

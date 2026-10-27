@@ -85,6 +85,8 @@ import theme, {useTvMetrics} from '../theme';
 import {homeUsable} from '../telemetry'; // [analytics]
 import {emptyHomeLine} from '../browseCopy';
 import {useMe} from '../navSection';
+import {isShowAll, withShowAll} from '../householdRecs'; // [household]
+import {noteShown, onHouseholdChanged} from '../householdLive'; // [household]
 
 const {colors, fontSize, spacing, radius, motion} = theme;
 
@@ -428,6 +430,18 @@ export default function Home({
     });
     return off;
   }, []);
+  // [household] a recommendation arrived, or one was hidden / sent: the rows
+  // are read again the same way (householdLive.ts)
+  useEffect(
+    () =>
+      onHouseholdChanged(() => {
+        lastFetch.current = 0;
+        if (!liveRef.current) return;
+        console.log('[live] home: household recommendations changed, rows re-read');
+        setLibTick(n => n + 1);
+      }),
+    [],
+  );
   useEffect(() => {
     if (!live) return;
     const fresh = !!data && Date.now() - lastFetch.current < 15000;
@@ -444,6 +458,8 @@ export default function Home({
         if (!on) return;
         // merged in under the "don't move what the viewer is looking at" rule
         takeFreshRef.current(h);
+        // [household] what the row shows is not news for the arrival toast
+        noteShown(h.rows.find(r => r.id === 'household')?.items as never);
         // the TV's own home screen follows: Continue watching + recommendations
         syncHomeScreen(h.rows, profileId);
       })
@@ -537,6 +553,18 @@ export default function Home({
   }, [data]);
 
   const openDetail = useCallback((item: HeroItem) => openItem(navigation, item), [navigation]);
+  // [household] a card of "Recommended by your household" opens its title; the
+  // trailing tile opens the Show all page
+  const openHousehold = useCallback(
+    (item: HeroItem) => {
+      if (isShowAll(item)) {
+        if (canNavigate(navigation)) navigation.push('Household', undefined);
+        return;
+      }
+      openItem(navigation, item);
+    },
+    [navigation],
+  );
   // A press on one of Aurora's entries on the TV's home screen. "play" is the
   // Continue watching row: a library film goes straight to the player (its
   // card in the app opens the title page; here the viewer asked to resume).
@@ -1465,7 +1493,7 @@ export default function Home({
       }
       toRow(rowIndex);
       viewMovedRef.current();
-      warmItem(it);
+      if (!it.cta) warmItem(it); // ([household] the Show all tile is not a title)
       artIdle('shelves', () => {
         const out = [];
         // (rows up to rowIndex + 3 are mounted — toRow's reach; with the
@@ -1535,8 +1563,10 @@ export default function Home({
           {spacer ? null : (
             <Row
               title={r.title}
-              items={r.items}
-              onSelect={r.id === 'continue' ? playContinue : openDetail}
+              // [household] + the Show all tile when there are more than the row holds (cached per items array)
+              items={r.id === 'household' ? withShowAll(r.items, r.more) : r.items}
+              caption={r.id === 'household'}
+              onSelect={r.id === 'continue' ? playContinue : r.id === 'household' ? openHousehold : openDetail}
               onItemFocus={onRowItemFocus}
               rowIndex={i}
               showKind
@@ -1549,7 +1579,7 @@ export default function Home({
         </View>
       );
     },
-    [openDetail, playContinue, onRowItemFocus, removeFromContinue, win, rowH, shelfStore, syncTargets],
+    [openDetail, openHousehold, playContinue, onRowItemFocus, removeFromContinue, win, rowH, shelfStore, syncTargets],
   );
 
   if (!data && !error) {

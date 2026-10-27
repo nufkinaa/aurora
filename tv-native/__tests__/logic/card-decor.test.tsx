@@ -72,6 +72,8 @@ const ITEMS: Record<string, {item: HeroItem; props: Record<string, unknown>}> = 
     props: {wide: true, frame: true},
   },
   upNext: {item: {id: 'e4', title: 'Half Loop', type: 'episode', showId: 'sev', showTitle: 'Severance', season: 1, episode: 2, upNext: true} as unknown as HeroItem, props: {}},
+  // [household] a recommended poster prints its line under the title (the row asks: caption)
+  household: {item: {id: 'm7', title: 'Dune', type: 'movie', meta: 'From Dana and Avi'} as HeroItem, props: {showKind: true, caption: true}},
 };
 
 // every card has its picture (a card with none is the tile: tested on its own below)
@@ -131,7 +133,7 @@ function nativeSays(r: TestRenderer.ReactTestRenderer) {
   const lines = [art.props.t1 ?? '', art.props.t2 ?? '', art.props.t3 ?? ''];
   const mode = (art.props.textMode ?? '') as string;
   const shown =
-    mode === 'label' ? [lines[0]] : mode === 'labelEp' ? [lines[0], lines[1]] : mode === 'frame' ? [lines[0], lines[2]] : mode === 'frameEp' ? [lines[0], lines[1], lines[2]] : [];
+    mode === 'label' ? [lines[0]] : mode === 'labelEp' || mode === 'labelMeta' ? [lines[0], lines[1]] : mode === 'frame' ? [lines[0], lines[2]] : mode === 'frameEp' ? [lines[0], lines[1], lines[2]] : [];
   return {
     lines: shown.filter((t, i) => !(mode.startsWith('frame') && i === shown.length - 1 && t === '')),
     hasNew: !!art.props.tagNew,
@@ -226,7 +228,8 @@ describe('DeepCard says what JsCard draws', () => {
   });
   test('the label paths are all exercised', () => {
     const modes = Object.keys(ITEMS).map(k => nativeSays(render(DeepCard, k)).art.props.textMode ?? '');
-    expect(new Set(modes)).toEqual(new Set(['', 'label', 'labelEp', 'frame', 'frameEp']));
+    expect(new Set(modes)).toEqual(new Set(['', 'label', 'labelEp', 'labelMeta', 'frame', 'frameEp']));
+    expect(nativeSays(render(DeepCard, 'household')).lines).toEqual(['Dune', 'From Dana and Avi']);
     expect(nativeSays(render(DeepCard, 'episodeNoShow')).lines).toEqual(['', 'S2 E3 · Pilot']);
   });
   test('the kind follows the item type', () => {
@@ -307,5 +310,51 @@ describe('the decor is Card.tsx’s own styles', () => {
     expect(stamps).toContain('rect(2.0, 4.0, 20.0, 13.0, 2.0, scale), rect(8.0, 19.0, 8.0, 2.0, 1.0, scale)');
     // the size Card.tsx gives the icon
     expect(card).toMatch(/<Icon\s+name=\{item\.type === 'show' \? 'series' : 'film'\}\s+size=\{11\}/);
+  });
+});
+
+// [household] the card's line is only drawn where the shelf asks for it, and the
+// household row's Show all tile is not a title (no hold-OK sheet, no kind tag)
+describe('household cards', () => {
+  const mk = (L: Loaded, item: HeroItem, props: Record<string, unknown> = {}) => {
+    let r!: TestRenderer.ReactTestRenderer;
+    L.T.act(() => {
+      r = L.T.create(L.R.createElement(L.Card, {item, index: 0, onPress: () => {}, ...props}));
+    });
+    return r;
+  };
+  const dune = {id: 'm8', title: 'Dune', type: 'movie', meta: 'From Dana', poster: 'https://art.example/dune.jpg'} as HeroItem;
+  test('a meta line without `caption` changes nothing (every other shelf)', () => {
+    const JsCard = loadCard(false, false);
+    expect(jsSays(mk(JsCard, dune, {showKind: true})).lines).toEqual([]);
+    expect(jsSays(mk(JsCard, dune, {showKind: true, caption: true})).lines).toEqual(['Dune', 'From Dana']);
+    const NativeCard = loadCard(true, false);
+    expect(jsSays(mk(NativeCard, dune, {caption: true})).lines).toEqual(['Dune', 'From Dana']);
+  });
+  test('a recommendation not looked at yet carries NEW (the website’s card), in every implementation', () => {
+    const fresh = {...dune, hh: {key: 'tt1', from: [{id: 'd', name: 'Dana', at: 1}], unseen: true}} as HeroItem;
+    const seen = {...dune, hh: {key: 'tt1', from: [{id: 'd', name: 'Dana', at: 1}], unseen: false}} as HeroItem;
+    for (const L of [loadCard(false, false), loadCard(true, false)]) {
+      expect(jsSays(mk(L, fresh, {caption: true})).hasNew).toBe(true);
+      expect(jsSays(mk(L, seen, {caption: true})).hasNew).toBe(false);
+    }
+    // (the no-decor test above leaves its cardDecor mock in the registry)
+    const Deep = loadCard(true, true, () => jest.dontMock('../../src/cardDecor'));
+    expect(nativeSays(mk(Deep, fresh, {caption: true})).hasNew).toBe(true);
+    expect(nativeSays(mk(Deep, seen, {caption: true})).hasNew).toBe(false);
+  });
+  test('the Show all tile: its own control id, no peek, no kind tag', () => {
+    for (const L of [loadCard(false, false), loadCard(true, false), loadCard(true, true, () => jest.dontMock('../../src/cardDecor'))]) {
+      const r = mk(L, {id: '__household_all', title: 'Show all recommended', cta: true} as HeroItem, {showKind: true});
+      // the Focusable mock itself (a function component) holds the props the card gave it
+      const f = r.root.findAll(n => typeof n.type === 'function' && Object.prototype.hasOwnProperty.call(n.props, 'uiId'));
+      expect(f.length).toBe(1);
+      expect(f[0].props.uiId).toBe('home.hh.all');
+      expect(f[0].props.onLongPress).toBeUndefined();
+      const icons = r.root.findAll(n => (n.type as unknown) === 'Svg' && n.props.fill != null);
+      expect(icons.length).toBe(0);
+      const views = r.root.findAll(n => (n.type as unknown) === 'AuroraNative');
+      for (const v of views) expect(v.props.tagKind).toBeUndefined();
+    }
   });
 });

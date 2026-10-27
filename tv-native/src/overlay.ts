@@ -3,6 +3,7 @@
 // call open*(). One sheet at a time — a sheet over a sheet is never wanted.
 import {useEffect, useState} from 'react';
 import type {HeroItem, XrayQuery} from './api';
+import type {TitleLike} from './householdRecs';
 import type {UpdateInfo} from './update';
 
 export type Overlay =
@@ -15,6 +16,9 @@ export type Overlay =
   | {kind: 'actions'; title: string; sub?: string; body?: string; items: ActionItem[]}
   | {kind: 'xray'; query: XrayQuery; title: string; onClose?: () => void}
   | {kind: 'replace'; libraryId: string; title: string; context?: Record<string, unknown>; onClose?: () => void}
+  // [household] the person picker: who should see this title (components/RecommendSheet.tsx).
+  // `imdbId`: the page's own IMDb id when the title carries none (Detail's lookups).
+  | {kind: 'recommend'; title: TitleLike; imdbId?: string | null}
   | null;
 
 // One row of the actions sheet (an episode's long-press menu).
@@ -57,6 +61,13 @@ export const openXray = (o: {query: XrayQuery; title: string; onClose?: () => vo
 // film, or one episode) — components/ReplaceSheet.tsx.
 export const openReplace = (o: {libraryId: string; title: string; context?: Record<string, unknown>; onClose?: () => void}) =>
   openOverlay({kind: 'replace', ...o});
+
+// [household] "Recommend" — from the title page, the hold-OK sheet (which
+// closes first: one sheet at a time) or the end of a film.
+export const openRecommend = (title: TitleLike, imdbId?: string | null) => {
+  if (current && current.kind === 'peek') set(null);
+  openOverlay({kind: 'recommend', title, imdbId});
+};
 
 export const useOverlay = () => {
   const [o, setO] = useState<Overlay>(current);

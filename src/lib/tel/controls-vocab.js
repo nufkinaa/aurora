@@ -29,7 +29,7 @@ module.exports = {
   "detail.episode.playontv": "w", // [phone-remote]
   "detail.episode.watched": "w",
   "detail.follow": "wt",
-  "detail.hh.dismiss": "w", // "Not for me" on a recommended title
+  "detail.hh.dismiss": "wt", // "Not for me" on a recommended title
   "detail.mylist": "wt",
   "detail.offline": "w",
   "detail.offline.season": "w",
@@ -37,7 +37,7 @@ module.exports = {
   "detail.play": "wt",
   "detail.replace": "wt",
   "detail.playontv": "w", // [phone-remote]
-  "detail.recommend": "w",
+  "detail.recommend": "wt",
   "detail.restart": "wt",
   "detail.rollagain": "w",
   "detail.save": "w",
@@ -74,7 +74,7 @@ module.exports = {
   "home.hero.pick": "w",
   "home.hero.play": "wt",
   "home.retry": "wt",
-  "home.hh.all": "w", // "Show all recommended"
+  "home.hh.all": "wt", // "Show all recommended"
   "home.switchprofile": "t",
   // mylist
   "mylist.filter": "t",
@@ -98,8 +98,8 @@ module.exports = {
   "party.join": "t",
   // peek
   "peek.close": "w",
-  "peek.hh.dismiss": "w",
-  "peek.recommend": "w",
+  "peek.hh.dismiss": "wt",
+  "peek.recommend": "wt",
   "peek.details": "wt",
   "peek.mylist": "wt",
   "peek.play": "wt",
@@ -167,8 +167,8 @@ module.exports = {
   "profile.save": "w",
   "profile.unlock": "wt",
   // household (the "Show all recommended" page)
-  "household.filter": "w",
-  "household.tab": "w",
+  "household.filter": "wt",
+  "household.tab": "wt",
   // rating
   "rating.star": "w",
   // remote (the phone as a remote, #/remote) [phone-remote]
@@ -195,9 +195,9 @@ module.exports = {
   "remote.view": "w",
   "remote.volume": "w",
   // recommend (the Recommend sheet)
-  "recommend.close": "w",
-  "recommend.person": "w",
-  "recommend.send": "w",
+  "recommend.close": "wt",
+  "recommend.person": "wt",
+  "recommend.send": "wt",
   // report
   "report.send": "wt",
   // replace ("Problem with this copy? → Get another version")
@@ -227,7 +227,9 @@ module.exports = {
   "settings.done": "w",
   "settings.downloads": "t",
   "settings.genre": "t",
-  "settings.hh.mute": "w", // Recommendations: Mute / Muted
+  "settings.hh.mute": "wt", // Recommendations: Mute / Muted
+  "settings.hh.sent": "t", // Recommendations: What you sent (the site's is settings.link)
+  "settings.hh.toggle": "t", // Recommendations from the household (the site's is settings.toggle)
   "settings.link": "w",
   "settings.look": "w",
   "settings.notices": "t",

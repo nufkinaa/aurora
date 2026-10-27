@@ -26,6 +26,8 @@ const PROFILE: Record<string, string[]> = {
   'artPrefetch.ts': ['wants', 'queue', 'timer'],
   'homeSnapshot.ts': ['primed'],
   'homeScreen.ts': ['lastNext', 'lastChannel', 'lastConfig', 'lastRows', 'lastProfile', 'lastJobs'],
+  // [household] whose pings this TV hears, and the newest recommendation it has shown them
+  'householdLive.ts': ['profile', 'newest', 'asking'],
   'navSection.ts': ['cache', 'cacheAt', 'loading'],
   'party.ts': ['pending'],
   'personSync.ts': ['active', 'asking', 'entering'],
@@ -66,6 +68,8 @@ const DEVICE: Record<string, Record<string, string>> = {
   'homeSnapshot.ts': {
     marked: 'which launch marks this run has logged',
   },
+  'householdLive.ts': {changeFns: 'listeners (Home and the Show all page re-read)'},
+  'householdRecs.ts': {tailed: 'the household row with its Show all tile, keyed weakly by the row’s own items array (it goes with the array)'},
   'rowWindow.ts': {
     heldCache: 'fixed margin objects per run length (a held key), the same for everyone',
   },

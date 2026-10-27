@@ -47,6 +47,7 @@ const SCREENS = {
   WhatsNew: () => require('./screens/WhatsNew').default,
   Sources: () => require('./screens/Sources').default,
   Taste: () => require('./screens/Taste').default,
+  Household: () => require('./screens/Household').default, // [household] Show all recommended
 } as const;
 
 const WARM_FIRST_MS = 6000; // after Home's own first seconds (its rows, its pictures, the trailer lookup)
@@ -86,6 +87,8 @@ export type RootStackParamList = {
   Pick: undefined;
   Downloads: undefined;
   Taste: undefined;
+  // [household] "Recommended by your household" — Show all (`tab`: which one opens)
+  Household: {tab?: 'forYou' | 'sent'} | undefined;
   // `play`: the page presses its own Play once it knows what that means (Home's
   // hero — one press from the sofa to the film; playBest.ts autoPlayStep).
   Detail: {item: HeroItem; play?: boolean};
@@ -181,6 +184,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Detail" getComponent={SCREENS.Detail} />
         <Stack.Screen name="Sources" getComponent={SCREENS.Sources} />
         <Stack.Screen name="Taste" getComponent={SCREENS.Taste} />
+        <Stack.Screen name="Household" getComponent={SCREENS.Household} />
         {/* No fade for the player: cross-fading a video surface is expensive
             on a TV GPU and reads as a flicker rather than a transition. */}
         <Stack.Screen name="Player" getComponent={SCREENS.Player} options={{animation: 'none'}} />

@@ -137,34 +137,36 @@ A control is tagged where it is built:
 - website: `"data-ui": "detail.play"` on the element (one delegated click listener reads it; nothing is ever guessed from a control's text). A control that is not a click on an element — a keyboard shortcut, a tap zone — calls `uiHit("player.seek.fwd")`.
 - TV: `uiId="detail.play"` on a `Focusable`, `Btn` or `Chip` (and the small wrappers that pass it through). Without it nothing happens.
 
-The vocabulary (`src/lib/tel/controls-vocab.js`) — 229 ids: 168 on the website, 140 on the TV, 79 on both.
+The vocabulary (`src/lib/tel/controls-vocab.js`) — 249 ids: 185 on the website, 157 on the TV, 93 on both.
 
 | Area | Website only | TV app only | Both |
 |---|---|---|---|
 | actions | – | `actions.pick` | – |
 | browse | `browse.chip.pick` `browse.filter.clear` `browse.genre.open` `browse.loadmore` `browse.option.pick` `browse.sort.open` | `browse.retry` | `browse.category.pick` `browse.surprise` `browse.unwatched` |
-| card | `card.remove` | – | `card.open` |
-| detail | `detail.download.device` `detail.episode.download` `detail.episode.offline` `detail.episode.playontv` `detail.episode.watched` `detail.offline.season` `detail.offline.seasonall` `detail.offline` `detail.playontv` `detail.rollagain` `detail.save` `detail.season.open` `detail.sources.fold` `detail.sources.more` `detail.sources.retry` `detail.synopsis.more` `detail.trailer.close` `detail.trailer.pick` | `detail.season.pick` `detail.season.watched` `detail.similar` `detail.source.pick` | `detail.episode.play` `detail.episode.replace` `detail.follow` `detail.mylist` `detail.play` `detail.replace` `detail.restart` `detail.source.download` `detail.source.play` `detail.sources` `detail.trailer` `detail.watched` `detail.xray` |
+| card | `card.remove` `card.hh.add` | – | `card.open` |
+| detail | `detail.download.device` `detail.episode.download` `detail.episode.offline` `detail.episode.playontv` `detail.episode.watched` `detail.offline.season` `detail.offline.seasonall` `detail.offline` `detail.playontv` `detail.rollagain` `detail.save` `detail.season.open` `detail.sources.fold` `detail.sources.more` `detail.sources.retry` `detail.synopsis.more` `detail.trailer.close` `detail.trailer.pick` | `detail.season.pick` `detail.season.watched` `detail.similar` `detail.source.pick` | `detail.episode.play` `detail.episode.replace` `detail.follow` `detail.mylist` `detail.play` `detail.replace` `detail.restart` `detail.source.download` `detail.source.play` `detail.sources` `detail.trailer` `detail.watched` `detail.xray` `detail.hh.dismiss` `detail.recommend` |
 | downloadpicker | `downloadpicker.confirm` | – | – |
 | downloads | `downloads.cancel` `downloads.open` `downloads.play` `downloads.remove` `downloads.retry` | `downloads.row` | – |
-| home | `home.hero.pick` | `home.hero.party` `home.switchprofile` | `home.hero.details` `home.hero.mute` `home.hero.play` `home.retry` |
+| home | `home.hero.pick` | `home.hero.party` `home.switchprofile` | `home.hero.details` `home.hero.mute` `home.hero.play` `home.retry` `home.hh.all` |
 | mylist | – | `mylist.filter` | – |
 | nav | `nav.downloads` `nav.new` `nav.remote` `nav.saved` | – | `nav.ai` `nav.home` `nav.movies` `nav.mylist` `nav.profile` `nav.search` `nav.settings` `nav.shows` |
 | newpassword | – | `newpassword.signout` `newpassword.submit` | – |
 | party | – | `party.join` | – |
-| peek | `peek.close` `peek.playontv` `peek.remove` | – | `peek.details` `peek.mylist` `peek.play` |
+| peek | `peek.close` `peek.playontv` `peek.remove` | – | `peek.details` `peek.mylist` `peek.play` `peek.hh.dismiss` `peek.recommend` |
 | pick | – | `pick.retry` `pick.unfold` | `pick.example` `pick.go` `pick.option` |
 | picker | – | `picker.open` `picker.pick` | – |
-| player | `player.airplay` `player.fullscreen` `player.party.share` `player.party.tapjoin` `player.pip` `player.playontv` `player.quality.pick` `player.subtitles.undo` | `player.autoplay` `player.back` `player.slowstart.lower` `player.slowstart.wait` `player.stall.lower` `player.stall.retry` | `player.audio.dialogue` `player.audio.night` `player.audio.pick` `player.mute` `player.next` `player.party` `player.party.handover` `player.party.react` `player.party.start` `player.playpause` `player.replace` `player.retry` `player.scrub` `player.seek.back` `player.seek.fwd` `player.settings.open` `player.skipintro` `player.speed.open` `player.speed.pick` `player.startover` `player.stillwatching.done` `player.stillwatching.keep` `player.subtitles.open` `player.subtitles.pick` `player.subtitles.resync` `player.subtitles.style` `player.upnext.dismiss` `player.upnext.play` `player.xray` |
+| player | `player.airplay` `player.fullscreen` `player.party.share` `player.party.tapjoin` `player.pip` `player.playontv` `player.quality.pick` `player.subtitles.undo` `player.recommend` | `player.autoplay` `player.back` `player.slowstart.lower` `player.slowstart.wait` `player.stall.lower` `player.stall.retry` | `player.audio.dialogue` `player.audio.night` `player.audio.pick` `player.mute` `player.next` `player.party` `player.party.handover` `player.party.react` `player.party.start` `player.playpause` `player.replace` `player.retry` `player.scrub` `player.seek.back` `player.seek.fwd` `player.settings.open` `player.skipintro` `player.speed.open` `player.speed.pick` `player.startover` `player.stillwatching.done` `player.stillwatching.keep` `player.subtitles.open` `player.subtitles.pick` `player.subtitles.resync` `player.subtitles.style` `player.upnext.dismiss` `player.upnext.play` `player.xray` |
 | profile | `profile.add` `profile.gate.close` `profile.save` | `profile.pin.submit` | `profile.pick` `profile.unlock` |
+| household | – | – | `household.filter` `household.tab` |
 | rating | `rating.star` | – | – |
 | remote | `remote.audio` `remote.back` `remote.close` `remote.device.open` `remote.device.pick` `remote.dpad` `remote.home` `remote.more` `remote.mute` `remote.next` `remote.padmode` `remote.play` `remote.playpause` `remote.rename` `remote.seek` `remote.sheet.pick` `remote.skip` `remote.stop` `remote.subdelay` `remote.subtitles` `remote.view` `remote.volume` | – | – |
-| replace | – | – | `replace.cancel` `replace.early` `replace.pick` `replace.reason` |
+| recommend | – | – | `recommend.close` `recommend.person` `recommend.send` |
+| replace | – | `replace.early` | `replace.cancel` `replace.pick` `replace.reason` |
 | report | – | – | `report.send` |
 | row | `row.arrow` | – | – |
 | saved | `saved.play` `saved.remove` | – | – |
-| search | `search.clear` `search.retry` | – | `search.recent.pick` `search.suggestion.pick` `search.voice` `search.voice.lang` |
-| settings | `settings.accent` `settings.done` `settings.link` `settings.look` `settings.rows.hide` `settings.theme` `settings.toggle` | `settings.audio.dialogue` `settings.audio.night` `settings.autoplay` `settings.av.fps` `settings.av.surround` `settings.downloads` `settings.genre` `settings.notices` `settings.party` `settings.report` `settings.signout` `settings.taste` `settings.subs.auto` `settings.subs.bg` `settings.subs.color` `settings.subs.lang` `settings.subs.opacity` `settings.subs.pos` `settings.subs.size` `settings.subs.weight` `settings.trailers` `settings.tvname` `settings.tvname.pick` `settings.update` `settings.usagestats` `settings.whatsnew` | – |
+| search | `search.clear` | – | `search.recent.pick` `search.suggestion.pick` `search.voice` `search.voice.lang` `search.retry` |
+| settings | `settings.accent` `settings.done` `settings.link` `settings.look` `settings.rows.hide` `settings.theme` `settings.toggle` | `settings.audio.dialogue` `settings.audio.night` `settings.autoplay` `settings.av.fps` `settings.av.surround` `settings.downloads` `settings.genre` `settings.notices` `settings.party` `settings.report` `settings.signout` `settings.taste` `settings.subs.auto` `settings.subs.bg` `settings.subs.color` `settings.subs.lang` `settings.subs.opacity` `settings.subs.pos` `settings.subs.size` `settings.subs.weight` `settings.trailers` `settings.tvname` `settings.tvname.pick` `settings.update` `settings.usagestats` `settings.whatsnew` `settings.hh.sent` `settings.hh.toggle` | `settings.hh.mute` |
 | taste | `taste.back` `taste.edit` `taste.key` `taste.swipe` `taste.unnope` | – | `taste.done` `taste.love` `taste.more` `taste.nope` `taste.skip` `taste.undo` |
 | signin | – | `signin.mode.google` `signin.mode.qr` `signin.mode.typed` `signin.request` `signin.submit` | – |
 | state | – | `state.action` | – |

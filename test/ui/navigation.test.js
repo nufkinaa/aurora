@@ -45,6 +45,9 @@ const ROUTES = (lib) => ({
   "/taste/list": { hash: "#/taste/list", text: "What do you love?" },
   "/pick": { hash: "#/pick" },
   "/new": { hash: "#/new", text: "New in Aurora" },
+  // household recommendations: the Show all page, and its "You sent" tab
+  "/household": { hash: "#/household", text: "Recommended by your household" },
+  "/household/sent": { hash: "#/household/sent", text: "You sent" },
   // a pairing code nobody issued
   "/pair/:code": { hash: "#/pair/ABCD12", text: "That code expired" },
   // {host}/link with no code: the field to type the TV's code into

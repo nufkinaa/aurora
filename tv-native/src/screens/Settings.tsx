@@ -15,6 +15,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {View, Text, ScrollView, StyleSheet, ActivityIndicator} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
+import Chip from '../components/Chip';
 import Focusable from '../components/Focusable';
 import NavRail from '../components/NavRail';
 import {api, getSession, setSession} from '../api';
@@ -38,6 +39,9 @@ import {SubStylePreview, useAudioFx} from '../playerOptions';
 import {nextChoice, readStyle, styleLabel, SUB_STYLE_KEYS, SUB_STYLE_SETTINGS, SubStyleKey} from '../subStyle';
 import {AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES} from '../audioFx';
 import TvNamePicker, {useTvName} from '../remote/TvNamePicker'; // [phone-remote]
+import {HouseholdSettings} from '../api'; // [household]
+import {WORDS as HH} from '../householdRecs'; // [household]
+import {householdChanged} from '../householdLive'; // [household]
 
 const {colors, fontSize, spacing, radius} = theme;
 
@@ -85,6 +89,74 @@ const Row = React.memo(function PrefRow({
     </Focusable>
   );
 });
+
+// [household] "Recommendations": the switch and the mute list — the person's,
+// kept on the server (GET/POST /api/profiles/:id/household/settings), so the
+// same on the website and on every TV; nothing of it is stored on this box.
+// "What you sent" opens the Show all page on its You sent tab (the page is
+// otherwise only reached from Home's row when there are more than 15).
+function HouseholdPrefs({profileId, onSent}: {profileId: string; onSent: () => void}) {
+  const [st, setSt] = useState<HouseholdSettings | null>(null);
+  useEffect(() => {
+    let live = true;
+    api
+      .householdSettings(profileId)
+      .then(r => live && setSt(r))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [profileId]);
+  const save = async (body: {on?: boolean; muted?: string[]}, optimistic: HouseholdSettings) => {
+    const before = st;
+    setSt(optimistic);
+    try {
+      setSt(await api.setHouseholdSettings(profileId, body));
+      householdChanged(); // Home's row follows
+    } catch {
+      setSt(before);
+      showToast("Couldn't save that — try again in a moment", '⚠️');
+    }
+  };
+  const mutedIds = (st?.people || []).filter(p => p.muted).map(p => p.id);
+  const mute = (p: HouseholdSettings['people'][number]) => {
+    if (!st) return;
+    const muted = p.muted ? mutedIds.filter(id => id !== p.id) : [...mutedIds, p.id];
+    save({muted}, {...st, people: st.people.map(x => (x.id === p.id ? {...x, muted: !p.muted} : x))});
+  };
+  return (
+    <>
+      <Text style={styles.h2}>{HH.settingsSection}</Text>
+      <View style={styles.list}>
+        <Row uiId="settings.hh.toggle"
+          label={HH.settingsSwitch}
+          note={HH.settingsSwitchNote}
+          value={!st ? '…' : st.on ? 'On' : 'Off'}
+          onPress={() => st && save({on: !st.on}, {...st, on: !st.on})}
+        />
+      </View>
+      {st && st.people.length ? (
+        <>
+          <Text style={[styles.note, styles.hhMuteLine]}>{HH.muteLine}</Text>
+          {/* the website's chips: "Dana · Mute" / "Avi · Muted" */}
+          <View style={styles.hhChips}>
+            {st.people.map((p, i) => (
+              <Chip uiId="settings.hh.mute" key={p.id} small edgeLeft={i === 0} on={p.muted} label={`${p.name} · ${p.muted ? HH.muted : HH.mute}`} onPress={() => mute(p)} />
+            ))}
+          </View>
+        </>
+      ) : null}
+      <View style={[styles.list, styles.hhSent]}>
+        <Row uiId="settings.hh.sent"
+          label="What you sent"
+          note="What you recommended, and whether each person saw it, put it on their list or watched it."
+          value="›"
+          onPress={onSent}
+        />
+      </View>
+    </>
+  );
+}
 
 export default function Settings({
   navigation,
@@ -448,6 +520,8 @@ export default function Settings({
             }}
           />
         </View>
+        {/* [household] Recommendations (the person's, on the server) */}
+        <HouseholdPrefs profileId={profileId} onSent={() => navigation.push('Household', {tab: 'sent'})} />
         <Text style={styles.h2}>Privacy</Text>
         <View style={styles.list}>
           <Row uiId="settings.usagestats"
@@ -519,6 +593,9 @@ export default function Settings({
 const STYLE_UI: Record<SubStyleKey, string> = {subSize: 'settings.subs.size', subColor: 'settings.subs.color', subBg: 'settings.subs.bg', subOpacity: 'settings.subs.opacity', subWeight: 'settings.subs.weight', subPos: 'settings.subs.pos'}; // uiId
 
 const styles = StyleSheet.create({
+  hhMuteLine: {marginTop: spacing.md}, // [household]
+  hhChips: {flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm}, // [household]
+  hhSent: {marginTop: spacing.md}, // [household]
   // [player-options] the subtitle sample, as wide as a row
   preview: {marginVertical: spacing.sm, maxWidth: 900},
   signOut: {

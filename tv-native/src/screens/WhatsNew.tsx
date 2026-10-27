@@ -17,12 +17,12 @@ import theme, {useTvMetrics} from '../theme';
 
 const {colors, fontSize, spacing, radius} = theme;
 
-// THIS ROUND: the TV app version the watch-party round (2026-10-27) ships in. A
+// THIS ROUND: the TV app version the household-recommendations round (2026-10-27) ships in. A
 // placeholder until the release sets it — the one place to change: its cards
 // say `since: ROUND`, and NEW_FROM = ROUND puts the New ribbon on them alone.
 // (The website has the same cards: public/js/screens/whatsnew.js, ROUND there;
 // its `webOnly` cards — AirPlay from an iPhone — have nothing to do on a TV.)
-export const ROUND = '5.6.0';
+export const ROUND = '5.7.0';
 const NEW_FROM = ROUND;
 const cmpVersion = (a: string, b: string) => {
   const pa = a.split('.').map(Number);
@@ -34,9 +34,27 @@ export const isNewCard = (f: {since?: string}) => !!f.since && cmpVersion(f.sinc
 
 type Feature = {since?: string; glyph: string; title: string; what: string; how: string; go?: {label: string; act: string}};
 export const FEATURES: Feature[] = [
-  // ---- the watch-party round (2026-10-27): the same cards, the same words, on the website ----
+  // ---- the household-recommendations round (2026-10-27): the same card, the same words, on the website ----
   {
     since: ROUND,
+    glyph: '📨',
+    title: 'Recommend to your household',
+    what: 'Send a film or a show to someone in your household, with a short note if you like. What the others recommend to you sits on Home under Recommended for You, the titles more of them recommended first, and one press puts it on your My List.',
+    how: 'On any title press Recommend, pick the faces with OK and press Send. On Home, hold OK on a recommended card for Add to My List or Not for me. To mute someone: Settings → Recommendations.',
+    go: {label: 'Go home', act: 'home'},
+  },
+  {
+    since: ROUND,
+    glyph: '📬',
+    title: 'See what became of your picks',
+    what: 'Show all recommended lists everything the household recommended to you, by person, and its second tab what you sent: whether each person saw it, put it on their list or watched it. Not for me tells nobody.',
+    how: 'Settings → Recommendations → What you sent. Show all recommended also ends the row on Home once there are more than 15.',
+    go: {label: 'Open Settings', act: 'settings'},
+  },
+  // ---- end of the household-recommendations round ----
+  // ---- the watch-party round (2026-10-27): the same cards, the same words, on the website ----
+  {
+    since: '5.6.0',
     glyph: '👥',
     title: 'Watch together, calmly',
     what: "Everyone in a watch party joins in step and stays there: a pause, a play or a jump reaches the whole room, and nobody's film speeds up or slows down. When a friend's film stalls, the party waits for them and starts again together. Share the invite, send a reaction, and a host who has to go hands the party to the next person.",
@@ -44,7 +62,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Join a party', act: 'join'},
   },
   {
-    since: ROUND,
+    since: '5.6.0',
     glyph: '⏯️',
     title: 'Fewer freezes mid-film',
     what: 'A film that stops because the connection went quiet for a moment picks up again by itself in a few seconds, where it was, instead of freezing for half a minute or starting over from the beginning.',
