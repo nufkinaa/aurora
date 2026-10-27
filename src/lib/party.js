@@ -17,13 +17,23 @@
 // Leaving on purpose (party_leave) is immediate, and the host's "End party"
 // ends it for everyone.
 //
+// Everyone waits for whoever buffers: a member whose film stalls while the
+// party plays says so (party_buffer); the party holds at that member's spot
+// ("Waiting for Dana…") and, once every waiting member has enough to play,
+// starts again — for everyone at the same server instant, START_LEAD_MS
+// ahead, so all of them are already sitting at the frame when it moves.
+// A play or a jump is a start together in the same way. A member who
+// cannot catch up within WAIT_GIVEUP_MS is not waited for any longer.
+//
 // In memory only: a party is a moment, not a record. Pure over a send
 // function (plus timers) so it can be pinned by tests without sockets.
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1 look-alikes
 const CODE_LEN = 4;
 const MAX_MEMBERS = 12;
 const ITEM_MAX_JSON = 24 * 1024; // a torrent play-item is a few KB; this is generous
-const opts = { graceMs: 2 * 60 * 1000 };
+const opts = { graceMs: 2 * 60 * 1000, startLeadMs: 400, waitGiveUpMs: 20 * 1000 };
+const REACTIONS = ["😂", "😮", "😍", "👏", "😱", "😢", "🔥", "👍"];
+const REACT_EVERY_MS = 400;
 
 const parties = new Map(); // code -> party
 const byClient = new Map(); // clientId -> code
@@ -72,10 +82,12 @@ const publicParty = (p, you = null) => ({
   item: p.item,
   members: [...p.members.values()].map(publicMember),
   state: { ...p.state },
+  waiting: waitingNames(p),
   now: Date.now(),
   createdAt: p.createdAt,
   ...(you ? { you } : {}),
 });
+const waitingNames = (p) => (p.buffering ? [...p.buffering.keys()].map((k) => (p.members.get(k) || {}).name).filter(Boolean) : []);
 
 // The lighter shape the Home strip shows to everyone on the server.
 const publicSummary = (p) => ({
@@ -126,6 +138,7 @@ const clearAway = (m) => {
 
 const end = (p, send, reason) => {
   parties.delete(p.code);
+  clearTimeout(p.giveUp);
   for (const m of p.members.values()) {
     clearAway(m);
     if (m.clientId) unbindClient(m.clientId);
@@ -152,6 +165,7 @@ const removeMember = (p, key, send, { ending = false } = {}) => {
   if (who.clientId) unbindClient(who.clientId);
   p.members.delete(key);
   const name = who.name || "Someone";
+  if (p.members.size) stopWaitingFor(p, key, send);
   if (p.members.size === 0) return end(p, send, `${name} ended the party`);
   if (key === p.hostKey) {
     if (ending) {
@@ -176,6 +190,9 @@ const create = (client, item, send, { device } = {}) => {
     item: clean,
     members: new Map([[key, memberOf(client, key)]]),
     state: { playing: false, position: 0, at: Date.now() },
+    buffering: new Map(), // key -> since: the members the party is waiting for
+    hold: null, // { position, wasPlaying } while it waits
+    giveUp: null,
     createdAt: Date.now(),
   };
   parties.set(code, p);
@@ -222,14 +239,15 @@ const partyOf = (client) => {
   return p && key && p.members.has(key) ? { p, key } : null;
 };
 
-// Leaving on purpose: a guest just goes; the host ends the party.
-const leave = (client, send) => {
+// Leaving on purpose: a guest just goes; the host ends the party — or,
+// with `handover`, leaves it running with the next member as the host.
+const leave = (client, send, { handover = false } = {}) => {
   const at = partyOf(client);
   if (!at) {
     unbindClient(client.id);
     return false;
   }
-  removeMember(at.p, at.key, send, { ending: at.key === at.p.hostKey });
+  removeMember(at.p, at.key, send, { ending: at.key === at.p.hostKey && !handover });
   return true;
 };
 
@@ -249,6 +267,7 @@ const drop = (client, send) => {
   }, opts.graceMs);
   if (timer.unref) timer.unref();
   m.away = { since: Date.now(), timer };
+  stopWaitingFor(p, key, send);
   sendMembers(p, (o) => ({ type: "party_update", party: publicParty(p, o.key), away: m.name }), send);
   return true;
 };
@@ -264,6 +283,7 @@ const setItem = (client, item, send) => {
   if (!clean) return { error: "nothing to watch together" };
   p.item = clean;
   p.state = { playing: false, position: 0, at: Date.now() };
+  clearWait(p);
   sendMembers(p, (m) => ({ type: "party_item", code: p.code, item: clean, party: publicParty(p, m.key) }), send, key);
   return { party: publicParty(p, key) };
 };
@@ -274,6 +294,13 @@ const setItem = (client, item, send) => {
 // sender, already in server time (its clock offset applied), which takes
 // the trip to the server out of the position; anything far from now is
 // not believed.
+//
+// A play goes to the others at once (they sit on the frame the pause left
+// them on; the presser's own film is already moving). A JUMP while playing
+// is a START TOGETHER: the state's `at` is START_LEAD_MS ahead and it goes
+// to everyone, the jumper too — every member lands, and moves when the
+// server's clock gets there (one still loading by then holds the party,
+// below).
 const setState = (client, data, send) => {
   const at = partyOf(client);
   if (!at) return { error: "not in a party" };
@@ -282,16 +309,105 @@ const setState = (client, data, send) => {
   const playing = !!data.playing;
   const position = Math.max(0, Number(data.position) || 0);
   const kind = ["play", "pause", "seek", "sync"].includes(data.kind) ? data.kind : "sync";
-  const sentAt = Number(data.at);
-  const stamp = Number.isFinite(sentAt) && Math.abs(sentAt - now) < 3000 ? Math.min(sentAt, now) : now;
-  p.state = { playing, position, at: stamp };
   const who = p.members.get(key);
-  sendMembers(
-    p,
-    { type: "party_state", code: p.code, playing, position, at: stamp, now, kind, by: who ? who.name : "Someone" },
-    send,
-    key,
-  );
+  const by = who ? who.name : "Someone";
+  if (kind === "sync") {
+    // a tick from the host: not while the party holds for someone, nor
+    // before a start together has started
+    if (p.hold || (p.state.playing && p.state.at > now)) return { ok: true };
+    const sentAt = Number(data.at);
+    const stamp = Number.isFinite(sentAt) && Math.abs(sentAt - now) < 3000 ? Math.min(sentAt, now) : now;
+    p.state = { playing, position, at: stamp };
+    sendMembers(p, { type: "party_state", code: p.code, playing, position, at: stamp, now, kind, by }, send, key);
+    return { ok: true };
+  }
+  // a person's own press: whatever the party was waiting for is over
+  clearWait(p);
+  if (playing && kind === "play") {
+    const sentAt = Number(data.at);
+    const stamp = Number.isFinite(sentAt) && Math.abs(sentAt - now) < 3000 ? Math.min(sentAt, now) : now;
+    p.state = { playing: true, position, at: stamp };
+    sendMembers(p, { type: "party_state", code: p.code, playing: true, position, at: stamp, now, kind, by }, send, key);
+  } else if (playing) {
+    const start = now + opts.startLeadMs;
+    p.state = { playing: true, position, at: start };
+    sendMembers(p, (m) => ({ type: "party_state", code: p.code, playing: true, position, at: start, now, kind, by, ...(m.key === key ? { self: true } : {}) }), send);
+  } else {
+    p.state = { playing: false, position, at: now };
+    sendMembers(p, { type: "party_state", code: p.code, playing: false, position, at: now, now, kind, by }, send, key);
+  }
+  return { ok: true };
+};
+
+// ---------- everyone waits for whoever buffers ----------
+const clearWait = (p) => {
+  clearTimeout(p.giveUp);
+  p.giveUp = null;
+  p.hold = null;
+  if (p.buffering) p.buffering.clear();
+};
+const resumeTogether = (p, send, extra = {}) => {
+  const hold = p.hold;
+  clearWait(p);
+  if (!hold || !hold.wasPlaying) return;
+  const now = Date.now();
+  const start = now + opts.startLeadMs;
+  p.state = { playing: true, position: hold.position, at: start };
+  sendMembers(p, { type: "party_state", code: p.code, playing: true, position: hold.position, at: start, now, kind: "resume", by: null, ...extra }, send);
+};
+const stopWaitingFor = (p, key, send) => {
+  if (!p.buffering || !p.buffering.delete(key)) return;
+  if (!p.buffering.size) resumeTogether(p, send);
+  else sendWait(p, send);
+};
+const sendWait = (p, send) => {
+  const now = Date.now();
+  sendMembers(p, { type: "party_state", code: p.code, playing: false, position: p.hold.position, at: now, now, kind: "wait", waiting: waitingNames(p), by: null }, send);
+};
+// A member's film stalled (buffering: true) or has enough to play again.
+const setBuffering = (client, data, send) => {
+  const at = partyOf(client);
+  if (!at) return { error: "not in a party" };
+  const { p, key } = at;
+  const now = Date.now();
+  if (data.buffering) {
+    if (p.buffering.has(key)) return { ok: true };
+    if (!p.hold) {
+      // only a party that is playing waits (a paused one has nothing to wait for)
+      if (!p.state.playing) return { ok: true };
+      const there = p.state.position + Math.max(0, now - p.state.at) / 1000;
+      const mine = Number(data.position);
+      // hold where the slow member is (a little behind the others), never far back
+      const position = Number.isFinite(mine) ? Math.max(there - 10, Math.min(there, Math.max(0, mine))) : there;
+      p.hold = { position, wasPlaying: true };
+      p.state = { playing: false, position, at: now };
+      clearTimeout(p.giveUp);
+      p.giveUp = setTimeout(() => {
+        if (!parties.has(p.code) || !p.hold) return;
+        resumeTogether(p, send, { gaveUp: waitingNames(p) });
+      }, opts.waitGiveUpMs);
+      if (p.giveUp.unref) p.giveUp.unref();
+    }
+    p.buffering.set(key, now);
+    sendWait(p, send);
+    return { ok: true };
+  }
+  stopWaitingFor(p, key, send);
+  return { ok: true };
+};
+
+// A reaction: a face over everyone's picture, from one of a few.
+const react = (client, data, send) => {
+  const at = partyOf(client);
+  if (!at) return { error: "not in a party" };
+  const { p, key } = at;
+  const emoji = String(data.emoji || "");
+  if (!REACTIONS.includes(emoji)) return { error: "not a reaction" };
+  const m = p.members.get(key);
+  const now = Date.now();
+  if (m.reactedAt && now - m.reactedAt < REACT_EVERY_MS) return { ok: true }; // a held key is one face
+  m.reactedAt = now;
+  sendMembers(p, { type: "party_react", code: p.code, emoji, by: m.name, byId: key }, send);
   return { ok: true };
 };
 
@@ -302,10 +418,10 @@ const get = (code) => {
 const list = () => [...parties.values()].map(publicSummary);
 const codeFor = (clientId) => byClient.get(clientId) || null;
 const configure = (o = {}) => {
-  if (Number.isFinite(o.graceMs)) opts.graceMs = o.graceMs;
+  for (const k of ["graceMs", "startLeadMs", "waitGiveUpMs"]) if (Number.isFinite(o[k])) opts[k] = o[k];
 };
 
 module.exports = {
-  create, join, leave, drop, setItem, setState, get, list, codeFor, configure,
+  create, join, leave, drop, setItem, setState, setBuffering, react, get, list, codeFor, configure, REACTIONS,
   _internals: { parties, byClient, keyOfClient, sanitizeItem, publicParty, memberKey, opts },
 };

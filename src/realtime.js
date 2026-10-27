@@ -445,7 +445,17 @@ const handleMessage = (client, data, ws) => {
       break;
     }
     case "party_leave":
-      if (party.leave(client, sendTo)) broadcastAll({ type: "party_list", parties: party.list() });
+      // `handover`: the host leaves the party running, the next member hosts
+      if (party.leave(client, sendTo, { handover: !!data.handover })) broadcastAll({ type: "party_list", parties: party.list() });
+      break;
+    case "party_buffer": {
+      // this member's film stalled / can go again: the party waits for it
+      const r = party.setBuffering(client, data, sendTo);
+      if (r.error) send(ws, JSON.stringify({ type: "party_error", message: r.error, lost: true }));
+      break;
+    }
+    case "party_react":
+      party.react(client, data, sendTo);
       break;
     case "party_item": {
       const r = party.setItem(client, data.item, sendTo);

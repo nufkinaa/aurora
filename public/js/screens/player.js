@@ -6,7 +6,8 @@ import { state, progressFor, titleProgressFor, refreshProgress, progressAge, rea
 import { navigate, cameFrom } from "../router.js";
 import { pushScope, popScope } from "../focus.js";
 import { reportActivity, onMessage } from "../ws.js";
-import { party, createParty, joinParty, leaveParty, sendPartyState, setPartyItem, onPartyState, onPartyUpdate, onPartyEnded, onPartyItem, serverNow } from "../party.js";
+import { party, createParty, joinParty, leaveParty, sendPartyState, setPartyItem, onPartyState, onPartyUpdate, onPartyEnded, onPartyItem, onPartyReact, serverNow, sendPartyBuffering, sendPartyReaction, partyInviteUrl, REACTIONS } from "../party.js";
+import { SYNC, targetOf, startsIn, decide, landTolerance, aheadOf, readyToGo, waitingWords } from "../partySync.js";
 import { showReportSheet, setPlayingContext } from "../report.js";
 import { openReplaceSheet, canOfferReplace, COPY_PROBLEM, GET_ANOTHER } from "../replaceCopy.js";
 import * as offline from "../offline.js";
@@ -962,6 +963,11 @@ export const renderPlayer = async (root, { id }) => {
       spinner.classList.add("hidden");
       playBtn.innerHTML = icons.play;
       showControls();
+      // in a watch party: the big "Tap to join in", which lands where the party is
+      // (tapJoin is made further down; a refusal that comes before it is a toast)
+      if (party.current || /[?&]party=/.test(location.hash)) {
+        try { tapJoin.classList.remove("hidden"); return; } catch {}
+      }
       toast("Tap play to start — your browser blocks autoplay", "▶️");
     });
   };
@@ -2879,6 +2885,12 @@ export const renderPlayer = async (root, { id }) => {
   // here and driven by the party section further down.
   const partyPill = el("button", { "data-ui": "player.party", class: "party-pill focusable hidden", onclick: () => togglePartyPanel() });
   const partyPanel = el("div", { class: "party-panel hidden" });
+  // "Waiting for Dana…", the faces people send, and the big "Tap to join in"
+  // for a browser that would not start the film by itself (bound below)
+  const waitPill = el("div", { class: "party-wait hidden", role: "status" });
+  const reactLayer = el("div", { class: "party-reactions", "aria-live": "polite" });
+  let tapJoinPress = () => {};
+  const tapJoin = el("button", { "data-ui": "player.party.tapjoin", class: "party-tapjoin focusable hidden", onclick: () => tapJoinPress() }, el("span", { class: "party-tapjoin-icon" }, "▶"), el("span", {}, "Tap to join in"));
   let togglePartyPanel = () => {}; // bound below, once the video exists
 
   const overlay = el(
@@ -2934,6 +2946,9 @@ export const renderPlayer = async (root, { id }) => {
     ),
     menuHost,
     partyPanel,
+    waitPill,
+    reactLayer,
+    tapJoin,
     resyncPill,
   );
 
@@ -4755,38 +4770,104 @@ export const renderPlayer = async (root, { id }) => {
     if (!inParty()) return;
     sendPartyState(playing, effTime(), playing ? "play" : "pause");
   };
-  // Where the party's film is right now: (position, at) with `at` in server
-  // time, moved on by the server's clock (party.js) while it plays.
-  const partyTarget = (st) => (st.position || 0) + (st.playing && st.at ? Math.max(0, serverNow() - st.at) / 1000 : 0);
+  // ---------- staying in step (partySync.js has the rules) ----------
+  // The party's state is a line: (playing, position, at) with `at` in
+  // SERVER time. Calm by design (elia): a member lands on the line when it
+  // joins, then follows each action — a play, a pause (the same frame for
+  // everyone), a jump (a start together: everyone lands, and moves when the
+  // server's clock gets there). Between actions nobody is moved, and the
+  // film's speed is never touched — one quiet look every 20 minutes, and a
+  // member far off (stuck, back from a dropped line) is moved at once. A
+  // member whose film stalls says so, and the party waits for it
+  // ("Waiting for Dana…"), then everyone starts together again.
+  const heavyStream = () => usingTranscode || isTorrent;
+  const partyTarget = (st) => targetOf(st, serverNow());
+  let partyStartTimer = null;
+  // The browser may refuse a play no one pressed (iPhones, mostly): a big
+  // "Tap to join in" that starts the film where the party is.
+  tapJoinPress = () => {
+    tapJoin.classList.add("hidden");
+    video.play().then(() => {
+      const st = party.current && party.current.state;
+      if (st && st.playing && Math.abs(effTime() - partyTarget(st)) > 0.3) seekTo(partyTarget(st));
+    }).catch(() => tapJoin.classList.remove("hidden"));
+  };
+  const partyPlay = () => {
+    tapJoin.classList.add("hidden");
+    const r = video.play();
+    if (r && r.catch) r.catch((e) => { if (e && e.name === "NotAllowedError" && inParty()) tapJoin.classList.remove("hidden"); });
+  };
+  const showWaiting = (names) => {
+    const words = waitingWords(names || []);
+    waitPill.textContent = words;
+    waitPill.classList.toggle("hidden", !words);
+  };
   const applyPartyState = (st, announce) => {
-    // the host's periodic tick: the drift correction reads the party's state
-    // (party.js keeps it) and closes small gaps itself; only a far-off
-    // member is moved here
+    const heavy = heavyStream();
+    // the host's periodic tick: nobody is moved by it unless far off (the
+    // 20-minute look eases a smaller gap)
     if (st.kind === "sync" && !st.rejoined && st.playing === !video.paused) {
-      const far = usingTranscode || isTorrent ? 15 : 10; // closer is left alone (the 20-minute look eases it)
-      if (Math.abs(effTime() - partyTarget(st)) <= far) return;
+      if (Math.abs(effTime() - partyTarget(st)) <= (heavy ? SYNC.farOverHeavy : SYNC.farOver)) return;
     }
-    partyEcho = Date.now() + 1500;
-    partyNudge(1);
-    const elapsed = st.playing && st.at ? Math.max(0, serverNow() - st.at) / 1000 : 0;
-    const target = (st.position || 0) + elapsed;
-    // A transcoded / torrent stream restarts its whole pipeline on a seek,
-    // so a guest on one tolerates far more drift on the periodic sync (and
-    // a few seconds on a deliberate jump). Exact jumps still land exactly.
-    const heavy = usingTranscode || isTorrent;
-    const drift = effTime() - target;
-    // a pause lines everyone up on the same frame (a seek on a paused
-    // direct file is cheap); a play or a jump within a second is left to
-    // the drift correction below, which closes it without a visible jump
-    const tol = st.kind === "sync" ? (heavy ? 15 : 10) : heavy ? 3 : st.playing ? 1 : 0.1;
-    if (Math.abs(drift) > tol) seekTo(target);
-    if (st.playing && video.paused) video.play().catch(() => {});
-    else if (!st.playing && !video.paused) video.pause();
-    if (announce && st.by && st.kind !== "sync") {
+    clearTimeout(partyStartTimer);
+    showWaiting(st.kind === "wait" ? st.waiting : null);
+    const lead = startsIn(st, serverNow());
+    if (st.playing && lead > 0) {
+      // a start together: at the frame now, moving when the clock gets there
+      partyEcho = Date.now() + lead + 1500;
+      if (!video.paused) video.pause();
+      if (Math.abs(effTime() - st.position) > (heavy ? 3 : 0.05)) seekTo(st.position);
+      partyStartTimer = setTimeout(partyPlay, lead);
+    } else {
+      partyEcho = Date.now() + 1500;
+      const target = partyTarget(st);
+      // joining lands on the line; a pause (or a wait) lines everyone up on
+      // the same frame (a seek on a paused direct file is cheap); a play
+      // within a second is left alone (no visible jump for that)
+      const tol = st.rejoined ? landTolerance(heavy)
+        : st.kind === "sync" ? (heavy ? SYNC.farOverHeavy : SYNC.farOver)
+        : heavy ? SYNC.alignOverHeavy : st.playing ? SYNC.alignOver : 0.05;
+      // (a moving film lands a hair ahead: the seek itself takes a moment)
+      if (Math.abs(effTime() - target) > tol) seekTo(target + (st.playing && !heavy ? SYNC.seekLead : 0));
+      // joining is "sync once": one more look when the landing has settled,
+      // which also learns how long this device's seeks take
+      if (st.rejoined && st.playing) landCheck(1);
+      if (st.playing && video.paused) partyPlay();
+      else if (!st.playing && !video.paused) video.pause();
+    }
+    if (st.kind === "resume" && st.gaveUp && st.gaveUp.length) toast(`Going on without ${st.gaveUp.join(" and ")} — they'll catch up`, "👥");
+    if (announce && st.by && !st.self && ["play", "pause", "seek"].includes(st.kind)) {
+      const target = st.position || 0;
       toast(
         st.kind === "pause" ? `${st.by} paused` : st.kind === "play" ? `${st.by} pressed play` : `${st.by} jumped to ${fmtClock(target)}`,
         "👥",
       );
+    }
+  };
+  // Reactions: a face rises over the picture, with who sent it.
+  const showReaction = ({ emoji, by }) => {
+    const n = el("div", { class: "party-react-float", style: `left:${12 + Math.random() * 70}%` }, el("span", { class: "party-react-emoji" }, emoji), el("span", { class: "party-react-by" }, by || ""));
+    reactLayer.append(n);
+    setTimeout(() => n.remove(), 2600);
+  };
+  const shareInvite = async () => {
+    const p = party.current;
+    if (!p) return;
+    const url = partyInviteUrl(p.code);
+    const text = `Watch ${item.showTitle ? `${item.showTitle} S${item.season} E${item.episode}` : item.title || "a film"} with me on Aurora — party code ${p.code}`;
+    try {
+      if (navigator.share && /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+        await navigator.share({ title: "Watch together", text, url });
+        return;
+      }
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+    }
+    try {
+      await navigator.clipboard.writeText(`${text}: ${url}`);
+      toast("Invite link copied — paste it to your friends", "🔗");
+    } catch {
+      toast(`Invite link: ${url}`, "🔗");
     }
   };
   const paintParty = () => {
@@ -4795,35 +4876,54 @@ export const renderPlayer = async (root, { id }) => {
     partyBtn.classList.toggle("active", !!p);
     if (!p) {
       partyPanel.classList.add("hidden");
+      showWaiting(null);
       return;
     }
-    partyPill.textContent = `👥 ${p.members.length} · ${p.code}`;
+    const here = p.members.filter((m) => !m.away).length;
+    partyPill.textContent = `👥 ${here} · ${p.code}`;
+    showWaiting(p.waiting);
     partyPanel.innerHTML = "";
     const chip = (m) =>
       el(
         "span",
-        { class: "party-member" },
+        { class: `party-member${m.away ? " away" : ""}`, title: m.away ? `${m.name} — reconnecting…` : m.name },
         m.avatarImage ? el("img", { src: m.avatarImage, alt: "" }) : el("span", { class: "party-avatar" }, m.avatar || "👤"),
-        el("span", {}, m.name + (p.host && p.host.id === m.id ? " · host" : "")),
+        el("span", {}, m.name + (p.host && p.host.id === m.id ? " · host" : "") + (m.id === party.me ? " (you)" : "") + (m.away ? " · away" : "")),
       );
+    const isHost = party.role === "host";
+    const others = p.members.filter((m) => m.id !== party.me);
+    const next = others.find((m) => !m.away) || others[0];
     partyPanel.append(
       el("div", { class: "party-head" }, el("span", {}, "Watch together"), el("button", { class: "btn btn-icon focusable", "aria-label": "Close", html: "✕", onclick: () => partyPanel.classList.add("hidden") })),
-      el("div", { class: "party-code" }, ...p.code.split("").map((c) => el("span", {}, c))),
+      el("div", { class: "party-code", "aria-label": `Party code ${p.code}` }, ...p.code.split("").map((c) => el("span", {}, c))),
+      el("button", { "data-ui": "player.party.share", class: "btn btn-primary focusable party-share", html: "<span>🔗 Share the invite</span>", onclick: shareInvite }),
       el(
         "div",
         { class: "party-hint" },
-        "On another device: profile menu → Join a watch party, and type the code. Anyone can play, pause or jump — everyone follows.",
+        `Friends open the link (or Home → Join, or profile menu → Join a watch party, code ${p.code}). Anyone can play, pause or jump — everyone follows, and waits for whoever is still loading.`,
       ),
       el("div", { class: "party-members" }, p.members.map(chip)),
+      el("div", { class: "party-reacts" }, REACTIONS.map((e) => el("button", { "data-ui": "player.party.react", class: "party-react-btn focusable", "aria-label": `React ${e}`, onclick: () => sendPartyReaction(e) }, e))),
       el("div", { class: "party-actions" },
+        isHost && next
+          ? el("button", {
+            "data-ui": "player.party.handover",
+            class: "btn focusable",
+            html: `<span>Leave — ${next.name} hosts</span>`,
+            onclick: () => {
+              leaveParty({ handover: true });
+              paintParty();
+              toast(`Left the party — ${next.name} is the host now`, "👥");
+            },
+          })
+          : null,
         el("button", {
           class: "btn focusable",
-          html: `<span>${party.role === "host" ? "End party" : "Leave party"}</span>`,
+          html: `<span>${isHost ? (others.length ? "End for everyone" : "End party") : "Leave party"}</span>`,
           onclick: () => {
-            const wasHost = party.role === "host";
             leaveParty();
             paintParty();
-            toast(wasHost ? "Party ended" : "Left the party", "👥");
+            toast(isHost ? "Party ended" : "Left the party", "👥");
           },
         }),
       ),
@@ -4838,7 +4938,7 @@ export const renderPlayer = async (root, { id }) => {
       paintParty();
       partyPanel.classList.remove("hidden");
       pushScope(partyPanel);
-      toast("Party started — share the code", "👥");
+      toast("Party started — share the invite", "👥");
     } catch (e) {
       toast(`Couldn't start a party: ${e.message}`, "⚠️");
     }
@@ -4852,7 +4952,7 @@ export const renderPlayer = async (root, { id }) => {
       el(
         "div",
         { class: "party-hint" },
-        "Start a party and Aurora hands you a four-letter code. Anyone on another device joins with it (profile menu → Join a watch party) and play, pause and jumps stay in step. Everyone on Aurora sees the party on their Home and can join.",
+        "Start a party and Aurora hands you a link and a four-letter code. Friends who open it watch in step with you — play, pause and jumps are shared, and everyone waits for whoever is still loading. Everyone on Aurora sees the party on their Home and can join.",
       ),
       el("div", { class: "party-actions" },
         el("button", { "data-ui": "player.party.start", class: "btn btn-primary focusable", html: "<span>Start a party</span>", onclick: startParty }),
@@ -4868,9 +4968,14 @@ export const renderPlayer = async (root, { id }) => {
   const unsubParty = [
     onPartyState((st) => applyPartyState(st, true)),
     onPartyUpdate(() => paintParty()),
+    onPartyReact(showReaction),
     onPartyEnded(() => {
       paintParty();
       popScope(partyPanel);
+      clearTimeout(partyStartTimer);
+      clearTimeout(partyLandTimer);
+      tapJoin.classList.add("hidden");
+      partyBuffering = false;
     }),
     // The host moved to another title (Up next, mostly): follow it, party intact.
     onPartyItem(({ item: next, party: p }) => {
@@ -4893,7 +4998,7 @@ export const renderPlayer = async (root, { id }) => {
         paintParty();
         toast(`Joined ${p.host ? p.host.name + "'s" : "the"} party`, "👥");
         // land where they are — once the video can seek
-        const land = () => applyPartyState({ ...p.state, now: p.now, kind: "sync" }, false);
+        const land = () => applyPartyState({ ...p.state, now: p.now, kind: p.waiting && p.waiting.length ? "wait" : "sync", waiting: p.waiting, rejoined: true }, false);
         if (video.readyState >= 1) land();
         else video.addEventListener("loadedmetadata", land, { once: true });
       } catch (e) {
@@ -4904,62 +5009,90 @@ export const renderPlayer = async (root, { id }) => {
     if (state.ws && state.ws.readyState === WebSocket.OPEN) tryJoin();
     else setTimeout(tryJoin, 1200);
   }
-  // Periodic sync while playing, from whoever is in the party — a heartbeat
-  // that late joiners and drifters correct against (guests only act on it
-  // when they're more than 2.5s out).
+  // The host's tick: where its film really is, every 3 s while it plays —
+  // the line late joiners land on (nobody already in is moved by it unless
+  // far off). Not while the party waits or a start together is pending.
   partySync = setInterval(() => {
-    if (inParty() && !video.paused && party.role === "host") sendPartyState(true, effTime(), "sync");
+    if (!inParty() || video.paused || party.role !== "host" || partyBuffering) return;
+    const st = party.current.state;
+    if (!st || !st.playing || startsIn(st, serverNow()) > 0) return;
+    sendPartyState(true, effTime(), "sync");
   }, 3000);
-  // Staying in step: every half second a member that is not the host looks
-  // at how far it is from where the party's film is now. A small gap is
-  // closed by playing a few percent faster or slower (nobody sees it); a
-  // big one by a seek, at most every few seconds (a stream that is still
-  // loading must not be sent round in circles). The host is the clock.
-  let partyRated = false; // the rate is ours (a nudge), not the viewer's speed choice
   let partyLastFix = 0;
-  function partyNudge(rate) {
-    if (rate === 1) {
-      if (partyRated) { partyRated = false; video.playbackRate = 1; }
+  let partyNextAlign = Date.now() + SYNC.alignEveryMs;
+  let partyLandTimer = null;
+  function landCheck(round) {
+    clearTimeout(partyLandTimer);
+    partyLandTimer = setTimeout(() => {
+      const st = inParty() && party.current.state;
+      if (!st || !st.playing || video.paused || party.role === "host") return;
+      if (video.seeking || video.readyState < 3) return round < 4 && landCheck(round + 1);
+      const heavy = heavyStream();
+      const drift = effTime() - partyTarget(st);
+      if (Math.abs(drift) <= landTolerance(heavy) || round > 2) return;
+      // behind by d after a seek that aimed a lead ahead: aim d further
+      const lead = heavy ? 0 : Math.min(1.5, Math.max(0, SYNC.seekLead - drift));
+      partyEcho = Date.now() + 1500;
+      seekTo(partyTarget(st) + lead);
+      landCheck(round + 1);
+    }, 2500);
+  }
+  let partyBuffering = false; // we told the party we are loading
+  let partyBufferSince = 0;
+  let partyStall = 0;
+  let partyLastT = -1;
+  const bufferedList = () => {
+    const out = [];
+    try { for (let i = 0; i < video.buffered.length; i++) out.push([video.buffered.start(i), video.buffered.end(i)]); } catch {}
+    return out;
+  };
+  const partyDrift = setInterval(() => {
+    if (!inParty() || !party.current.state) {
+      partyBuffering = false;
       return;
     }
-    if (!partyRated && video.playbackRate !== 1) return; // the viewer chose a speed: leave it
-    partyRated = true;
-    if (video.playbackRate !== rate) video.playbackRate = rate;
-  }
-  // Calm by design (elia, 2026-10-27): "sync once, then send each action
-  // (stop, play, skip); fix alignment only when someone stops, or once every
-  // 20 minutes" — and no speed changes: with the sound on, playing a few
-  // percent faster or slower is heard (and some browsers stutter on it). So:
-  //   joining                lands where the party is (once)
-  //   play / pause / jump    every member follows (applyPartyState); a pause
-  //                          lines everyone up on the same frame
-  //   every 20 minutes       one look: more than a second apart (3 s on a
-  //                          converted / torrent stream, which lands on a
-  //                          chunk boundary) → one jump to the right spot
-  //   far off                more than 10 s (15 s converted / torrent: stuck
-  //                          buffering, back from a dropped connection) is
-  //                          moved at once, at most every 30 s
-  // The film's own speed is never touched.
-  const PARTY_ALIGN_EVERY_MS = 20 * 60 * 1000;
-  const PARTY_SEEK_GAP_MS = 30000;
-  let partyNextAlign = Date.now() + PARTY_ALIGN_EVERY_MS;
-  const partyDrift = setInterval(() => {
-    if (!inParty() || party.role === "host" || !party.current.state) return partyNudge(1);
-    partyNudge(1); // undo a nudge an older build left behind
     const st = party.current.state;
-    if (!st.playing || video.paused || video.seeking || video.readyState < 3 || Date.now() < partyEcho) return;
-    const heavy = usingTranscode || isTorrent;
-    const drift = effTime() - partyTarget(st);
-    const abs = Math.abs(drift);
-    const far = abs > (heavy ? 15 : 10) && Date.now() - partyLastFix >= PARTY_SEEK_GAP_MS;
-    const due = Date.now() >= partyNextAlign;
-    if (due) partyNextAlign = Date.now() + PARTY_ALIGN_EVERY_MS;
-    if (far || (due && abs > (heavy ? 3 : 1))) {
-      partyLastFix = Date.now();
-      partyEcho = Date.now() + 4000; // let the jump land before looking again
-      seekTo(partyTarget(st) + (heavy ? 0 : 0.2));
+    const now = Date.now();
+    const t = effTime();
+    // loading: back on our feet once there is enough ahead to play on
+    if (partyBuffering) {
+      const ahead = aheadOf(bufferedList(), video.currentTime || 0);
+      if (readyToGo({ readyState: video.readyState, ahead, heavy: heavyStream(), ended: video.ended, waitedMs: now - partyBufferSince })) {
+        partyBuffering = false;
+        sendPartyBuffering(false, t);
+      }
+      return;
     }
-  }, 1000);
+    const moving = st.playing && startsIn(st, serverNow()) === 0;
+    if (!moving || video.paused || Date.now() < partyEcho) {
+      partyStall = 0;
+      partyLastT = t;
+      return;
+    }
+    // a film that should move and does not: two ticks without progress while
+    // it has nothing to play is a stall — the party waits for us
+    const stuck = Math.abs(t - partyLastT) < 0.05 && (video.readyState < 3 || video.seeking);
+    partyLastT = t;
+    partyStall = stuck ? partyStall + 1 : 0;
+    if (partyStall >= SYNC.stallTicks) {
+      partyStall = 0;
+      partyBuffering = true;
+      partyBufferSince = now;
+      sendPartyBuffering(true, t);
+      return;
+    }
+    // the host is the line: it is never moved by this
+    if (party.role === "host" || video.seeking || video.readyState < 3) return;
+    const heavy = heavyStream();
+    const due = now >= partyNextAlign;
+    if (due) partyNextAlign = now + SYNC.alignEveryMs;
+    const d = decide(t - partyTarget(st), { heavy, sinceFixMs: now - partyLastFix, due });
+    if (d.act === "seek") {
+      partyLastFix = now;
+      partyEcho = now + 4000; // let the jump land before looking again
+      seekTo(partyTarget(st) + (heavy ? 0 : SYNC.seekLead));
+    }
+  }, SYNC.tickMs);
 
   // ---------- resume card ----------
   // "Resuming from 12:34", with the frame at that spot for a library file
@@ -6731,7 +6864,8 @@ export const renderPlayer = async (root, { id }) => {
     if (inParty() && party.role === "host" && party.current.members.length > 1 && !exitConfirmed) {
       exitConfirmed = true;
       setTimeout(() => { exitConfirmed = false; }, 6000);
-      toast(`Leaving ends the party for ${party.current.members.length - 1} other${party.current.members.length > 2 ? "s" : ""} — press Back again to end it`, "👥");
+      const next = party.current.members.find((m) => m.id !== party.me && !m.away) || party.current.members.find((m) => m.id !== party.me);
+      toast(`Leaving hands the party to ${next ? next.name : "the others"} — press Back again to leave`, "👥");
       return;
     }
     exited = true;
@@ -6908,8 +7042,12 @@ export const renderPlayer = async (root, { id }) => {
     clearInterval(saveTimer);
     clearInterval(partySync);
     clearInterval(partyDrift);
+    clearTimeout(partyStartTimer);
+    clearTimeout(partyLandTimer);
     for (const un of unsubParty) un();
-    if (!keepParty) leaveParty();
+    // a host who walks out of the player leaves the party running for the
+    // others (the next member hosts); "End for everyone" is in the panel
+    if (!keepParty) leaveParty({ handover: party.role === "host" && !!party.current && party.current.members.length > 1 });
     setPlayingContext(null);
     if (torrentPoll) clearInterval(torrentPoll);
     if (statusPoll) clearInterval(statusPoll);

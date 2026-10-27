@@ -643,6 +643,7 @@ export type PartyMember = {
   avatar?: string | null;
   avatarImage?: string | null;
   profileId?: string | null;
+  away?: boolean; // the socket is gone; the place is kept for a while
 };
 export type PartyItem = Record<string, unknown> & {
   id: string;
@@ -660,6 +661,8 @@ export type Party = {
   state: {playing: boolean; position: number; at: number};
   now: number;
   createdAt: number;
+  you?: string; // this member's id (person + device)
+  waiting?: string[]; // who the party is waiting for, if anyone
 };
 export type PartySummary = {
   code: string;

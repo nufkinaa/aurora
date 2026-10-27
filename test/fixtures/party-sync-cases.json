@@ -1,0 +1,274 @@
+{
+  "targetOf": [
+    {
+      "st": {
+        "playing": true,
+        "position": 100,
+        "at": 10000
+      },
+      "now": 12500,
+      "want": 102.5
+    },
+    {
+      "st": {
+        "playing": false,
+        "position": 100,
+        "at": 10000
+      },
+      "now": 12500,
+      "want": 100
+    },
+    {
+      "st": {
+        "playing": true,
+        "position": 50,
+        "at": 20000
+      },
+      "now": 19000,
+      "want": 50
+    },
+    {
+      "st": null,
+      "now": 1,
+      "want": 0
+    }
+  ],
+  "startsIn": [
+    {
+      "st": {
+        "playing": true,
+        "position": 50,
+        "at": 20000
+      },
+      "now": 19600,
+      "want": 400
+    },
+    {
+      "st": {
+        "playing": true,
+        "position": 50,
+        "at": 20000
+      },
+      "now": 20100,
+      "want": 0
+    },
+    {
+      "st": {
+        "playing": false,
+        "position": 50,
+        "at": 20000
+      },
+      "now": 19600,
+      "want": 0
+    }
+  ],
+  "decide": [
+    {
+      "drift": 0.4,
+      "o": {},
+      "act": "none"
+    },
+    {
+      "drift": 3,
+      "o": {},
+      "act": "none"
+    },
+    {
+      "drift": -9,
+      "o": {},
+      "act": "none"
+    },
+    {
+      "drift": 11,
+      "o": {},
+      "act": "seek"
+    },
+    {
+      "drift": 11,
+      "o": {
+        "sinceFixMs": 10000
+      },
+      "act": "none"
+    },
+    {
+      "drift": -11,
+      "o": {
+        "sinceFixMs": 30000
+      },
+      "act": "seek"
+    },
+    {
+      "drift": 12,
+      "o": {
+        "heavy": true
+      },
+      "act": "none"
+    },
+    {
+      "drift": 16,
+      "o": {
+        "heavy": true
+      },
+      "act": "seek"
+    },
+    {
+      "drift": 0.8,
+      "o": {
+        "due": true
+      },
+      "act": "none"
+    },
+    {
+      "drift": 1.2,
+      "o": {
+        "due": true
+      },
+      "act": "seek"
+    },
+    {
+      "drift": -2,
+      "o": {
+        "due": true,
+        "heavy": true
+      },
+      "act": "none"
+    },
+    {
+      "drift": -3.5,
+      "o": {
+        "due": true,
+        "heavy": true
+      },
+      "act": "seek"
+    }
+  ],
+  "clock": [
+    {
+      "t0": 1000,
+      "t1": 1100,
+      "now": 5050,
+      "rtt": 100,
+      "offset": 4000
+    }
+  ],
+  "aheadOf": [
+    {
+      "ranges": [
+        [
+          0,
+          10
+        ],
+        [
+          20,
+          40
+        ]
+      ],
+      "t": 25,
+      "want": 15
+    },
+    {
+      "ranges": [
+        [
+          0,
+          10
+        ]
+      ],
+      "t": 15,
+      "want": 0
+    },
+    {
+      "ranges": [
+        [
+          10.1,
+          30
+        ]
+      ],
+      "t": 10,
+      "want": 20
+    }
+  ],
+  "readyToGo": [
+    {
+      "o": {
+        "readyState": 4,
+        "ahead": 2.5
+      },
+      "want": true
+    },
+    {
+      "o": {
+        "readyState": 3,
+        "ahead": 1
+      },
+      "want": false
+    },
+    {
+      "o": {
+        "readyState": 3,
+        "ahead": 3,
+        "heavy": true
+      },
+      "want": false
+    },
+    {
+      "o": {
+        "readyState": 3,
+        "ahead": 1,
+        "waitedMs": 9000
+      },
+      "want": true
+    },
+    {
+      "o": {
+        "readyState": 1,
+        "ahead": 0,
+        "ended": true
+      },
+      "want": true
+    },
+    {
+      "o": {
+        "readyState": 2,
+        "ahead": 5
+      },
+      "want": false
+    }
+  ],
+  "waitingWords": [
+    {
+      "names": [
+        "Dana"
+      ],
+      "want": "Waiting for Dana…"
+    },
+    {
+      "names": [
+        "Dana",
+        "Kim"
+      ],
+      "want": "Waiting for Dana and Kim…"
+    },
+    {
+      "names": [
+        "A",
+        "B",
+        "C"
+      ],
+      "want": "Waiting for 3 people…"
+    },
+    {
+      "names": [],
+      "want": ""
+    }
+  ],
+  "landTolerance": [
+    {
+      "heavy": false,
+      "want": 0.3
+    },
+    {
+      "heavy": true,
+      "want": 3
+    }
+  ]
+}
