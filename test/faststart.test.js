@@ -121,6 +121,34 @@ test("planFor: no more than a handful of patched indexes are held at once", () =
   assert.equal([...F.plans.values()].filter((v) => v.plan).length, F.KEEP);
 });
 
+test("planForAsync: the same plan as the synchronous build, built once however many ask, without holding the event loop", async () => {
+  F.plans.clear();
+  const mdat = box("mdat", Buffer.alloc(4000, 7));
+  const moov = box("moov", stbl(full("stco", u32(2, 60, 2000))), box("udta", Buffer.alloc(200000, 1)));
+  const f = write("async.mp4", FTYP, mdat, moov);
+  const sync = F.build(f, fs.statSync(f).size);
+  const realBuild = F.buildAsync;
+  // three viewers press Play on it at once: one look at the file
+  let ticks = 0;
+  const t = setInterval(() => ticks++, 0);
+  const [a, b, c] = await Promise.all([1, 2, 3].map(() => faststart.planForAsync(f, fs.statSync(f))));
+  clearInterval(t);
+  assert.ok(a && a === b && b === c, "one plan for all three");
+  assert.ok(ticks >= 1, "the event loop ran while the index was read");
+  assert.deepEqual({ ...a, moov: a.moov.toString("hex") }, { ...sync, moov: sync.moov.toString("hex") });
+  assert.equal(await faststart.planForAsync(f, fs.statSync(f)), a, "kept");
+  assert.equal(await faststart.planForAsync(write("x.mkv", FTYP, mdat, moov), fs.statSync(f)), null);
+  assert.equal(F.buildAsync, realBuild);
+  // and every shape the synchronous build refuses, the asynchronous one refuses too
+  for (const name of fs.readdirSync(tmp).filter((x) => /\.mp4$/.test(x))) {
+    const file = path.join(tmp, name);
+    const one = F.build(file, fs.statSync(file).size);
+    const two = await F.buildAsync(file, fs.statSync(file).size);
+    assert.equal(!!two, !!one, name);
+    if (one) assert.equal(two.moov.toString("hex"), one.moov.toString("hex"), name);
+  }
+});
+
 const collect = (file, p, start, end) =>
   new Promise((resolve, reject) => {
     const res = new PassThrough();

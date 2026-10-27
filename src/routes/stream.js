@@ -49,7 +49,7 @@ const resolveKind = (id, kind) => {
 const rangeserve = require("../lib/rangeserve");
 const diskread = require("../lib/diskread");
 const disktype = require("../lib/disktype");
-router.get("/stream/video/:id", (req, res) => {
+router.get("/stream/video/:id", async (req, res) => {
   const entry = resolveKind(req.params.id, "video");
   const stat = entry && rangeserve.statOf(entry.path);
   if (!stat) return res.status(404).send("Not found");
@@ -67,7 +67,10 @@ router.get("/stream/video/:id", (req, res) => {
   // An MP4 with its index at the end goes out with the index in front
   // (media/faststart.js): the same length, the same film, two round trips
   // fewer before a player can show a frame. null = as it is on disk.
-  const plan = configLib().SERVE_FASTSTART ? faststart.planFor(entry.path, stat) : null;
+  // (looked at off the event loop: the index is megabytes — lib/faststart.js buildAsync)
+  let plan = null;
+  if (configLib().SERVE_FASTSTART) { try { plan = await faststart.planForAsync(entry.path, stat); } catch { plan = null; } }
+  if (res.destroyed || res.writableEnded) return;
   const etag = rangeserve.etagOf(stat, plan ? "fs" : "");
   const lastModified = rangeserve.lastModifiedOf(stat);
   const common = {

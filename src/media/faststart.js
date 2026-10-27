@@ -84,51 +84,76 @@ const patch = (buf, from, to, shift, depth = 0) => {
   return true;
 };
 
-// The plan for one file, or null (serve it as it is). SYNC: a few small
-// reads and one read of the index, once per file while it is kept.
+// The plan for one file, or null (serve it as it is): a few small reads and
+// one read of the index, once per file while it is kept.
 //   { size, head, moov (Buffer, patched), moovAt (where it sits on disk) }
 // The served layout is [0, head) from disk · moov · disk [head, moovAt).
+// Written once as the steps (a generator that yields the reads it needs), and
+// run either way: `build` with synchronous reads (the tests), `buildAsync`
+// off the event loop — the route's way. The index is up to 48 MB: read
+// synchronously it held every other viewer's request for as long as the disk
+// took (seconds, on a VPS's network disk), at a film's first play.
+function* steps(fileSize) {
+  const h = Buffer.alloc(16);
+  let pos = 0;
+  const tops = [];
+  while (pos + 8 <= fileSize && tops.length < 64) {
+    if ((yield { buf: h, len: 16, pos }) < 8) return null;
+    let size = h.readUInt32BE(0);
+    const type = type4(h, 4);
+    if (size === 1) {
+      const big = h.readBigUInt64BE(8);
+      if (big > BigInt(Number.MAX_SAFE_INTEGER)) return null;
+      size = Number(big);
+    } else if (size === 0) size = fileSize - pos;
+    if (size < 8 || pos + size > fileSize) return null;
+    tops.push({ type, at: pos, size });
+    pos += size;
+  }
+  if (pos !== fileSize) return null; // trailing bytes that are not a box
+  if (!tops.length || tops[0].type !== "ftyp") return null;
+  if (tops.some((b) => b.type === "moof" || b.type === "sidx" || b.type === "mfra")) return null;
+  const moovs = tops.filter((b) => b.type === "moov");
+  const mdats = tops.filter((b) => b.type === "mdat");
+  if (moovs.length !== 1 || !mdats.length) return null;
+  const mv = moovs[0];
+  // already in front: nothing to do. Not the LAST box: not the simple case.
+  if (mv.at < mdats[0].at) return null;
+  if (tops[tops.length - 1] !== mv) return null;
+  if (mv.size > MAX_MOOV_BYTES) return null;
+  const head = tops[0].size; // the moov goes right after ftyp
+  const moov = Buffer.alloc(mv.size);
+  if ((yield { buf: moov, len: mv.size, pos: mv.at }) !== mv.size) return null;
+  if (type4(moov, 4) !== "moov") return null;
+  if (!patch(moov, 8, moov.length, mv.size)) return null;
+  return { size: fileSize, head, moov, moovAt: mv.at };
+}
 const build = (filePath, fileSize) => {
   let fd = null;
   try {
     fd = fs.openSync(filePath, "r");
-    const h = Buffer.alloc(16);
-    let pos = 0;
-    const tops = [];
-    while (pos + 8 <= fileSize && tops.length < 64) {
-      if (fs.readSync(fd, h, 0, 16, pos) < 8) return null;
-      let size = h.readUInt32BE(0);
-      const type = type4(h, 4);
-      if (size === 1) {
-        const big = h.readBigUInt64BE(8);
-        if (big > BigInt(Number.MAX_SAFE_INTEGER)) return null;
-        size = Number(big);
-      } else if (size === 0) size = fileSize - pos;
-      if (size < 8 || pos + size > fileSize) return null;
-      tops.push({ type, at: pos, size });
-      pos += size;
-    }
-    if (pos !== fileSize) return null; // trailing bytes that are not a box
-    if (!tops.length || tops[0].type !== "ftyp") return null;
-    if (tops.some((b) => b.type === "moof" || b.type === "sidx" || b.type === "mfra")) return null;
-    const moovs = tops.filter((b) => b.type === "moov");
-    const mdats = tops.filter((b) => b.type === "mdat");
-    if (moovs.length !== 1 || !mdats.length) return null;
-    const mv = moovs[0];
-    // already in front: nothing to do. Not the LAST box: not the simple case.
-    if (mv.at < mdats[0].at) return null;
-    if (tops[tops.length - 1] !== mv) return null;
-    if (mv.size > MAX_MOOV_BYTES) return null;
-    const head = tops[0].size; // the moov goes right after ftyp
-    const moov = Buffer.alloc(mv.size);
-    if (fs.readSync(fd, moov, 0, mv.size, mv.at) !== mv.size) return null;
-    if (type4(moov, 4) !== "moov") return null;
-    if (!patch(moov, 8, moov.length, mv.size)) return null;
-    return { size: fileSize, head, moov, moovAt: mv.at };
+    const it = steps(fileSize);
+    let r = it.next();
+    while (!r.done) r = it.next(fs.readSync(fd, r.value.buf, 0, r.value.len, r.value.pos));
+    return r.value;
   } catch {
     return null;
   } finally {
     if (fd != null) { try { fs.closeSync(fd); } catch {} }
+  }
+};
+const buildAsync = async (filePath, fileSize) => {
+  let fh = null;
+  try {
+    fh = await fs.promises.open(filePath, "r");
+    const it = steps(fileSize);
+    let r = it.next();
+    while (!r.done) r = it.next((await fh.read(r.value.buf, 0, r.value.len, r.value.pos)).bytesRead);
+    return r.value;
+  } catch {
+    return null;
+  } finally {
+    if (fh) { try { await fh.close(); } catch {} }
   }
 };
 
@@ -150,6 +175,29 @@ const planFor = (filePath, stat) => {
   while (held.length > KEEP) plans.delete(held.shift()[0]);
   if (plans.size > 500) for (const [k, v] of plans) if (!v.plan) plans.delete(k);
   return plan;
+};
+// The same, built off the event loop (the route): a plan already kept is
+// answered at once; a file being looked at is looked at once.
+const building = new Map(); // key -> Promise<plan|null>
+const planForAsync = async (filePath, stat) => {
+  if (!/\.(mp4|m4v|mov)$/i.test(filePath)) return null;
+  const key = `${filePath}:${Math.floor(stat.mtimeMs)}:${stat.size}`;
+  const hit = plans.get(key);
+  if (hit) {
+    hit.at = Date.now();
+    return hit.plan;
+  }
+  if (!building.has(key)) {
+    building.set(key, buildAsync(filePath, stat.size).then((plan) => {
+      building.delete(key);
+      plans.set(key, { plan, at: Date.now() });
+      const held = [...plans].filter(([, v]) => v.plan).sort((a, b) => a[1].at - b[1].at);
+      while (held.length > KEEP) plans.delete(held.shift()[0]);
+      if (plans.size > 500) for (const [k, v] of plans) if (!v.plan) plans.delete(k);
+      return plan;
+    }));
+  }
+  return building.get(key);
 };
 setInterval(() => {
   const now = Date.now();
@@ -200,4 +248,4 @@ const pipe = (filePath, plan, start, end, res, onError, open = fs.createReadStre
   next();
 };
 
-module.exports = { planFor, pieces, pipe, _internals: { build, patch, plans, MAX_MOOV_BYTES, KEEP } };
+module.exports = { planFor, planForAsync, pieces, pipe, _internals: { build, buildAsync, patch, plans, MAX_MOOV_BYTES, KEEP } };
