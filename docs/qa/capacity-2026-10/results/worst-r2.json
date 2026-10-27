@@ -1,0 +1,6651 @@
+{
+  "meta": {
+    "at": "2026-10-26T20:12:31.772Z",
+    "mix": "worst",
+    "note": "worst case: 40 % encoded (720p/480p rungs), 30 % torrent (TV file + web repackaged), 30 % repackaged",
+    "cycle": [
+      "web-transcode",
+      "tv-torrent",
+      "phone-transcode",
+      "tv-offset",
+      "web-tjit",
+      "web-transcode",
+      "tv-torrent",
+      "phone-transcode",
+      "phone-jit",
+      "tv-offset"
+    ],
+    "steps": [
+      5,
+      10,
+      15,
+      20,
+      30
+    ],
+    "stepMin": 4,
+    "warm": 40,
+    "downloads": {
+      "k": 2,
+      "mbsEach": 4
+    },
+    "seekMin": 10,
+    "rule": {
+      "ttffP95Ms": 4000,
+      "lateSegPct": 1,
+      "stallPct": 0.5,
+      "apiP99Ms": 300,
+      "refused": 0
+    },
+    "link": "tv=80,phone=50,desktop=200",
+    "pcBefore": {
+      "n": 14,
+      "cpuPctMean": 20.3,
+      "cpuPctP95": 25.9,
+      "freeMbMin": 8210,
+      "cores": 16,
+      "gpu": {
+        "n": 15,
+        "gpuPctMean": 0.4,
+        "gpuPctMax": 2,
+        "encPctMean": 0,
+        "encPctMax": 0,
+        "decPctMean": 0,
+        "decPctMax": 0,
+        "sessionsMean": 0,
+        "sessionsMax": 0,
+        "memMbMax": 1815
+      }
+    },
+    "uvThreadpool": "6",
+    "host": {
+      "cpus": 16,
+      "cpu": "Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz",
+      "memGb": 32,
+      "platform": "win32",
+      "node": "v22.13.1"
+    },
+    "ref": "5dd310c@5dd310c2",
+    "head": "5dd310c2eace0a3a0baf32a5e356fb9c17343c5d",
+    "dirty": false,
+    "args": {
+      "_": [],
+      "ref": "5dd310c",
+      "mix": "worst",
+      "steps": "5,10,15,20,30",
+      "step-min": "4",
+      "warm": "40",
+      "out": "worst-r2"
+    },
+    "pools": {
+      "tv-direct": 16,
+      "tv-offset": 24,
+      "web-direct": 8,
+      "phone-direct": 8,
+      "web-jit": 32,
+      "phone-jit": 32,
+      "web-transcode": 32,
+      "phone-transcode": 32,
+      "tv-torrent": 8,
+      "web-tjit": 8
+    },
+    "titles": [
+      {
+        "title": "Cap Episode Ac3",
+        "video": "h264",
+        "audio": "ac3",
+        "mbit": 4.59,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Episode Ac3 2",
+        "video": "h264",
+        "audio": "ac3",
+        "mbit": 4.59,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Episode Ac3 3",
+        "video": "h264",
+        "audio": "ac3",
+        "mbit": 4.59,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Episode Ac3 4",
+        "video": "h264",
+        "audio": "ac3",
+        "mbit": 4.59,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Episode Ac3 5",
+        "video": "h264",
+        "audio": "ac3",
+        "mbit": 4.59,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Episode Ac3 6",
+        "video": "h264",
+        "audio": "ac3",
+        "mbit": 4.59,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Episode Ac3 7",
+        "video": "h264",
+        "audio": "ac3",
+        "mbit": 4.59,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Episode Ac3 8",
+        "video": "h264",
+        "audio": "ac3",
+        "mbit": 4.59,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Heavy Hevc",
+        "video": "hevc",
+        "audio": "eac3",
+        "mbit": 7.04,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Heavy Hevc 2",
+        "video": "hevc",
+        "audio": "eac3",
+        "mbit": 7.04,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Heavy Hevc 3",
+        "video": "hevc",
+        "audio": "eac3",
+        "mbit": 7.04,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Heavy Hevc 4",
+        "video": "hevc",
+        "audio": "eac3",
+        "mbit": 7.04,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Heavy Hevc 5",
+        "video": "hevc",
+        "audio": "eac3",
+        "mbit": 7.04,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Heavy Hevc 6",
+        "video": "hevc",
+        "audio": "eac3",
+        "mbit": 7.04,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Heavy Hevc 7",
+        "video": "hevc",
+        "audio": "eac3",
+        "mbit": 7.04,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Heavy Hevc 8",
+        "video": "hevc",
+        "audio": "eac3",
+        "mbit": 7.04,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Release Aac",
+        "video": "hevc",
+        "audio": "aac",
+        "mbit": 2.15,
+        "web": "jit",
+        "tv": "direct"
+      },
+      {
+        "title": "Cap Release Aac 2",
+        "video": "hevc",
+        "audio": "aac",
+        "mbit": 2.15,
+        "web": "jit",
+        "tv": "direct"
+      },
+      {
+        "title": "Cap Release Aac 3",
+        "video": "hevc",
+        "audio": "aac",
+        "mbit": 2.15,
+        "web": "jit",
+        "tv": "direct"
+      },
+      {
+        "title": "Cap Release Aac 4",
+        "video": "hevc",
+        "audio": "aac",
+        "mbit": 2.15,
+        "web": "jit",
+        "tv": "direct"
+      },
+      {
+        "title": "Cap Release Aac 5",
+        "video": "hevc",
+        "audio": "aac",
+        "mbit": 2.15,
+        "web": "jit",
+        "tv": "direct"
+      },
+      {
+        "title": "Cap Release Aac 6",
+        "video": "hevc",
+        "audio": "aac",
+        "mbit": 2.15,
+        "web": "jit",
+        "tv": "direct"
+      },
+      {
+        "title": "Cap Release Aac 7",
+        "video": "hevc",
+        "audio": "aac",
+        "mbit": 2.15,
+        "web": "jit",
+        "tv": "direct"
+      },
+      {
+        "title": "Cap Release Aac 8",
+        "video": "hevc",
+        "audio": "aac",
+        "mbit": 2.15,
+        "web": "jit",
+        "tv": "direct"
+      },
+      {
+        "title": "Cap Release Hevc",
+        "video": "hevc",
+        "audio": "eac3",
+        "mbit": 2.88,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Release Hevc 2",
+        "video": "hevc",
+        "audio": "eac3",
+        "mbit": 2.88,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Release Hevc 3",
+        "video": "hevc",
+        "audio": "eac3",
+        "mbit": 2.88,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Release Hevc 4",
+        "video": "hevc",
+        "audio": "eac3",
+        "mbit": 2.88,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Release Hevc 5",
+        "video": "hevc",
+        "audio": "eac3",
+        "mbit": 2.88,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Release Hevc 6",
+        "video": "hevc",
+        "audio": "eac3",
+        "mbit": 2.88,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Release Hevc 7",
+        "video": "hevc",
+        "audio": "eac3",
+        "mbit": 2.88,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Release Hevc 8",
+        "video": "hevc",
+        "audio": "eac3",
+        "mbit": 2.88,
+        "web": "jit",
+        "tv": "offset"
+      },
+      {
+        "title": "Cap Web H264",
+        "video": "h264",
+        "audio": "aac",
+        "mbit": 2.72,
+        "web": "direct",
+        "tv": "direct"
+      },
+      {
+        "title": "Cap Web H264 2",
+        "video": "h264",
+        "audio": "aac",
+        "mbit": 2.72,
+        "web": "direct",
+        "tv": "direct"
+      },
+      {
+        "title": "Cap Web H264 3",
+        "video": "h264",
+        "audio": "aac",
+        "mbit": 2.72,
+        "web": "direct",
+        "tv": "direct"
+      },
+      {
+        "title": "Cap Web H264 4",
+        "video": "h264",
+        "audio": "aac",
+        "mbit": 2.72,
+        "web": "direct",
+        "tv": "direct"
+      },
+      {
+        "title": "Cap Web H264 5",
+        "video": "h264",
+        "audio": "aac",
+        "mbit": 2.72,
+        "web": "direct",
+        "tv": "direct"
+      },
+      {
+        "title": "Cap Web H264 6",
+        "video": "h264",
+        "audio": "aac",
+        "mbit": 2.72,
+        "web": "direct",
+        "tv": "direct"
+      },
+      {
+        "title": "Cap Web H264 7",
+        "video": "h264",
+        "audio": "aac",
+        "mbit": 2.72,
+        "web": "direct",
+        "tv": "direct"
+      },
+      {
+        "title": "Cap Web H264 8",
+        "video": "h264",
+        "audio": "aac",
+        "mbit": 2.72,
+        "web": "direct",
+        "tv": "direct"
+      }
+    ],
+    "encoding": {
+      "mode": "auto",
+      "setting": "auto",
+      "limit": 5,
+      "capacity": 6.69,
+      "unit": 1.23,
+      "reserve": 1.23,
+      "logical": 16,
+      "cpu": {
+        "viewers": [],
+        "background": [],
+        "speculative": [],
+        "backgroundBudget": 2,
+        "backgroundUsed": 0,
+        "waiting": [],
+        "quiet": true,
+        "quietMs": 20000,
+        "threadsBackground": 8,
+        "pauses": "priority",
+        "stats": {
+          "started": 0,
+          "paused": 0,
+          "resumed": 0,
+          "shed": 0,
+          "heldBack": 0,
+          "specShed": 0
+        }
+      },
+      "headroom": 0.7,
+      "otherShare": 0.3,
+      "speed": 0.853,
+      "measured": true,
+      "calibration": {
+        "at": 1793035527085,
+        "cpuSecPerFilmSec": 0.867,
+        "wallSpeed": 4.71,
+        "ffmpeg": "ffmpeg version 6.0-essentials_build-www.gyan.dev Copyright (c) 2000-2023 the FFmpeg developers"
+      },
+      "memory": {
+        "freeMb": 7929,
+        "budgetMb": 6905,
+        "reserveMb": 1024
+      },
+      "overloaded": false,
+      "overloadWhy": null,
+      "cpuBusy": null,
+      "examples": {
+        "1080p → 1080p": 5,
+        "1080p → 720p": 9,
+        "4K → 1080p": 2,
+        "4K HDR → 1080p, tone-mapped": 1
+      },
+      "sentence": "Automatic: 5 now, because 16 CPU threads (other programs on this machine are using 30% of them) × 0.853 (this machine's measured speed against the reference) × 70% = 6.69 thread-seconds per second of film, and a 1080p transcode costs 1.23.",
+      "cpuModel": "Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz",
+      "running": {
+        "active": 0,
+        "own": 0,
+        "max": 5,
+        "load": 0,
+        "capacity": 6.69
+      },
+      "maxFixed": 16,
+      "hardware": {
+        "mode": "auto",
+        "family": "nvenc",
+        "checked": true,
+        "checkedAt": 1793045596336,
+        "encoders": {
+          "nvenc": {
+            "present": true,
+            "encode": true,
+            "decode": {
+              "h264": true,
+              "hevc": true,
+              "hevc10": true
+            },
+            "chain": true,
+            "tested": true,
+            "why": null,
+            "parallel": 7
+          },
+          "qsv": {
+            "present": true,
+            "encode": false,
+            "decode": {
+              "h264": false,
+              "hevc": false,
+              "hevc10": false
+            },
+            "chain": false,
+            "tested": false,
+            "why": "Error parsing global options: Unknown error occurred"
+          }
+        },
+        "sessions": {
+          "running": 0,
+          "max": 6,
+          "why": "7 opened at once in the boot check"
+        },
+        "refused": null,
+        "used": 0,
+        "fallbacks": 0,
+        "sentence": "Hardware encoding: NVIDIA NVENC works (decodes H.264, HEVC, 10-bit HEVC on the card too). In use (NVIDIA NVENC) for the quality ladder's encodes, up to 6 at once (7 opened at once in the boot check); HDR sources stay on the CPU."
+      }
+    }
+  },
+  "steps": [
+    {
+      "n": 5,
+      "browsing": 3,
+      "idle": 3,
+      "devices": 11,
+      "burst": {
+        "n": 5,
+        "secs": 14.7,
+        "ttffP50": 1077,
+        "ttffP95": 2055,
+        "ttffMax": 2055,
+        "byClass": {
+          "encode": {
+            "n": 2,
+            "p50": 1077,
+            "p95": 1183,
+            "max": 1183,
+            "never": 0
+          },
+          "torrent": {
+            "n": 2,
+            "p50": 956,
+            "p95": 2055,
+            "max": 2055,
+            "never": 0
+          },
+          "copy": {
+            "n": 1,
+            "p50": 737,
+            "p95": 737,
+            "max": 737,
+            "never": 0
+          }
+        },
+        "byKind": {
+          "web-transcode": {
+            "n": 1,
+            "p50": 1077,
+            "p95": 1077,
+            "max": 1077,
+            "never": 0
+          },
+          "tv-torrent": {
+            "n": 1,
+            "p50": 2055,
+            "p95": 2055,
+            "max": 2055,
+            "never": 0
+          },
+          "phone-transcode": {
+            "n": 1,
+            "p50": 1183,
+            "p95": 1183,
+            "max": 1183,
+            "never": 0
+          },
+          "tv-offset": {
+            "n": 1,
+            "p50": 737,
+            "p95": 737,
+            "max": 737,
+            "never": 0
+          },
+          "web-tjit": {
+            "n": 1,
+            "p50": 956,
+            "p95": 956,
+            "max": 956,
+            "never": 0
+          }
+        },
+        "neverStarted": 0,
+        "refused": 0,
+        "apiP50": 1.6,
+        "apiP95": 10.3,
+        "apiP99": 14,
+        "apiN": 113,
+        "s429": 0,
+        "s5xx": 0,
+        "subtitle": {
+          "n": 1,
+          "p95": 64.7,
+          "err": 0
+        },
+        "groups": [
+          {
+            "group": "image",
+            "n": 68,
+            "err": 0,
+            "p50": 4.6,
+            "p95": 8.9,
+            "max": 10.4,
+            "codes": {
+              "200": 69
+            }
+          },
+          {
+            "group": "grid",
+            "n": 42,
+            "err": 0,
+            "p50": 1.4,
+            "p95": 2.3,
+            "max": 5.2,
+            "codes": {
+              "200": 51
+            }
+          },
+          {
+            "group": "boot",
+            "n": 26,
+            "err": 0,
+            "p50": 2.4,
+            "p95": 4.2,
+            "max": 4.3,
+            "codes": {
+              "200": 27
+            }
+          },
+          {
+            "group": "segment",
+            "n": 18,
+            "err": 0,
+            "p50": 353.1,
+            "p95": 1068.1,
+            "max": 1068.1,
+            "codes": {
+              "200": 66
+            }
+          },
+          {
+            "group": "telemetry",
+            "n": 12,
+            "err": 0,
+            "p50": 3.1,
+            "p95": 12.6,
+            "max": 12.6,
+            "codes": {
+              "200": 15,
+              "204": 13
+            }
+          },
+          {
+            "group": "library",
+            "n": 11,
+            "err": 0,
+            "p50": 1.1,
+            "p95": 33.1,
+            "max": 33.1,
+            "codes": {
+              "200": 13
+            }
+          },
+          {
+            "group": "tv",
+            "n": 9,
+            "err": 4,
+            "p50": 1.7,
+            "p95": 14,
+            "max": 14,
+            "codes": {
+              "200": 6,
+              "404": 4
+            }
+          },
+          {
+            "group": "api-other",
+            "n": 9,
+            "err": 0,
+            "p50": 1,
+            "p95": 10.2,
+            "max": 10.2,
+            "codes": {
+              "200": 9
+            }
+          },
+          {
+            "group": "playlist",
+            "n": 8,
+            "err": 0,
+            "p50": 14.8,
+            "p95": 484,
+            "max": 484,
+            "codes": {
+              "200": 11
+            }
+          },
+          {
+            "group": "netprobe",
+            "n": 7,
+            "err": 0,
+            "p50": 1,
+            "p95": 4.3,
+            "max": 4.3,
+            "codes": {
+              "200": 7
+            }
+          },
+          {
+            "group": "state",
+            "n": 6,
+            "err": 0,
+            "p50": 3.2,
+            "p95": 4.7,
+            "max": 4.7,
+            "codes": {
+              "200": 7
+            }
+          },
+          {
+            "group": "home",
+            "n": 5,
+            "err": 0,
+            "p50": 10.3,
+            "p95": 11.2,
+            "max": 11.2,
+            "codes": {
+              "200": 5
+            }
+          },
+          {
+            "group": "title",
+            "n": 5,
+            "err": 0,
+            "p50": 4.4,
+            "p95": 13,
+            "max": 13,
+            "codes": {
+              "200": 7
+            }
+          },
+          {
+            "group": "first-segment",
+            "n": 4,
+            "err": 0,
+            "p50": 892,
+            "p95": 1091,
+            "max": 1091,
+            "codes": {
+              "200": 4
+            }
+          },
+          {
+            "group": "progress",
+            "n": 2,
+            "err": 0,
+            "p50": 2.7,
+            "p95": 6,
+            "max": 6,
+            "codes": {
+              "200": 41
+            }
+          },
+          {
+            "group": "subtitle",
+            "n": 1,
+            "err": 0,
+            "p50": 64.7,
+            "p95": 64.7,
+            "max": 64.7,
+            "codes": {
+              "200": 1
+            }
+          },
+          {
+            "group": "direct-first-byte",
+            "n": 1,
+            "err": 0,
+            "p50": 1951,
+            "p95": 1951,
+            "max": 1951,
+            "codes": {
+              "206": 1
+            }
+          }
+        ],
+        "gpu": {
+          "n": 8,
+          "gpuPctMean": 7.1,
+          "gpuPctMax": 29,
+          "encPctMean": 24.1,
+          "encPctMax": 89,
+          "decPctMean": 26.8,
+          "decPctMax": 98,
+          "sessionsMean": 0.6,
+          "sessionsMax": 2,
+          "memMbMax": 2741
+        },
+        "server": {
+          "loop": {
+            "p50": 1.27,
+            "p99": 15.58,
+            "max": 61.01
+          },
+          "stalls": {
+            "n100": 0,
+            "n1000": 0,
+            "totalMs": 58.69,
+            "max": 58.69,
+            "waitMs": 0,
+            "busyMs": 58.69
+          },
+          "elu": 0.14381,
+          "slowSync": [],
+          "http": {
+            "inFlight": 2,
+            "maxInFlight": 9,
+            "upgrades": 5,
+            "routes": {
+              "health": {
+                "n": 71,
+                "p50": 0.63,
+                "p95": 1.15,
+                "p99": 2.2,
+                "max": 2.2,
+                "codes": {
+                  "200": 71
+                },
+                "aborted": 0
+              },
+              "tv": {
+                "n": 9,
+                "p50": 1.09,
+                "p95": 2.55,
+                "p99": 2.55,
+                "max": 2.55,
+                "codes": {
+                  "200": 5,
+                  "404": 4
+                },
+                "aborted": 0
+              },
+              "api-other": {
+                "n": 93,
+                "p50": 0.79,
+                "p95": 1.83,
+                "p99": 2.33,
+                "max": 2.33,
+                "codes": {
+                  "200": 93
+                },
+                "aborted": 0
+              },
+              "library": {
+                "n": 11,
+                "p50": 0.57,
+                "p95": 5.92,
+                "p99": 5.92,
+                "max": 5.92,
+                "codes": {
+                  "200": 11
+                },
+                "aborted": 0
+              },
+              "state": {
+                "n": 6,
+                "p50": 0.43,
+                "p95": 0.91,
+                "p99": 0.91,
+                "max": 0.91,
+                "codes": {
+                  "200": 6
+                },
+                "aborted": 0
+              },
+              "home": {
+                "n": 5,
+                "p50": 6.14,
+                "p95": 6.66,
+                "p99": 6.66,
+                "max": 6.66,
+                "codes": {
+                  "200": 5
+                },
+                "aborted": 0
+              },
+              "image": {
+                "n": 68,
+                "p50": 3.15,
+                "p95": 4.1,
+                "p99": 5.05,
+                "max": 5.05,
+                "codes": {
+                  "200": 68
+                },
+                "aborted": 0
+              },
+              "title": {
+                "n": 5,
+                "p50": 3.27,
+                "p95": 3.39,
+                "p99": 3.39,
+                "max": 3.39,
+                "codes": {
+                  "200": 5
+                },
+                "aborted": 0
+              },
+              "playlist": {
+                "n": 8,
+                "p50": 5.37,
+                "p95": 481.01,
+                "p99": 481.01,
+                "max": 481.01,
+                "codes": {
+                  "200": 8
+                },
+                "aborted": 0
+              },
+              "stream-other": {
+                "n": 2,
+                "p50": 21.71,
+                "p95": 60.75,
+                "p99": 60.75,
+                "max": 60.75,
+                "codes": {
+                  "200": 1,
+                  "206": 1
+                },
+                "aborted": 1
+              },
+              "segment": {
+                "n": 18,
+                "p50": 278.14,
+                "p95": 915.92,
+                "p99": 915.92,
+                "max": 915.92,
+                "codes": {
+                  "200": 18
+                },
+                "aborted": 0
+              },
+              "progress": {
+                "n": 2,
+                "p50": 0.93,
+                "p95": 22.92,
+                "p99": 22.92,
+                "max": 22.92,
+                "codes": {
+                  "200": 2
+                },
+                "aborted": 0
+              }
+            }
+          }
+        },
+        "lag": {
+          "n": 69,
+          "p50": 1,
+          "p99": 21,
+          "max": 21
+        },
+        "tree": {
+          "wallSec": 15.1,
+          "serverCpuSec": 3.61,
+          "kidsCpuSec": 10.63,
+          "serverCores": 0.239,
+          "kidsCores": 0.704
+        },
+        "machine": {
+          "n": 8,
+          "cpuPctMean": 35.6,
+          "cpuPctP95": 65.7,
+          "freeMbMin": 7147,
+          "cores": 16
+        },
+        "driverCores": 0.035,
+        "egressMbit": 31.3
+      },
+      "window": {
+        "viewers": 5,
+        "plays": 5,
+        "startsInWindow": 0,
+        "ttffP50": null,
+        "ttffP95": null,
+        "neverStarted": 0,
+        "seeks": 0,
+        "seekP50": null,
+        "seekP95": null,
+        "segN": 143,
+        "lateSegPct": 0,
+        "starvedSegPct": 0,
+        "stalls": 0,
+        "stallPct": 0,
+        "watchedMin": 20,
+        "refused": 0,
+        "segFails": 0,
+        "egressMbit": 12.3,
+        "mbitPerViewer": 2.45,
+        "byClass": {
+          "encode": {
+            "viewers": 2,
+            "bytes": 107764824,
+            "segN": 54,
+            "segLate": 0,
+            "stalls": 0,
+            "stallMs": 0,
+            "mbitPerViewer": 1.8,
+            "mbitTotal": 3.6
+          },
+          "torrent": {
+            "viewers": 2,
+            "bytes": 128124968,
+            "segN": 24,
+            "segLate": 0,
+            "stalls": 0,
+            "stallMs": 0,
+            "mbitPerViewer": 2.14,
+            "mbitTotal": 4.3
+          },
+          "copy": {
+            "viewers": 1,
+            "bytes": 132230740,
+            "segN": 65,
+            "segLate": 0,
+            "stalls": 0,
+            "stallMs": 0,
+            "mbitPerViewer": 4.41,
+            "mbitTotal": 4.4
+          }
+        },
+        "apiP50": 2,
+        "apiP95": 8.4,
+        "apiP99": 18.2,
+        "apiN": 110,
+        "s429": 0,
+        "browseErr": 0,
+        "imagesP95": 5,
+        "browseP99": 18.2,
+        "browseRps": 0.5,
+        "lagP50": 0.9,
+        "lagP99": 2.3,
+        "lagMax": 13,
+        "loopP99": 15.93,
+        "loopMax": 20.99,
+        "elu": 0.01798,
+        "stallLoopMsPerMin": 0,
+        "stallLoopMax": 15.14,
+        "serverCores": 0.028,
+        "ffmpegCores": 0.121,
+        "ffmpegAlive": 4,
+        "rssMb": 168,
+        "ffmpegRssMb": 63,
+        "pcCpuPct": 23.9,
+        "pcCpuP95": 34.4,
+        "pcFreeMbMin": 7566,
+        "diskBusyPct": 11.4,
+        "diskReadMBs": 7.81,
+        "dataGrewMb": 258.8,
+        "driverCores": 0.011,
+        "detail": [
+          {
+            "kind": "web-transcode",
+            "title": "Cap Episode Ac3 7",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 30,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.5
+          },
+          {
+            "kind": "tv-torrent",
+            "title": "Cap Torrent 8 (2024) 1080p WEB-DL HEVC.mkv",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 0,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.96
+          },
+          {
+            "kind": "phone-transcode",
+            "title": "Cap Release Hevc 2",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 24,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.1
+          },
+          {
+            "kind": "tv-offset",
+            "title": "Cap Episode Ac3 7",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 65,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 4.41
+          },
+          {
+            "kind": "web-tjit",
+            "title": "Cap Torrent 8 (2024) 1080p WEB-DL HEVC.mkv",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 24,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.31
+          }
+        ],
+        "gpu": {
+          "n": 119,
+          "gpuPctMean": 1,
+          "gpuPctMax": 9,
+          "encPctMean": 3.7,
+          "encPctMax": 71,
+          "decPctMean": 4.5,
+          "decPctMax": 83,
+          "sessionsMean": 0.1,
+          "sessionsMax": 1,
+          "memMbMax": 2290
+        },
+        "encodes": {
+          "activeMax": 0,
+          "limitMin": 5,
+          "otherShareMax": 0.29,
+          "overloaded": false,
+          "hwSessionsMax": 0,
+          "hwMax": 6,
+          "fallbacks": 0
+        }
+      },
+      "verdict": {
+        "ok": true,
+        "why": []
+      },
+      "raw": {
+        "groups": [
+          {
+            "group": "progress",
+            "n": 240,
+            "rps": 1,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0,
+            "mean": 1.1,
+            "p50": 1,
+            "p95": 1.3,
+            "p99": 2.7,
+            "max": 3.7,
+            "codes": {
+              "200": 246
+            }
+          },
+          {
+            "group": "segment",
+            "n": 143,
+            "rps": 0.6,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 2112.9,
+            "mean": 170.6,
+            "p50": 259.7,
+            "p95": 321.4,
+            "p99": 322.4,
+            "max": 322.8,
+            "codes": {
+              "200": 144
+            }
+          },
+          {
+            "group": "search",
+            "n": 27,
+            "rps": 0.11,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 1.4,
+            "mean": 4,
+            "p50": 3.6,
+            "p95": 7.2,
+            "p99": 8.9,
+            "max": 8.9,
+            "codes": {
+              "200": 27
+            }
+          },
+          {
+            "group": "suggest",
+            "n": 23,
+            "rps": 0.1,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.6,
+            "mean": 2,
+            "p50": 1.5,
+            "p95": 3.5,
+            "p99": 8.6,
+            "max": 8.6,
+            "codes": {
+              "200": 23
+            }
+          },
+          {
+            "group": "telemetry",
+            "n": 20,
+            "rps": 0.08,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0,
+            "mean": 1.3,
+            "p50": 1.2,
+            "p95": 1.6,
+            "p99": 1.9,
+            "max": 1.9,
+            "codes": {
+              "204": 23
+            }
+          },
+          {
+            "group": "image",
+            "n": 18,
+            "rps": 0.07,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 44,
+            "mean": 3.6,
+            "p50": 3.8,
+            "p95": 5,
+            "p99": 5,
+            "max": 5,
+            "codes": {
+              "200": 71
+            }
+          },
+          {
+            "group": "api-other",
+            "n": 16,
+            "rps": 0.07,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0,
+            "mean": 1.4,
+            "p50": 1.4,
+            "p95": 2.3,
+            "p99": 2.3,
+            "max": 2.3,
+            "codes": {
+              "200": 20
+            }
+          },
+          {
+            "group": "grid",
+            "n": 12,
+            "rps": 0.05,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0,
+            "mean": 7,
+            "p50": 4.9,
+            "p95": 18.3,
+            "p99": 18.3,
+            "max": 18.3,
+            "codes": {
+              "200": 28
+            }
+          },
+          {
+            "group": "title",
+            "n": 9,
+            "rps": 0.04,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.5,
+            "mean": 1.5,
+            "p50": 1.3,
+            "p95": 2.5,
+            "p99": 2.5,
+            "max": 2.5,
+            "codes": {
+              "200": 11
+            }
+          },
+          {
+            "group": "home",
+            "n": 7,
+            "rps": 0.03,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 4,
+            "mean": 4.8,
+            "p50": 5,
+            "p95": 7.7,
+            "p99": 7.7,
+            "max": 7.7,
+            "codes": {
+              "200": 8,
+              "304": 3
+            }
+          },
+          {
+            "group": "playlist",
+            "n": 6,
+            "rps": 0.02,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 4.5,
+            "mean": 2.3,
+            "p50": 2.1,
+            "p95": 2.8,
+            "p99": 2.8,
+            "max": 2.8,
+            "codes": {
+              "200": 6
+            }
+          },
+          {
+            "group": "state",
+            "n": 5,
+            "rps": 0.02,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.1,
+            "mean": 0.7,
+            "p50": 0.7,
+            "p95": 0.8,
+            "p99": 0.8,
+            "max": 0.8,
+            "codes": {
+              "200": 8
+            }
+          },
+          {
+            "group": "boot",
+            "n": 5,
+            "rps": 0.02,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.1,
+            "mean": 1.7,
+            "p50": 1.5,
+            "p95": 2.8,
+            "p99": 2.8,
+            "max": 2.8,
+            "codes": {
+              "200": 26
+            }
+          },
+          {
+            "group": "library",
+            "n": 5,
+            "rps": 0.02,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 12.7,
+            "mean": 7.1,
+            "p50": 6.4,
+            "p95": 18.2,
+            "p99": 18.2,
+            "max": 18.2,
+            "codes": {
+              "200": 9
+            }
+          },
+          {
+            "group": "title-offline",
+            "n": 4,
+            "rps": 0.02,
+            "err": 4,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 4,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.1,
+            "mean": 1.2,
+            "p50": 1.1,
+            "p95": 1.6,
+            "p99": 1.6,
+            "max": 1.6,
+            "codes": {
+              "502": 5
+            }
+          },
+          {
+            "group": "tv",
+            "n": 1,
+            "rps": 0,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.1,
+            "mean": 1,
+            "p50": 1,
+            "p95": 1,
+            "p99": 1,
+            "max": 1,
+            "codes": {
+              "200": 3,
+              "404": 2
+            }
+          }
+        ],
+        "server": {
+          "loop": {
+            "n": 26567,
+            "mean": 9.03,
+            "p50": 14.39,
+            "p90": 15.46,
+            "p99": 15.93,
+            "p999": 16.6,
+            "max": 20.99,
+            "percentiles": {
+              "0": 0,
+              "50": 14.38,
+              "75": 15.35,
+              "100": 20.97,
+              "87.5": 15.43,
+              "93.75": 15.5,
+              "96.88": 15.59,
+              "98.44": 15.69,
+              "99.22": 16.07,
+              "99.61": 16.29,
+              "99.8": 16.48,
+              "99.9": 16.6,
+              "99.95": 16.64,
+              "99.98": 16.75,
+              "99.99": 18.51
+            }
+          },
+          "stalls": {
+            "n50": 0,
+            "n100": 0,
+            "n250": 0,
+            "n1000": 0,
+            "totalMs": 0,
+            "busyMs": 0,
+            "waitMs": 0,
+            "cpuMs": 0,
+            "max": 15.14,
+            "ticks": 8135,
+            "list": []
+          },
+          "http": {
+            "inFlight": 1,
+            "maxInFlight": 7,
+            "upgrades": 0,
+            "routes": {
+              "health": {
+                "n": 1128,
+                "p50": 0.54,
+                "p95": 0.75,
+                "p99": 1.04,
+                "max": 2.41,
+                "codes": {
+                  "200": 1128
+                },
+                "aborted": 0
+              },
+              "progress": {
+                "n": 240,
+                "p50": 0.67,
+                "p95": 0.84,
+                "p99": 1,
+                "max": 1.86,
+                "codes": {
+                  "200": 240
+                },
+                "aborted": 0
+              },
+              "segment": {
+                "n": 143,
+                "p50": 92.11,
+                "p95": 221.38,
+                "p99": 230.17,
+                "max": 230.23,
+                "codes": {
+                  "200": 143
+                },
+                "aborted": 0
+              },
+              "telemetry": {
+                "n": 20,
+                "p50": 0.79,
+                "p95": 1.08,
+                "p99": 1.15,
+                "max": 1.15,
+                "codes": {
+                  "204": 20
+                },
+                "aborted": 0
+              },
+              "home": {
+                "n": 7,
+                "p50": 4.2,
+                "p95": 7.42,
+                "p99": 7.42,
+                "max": 7.42,
+                "codes": {
+                  "200": 4,
+                  "304": 3
+                },
+                "aborted": 0
+              },
+              "api-other": {
+                "n": 56,
+                "p50": 0.95,
+                "p95": 6.65,
+                "p99": 7.25,
+                "max": 7.25,
+                "codes": {
+                  "200": 56
+                },
+                "aborted": 0
+              },
+              "title": {
+                "n": 13,
+                "p50": 1.04,
+                "p95": 2.39,
+                "p99": 2.39,
+                "max": 2.39,
+                "codes": {
+                  "200": 9,
+                  "502": 4
+                },
+                "aborted": 0
+              },
+              "state": {
+                "n": 5,
+                "p50": 0.47,
+                "p95": 0.55,
+                "p99": 0.55,
+                "max": 0.55,
+                "codes": {
+                  "200": 5
+                },
+                "aborted": 0
+              },
+              "image": {
+                "n": 18,
+                "p50": 2.48,
+                "p95": 3.93,
+                "p99": 3.93,
+                "max": 3.93,
+                "codes": {
+                  "200": 18
+                },
+                "aborted": 0
+              },
+              "playlist": {
+                "n": 6,
+                "p50": 1.78,
+                "p95": 2.48,
+                "p99": 2.48,
+                "max": 2.48,
+                "codes": {
+                  "200": 6
+                },
+                "aborted": 0
+              },
+              "library": {
+                "n": 5,
+                "p50": 5.87,
+                "p95": 8.88,
+                "p99": 8.88,
+                "max": 8.88,
+                "codes": {
+                  "200": 5
+                },
+                "aborted": 0
+              },
+              "tv": {
+                "n": 1,
+                "p50": 0.84,
+                "p95": 0.84,
+                "p99": 0.84,
+                "max": 0.84,
+                "codes": {
+                  "200": 1
+                },
+                "aborted": 0
+              },
+              "suggest": {
+                "n": 23,
+                "p50": 1.03,
+                "p95": 3.21,
+                "p99": 8.26,
+                "max": 8.26,
+                "codes": {
+                  "200": 23
+                },
+                "aborted": 0
+              },
+              "search": {
+                "n": 27,
+                "p50": 2.56,
+                "p95": 5.07,
+                "p99": 7.36,
+                "max": 7.36,
+                "codes": {
+                  "200": 27
+                },
+                "aborted": 0
+              }
+            }
+          },
+          "slowSync": [],
+          "mem": {
+            "rss": 176353280,
+            "heapUsed": 40827456,
+            "heapTotal": 44843008,
+            "external": 23780938,
+            "arrayBuffers": 20061188
+          }
+        },
+        "tree": {
+          "wallSec": 239.4,
+          "serverCpuSec": 6.61,
+          "kidsCpuSec": 28.92,
+          "serverCores": 0.028,
+          "kidsCores": 0.121,
+          "rssMb": 168,
+          "handles": 423,
+          "threads": 19,
+          "kidsAlive": 4,
+          "kidsRssMb": 63
+        },
+        "disk": {
+          "drive": "C",
+          "n": 48,
+          "busyPctMean": 11.4,
+          "readMBsMean": 7.81
+        },
+        "machine": {
+          "n": 120,
+          "cpuPctMean": 23.9,
+          "cpuPctP95": 34.4,
+          "freeMbMin": 7566,
+          "cores": 16
+        },
+        "counters": {
+          "wsDrops": 0,
+          "wsFails": 0,
+          "libraryUpdated": 0,
+          "deviceErrors": 0
+        }
+      }
+    },
+    {
+      "n": 10,
+      "browsing": 5,
+      "idle": 5,
+      "devices": 20,
+      "burst": {
+        "n": 10,
+        "secs": 18.7,
+        "ttffP50": 1071,
+        "ttffP95": 4770,
+        "ttffMax": 4770,
+        "byClass": {
+          "encode": {
+            "n": 4,
+            "p50": 1071,
+            "p95": 1612,
+            "max": 1612,
+            "never": 0
+          },
+          "torrent": {
+            "n": 3,
+            "p50": 1398,
+            "p95": 4770,
+            "max": 4770,
+            "never": 0
+          },
+          "copy": {
+            "n": 3,
+            "p50": 963,
+            "p95": 1267,
+            "max": 1267,
+            "never": 0
+          }
+        },
+        "byKind": {
+          "web-transcode": {
+            "n": 2,
+            "p50": 751,
+            "p95": 1071,
+            "max": 1071,
+            "never": 0
+          },
+          "tv-torrent": {
+            "n": 2,
+            "p50": 535,
+            "p95": 1398,
+            "max": 1398,
+            "never": 0
+          },
+          "phone-transcode": {
+            "n": 2,
+            "p50": 1400,
+            "p95": 1612,
+            "max": 1612,
+            "never": 0
+          },
+          "tv-offset": {
+            "n": 2,
+            "p50": 644,
+            "p95": 963,
+            "max": 963,
+            "never": 0
+          },
+          "web-tjit": {
+            "n": 1,
+            "p50": 4770,
+            "p95": 4770,
+            "max": 4770,
+            "never": 0
+          },
+          "phone-jit": {
+            "n": 1,
+            "p50": 1267,
+            "p95": 1267,
+            "max": 1267,
+            "never": 0
+          }
+        },
+        "neverStarted": 0,
+        "refused": 0,
+        "apiP50": 2.5,
+        "apiP95": 14.6,
+        "apiP99": 32.9,
+        "apiN": 162,
+        "s429": 0,
+        "s5xx": 0,
+        "subtitle": {
+          "n": 3,
+          "p95": 23.2,
+          "err": 0
+        },
+        "groups": [
+          {
+            "group": "image",
+            "n": 128,
+            "err": 0,
+            "p50": 4.7,
+            "p95": 10.5,
+            "max": 11.9,
+            "codes": {
+              "200": 142
+            }
+          },
+          {
+            "group": "segment",
+            "n": 54,
+            "err": 0,
+            "p50": 531.9,
+            "p95": 1155.9,
+            "max": 1389.3,
+            "codes": {
+              "200": 135
+            }
+          },
+          {
+            "group": "boot",
+            "n": 52,
+            "err": 0,
+            "p50": 2.6,
+            "p95": 6.3,
+            "max": 6.8,
+            "codes": {
+              "200": 54
+            }
+          },
+          {
+            "group": "grid",
+            "n": 42,
+            "err": 0,
+            "p50": 1.7,
+            "p95": 17,
+            "max": 19.2,
+            "codes": {
+              "200": 45
+            }
+          },
+          {
+            "group": "telemetry",
+            "n": 35,
+            "err": 0,
+            "p50": 3,
+            "p95": 7.1,
+            "max": 8.2,
+            "codes": {
+              "200": 30,
+              "204": 22
+            }
+          },
+          {
+            "group": "playlist",
+            "n": 19,
+            "err": 0,
+            "p50": 16.1,
+            "p95": 4156.6,
+            "max": 4156.6,
+            "codes": {
+              "200": 23
+            }
+          },
+          {
+            "group": "state",
+            "n": 13,
+            "err": 0,
+            "p50": 3.8,
+            "p95": 14.9,
+            "max": 14.9,
+            "codes": {
+              "200": 15
+            }
+          },
+          {
+            "group": "title",
+            "n": 13,
+            "err": 0,
+            "p50": 4.6,
+            "p95": 17.9,
+            "max": 17.9,
+            "codes": {
+              "200": 16
+            }
+          },
+          {
+            "group": "tv",
+            "n": 11,
+            "err": 4,
+            "p50": 3.7,
+            "p95": 32.9,
+            "max": 32.9,
+            "codes": {
+              "200": 8,
+              "404": 4
+            }
+          },
+          {
+            "group": "library",
+            "n": 11,
+            "err": 0,
+            "p50": 1.6,
+            "p95": 14.2,
+            "max": 14.2,
+            "codes": {
+              "200": 12
+            }
+          },
+          {
+            "group": "progress",
+            "n": 11,
+            "err": 0,
+            "p50": 3.3,
+            "p95": 5.4,
+            "max": 5.4,
+            "codes": {
+              "200": 91
+            }
+          },
+          {
+            "group": "home",
+            "n": 10,
+            "err": 0,
+            "p50": 9,
+            "p95": 15.8,
+            "max": 15.8,
+            "codes": {
+              "200": 11
+            }
+          },
+          {
+            "group": "api-other",
+            "n": 10,
+            "err": 0,
+            "p50": 1,
+            "p95": 78.6,
+            "max": 78.6,
+            "codes": {
+              "200": 14
+            }
+          },
+          {
+            "group": "first-segment",
+            "n": 8,
+            "err": 0,
+            "p50": 1010,
+            "p95": 4736,
+            "max": 4736,
+            "codes": {
+              "200": 8
+            }
+          },
+          {
+            "group": "netprobe",
+            "n": 6,
+            "err": 0,
+            "p50": 1.1,
+            "p95": 2.9,
+            "max": 2.9,
+            "codes": {
+              "200": 6
+            }
+          },
+          {
+            "group": "subtitle",
+            "n": 3,
+            "err": 0,
+            "p50": 22.9,
+            "p95": 23.2,
+            "max": 23.2,
+            "codes": {
+              "200": 3
+            }
+          },
+          {
+            "group": "direct-first-byte",
+            "n": 2,
+            "err": 0,
+            "p50": 416,
+            "p95": 1303,
+            "max": 1303,
+            "codes": {
+              "206": 2
+            }
+          },
+          {
+            "group": "title-offline",
+            "n": 2,
+            "err": 2,
+            "p50": 1.7,
+            "p95": 1.8,
+            "max": 1.8,
+            "codes": {
+              "502": 3
+            }
+          }
+        ],
+        "gpu": {
+          "n": 9,
+          "gpuPctMean": 11.6,
+          "gpuPctMax": 26,
+          "encPctMean": 38.7,
+          "encPctMax": 73,
+          "decPctMean": 53.2,
+          "decPctMax": 99,
+          "sessionsMean": 1.6,
+          "sessionsMax": 3,
+          "memMbMax": 3129
+        },
+        "server": {
+          "loop": {
+            "p50": 1.23,
+            "p99": 15.47,
+            "max": 91.62
+          },
+          "stalls": {
+            "n100": 0,
+            "n1000": 0,
+            "totalMs": 71.6,
+            "max": 71.6,
+            "waitMs": 0,
+            "busyMs": 71.6
+          },
+          "elu": 0.22605,
+          "slowSync": [],
+          "http": {
+            "inFlight": 6,
+            "maxInFlight": 10,
+            "upgrades": 10,
+            "routes": {
+              "health": {
+                "n": 93,
+                "p50": 0.66,
+                "p95": 1.24,
+                "p99": 2.46,
+                "max": 2.46,
+                "codes": {
+                  "200": 93
+                },
+                "aborted": 0
+              },
+              "api-other": {
+                "n": 135,
+                "p50": 0.88,
+                "p95": 2.2,
+                "p99": 3.21,
+                "max": 3.27,
+                "codes": {
+                  "200": 135
+                },
+                "aborted": 0
+              },
+              "home": {
+                "n": 10,
+                "p50": 6.06,
+                "p95": 9.7,
+                "p99": 9.7,
+                "max": 9.7,
+                "codes": {
+                  "200": 10
+                },
+                "aborted": 0
+              },
+              "image": {
+                "n": 128,
+                "p50": 3,
+                "p95": 5.34,
+                "p99": 5.79,
+                "max": 5.9,
+                "codes": {
+                  "200": 128
+                },
+                "aborted": 0
+              },
+              "state": {
+                "n": 13,
+                "p50": 0.48,
+                "p95": 0.68,
+                "p99": 0.68,
+                "max": 0.68,
+                "codes": {
+                  "200": 13
+                },
+                "aborted": 0
+              },
+              "telemetry": {
+                "n": 6,
+                "p50": 0.65,
+                "p95": 1.45,
+                "p99": 1.45,
+                "max": 1.45,
+                "codes": {
+                  "204": 6
+                },
+                "aborted": 0
+              },
+              "tv": {
+                "n": 11,
+                "p50": 0.67,
+                "p95": 2.39,
+                "p99": 2.39,
+                "max": 2.39,
+                "codes": {
+                  "200": 7,
+                  "404": 4
+                },
+                "aborted": 0
+              },
+              "library": {
+                "n": 11,
+                "p50": 0.65,
+                "p95": 12.46,
+                "p99": 12.46,
+                "max": 12.46,
+                "codes": {
+                  "200": 11
+                },
+                "aborted": 0
+              },
+              "title": {
+                "n": 15,
+                "p50": 2.19,
+                "p95": 14.02,
+                "p99": 14.02,
+                "max": 14.02,
+                "codes": {
+                  "200": 13,
+                  "502": 2
+                },
+                "aborted": 0
+              },
+              "stream-other": {
+                "n": 7,
+                "p50": 19.07,
+                "p95": 29.08,
+                "p99": 29.08,
+                "max": 29.08,
+                "codes": {
+                  "200": 3,
+                  "206": 4
+                },
+                "aborted": 3
+              },
+              "playlist": {
+                "n": 19,
+                "p50": 4.94,
+                "p95": 4153.2,
+                "p99": 4153.2,
+                "max": 4153.2,
+                "codes": {
+                  "200": 19
+                },
+                "aborted": 0
+              },
+              "segment": {
+                "n": 54,
+                "p50": 407.65,
+                "p95": 1001.28,
+                "p99": 1313.65,
+                "max": 1313.65,
+                "codes": {
+                  "200": 54
+                },
+                "aborted": 0
+              },
+              "progress": {
+                "n": 11,
+                "p50": 0.86,
+                "p95": 2.44,
+                "p99": 2.44,
+                "max": 2.44,
+                "codes": {
+                  "200": 11
+                },
+                "aborted": 0
+              }
+            }
+          }
+        },
+        "lag": {
+          "n": 89,
+          "p50": 1,
+          "p99": 13,
+          "max": 13
+        },
+        "tree": {
+          "wallSec": 19.6,
+          "serverCpuSec": 8.41,
+          "kidsCpuSec": 48.17,
+          "serverCores": 0.43,
+          "kidsCores": 2.461
+        },
+        "machine": {
+          "n": 9,
+          "cpuPctMean": 54.3,
+          "cpuPctP95": 86.1,
+          "freeMbMin": 6615,
+          "cores": 16
+        },
+        "driverCores": 0.075,
+        "egressMbit": 91.3
+      },
+      "window": {
+        "viewers": 10,
+        "plays": 10,
+        "startsInWindow": 0,
+        "ttffP50": null,
+        "ttffP95": null,
+        "neverStarted": 0,
+        "seeks": 0,
+        "seekP50": null,
+        "seekP95": null,
+        "segN": 275,
+        "lateSegPct": 0,
+        "starvedSegPct": 0,
+        "stalls": 0,
+        "stallPct": 0,
+        "watchedMin": 40,
+        "refused": 0,
+        "segFails": 0,
+        "egressMbit": 27.7,
+        "mbitPerViewer": 2.77,
+        "byClass": {
+          "encode": {
+            "viewers": 4,
+            "bytes": 228754417,
+            "segN": 113,
+            "segLate": 0,
+            "stalls": 0,
+            "stallMs": 0,
+            "mbitPerViewer": 1.91,
+            "mbitTotal": 7.6
+          },
+          "torrent": {
+            "viewers": 3,
+            "bytes": 186565708,
+            "segN": 24,
+            "segLate": 0,
+            "stalls": 0,
+            "stallMs": 0,
+            "mbitPerViewer": 2.07,
+            "mbitTotal": 6.2
+          },
+          "copy": {
+            "viewers": 3,
+            "bytes": 416446556,
+            "segN": 138,
+            "segLate": 0,
+            "stalls": 0,
+            "stallMs": 0,
+            "mbitPerViewer": 4.63,
+            "mbitTotal": 13.9
+          }
+        },
+        "apiP50": 1.9,
+        "apiP95": 7.9,
+        "apiP99": 15.7,
+        "apiN": 190,
+        "s429": 0,
+        "browseErr": 0,
+        "imagesP95": 5.3,
+        "browseP99": 14.3,
+        "browseRps": 0.9,
+        "lagP50": 0.8,
+        "lagP99": 2.8,
+        "lagMax": 6.7,
+        "loopP99": 15.63,
+        "loopMax": 26.84,
+        "elu": 0.03976,
+        "stallLoopMsPerMin": 0,
+        "stallLoopMax": 23.31,
+        "serverCores": 0.08,
+        "ffmpegCores": 0.17,
+        "ffmpegAlive": 6,
+        "rssMb": 232,
+        "ffmpegRssMb": 94,
+        "pcCpuPct": 25.4,
+        "pcCpuP95": 35.8,
+        "pcFreeMbMin": 7089,
+        "diskBusyPct": 14,
+        "diskReadMBs": 2.8,
+        "dataGrewMb": 461.6,
+        "driverCores": 0.022,
+        "detail": [
+          {
+            "kind": "web-transcode",
+            "title": "Cap Episode Ac3",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 30,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.5
+          },
+          {
+            "kind": "tv-torrent",
+            "title": "Cap Torrent 5 (2024) 1080p WEB-DL HEVC.mkv",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 0,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.95
+          },
+          {
+            "kind": "phone-transcode",
+            "title": "Cap Web H264 5",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 29,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.07
+          },
+          {
+            "kind": "tv-offset",
+            "title": "Cap Episode Ac3 5",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 66,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 4.41
+          },
+          {
+            "kind": "web-tjit",
+            "title": "Cap Torrent 5 (2024) 1080p WEB-DL HEVC.mkv",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 24,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.31
+          },
+          {
+            "kind": "web-transcode",
+            "title": "Cap Web H264 6",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 30,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.96
+          },
+          {
+            "kind": "tv-torrent",
+            "title": "Cap Torrent 2 (2024) 1080p WEB-DL HEVC.mkv",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 0,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.96
+          },
+          {
+            "kind": "phone-transcode",
+            "title": "Cap Release Hevc 7",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 24,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.1
+          },
+          {
+            "kind": "phone-jit",
+            "title": "Cap Release Hevc 3",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 24,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.69
+          },
+          {
+            "kind": "tv-offset",
+            "title": "Cap Heavy Hevc",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 48,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 6.78
+          }
+        ],
+        "gpu": {
+          "n": 120,
+          "gpuPctMean": 1,
+          "gpuPctMax": 11,
+          "encPctMean": 5,
+          "encPctMax": 70,
+          "decPctMean": 8.2,
+          "decPctMax": 100,
+          "sessionsMean": 0.1,
+          "sessionsMax": 2,
+          "memMbMax": 2628
+        },
+        "encodes": {
+          "activeMax": 1,
+          "limitMin": 5,
+          "otherShareMax": 0.23,
+          "overloaded": false,
+          "hwSessionsMax": 1,
+          "hwMax": 6,
+          "fallbacks": 0
+        }
+      },
+      "verdict": {
+        "ok": false,
+        "why": [
+          "burst TTFF p95 4770 ms > 4000"
+        ]
+      },
+      "raw": {
+        "groups": [
+          {
+            "group": "progress",
+            "n": 480,
+            "rps": 2,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0,
+            "mean": 1.1,
+            "p50": 0.9,
+            "p95": 1.7,
+            "p99": 3.1,
+            "max": 5.6,
+            "codes": {
+              "200": 493
+            }
+          },
+          {
+            "group": "segment",
+            "n": 275,
+            "rps": 1.15,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 2537.4,
+            "mean": 267.4,
+            "p50": 259.6,
+            "p95": 666.2,
+            "p99": 718.3,
+            "max": 732.8,
+            "codes": {
+              "200": 277
+            }
+          },
+          {
+            "group": "suggest",
+            "n": 48,
+            "rps": 0.2,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.4,
+            "mean": 2,
+            "p50": 1.6,
+            "p95": 4.7,
+            "p99": 5.3,
+            "max": 5.3,
+            "codes": {
+              "200": 48
+            }
+          },
+          {
+            "group": "search",
+            "n": 45,
+            "rps": 0.19,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 1.2,
+            "mean": 3.2,
+            "p50": 2.9,
+            "p95": 5.1,
+            "p99": 5.7,
+            "max": 5.7,
+            "codes": {
+              "200": 45
+            }
+          },
+          {
+            "group": "telemetry",
+            "n": 36,
+            "rps": 0.15,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0,
+            "mean": 1.2,
+            "p50": 1.1,
+            "p95": 2.4,
+            "p99": 3.6,
+            "max": 3.6,
+            "codes": {
+              "204": 39
+            }
+          },
+          {
+            "group": "image",
+            "n": 36,
+            "rps": 0.15,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 45.2,
+            "mean": 3.5,
+            "p50": 3.8,
+            "p95": 5.3,
+            "p99": 5.5,
+            "max": 5.5,
+            "codes": {
+              "200": 119
+            }
+          },
+          {
+            "group": "api-other",
+            "n": 28,
+            "rps": 0.12,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.1,
+            "mean": 1.8,
+            "p50": 1.3,
+            "p95": 7.8,
+            "p99": 8.4,
+            "max": 8.4,
+            "codes": {
+              "200": 34
+            }
+          },
+          {
+            "group": "title",
+            "n": 17,
+            "rps": 0.07,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.5,
+            "mean": 1.9,
+            "p50": 1.7,
+            "p95": 3.8,
+            "p99": 3.8,
+            "max": 3.8,
+            "codes": {
+              "200": 18
+            }
+          },
+          {
+            "group": "grid",
+            "n": 13,
+            "rps": 0.05,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0,
+            "mean": 7.7,
+            "p50": 7.6,
+            "p95": 16.3,
+            "p99": 16.3,
+            "max": 16.3,
+            "codes": {
+              "200": 40
+            }
+          },
+          {
+            "group": "playlist",
+            "n": 12,
+            "rps": 0.05,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 3.9,
+            "mean": 2.4,
+            "p50": 2.3,
+            "p95": 4.2,
+            "p99": 4.2,
+            "max": 4.2,
+            "codes": {
+              "200": 12
+            }
+          },
+          {
+            "group": "state",
+            "n": 11,
+            "rps": 0.05,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.2,
+            "mean": 1.7,
+            "p50": 0.8,
+            "p95": 10.4,
+            "p99": 10.4,
+            "max": 10.4,
+            "codes": {
+              "200": 15
+            }
+          },
+          {
+            "group": "boot",
+            "n": 11,
+            "rps": 0.05,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.1,
+            "mean": 2.5,
+            "p50": 1.5,
+            "p95": 11.2,
+            "p99": 11.2,
+            "max": 11.2,
+            "codes": {
+              "200": 42
+            }
+          },
+          {
+            "group": "home",
+            "n": 9,
+            "rps": 0.04,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 5.4,
+            "mean": 6,
+            "p50": 5.8,
+            "p95": 7.9,
+            "p99": 7.9,
+            "max": 7.9,
+            "codes": {
+              "200": 13,
+              "304": 3
+            }
+          },
+          {
+            "group": "title-offline",
+            "n": 6,
+            "rps": 0.02,
+            "err": 6,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 6,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.1,
+            "mean": 1.3,
+            "p50": 1.2,
+            "p95": 1.6,
+            "p99": 1.6,
+            "max": 1.6,
+            "codes": {
+              "502": 6
+            }
+          },
+          {
+            "group": "netprobe",
+            "n": 6,
+            "rps": 0.02,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 48,
+            "mean": 1.3,
+            "p50": 1,
+            "p95": 2.1,
+            "p99": 2.1,
+            "max": 2.1,
+            "codes": {
+              "200": 9
+            }
+          },
+          {
+            "group": "library",
+            "n": 5,
+            "rps": 0.02,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 12.7,
+            "mean": 8.1,
+            "p50": 6.6,
+            "p95": 14.3,
+            "p99": 14.3,
+            "max": 14.3,
+            "codes": {
+              "200": 12
+            }
+          },
+          {
+            "group": "tv",
+            "n": 3,
+            "rps": 0.01,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.1,
+            "mean": 1.5,
+            "p50": 1.6,
+            "p95": 1.9,
+            "p99": 1.9,
+            "max": 1.9,
+            "codes": {
+              "200": 7,
+              "404": 3
+            }
+          }
+        ],
+        "server": {
+          "loop": {
+            "n": 36459,
+            "mean": 6.58,
+            "p50": 2.3,
+            "p90": 15.4,
+            "p99": 15.63,
+            "p999": 16.44,
+            "max": 26.84,
+            "percentiles": {
+              "0": 0,
+              "50": 2.3,
+              "75": 14.93,
+              "100": 26.82,
+              "87.5": 15.37,
+              "93.75": 15.44,
+              "96.88": 15.52,
+              "98.44": 15.59,
+              "99.22": 15.65,
+              "99.61": 15.89,
+              "99.8": 16.19,
+              "99.9": 16.44,
+              "99.95": 16.58,
+              "99.98": 16.72,
+              "99.99": 18.5
+            }
+          },
+          "stalls": {
+            "n50": 0,
+            "n100": 0,
+            "n250": 0,
+            "n1000": 0,
+            "totalMs": 0,
+            "busyMs": 0,
+            "waitMs": 0,
+            "cpuMs": 0,
+            "max": 23.31,
+            "ticks": 8372,
+            "list": []
+          },
+          "http": {
+            "inFlight": 2,
+            "maxInFlight": 8,
+            "upgrades": 0,
+            "routes": {
+              "api-other": {
+                "n": 82,
+                "p50": 0.8,
+                "p95": 7.4,
+                "p99": 7.84,
+                "max": 7.84,
+                "codes": {
+                  "200": 82
+                },
+                "aborted": 0
+              },
+              "health": {
+                "n": 1129,
+                "p50": 0.49,
+                "p95": 0.71,
+                "p99": 0.87,
+                "max": 1.21,
+                "codes": {
+                  "200": 1129
+                },
+                "aborted": 0
+              },
+              "progress": {
+                "n": 480,
+                "p50": 0.6,
+                "p95": 0.87,
+                "p99": 0.99,
+                "max": 1.24,
+                "codes": {
+                  "200": 480
+                },
+                "aborted": 0
+              },
+              "segment": {
+                "n": 275,
+                "p50": 109.27,
+                "p95": 489.16,
+                "p99": 506.78,
+                "max": 519.53,
+                "codes": {
+                  "200": 275
+                },
+                "aborted": 0
+              },
+              "telemetry": {
+                "n": 36,
+                "p50": 0.69,
+                "p95": 1.18,
+                "p99": 1.26,
+                "max": 1.26,
+                "codes": {
+                  "204": 36
+                },
+                "aborted": 0
+              },
+              "title": {
+                "n": 23,
+                "p50": 1.15,
+                "p95": 2.44,
+                "p99": 2.51,
+                "max": 2.51,
+                "codes": {
+                  "200": 17,
+                  "502": 6
+                },
+                "aborted": 0
+              },
+              "state": {
+                "n": 11,
+                "p50": 0.43,
+                "p95": 0.67,
+                "p99": 0.67,
+                "max": 0.67,
+                "codes": {
+                  "200": 11
+                },
+                "aborted": 0
+              },
+              "image": {
+                "n": 36,
+                "p50": 2.71,
+                "p95": 4,
+                "p99": 4.92,
+                "max": 4.92,
+                "codes": {
+                  "200": 36
+                },
+                "aborted": 0
+              },
+              "suggest": {
+                "n": 48,
+                "p50": 1.18,
+                "p95": 4.21,
+                "p99": 4.52,
+                "max": 4.52,
+                "codes": {
+                  "200": 48
+                },
+                "aborted": 0
+              },
+              "search": {
+                "n": 45,
+                "p50": 2.13,
+                "p95": 4,
+                "p99": 4.25,
+                "max": 4.25,
+                "codes": {
+                  "200": 45
+                },
+                "aborted": 0
+              },
+              "library": {
+                "n": 5,
+                "p50": 5.91,
+                "p95": 9.46,
+                "p99": 9.46,
+                "max": 9.46,
+                "codes": {
+                  "200": 5
+                },
+                "aborted": 0
+              },
+              "playlist": {
+                "n": 12,
+                "p50": 1.73,
+                "p95": 2.29,
+                "p99": 2.29,
+                "max": 2.29,
+                "codes": {
+                  "200": 12
+                },
+                "aborted": 0
+              },
+              "home": {
+                "n": 9,
+                "p50": 5.6,
+                "p95": 7.32,
+                "p99": 7.32,
+                "max": 7.32,
+                "codes": {
+                  "200": 7,
+                  "304": 2
+                },
+                "aborted": 0
+              },
+              "tv": {
+                "n": 3,
+                "p50": 0.79,
+                "p95": 0.82,
+                "p99": 0.82,
+                "max": 0.82,
+                "codes": {
+                  "200": 3
+                },
+                "aborted": 0
+              }
+            }
+          },
+          "slowSync": [],
+          "mem": {
+            "rss": 243015680,
+            "heapUsed": 43433248,
+            "heapTotal": 51134464,
+            "external": 47745656,
+            "arrayBuffers": 44025906
+          }
+        },
+        "tree": {
+          "wallSec": 241.1,
+          "serverCpuSec": 19.2,
+          "kidsCpuSec": 40.92,
+          "serverCores": 0.08,
+          "kidsCores": 0.17,
+          "rssMb": 232,
+          "handles": 465,
+          "threads": 17,
+          "kidsAlive": 6,
+          "kidsRssMb": 94
+        },
+        "disk": {
+          "drive": "C",
+          "n": 48,
+          "busyPctMean": 14,
+          "readMBsMean": 2.8
+        },
+        "machine": {
+          "n": 120,
+          "cpuPctMean": 25.4,
+          "cpuPctP95": 35.8,
+          "freeMbMin": 7089,
+          "cores": 16
+        },
+        "counters": {
+          "wsDrops": 0,
+          "wsFails": 0,
+          "libraryUpdated": 0,
+          "deviceErrors": 0
+        }
+      }
+    },
+    {
+      "n": 15,
+      "browsing": 8,
+      "idle": 8,
+      "devices": 31,
+      "burst": {
+        "n": 15,
+        "secs": 15.7,
+        "ttffP50": 1076,
+        "ttffP95": 2249,
+        "ttffMax": 2249,
+        "byClass": {
+          "encode": {
+            "n": 6,
+            "p50": 954,
+            "p95": 1725,
+            "max": 1725,
+            "never": 0
+          },
+          "torrent": {
+            "n": 5,
+            "p50": 1065,
+            "p95": 2037,
+            "max": 2037,
+            "never": 0
+          },
+          "copy": {
+            "n": 4,
+            "p50": 1373,
+            "p95": 2249,
+            "max": 2249,
+            "never": 0
+          }
+        },
+        "byKind": {
+          "web-transcode": {
+            "n": 3,
+            "p50": 953,
+            "p95": 954,
+            "max": 954,
+            "never": 0
+          },
+          "tv-torrent": {
+            "n": 3,
+            "p50": 1065,
+            "p95": 2037,
+            "max": 2037,
+            "never": 0
+          },
+          "phone-transcode": {
+            "n": 3,
+            "p50": 1711,
+            "p95": 1725,
+            "max": 1725,
+            "never": 0
+          },
+          "tv-offset": {
+            "n": 3,
+            "p50": 1373,
+            "p95": 1398,
+            "max": 1398,
+            "never": 0
+          },
+          "web-tjit": {
+            "n": 2,
+            "p50": 643,
+            "p95": 1076,
+            "max": 1076,
+            "never": 0
+          },
+          "phone-jit": {
+            "n": 1,
+            "p50": 2249,
+            "p95": 2249,
+            "max": 2249,
+            "never": 0
+          }
+        },
+        "neverStarted": 0,
+        "refused": 0,
+        "apiP50": 2.4,
+        "apiP95": 19.5,
+        "apiP99": 70.5,
+        "apiN": 281,
+        "s429": 0,
+        "s5xx": 0,
+        "subtitle": {
+          "n": 6,
+          "p95": 94.2,
+          "err": 0
+        },
+        "groups": [
+          {
+            "group": "image",
+            "n": 197,
+            "err": 0,
+            "p50": 4.3,
+            "p95": 11.1,
+            "max": 50.6,
+            "codes": {
+              "200": 210
+            }
+          },
+          {
+            "group": "boot",
+            "n": 78,
+            "err": 0,
+            "p50": 2.3,
+            "p95": 5.7,
+            "max": 70.5,
+            "codes": {
+              "200": 79
+            }
+          },
+          {
+            "group": "segment",
+            "n": 76,
+            "err": 0,
+            "p50": 273.8,
+            "p95": 1552.8,
+            "max": 2181.1,
+            "codes": {
+              "200": 203
+            }
+          },
+          {
+            "group": "grid",
+            "n": 55,
+            "err": 0,
+            "p50": 1.7,
+            "p95": 17,
+            "max": 31.1,
+            "codes": {
+              "200": 69
+            }
+          },
+          {
+            "group": "telemetry",
+            "n": 48,
+            "err": 0,
+            "p50": 2.7,
+            "p95": 12.8,
+            "max": 17.3,
+            "codes": {
+              "200": 45,
+              "204": 35
+            }
+          },
+          {
+            "group": "playlist",
+            "n": 26,
+            "err": 0,
+            "p50": 22,
+            "p95": 1040.4,
+            "max": 1081.8,
+            "codes": {
+              "200": 34
+            }
+          },
+          {
+            "group": "api-other",
+            "n": 23,
+            "err": 0,
+            "p50": 1.4,
+            "p95": 16.3,
+            "max": 22.5,
+            "codes": {
+              "200": 35
+            }
+          },
+          {
+            "group": "suggest",
+            "n": 23,
+            "err": 0,
+            "p50": 2.2,
+            "p95": 4.5,
+            "max": 5.5,
+            "codes": {
+              "200": 43
+            }
+          },
+          {
+            "group": "search",
+            "n": 20,
+            "err": 0,
+            "p50": 5.2,
+            "p95": 11.8,
+            "max": 12.1,
+            "codes": {
+              "200": 40
+            }
+          },
+          {
+            "group": "state",
+            "n": 19,
+            "err": 0,
+            "p50": 3.9,
+            "p95": 70.9,
+            "max": 70.9,
+            "codes": {
+              "200": 20
+            }
+          },
+          {
+            "group": "home",
+            "n": 17,
+            "err": 0,
+            "p50": 10,
+            "p95": 77.8,
+            "max": 77.8,
+            "codes": {
+              "200": 21
+            }
+          },
+          {
+            "group": "title",
+            "n": 17,
+            "err": 0,
+            "p50": 5.2,
+            "p95": 32.8,
+            "max": 32.8,
+            "codes": {
+              "200": 20
+            }
+          },
+          {
+            "group": "library",
+            "n": 15,
+            "err": 0,
+            "p50": 1.6,
+            "p95": 22.3,
+            "max": 22.3,
+            "codes": {
+              "200": 18
+            }
+          },
+          {
+            "group": "tv",
+            "n": 14,
+            "err": 6,
+            "p50": 2.7,
+            "p95": 10.9,
+            "max": 10.9,
+            "codes": {
+              "200": 12,
+              "404": 6
+            }
+          },
+          {
+            "group": "progress",
+            "n": 13,
+            "err": 0,
+            "p50": 3.3,
+            "p95": 12.7,
+            "max": 12.7,
+            "codes": {
+              "200": 132
+            }
+          },
+          {
+            "group": "first-segment",
+            "n": 12,
+            "err": 0,
+            "p50": 1029,
+            "p95": 2201,
+            "max": 2201,
+            "codes": {
+              "200": 12
+            }
+          },
+          {
+            "group": "netprobe",
+            "n": 9,
+            "err": 0,
+            "p50": 1,
+            "p95": 1.6,
+            "max": 1.6,
+            "codes": {
+              "200": 9
+            }
+          },
+          {
+            "group": "subtitle",
+            "n": 6,
+            "err": 0,
+            "p50": 29.2,
+            "p95": 94.2,
+            "max": 94.2,
+            "codes": {
+              "200": 6
+            }
+          },
+          {
+            "group": "direct-first-byte",
+            "n": 3,
+            "err": 0,
+            "p50": 925,
+            "p95": 1944,
+            "max": 1944,
+            "codes": {
+              "206": 3
+            }
+          },
+          {
+            "group": "title-offline",
+            "n": 1,
+            "err": 1,
+            "p50": 1,
+            "p95": 1,
+            "max": 1,
+            "codes": {
+              "502": 3
+            }
+          }
+        ],
+        "gpu": {
+          "n": 7,
+          "gpuPctMean": 1,
+          "gpuPctMax": 4,
+          "encPctMean": 4.4,
+          "encPctMax": 25,
+          "decPctMean": 11.6,
+          "decPctMax": 60,
+          "sessionsMean": 0.6,
+          "sessionsMax": 3,
+          "memMbMax": 2990
+        },
+        "server": {
+          "loop": {
+            "p50": 1.13,
+            "p99": 15.63,
+            "max": 65.96
+          },
+          "stalls": {
+            "n100": 0,
+            "n1000": 0,
+            "totalMs": 50.54,
+            "max": 50.54,
+            "waitMs": 0,
+            "busyMs": 50.54
+          },
+          "elu": 0.28092,
+          "slowSync": [],
+          "http": {
+            "inFlight": 8,
+            "maxInFlight": 12,
+            "upgrades": 15,
+            "routes": {
+              "health": {
+                "n": 82,
+                "p50": 0.65,
+                "p95": 1.06,
+                "p99": 2.91,
+                "max": 2.91,
+                "codes": {
+                  "200": 82
+                },
+                "aborted": 0
+              },
+              "api-other": {
+                "n": 199,
+                "p50": 0.79,
+                "p95": 1.56,
+                "p99": 2.31,
+                "max": 2.33,
+                "codes": {
+                  "200": 199
+                },
+                "aborted": 0
+              },
+              "home": {
+                "n": 17,
+                "p50": 6.84,
+                "p95": 10.79,
+                "p99": 10.79,
+                "max": 10.79,
+                "codes": {
+                  "200": 17
+                },
+                "aborted": 0
+              },
+              "image": {
+                "n": 197,
+                "p50": 2.84,
+                "p95": 6.63,
+                "p99": 44.36,
+                "max": 46.67,
+                "codes": {
+                  "200": 197
+                },
+                "aborted": 0
+              },
+              "state": {
+                "n": 19,
+                "p50": 0.38,
+                "p95": 1.62,
+                "p99": 1.62,
+                "max": 1.62,
+                "codes": {
+                  "200": 19
+                },
+                "aborted": 0
+              },
+              "telemetry": {
+                "n": 8,
+                "p50": 0.63,
+                "p95": 0.7,
+                "p99": 0.7,
+                "max": 0.7,
+                "codes": {
+                  "204": 8
+                },
+                "aborted": 0
+              },
+              "suggest": {
+                "n": 23,
+                "p50": 1.12,
+                "p95": 2.39,
+                "p99": 2.96,
+                "max": 2.96,
+                "codes": {
+                  "200": 23
+                },
+                "aborted": 0
+              },
+              "search": {
+                "n": 20,
+                "p50": 3.62,
+                "p95": 7.23,
+                "p99": 8.37,
+                "max": 8.37,
+                "codes": {
+                  "200": 20
+                },
+                "aborted": 0
+              },
+              "tv": {
+                "n": 14,
+                "p50": 1.11,
+                "p95": 3.37,
+                "p99": 3.37,
+                "max": 3.37,
+                "codes": {
+                  "200": 8,
+                  "404": 6
+                },
+                "aborted": 0
+              },
+              "title": {
+                "n": 18,
+                "p50": 2.75,
+                "p95": 8.38,
+                "p99": 8.38,
+                "max": 8.38,
+                "codes": {
+                  "200": 17,
+                  "502": 1
+                },
+                "aborted": 0
+              },
+              "library": {
+                "n": 15,
+                "p50": 0.73,
+                "p95": 6.4,
+                "p99": 6.4,
+                "max": 6.4,
+                "codes": {
+                  "200": 15
+                },
+                "aborted": 0
+              },
+              "stream-other": {
+                "n": 7,
+                "p50": 25.81,
+                "p95": 90.13,
+                "p99": 90.13,
+                "max": 90.13,
+                "codes": {
+                  "200": 6,
+                  "206": 1
+                },
+                "aborted": 1
+              },
+              "playlist": {
+                "n": 26,
+                "p50": 5.32,
+                "p95": 1039.94,
+                "p99": 1080.23,
+                "max": 1080.23,
+                "codes": {
+                  "200": 26
+                },
+                "aborted": 0
+              },
+              "segment": {
+                "n": 76,
+                "p50": 230.27,
+                "p95": 1383.92,
+                "p99": 2033.25,
+                "max": 2033.25,
+                "codes": {
+                  "200": 76
+                },
+                "aborted": 0
+              },
+              "progress": {
+                "n": 13,
+                "p50": 0.86,
+                "p95": 1.37,
+                "p99": 1.37,
+                "max": 1.37,
+                "codes": {
+                  "200": 13
+                },
+                "aborted": 0
+              }
+            }
+          }
+        },
+        "lag": {
+          "n": 76,
+          "p50": 1,
+          "p99": 14,
+          "max": 14
+        },
+        "tree": {
+          "wallSec": 15.3,
+          "serverCpuSec": 8.39,
+          "kidsCpuSec": 46.78,
+          "serverCores": 0.55,
+          "kidsCores": 3.066
+        },
+        "machine": {
+          "n": 7,
+          "cpuPctMean": 61.8,
+          "cpuPctP95": 98.5,
+          "freeMbMin": 6369,
+          "cores": 16
+        },
+        "driverCores": 0.111,
+        "egressMbit": 129.8
+      },
+      "window": {
+        "viewers": 15,
+        "plays": 15,
+        "startsInWindow": 0,
+        "ttffP50": null,
+        "ttffP95": null,
+        "neverStarted": 0,
+        "seeks": 0,
+        "seekP50": null,
+        "seekP95": null,
+        "segN": 421,
+        "lateSegPct": 0,
+        "starvedSegPct": 0,
+        "stalls": 0,
+        "stallPct": 0,
+        "watchedMin": 60.1,
+        "refused": 0,
+        "segFails": 0,
+        "egressMbit": 40,
+        "mbitPerViewer": 2.67,
+        "byClass": {
+          "encode": {
+            "viewers": 6,
+            "bytes": 345788744,
+            "segN": 167,
+            "segLate": 0,
+            "stalls": 0,
+            "stallMs": 0,
+            "mbitPerViewer": 1.92,
+            "mbitTotal": 11.5
+          },
+          "torrent": {
+            "viewers": 5,
+            "bytes": 314708048,
+            "segN": 48,
+            "segLate": 0,
+            "stalls": 0,
+            "stallMs": 0,
+            "mbitPerViewer": 2.1,
+            "mbitTotal": 10.5
+          },
+          "copy": {
+            "viewers": 4,
+            "bytes": 540333325,
+            "segN": 206,
+            "segLate": 0,
+            "stalls": 0,
+            "stallMs": 0,
+            "mbitPerViewer": 4.5,
+            "mbitTotal": 18
+          }
+        },
+        "apiP50": 1.9,
+        "apiP95": 7.3,
+        "apiP99": 11.5,
+        "apiN": 336,
+        "s429": 0,
+        "browseErr": 0,
+        "imagesP95": 45.3,
+        "browseP99": 54.2,
+        "browseRps": 1.6,
+        "lagP50": 0.8,
+        "lagP99": 3.5,
+        "lagMax": 609.2,
+        "loopP99": 15.66,
+        "loopMax": 760.74,
+        "elu": 0.056979999999999996,
+        "stallLoopMsPerMin": 593,
+        "stallLoopMax": 755.2,
+        "serverCores": 0.099,
+        "ffmpegCores": 0.186,
+        "ffmpegAlive": 10,
+        "rssMb": 246,
+        "ffmpegRssMb": 168,
+        "pcCpuPct": 24.1,
+        "pcCpuP95": 39.4,
+        "pcFreeMbMin": 6804,
+        "diskBusyPct": 37.5,
+        "diskReadMBs": 12.75,
+        "dataGrewMb": 475.5,
+        "driverCores": 0.025,
+        "detail": [
+          {
+            "kind": "web-transcode",
+            "title": "Cap Web H264",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 30,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.99
+          },
+          {
+            "kind": "tv-torrent",
+            "title": "Cap Torrent 7 (2024) 1080p WEB-DL HEVC.mkv",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 0,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.96
+          },
+          {
+            "kind": "phone-transcode",
+            "title": "Cap Web H264 3",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 30,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.11
+          },
+          {
+            "kind": "tv-offset",
+            "title": "Cap Episode Ac3 6",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 64,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 4.39
+          },
+          {
+            "kind": "web-tjit",
+            "title": "Cap Torrent 2 (2024) 1080p WEB-DL HEVC.mkv",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 24,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.31
+          },
+          {
+            "kind": "web-transcode",
+            "title": "Cap Web H264 7",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 30,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.94
+          },
+          {
+            "kind": "tv-torrent",
+            "title": "Cap Torrent 3 (2024) 1080p WEB-DL HEVC.mkv",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 0,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.95
+          },
+          {
+            "kind": "phone-transcode",
+            "title": "Cap Release Aac 5",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 24,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.1
+          },
+          {
+            "kind": "phone-jit",
+            "title": "Cap Heavy Hevc 8",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 24,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 6.59
+          },
+          {
+            "kind": "tv-offset",
+            "title": "Cap Episode Ac3 8",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 73,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 4.41
+          },
+          {
+            "kind": "web-transcode",
+            "title": "Cap Release Aac 2",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 24,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.31
+          },
+          {
+            "kind": "tv-torrent",
+            "title": "Cap Torrent 1 (2024) 1080p WEB-DL HEVC.mkv",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 0,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.95
+          },
+          {
+            "kind": "phone-transcode",
+            "title": "Cap Episode Ac3 6",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 29,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.08
+          },
+          {
+            "kind": "tv-offset",
+            "title": "Cap Release Hevc 2",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 45,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.62
+          },
+          {
+            "kind": "web-tjit",
+            "title": "Cap Torrent 7 (2024) 1080p WEB-DL HEVC.mkv",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 24,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.31
+          }
+        ],
+        "gpu": {
+          "n": 120,
+          "gpuPctMean": 1,
+          "gpuPctMax": 19,
+          "encPctMean": 2,
+          "encPctMax": 53,
+          "decPctMean": 4,
+          "decPctMax": 100,
+          "sessionsMean": 0.1,
+          "sessionsMax": 3,
+          "memMbMax": 2990
+        },
+        "encodes": {
+          "activeMax": 2,
+          "limitMin": 5,
+          "otherShareMax": 0.23,
+          "overloaded": false,
+          "hwSessionsMax": 2,
+          "hwMax": 6,
+          "fallbacks": 0
+        }
+      },
+      "verdict": {
+        "ok": true,
+        "why": []
+      },
+      "raw": {
+        "groups": [
+          {
+            "group": "progress",
+            "n": 719,
+            "rps": 3,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0,
+            "mean": 3,
+            "p50": 1,
+            "p95": 3.1,
+            "p99": 34,
+            "max": 669.5,
+            "codes": {
+              "200": 737
+            }
+          },
+          {
+            "group": "segment",
+            "n": 421,
+            "rps": 1.75,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 2377.5,
+            "mean": 253.6,
+            "p50": 214.9,
+            "p95": 1601.2,
+            "p99": 1698.5,
+            "max": 1836.1,
+            "codes": {
+              "200": 422
+            }
+          },
+          {
+            "group": "suggest",
+            "n": 70,
+            "rps": 0.29,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.4,
+            "mean": 2.8,
+            "p50": 1.6,
+            "p95": 4.2,
+            "p99": 60.1,
+            "max": 60.1,
+            "codes": {
+              "200": 74
+            }
+          },
+          {
+            "group": "search",
+            "n": 66,
+            "rps": 0.27,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 1.3,
+            "mean": 4.2,
+            "p50": 3.1,
+            "p95": 5.1,
+            "p99": 60.4,
+            "max": 60.4,
+            "codes": {
+              "200": 72
+            }
+          },
+          {
+            "group": "telemetry",
+            "n": 65,
+            "rps": 0.27,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0,
+            "mean": 2,
+            "p50": 1.2,
+            "p95": 2.4,
+            "p99": 47.8,
+            "max": 47.8,
+            "codes": {
+              "204": 70
+            }
+          },
+          {
+            "group": "image",
+            "n": 50,
+            "rps": 0.21,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 44.6,
+            "mean": 10.2,
+            "p50": 3.4,
+            "p95": 45.3,
+            "p99": 101.4,
+            "max": 101.4,
+            "codes": {
+              "200": 97
+            }
+          },
+          {
+            "group": "grid",
+            "n": 48,
+            "rps": 0.2,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0,
+            "mean": 3.9,
+            "p50": 2.4,
+            "p95": 8.4,
+            "p99": 11.5,
+            "max": 11.5,
+            "codes": {
+              "200": 67
+            }
+          },
+          {
+            "group": "title",
+            "n": 34,
+            "rps": 0.14,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.6,
+            "mean": 1.6,
+            "p50": 1.4,
+            "p95": 3,
+            "p99": 3.8,
+            "max": 3.8,
+            "codes": {
+              "200": 37
+            }
+          },
+          {
+            "group": "api-other",
+            "n": 32,
+            "rps": 0.13,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.1,
+            "mean": 2.9,
+            "p50": 1.4,
+            "p95": 3,
+            "p99": 45.2,
+            "max": 45.2,
+            "codes": {
+              "200": 40
+            }
+          },
+          {
+            "group": "state",
+            "n": 23,
+            "rps": 0.1,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.2,
+            "mean": 0.8,
+            "p50": 0.6,
+            "p95": 2,
+            "p99": 2.1,
+            "max": 2.1,
+            "codes": {
+              "200": 27
+            }
+          },
+          {
+            "group": "boot",
+            "n": 23,
+            "rps": 0.1,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.1,
+            "mean": 1.6,
+            "p50": 1.3,
+            "p95": 3.2,
+            "p99": 4.4,
+            "max": 4.4,
+            "codes": {
+              "200": 46
+            }
+          },
+          {
+            "group": "library",
+            "n": 19,
+            "rps": 0.08,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 12.7,
+            "mean": 3.3,
+            "p50": 1.4,
+            "p95": 8.8,
+            "p99": 8.8,
+            "max": 8.8,
+            "codes": {
+              "200": 24
+            }
+          },
+          {
+            "group": "home",
+            "n": 15,
+            "rps": 0.06,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 4.2,
+            "mean": 5.8,
+            "p50": 5.7,
+            "p95": 8.1,
+            "p99": 8.1,
+            "max": 8.1,
+            "codes": {
+              "200": 14,
+              "304": 6
+            }
+          },
+          {
+            "group": "playlist",
+            "n": 15,
+            "rps": 0.06,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 4.4,
+            "mean": 53.4,
+            "p50": 2.4,
+            "p95": 760.2,
+            "p99": 760.2,
+            "max": 760.2,
+            "codes": {
+              "200": 15
+            }
+          },
+          {
+            "group": "title-offline",
+            "n": 11,
+            "rps": 0.05,
+            "err": 11,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 11,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.1,
+            "mean": 1.3,
+            "p50": 1,
+            "p95": 3.3,
+            "p99": 3.3,
+            "max": 3.3,
+            "codes": {
+              "502": 13
+            }
+          },
+          {
+            "group": "netprobe",
+            "n": 9,
+            "rps": 0.04,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 48,
+            "mean": 1.7,
+            "p50": 1.6,
+            "p95": 3.5,
+            "p99": 3.5,
+            "max": 3.5,
+            "codes": {
+              "200": 12
+            }
+          },
+          {
+            "group": "tv",
+            "n": 6,
+            "rps": 0.02,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.1,
+            "mean": 1.3,
+            "p50": 1.1,
+            "p95": 1.7,
+            "p99": 1.7,
+            "max": 1.7,
+            "codes": {
+              "200": 8,
+              "404": 1
+            }
+          }
+        ],
+        "server": {
+          "loop": {
+            "n": 33403,
+            "mean": 7.19,
+            "p50": 2.48,
+            "p90": 15.41,
+            "p99": 15.66,
+            "p999": 16.47,
+            "max": 760.74,
+            "percentiles": {
+              "0": 0,
+              "50": 2.48,
+              "75": 15.02,
+              "100": 760.22,
+              "87.5": 15.38,
+              "93.75": 15.44,
+              "96.88": 15.52,
+              "98.44": 15.6,
+              "99.22": 15.7,
+              "99.61": 16.06,
+              "99.8": 16.24,
+              "99.9": 16.46,
+              "99.95": 17.48,
+              "99.98": 91.55,
+              "99.99": 287.57
+            }
+          },
+          "stalls": {
+            "n50": 9,
+            "n100": 8,
+            "n250": 4,
+            "n1000": 0,
+            "totalMs": 2371.97,
+            "busyMs": 0,
+            "waitMs": 2371.97,
+            "cpuMs": 0,
+            "max": 755.2,
+            "ticks": 8174,
+            "list": [
+              {
+                "at": 773156.77,
+                "ms": 250.63,
+                "cpuMs": 0,
+                "slow": [
+                  "statSync 252.11ms y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Aac 5 (2022)\\Cap Release Aac 5 (2022).mkv"
+                ]
+              },
+              {
+                "at": 949511.99,
+                "ms": 307.45,
+                "cpuMs": 0,
+                "slow": [
+                  "statSync 310.22ms apacity-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Web H264 3 (2020)\\Cap Web H264 3 (2020).mp4"
+                ]
+              },
+              {
+                "at": 957996.51,
+                "ms": 755.2,
+                "cpuMs": 0,
+                "slow": [
+                  "existsSync 757.12ms y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Episode Ac3 8 (2019)\\Cap Episode Ac3 8 (2019).mp4"
+                ]
+              },
+              {
+                "at": 981041.66,
+                "ms": 283.2,
+                "cpuMs": 0,
+                "slow": [
+                  "statSync 285.14ms apacity-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Web H264 3 (2020)\\Cap Web H264 3 (2020).mp4"
+                ]
+              }
+            ]
+          },
+          "http": {
+            "inFlight": 4,
+            "maxInFlight": 9,
+            "upgrades": 0,
+            "routes": {
+              "progress": {
+                "n": 719,
+                "p50": 0.59,
+                "p95": 0.83,
+                "p99": 1.09,
+                "max": 1.49,
+                "codes": {
+                  "200": 719
+                },
+                "aborted": 0
+              },
+              "api-other": {
+                "n": 136,
+                "p50": 0.73,
+                "p95": 7.05,
+                "p99": 8.42,
+                "max": 9.84,
+                "codes": {
+                  "200": 136
+                },
+                "aborted": 0
+              },
+              "health": {
+                "n": 1124,
+                "p50": 0.5,
+                "p95": 0.72,
+                "p99": 0.88,
+                "max": 1.57,
+                "codes": {
+                  "200": 1124
+                },
+                "aborted": 0
+              },
+              "segment": {
+                "n": 421,
+                "p50": 77.85,
+                "p95": 1453.92,
+                "p99": 1550.56,
+                "max": 1653.04,
+                "codes": {
+                  "200": 421
+                },
+                "aborted": 0
+              },
+              "telemetry": {
+                "n": 65,
+                "p50": 0.69,
+                "p95": 1.11,
+                "p99": 1.26,
+                "max": 1.26,
+                "codes": {
+                  "204": 65
+                },
+                "aborted": 0
+              },
+              "library": {
+                "n": 19,
+                "p50": 0.69,
+                "p95": 8.15,
+                "p99": 8.15,
+                "max": 8.15,
+                "codes": {
+                  "200": 19
+                },
+                "aborted": 0
+              },
+              "suggest": {
+                "n": 70,
+                "p50": 1.16,
+                "p95": 3.36,
+                "p99": 6.6,
+                "max": 6.6,
+                "codes": {
+                  "200": 70
+                },
+                "aborted": 0
+              },
+              "search": {
+                "n": 66,
+                "p50": 2.18,
+                "p95": 3.76,
+                "p99": 6.13,
+                "max": 6.13,
+                "codes": {
+                  "200": 66
+                },
+                "aborted": 0
+              },
+              "title": {
+                "n": 45,
+                "p50": 1.13,
+                "p95": 2.24,
+                "p99": 3.69,
+                "max": 3.69,
+                "codes": {
+                  "200": 34,
+                  "502": 11
+                },
+                "aborted": 0
+              },
+              "state": {
+                "n": 23,
+                "p50": 0.4,
+                "p95": 0.63,
+                "p99": 0.65,
+                "max": 0.65,
+                "codes": {
+                  "200": 23
+                },
+                "aborted": 0
+              },
+              "image": {
+                "n": 50,
+                "p50": 2.46,
+                "p95": 45.09,
+                "p99": 101.06,
+                "max": 101.06,
+                "codes": {
+                  "200": 50
+                },
+                "aborted": 0
+              },
+              "tv": {
+                "n": 6,
+                "p50": 0.83,
+                "p95": 0.95,
+                "p99": 0.95,
+                "max": 0.95,
+                "codes": {
+                  "200": 6
+                },
+                "aborted": 0
+              },
+              "home": {
+                "n": 15,
+                "p50": 5.33,
+                "p95": 7.35,
+                "p99": 7.35,
+                "max": 7.35,
+                "codes": {
+                  "200": 9,
+                  "304": 6
+                },
+                "aborted": 0
+              },
+              "playlist": {
+                "n": 15,
+                "p50": 2.12,
+                "p95": 759.82,
+                "p99": 759.82,
+                "max": 759.82,
+                "codes": {
+                  "200": 15
+                },
+                "aborted": 0
+              }
+            }
+          },
+          "slowSync": [
+            {
+              "fn": "existsSync",
+              "arg": "y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Episode Ac3 8 (2019)\\Cap Episode Ac3 8 (2019).mp4",
+              "ms": 757.12,
+              "at": 957994.03
+            },
+            {
+              "fn": "statSync",
+              "arg": "apacity-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Web H264 3 (2020)\\Cap Web H264 3 (2020).mp4",
+              "ms": 310.22,
+              "at": 949510.3
+            },
+            {
+              "fn": "statSync",
+              "arg": "apacity-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Web H264 3 (2020)\\Cap Web H264 3 (2020).mp4",
+              "ms": 285.14,
+              "at": 981039.74
+            },
+            {
+              "fn": "statSync",
+              "arg": "y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Aac 5 (2022)\\Cap Release Aac 5 (2022).mkv",
+              "ms": 255.47,
+              "at": 913311.95
+            },
+            {
+              "fn": "statSync",
+              "arg": "y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Aac 5 (2022)\\Cap Release Aac 5 (2022).mkv",
+              "ms": 252.11,
+              "at": 773154.54
+            },
+            {
+              "fn": "statSync",
+              "arg": "y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Episode Ac3 6 (2019)\\Cap Episode Ac3 6 (2019).mp4",
+              "ms": 158.76,
+              "at": 882608.69
+            },
+            {
+              "fn": "statSync",
+              "arg": "apacity-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Web H264 3 (2020)\\Cap Web H264 3 (2020).mp4",
+              "ms": 143.77,
+              "at": 778460.35
+            },
+            {
+              "fn": "statSync",
+              "arg": "y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Episode Ac3 6 (2019)\\Cap Episode Ac3 6 (2019).mp4",
+              "ms": 133.72,
+              "at": 960679.72
+            },
+            {
+              "fn": "statSync",
+              "arg": "apacity-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Web H264 3 (2020)\\Cap Web H264 3 (2020).mp4",
+              "ms": 87.89,
+              "at": 770303.21
+            },
+            {
+              "fn": "statSync",
+              "arg": "apacity-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Web H264 7 (2020)\\Cap Web H264 7 (2020).mp4",
+              "ms": 63,
+              "at": 969403.43
+            },
+            {
+              "fn": "mkdirSync",
+              "arg": "emp\\aurora-agents\\capacity-2026-10\\lt\\deps-552e78d5ed61\\i-5dd310c2-44288-234ffa\\data\\usage",
+              "ms": 37.61,
+              "at": 778314.63
+            },
+            {
+              "fn": "statSync",
+              "arg": "y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Episode Ac3 6 (2019)\\Cap Episode Ac3 6 (2019).mp4",
+              "ms": 31.59,
+              "at": 963719.34
+            },
+            {
+              "fn": "statSync",
+              "arg": "y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Episode Ac3 8 (2019)\\Cap Episode Ac3 8 (2019).mp4",
+              "ms": 22.38,
+              "at": 882634.01
+            },
+            {
+              "fn": "statSync",
+              "arg": "y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Aac 5 (2022)\\Cap Release Aac 5 (2022).mkv",
+              "ms": 21.26,
+              "at": 972931.38
+            }
+          ],
+          "mem": {
+            "rss": 258457600,
+            "heapUsed": 43441960,
+            "heapTotal": 55328768,
+            "external": 83637511,
+            "arrayBuffers": 79917761
+          }
+        },
+        "tree": {
+          "wallSec": 239.3,
+          "serverCpuSec": 23.67,
+          "kidsCpuSec": 44.39,
+          "serverCores": 0.099,
+          "kidsCores": 0.186,
+          "rssMb": 246,
+          "handles": 508,
+          "threads": 17,
+          "kidsAlive": 10,
+          "kidsRssMb": 168
+        },
+        "disk": {
+          "drive": "C",
+          "n": 48,
+          "busyPctMean": 37.5,
+          "readMBsMean": 12.75
+        },
+        "machine": {
+          "n": 120,
+          "cpuPctMean": 24.1,
+          "cpuPctP95": 39.4,
+          "freeMbMin": 6804,
+          "cores": 16
+        },
+        "counters": {
+          "wsDrops": 0,
+          "wsFails": 0,
+          "libraryUpdated": 0,
+          "deviceErrors": 0
+        }
+      }
+    },
+    {
+      "n": 20,
+      "browsing": 10,
+      "idle": 10,
+      "devices": 40,
+      "burst": {
+        "n": 20,
+        "secs": 17.2,
+        "ttffP50": 2860,
+        "ttffP95": 8030,
+        "ttffMax": 8634,
+        "byClass": {
+          "encode": {
+            "n": 8,
+            "p50": 3044,
+            "p95": 5861,
+            "max": 5861,
+            "never": 0
+          },
+          "torrent": {
+            "n": 6,
+            "p50": 1453,
+            "p95": 8634,
+            "max": 8634,
+            "never": 0
+          },
+          "copy": {
+            "n": 6,
+            "p50": 2860,
+            "p95": 7514,
+            "max": 7514,
+            "never": 0
+          }
+        },
+        "byKind": {
+          "web-transcode": {
+            "n": 4,
+            "p50": 3428,
+            "p95": 5861,
+            "max": 5861,
+            "never": 0
+          },
+          "tv-torrent": {
+            "n": 4,
+            "p50": 2403,
+            "p95": 8634,
+            "max": 8634,
+            "never": 0
+          },
+          "phone-transcode": {
+            "n": 4,
+            "p50": 2415,
+            "p95": 3508,
+            "max": 3508,
+            "never": 0
+          },
+          "tv-offset": {
+            "n": 4,
+            "p50": 2860,
+            "p95": 7514,
+            "max": 7514,
+            "never": 0
+          },
+          "web-tjit": {
+            "n": 2,
+            "p50": 862,
+            "p95": 1453,
+            "max": 1453,
+            "never": 0
+          },
+          "phone-jit": {
+            "n": 2,
+            "p50": 966,
+            "p95": 5660,
+            "max": 5660,
+            "never": 0
+          }
+        },
+        "neverStarted": 0,
+        "refused": 0,
+        "apiP50": 4.1,
+        "apiP95": 367.9,
+        "apiP99": 721.3,
+        "apiN": 341,
+        "s429": 0,
+        "s5xx": 0,
+        "subtitle": {
+          "n": 8,
+          "p95": 1194.3,
+          "err": 0
+        },
+        "groups": [
+          {
+            "group": "image",
+            "n": 268,
+            "err": 0,
+            "p50": 5.7,
+            "p95": 529.9,
+            "max": 929.7,
+            "codes": {
+              "200": 275
+            }
+          },
+          {
+            "group": "boot",
+            "n": 104,
+            "err": 0,
+            "p50": 2.6,
+            "p95": 168.1,
+            "max": 380.6,
+            "codes": {
+              "200": 109
+            }
+          },
+          {
+            "group": "grid",
+            "n": 79,
+            "err": 0,
+            "p50": 3.4,
+            "p95": 446.5,
+            "max": 471.5,
+            "codes": {
+              "200": 82
+            }
+          },
+          {
+            "group": "segment",
+            "n": 71,
+            "err": 0,
+            "p50": 452.8,
+            "p95": 4147.1,
+            "max": 5699.8,
+            "codes": {
+              "200": 239
+            }
+          },
+          {
+            "group": "telemetry",
+            "n": 61,
+            "err": 0,
+            "p50": 4,
+            "p95": 223.7,
+            "max": 708,
+            "codes": {
+              "200": 60,
+              "204": 47
+            }
+          },
+          {
+            "group": "playlist",
+            "n": 34,
+            "err": 0,
+            "p50": 65.2,
+            "p95": 2650,
+            "max": 3077,
+            "codes": {
+              "200": 49
+            }
+          },
+          {
+            "group": "api-other",
+            "n": 28,
+            "err": 0,
+            "p50": 1.3,
+            "p95": 103.8,
+            "max": 201.6,
+            "codes": {
+              "200": 41
+            }
+          },
+          {
+            "group": "state",
+            "n": 26,
+            "err": 0,
+            "p50": 5.5,
+            "p95": 359,
+            "max": 381.1,
+            "codes": {
+              "200": 31
+            }
+          },
+          {
+            "group": "home",
+            "n": 23,
+            "err": 0,
+            "p50": 10,
+            "p95": 212.3,
+            "max": 387.8,
+            "codes": {
+              "200": 28,
+              "304": 2
+            }
+          },
+          {
+            "group": "tv",
+            "n": 23,
+            "err": 8,
+            "p50": 10.2,
+            "p95": 160.3,
+            "max": 172.9,
+            "codes": {
+              "200": 17,
+              "404": 8
+            }
+          },
+          {
+            "group": "title",
+            "n": 23,
+            "err": 0,
+            "p50": 123.4,
+            "p95": 1074.3,
+            "max": 1074.9,
+            "codes": {
+              "200": 29
+            }
+          },
+          {
+            "group": "library",
+            "n": 20,
+            "err": 0,
+            "p50": 6.1,
+            "p95": 665.8,
+            "max": 666,
+            "codes": {
+              "200": 21
+            }
+          },
+          {
+            "group": "first-segment",
+            "n": 16,
+            "err": 0,
+            "p50": 2685,
+            "p95": 7346,
+            "max": 7346,
+            "codes": {
+              "200": 16
+            }
+          },
+          {
+            "group": "netprobe",
+            "n": 12,
+            "err": 0,
+            "p50": 1,
+            "p95": 352.7,
+            "max": 352.7,
+            "codes": {
+              "200": 12
+            }
+          },
+          {
+            "group": "progress",
+            "n": 12,
+            "err": 0,
+            "p50": 4.7,
+            "p95": 710.5,
+            "max": 710.5,
+            "codes": {
+              "200": 172
+            }
+          },
+          {
+            "group": "suggest",
+            "n": 8,
+            "err": 0,
+            "p50": 2.7,
+            "p95": 136.8,
+            "max": 136.8,
+            "codes": {
+              "200": 37
+            }
+          },
+          {
+            "group": "subtitle",
+            "n": 8,
+            "err": 0,
+            "p50": 66.6,
+            "p95": 1194.3,
+            "max": 1194.3,
+            "codes": {
+              "200": 8
+            }
+          },
+          {
+            "group": "search",
+            "n": 7,
+            "err": 0,
+            "p50": 57.5,
+            "p95": 137.3,
+            "max": 137.3,
+            "codes": {
+              "200": 35
+            }
+          },
+          {
+            "group": "direct-first-byte",
+            "n": 4,
+            "err": 0,
+            "p50": 603,
+            "p95": 8465,
+            "max": 8465,
+            "codes": {
+              "206": 4
+            }
+          },
+          {
+            "group": "title-offline",
+            "n": 1,
+            "err": 1,
+            "p50": 1.8,
+            "p95": 1.8,
+            "max": 1.8,
+            "codes": {
+              "502": 2
+            }
+          }
+        ],
+        "gpu": {
+          "n": 8,
+          "gpuPctMean": 6.9,
+          "gpuPctMax": 19,
+          "encPctMean": 20.8,
+          "encPctMax": 48,
+          "decPctMean": 47,
+          "decPctMax": 100,
+          "sessionsMean": 1.8,
+          "sessionsMax": 5,
+          "memMbMax": 3829
+        },
+        "server": {
+          "loop": {
+            "p50": 1.29,
+            "p99": 16.12,
+            "max": 558.37
+          },
+          "stalls": {
+            "n100": 16,
+            "n1000": 0,
+            "totalMs": 4018.93,
+            "max": 537.78,
+            "waitMs": 3959.64,
+            "busyMs": 59.29
+          },
+          "elu": 0.46161,
+          "slowSync": [
+            {
+              "fn": "statSync",
+              "arg": "apacity-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Web H264 8 (2020)\\Cap Web H264 8 (2020).mp4",
+              "ms": 541.26,
+              "at": 1019059.08
+            },
+            {
+              "fn": "mkdirSync",
+              "arg": "d5ed61\\i-5dd310c2-44288-234ffa\\data\\cache\\jit\\e5bc48da001c-1793035464660-h264-480-f4-hw\\p1",
+              "ms": 378.22,
+              "at": 1020967.9
+            },
+            {
+              "fn": "mkdirSync",
+              "arg": "-10\\lt\\deps-552e78d5ed61\\i-5dd310c2-44288-234ffa\\data\\cache\\jit\\7e1ef81b81a9-1793035085682",
+              "ms": 251.2,
+              "at": 1019345.09
+            },
+            {
+              "fn": "statSync",
+              "arg": "2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Hevc 6 (2021)\\Cap Release Hevc 6 (2021).mkv",
+              "ms": 239.54,
+              "at": 1018510.06
+            },
+            {
+              "fn": "existsSync",
+              "arg": "2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Hevc 3 (2021)\\Cap Release Hevc 3 (2021).mkv",
+              "ms": 200.47,
+              "at": 1020518.38
+            },
+            {
+              "fn": "statSync",
+              "arg": "2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Hevc 6 (2021)\\Cap Release Hevc 6 (2021).mkv",
+              "ms": 185.21,
+              "at": 1016952.93
+            },
+            {
+              "fn": "readFileSync",
+              "arg": "5dd310c2-44288-234ffa\\data\\cache\\torrents\\d1e18f16b9afad3bf20b2276da12e7670fe1c4a5.torrent",
+              "ms": 182.06,
+              "at": 1013860.81
+            },
+            {
+              "fn": "readSync",
+              "arg": "number",
+              "ms": 181.24,
+              "at": 1013860.77
+            },
+            {
+              "fn": "statSync",
+              "arg": "ity-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Heavy Hevc 3 (2023)\\Cap Heavy Hevc 3 (2023).mkv",
+              "ms": 147.46,
+              "at": 1017236.79
+            },
+            {
+              "fn": "existsSync",
+              "arg": "2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Hevc 6 (2021)\\Cap Release Hevc 6 (2021).mkv",
+              "ms": 122.23,
+              "at": 1016654.89
+            }
+          ],
+          "http": {
+            "inFlight": 8,
+            "maxInFlight": 32,
+            "upgrades": 20,
+            "routes": {
+              "health": {
+                "n": 79,
+                "p50": 0.58,
+                "p95": 1.34,
+                "p99": 1.8,
+                "max": 1.8,
+                "codes": {
+                  "200": 79
+                },
+                "aborted": 0
+              },
+              "api-other": {
+                "n": 265,
+                "p50": 0.72,
+                "p95": 1.49,
+                "p99": 2.35,
+                "max": 2.81,
+                "codes": {
+                  "200": 265
+                },
+                "aborted": 0
+              },
+              "state": {
+                "n": 26,
+                "p50": 0.41,
+                "p95": 0.69,
+                "p99": 0.79,
+                "max": 0.79,
+                "codes": {
+                  "200": 26
+                },
+                "aborted": 0
+              },
+              "home": {
+                "n": 23,
+                "p50": 6.08,
+                "p95": 9.18,
+                "p99": 10.67,
+                "max": 10.67,
+                "codes": {
+                  "200": 23
+                },
+                "aborted": 0
+              },
+              "image": {
+                "n": 268,
+                "p50": 3.58,
+                "p95": 477.85,
+                "p99": 565.58,
+                "max": 565.67,
+                "codes": {
+                  "200": 268
+                },
+                "aborted": 0
+              },
+              "tv": {
+                "n": 23,
+                "p50": 0.78,
+                "p95": 1.25,
+                "p99": 1.35,
+                "max": 1.35,
+                "codes": {
+                  "200": 15,
+                  "404": 8
+                },
+                "aborted": 0
+              },
+              "library": {
+                "n": 20,
+                "p50": 0.48,
+                "p95": 1.9,
+                "p99": 5.77,
+                "max": 5.77,
+                "codes": {
+                  "200": 20
+                },
+                "aborted": 0
+              },
+              "telemetry": {
+                "n": 11,
+                "p50": 0.68,
+                "p95": 2.6,
+                "p99": 2.6,
+                "max": 2.6,
+                "codes": {
+                  "204": 11
+                },
+                "aborted": 0
+              },
+              "title": {
+                "n": 24,
+                "p50": 10.94,
+                "p95": 854.7,
+                "p99": 855.82,
+                "max": 855.82,
+                "codes": {
+                  "200": 23,
+                  "502": 1
+                },
+                "aborted": 0
+              },
+              "playlist": {
+                "n": 34,
+                "p50": 12.8,
+                "p95": 2647.37,
+                "p99": 3076.32,
+                "max": 3076.32,
+                "codes": {
+                  "200": 34
+                },
+                "aborted": 0
+              },
+              "suggest": {
+                "n": 10,
+                "p50": 4.81,
+                "p95": 410.62,
+                "p99": 410.62,
+                "max": 410.62,
+                "codes": {
+                  "200": 10
+                },
+                "aborted": 1
+              },
+              "segment": {
+                "n": 72,
+                "p50": 430.68,
+                "p95": 4117.46,
+                "p99": 5693.64,
+                "max": 5693.64,
+                "codes": {
+                  "200": 72
+                },
+                "aborted": 0
+              },
+              "search": {
+                "n": 8,
+                "p50": 6.14,
+                "p95": 194.08,
+                "p99": 194.08,
+                "max": 194.08,
+                "codes": {
+                  "200": 8
+                },
+                "aborted": 0
+              },
+              "stream-other": {
+                "n": 8,
+                "p50": 59.71,
+                "p95": 1190.94,
+                "p99": 1190.94,
+                "max": 1190.94,
+                "codes": {
+                  "200": 8
+                },
+                "aborted": 0
+              },
+              "progress": {
+                "n": 12,
+                "p50": 0.82,
+                "p95": 1.59,
+                "p99": 1.59,
+                "max": 1.59,
+                "codes": {
+                  "200": 12
+                },
+                "aborted": 0
+              }
+            }
+          }
+        },
+        "lag": {
+          "n": 71,
+          "p50": 1,
+          "p99": 357,
+          "max": 357
+        },
+        "tree": {
+          "wallSec": 17.4,
+          "serverCpuSec": 6.63,
+          "kidsCpuSec": 37.08,
+          "serverCores": 0.381,
+          "kidsCores": 2.135
+        },
+        "machine": {
+          "n": 8,
+          "cpuPctMean": 50.8,
+          "cpuPctP95": 100,
+          "freeMbMin": 5903,
+          "cores": 16
+        },
+        "driverCores": 0.099,
+        "egressMbit": 131.8
+      },
+      "window": {
+        "viewers": 20,
+        "plays": 20,
+        "startsInWindow": 0,
+        "ttffP50": null,
+        "ttffP95": null,
+        "neverStarted": 0,
+        "seeks": 0,
+        "seekP50": null,
+        "seekP95": null,
+        "segN": 502,
+        "lateSegPct": 0,
+        "starvedSegPct": 0,
+        "stalls": 0,
+        "stallPct": 0,
+        "watchedMin": 80.2,
+        "refused": 0,
+        "segFails": 0,
+        "egressMbit": 46.7,
+        "mbitPerViewer": 2.34,
+        "byClass": {
+          "encode": {
+            "viewers": 8,
+            "bytes": 451085487,
+            "segN": 222,
+            "segLate": 0,
+            "stalls": 0,
+            "stallMs": 0,
+            "mbitPerViewer": 1.88,
+            "mbitTotal": 15
+          },
+          "torrent": {
+            "viewers": 6,
+            "bytes": 375759765,
+            "segN": 48,
+            "segLate": 0,
+            "stalls": 0,
+            "stallMs": 0,
+            "mbitPerViewer": 2.09,
+            "mbitTotal": 12.5
+          },
+          "copy": {
+            "viewers": 6,
+            "bytes": 574545638,
+            "segN": 232,
+            "segLate": 0,
+            "stalls": 0,
+            "stallMs": 0,
+            "mbitPerViewer": 3.19,
+            "mbitTotal": 19.2
+          }
+        },
+        "apiP50": 2.1,
+        "apiP95": 7,
+        "apiP99": 104.3,
+        "apiN": 522,
+        "s429": 0,
+        "browseErr": 0,
+        "imagesP95": 200.8,
+        "browseP99": 290.9,
+        "browseRps": 2.4,
+        "lagP50": 0.8,
+        "lagP99": 3.9,
+        "lagMax": 1958.4,
+        "loopP99": 15.62,
+        "loopMax": 2002.78,
+        "elu": 0.07643000000000001,
+        "stallLoopMsPerMin": 1044,
+        "stallLoopMax": 1998.07,
+        "serverCores": 0.122,
+        "ffmpegCores": 0.203,
+        "ffmpegAlive": 10,
+        "rssMb": 293,
+        "ffmpegRssMb": 162,
+        "pcCpuPct": 23.8,
+        "pcCpuP95": 53.8,
+        "pcFreeMbMin": 6687,
+        "diskBusyPct": 75.1,
+        "diskReadMBs": 13.36,
+        "dataGrewMb": 472.9,
+        "driverCores": 0.03,
+        "detail": [
+          {
+            "kind": "web-transcode",
+            "title": "Cap Release Hevc 2",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 24,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.82
+          },
+          {
+            "kind": "tv-torrent",
+            "title": "Cap Torrent 8 (2024) 1080p WEB-DL HEVC.mkv",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 0,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.99
+          },
+          {
+            "kind": "phone-transcode",
+            "title": "Cap Web H264 4",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 30,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.11
+          },
+          {
+            "kind": "tv-offset",
+            "title": "Cap Release Hevc 6",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 45,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.61
+          },
+          {
+            "kind": "web-tjit",
+            "title": "Cap Torrent 1 (2024) 1080p WEB-DL HEVC.mkv",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 24,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.31
+          },
+          {
+            "kind": "web-transcode",
+            "title": "Cap Episode Ac3 8",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 30,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.52
+          },
+          {
+            "kind": "tv-torrent",
+            "title": "Cap Torrent 4 (2024) 1080p WEB-DL HEVC.mkv",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 0,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.96
+          },
+          {
+            "kind": "phone-transcode",
+            "title": "Cap Web H264 8",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 30,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.11
+          },
+          {
+            "kind": "phone-jit",
+            "title": "Cap Release Aac 2",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 24,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.19
+          },
+          {
+            "kind": "tv-offset",
+            "title": "Cap Heavy Hevc 3",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 49,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 6.92
+          },
+          {
+            "kind": "web-transcode",
+            "title": "Cap Web H264 8",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 30,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.97
+          },
+          {
+            "kind": "tv-torrent",
+            "title": "Cap Torrent 5 (2024) 1080p WEB-DL HEVC.mkv",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 0,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2
+          },
+          {
+            "kind": "phone-transcode",
+            "title": "Cap Release Aac 3",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 24,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.1
+          },
+          {
+            "kind": "tv-offset",
+            "title": "Cap Release Hevc 4",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 45,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.62
+          },
+          {
+            "kind": "web-tjit",
+            "title": "Cap Torrent 3 (2024) 1080p WEB-DL HEVC.mkv",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 24,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.31
+          },
+          {
+            "kind": "web-transcode",
+            "title": "Cap Release Aac 7",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 24,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.31
+          },
+          {
+            "kind": "tv-torrent",
+            "title": "Cap Torrent 6 (2024) 1080p WEB-DL HEVC.mkv",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 0,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.96
+          },
+          {
+            "kind": "phone-transcode",
+            "title": "Cap Episode Ac3",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 30,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 1.11
+          },
+          {
+            "kind": "phone-jit",
+            "title": "Cap Release Aac 6",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 24,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.19
+          },
+          {
+            "kind": "tv-offset",
+            "title": "Cap Release Hevc 3",
+            "state": "playing",
+            "ttff": null,
+            "stalls": 0,
+            "stallMs": 0,
+            "seeks": 0,
+            "seekMs": [],
+            "segN": 45,
+            "late": 0,
+            "starved": 0,
+            "refused": 0,
+            "segFails": 0,
+            "mbit": 2.61
+          }
+        ],
+        "gpu": {
+          "n": 120,
+          "gpuPctMean": 1.3,
+          "gpuPctMax": 11,
+          "encPctMean": 5.3,
+          "encPctMax": 65,
+          "decPctMean": 9.8,
+          "decPctMax": 100,
+          "sessionsMean": 0.2,
+          "sessionsMax": 3,
+          "memMbMax": 3041
+        },
+        "encodes": {
+          "activeMax": 3,
+          "limitMin": 5,
+          "otherShareMax": 0.23,
+          "overloaded": false,
+          "hwSessionsMax": 3,
+          "hwMax": 6,
+          "fallbacks": 0
+        }
+      },
+      "verdict": {
+        "ok": false,
+        "why": [
+          "burst TTFF p95 8030 ms > 4000"
+        ]
+      },
+      "raw": {
+        "groups": [
+          {
+            "group": "progress",
+            "n": 960,
+            "rps": 4,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0,
+            "mean": 11.3,
+            "p50": 1,
+            "p95": 2.5,
+            "p99": 407.9,
+            "max": 1867.1,
+            "codes": {
+              "200": 960
+            }
+          },
+          {
+            "group": "segment",
+            "n": 502,
+            "rps": 2.09,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 2265.1,
+            "mean": 230.8,
+            "p50": 214.4,
+            "p95": 567.4,
+            "p99": 654.6,
+            "max": 2615.6,
+            "codes": {
+              "200": 502
+            }
+          },
+          {
+            "group": "suggest",
+            "n": 152,
+            "rps": 0.63,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.4,
+            "mean": 4.1,
+            "p50": 1.8,
+            "p95": 5.1,
+            "p99": 6.3,
+            "max": 290.9,
+            "codes": {
+              "200": 152
+            }
+          },
+          {
+            "group": "search",
+            "n": 150,
+            "rps": 0.62,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 1.3,
+            "mean": 5.9,
+            "p50": 3,
+            "p95": 5.8,
+            "p99": 7.9,
+            "max": 396.4,
+            "codes": {
+              "200": 150
+            }
+          },
+          {
+            "group": "telemetry",
+            "n": 81,
+            "rps": 0.34,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0,
+            "mean": 29,
+            "p50": 1.1,
+            "p95": 3.2,
+            "p99": 1015.5,
+            "max": 1015.5,
+            "codes": {
+              "204": 81
+            }
+          },
+          {
+            "group": "api-other",
+            "n": 70,
+            "rps": 0.29,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.1,
+            "mean": 16.6,
+            "p50": 1.3,
+            "p95": 2.8,
+            "p99": 864.2,
+            "max": 864.2,
+            "codes": {
+              "200": 70
+            }
+          },
+          {
+            "group": "image",
+            "n": 64,
+            "rps": 0.27,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 44.6,
+            "mean": 53.5,
+            "p50": 15.4,
+            "p95": 200.8,
+            "p99": 304.6,
+            "max": 304.6,
+            "codes": {
+              "200": 64
+            }
+          },
+          {
+            "group": "grid",
+            "n": 34,
+            "rps": 0.14,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0,
+            "mean": 4.1,
+            "p50": 2.5,
+            "p95": 11.1,
+            "p99": 12,
+            "max": 12,
+            "codes": {
+              "200": 34
+            }
+          },
+          {
+            "group": "title",
+            "n": 32,
+            "rps": 0.13,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.6,
+            "mean": 1.6,
+            "p50": 1.4,
+            "p95": 2.6,
+            "p99": 2.9,
+            "max": 2.9,
+            "codes": {
+              "200": 32
+            }
+          },
+          {
+            "group": "home",
+            "n": 21,
+            "rps": 0.09,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 5.7,
+            "mean": 67.1,
+            "p50": 5.6,
+            "p95": 482.9,
+            "p99": 823,
+            "max": 823,
+            "codes": {
+              "200": 17,
+              "304": 4
+            }
+          },
+          {
+            "group": "state",
+            "n": 21,
+            "rps": 0.09,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.2,
+            "mean": 0.8,
+            "p50": 0.7,
+            "p95": 1.2,
+            "p99": 1.7,
+            "max": 1.7,
+            "codes": {
+              "200": 21
+            }
+          },
+          {
+            "group": "boot",
+            "n": 21,
+            "rps": 0.09,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.1,
+            "mean": 1.5,
+            "p50": 1.4,
+            "p95": 2.3,
+            "p99": 3.4,
+            "max": 3.4,
+            "codes": {
+              "200": 21
+            }
+          },
+          {
+            "group": "playlist",
+            "n": 16,
+            "rps": 0.07,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 3.5,
+            "mean": 118.2,
+            "p50": 2.5,
+            "p95": 1853.9,
+            "p99": 1853.9,
+            "max": 1853.9,
+            "codes": {
+              "200": 16
+            }
+          },
+          {
+            "group": "library",
+            "n": 13,
+            "rps": 0.05,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 12.7,
+            "mean": 3.8,
+            "p50": 2.2,
+            "p95": 8.5,
+            "p99": 8.5,
+            "max": 8.5,
+            "codes": {
+              "200": 13
+            }
+          },
+          {
+            "group": "netprobe",
+            "n": 12,
+            "rps": 0.05,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 48,
+            "mean": 1.9,
+            "p50": 1.3,
+            "p95": 5.2,
+            "p99": 5.2,
+            "max": 5.2,
+            "codes": {
+              "200": 12
+            }
+          },
+          {
+            "group": "title-offline",
+            "n": 11,
+            "rps": 0.05,
+            "err": 11,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 11,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.1,
+            "mean": 1.5,
+            "p50": 1,
+            "p95": 3.7,
+            "p99": 3.7,
+            "max": 3.7,
+            "codes": {
+              "502": 11
+            }
+          },
+          {
+            "group": "tv",
+            "n": 8,
+            "rps": 0.03,
+            "err": 0,
+            "s429": 0,
+            "s503": 0,
+            "s5xx": 0,
+            "s4xx": 0,
+            "net": 0,
+            "kbAvg": 0.1,
+            "mean": 1.4,
+            "p50": 1.3,
+            "p95": 2.1,
+            "p99": 2.1,
+            "max": 2.1,
+            "codes": {
+              "200": 8
+            }
+          }
+        ],
+        "server": {
+          "loop": {
+            "n": 41713,
+            "mean": 5.75,
+            "p50": 1.65,
+            "p90": 15.37,
+            "p99": 15.62,
+            "p999": 16.78,
+            "max": 2002.78,
+            "percentiles": {
+              "0": 0,
+              "50": 1.65,
+              "75": 14.4,
+              "100": 2001.73,
+              "87.5": 15.33,
+              "93.75": 15.41,
+              "96.88": 15.49,
+              "98.44": 15.57,
+              "99.22": 15.65,
+              "99.61": 15.9,
+              "99.8": 16.32,
+              "99.9": 16.84,
+              "99.95": 22.27,
+              "99.98": 61.15,
+              "99.99": 462.42
+            }
+          },
+          "stalls": {
+            "n50": 11,
+            "n100": 7,
+            "n250": 5,
+            "n1000": 1,
+            "totalMs": 4175.56,
+            "busyMs": 0,
+            "waitMs": 4175.56,
+            "cpuMs": 79,
+            "max": 1998.07,
+            "ticks": 8375,
+            "list": [
+              {
+                "at": 1191121.39,
+                "ms": 263.25,
+                "cpuMs": 0,
+                "slow": [
+                  "statSync 278.86ms 2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Hevc 3 (2021)\\Cap Release Hevc 3 (2021).mkv"
+                ]
+              },
+              {
+                "at": 1198616.11,
+                "ms": 1998.07,
+                "cpuMs": 0,
+                "slow": [
+                  "statSync 1999.92ms y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Aac 2 (2022)\\Cap Release Aac 2 (2022).mkv"
+                ]
+              },
+              {
+                "at": 1238527.39,
+                "ms": 442.64,
+                "cpuMs": 0,
+                "slow": [
+                  "statSync 460.4ms y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Aac 6 (2022)\\Cap Release Aac 6 (2022).mkv"
+                ]
+              },
+              {
+                "at": 1271759.59,
+                "ms": 563.54,
+                "cpuMs": 0,
+                "slow": [
+                  "statSync 565.55ms acity-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Episode Ac3 (2019)\\Cap Episode Ac3 (2019).mp4"
+                ]
+              },
+              {
+                "at": 1295551.7,
+                "ms": 275.43,
+                "cpuMs": 0,
+                "slow": [
+                  "statSync 292.75ms y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Episode Ac3 8 (2019)\\Cap Episode Ac3 8 (2019).mp4"
+                ]
+              }
+            ]
+          },
+          "http": {
+            "inFlight": 4,
+            "maxInFlight": 12,
+            "upgrades": 0,
+            "routes": {
+              "api-other": {
+                "n": 161,
+                "p50": 0.66,
+                "p95": 6.98,
+                "p99": 7.57,
+                "max": 14.42,
+                "codes": {
+                  "200": 161
+                },
+                "aborted": 0
+              },
+              "health": {
+                "n": 1115,
+                "p50": 0.48,
+                "p95": 0.69,
+                "p99": 0.83,
+                "max": 1.66,
+                "codes": {
+                  "200": 1115
+                },
+                "aborted": 0
+              },
+              "segment": {
+                "n": 502,
+                "p50": 92.14,
+                "p95": 445.31,
+                "p99": 505.4,
+                "max": 2494.9,
+                "codes": {
+                  "200": 502
+                },
+                "aborted": 0
+              },
+              "suggest": {
+                "n": 152,
+                "p50": 1.36,
+                "p95": 4.37,
+                "p99": 5.45,
+                "max": 5.52,
+                "codes": {
+                  "200": 152
+                },
+                "aborted": 0
+              },
+              "search": {
+                "n": 150,
+                "p50": 2.13,
+                "p95": 4.46,
+                "p99": 5.61,
+                "max": 8.03,
+                "codes": {
+                  "200": 150
+                },
+                "aborted": 0
+              },
+              "progress": {
+                "n": 960,
+                "p50": 0.56,
+                "p95": 0.8,
+                "p99": 0.94,
+                "max": 1.2,
+                "codes": {
+                  "200": 960
+                },
+                "aborted": 0
+              },
+              "image": {
+                "n": 64,
+                "p50": 12.88,
+                "p95": 197.87,
+                "p99": 303.75,
+                "max": 303.75,
+                "codes": {
+                  "200": 64
+                },
+                "aborted": 0
+              },
+              "home": {
+                "n": 21,
+                "p50": 5.14,
+                "p95": 8.7,
+                "p99": 8.8,
+                "max": 8.8,
+                "codes": {
+                  "200": 17,
+                  "304": 4
+                },
+                "aborted": 0
+              },
+              "telemetry": {
+                "n": 81,
+                "p50": 0.65,
+                "p95": 0.97,
+                "p99": 1.68,
+                "max": 1.68,
+                "codes": {
+                  "204": 81
+                },
+                "aborted": 0
+              },
+              "library": {
+                "n": 13,
+                "p50": 1.02,
+                "p95": 7.39,
+                "p99": 7.39,
+                "max": 7.39,
+                "codes": {
+                  "200": 13
+                },
+                "aborted": 0
+              },
+              "title": {
+                "n": 43,
+                "p50": 0.9,
+                "p95": 2.01,
+                "p99": 2.5,
+                "max": 2.5,
+                "codes": {
+                  "200": 32,
+                  "502": 11
+                },
+                "aborted": 0
+              },
+              "state": {
+                "n": 21,
+                "p50": 0.37,
+                "p95": 0.62,
+                "p99": 0.67,
+                "max": 0.67,
+                "codes": {
+                  "200": 21
+                },
+                "aborted": 0
+              },
+              "tv": {
+                "n": 8,
+                "p50": 0.7,
+                "p95": 1.34,
+                "p99": 1.34,
+                "max": 1.34,
+                "codes": {
+                  "200": 8
+                },
+                "aborted": 0
+              },
+              "playlist": {
+                "n": 16,
+                "p50": 1.67,
+                "p95": 2.36,
+                "p99": 2.36,
+                "max": 2.36,
+                "codes": {
+                  "200": 16
+                },
+                "aborted": 0
+              }
+            }
+          },
+          "slowSync": [
+            {
+              "fn": "statSync",
+              "arg": "y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Aac 2 (2022)\\Cap Release Aac 2 (2022).mkv",
+              "ms": 1999.92,
+              "at": 1198613.82
+            },
+            {
+              "fn": "statSync",
+              "arg": "acity-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Episode Ac3 (2019)\\Cap Episode Ac3 (2019).mp4",
+              "ms": 565.55,
+              "at": 1271757.53
+            },
+            {
+              "fn": "statSync",
+              "arg": "y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Aac 6 (2022)\\Cap Release Aac 6 (2022).mkv",
+              "ms": 460.4,
+              "at": 1238525.75
+            },
+            {
+              "fn": "statSync",
+              "arg": "y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Episode Ac3 8 (2019)\\Cap Episode Ac3 8 (2019).mp4",
+              "ms": 292.75,
+              "at": 1295549.73
+            },
+            {
+              "fn": "statSync",
+              "arg": "2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Hevc 3 (2021)\\Cap Release Hevc 3 (2021).mkv",
+              "ms": 278.86,
+              "at": 1191120.87
+            },
+            {
+              "fn": "mkdirSync",
+              "arg": "emp\\aurora-agents\\capacity-2026-10\\lt\\deps-552e78d5ed61\\i-5dd310c2-44288-234ffa\\data\\usage",
+              "ms": 218.69,
+              "at": 1210268.59
+            },
+            {
+              "fn": "statSync",
+              "arg": "y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Aac 3 (2022)\\Cap Release Aac 3 (2022).mkv",
+              "ms": 93.77,
+              "at": 1192713.74
+            },
+            {
+              "fn": "statSync",
+              "arg": "acity-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Episode Ac3 (2019)\\Cap Episode Ac3 (2019).mp4",
+              "ms": 82.74,
+              "at": 1110011.76
+            },
+            {
+              "fn": "statSync",
+              "arg": "y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Aac 6 (2022)\\Cap Release Aac 6 (2022).mkv",
+              "ms": 60.44,
+              "at": 1198711.27
+            },
+            {
+              "fn": "statSync",
+              "arg": "2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Hevc 6 (2021)\\Cap Release Hevc 6 (2021).mkv",
+              "ms": 58.79,
+              "at": 1110373.33
+            },
+            {
+              "fn": "statSync",
+              "arg": "2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Hevc 4 (2021)\\Cap Release Hevc 4 (2021).mkv",
+              "ms": 27.74,
+              "at": 1266287.08
+            },
+            {
+              "fn": "statSync",
+              "arg": "y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Aac 7 (2022)\\Cap Release Aac 7 (2022).mkv",
+              "ms": 25.15,
+              "at": 1081689.73
+            },
+            {
+              "fn": "statSync",
+              "arg": "78d5ed61\\i-5dd310c2-44288-234ffa\\tmp\\webtorrent\\Cap Torrent 4 (2024) 1080p WEB-DL HEVC.mkv",
+              "ms": 21.29,
+              "at": 1083756.03
+            },
+            {
+              "fn": "statSync",
+              "arg": "y-2026-10\\lt\\media-cap-v3-300\\movies\\Cap Release Aac 6 (2022)\\Cap Release Aac 6 (2022).mkv",
+              "ms": 21.23,
+              "at": 1258014.13
+            }
+          ],
+          "mem": {
+            "rss": 307273728,
+            "heapUsed": 47141088,
+            "heapTotal": 86261760,
+            "external": 104105837,
+            "arrayBuffers": 100386087
+          }
+        },
+        "tree": {
+          "wallSec": 239.8,
+          "serverCpuSec": 29.33,
+          "kidsCpuSec": 48.7,
+          "serverCores": 0.122,
+          "kidsCores": 0.203,
+          "rssMb": 293,
+          "handles": 530,
+          "threads": 17,
+          "kidsAlive": 10,
+          "kidsRssMb": 162
+        },
+        "disk": {
+          "drive": "C",
+          "n": 48,
+          "busyPctMean": 75.1,
+          "readMBsMean": 13.36
+        },
+        "machine": {
+          "n": 120,
+          "cpuPctMean": 23.8,
+          "cpuPctP95": 53.8,
+          "freeMbMin": 6687,
+          "cores": 16
+        },
+        "counters": {
+          "wsDrops": 0,
+          "wsFails": 0,
+          "libraryUpdated": 0,
+          "deviceErrors": 0
+        }
+      }
+    }
+  ],
+  "notable": [
+    "[watchdog] armed — soft at 1000 MB / 1500 ms lag, restart at 1300 MB (not supervised: log only)",
+    "[healer] armed — every 60s, 33 checks: process, memtrend, helpers, supervisor, errors, newerrors, offenders, errtrend, clienterrors, playback, sessions, realtime, trailers, encoding, transcoding, streaming, upstream, downloads, aria2, staging, dlstats, disk, library, scanner, temp, data, stores, growth, backups, updates, delivery, clock, tvapp",
+    "[encode] Automatic: 7 now, because 16 CPU threads × 0.853 (this machine's measured speed against the reference) × 70% = 9.55 thread-seconds per second of film, and a 1080p transcode costs 1.23.",
+    "Metadata fetch failed for \"Paper Mirror\": en.wikipedia.org is not answering — not asked again for 27 s",
+    "Metadata fetch failed for \"Quiet Mirror\": en.wikipedia.org is not answering — not asked again for 9 s",
+    "Metadata fetch failed for \"Silent Mirror\": en.wikipedia.org is not answering — not asked again for 51 s",
+    "Metadata fetch failed for \"Wild Mirror\": en.wikipedia.org is not answering — not asked again for 33 s",
+    "[jit] producer jt-60523c813b5ca4100b155ef3cdb94cce709b7657-0 from seg0 (0.0s)",
+    "[jit] producer 392cf6bdcfbd-1793023355697-f4 from seg0 (0.0s)",
+    "[jit] producer 392cf6bdcfbd-1793023355697-h264-480-f4-hw from seg0 (0.0s)",
+    "[jit] warm-up 392cf6bdcfbd-1793023355697-f4 done at seg2",
+    "[jit] producer 3d99e772ca82-1793035464660 from seg0 (0.0s)",
+    "[jit] producer 3d99e772ca82-1793035464660-h264-720-hw from seg0 (0.0s)",
+    "[jit] warm-up 3d99e772ca82-1793035464660 done at seg2",
+    "[jit] parked 392cf6bdcfbd-1793023355697-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[jit] parked 3d99e772ca82-1793035464660-h264-720-hw (20 segments ahead of its reader)",
+    "[remux] paused 3d99e772ca82-1793035464660-copy-1103 (64 segments ahead of its reader)",
+    "[jit] parked jt-60523c813b5ca4100b155ef3cdb94cce709b7657-0 (40 segments ahead of its reader)",
+    "[jit] producer 3d99e772ca82-1793035464660-h264-720-hw from seg27 (221.3s)",
+    "[jit] parked 3d99e772ca82-1793035464660-h264-720-hw (20 segments ahead of its reader)",
+    "[jit] producer 392cf6bdcfbd-1793023355697-h264-480-f4-hw from seg26 (260.0s)",
+    "[jit] idle-killed 392cf6bdcfbd-1793023355697-f4 (its segments are kept)",
+    "[jit] idle-killed 3d99e772ca82-1793035464660 (its segments are kept)",
+    "[remux] resumed 3d99e772ca82-1793035464660-copy-1103 (its reader is 19 segments from the end)",
+    "[jit] parked 392cf6bdcfbd-1793023355697-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[remux] paused 3d99e772ca82-1793035464660-copy-1103 (92 segments ahead of its reader)",
+    "[jit] producer 3d99e772ca82-1793035464660-h264-720-hw from seg43 (349.0s)",
+    "[jit] parked 3d99e772ca82-1793035464660-h264-720-hw (20 segments ahead of its reader)",
+    "[remux] its viewer left: 3d99e772ca82-1793035464660-copy-1103",
+    "[jit] producer e5bc48da001c-1793035464660 from seg0 (0.0s)",
+    "[jit] producer e5bc48da001c-1793035464660-h264-720-hw from seg0 (0.0s)",
+    "[jit] warm-up e5bc48da001c-1793035464660 done at seg2",
+    "[jit] producer e4e101abf345-1793023355697-f4 from seg0 (0.0s)",
+    "[jit] producer e4e101abf345-1793023355697-h264-480-f4-hw from seg0 (0.0s)",
+    "[jit] producer 3f6d89b89392-1793035085682-f4 from seg0 (0.0s)",
+    "[jit] producer 3f6d89b89392-1793035085682-h264-480-f4-hw from seg0 (0.0s)",
+    "[jit] warm-up e4e101abf345-1793023355697-f4 done at seg2",
+    "[jit] warm-up 3f6d89b89392-1793035085682-f4 done at seg2",
+    "[jit] producer b30432947851-1793023355697-f4 from seg52 (520.0s)",
+    "[jit] producer cd55d7d6fb77-1793035085682 from seg64 (520.1s)",
+    "[jit] producer jt-b191e97f5afb98ad2c642e0be90fbac99e51178c-0 from seg86 (860.0s)",
+    "[jit] parked e5bc48da001c-1793035464660-h264-720-hw (20 segments ahead of its reader)",
+    "[remux] paused 97f351237b03-1793023697719 (56 segments ahead of its reader)",
+    "[jit] parked e4e101abf345-1793023355697-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[jit] parked 3f6d89b89392-1793035085682-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[remux] paused e9864e26d9f6-1793035464660 (58 segments ahead of its reader)",
+    "[jit] parked cd55d7d6fb77-1793035085682 (40 segments ahead of its reader)",
+    "[jit] parked b30432947851-1793023355697-f4 (40 segments ahead of its reader)",
+    "[jit] parked jt-b191e97f5afb98ad2c642e0be90fbac99e51178c-0 (40 segments ahead of its reader)",
+    "[jit] idle-killed jt-60523c813b5ca4100b155ef3cdb94cce709b7657-0 (its segments are kept)",
+    "[jit] idle-killed 392cf6bdcfbd-1793023355697-h264-480-f4-hw (its segments are kept)",
+    "[jit] idle-killed 3d99e772ca82-1793035464660-h264-720-hw (its segments are kept)",
+    "[jit] producer e5bc48da001c-1793035464660-h264-720-hw from seg28 (229.2s)",
+    "[jit] producer 3f6d89b89392-1793035085682-h264-480-f4-hw from seg28 (229.2s)",
+    "[jit] parked e5bc48da001c-1793035464660-h264-720-hw (20 segments ahead of its reader)",
+    "[jit] parked 3f6d89b89392-1793035085682-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[jit] idle-killed e5bc48da001c-1793035464660 (its segments are kept)",
+    "[jit] idle-killed e4e101abf345-1793023355697-f4 (its segments are kept)",
+    "[jit] idle-killed 3f6d89b89392-1793035085682-f4 (its segments are kept)",
+    "[jit] producer e4e101abf345-1793023355697-h264-480-f4-hw from seg26 (260.0s)",
+    "[jit] parked e4e101abf345-1793023355697-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[remux] resumed e9864e26d9f6-1793035464660 (its reader is 19 segments from the end)",
+    "[remux] resumed 97f351237b03-1793023697719 (its reader is 19 segments from the end)",
+    "[remux] paused e9864e26d9f6-1793035464660 (58 segments ahead of its reader)",
+    "[remux] paused 97f351237b03-1793023697719 (55 segments ahead of its reader)",
+    "[jit] producer cd55d7d6fb77-1793035085682 from seg112 (909.3s)",
+    "[jit] producer e5bc48da001c-1793035464660-h264-720-hw from seg44 (357.0s)",
+    "[jit] parked cd55d7d6fb77-1793035085682 (40 segments ahead of its reader)",
+    "[jit] producer 3f6d89b89392-1793035085682-h264-480-f4-hw from seg44 (357.0s)",
+    "[jit] parked e5bc48da001c-1793035464660-h264-720-hw (20 segments ahead of its reader)",
+    "[jit] parked 3f6d89b89392-1793035085682-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[remux] its viewer left: 97f351237b03-1793023697719",
+    "[remux] its viewer left: e9864e26d9f6-1793035464660",
+    "[jit] producer jt-17356a9501b9ba6a839b8e4e70bbd6dfb5427990-0 from seg0 (0.0s)",
+    "[jit] producer 85f9fb7b85b9-1793035085682 from seg139 (1129.8s)",
+    "[jit] producer 3b0b5cb17327-1793023697719-f4 from seg0 (0.0s)",
+    "[jit] producer jt-99fad1aa88b56d8b2cc4d9132947b1a40a2c7159-0 from seg0 (0.0s)",
+    "[jit] producer f48163d27622-1793035085682 from seg50 (404.8s)",
+    "[jit] producer f043a2d20761-1793023587714 from seg98 (980.0s)",
+    "[jit] producer 23d3a839778f-1793035464660-f4 from seg88 (716.2s)",
+    "[jit] producer 23d3a839778f-1793035464660-h264-480-f4-hw from seg88 (716.2s)",
+    "[jit] warm-up 23d3a839778f-1793035464660-f4 done at seg90",
+    "[jit] producer 3a872eff630c-1793023587714-f4 from seg0 (0.0s)",
+    "[jit] producer 3a872eff630c-1793023587714-h264-480-f4-hw from seg0 (0.0s)",
+    "[jit] producer 0c4525f159a7-1793035085682-f4 from seg0 (0.0s)",
+    "[jit] producer 0c4525f159a7-1793035085682-h264-480-f4-hw from seg0 (0.0s)",
+    "[jit] warm-up 3a872eff630c-1793023587714-f4 done at seg2",
+    "[jit] warm-up 0c4525f159a7-1793035085682-f4 done at seg2",
+    "[jit] parked 85f9fb7b85b9-1793035085682 (40 segments ahead of its reader)",
+    "[jit] parked 3a872eff630c-1793023587714-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[remux] paused 392cf6bdcfbd-1793023355697 (51 segments ahead of its reader)",
+    "[jit] parked f043a2d20761-1793023587714 (40 segments ahead of its reader)",
+    "[jit] parked f48163d27622-1793035085682 (40 segments ahead of its reader)",
+    "[jit] parked jt-99fad1aa88b56d8b2cc4d9132947b1a40a2c7159-0 (40 segments ahead of its reader)",
+    "[remux] paused 23d3a839778f-1793035464660-copy-101 (61 segments ahead of its reader)",
+    "[jit] parked jt-17356a9501b9ba6a839b8e4e70bbd6dfb5427990-0 (40 segments ahead of its reader)",
+    "[jit] parked 3b0b5cb17327-1793023697719-f4 (40 segments ahead of its reader)",
+    "[jit] parked 0c4525f159a7-1793035085682-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[jit] parked 23d3a839778f-1793035464660-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[remux] paused bf63323f5d6c-1793035464660-copy-304 (90 segments ahead of its reader)",
+    "[jit] idle-killed e5bc48da001c-1793035464660-h264-720-hw (its segments are kept)",
+    "[jit] idle-killed e4e101abf345-1793023355697-h264-480-f4-hw (its segments are kept)",
+    "[jit] idle-killed 3f6d89b89392-1793035085682-h264-480-f4-hw (its segments are kept)",
+    "[jit] idle-killed b30432947851-1793023355697-f4 (its segments are kept)",
+    "[jit] idle-killed cd55d7d6fb77-1793035085682 (its segments are kept)",
+    "[jit] idle-killed jt-b191e97f5afb98ad2c642e0be90fbac99e51178c-0 (its segments are kept)",
+    "[jit] idle-killed 23d3a839778f-1793035464660-f4 (its segments are kept)",
+    "[jit] idle-killed 3a872eff630c-1793023587714-f4 (its segments are kept)",
+    "[jit] idle-killed 0c4525f159a7-1793035085682-f4 (its segments are kept)",
+    "[jit] producer 23d3a839778f-1793035464660-h264-480-f4-hw from seg120 (974.3s)",
+    "[jit] producer 0c4525f159a7-1793035085682-h264-480-f4-hw from seg31 (253.0s)",
+    "[jit] producer 3a872eff630c-1793023587714-h264-480-f4-hw from seg27 (270.0s)",
+    "[jit] parked 0c4525f159a7-1793035085682-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[jit] parked 23d3a839778f-1793035464660-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[jit] parked 3a872eff630c-1793023587714-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[remux] resumed 392cf6bdcfbd-1793023355697 (its reader is 19 segments from the end)",
+    "[remux] paused 392cf6bdcfbd-1793023355697 (64 segments ahead of its reader)",
+    "[jit] producer 85f9fb7b85b9-1793035085682 from seg188 (1523.9s)",
+    "[remux] resumed 23d3a839778f-1793035464660-copy-101 (its reader is 19 segments from the end)",
+    "[remux] paused 23d3a839778f-1793035464660-copy-101 (90 segments ahead of its reader)",
+    "[jit] parked 85f9fb7b85b9-1793035085682 (40 segments ahead of its reader)",
+    "[jit] producer f48163d27622-1793035085682 from seg100 (813.0s)",
+    "[jit] parked f48163d27622-1793035085682 (40 segments ahead of its reader)",
+    "[remux] its viewer left: 23d3a839778f-1793035464660-copy-101",
+    "[remux] its viewer left: 392cf6bdcfbd-1793023355697",
+    "[remux] its viewer left: bf63323f5d6c-1793035464660-copy-304",
+    "[jit] producer 5f5b35a7ffcb-1793023587714-f4 from seg0 (0.0s)",
+    "[jit] producer 7e1ef81b81a9-1793035085682-f4 from seg0 (0.0s)",
+    "[jit] producer 7e1ef81b81a9-1793035085682-h264-480-f4-hw from seg0 (0.0s)",
+    "[jit] warm-up 7e1ef81b81a9-1793035085682-f4 done at seg2",
+    "[jit] producer f043a2d20761-1793023587714-f4 from seg0 (0.0s)",
+    "[jit] producer 392cf6bdcfbd-1793023355697 from seg90 (900.0s)",
+    "[jit] producer 788e090c2f10-1793023587714 from seg115 (1150.0s)",
+    "[jit] producer bf63323f5d6c-1793035464660 from seg100 (813.0s)",
+    "[jit] producer bf63323f5d6c-1793035464660-h264-720-hw from seg100 (813.0s)",
+    "[jit] producer ad37aeb3d954-1793023587714-f4 from seg74 (740.0s)",
+    "[jit] producer ad37aeb3d954-1793023587714-h264-480-f4-hw from seg74 (740.0s)",
+    "[jit] warm-up bf63323f5d6c-1793035464660 done at seg102",
+    "[jit] producer 7e1ef81b81a9-1793035085682 from seg26 (213.4s)",
+    "[jit] warm-up ad37aeb3d954-1793023587714-f4 done at seg76",
+    "[jit] producer e5bc48da001c-1793035464660-h264-480-f4-hw from seg0 (0.0s)",
+    "[jit] producer jt-ff45c9a7eac96db3ff99a14c820f95c833d980c3-0 from seg53 (530.0s)",
+    "[jit] producer 1adf796ab663-1793035085682-h264-480-f4-hw from seg163 (1321.9s)",
+    "[jit] producer jt-f6dedf0108a5a646d2548af054398f83f26f906f-0 from seg0 (0.0s)",
+    "[jit] parked 5f5b35a7ffcb-1793023587714-f4 (40 segments ahead of its reader)",
+    "[jit] parked 7e1ef81b81a9-1793035085682 (40 segments ahead of its reader)",
+    "[jit] parked f043a2d20761-1793023587714-f4 (40 segments ahead of its reader)",
+    "[jit] parked 788e090c2f10-1793023587714 (40 segments ahead of its reader)",
+    "[jit] parked 392cf6bdcfbd-1793023355697 (40 segments ahead of its reader)",
+    "[jit] parked jt-ff45c9a7eac96db3ff99a14c820f95c833d980c3-0 (40 segments ahead of its reader)",
+    "[jit] parked jt-f6dedf0108a5a646d2548af054398f83f26f906f-0 (40 segments ahead of its reader)",
+    "[jit] parked 7e1ef81b81a9-1793035085682-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[remux] paused 5d1a811be83a-1793023355697 (67 segments ahead of its reader)",
+    "[remux] paused 78578ccd9714-1793023697719-copy-612 (60 segments ahead of its reader)",
+    "[jit] parked ad37aeb3d954-1793023587714-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[remux] paused b30432947851-1793023355697 (62 segments ahead of its reader)",
+    "[remux] paused 389ca16fc3e6-1793023355697-copy-451 (58 segments ahead of its reader)",
+    "[jit] parked bf63323f5d6c-1793035464660-h264-720-hw (20 segments ahead of its reader)",
+    "[jit] parked e5bc48da001c-1793035464660-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[jit] parked 1adf796ab663-1793035085682-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[healer] new error — 3× [slow] GET /stream/transcode/:id/jit/:file.m4s 200 first byte after 1255 ms — seg 1250 (made), event loop blocked up to 52 ms lately (+1 more slow /stream/transcode/:id/jit/:file.m4s since the last line)",
+    "[jit] idle-killed jt-17356a9501b9ba6a839b8e4e70bbd6dfb5427990-0 (its segments are kept)",
+    "[jit] idle-killed 85f9fb7b85b9-1793035085682 (its segments are kept)",
+    "[jit] idle-killed 3b0b5cb17327-1793023697719-f4 (its segments are kept)",
+    "[jit] idle-killed jt-99fad1aa88b56d8b2cc4d9132947b1a40a2c7159-0 (its segments are kept)",
+    "[jit] idle-killed f48163d27622-1793035085682 (its segments are kept)",
+    "[jit] idle-killed f043a2d20761-1793023587714 (its segments are kept)",
+    "[jit] idle-killed 23d3a839778f-1793035464660-h264-480-f4-hw (its segments are kept)",
+    "[jit] idle-killed 3a872eff630c-1793023587714-h264-480-f4-hw (its segments are kept)",
+    "[jit] idle-killed 0c4525f159a7-1793035085682-h264-480-f4-hw (its segments are kept)",
+    "[jit] producer 7e1ef81b81a9-1793035085682-h264-480-f4-hw from seg29 (237.1s)",
+    "[jit] parked 7e1ef81b81a9-1793035085682-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[jit] idle-killed 7e1ef81b81a9-1793035085682-f4 (its segments are kept)",
+    "[jit] idle-killed bf63323f5d6c-1793035464660 (its segments are kept)",
+    "[jit] idle-killed ad37aeb3d954-1793023587714-f4 (its segments are kept)",
+    "[jit] idle-killed e5bc48da001c-1793035464660-f4 (its segments are kept)",
+    "[jit] idle-killed 1adf796ab663-1793035085682-f4 (its segments are kept)",
+    "[jit] producer 1adf796ab663-1793035085682-h264-480-f4-hw from seg193 (1564.8s)",
+    "[jit] producer bf63323f5d6c-1793035464660-h264-720-hw from seg131 (1066.0s)",
+    "[jit] producer e5bc48da001c-1793035464660-h264-480-f4-hw from seg30 (245.0s)",
+    "[jit] parked 1adf796ab663-1793035085682-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[jit] parked bf63323f5d6c-1793035464660-h264-720-hw (20 segments ahead of its reader)",
+    "[jit] parked e5bc48da001c-1793035464660-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[jit] producer ad37aeb3d954-1793023587714-h264-480-f4-hw from seg102 (1020.0s)",
+    "[jit] parked ad37aeb3d954-1793023587714-h264-480-f4-hw (20 segments ahead of its reader)",
+    "[remux] resumed 389ca16fc3e6-1793023355697-copy-451 (its reader is 19 segments from the end)",
+    "[remux] paused 389ca16fc3e6-1793023355697-copy-451 (55 segments ahead of its reader)",
+    "[jit] producer 7e1ef81b81a9-1793035085682 from seg75 (609.1s)",
+    "[remux] resumed 78578ccd9714-1793023697719-copy-612 (its reader is 19 segments from the end)",
+    "[jit] parked 7e1ef81b81a9-1793035085682 (40 segments ahead of its reader)",
+    "[remux] paused 78578ccd9714-1793023697719-copy-612 (58 segments ahead of its reader)",
+    "[jit] producer 7e1ef81b81a9-1793035085682-h264-480-f4-hw from seg45 (365.3s)",
+    "[jit] parked 7e1ef81b81a9-1793035085682-h264-480-f4-hw (20 segments ahead of its reader)"
+  ],
+  "exited": null
+}
