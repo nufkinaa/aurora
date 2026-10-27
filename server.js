@@ -262,6 +262,7 @@ app.use(require("./src/routes/stream"));
 app.use(require("./src/routes/airplay"));
 app.use(require("./src/routes/ai"));
 app.use(require("./src/routes/admin"));
+app.use(require("./src/routes/uploads")); // admin "Add your own file": uploads and Drive/Dropbox/web links (media/uploads.js)
 app.use(require("./src/routes/requests"));
 app.use(require("./src/routes/torrent"));
 app.use(require("./src/routes/downloads"));
@@ -718,6 +719,8 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   try { require("./src/lib/jsonstore").claimOwnership(config.DATA_DIR); } catch (e) { console.error("[store]", e.message); }
   // one-time tidy-ups of the stores, done by the server only
   try { require("./src/profiles").bootMaintenance(); } catch (e) { console.error("[profiles] boot maintenance:", e.message); }
+  // admin "Add your own file": link downloads go on, uploads wait for their page (media/uploads.js)
+  setTimeout(() => { require("./src/media/uploads").resume().catch((e) => console.warn("[upload] resume:", e && e.message)); }, 3000).unref();
   require("./src/lib/supervisor").tell({ type: "listening", port: config.PORT, pid: process.pid });
 
   // The website's modules re-printed now, off the event loop, instead of
