@@ -424,6 +424,9 @@ export type Stream = {
 // matching OpenSubtitles tracks asynchronously.
 export type TorrentPlayItem = {
   id: string; // `torrent|<infoHash>|<fileIdx>`
+  // The next sources, best first: the player moves on to them by itself when
+  // this one has nobody sharing it (playerRules.ts deadSource) — the site's rule.
+  alts?: TorrentPlayItem[];
   title: string;
   videoUrl: string;
   transcodeBase: string;

@@ -240,3 +240,16 @@ test("a segment's load stats say what the line did: the server's time making it 
   assert.equal(lineTimeOnly({ loading: { start: 1000, first: 0, end: 0 } }), 0);
   assert.equal(lineTimeOnly(null), 0);
 });
+
+test("a torrent source nobody shares is left for the next one: nobody after 25 s, nothing after 45 s", async () => {
+  const { deadSource, fallbackSources } = await load();
+  assert.equal(deadSource({ elapsedMs: 10000, peers: 0 }), false, "too early");
+  assert.equal(deadSource({ elapsedMs: 26000, peers: 0 }), true, "nobody after 25 s");
+  assert.equal(deadSource({ elapsedMs: 26000, peers: 3 }), false, "peers: it may still come");
+  assert.equal(deadSource({ elapsedMs: 46000, peers: 3, progress: 0 }), true, "nothing at all after 45 s");
+  assert.equal(deadSource({ elapsedMs: 60000, peers: 0, progress: 0.01 }), false, "bytes are coming");
+  assert.equal(deadSource({ elapsedMs: 60000, peers: 0, everPlayed: true }), false, "it played");
+  const chosen = { infoHash: "a", fileIdx: 0, seeders: 1 };
+  const list = [chosen, { infoHash: "b", fileIdx: 0, seeders: 5 }, { infoHash: "c", fileIdx: 0, seeders: 40 }, { infoHash: "d", fileIdx: 0, seeders: 90, cam: true }, { infoHash: "e", fileIdx: 0, seeders: 0 }, { infoHash: "f", fileIdx: 0, seeders: 9, badHere: true }];
+  assert.deepEqual(fallbackSources(list, chosen).map((x) => x.infoHash), ["c", "b"]);
+});

@@ -158,3 +158,25 @@ export const lineTimeOnly = (stats, floor = SERVER_WAIT_FLOOR_MS) => {
   l.start = l.first - floor;
   return Math.round(wait - floor);
 };
+
+// PURE. A torrent start that is going nowhere: the source the viewer was put
+// on has nobody sharing it. The server waits up to 90 s for peers before it
+// gives up ("Timed out finding peers") and the player said "Still trying…" at
+// 60 s — a minute and a half of a spinner for a source that was never going
+// to play, while the sources list had others. Nobody at all after 25 s, or
+// nothing at all arrived after 45 s, and the next source is tried. (The TV
+// app keeps the same rule: tv-native/src/playerRules.ts deadSource.)
+export const DEAD_SOURCE_PEERLESS_MS = 25000;
+export const DEAD_SOURCE_EMPTY_MS = 45000;
+export const deadSource = ({ elapsedMs = 0, peers = 0, progress = 0, everPlayed = false } = {}) =>
+  !everPlayed && !(progress > 0) && ((elapsedMs >= DEAD_SOURCE_PEERLESS_MS && !(peers > 0)) || elapsedMs >= DEAD_SOURCE_EMPTY_MS);
+
+// PURE. The sources to fall back to, best first: the live ones a person could
+// pick (not a cam, a pre-release, a dub, a release reported bad here), most
+// seeders first, the chosen one left out.
+export const fallbackSources = (streams = [], chosen = null, n = 3) =>
+  (streams || [])
+    .filter((x) => x && x !== chosen && !(chosen && x.infoHash === chosen.infoHash && x.fileIdx === chosen.fileIdx))
+    .filter((x) => !x.cam && !x.prerelease && !x.dubbed && !x.badHere && x.seeders > 0)
+    .sort((a, b) => (b.seeders || 0) - (a.seeders || 0))
+    .slice(0, n);

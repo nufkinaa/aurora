@@ -53,6 +53,14 @@ export const nextFile = (
 
 // ------------------------------------------------------------------ Up next
 /** How long the card counts down before the next episode starts by itself. */
+/** A torrent start going nowhere: nobody sharing the source after 25 s, or
+ *  nothing at all after 45 s — the next source is tried (the site's
+ *  playstart.js deadSource, the same numbers). */
+export const DEAD_SOURCE_PEERLESS_MS = 25000;
+export const DEAD_SOURCE_EMPTY_MS = 45000;
+export const deadSource = ({elapsedMs = 0, peers = 0, progress = 0, everPlayed = false}: {elapsedMs?: number; peers?: number; progress?: number; everPlayed?: boolean}) =>
+  !everPlayed && !(progress > 0) && ((elapsedMs >= DEAD_SOURCE_PEERLESS_MS && !(peers > 0)) || elapsedMs >= DEAD_SOURCE_EMPTY_MS);
+
 export const UPNEXT_COUNTDOWN_SEC = 15;
 /** How many episodes in a row may start BY THEMSELVES (the countdown ran out,
  *  nobody touched the remote in between) before the next one waits to be

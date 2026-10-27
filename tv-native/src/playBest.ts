@@ -67,6 +67,16 @@ export const pickBest = (streams: Stream[] | null | undefined): Stream | null =>
   return pool.find(x => x.recommended) || clean[0] || pool[0] || null;
 };
 
+/** The sources to fall back to, best first — the site's playstart.js
+ *  fallbackSources: live, pickable, not reported bad here, most seeders first,
+ *  the chosen one left out. */
+export const fallbackSources = (streams: Stream[] | null | undefined, chosen: Pick<Stream, 'infoHash' | 'fileIdx'> | null, n = 3): Stream[] =>
+  (streams || [])
+    .filter(x => !!x && !(chosen && x.infoHash === chosen.infoHash && x.fileIdx === chosen.fileIdx))
+    .filter(x => pickable(x) && !x.badHere && x.seeders > 0)
+    .sort((a, b) => (b.seeders || 0) - (a.seeders || 0))
+    .slice(0, n);
+
 /** What the title is, for the play item. */
 export type PlayCtx = {
   type: 'movie' | 'series';

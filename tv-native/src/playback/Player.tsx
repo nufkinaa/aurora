@@ -90,6 +90,7 @@ import {useApp} from '../AppContext';
 import {useRouteShown} from '../useRouteShown';
 import {setPlayingContext} from '../errors';
 import {fallbackFrom, startupOf, stepsText} from '../startline';
+import {showToast} from '../toast';
 import {acceptTvEvent, useFocusFallback} from '../focus';
 import {canNavigate} from '../navLock';
 import {openXray} from '../overlay';
@@ -137,6 +138,7 @@ import {
   stallClockOff,
   stallClockOn,
   upNextState,
+  deadSource,
 } from '../playerRules';
 import {openReplace, openReport, overlayOpen} from '../overlay';
 import {replaceOffered, WORDS as REPLACE_WORDS} from '../replaceLogic';
@@ -1527,6 +1529,19 @@ export default function Player({
         if (!done || bufferingRef.current) {
           setTstatus({peers: s.peers, downloadSpeed: s.downloadSpeed, progress: s.progress});
         }
+        // Nobody is sharing this source: the next one from the list, by itself
+        // (playerRules.ts deadSource — the site's rule), instead of a minute
+        // and a half of "connecting" for a source that was never going to play.
+        if (!done && !everPlayed.current && stream.alts && stream.alts.length && deadSource({elapsedMs: Date.now() - startedAt, peers: s.peers, progress: s.progress})) {
+          const [next, ...rest] = stream.alts;
+          if (next && next.id !== stream.id) {
+            live = false;
+            console.log(`[player] nobody is sharing ${stream.infoHash.slice(0, 8)} (peers ${s.peers}) — trying the next source ${next.infoHash.slice(0, 8)}`);
+            showToast(`Nobody is sharing that copy right now — trying ${next.quality ? `another ${next.quality}` : 'another one'}`, '🔁');
+            navigation.replace('Player', {id: next.id, title, stream: {...next, alts: rest}});
+            return;
+          }
+        }
         // Subtitle files that live INSIDE the torrent, offered as soon as the
         // torrent has metadata.
         if (s.subtitles?.length) addSubs(s.subtitles);
@@ -1547,6 +1562,7 @@ export default function Player({
       clearTimeout(absTimer);
       clearInterval(poll);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stream, addSubs]);
 
   // ---------------------------------------------------------------- arming

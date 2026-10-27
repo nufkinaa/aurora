@@ -22,7 +22,7 @@ import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio, langOf } from "
 import { savedDelay, saveDelay } from "../subdelay.js";
 import { createAirplay } from "../airplay.js";
 import { registerPlayerTarget, takeRemoteStart, playerChanged, onDevices, getDevices, chooseDevice, playOn, ICONS as REMOTE_ICONS } from "../remote.js"; // [phone-remote]
-import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM, decodeStalled, lineTimeOnly } from "../playstart.js";
+import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM, decodeStalled, lineTimeOnly, deadSource } from "../playstart.js";
 // [player-options] night mode, dialogue boost, the look of subtitles (2026-10-19)
 import { readStyle, nextChoice, styleLabel, cueCss, cueShadow, cueBackdrop, CUE_VW, CUE_MIN_PX, RAISED_PCT, SUB_STYLE_KEYS, SUB_STYLE_NAMES, SUB_COLORS } from "../subStyle.js";
 import { audioFxFor, AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES } from "../audiofx.js";
@@ -3251,6 +3251,21 @@ export const renderPlayer = async (root, { id }) => {
       try {
         const st = await api.torrentStatus(item.infoHash);
         serverLoaded = st.progress || 0;
+        // Nobody is sharing this source: the next one from the sources list,
+        // by itself (playstart.js deadSource) — instead of a minute and a half
+        // of "Connecting to peers…" for a source that was never going to play.
+        if (!everPlayed && !seekWait && Array.isArray(item._alts) && item._alts.length && deadSource({ elapsedMs: performance.now() - t0, peers: st.peers, progress: st.progress, everPlayed })) {
+          const [next, ...rest] = item._alts;
+          if (next && next.id && next.id !== item.id) {
+            next._alts = rest;
+            mark("source-fallback", { from: String(item.infoHash || "").slice(0, 8), peers: st.peers || 0 });
+            try { fetch(`/api/torrents/perf-mark/${item.infoHash}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "source_fallback", ms: Math.round(performance.now() - t0), to: next.infoHash }) }).catch(() => {}); } catch {}
+            toast(`Nobody is sharing that copy right now — trying ${next.quality ? `another ${next.quality}` : "another one"}`, "🔁");
+            state.pendingItems[next.id] = next;
+            goPlay(`#/play/${next.id}`);
+            return;
+          }
+        }
         // The truth about the current path, in words a person can act on —
         // "transcoding…" used to appear for streams whose video was merely
         // COPIED (audio-only conversion), which read as "the server is doing
