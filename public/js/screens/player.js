@@ -640,6 +640,18 @@ export const renderPlayer = async (root, { id }) => {
   // The start-up, step by step from the press (startline.js): when Play was
   // pressed (the navigation to this player), and each step as it happens.
   const startSteps = { open: performance.now() };
+  // Subtitles wait for the picture: a text track's first fetch — for an
+  // embedded track, a read of the whole film on the server — starts with the
+  // first frame (or 5 s in), not beside the first segment the viewer is
+  // waiting for on the same disk. (armSubs below; released in firstFrame.)
+  const subsHeld = [];
+  const releaseSubs = () => { while (subsHeld.length) armTrackSrc(subsHeld.shift()); };
+  const armSubs = (trackEl) => {
+    if (!trackEl) return;
+    if (startSteps.frame != null || startSteps.subsFree) return void armTrackSrc(trackEl);
+    if (!subsHeld.includes(trackEl)) subsHeld.push(trackEl);
+  };
+  setTimeout(() => { startSteps.subsFree = true; releaseSubs(); }, 5000);
   const pressAt = (() => { const n = navStartedAt(); return n > 0 && startSteps.open - n < 60000 ? n : startSteps.open; })();
 
   let item;
@@ -3760,7 +3772,7 @@ export const renderPlayer = async (root, { id }) => {
 
   const selectTrack = (idx) => {
     const tracks = video.textTracks;
-    if (idx >= 0) armTrackSrc([...video.querySelectorAll("track")][idx]);
+    if (idx >= 0) armSubs([...video.querySelectorAll("track")][idx]);
     for (let i = 0; i < tracks.length; i++) {
       tracks[i].mode = i === idx ? "showing" : "disabled";
     }
@@ -3818,7 +3830,7 @@ export const renderPlayer = async (root, { id }) => {
   // that track reads "disabled" again and stays unfetched.)
   video.textTracks.addEventListener("change", () => {
     const els = [...video.querySelectorAll("track")];
-    for (const t of els) if (t.track && t.track.mode !== "disabled") armTrackSrc(t);
+    for (const t of els) if (t.track && t.track.mode !== "disabled") armSubs(t);
   });
   // AirPlay sends the subtitle that is on here (js/airplay.js): ask for it now
   video.textTracks.addEventListener("change", () => { if (air) air.changed(); });
@@ -7064,6 +7076,7 @@ export const renderPlayer = async (root, { id }) => {
     });
     playFirstFrame(ms, { torrent: isTorrent, offline: !!item._offline, remux: jitMode, transcode: usingTranscode }); // [analytics]
     startSteps.frame = at;
+    releaseSubs();
     // A moment later (the first segment's timing entry lands when it has
     // arrived whole): the start-up, step by step, from the press.
     setTimeout(() => {

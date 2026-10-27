@@ -65,4 +65,19 @@ ui.test("only the subtitle that is on is fetched — at the start and after the 
   assert.equal(new Set(subs).size, on.length + 1);
 });
 
+ui.test("the subtitle that is on is fetched once the picture is there, not beside the first segment", async ({ page, srv, signIn, freshProfile, lib }) => {
+  await signIn(await freshProfile());
+  const seen = [];
+  await page.route(/\/stream\/embedded\//, async (route) => {
+    seen.push(await page.evaluate(() => { const v = document.querySelector(".player video"); return v ? v.readyState : -1; }).catch(() => -2));
+    route.continue();
+  });
+  const marks = player.marks(page);
+  await player.open(page, srv, lib.film2.id, { min: 1 });
+  await marks.wait((m) => m.name === "first-frame", 15000, "the first frame");
+  await page.waitForFunction(() => [...document.querySelector(".player video").textTracks].some((t) => t.mode === "showing" && t.cues && t.cues.length), null, { timeout: 15000 });
+  assert.ok(seen.length >= 1, "a subtitle was fetched");
+  assert.ok(seen[0] >= 2, `the first subtitle request went out with the picture at readyState ${seen[0]} (2+: a frame is there)`);
+});
+
 ui.run({ concurrency: 1 });
