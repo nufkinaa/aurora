@@ -348,9 +348,12 @@ ui.test("the server is busy at a start (503 + Retry-After): the player waits and
   await goto("#/movies");
   const t0 = Date.now();
   await page.evaluate((h) => { location.hash = h; }, `#/play/${lib.film2.id}`);
+  // while it waits: a spinner, not a black page with nothing on it
+  await page.waitForSelector("#app .player-starting .spinner", { timeout: 1800 });
   await page.waitForSelector("#app .player video");
   await player.playing(page, { id: lib.film2.id });
   await firstFrame(marks);
+  assert.equal(await page.locator("#app .player-starting").count(), 0, "the waiting spinner is gone once the player is up");
   assert.ok(Date.now() - t0 >= 1900, "it did not wait for the server");
   assert.deepEqual(marks.named("busy-wait").map((m) => m.n), [1, 2]);
   assert.equal(asked, 3, "asked again exactly when told to, then served");

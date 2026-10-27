@@ -2338,6 +2338,20 @@ export const renderPlayer = async (root, { id }) => {
     if (!cappedStart) capH = 0;
   }
 
+  // The player's own screen is built after the start's decisions below. When
+  // one of them waits on the server (no encoder free: up to three asks five
+  // seconds apart; a slow answer), the viewer looked at a black page with
+  // nothing on it: a spinner after a moment, as the capped start above has.
+  let startWait = null;
+  const startWaitTimer = setTimeout(() => {
+    if (exited || location.hash !== entryHash || cappedStart) return;
+    startWait = el("div", { class: "player player-starting" }, el("div", { class: "spinner" }));
+    root.append(startWait);
+  }, 600);
+  const startWaitDone = () => {
+    clearTimeout(startWaitTimer);
+    if (startWait) { startWait.remove(); startWait = null; }
+  };
   const usingRemux = audioNeedsRemux(); // library file with undecodable audio
   // The !isTorrent guards below preserve flow ownership: torrents ALWAYS go
   // through their own branch (prefetch warm + fallbackToZero on resume) —
@@ -2440,6 +2454,7 @@ export const renderPlayer = async (root, { id }) => {
   } else {
     startDirect();
   }
+  startWaitDone();
 
   // Auto-fallback to the server transcode when direct playback turns out to be
   // undecodable — either a hard decode error or a decode stall (data buffered
