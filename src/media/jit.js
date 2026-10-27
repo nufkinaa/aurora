@@ -966,7 +966,8 @@ const advance = (dir, job, run) => {
     run.cursor = members[members.length - 1] + 1;
     run.nextSeg = (alias.length ? alias[alias.length - 1] : seg) + 1;
     // the segment an encoder was started for is decided: from here it yields
-    if (job.enc) yieldCpu(run);
+    // — once it is a little ahead of its reader (paceEncoder)
+    if (job.enc) paceEncoder(job, run, Date.now());
     // how much film this encoder has made since it started, and whether
     // somebody is waiting on it — encbudget notices one that falls behind
     if (job.enc) {
@@ -1072,6 +1073,24 @@ const yieldCpu = (run, proc = run.proc) => {
   if (run.yielding || !proc) return;
   run.yielding = true;
   try { os.setPriority(proc.pid, viewerPriority()); } catch {}
+};
+// …but not while its reader is right behind it: what it makes next is what
+// that viewer sees next. It used to yield the moment its first segment was
+// out, for good: below normal against every other viewer's copy running
+// ahead at normal (and, on Windows, strictly below them), an encode near its
+// reader made a quarter of real time (tools/stall-rig, 3 viewers on 4 CPUs:
+// one rung frozen 483 s). Now it keeps normal priority until it is
+// YIELD_LEAD segments ahead of its reader, and — where a priority can be
+// raised again (lib/prio.js) — is raised back when its reader closes in.
+const YIELD_LEAD = 2;
+const paceEncoder = (job, run, now) => {
+  if (!run || !run.proc || run.stopped) return;
+  if (run.warm != null) return yieldCpu(run); // a warm-up yields from the start
+  const lead = usage(job, run, now).lead;
+  if (lead >= YIELD_LEAD) return yieldCpu(run);
+  if (run.yielding && !run.leadLow && require("../lib/prio").canRaise()) {
+    try { os.setPriority(run.proc.pid, os.constants.priority.PRIORITY_NORMAL); run.yielding = false; } catch {}
+  }
 };
 const viewerPriority = () => {
   try { return require("../lib/prio").viewer(); } catch { return os.constants.priority.PRIORITY_BELOW_NORMAL; }
@@ -1293,6 +1312,7 @@ const ensureSegment = async (dir, job, input, k, { gone = null } = {}) => {
   // the segment it could not make (measured 2026-10-27: copy producers at
   // Idle with every core busy, the picture frozen at 0 s buffered).
   for (const run of job.producers) {
+    if (job.enc) paceEncoder(job, run, now);
     if (!run.leadLow) continue;
     try { require("../lib/leadprio").step(run, run.proc && run.proc.pid, usage(job, run, now).lead); } catch {}
   }
@@ -1771,6 +1791,6 @@ module.exports = {
     MAX_PRODUCERS_PER_JOB, MAX_EXTRA_PRODUCERS, CLAIM_MS, READER_TTL_MS, STEAL_LEAD, BUSY_WAIT_MS, COVER_AHEAD,
     setOutsideEncodes: (fn) => { outsideEncodes = fn; },
     sigOf, checkKept, readMade, MADE, KEEP_MS, jitRoot,
-    jobs, encodeCensus, abandoned, ABANDONED_MS, speculative, promote, WARM_AHEAD, WARM_MAX_PER_MIN, warmStarts, advance, yieldCpu,
+    jobs, encodeCensus, abandoned, ABANDONED_MS, speculative, promote, WARM_AHEAD, WARM_MAX_PER_MIN, warmStarts, advance, yieldCpu, paceEncoder, YIELD_LEAD,
   },
 };

@@ -430,9 +430,11 @@ test("real ffmpeg: an encoder runs at normal priority until the segment it was s
     assert.equal(os.getPriority(run.proc.pid), os.constants.priority.PRIORITY_NORMAL, "normal priority while the viewer waits");
     const pid = run.proc.pid;
     assert.ok(await waiting, `the segment is made (${job.broken || "ok"})`);
-    // …and has stepped down by the time that segment is served
-    assert.equal(run.yielding, true);
-    if (run.proc) assert.equal(os.getPriority(pid), BELOW, "below normal from then on");
+    // …still at normal while its reader is right behind it (paceEncoder)…
+    if (run.proc && !run.stopped && J.usage(job, run, Date.now()).lead < J.YIELD_LEAD) assert.equal(run.yielding, false, "not yet: its reader is right behind it");
+    // …and steps down once it is a little ahead of it
+    assert.ok(await until(() => run.yielding || run.stopped || run.ended, 60000), "it yields once ahead");
+    if (run.proc && !run.stopped && !run.ended) assert.equal(os.getPriority(pid), BELOW, "below normal from then on");
 
     // a warm-up: nobody is waiting, it yields at once
     J.dropJob(d);
