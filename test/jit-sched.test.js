@@ -342,3 +342,15 @@ test("real ffmpeg: two viewers far apart in one film are both served, by two pro
     J.setDeclinedFile(path.join(os.tmpdir(), "aurora-jit-declined-test.json"));
   }
 });
+
+test("plan: a request whose client has already hung up (a seek's abandoned one) protects nothing — the seek takes the producer over instead of starting a second encoder", () => {
+  const job = mkJob();
+  const a = producer(job, 0);
+  noteReader(job, 0, T0);
+  job.wanted.push(1);
+  job.wantedGone = [() => false];
+  noteReader(job, 400, T0);
+  assert.deepEqual(plan(job, T0, { room: true }), { spawn: true }, "still waited on: it keeps it");
+  job.wantedGone = [() => true]; // its client hung up; its own wait has not looked yet
+  assert.deepEqual(plan(job, T0, { room: true }), { steal: a });
+});

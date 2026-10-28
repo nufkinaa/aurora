@@ -482,7 +482,12 @@ const stopProducers = (job) => { for (const run of [...job.producers]) stopRun(j
 const coversRun = (run, k) => k >= run.fromSeg && k - run.nextSeg < COVER_AHEAD;
 const covering = (job, k) => job.producers.find((run) => coversRun(run, k)) || null;
 // Is somebody waiting, right now, on a segment this producer is about to make?
-const waitedOn = (job, run) => job.wanted.some((k) => coversRun(run, k));
+// (a request whose client has already hung up — a seek's abandoned request,
+// noticed by its own wait only at its next look — waits on nothing: the seek's
+// new request may take over its producer instead of starting a second
+// encoder beside it; measured, a seek on 8 cores with two encoders of one
+// viewer side by side, its segment 5.5 s)
+const waitedOn = (job, run) => job.wanted.some((k, i) => coversRun(run, k) && !(job.wantedGone && typeof job.wantedGone[i] === "function" && job.wantedGone[i]()));
 
 // A request for segment k: move the reader it continues, or note a new one.
 const noteReader = (job, k, now) => {
@@ -1353,14 +1358,16 @@ const ensureSegment = async (dir, job, input, k, { gone = null } = {}) => {
   }
   job.waiting = (job.waiting || 0) + 1;
   job.wanted.push(k);
+  (job.wantedGone = job.wantedGone || []).push(gone);
   try {
     const file = await ensureSegmentInner(dir, job, input, k, gone);
     if (file && !(gone && gone())) resumeAhead(dir, job, input, k);
     return file;
   } finally {
     job.waiting--;
-    const i = job.wanted.indexOf(k);
-    if (i >= 0) job.wanted.splice(i, 1);
+    let i = job.wanted.findIndex((x, j) => x === k && job.wantedGone[j] === gone);
+    if (i < 0) i = job.wanted.indexOf(k);
+    if (i >= 0) { job.wanted.splice(i, 1); job.wantedGone.splice(i, 1); }
   }
 };
 // An encoder was parked and its reader is getting close to the end of what
@@ -1613,6 +1620,7 @@ const jobFor = (dir, entry, { enc = false, hw = false } = {}) => {
       hw: !!(enc && hw),
       broken: null, waiters: new Set(), waiting: 0,
       wanted: [], // the segments being waited on right now
+      wantedGone: [], // …and, beside each, how to tell its client has hung up
       readers: [], lastReader: null, returns: [], contendedAt: 0,
       enc: !!enc, title: entry.key || dir, encArgs: null, refusedAt: 0,
       keptSig, made: null, // what the dir held from an earlier job, and how this one makes (checkKept)

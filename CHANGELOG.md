@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.13.2 — 2026-10-28
+
+- **Seeking in a converted film no longer starts a second converter** next to the first one, and the player no longer gives up on a piece of video a fraction of a second after it starts arriving — which is what made a seek drop from 1080p to 480p.
+- Small servers (2–4 cores) give a TV's converted copy every core; 8-core servers are unchanged. Two tests that assumed the old numbers, and one that needed ffprobe, now pass on Linux.
+
 ## 1.13.1 — 2026-10-28
 
 **Faster starts and fewer stops** (most of the long waits after pressing Play were the subtitles, not the server or the line):

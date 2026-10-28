@@ -529,6 +529,12 @@ const patientAbrFor = (Hls) => {
         const f = this.fragCurrent;
         const l = f && f.stats && f.stats.loading;
         if (l && !(l.first > 0)) return undefined; // nothing has come yet: the server is still making it
+        // (the first byte has just come: the wait before it was the server's, not
+        // the line's — the loader moves the load's start on its first chunk, and
+        // this look can come between the answer and that chunk: measured, a
+        // seek's segment the server took 5.5 s to make given up 58 ms after its
+        // first byte, for 480p — a new encoder, and back up again)
+        try { lineTimeOnly(f.stats); } catch {}
         return rule.apply(this, a);
       };
     }

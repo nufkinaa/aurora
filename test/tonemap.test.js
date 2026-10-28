@@ -173,7 +173,10 @@ test("the colour probe: ffprobe JSON → facts, Dolby Vision record included", (
 
 // The arguments both encoders built BEFORE tone mapping existed, copied from
 // the code as it was (1b375da). An SDR job — vf null — must still produce them.
-const T = String(Math.max(1, os.cpus().length - 2));
+// (the encoder's threads: lib/cpucount.js encodeThreads — the machine less two,
+// never one: on a 2- or 4-CPU box, a CI runner's, every CPU. It was
+// max(1, CPUs − 2), which gave a 2-CPU box one thread.)
+const T = String(require("../src/lib/cpucount").encodeThreads());
 const BEFORE_FULL = ["-c:v", "libx264", "-preset", "superfast", "-crf", "18", "-pix_fmt", "yuv420p", "-g", "48", "-threads", T, "-vf", "scale=min(1920\\,iw):-2"];
 const BEFORE_CAP = (h, maxrate, bufsize) => ["-c:v", "libx264", "-preset", "superfast", "-crf", "18", "-pix_fmt", "yuv420p", "-g", "48", "-threads", T, "-vf", `scale=-2:min(${h}\\,ih)`, "-maxrate", maxrate, "-bufsize", bufsize];
 
