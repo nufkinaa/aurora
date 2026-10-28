@@ -22,6 +22,15 @@ const adminOnly = (req, res, next) => {
 };
 
 const clean = (v, n) => String(v == null ? "" : v).trim().slice(0, n);
+const STEP_RE = /^[a-z]{2,10}$/;
+const startupOf = (s) => {
+  if (!s || typeof s !== "object" || !Array.isArray(s.steps)) return null;
+  const ms = (v) => Math.max(0, Math.min(3600000, parseInt(v, 10) || 0));
+  const steps = s.steps.slice(0, 12).filter((x) => Array.isArray(x) && STEP_RE.test(String(x[0]))).map(([n, v]) => [String(n), ms(v)]);
+  if (!steps.length) return null;
+  const srv = s.srv && typeof s.srv === "object" ? Object.fromEntries(["playlist", "seg"].filter((k) => s.srv[k] != null).map((k) => [k, ms(s.srv[k])])) : null;
+  return { total: ms(s.total), slow: STEP_RE.test(String(s.slow)) ? String(s.slow) : null, path: clean(s.path, 12) || null, steps, ...(srv && Object.keys(srv).length ? { srv } : {}) };
+};
 
 // File one report. `extra` is what a feature adds to it (a "Get another
 // version" request carries `replace`: media/replace.js); `quiet` skips the
@@ -47,8 +56,15 @@ const add = ({ text, profile = null, context = {}, ip = null, extra = null, quie
       version: clean(ctx.version, 20),
       errors: Array.isArray(ctx.errors) ? ctx.errors.slice(-20).map((e) => clean(e, 400)) : [],
       playMarks: (Array.isArray(ctx.playMarks) ? ctx.playMarks.slice(-30) : [])
-        .map((m) => ({ name: clean(m && m.name, 32), ms: Math.max(0, parseInt(m && m.ms, 10) || 0), path: clean(m && m.path, 24) || undefined }))
+        .map((m) => {
+          const out = { name: clean(m && m.name, 32), ms: Math.max(0, parseInt(m && m.ms, 10) || 0), path: clean(m && m.path, 24) || undefined };
+          // what makes a mark mean something: why a path, which rendition, which stage of a stall
+          for (const k of ["why", "v", "to", "stage", "code", "slow"]) if (m && m[k] != null && m[k] !== "") out[k] = clean(m[k], 40);
+          return out;
+        })
         .filter((m) => m.name),
+      // the start-up step by step from the press: { total, slow, path, steps: [[name, ms]…], srv }
+      startup: startupOf(ctx.startup),
     },
     ip, // (req.ip is the reverse proxy itself behind one)
     ...(extra && typeof extra === "object" ? extra : {}),

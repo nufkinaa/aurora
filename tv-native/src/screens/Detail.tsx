@@ -37,7 +37,7 @@ const OWNED_UPNEXT_GLOW = require('../assets/owned-upnext-glow.png');
 import Card, {CARD_W, CARD_H} from '../components/Card';
 import NavRail from '../components/NavRail';
 import {api, ApiError, artSrc, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, LIST_ADDED, Progress, StreamRef, DiscoverMeta, DownloadJob, MarkEntry, MyDownload, Stream} from '../api';
-import {autoPlayStep, jobSource, pickBest, runningJobFor, streamPlayItem} from '../playBest';
+import {autoPlayStep, fallbackSources, jobSource, pickBest, runningJobFor, streamPlayItem} from '../playBest';
 import {heroRelease, ReleaseStatus} from '../releaseWords';
 import {isOpen, onMessage} from '../realtime';
 import {canNavigate} from '../navLock';
@@ -2138,10 +2138,10 @@ export default function Detail({
   // one a download already on its way is fetching - played now, streamed
   // while it downloads. The player chooses the subtitle as it always does.
   const streamNow = useCallback(
-    (src: Parameters<typeof streamPlayItem>[0], imdb: string, s?: number, e?: number) => {
+    (src: Parameters<typeof streamPlayItem>[0], imdb: string, s?: number, e?: number, list?: Stream[] | null) => {
       if (!navigation.isFocused()) return false;
-      const pi = streamPlayItem(src, {
-        type: s && e ? 'series' : 'movie',
+      const ctx = {
+        type: (s && e ? 'series' : 'movie') as 'series' | 'movie',
         imdbId: imdb,
         title: item.title,
         year: item.year,
@@ -2149,7 +2149,10 @@ export default function Detail({
         episode: e,
         runtime: streamMeta?.runtime ?? null,
         poster: item.cover ?? item.poster ?? null,
-      });
+      };
+      const pi = streamPlayItem(src, ctx);
+      // the next sources, for the player to move on to when this one has nobody sharing it
+      pi.alts = fallbackSources(list, src as Stream).map(a => streamPlayItem(a, ctx));
       console.log(`[play] one press: streaming ${s && e ? `S${s}E${e}` : 'the film'} while it downloads (${src.quality || '?'})`);
       navigation.push('Player', {id: pi.id, title: item.title, stream: pi});
       return true;
@@ -2167,7 +2170,7 @@ export default function Detail({
         const list = await api
           .torrentSources(s && e ? {type: 'series', title: imdb, year: item.year ?? undefined, season: s, episode: e} : {type: 'movie', title: imdb, year: item.year ?? undefined})
           .catch(() => ({streams: [] as Stream[]}));
-        return streamNow(jobSource(job, list.streams), imdb, s, e);
+        return streamNow(jobSource(job, list.streams), imdb, s, e, list.streams);
       } catch {
         return false;
       }
@@ -2241,7 +2244,7 @@ export default function Detail({
         // stays on the card that was pressed.
         offerSources(s, e, {count: (alive.length ? alive : streams || []).length, best: [pick.quality, pick.sizeString].filter(Boolean).join(' · ')});
         // Play: it starts now, from the swarm; the download below runs on
-        const playing = play && streamNow(pick, imdb, s, e);
+        const playing = play && streamNow(pick, imdb, s, e, streams);
         const res = await api.requestDownload({
           infoHash: pick.infoHash,
           fileIdx: pick.fileIdx,
@@ -2344,7 +2347,7 @@ export default function Detail({
         return;
       }
       // Play: it starts now, from the swarm; the download below runs on
-      const playing = play && streamNow(pick, imdb);
+      const playing = play && streamNow(pick, imdb, undefined, undefined, streams);
       const res = await api.requestDownload({
         infoHash: pick.infoHash,
         fileIdx: pick.fileIdx,

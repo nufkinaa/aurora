@@ -108,7 +108,8 @@ const deps = {
 };
 
 const PRIORITY = {
-  viewer: os.constants.priority.PRIORITY_BELOW_NORMAL, // as jit.js / remux.js always set it
+  // below normal where a priority can be raised again, else normal (lib/prio.js)
+  get viewer() { return require("../lib/prio").viewer(); },
   background: os.constants.priority.PRIORITY_LOW, // 19: nice 19 / the Windows idle class
 };
 

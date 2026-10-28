@@ -316,6 +316,25 @@ test("falling behind real time: new encodes are refused and background work is s
   });
 });
 
+test("an encode that cannot keep up while watched: the next encoders start at the faster preset, for half an hour", async () => {
+  const feed = (key, speed, waited, m, secs = 20) => {
+    for (let t = 0; t <= secs; t += 2) { budget.progress(key, t * speed, waited); m.tick(2000); }
+  };
+  const busyCpu = (m, share) => { for (const c of m.cpu) { c.times.user += share * 1000; c.times.idle += (1 - share) * 1000; } };
+  await machine({ logical: 2, speed: 0.6 }, async (m) => {
+    assert.equal(budget.presetNow(), "superfast");
+    B.sampleCpu(); busyCpu(m, 0.95);
+    feed("fast", 1.4, true, m);
+    assert.equal(budget.presetNow(), "superfast", "an encode that keeps up changes nothing");
+    feed("slow", 0.8, false, m);
+    assert.equal(budget.presetNow(), "superfast", "slow with nobody waiting (running ahead) changes nothing");
+    feed("slow2", 0.8, true, m);
+    assert.equal(budget.presetNow(), "ultrafast", "behind real time while a viewer waited");
+    m.tick(B.SLOW_PRESET_MS + 1000);
+    assert.equal(budget.presetNow(), "superfast", "and back after half an hour");
+  });
+});
+
 test("the ladder's encoders are admitted by cost: on a 12-thread desktop three 4K encodes fit, on a laptop one — and the old count rules still hold in units", async () => {
   const jit = require("../src/media/jit");
   const J = jit._internals;

@@ -966,7 +966,13 @@ const advance = (dir, job, run) => {
     run.cursor = members[members.length - 1] + 1;
     run.nextSeg = (alias.length ? alias[alias.length - 1] : seg) + 1;
     // the segment an encoder was started for is decided: from here it yields
-    if (job.enc) yieldCpu(run);
+    // — once it is a little ahead of its reader (paceEncoder)
+    if (job.enc) paceEncoder(job, run, Date.now());
+    // a fast first segment is out (once it is on disk): the rest at the ladder's own preset
+    if (run.fast && !run.handed) {
+      run.handed = true;
+      run.queue = run.queue.then(() => handOver(dir, job, run)).catch(() => {});
+    }
     // how much film this encoder has made since it started, and whether
     // somebody is waiting on it — encbudget notices one that falls behind
     if (job.enc) {
@@ -1073,8 +1079,26 @@ const yieldCpu = (run, proc = run.proc) => {
   run.yielding = true;
   try { os.setPriority(proc.pid, viewerPriority()); } catch {}
 };
+// …but not while its reader is right behind it: what it makes next is what
+// that viewer sees next. It used to yield the moment its first segment was
+// out, for good: below normal against every other viewer's copy running
+// ahead at normal (and, on Windows, strictly below them), an encode near its
+// reader made a quarter of real time (tools/stall-rig, 3 viewers on 4 CPUs:
+// one rung frozen 483 s). Now it keeps normal priority until it is
+// YIELD_LEAD segments ahead of its reader, and — where a priority can be
+// raised again (lib/prio.js) — is raised back when its reader closes in.
+const YIELD_LEAD = 2;
+const paceEncoder = (job, run, now) => {
+  if (!run || !run.proc || run.stopped) return;
+  if (run.warm != null) return yieldCpu(run); // a warm-up yields from the start
+  const lead = usage(job, run, now).lead;
+  if (lead >= YIELD_LEAD) return yieldCpu(run);
+  if (run.yielding && !run.leadLow && require("../lib/prio").canRaise()) {
+    try { os.setPriority(run.proc.pid, os.constants.priority.PRIORITY_NORMAL); run.yielding = false; } catch {}
+  }
+};
 const viewerPriority = () => {
-  try { return require("./cpuwork").PRIORITY.viewer; } catch { return os.constants.priority.PRIORITY_BELOW_NORMAL; }
+  try { return require("../lib/prio").viewer(); } catch { return os.constants.priority.PRIORITY_BELOW_NORMAL; }
 };
 
 // Split a child's output stream into lines.
@@ -1107,7 +1131,33 @@ const settle = (job, run) => {
 // table[fromSeg] to EOF — beside whatever producers the job already has
 // (who is stopped for it, if anyone, is acquire's decision).
 // `quiet`: nobody is waiting on it (a warm-up): an encoder yields from the start.
-const startProducer = (dir, job, input, fromSeg, { quiet = false } = {}) => {
+// THE FIRST SEGMENT FAST. A CPU encode a viewer is waiting on (a start, a
+// seek, a resume, another rung) makes the segment it was started for at x264
+// "ultrafast" — 1.6x the speed of the ladder's "superfast" (2.82x → 4.49x
+// real time on two of this PC's cores, 1080p) — and as soon as that segment
+// is out, hands over to an ordinary producer from the next one (handOver,
+// from advance): the viewer sees ten softer seconds a second or more
+// sooner, and the rest of the film is as it always was. Not for the graphics
+// card (it has no such preset), not for a look-ahead nobody waits on.
+const FAST_PRESET = "ultrafast";
+const fastArgs = (args) => {
+  const out = args.slice();
+  const i = out.indexOf("-preset");
+  if (i >= 0 && out[i + 1] != null) out[i + 1] = FAST_PRESET;
+  return out;
+};
+const handOver = (dir, job, run) => {
+  if (run.stopped || job.broken || !run.input || run.nextSeg >= job.table.length) return;
+  // (a successor from the next segment, unless another producer already covers it)
+  if (job.producers.some((o) => o !== run && o.fromSeg <= run.nextSeg && run.nextSeg <= o.nextSeg + 1)) return;
+  console.log(`[jit] fast start ${path.basename(dir)}: seg${run.fromSeg} out, the rest from seg${run.nextSeg} at the ladder's own preset`);
+  const input = run.input;
+  const from = run.nextSeg;
+  stopRun(job, run);
+  startProducer(dir, job, input, from);
+  wake(job);
+};
+const startProducer = (dir, job, input, fromSeg, { quiet = false, fast = false } = {}) => {
   checkKept(dir, job, input);
   job.leadParked = false;
   // (a segment whose own keyframe is missing is made by a run from earlier)
@@ -1125,10 +1175,13 @@ const startProducer = (dir, job, input, fromSeg, { quiet = false } = {}) => {
     proc: null,
     queue: Promise.resolve(), // file work, strictly in order
     yielding: false, // an encoder: running below normal priority (see below)
+    // the first segment fast (see FAST_PRESET): a CPU encode somebody waits on
+    fast: !!(fast && !quiet && input.enc && !input.enc.hw && Array.isArray(input.enc.videoArgs) && input.enc.videoArgs.includes("-preset") && fromSeg < job.table.length - 1),
+    input,
   };
   fs.mkdirSync(run.pdir, { recursive: true });
   const start = job.table[fromSeg].start;
-  const args = producerArgs(run, input, fromSeg > 0 ? start : null);
+  const args = producerArgs(run, run.fast ? { ...input, enc: { ...input.enc, videoArgs: fastArgs(input.enc.videoArgs) } } : input, fromSeg > 0 ? start : null);
   const proc = require("../lib/children").track(spawn(config.FFMPEG, args, { stdio: ["ignore", "pipe", "pipe"], windowsHide: true }), "jit");
   // An encoder yields the CPU to the server itself (as remux.js does) — but
   // not before it has made the segment it was started for. That one is what a
@@ -1253,7 +1306,8 @@ const acquire = (dir, job, input, k, now, polite = false) => {
   // an encoder needs a slot (a copy never does)
   if (job.enc && !admitEncode(job, essential, step.steal || null)) return "refused";
   if (step.steal) stopRun(job, step.steal);
-  startProducer(dir, job, input, k);
+  // (a viewer is waiting on this one — not a look-ahead: its first segment fast)
+  startProducer(dir, job, input, k, { fast: !polite && !!job.enc });
   return "started";
 };
 
@@ -1293,6 +1347,7 @@ const ensureSegment = async (dir, job, input, k, { gone = null } = {}) => {
   // the segment it could not make (measured 2026-10-27: copy producers at
   // Idle with every core busy, the picture frozen at 0 s buffered).
   for (const run of job.producers) {
+    if (job.enc) paceEncoder(job, run, now);
     if (!run.leadLow) continue;
     try { require("../lib/leadprio").step(run, run.proc && run.proc.pid, usage(job, run, now).lead); } catch {}
   }
@@ -1771,6 +1826,6 @@ module.exports = {
     MAX_PRODUCERS_PER_JOB, MAX_EXTRA_PRODUCERS, CLAIM_MS, READER_TTL_MS, STEAL_LEAD, BUSY_WAIT_MS, COVER_AHEAD,
     setOutsideEncodes: (fn) => { outsideEncodes = fn; },
     sigOf, checkKept, readMade, MADE, KEEP_MS, jitRoot,
-    jobs, encodeCensus, abandoned, ABANDONED_MS, speculative, promote, WARM_AHEAD, WARM_MAX_PER_MIN, warmStarts, advance, yieldCpu,
+    jobs, encodeCensus, abandoned, ABANDONED_MS, speculative, promote, WARM_AHEAD, WARM_MAX_PER_MIN, warmStarts, advance, yieldCpu, paceEncoder, YIELD_LEAD, fastArgs, FAST_PRESET,
   },
 };

@@ -12,8 +12,10 @@ const remember = (msg: string) => {
 export const recentErrors = () => ring.slice();
 
 // What the player is showing, for the report's context.
-let playing: {id: string; title: string} | null = null;
-export const setPlayingContext = (ctx: {id: string; title: string} | null) => {
+// (`startup`: the play's start-up step by step, once its first frame is in — src/startline.ts)
+type Playing = {id: string; title: string; startup?: () => unknown};
+let playing: Playing | null = null;
+export const setPlayingContext = (ctx: Playing | null) => {
   playing = ctx;
 };
 export const playingContext = () => playing;

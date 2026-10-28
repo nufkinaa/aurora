@@ -11,7 +11,7 @@ import Icon from '../components/Icon';
 import Svg, {Circle} from 'react-native-svg';
 import {api, imgSrc, DownloadJob, Stream, TorrentPlayItem} from '../api';
 import {canNavigate} from '../navLock';
-import {streamPlayItem} from '../playBest';
+import {fallbackSources, streamPlayItem} from '../playBest';
 import {openActions} from '../overlay';
 import {EARLY_CONFIRM, heroRelease, isEarly, ReleaseStatus, sourceBadge} from '../releaseWords';
 import {useApp} from '../AppContext';
@@ -363,8 +363,8 @@ export function SourcesPanel({
       onPlayLibrary(owned.id);
       return;
     }
-    const item: TorrentPlayItem = streamPlayItem(s, {
-      type: type === 'series' ? 'series' : 'movie',
+    const ctx = {
+      type: (type === 'series' ? 'series' : 'movie') as 'series' | 'movie',
       imdbId,
       title,
       year,
@@ -372,7 +372,10 @@ export function SourcesPanel({
       episode,
       runtime,
       poster,
-    });
+    };
+    const item: TorrentPlayItem = streamPlayItem(s, ctx);
+    // the next sources, for the player to move on to when this one has nobody sharing it
+    item.alts = fallbackSources(streams, s).map(a => streamPlayItem(a, ctx));
     onPlay(item);
   };
 

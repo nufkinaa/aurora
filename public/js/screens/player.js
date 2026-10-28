@@ -3,7 +3,8 @@
 import { el, icons, fmtClock, toast, formatRow } from "../ui.js";
 import { api } from "../api.js";
 import { state, progressFor, titleProgressFor, refreshProgress, progressAge, readyDownloads, setPersonPref } from "../state.js";
-import { navigate, cameFrom } from "../router.js";
+import { navigate, cameFrom, navStartedAt } from "../router.js";
+import { startupOf, stepsText, serverSide, firstMedia, SLOW_START_MS } from "../startline.js";
 import { pushScope, popScope } from "../focus.js";
 import { reportActivity, onMessage } from "../ws.js";
 import { party, createParty, joinParty, leaveParty, sendPartyState, setPartyItem, onPartyState, onPartyUpdate, onPartyEnded, onPartyItem, onPartyReact, serverNow, sendPartyBuffering, sendPartyReaction, partyInviteUrl, REACTIONS } from "../party.js";
@@ -21,7 +22,7 @@ import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio, langOf } from "
 import { savedDelay, saveDelay } from "../subdelay.js";
 import { createAirplay } from "../airplay.js";
 import { registerPlayerTarget, takeRemoteStart, playerChanged, onDevices, getDevices, chooseDevice, playOn, ICONS as REMOTE_ICONS } from "../remote.js"; // [phone-remote]
-import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM } from "../playstart.js";
+import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM, decodeStalled, lineTimeOnly, deadSource } from "../playstart.js";
 // [player-options] night mode, dialogue boost, the look of subtitles (2026-10-19)
 import { readStyle, nextChoice, styleLabel, cueCss, cueShadow, cueBackdrop, CUE_VW, CUE_MIN_PX, RAISED_PCT, SUB_STYLE_KEYS, SUB_STYLE_NAMES, SUB_COLORS } from "../subStyle.js";
 import { audioFxFor, AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES } from "../audiofx.js";
@@ -371,6 +372,50 @@ const resumePoint = (item, restart = false) => {
     ? Math.max(0, Math.floor(p.position) - 4)
     : 0;
 };
+// Subtitle tracks are put on the element WITHOUT their address (data-src),
+// and get it only when one is switched on (armTrackSrc). A <track> with a
+// src is fetched by the browser the moment its mode leaves "disabled" — and
+// hls.js does exactly that to EVERY track of the element each time it
+// (re)loads a stream (it clears their cues by flipping them to "hidden" and
+// back). Each fetch of an embedded track is a read of the whole film on the
+// server: a Silo episode with 22 text tracks asked for all 22 at once at a
+// rebuild of its stream (a stall's recovery, a sound or quality change), 22
+// ffmpeg processes reading the same file while the next segment waited for
+// the same disk (measured with tools/stall-rig, 2026-10-27).
+//
+// …and the browser is not the one that fetches it. A <track> that is on
+// ("showing") and still LOADING holds the whole element back: the media may
+// not go past "current data" while a text track it shows is pending (the
+// HTML rule Chrome keeps), so the picture froze for as long as the
+// subtitle took to come — and an embedded track's first fetch is the server
+// reading the whole film (measured on a 2-CPU instance, a hard disk: 14.8,
+// 16.5, 17.3 s of a frozen picture right after the first frame; 28.7 s for
+// a Silo episode). So the player fetches the text itself and hands the
+// element a blob: URL that loads at once; the picture never waits for a
+// subtitle. data-src keeps the real address (the track's identity).
+export const trackSrcOf = (trackEl) => (trackEl ? trackEl.getAttribute("data-src") || trackEl.getAttribute("src") || null : null);
+export const armTrackSrc = (trackEl, signal = null) => {
+  if (!trackEl || trackEl.hasAttribute("src") || trackEl._arming) return false;
+  const url = trackEl.getAttribute("data-src");
+  if (!url) return false;
+  if (/^(blob|data):/i.test(url) || typeof fetch !== "function" || typeof URL.createObjectURL !== "function") {
+    trackEl.setAttribute("src", url);
+    return true;
+  }
+  trackEl._arming = true;
+  fetch(url, { credentials: "same-origin", ...(signal ? { signal } : {}) })
+    .then((r) => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))))
+    .then((text) => {
+      if (!trackEl.isConnected) return;
+      trackEl.setAttribute("src", URL.createObjectURL(new Blob([text], { type: "text/vtt" })));
+    })
+    // (could not be read: the browser's own way, as before — an error state
+    // the player's empty-track repair knows how to retry)
+    .catch(() => { if (!(signal && signal.aborted) && trackEl.isConnected && !trackEl.hasAttribute("src")) trackEl.setAttribute("src", url); })
+    .finally(() => { trackEl._arming = false; });
+  return true;
+};
+
 // The track a title starts on: the one the server marked `original`, unless
 // this viewer chose a dub last time (the language follows the profile).
 const startAudioIdx = (item) => {
@@ -442,6 +487,53 @@ const preLoaderFor = (Hls) => {
     }
   };
   return PreLoader;
+};
+
+// A fragment loader that tells hls.js about the line, not the server (see
+// lineTimeOnly): its load's start moves up when its first byte comes, before
+// hls.js's own rules look at it. One class per loader class.
+const lineLoaders = new WeakMap();
+const lineFirstLoader = (Base) => {
+  if (lineLoaders.has(Base)) return lineLoaders.get(Base);
+  const L = class extends Base {
+    load(context, config, callbacks) {
+      const shift = () => { try { lineTimeOnly(this.stats); } catch {} };
+      const wrapped = { ...callbacks };
+      if (callbacks && callbacks.onProgress) wrapped.onProgress = (...a) => { shift(); return callbacks.onProgress(...a); };
+      if (callbacks && callbacks.onSuccess) wrapped.onSuccess = (...a) => { shift(); return callbacks.onSuccess(...a); };
+      return super.load(context, config, wrapped);
+    }
+  };
+  lineLoaders.set(Base, L);
+  return L;
+};
+
+// …and hls.js's emergency rule does not give a fragment up before its first
+// byte. With nothing arrived it can only be guessing from its own estimate,
+// and what it is waiting on is the server MAKING the segment (an encode
+// after a seek: 3–7 s on two cores) — measured, a seek's 1080p segment given
+// up after 3.5 s for 480p, which the one encoder could not make (503), then
+// asked for again: the seek took 7.9 s where the segment took 3.5. The
+// fragment's own first-byte timeout (60 s) still applies.
+let PatientAbr = null;
+const patientAbrFor = (Hls) => {
+  if (PatientAbr) return PatientAbr;
+  const Base = Hls.DefaultConfig && Hls.DefaultConfig.abrController;
+  if (!Base) return null;
+  PatientAbr = class extends Base {
+    constructor(hls) {
+      super(hls);
+      const rule = this._abandonRulesCheck;
+      if (typeof rule !== "function") return;
+      this._abandonRulesCheck = (...a) => {
+        const f = this.fragCurrent;
+        const l = f && f.stats && f.stats.loading;
+        if (l && !(l.first > 0)) return undefined; // nothing has come yet: the server is still making it
+        return rule.apply(this, a);
+      };
+    }
+  };
+  return PatientAbr;
 };
 
 // A LONG INDEX ON A THIN LINE. An MP4 that this device plays as the file
@@ -619,6 +711,43 @@ export const renderPlayer = async (root, { id }) => {
   const restart = location.hash.includes("restart=1");
   const itemId = id.split("?")[0];
   const entryHash = location.hash;
+  // The start-up, step by step from the press (startline.js): when Play was
+  // pressed (the navigation to this player), and each step as it happens.
+  const startSteps = { open: performance.now() };
+  // Subtitles wait for the picture: a text track's first fetch — for an
+  // embedded track, a read of the whole film on the server — starts once the
+  // first frame is on screen and the stream has some film in hand (15 s
+  // buffered, or 3 s after that frame), not beside the first segments the
+  // viewer is waiting for on the same disk (measured on master: a 16.5 s
+  // freeze right after the start while the track was read). (armSubs below;
+  // released from firstFrame.)
+  const subsHeld = [];
+  // (a subtitle still being fetched when the player goes is let go of: the
+  // fetch held its track, and the track the player)
+  const subsAbort = typeof AbortController === "function" ? new AbortController() : null;
+  // (only what is still switched on by then: a track picked and left again meanwhile is not fetched)
+  const releaseSubs = () => { while (subsHeld.length) { const t = subsHeld.shift(); if (t.track && t.track.mode !== "disabled") armTrackSrc(t, subsAbort && subsAbort.signal); } };
+  const armSubs = (trackEl) => {
+    if (!trackEl) return;
+    if (startSteps.subsFree) return void armTrackSrc(trackEl, subsAbort && subsAbort.signal);
+    if (!subsHeld.includes(trackEl)) subsHeld.push(trackEl);
+  };
+  const subsLater = () => {
+    const t0s = performance.now();
+    const check = () => {
+      if (exited) return;
+      let ahead = 0;
+      try { for (let i = 0; i < video.buffered.length; i++) if (video.buffered.start(i) <= video.currentTime + 0.3 && video.buffered.end(i) > video.currentTime) ahead = video.buffered.end(i) - video.currentTime; } catch {}
+      if (ahead >= 15 || performance.now() - t0s >= 3000) { startSteps.subsFree = true; return releaseSubs(); }
+      startSteps.subsCheck = setTimeout(check, 500);
+    };
+    check();
+  };
+  // (a start that never shows a frame still gets its subtitles in the end)
+  // (cleared when the player goes: a pending timer that holds the tracks held
+  // the whole player in memory — test/ui/leaks.test.js)
+  startSteps.subsTimer = setTimeout(() => { startSteps.subsFree = true; releaseSubs(); }, 20000);
+  const pressAt = (() => { const n = navStartedAt(); return n > 0 && startSteps.open - n < 60000 ? n : startSteps.open; })();
 
   let item;
   // Offline mode (#/play/<id>?offline=1, from the Saved screen): the item
@@ -669,6 +798,7 @@ export const renderPlayer = async (root, { id }) => {
       return navigate("#/");
     }
   }
+  startSteps.item = performance.now();
   // Detect torrent playback
   const isTorrent =
     item._isTorrent || item.magnet || item.id?.startsWith("torrent|");
@@ -708,6 +838,7 @@ export const renderPlayer = async (root, { id }) => {
   // no saving over a history that could not be read — is not got round.
   const historyFresh = progressAge() < PROGRESS_FRESH_MS;
   const [owned, historyRead0] = await Promise.all([ownedP, historyFresh || localMode ? true : refreshProgress()]);
+  startSteps.history = performance.now();
   if (location.hash !== entryHash) return;
   // A file from this device resumes where it was left ON this device (by
   // its name and size — localplay.js); nothing about it is on the server.
@@ -774,6 +905,7 @@ export const renderPlayer = async (root, { id }) => {
       probeResult = first;
       probeP = null; // consumed pre-play; no late correction needed
     }
+    startSteps.probe = performance.now();
   }
 
   // The user may have pressed Back (or navigated anywhere else) while the
@@ -823,8 +955,10 @@ export const renderPlayer = async (root, { id }) => {
   const t0 = performance.now();
   const playMarks = [];
   // (`at`: the moment it happened, when that is not now — a frame's own stamp)
+  startSteps.mount = t0;
   const mark = (name, extra = {}, at = null) => {
     const ms = Math.round((at == null ? performance.now() : at) - t0);
+    if ((name === "path" || name === "decision") && startSteps.decide == null) startSteps.decide = at == null ? performance.now() : at;
     playMarks.push({ name, ms, ...extra });
     if (isTorrent || item._offline) return;
     try {
@@ -839,7 +973,8 @@ export const renderPlayer = async (root, { id }) => {
   mark("mount", { container: item.container || null, video: item.video && item.video.codec, audio: item.audio && item.audio.codec });
   playMounted(); // [analytics] a play is starting: nothing is sent until its first frame
   // (a file from this device: its name stays here — not in a report either)
-  if (!item._local) setPlayingContext({ id: item.id, title: isEpisode ? `${item.showTitle} S${item.season}E${item.episode}` : item.title, marks: () => playMarks.slice() });
+  let startup = null; // this play's start-up, once its first frame is in (startline.js)
+  if (!item._local) setPlayingContext({ id: item.id, title: isEpisode ? `${item.showTitle} S${item.season}E${item.episode}` : item.title, marks: () => playMarks.slice(), startup: () => startup });
 
   // ---------- element tree ----------
   const video = el("video", {
@@ -934,6 +1069,14 @@ export const renderPlayer = async (root, { id }) => {
   //  hold     — {gen, pos, at, carded}: a rebuild is coming back to media time `pos`
   //  userAt   — when the viewer (or the party) last asked for a seek
   const stall = { url: null, lad: null, inFlight: false, netAt: 0, hold: null, userAt: 0 };
+  // Where a stream just put on the element is heading, on its own clock
+  // (startHls's startAt; a direct file's seek after its metadata) — until the
+  // element's clock gets there. Meanwhile the element reads 0, and everything
+  // that restarts the stream "from here" (a step down, a quality or sound
+  // change, a fall-back to the encode) read that 0 through effTime() and
+  // opened the film at 0:00, an hour in (the web ladder "sitting at 0:00
+  // while segments are rebuilt" after a step-down far into a film).
+  let landing = null;
   // Start playback and cope with the browser refusing to.
   //
   // iOS (and Chrome without media engagement for this origin) blocks
@@ -987,6 +1130,7 @@ export const renderPlayer = async (root, { id }) => {
         if (ms >= 2000 && video.currentSrc && video.currentSrc.includes(item.videoUrl)) rememberLine((item.index.bytes * 8) / ms);
       }, { once: true });
     }
+    if (startSteps.ask == null) startSteps.ask = performance.now();
     video.src = airSrc(item.videoUrl);
     tryPlay();
   };
@@ -1326,6 +1470,8 @@ export const renderPlayer = async (root, { id }) => {
   // tryJitSwitch). Anything else is a single stream and the ladder is off.
   const startHls = (url, startAt = 0, lad = null) => {
     if (onAir()) return;
+    landing = startAt > 0.5 ? startAt : null;
+    if (startSteps.ask == null) startSteps.ask = performance.now();
     if (holdNext) {
       holdNext = false;
       holdFrame();
@@ -1407,6 +1553,7 @@ export const renderPlayer = async (root, { id }) => {
             // The manifest and the first rendition playlist were asked for
             // while hls.js itself was loading (prestart): take those answers.
             pLoader: preLoaderFor(window.Hls),
+            ...(patientAbrFor(window.Hls) ? { abrController: patientAbrFor(window.Hls) } : {}),
             // …and hls.js's idea of the line starts from what it carried
             // last time (lineKbps), not from its stock half megabit.
             ...(lad && lineKbps() ? { abrEwmaDefaultEstimate: lineKbps() * 1000 } : {}),
@@ -1428,6 +1575,22 @@ export const renderPlayer = async (root, { id }) => {
             fragLoadingTimeOut: 60000,
             fragLoadingMaxRetry: 8,
             fragLoadingRetryDelay: 2000,
+          });
+          // The line, not the server: a segment's first-byte wait beyond a
+          // round trip was the server making it (an encode, a swarm), and
+          // hls.js counted it as a slow line — stepping down onto another
+          // rung, i.e. a new encode from scratch, slower still (playstart.js
+          // lineTimeOnly). Taken off before hls.js takes its sample (at
+          // FRAG_BUFFERED, which comes after this).
+          // …and at the first byte already, for hls.js's emergency rule: a
+          // fragment it has waited on longer than half its duration, with
+          // its stock half-megabit guess of the line, is given up the moment
+          // its first byte arrives — measured, a 1080p segment the server
+          // took 6.4 s to make abandoned 80 ms after it started to arrive at
+          // LAN speed, for 480p: another encoder from scratch.
+          try { if (hls.config && hls.config.loader) hls.config.fLoader = lineFirstLoader(hls.config.loader); } catch {}
+          if (window.Hls.Events.FRAG_LOADED) hls.on(window.Hls.Events.FRAG_LOADED, (_e, d) => {
+            try { lineTimeOnly(d && (d.part && d.part.stats && d.part.stats.loaded ? d.part.stats : d.frag && d.frag.stats)); } catch {}
           });
           hls.on(window.Hls.Events.ERROR, (_evt, data) => {
             // Recover from transient network/media errors instead of dying
@@ -1964,6 +2127,7 @@ export const renderPlayer = async (root, { id }) => {
       mark("path", { path: "direct", from: at });
       holdNext = false;
       holdFrame();
+      landing = at > 0.5 ? at : null;
       video.addEventListener("loadedmetadata", () => {
         try { video.currentTime = at; } catch {}
         tryPlay();
@@ -2298,6 +2462,20 @@ export const renderPlayer = async (root, { id }) => {
     if (!cappedStart) capH = 0;
   }
 
+  // The player's own screen is built after the start's decisions below. When
+  // one of them waits on the server (no encoder free: up to three asks five
+  // seconds apart; a slow answer), the viewer looked at a black page with
+  // nothing on it: a spinner after a moment, as the capped start above has.
+  let startWait = null;
+  const startWaitTimer = setTimeout(() => {
+    if (exited || location.hash !== entryHash || cappedStart) return;
+    startWait = el("div", { class: "player player-starting" }, el("div", { class: "spinner" }));
+    root.append(startWait);
+  }, 600);
+  const startWaitDone = () => {
+    clearTimeout(startWaitTimer);
+    if (startWait) { startWait.remove(); startWait = null; }
+  };
   const usingRemux = audioNeedsRemux(); // library file with undecodable audio
   // The !isTorrent guards below preserve flow ownership: torrents ALWAYS go
   // through their own branch (prefetch warm + fallbackToZero on resume) —
@@ -2400,6 +2578,7 @@ export const renderPlayer = async (root, { id }) => {
   } else {
     startDirect();
   }
+  startWaitDone();
 
   // Auto-fallback to the server transcode when direct playback turns out to be
   // undecodable — either a hard decode error or a decode stall (data buffered
@@ -2455,11 +2634,11 @@ export const renderPlayer = async (root, { id }) => {
     stallTimer = setInterval(() => {
       if (exited || switchedToTranscode || onAir()) return; // (the TV's clock is not this device's decoder)
       const ct = video.currentTime;
-      const ahead =
-        video.buffered.length &&
-        video.buffered.end(video.buffered.length - 1) - ct > 3;
-      // frozen clock WITH data waiting ahead = decode stall (not a peer stall)
-      if (!video.paused && ahead && ct === lastCT) {
+      const ranges = [];
+      for (let i = 0; i < video.buffered.length; i++) ranges.push([video.buffered.start(i), video.buffered.end(i)]);
+      // frozen clock WITH data waiting at the playhead = decode stall (not a
+      // peer stall, not a seek still fetching its spot) — playstart.js
+      if (decodeStalled({ ranges, ct, lastCT, paused: video.paused, seeking: video.seeking, readyState: video.readyState })) {
         if (++stalls >= 3) { mark("stall-switch", { at: ct }); fallbackToTranscode(); } // ~3s
       } else {
         stalls = 0;
@@ -2601,7 +2780,7 @@ export const renderPlayer = async (root, { id }) => {
     const track = el("track", {
       kind: "subtitles",
       label: t.label || `Track ${i + 1}`,
-      src: t.url,
+      "data-src": t.url,
     });
     armTrackOffset(track);
     video.append(track);
@@ -3077,6 +3256,21 @@ export const renderPlayer = async (root, { id }) => {
       try {
         const st = await api.torrentStatus(item.infoHash);
         serverLoaded = st.progress || 0;
+        // Nobody is sharing this source: the next one from the sources list,
+        // by itself (playstart.js deadSource) — instead of a minute and a half
+        // of "Connecting to peers…" for a source that was never going to play.
+        if (!everPlayed && !seekWait && Array.isArray(item._alts) && item._alts.length && deadSource({ elapsedMs: performance.now() - t0, peers: st.peers, progress: st.progress, everPlayed })) {
+          const [next, ...rest] = item._alts;
+          if (next && next.id && next.id !== item.id) {
+            next._alts = rest;
+            mark("source-fallback", { from: String(item.infoHash || "").slice(0, 8), peers: st.peers || 0 });
+            try { fetch(`/api/torrents/perf-mark/${item.infoHash}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "source_fallback", ms: Math.round(performance.now() - t0), to: next.infoHash }) }).catch(() => {}); } catch {}
+            toast(`Nobody is sharing that copy right now — trying ${next.quality ? `another ${next.quality}` : "another one"}`, "🔁");
+            state.pendingItems[next.id] = next;
+            goPlay(`#/play/${next.id}`);
+            return;
+          }
+        }
         // The truth about the current path, in words a person can act on —
         // "transcoding…" used to appear for streams whose video was merely
         // COPIED (audio-only conversion), which read as "the server is doing
@@ -3705,6 +3899,7 @@ export const renderPlayer = async (root, { id }) => {
 
   const selectTrack = (idx) => {
     const tracks = video.textTracks;
+    if (idx >= 0) armSubs([...video.querySelectorAll("track")][idx]);
     for (let i = 0; i < tracks.length; i++) {
       tracks[i].mode = i === idx ? "showing" : "disabled";
     }
@@ -3756,6 +3951,14 @@ export const renderPlayer = async (root, { id }) => {
     enforcingTracks = false;
   };
   video.textTracks.addEventListener("change", enforceSingleSub);
+  // A track switched on by anything else (the browser's own menu, AirPlay)
+  // gets its address then — see armTrackSrc. (hls.js flips every track to
+  // "hidden" and straight back while it clears cues: by the time this runs
+  // that track reads "disabled" again and stays unfetched.)
+  video.textTracks.addEventListener("change", () => {
+    const els = [...video.querySelectorAll("track")];
+    for (const t of els) if (t.track && t.track.mode !== "disabled") armSubs(t);
+  });
   // AirPlay sends the subtitle that is on here (js/airplay.js): ask for it now
   video.textTracks.addEventListener("change", () => { if (air) air.changed(); });
 
@@ -3782,7 +3985,7 @@ export const renderPlayer = async (root, { id }) => {
     const t = (item.subtitles || [])[idx];
     if (t && t.url) return t.url;
     const el = [...video.querySelectorAll("track")][idx];
-    return el ? el.getAttribute("src") : null;
+    return el ? trackSrcOf(el) : null;
   };
   let delayStore = null;
   try { delayStore = window.localStorage; } catch {}
@@ -3845,20 +4048,23 @@ export const renderPlayer = async (root, { id }) => {
   // never retry a failed track on their own, so subs stay silently missing
   // forever. Recreate the <track> element with a cache-buster to refetch.
   const reloadTrackEl = (trackEl) => {
-    const src = trackEl.getAttribute("src") || "";
+    const src = trackSrcOf(trackEl) || "";
     // (an object URL takes no query — and is never stale: the same one again)
     const bust = /^(blob|data):/i.test(src) ? src : `${src}${src.includes("?") ? "&" : "?"}retry=${Date.now()}`;
     const fresh = el("track", {
       kind: "subtitles",
       label: trackEl.label || "",
-      src: bust,
+      "data-src": bust,
       srclang: trackEl.getAttribute("srclang") || "",
     });
+    const wasArmed = trackEl.hasAttribute("src");
     armTrackOffset(fresh);
     const wasShowing = trackEl.track && trackEl.track.mode === "showing";
     video.insertBefore(fresh, trackEl); // same position keeps textTracks order
+    { const old = trackEl.getAttribute("src"); if (old && old.startsWith("blob:") && old !== bust) { try { URL.revokeObjectURL(old); } catch {} } }
     trackEl.remove();
     if (wasShowing) fresh.track.mode = "showing";
+    if (wasArmed) armTrackSrc(fresh, subsAbort && subsAbort.signal);
     return fresh;
   };
   // readyState 2 = LOADED, 3 = ERROR — both "settled"; zero cues then means
@@ -4424,8 +4630,15 @@ export const renderPlayer = async (root, { id }) => {
   // Effective content time. h264 transcodes re-base their clock at
   // clockBase = streamOffset; PTS-honest copy jobs keep the source clock
   // (clockBase 0), so this is exact for both.
-  const effTime = () =>
-    (usingTranscode ? clockBase : 0) + (video.currentTime || 0);
+  // While a new stream is still landing (see `landing`), the element's 0 is
+  // not where the film is: where that stream was asked to begin is.
+  const effTime = () => {
+    const ct = video.currentTime || 0;
+    return (usingTranscode ? clockBase : 0) + (landing != null && ct < 0.5 ? landing : ct);
+  };
+  video.addEventListener("timeupdate", () => { if (landing != null && (video.currentTime || 0) >= 0.5) landing = null; });
+  // (the start-up's "first byte" where the browser keeps no timing of the request: a file it reads itself)
+  video.addEventListener("progress", () => { if (startSteps.byteSeen == null && startSteps.ask != null && startSteps.frame == null) startSteps.byteSeen = performance.now(); });
 
   // ---- torrent far-seek prefetch ----
   // Restarting a torrent transcode at an offset makes ffmpeg -ss read the
@@ -6815,7 +7028,7 @@ export const renderPlayer = async (root, { id }) => {
   // starts — add them as switchable tracks the moment they arrive.
   const addTracks = (tracks) => {
     const have = new Set(
-      [...video.querySelectorAll("track")].map((t) => t.getAttribute("src")),
+      [...video.querySelectorAll("track")].map(trackSrcOf),
     );
     let firstNew = -1;
     for (const t of tracks) {
@@ -6823,7 +7036,7 @@ export const renderPlayer = async (root, { id }) => {
       const trackEl = el("track", {
         kind: "subtitles",
         label: t.label,
-        src: t.url,
+        "data-src": t.url,
         srclang: t.lang || "",
       });
       armTrackOffset(trackEl);
@@ -6907,7 +7120,7 @@ export const renderPlayer = async (root, { id }) => {
         const trackEl = el("track", {
           kind: "subtitles",
           label: t.label,
-          src: t.url,
+          "data-src": t.url,
         });
         armTrackOffset(trackEl);
         video.append(trackEl);
@@ -7021,6 +7234,36 @@ export const renderPlayer = async (root, { id }) => {
       kind: isTorrent ? "torrent" : item._offline ? "offline" : "library",
     });
     playFirstFrame(ms, { torrent: isTorrent, offline: !!item._offline, remux: jitMode, transcode: usingTranscode }); // [analytics]
+    startSteps.frame = at;
+    subsLater();
+    // A moment later (the first segment's timing entry lands when it has
+    // arrived whole): the start-up, step by step, from the press.
+    startSteps.startupTimer = setTimeout(() => {
+      if (exited) return;
+      try {
+        const isMedia = (u) => /\/stream\/(video|transcode|torrent)\//.test(u) || /\/offline\/(media|file)\//.test(u);
+        const entries = (performance.getEntriesByType ? performance.getEntriesByType("resource") : []).filter((e) => e.startTime >= pressAt - 5);
+        const fm = firstMedia(entries, isMedia, pressAt);
+        const at2 = { ...startSteps };
+        if (fm) {
+          if (fm.ask != null) at2.ask = Math.min(at2.ask != null ? at2.ask : Infinity, fm.ask);
+          if (fm.byte != null) at2.byte = fm.byte;
+        }
+        if (at2.byte == null && startSteps.byteSeen != null) at2.byte = startSteps.byteSeen;
+        const path = isTorrent ? "torrent" : item._offline ? "offline" : jitMode ? "jit" : usingTranscode ? (currentV === "copy" ? "copy" : "encode") : "direct";
+        startup = startupOf({ press: pressAt, at: at2, path, srv: serverSide(entries, isMedia) });
+        if (!startup) return;
+        const body = { total: startup.total, slow: startup.slow, path, steps: stepsText(startup), ...(startup.srv && startup.srv.seg != null ? { seg: startup.srv.seg } : {}), ...(startup.srv && startup.srv.playlist != null ? { pl: startup.srv.playlist } : {}) };
+        playMarks.push({ name: "start-up", ms: startup.total, ...body });
+        if (startup.total >= SLOW_START_MS) console.info(`[player] slow start: ${startup.total} ms, mostly "${startup.slow}" (${body.steps})`);
+        // (a torrent's or a saved copy's marks are not posted — this one is:
+        // the admin's Slow starts card counts every way a film starts)
+        const markId = isTorrent ? String(item.infoHash || "").slice(0, 12) : item.id;
+        if (markId && !item._local) {
+          fetch(`/api/play-mark/${encodeURIComponent(markId)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "start-up", ms: Math.round(at - t0), ...body }), keepalive: true }).catch(() => {});
+        }
+      } catch {}
+    }, 2500);
   };
   // "At the resume point": within half a minute before it (a stream begins on
   // the keyframe before, and four seconds early by design) — and never more
@@ -7138,6 +7381,11 @@ export const renderPlayer = async (root, { id }) => {
   // cleanup when the route changes away
   return () => {
     exited = true;
+    clearTimeout(startSteps.subsTimer);
+    clearTimeout(startSteps.subsCheck);
+    clearTimeout(startSteps.startupTimer);
+    subsHeld.length = 0;
+    try { if (subsAbort) subsAbort.abort(); } catch {}
     playGone(); // [analytics]
     clearInterval(saveTimer);
     clearInterval(partySync);
@@ -7186,7 +7434,12 @@ export const renderPlayer = async (root, { id }) => {
     // chain). Switched off and taken out of the <video>, they are let go.
     try {
       for (const tt of video.textTracks) tt.mode = "disabled";
-      for (const t of [...video.querySelectorAll("track")]) t.remove();
+      for (const t of [...video.querySelectorAll("track")]) {
+        // (a subtitle this player fetched itself is let go of with it)
+        const u = t.getAttribute("src");
+        if (u && u.startsWith("blob:") && t.getAttribute("data-src") !== u) { try { URL.revokeObjectURL(u); } catch {} }
+        t.remove();
+      }
     } catch {}
     video.removeAttribute("src");
     video.load();

@@ -29,7 +29,7 @@ const IDLE_MS = 150000; // kill a remux whose player stopped requesting (>2.5 mi
 // torrent transcodes. Copy jobs are cheap and are not counted.
 const budget = require("./encbudget");
 const goodbye = require("./goodbye");
-const FFMPEG_THREADS = Math.max(1, require("../lib/cpucount").count() - 2); // (the CPUs this process may use)
+const FFMPEG_THREADS = require("../lib/cpucount").encodeThreads(); // (the CPUs this process may use; never one: lib/cpucount.js)
 // "The server is busy": a refusal the routes answer 503 + Retry-After, the
 // same on every route (the older single-rendition route used to say 500).
 const busyError = (message) => Object.assign(new Error(message), { busy: true, retryAfter: 5 });
@@ -162,7 +162,7 @@ const videoArgsFor = (vcodec, vf = null) => {
         // crf 18 is visually transparent for H.264 (23 showed blocking and
         // smeared grain — elia: "I don't want low-bitrate artifacts"), and
         // superfast keeps real time on a modest CPU where veryfast would not.
-        "-preset", "superfast",
+        "-preset", require("./encbudget").presetNow() /* superfast; ultrafast while this machine is behind real time */,
         "-crf", "18",
         "-pix_fmt", "yuv420p", // fold 10-bit down to 8-bit for browsers
         "-g", "48",
@@ -601,7 +601,9 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
   );
   // Keep node responsive: ffmpeg yields CPU to the server under contention.
   require("../lib/children").track(proc, "remux");
-  try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
+  // (below normal where it can be raised again — lib/prio.js: on Linux it
+  // could not, and a TV's encode at nice 10 starved behind any other work)
+  try { os.setPriority(proc.pid, require("../lib/prio").viewer()); } catch {}
   // a re-encode is somebody watching: background work stands back (cpuwork.js)
   // `idle` while PAUSED far ahead of its reader (procpause, see pace): a
   // suspended encoder takes no CPU, and it used to count all the same — on a

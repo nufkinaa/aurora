@@ -131,6 +131,10 @@ app.use(require("./src/lib/metrics").middleware);
 // a poster fetched from far away — out of the round trip.)
 app.use(["/api", "/stream", "/img"], require("./src/lib/servertiming").middleware);
 
+// Streams tell a reverse proxy in front not to buffer them (nginx: it would
+// read a whole film into its own temp files — lib/nobuffer.js).
+app.use(require("./src/lib/nobuffer").middleware);
+
 // JSON bodies: 100 kB everywhere (the biggest real one, a usage batch, is a
 // few kB), 16 kB for sign-in (a name, a password, a code). A body too big
 // or not JSON is answered 413 / 400 in one quiet line, not a stack trace.
@@ -694,6 +698,9 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   // the jit cache: what idle jobs kept, bounded (media/jit.js sweepDisk)
   try { require("./src/media/jit").bootSweep(); } catch {}
   try { require("./src/media/torrent-transcode").bootSweep(); } catch {}
+  // the torrent engine's code, read at a quiet moment instead of at the first
+  // torrent played (media/torrent.js preload)
+  try { require("./src/media/torrent").preload(); } catch {}
   // How many viewers this machine may encode for at once: worked out from
   // its CPU and its measured encode speed (media/encbudget.js), from here on.
   try { require("./src/media/encbudget").start(); } catch {}

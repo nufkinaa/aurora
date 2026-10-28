@@ -191,8 +191,40 @@ const moveEmbedded = (text, audio) => {
   return srtToVtt(subsync.toSrt(require("./audiosync").applyPlan(subsync.parse(text), audio.plan)));
 };
 
+// The file's other text tracks, for the same pass (siblingTracks below).
+const MAX_SIBLINGS = 63;
+const deps = {
+  textTracks: (videoPath) => {
+    try {
+      const meta = require("./metadata").getCached(videoPath);
+      return meta && Array.isArray(meta.subtitleStreams) ? meta.subtitleStreams.filter((x) => x && x.text).map((x) => x.index) : [];
+    } catch { return []; }
+  },
+  spawn: (...a) => spawn(...a),
+  // below normal for the CPU, and on Linux the idle I/O class: the read is
+  // the whole film, on the disk the viewer's own stream is being read from.
+  // (Not the lowest CPU class: somebody is waiting for these subtitles — on a
+  // busy small box the idle class made the first one 29 s instead of 15.)
+  lower: (pid) => {
+    const os = require("os");
+    try { os.setPriority(pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
+    if (process.platform === "linux") { try { require("child_process").execFile("ionice", ["-c", "3", "-p", String(pid)], { timeout: 3000 }, () => {}); } catch {} }
+  },
+};
+
 // The extraction itself (the file's own timing).
-const extractEmbedded = (videoPath, trackIndex, res) => {
+//
+// A text track is spread through the whole file: extracting one is a read of
+// the whole film. So the first request for any of a file's text tracks
+// extracts ALL of them in that one read — the asked one streamed to the
+// response as before, every other one into the cache (a later switch to it is
+// instant; a request for one while the read runs waits on the same read
+// instead of starting its own). It used to be one full read per track, each
+// at once: an episode with 43 tracks was 43 ffmpeg processes on the same file
+// (the player's hls.js fetched them all at every start), beside the segment
+// the viewer was waiting for. The read runs below normal priority (deps.lower):
+// the picture comes first.
+const extractEmbedded = (videoPath, trackIndex, res, { alone = false } = {}) => {
 
   let mtime = 0;
   try {
@@ -211,6 +243,7 @@ const extractEmbedded = (videoPath, trackIndex, res) => {
   if (inflight.has(cacheFile)) {
     inflight.get(cacheFile).then((ok) => {
       if (ok) res.sendFile(cacheFile);
+      else if (!alone) extractEmbedded(videoPath, trackIndex, res, { alone: true });
       else res.status(500).send("Failed to extract subtitle");
     });
     return;
@@ -218,24 +251,23 @@ const extractEmbedded = (videoPath, trackIndex, res) => {
 
   fs.mkdirSync(VTT_CACHE_DIR, { recursive: true });
   const tmpFile = `${cacheFile}.part`;
-  const ffmpeg = spawn(
-    config.FFMPEG,
-    [
-      "-v",
-      "error",
-      "-i",
-      videoPath,
-      "-map",
-      `0:s:${trackIndex}`,
-      "-f",
-      "webvtt",
-      "-",
-    ],
-    { stdio: ["ignore", "pipe", "pipe"], windowsHide: true },
-  );
+  // the file's other text tracks not yet in the cache nor being read
+  const siblings = alone ? [] : deps.textTracks(videoPath)
+    .filter((i) => i !== trackIndex)
+    .map((i) => ({ i, file: cacheFileFor(videoPath, mtime, i) }))
+    .filter((x) => !fs.existsSync(x.file) && !inflight.has(x.file))
+    .slice(0, MAX_SIBLINGS);
+  const args = ["-v", "error", "-nostdin", "-i", videoPath, "-map", `0:s:${trackIndex}`, "-f", "webvtt", "-"];
+  for (const x of siblings) args.push("-map", `0:s:${x.i}`, "-f", "webvtt", "-y", `${x.file}.part`);
+  const ffmpeg = deps.spawn(config.FFMPEG, args, { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+  deps.lower(ffmpeg.pid);
 
   const fileStream = fs.createWriteStream(tmpFile);
-  ffmpeg.stdout.pipe(res);
+  let sent = 0;
+  ffmpeg.stdout.on("data", (c) => { sent += c.length; });
+  // (not ended by the pipe: a failed read must still be able to answer 500,
+  // or be tried again for the asked track alone)
+  ffmpeg.stdout.pipe(res, { end: false });
   ffmpeg.stdout.pipe(fileStream);
 
   try { childrenLib().track(ffmpeg, "subtitle"); } catch {}
@@ -250,6 +282,21 @@ const extractEmbedded = (videoPath, trackIndex, res) => {
 
   let resolveJob;
   inflight.set(cacheFile, new Promise((r) => (resolveJob = r)));
+  const sib = siblings.map((x) => {
+    let done;
+    inflight.set(x.file, new Promise((r) => (done = r)));
+    return { ...x, done };
+  });
+  const finishSiblings = (code) => {
+    for (const x of sib) {
+      let ok = false;
+      try {
+        if (code === 0) { fs.renameSync(`${x.file}.part`, x.file); ok = true; } else fs.unlinkSync(`${x.file}.part`);
+      } catch {}
+      inflight.delete(x.file);
+      x.done(ok);
+    }
+  };
   const finish = (ok) => {
     inflight.delete(cacheFile);
     resolveJob(ok);
@@ -261,6 +308,7 @@ const extractEmbedded = (videoPath, trackIndex, res) => {
     try {
       fs.unlinkSync(tmpFile);
     } catch {}
+    finishSiblings(-1);
     finish(false);
     if (!res.headersSent) res.status(500).send("Failed to extract subtitle");
     else res.end();
@@ -268,6 +316,7 @@ const extractEmbedded = (videoPath, trackIndex, res) => {
 
   ffmpeg.on("close", (code) => {
     fileStream.end(() => {
+      finishSiblings(code);
       if (code === 0) {
         try {
           fs.renameSync(tmpFile, cacheFile);
@@ -278,10 +327,17 @@ const extractEmbedded = (videoPath, trackIndex, res) => {
           } catch {}
           finish(false);
         }
+        try { res.end(); } catch {}
       } else {
         try {
           fs.unlinkSync(tmpFile);
         } catch {}
+        // one of the others could not be written as WebVTT (a mislabelled
+        // track): the asked one alone, as before — when nothing was sent yet
+        if (sib.length && !sent && !res.headersSent) {
+          finish(false);
+          return extractEmbedded(videoPath, trackIndex, res, { alone: true });
+        }
         finish(false);
         console.error(
           `ffmpeg failed extracting track ${trackIndex} from ${videoPath}:`,
@@ -345,4 +401,4 @@ const clearCache = () => {
   } catch {}
 };
 
-module.exports = { serveExternal, serveEmbedded, vttText, clearCache, extractAll, cacheFileFor, decodeSubtitle, srtToVtt, playable };
+module.exports = { serveExternal, serveEmbedded, vttText, clearCache, extractAll, cacheFileFor, decodeSubtitle, srtToVtt, playable, _deps: deps, _inflight: inflight };

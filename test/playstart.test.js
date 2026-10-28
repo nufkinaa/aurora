@@ -211,3 +211,45 @@ test("startStepUp: a line known to be too thin for the film's own video waits fo
   assert.equal(startStepUp({ waited: 12000, encoded: true, copyTop: true, thin: true }), true);
   assert.equal(startStepUp({ waited: 3000, encoded: true, copyTop: true, thin: false }), true);
 });
+
+test("the decode-stall watchdog: film in hand AT the playhead and a frozen clock — not a seek still fetching its spot", async () => {
+  const { decodeStalled } = await load();
+  const base = { ct: 50, lastCT: 50, paused: false, seeking: false, readyState: 4 };
+  assert.equal(decodeStalled({ ...base, ranges: [[40, 120]] }), true, "frozen with 70 s in hand: the decoder");
+  // a seek back from 300 to 50: what is buffered is far ahead of the new spot
+  assert.equal(decodeStalled({ ...base, readyState: 1, ranges: [[280, 400]] }), false, "the element has nothing at the playhead");
+  assert.equal(decodeStalled({ ...base, ranges: [[280, 400]] }), false, "the only film in hand is elsewhere");
+  assert.equal(decodeStalled({ ...base, seeking: true, ranges: [[40, 120]] }), false, "a seek under way");
+  assert.equal(decodeStalled({ ...base, paused: true, ranges: [[40, 120]] }), false);
+  assert.equal(decodeStalled({ ...base, lastCT: 49, ranges: [[40, 120]] }), false, "the clock moved");
+  assert.equal(decodeStalled({ ...base, ranges: [[40, 52]] }), false, "two seconds in hand: a starving line, not the decoder");
+});
+
+test("a segment's load stats say what the line did: the server's time making it is taken off", async () => {
+  const { lineTimeOnly, SERVER_WAIT_FLOOR_MS } = await load();
+  // 7 s for the server to make it, then 10 MB in 0.8 s on a fast line
+  const st = { loading: { start: 1000, first: 8000, end: 8800 }, loaded: 10e6 };
+  assert.equal(lineTimeOnly(st), 7000 - SERVER_WAIT_FLOOR_MS);
+  assert.equal(st.loading.start, 8000 - SERVER_WAIT_FLOOR_MS);
+  assert.ok((st.loaded * 8) / (st.loading.end - st.loading.start) > 50000, "read as the fast line it is (bits per ms: over 50 Mbit/s)");
+  // a far line's own round trip is left alone
+  const near = { loading: { start: 1000, first: 1180, end: 2000 } };
+  assert.equal(lineTimeOnly(near), 0);
+  assert.equal(near.loading.start, 1000);
+  // nothing arrived: nothing to say
+  assert.equal(lineTimeOnly({ loading: { start: 1000, first: 0, end: 0 } }), 0);
+  assert.equal(lineTimeOnly(null), 0);
+});
+
+test("a torrent source nobody shares is left for the next one: nobody after 25 s, nothing after 45 s", async () => {
+  const { deadSource, fallbackSources } = await load();
+  assert.equal(deadSource({ elapsedMs: 10000, peers: 0 }), false, "too early");
+  assert.equal(deadSource({ elapsedMs: 26000, peers: 0 }), true, "nobody after 25 s");
+  assert.equal(deadSource({ elapsedMs: 26000, peers: 3 }), false, "peers: it may still come");
+  assert.equal(deadSource({ elapsedMs: 46000, peers: 3, progress: 0 }), true, "nothing at all after 45 s");
+  assert.equal(deadSource({ elapsedMs: 60000, peers: 0, progress: 0.01 }), false, "bytes are coming");
+  assert.equal(deadSource({ elapsedMs: 60000, peers: 0, everPlayed: true }), false, "it played");
+  const chosen = { infoHash: "a", fileIdx: 0, seeders: 1 };
+  const list = [chosen, { infoHash: "b", fileIdx: 0, seeders: 5 }, { infoHash: "c", fileIdx: 0, seeders: 40 }, { infoHash: "d", fileIdx: 0, seeders: 90, cam: true }, { infoHash: "e", fileIdx: 0, seeders: 0 }, { infoHash: "f", fileIdx: 0, seeders: 9, badHere: true }];
+  assert.deepEqual(fallbackSources(list, chosen).map((x) => x.infoHash), ["c", "b"]);
+});

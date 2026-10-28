@@ -29,7 +29,7 @@ const MAX_ACTIVE = 2; // live ffmpeg jobs of any kind here (copies too), at the 
 const budget = require("./encbudget");
 const goodbye = require("./goodbye");
 const busyError = (message) => Object.assign(new Error(message), { busy: true, retryAfter: 5 });
-const FFMPEG_THREADS = Math.max(1, require("../lib/cpucount").count() - 2); // (the CPUs this process may use) // leave cores for node
+const FFMPEG_THREADS = require("../lib/cpucount").encodeThreads(); // (the CPUs this process may use; never one: lib/cpucount.js)
 const activeCount = () => {
   let n = 0;
   for (const j of jobs.values()) if (j.proc) n++;
@@ -38,7 +38,7 @@ const activeCount = () => {
 // Keep node responsive even while ffmpeg runs flat-out.
 const deprioritize = (proc) => {
   require("../lib/children").track(proc, "torrent-transcode");
-  try { os.setPriority(proc.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch {}
+  try { os.setPriority(proc.pid, require("../lib/prio").viewer()); } catch {}
 };
 
 const jobs = new Map(); // dir -> { proc, ready, done, lastAccess }
@@ -63,7 +63,7 @@ const videoArgsFor = (vcodec, vf = null) =>
         "-c:v", "libx264",
         // the same encode as remux.js — see the note there: crf 18 so a forced
         // re-encode looks like the file, superfast to keep real time
-        "-preset", "superfast",
+        "-preset", require("./encbudget").presetNow() /* superfast; ultrafast while this machine is behind real time */,
         "-crf", "18",
         "-pix_fmt", "yuv420p", // fold 10-bit down to 8-bit for browsers
         "-g", "48",

@@ -41,7 +41,7 @@ const generate = (videoPath, outFile) =>
 
     // (started from a worker thread: lib/spawner.js)
     spawnerLib()
-      .run(config.FFMPEG, ["-v", "error", "-ss", String(seekTo), "-i", videoPath, "-frames:v", "1", "-vf", "scale=1280:-2", "-q:v", "3", "-y", outFile], { timeoutMs: 30000, maxBuffer: 64 * 1024, name: "still" })
+      .run(config.FFMPEG, ["-v", "error", "-ss", String(seekTo), "-i", videoPath, "-frames:v", "1", "-vf", "scale=1280:-2", "-q:v", "3", "-y", outFile], { timeoutMs: 30000, maxBuffer: 64 * 1024, name: "still", lower: true })
       .then((r) => (r.code === 0 ? fs.promises.access(outFile).then(() => outFile, () => null) : null))
       .then(resolve);
   });
@@ -52,7 +52,7 @@ const generate = (videoPath, outFile) =>
 const generateAt = (videoPath, seconds, outFile) =>
   new Promise((resolve) => {
     spawnerLib()
-      .run(config.FFMPEG, ["-v", "error", "-ss", String(Math.max(0, Math.floor(seconds))), "-i", videoPath, "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "4", "-y", outFile], { timeoutMs: 30000, maxBuffer: 64 * 1024, name: "frame" })
+      .run(config.FFMPEG, ["-v", "error", "-ss", String(Math.max(0, Math.floor(seconds))), "-i", videoPath, "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "4", "-y", outFile], { timeoutMs: 30000, maxBuffer: 64 * 1024, name: "frame", lower: true })
       .then((r) => (r.code === 0 ? fs.promises.access(outFile).then(() => outFile, () => null) : null))
       .then(resolve);
   });

@@ -55,7 +55,15 @@ const detail = () => {
   return cached;
 };
 const count = () => detail().count;
+// libx264 threads for a single-rendition encode (the TV's offset job, a
+// torrent's transcode): the machine less two for the server — but never ONE.
+// One thread on a 2-CPU box made a 1080p encode 1.84x real time on this PC's
+// cores (two threads: 3.06x, 2026-10-27, Knives Out) — on a VPS's slower,
+// shared vCPUs that is about the film's own speed, and the TV stopped to
+// load. Small boxes give the encode every CPU; the OS shares them with the
+// server, which mostly waits.
+const encodeThreads = (n = count()) => (n <= 2 ? 2 : n <= 4 ? n : n - 2);
 // Fewer than the machine has? → the number, else 0 (the callers' "not restricted").
 const restricted = () => { const d = detail(); return d.count < d.machine ? d.count : 0; };
 
-module.exports = { count, restricted, detail, _internals: { deps, quota, reset: () => { cached = null; } } };
+module.exports = { count, restricted, detail, encodeThreads, _internals: { deps, quota, reset: () => { cached = null; } } };

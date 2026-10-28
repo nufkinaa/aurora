@@ -347,6 +347,8 @@ const MACHINES = {
   full: {},
   "4core": { cpus: [0, 2, 4, 6] },
   "2core": { cpus: [0, 2] },
+  // a root server's eight dedicated cores (nufurora.com: netcup, 8 cores, no GPU)
+  "8core": { cpus: [0, 2, 4, 6, 8, 10, 12, 14] },
   // a 4 GB box where the server gets ~300 MB; "starved": less than its working set, it pages
   lowmem: { heapMb: 256, wsMb: 320 },
   starved: { heapMb: 192, wsMb: 140 },

@@ -89,6 +89,8 @@ import {api, ApiError, assetUrl, imgSrc, mediaHeaders, Item, Party, PartyItem, P
 import {useApp} from '../AppContext';
 import {useRouteShown} from '../useRouteShown';
 import {setPlayingContext} from '../errors';
+import {fallbackFrom, startupOf, stepsText} from '../startline';
+import {showToast} from '../toast';
 import {acceptTvEvent, useFocusFallback} from '../focus';
 import {canNavigate} from '../navLock';
 import {openXray} from '../overlay';
@@ -136,6 +138,7 @@ import {
   stallClockOff,
   stallClockOn,
   upNextState,
+  deadSource,
 } from '../playerRules';
 import {openReplace, openReport, overlayOpen} from '../overlay';
 import {replaceOffered, WORDS as REPLACE_WORDS} from '../replaceLogic';
@@ -860,6 +863,13 @@ export default function Player({
   // was handed to the player" (armed); what is left up to the first frame is
   // ExoPlayer opening the source and filling its start buffer.
   const startMs = useRef<{meta: number; armed: number}>({meta: 0, armed: 0});
+  // The start-up's steps, each when it happened (src/startline.ts): the
+  // "start-up" mark and a problem report's context carry them.
+  const steps = useRef<Record<string, number>>({});
+  const startup = useRef<ReturnType<typeof startupOf>>(null);
+  useEffect(() => {
+    if (uri && !steps.current.ask) steps.current.ask = Date.now();
+  }, [uri]);
   // A direct-play source opened AT the resume point (tuning.resumeAtSource):
   // the uri it applies to, and where. Any other uri starts where it always did.
   const startAt = useRef<{uri: string; ms: number} | null>(null);
@@ -1147,6 +1157,7 @@ export default function Player({
       if (claimGen.current === g) claimGen.current = 0;
       if (out.kind === 'gone' || !alive()) return;
       if (handOver) {
+        if (!steps.current.claim) steps.current.claim = Date.now();
         const next = afterClaim(out);
         if (next === 'busy') {
           console.log('[player] the server is still busy: giving up on this start');
@@ -1443,6 +1454,7 @@ export default function Player({
           durRef.current = it.duration || 0;
           setDuration(it.duration || 0);
           startMs.current.meta = Date.now() - mountedAt.current;
+          steps.current.item = Date.now();
           setMeta({item: it});
           addSubs(it.subtitles || []);
         }
@@ -1517,6 +1529,19 @@ export default function Player({
         if (!done || bufferingRef.current) {
           setTstatus({peers: s.peers, downloadSpeed: s.downloadSpeed, progress: s.progress});
         }
+        // Nobody is sharing this source: the next one from the list, by itself
+        // (playerRules.ts deadSource — the site's rule), instead of a minute
+        // and a half of "connecting" for a source that was never going to play.
+        if (!done && !everPlayed.current && stream.alts && stream.alts.length && deadSource({elapsedMs: Date.now() - startedAt, peers: s.peers, progress: s.progress})) {
+          const [next, ...rest] = stream.alts;
+          if (next && next.id !== stream.id) {
+            live = false;
+            console.log(`[player] nobody is sharing ${stream.infoHash.slice(0, 8)} (peers ${s.peers}) — trying the next source ${next.infoHash.slice(0, 8)}`);
+            showToast(`Nobody is sharing that copy right now — trying ${next.quality ? `another ${next.quality}` : 'another one'}`, '🔁');
+            navigation.replace('Player', {id: next.id, title, stream: {...next, alts: rest}});
+            return;
+          }
+        }
         // Subtitle files that live INSIDE the torrent, offered as soon as the
         // torrent has metadata.
         if (s.subtitles?.length) addSubs(s.subtitles);
@@ -1537,6 +1562,7 @@ export default function Player({
       clearTimeout(absTimer);
       clearInterval(poll);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stream, addSubs]);
 
   // ---------------------------------------------------------------- arming
@@ -1664,6 +1690,7 @@ export default function Player({
       setUri(direct);
     }
     startMs.current.armed = Date.now() - mountedAt.current;
+    steps.current.decide = Date.now();
     if (r > 0) {
       // A library file has a frame to show (/img/frame); a stream has no file
       // to pull one from, so it keeps the toast — the site's resume card.
@@ -1771,7 +1798,7 @@ export default function Player({
 
   // ---------------------------------------------------------------- watch party
   useEffect(() => {
-    setPlayingContext({id, title});
+    setPlayingContext({id, title, startup: () => startup.current});
     return () => setPlayingContext(null);
   }, [id, title]);
   // While a film plays, a library change re-reads nothing behind it (the
@@ -3557,9 +3584,17 @@ export default function Player({
       path: usingTranscodeRef.current ? `hls-${currentV.current}` : 'direct',
       ms,
     });
+    // the start-up, step by step from the press (the player's mount)
+    steps.current.frame = Date.now();
+    const path = usingTranscodeRef.current ? (currentV.current === 'copy' ? 'copy' : 'encode') : 'direct';
+    startup.current = startupOf(mountedAt.current, {open: mountedAt.current, ...steps.current}, path);
+    if (startup.current) {
+      mark('start-up', {app: 'tv', total: startup.current.total, slow: startup.current.slow, path, steps: stepsText(startup.current)});
+    }
   };
 
   const onLoad = (d: OnLoadData) => {
+    if (!steps.current.byte) steps.current.byte = Date.now();
     // ---- picture and sound (TV round 2026-10-19): a direct start the server
     // decided on this box's word, whose sound no renderer took (ExoPlayer
     // plays such a film SILENT rather than failing): the word did not hold.
@@ -3885,10 +3920,12 @@ export default function Player({
         playDecision.current = null;
       }
       switchedToTranscode.current = true;
-      startTranscode(base, streamOffset.current, 'copy');
+      // (where it was heading: a direct play seeks to its resume point only
+      // once loaded — at the stream offset, 0, a resume restarted at 0:00)
+      startTranscode(base, fallbackFrom({resumeAt: resumeAt.current, cur: curRef.current, offset: streamOffset.current}), 'copy');
     } else if (!triedH264.current) {
       triedH264.current = true;
-      startTranscode(base, streamOffset.current, 'h264');
+      startTranscode(base, fallbackFrom({resumeAt: resumeAt.current, cur: curRef.current, offset: streamOffset.current}), 'h264');
     } else {
       setError("This title can't be played on this device.");
     }

@@ -25,6 +25,18 @@ const loadWebTorrent = async () => {
   return WebTorrent;
 };
 
+// Loaded ahead, at a quiet moment after boot (preload, from server.js): the
+// module is hundreds of files, and the first torrent played after every
+// restart paid for reading them — 0.65 s on this PC's idle core, ~4 s on a
+// 2-CPU instance with company (tools/ttff/vps.js torrent-warm: add=+4010ms),
+// the event loop held for the server's every other viewer meanwhile. Only the
+// code: no client is made, no socket opened, until a torrent is played.
+const preload = (delayMs = 60 * 1000) => {
+  if (!gate.enabled()) return;
+  const t = setTimeout(() => { loadWebTorrent().catch(() => {}); }, delayMs);
+  t.unref?.();
+};
+
 const CACHE_DIR = path.join(config.CACHE_DIR, "torrents");
 
 // ---------- torrent-metadata cache ----------
@@ -1542,6 +1554,8 @@ const magnetFor = (infoHash) => {
 };
 
 module.exports = {
+  preload,
+  _loaded: () => !!WebTorrent,
   distrustBitfield,
   getClient,
   clientIfLoaded,

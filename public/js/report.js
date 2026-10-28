@@ -68,6 +68,8 @@ export const showReportSheet = ({ hint = "" } = {}) => {
       version,
       errors: errors.slice(),
       playMarks: playing && playing.marks ? playing.marks() : [],
+      // the start-up of what is playing, step by step from the press (startline.js)
+      startup: playing && playing.startup ? playing.startup() : null,
     };
     try {
       await api.report(`${text}${doing.value.trim() ? `\n\nDoing: ${doing.value.trim()}` : ""}${hint ? `\n\n(${hint})` : ""}`, context, state.profile ? state.profile.name : null);

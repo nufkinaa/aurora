@@ -29,6 +29,11 @@ const runHere = (file, args, opts, onSpawn) =>
     } catch (e) {
       return resolve({ code: -1, signal: null, stdout: Buffer.alloc(0), stderr: String((e && e.message) || e), timedOut: false, error: String((e && e.message) || e) });
     }
+    // opts.lower: below normal priority — pictures and other decoration, which
+    // must not take the CPU from the segment somebody is waiting to see
+    // (measured on a 2-CPU box: a title page's still frame and its picture
+    // variants beside the first segment of the film being pressed on)
+    if (opts.lower && child.pid) { try { require("os").setPriority(child.pid, require("os").constants.priority.PRIORITY_BELOW_NORMAL); } catch {} }
     if (onSpawn) { try { onSpawn(child); } catch {} }
     const out = [];
     let outBytes = 0;

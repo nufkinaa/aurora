@@ -221,7 +221,7 @@ const encode = (src, out, width, blur = 0) =>
     // (started from a worker thread: lib/spawner.js — starting a process
     // blocked the event loop 50-90 ms each on a loaded Windows box)
     spawnerLib()
-      .run(config.FFMPEG, ["-v", "error", "-y", "-i", src, "-vf", filterFor(width, blur, fmt), "-frames:v", "1", ...codec, tmp], { timeoutMs: 20000, name: "picture variant", maxBuffer: 64 * 1024 })
+      .run(config.FFMPEG, ["-v", "error", "-y", "-i", src, "-vf", filterFor(width, blur, fmt), "-frames:v", "1", ...codec, tmp], { timeoutMs: 20000, name: "picture variant", maxBuffer: 64 * 1024, lower: true })
       .then((r) => {
         if (r.code !== 0) {
           fs.unlink(tmp, () => {});

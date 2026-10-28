@@ -829,6 +829,19 @@
         </table></div>
       </div>
       <div class="card">
+        <h2>Slow starts <span class="note">every play from the press on Play to its first frame, step by step (the players' own start-up marks, the last 24 h — not the usage stats); a start of 6 s or more is slow, and its slowest step is named</span></h2>
+        <div class="muted" id="tel-starts-line"></div>
+        <div class="empty-note hidden" id="tel-starts-empty">No start measured yet.</div>
+        <div class="table-scroll dense"><table>
+          <thead><tr><th>Step</th><th>p50</th><th>p90</th><th>Slowest in</th></tr></thead>
+          <tbody id="tel-starts-steps"></tbody>
+        </table></div>
+        <div class="table-scroll dense" style="margin-top:10px"><table>
+          <thead><tr><th>Slow start</th><th>Step by step</th></tr></thead>
+          <tbody id="tel-starts-recent"></tbody>
+        </table></div>
+      </div>
+      <div class="card">
         <h2>Most used <span class="note">presses per control over the last 30 days, and the share of sessions that used each — counted on the device, sent as totals</span></h2>
         <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:8px">
           <div class="range-chips" id="tel-apps">
@@ -3143,7 +3156,8 @@
                   ${esc(r.context.look || "")} · ${esc(r.context.viewport || "")} · v${esc(r.context.version || "?")}${r.context.online === false ? " · offline" : ""}${r.context.net ? ` · connection: ${esc(r.context.net)}` : ""}<br>
                   <span style="font-family:ui-monospace,monospace">${esc(r.context.ua || "")}</span>
                   ${r.context.title ? `<br>playing: ${esc(r.context.title)} (${esc(r.context.itemId || "")})` : ""}
-                  ${r.context.playMarks && r.context.playMarks.length ? `<br>start-up: ${esc(r.context.playMarks.map((m) => `+${m.ms}ms ${m.name}${m.path ? ":" + m.path : ""}`).join(" → "))}` : ""}
+                  ${r.context.startup ? `<br><b>start-up</b>: ${esc(startupLine(r.context.startup))}` : ""}
+                  ${r.context.playMarks && r.context.playMarks.length ? `<br>player marks: ${esc(r.context.playMarks.map((m) => `+${m.ms}ms ${m.name}${m.path ? ":" + m.path : ""}${m.why ? ` (${m.why})` : ""}${m.v ? ` ${m.v}` : ""}${m.to ? ` → ${m.to}` : ""}${m.stage ? ` ${m.stage}` : ""}`).join(" → "))}` : ""}
                   ${r.context.errors && r.context.errors.length ? `<pre style="white-space:pre-wrap;margin:6px 0 0;font-size:0.74rem">${esc(r.context.errors.join("\n"))}</pre>` : ""}
                 </div></details></td>
             <td class="muted" style="font-family:ui-monospace,monospace;font-size:0.78rem">${esc(r.context.route || "")}</td>
@@ -3283,6 +3297,7 @@
       fill("tel-f-model", d.errors.filters.models, "Every device");
       paintTelErrors();
       paintTelTimings();
+      paintTelStarts();
       paintTelUsed();
       paintTelRules();
     }
@@ -3326,6 +3341,33 @@
           <td>${telSpark(r.days)}</td>
           <td class="acts">${acts}</td></tr>`;
       }).join("");
+    }
+    // A play's start-up (public/js/startline.js): "12.4 s from the press, mostly
+    // the first byte (11.1 s) — open 0.0 · item 0.1 · … · frame 12.4 · segment made in 10.9 s"
+    const STEP_WORDS = { open: "player opened", item: "title known", history: "progress read", probe: "torrent probed", mount: "player built", decide: "way chosen", claim: "encode answered", ask: "film asked for", byte: "first byte", frame: "first frame" };
+    const startSecs = (ms) => `${(ms / 1000).toFixed(ms >= 10000 ? 0 : 1)} s`;
+    function startupLine(s) {
+      if (!s || !s.steps || !s.steps.length) return "";
+      let prev = 0;
+      let gap = 0;
+      for (const [n, ms] of s.steps) { if (n === s.slow) gap = ms - prev; prev = ms; }
+      const parts = s.steps.map(([n, ms]) => `${n} ${(ms / 1000).toFixed(1)}`).join(" · ");
+      const srv = s.srv ? [s.srv.playlist != null ? `playlist answered in ${startSecs(s.srv.playlist)}` : "", s.srv.seg != null ? `first segment made in ${startSecs(s.srv.seg)}` : ""].filter(Boolean).join(", ") : "";
+      return `${startSecs(s.total)} from the press${s.path ? ` (${s.path})` : ""}, mostly ${STEP_WORDS[s.slow] || s.slow || "?"} (${startSecs(gap)}) — ${parts}${srv ? ` · server: ${srv}` : ""}`;
+    }
+    function paintTelStarts() {
+      const st = tel.data.starts;
+      const has = !!(st && st.n);
+      $("#tel-starts-empty").classList.toggle("hidden", has);
+      if (!has) { $("#tel-starts-line").textContent = ""; $("#tel-starts-steps").innerHTML = ""; $("#tel-starts-recent").innerHTML = ""; return; }
+      const paths = Object.entries(st.byPath || {}).sort((a, b) => b[1].n - a[1].n).map(([k, v]) => `${k} ${telMs(v.p50)} / ${telMs(v.p90)} (${v.n})`).join(" · ");
+      $("#tel-starts-line").textContent = `${st.n} starts · median ${telMs(st.p50)}, p90 ${telMs(st.p90)} · ${st.slow.n} slow (${Math.round(st.slow.overMs / 1000)} s or more)${paths ? ` · by way played (median / p90): ${paths}` : ""}`;
+      const order = ["open", "item", "history", "probe", "mount", "decide", "claim", "ask", "byte", "frame"];
+      $("#tel-starts-steps").innerHTML = order.filter((k) => st.stepP50[k]).map((k) => {
+        const n = st.slow.byStep[k] || 0;
+        return `<tr><td>${esc(STEP_WORDS[k] || k)}<div class="muted" style="font-size:0.74rem">${esc(k)}</div></td><td style="white-space:nowrap">${telMs(st.stepP50[k].p50)}</td><td style="white-space:nowrap">${telMs(st.stepP50[k].p90)}</td><td>${n ? `<span class="pill bad">${n}</span>` : ""}</td></tr>`;
+      }).join("");
+      $("#tel-starts-recent").innerHTML = (st.recent || []).map((r) => `<tr><td style="min-width:110px">${esc(r.title || r.id)}<div class="muted" style="font-size:0.74rem">${r.app === "tv" ? "TV" : esc(r.device || "")} · ${esc(telAgo(r.at))}</div></td><td>${esc(startupLine({ ...r, srv: { seg: r.seg, playlist: r.pl } }))}</td></tr>`).join("");
     }
     function paintTelTimings() {
       const rows = tel.data.timings.rows || [];

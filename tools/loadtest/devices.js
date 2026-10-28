@@ -488,7 +488,9 @@ class Device {
     const { item, buf } = p;
     base = base || `/stream/transcode/${item.id}/jit`;
     const t0 = Date.now();
-    const q = seg === "fmp4" ? `?seg=fmp4${item.video && item.video.codec === "hevc" ? "&vtag=hvc1" : ""}` : "";
+    // (the full encode is the ladder's top only where the device cannot decode the file: ?top=h264)
+    const qs = [seg === "fmp4" ? `seg=fmp4${item.video && item.video.codec === "hevc" ? "&vtag=hvc1" : ""}` : "", variant === "h264" ? "top=h264" : ""].filter(Boolean);
+    const q = qs.length ? `?${qs.join("&")}` : "";
     const m = await this.hit("playlist", "GET", `${base}/master.m3u8${q}`, { keepBody: true, compressed: false, headers: { "X-Aurora-Start": `at=${p.startAt}` } });
     if (m.status !== 200) { p.refused++; return this.retryLater(p, until, ac, () => this.jitPlay(p, until, ac, variant, { base, seg })); }
     const lines = m.body.toString("utf8").split(/\r?\n/);

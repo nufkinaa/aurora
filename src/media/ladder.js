@@ -227,7 +227,7 @@ const encVideoArgs = (rung, { vf = null, fmt = null } = {}) => {
   return [
     "-c:v", "libx264",
     // the same picture the single-rendition encode makes (remux.js)
-    "-preset", "superfast",
+    "-preset", require("./encbudget").presetNow() /* superfast; ultrafast while this machine is behind real time */,
     "-crf", "18",
     "-pix_fmt", "yuv420p",
     "-profile:v", "high",
@@ -290,8 +290,51 @@ const facts = new Map(); // key -> facts
 const failed = new Map(); // key -> failedAt
 const inflight = new Map();
 const FAIL_TTL = 60 * 1000;
+// …and kept on disk (data/cache/ladder-facts.json): the probe is the one
+// ffprobe the master playlist waits on, and the memory above starts empty at
+// every restart — measured on a 2-CPU instance beside a title page's picture
+// work: 5.1 s for one episode's probe (its timeout is 5 s: a little busier and
+// it fails, and a file that needs an encode then gets no ladder for a minute).
+// A file's video does not change while its key (its date) does not.
+const FACTS_KEEP = 3000;
+let factStore = null;
+const disk = () => {
+  if (factStore === false) return null;
+  if (!factStore) {
+    try {
+      const { JsonStore } = require("../lib/jsonstore");
+      factStore = new JsonStore(require("path").join(config.CACHE_DIR, "ladder-facts.json"), { v: 1, facts: {} });
+      if (!factStore.data.facts || typeof factStore.data.facts !== "object") factStore.data.facts = {};
+    } catch { factStore = false; return null; }
+  }
+  return factStore;
+};
+const fromDisk = (key) => {
+  const st = disk();
+  const hit = st && st.data.facts[key];
+  return hit && hit.f ? hit.f : null;
+};
+const toDisk = (key, f) => {
+  const st = disk();
+  if (!st) return;
+  st.data.facts[key] = { f, at: Date.now() };
+  const keys = Object.keys(st.data.facts);
+  if (keys.length > FACTS_KEEP) {
+    keys.sort((a, b) => (st.data.facts[a].at || 0) - (st.data.facts[b].at || 0));
+    for (const k of keys.slice(0, keys.length - FACTS_KEEP)) delete st.data.facts[k];
+  }
+  st.save();
+};
 const probe = (key, input, { http = false } = {}) => {
   if (facts.has(key)) return Promise.resolve(facts.get(key));
+  {
+    const kept = fromDisk(key);
+    if (kept) {
+      if (facts.size > 500) facts.clear();
+      facts.set(key, kept);
+      return Promise.resolve(kept);
+    }
+  }
   if (!config.FFPROBE || Date.now() - (failed.get(key) || 0) < FAIL_TTL) return Promise.resolve(null);
   let p = inflight.get(key);
   if (p) return p;
@@ -302,6 +345,7 @@ const probe = (key, input, { http = false } = {}) => {
     if (f) {
       if (facts.size > 500) facts.clear();
       facts.set(key, f);
+      try { toDisk(key, f); } catch {}
     } else {
       if (failed.size > 500) failed.clear();
       failed.set(key, Date.now());
@@ -547,6 +591,8 @@ module.exports = {
     CAPS, dimsFor, scaleFor, rateFor, rungNames, h264Level, encCodecs, copyCodecs,
     encBandwidth, copyBandwidth, encVideoArgs, parseFacts, topCeiling, specFor,
     seedFacts: (key, f) => facts.set(key, f), // (tests: a source whose probe is already known)
+    forgetMemory: () => { facts.clear(); failed.clear(); }, // (tests: a restart — the disk is kept)
+    factsOnDisk: () => { const st = disk(); return st ? st.data.facts : null; },
     SEG_MIN_SEC, MUX_OVERHEAD, ENC_OVERHEAD, ENC_THREADS, decodeThreads,
   },
 };

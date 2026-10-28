@@ -56,6 +56,7 @@ import * as narrator from "../narrator.js";
 import { copyProblemButton, canOfferReplace } from "../replaceCopy.js";
 import { EARLY_CONFIRM, earlyOk } from "../releaseWords.js";
 import { recommendButton, recBanner } from "../recommend.js";
+import { fallbackSources } from "../playstart.js";
 
 // "My List" toggle for a streamable (Discover) title — stores a stream ref.
 import * as surprise from "../surprise.js";
@@ -535,15 +536,9 @@ const runtimeToSeconds = (runtime) => {
 const lastStreamKey = (imdbId, season, episode) =>
   `aurora-laststream-${imdbId}${season && episode ? `:${season}:${episode}` : ""}`;
 
-// Build the item the player will receive for a chosen source
-const playStream = (stream, base, label, season, episode) => {
-  // Remember this pick so it can be surfaced first next time.
-  try {
-    localStorage.setItem(
-      lastStreamKey(base.imdbId, season, episode),
-      stream.infoHash,
-    );
-  } catch {}
+// The item the player is handed for one source (a chosen one, or one it may
+// fall back to).
+const sourceItem = (stream, base, label, season, episode) => {
   const id = `torrent|${stream.infoHash}|${stream.fileIdx}`;
   // Base for transcode HLS; the player appends the seek offset: `${base}/${ss}/index.m3u8?v=…`
   const transcodeBase = `/stream/torrent/hls/${stream.infoHash}/${stream.fileIdx}`;
@@ -592,6 +587,22 @@ const playStream = (stream, base, label, season, episode) => {
     // where Back should return to
     returnHash: location.hash,
   };
+  return item;
+};
+
+// Build the item the player will receive for a chosen source
+const playStream = (stream, base, label, season, episode, alts = []) => {
+  // Remember this pick so it can be surfaced first next time.
+  try {
+    localStorage.setItem(
+      lastStreamKey(base.imdbId, season, episode),
+      stream.infoHash,
+    );
+  } catch {}
+  const item = sourceItem(stream, base, label, season, episode);
+  // The next sources, best first: the player moves on to them by itself when
+  // this one turns out to have nobody sharing it (playstart.js deadSource).
+  item._alts = (alts || []).map((a) => sourceItem(a, base, label, season, episode));
   // Fire the head-probe the moment the source is chosen — by the time the
   // player's 1500ms pre-play window races it, a warm source has answered and
   // the REAL codecs (not the release tags) make the decision (player.js S2).
@@ -961,7 +972,7 @@ const loadSources = async (
           const play =
             job && job.status === "done" && owned
               ? () => navigate(`#/play/${owned.id}`)
-              : onPlay;
+              : (src) => onPlay(src, fallbackSources(streams, src));
           const row = sourceRow(s, play, onDownload, job, best);
           rows.set(key, row);
           return row;
@@ -2073,7 +2084,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
               }
             : null,
         },
-        (s) => playStream(s, base(), view.title),
+        (s, alts) => playStream(s, base(), view.title, undefined, undefined, alts),
         (s) => requestDownload(s, base(), view.title),
       ));
     showMovieSources();
@@ -2188,13 +2199,14 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
             }
           : null,
       },
-      (s) =>
+      (s, alts) =>
         playStream(
           s,
           base(),
           `${view.title} · S${row.season} E${row.episode}`,
           row.season,
           row.episode,
+          alts,
         ),
       (s) =>
         requestDownload(
