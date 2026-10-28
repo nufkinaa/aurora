@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.13.11 — 2026-10-28
+
+- **The website is lighter on weaker devices — looks and works exactly the same.** The glass sky no longer wakes on every frame just to wait; the Home greeting's shine rests while it is scrolled out of view (and picks up exactly where it would have been); a billboard change no longer decodes the whole picture for a brightness nobody used; Home reads the screen width once instead of once per shelf. Measured on a slowed phone and desktop (CPU ×4): scrolling Home 57.5 → 1 ms blocked, Back to Home painted 716 → 561 ms, opening a title 904 → 777 ms, the Movies grid 1743 → 1333 ms of work while scrolling, typing in search 84 → 72 ms per key. Before/after screenshots of every screen, both looks and five sizes, are identical.
+- A measuring kit for the website ships in tools/webperf (with a baseline to compare against).
+
 ## 1.13.10 — 2026-10-28
 
 - **Several people can start converted films at once without waiting on each other.** While someone is waiting for the first seconds of their film, conversions that are already well ahead of their own viewer (12 s or more) are held for a moment — paused on Linux, put on idle priority on Windows — and let go as soon as the waited-for piece is out, after 10 s at most, or the moment their own viewer comes close. Measured with real conversions on 8 cores: with 3 conversions running ahead, a newcomer's first piece came in 2.1 s instead of 8.3 s; nobody's film stopped mid-play in a 38-minute test with three converted streams and seeks.
