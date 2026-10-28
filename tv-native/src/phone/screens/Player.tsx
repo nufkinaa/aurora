@@ -1,15 +1,6 @@
-// PLACEHOLDER while the phone's Player screen is built (android-phone branch).
-import React from 'react';
-import {StyleSheet, Text, View} from 'react-native';
-import {BackBar} from '../ui/PageHead';
-
-export default function Player() {
-  return (
-    <View style={s.root}>
-      <Text style={s.t}>Player</Text>
-      <BackBar />
-    </View>
-  );
-}
-
-const s = StyleSheet.create({root: {flex: 1, alignItems: 'center', justifyContent: 'center'}, t: {color: '#fff', fontSize: 22}});
+// The phone's player IS the TV's (playback/Player.tsx): the same sources,
+// offsets, subtitles drawn in JS, skip intro / recap / credits, Up next, the
+// recovery rule and the watch party — with the phone's touch controls drawn
+// over it (phone/player/PhoneChrome.tsx, PhoneGestures.tsx) instead of the
+// D-pad chrome.
+export {default} from '../../playback/Player';

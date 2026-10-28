@@ -104,7 +104,7 @@ export default function PhoneNavigator() {
           <Stack.Screen
             name="Player"
             getComponent={SCREENS.Player}
-            options={{animation: 'fade', statusBarHidden: true, navigationBarHidden: true, orientation: 'all'}}
+            options={{animation: 'fade', statusBarHidden: true, navigationBarHidden: true, orientation: 'landscape'}}
           />
         </Stack.Navigator>
       </NavigationContainer>

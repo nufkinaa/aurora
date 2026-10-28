@@ -72,6 +72,13 @@
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="aurora-phone" />
         </intent-filter>
+        <!-- aurora://open?… — what the "… is ready to watch" notification opens
+             (DownloadNotices.kt builds it, addressed to this app's own package) -->
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <data android:scheme="aurora" android:host="open" />
+        </intent-filter>
         <!-- nufurora.com links (a title, a watch party, the remote) open the app. They open
              by themselves once nufurora.com serves /.well-known/assetlinks.json for this
              app's signing key; until then Android asks, or the person turns "Open supported

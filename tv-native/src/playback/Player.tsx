@@ -158,6 +158,12 @@ import {track} from '../usage';
 import {clearImageMemory, isLowRam} from '../perfTier';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
+// [android-phone] the phone app draws its own touch controls over this same
+// player (docs/android-phone/PLAN.md); on a TV `PHONE` is false and none of it runs
+import {isPhone} from '../formFactor';
+import PhoneChrome from '../phone/player/PhoneChrome';
+import PhoneGestures from '../phone/player/PhoneGestures';
+import {onPipChange, phoneNative} from '../phone/native';
 import {menuMaxHeight} from '../popupFit';
 import {refreshTuning, tuning, TUNING_DEFAULTS} from './tuning';
 import {againStep, CARD_RETRY_MS, REFUSED_UNDER_S, spotOf, StopKind, stopWords, watchNew, watchReset, watchTick} from './recovery';
@@ -205,6 +211,9 @@ const SKIP_CHAIN_MS = 900;
 // put focus back on the scrubber, so you had to start the walk again. A press
 // still resets it; this is just how long "no input" is allowed to be.
 const HIDE_MS = 7000;
+// [android-phone] the phone's controls step aside sooner (a thumb brings them back)
+const PHONE = isPhone();
+const HIDE_NOW_MS = PHONE ? 4000 : HIDE_MS;
 // seekTo()'s debounce: a burst of remote presses moves the scrubber instantly
 // but touches the network once, after the presses stop.
 const SEEK_DEBOUNCE_MS = 450;
@@ -685,7 +694,7 @@ export default function Player({
   // The menus' ceiling on this screen (popupFit.ts): each one scrolls inside
   // it, and Android scrolls the focused row into view — nothing overflows the
   // top of a 540dp panel any more (owner, 2026-10-17).
-  const {height: winH} = useTvMetrics();
+  const {height: winH, width: winW} = useTvMetrics();
   const menuH = menuMaxHeight(winH);
   const gearScroll = useRef<ScrollView>(null);
   const [rate, setRate] = useState(1);
@@ -993,6 +1002,61 @@ export default function Player({
     return off;
   }, [profileId]);
 
+  // ---------------------------------------------------------------- [android-phone]
+  // The phone's own: fill / fit, the controls lock, picture-in-picture, the
+  // screen kept on and the bars hidden while the player is up, landscape by
+  // default (the rotate button turns it), and a scrub in progress on the bar.
+  const [fitMode, setFitMode] = useState<'fit' | 'fill'>('fit');
+  const [locked, setLocked] = useState(false);
+  const [inPip, setInPip] = useState(false);
+  const [landscape, setLandscape] = useState(true);
+  const videoAspect = useRef<{w: number; h: number}>({w: 16, h: 9});
+  useEffect(() => {
+    if (!PHONE) return;
+    phoneNative.setKeepAwake(true);
+    phoneNative.setImmersive(true);
+    // landscape by default — through the stack (react-native-screens owns the
+    // activity's orientation per screen; a direct request was undone by it)
+    navigation.setOptions({orientation: 'landscape'} as never);
+    const off = onPipChange(on => {
+      setInPip(on);
+      if (on) {
+        setMenu(null);
+        setControls(false);
+      }
+    });
+    return () => {
+      off();
+      phoneNative.setPip(false);
+      phoneNative.setKeepAwake(false);
+      phoneNative.setImmersive(false);
+      phoneNative.setBrightness(-1);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // THE PICTURE FOLLOWS A ROTATION. react-native-video's view lays its surface
+  // out when ITS resize mode or the video's size changes — not when the view is
+  // given a new frame, which is all a rotation (or the bars going away) does
+  // under Fabric: the picture stayed at the old window's size, cropped and off
+  // centre (Pixel 9 emulator, 2026-10-28). A new window size flips the mode for
+  // one frame, and that relayout puts the picture right.
+  const [relayout, setRelayout] = useState(false);
+  const lastWin = useRef('');
+  useEffect(() => {
+    if (!PHONE) return;
+    const k = `${winW}x${winH}`;
+    if (lastWin.current && lastWin.current !== k) {
+      setRelayout(true);
+      const t = setTimeout(() => setRelayout(false), 80);
+      lastWin.current = k;
+      return () => clearTimeout(t);
+    }
+    lastWin.current = k;
+  }, [winW, winH]);
+  // picture-in-picture is offered while something plays (Home / the gesture shrinks it)
+  useEffect(() => {
+    if (PHONE) phoneNative.setPip(!!uri && !paused, videoAspect.current.w, videoAspect.current.h);
+  }, [uri, paused]);
   // ---------------------------------------------------------------- chrome
   const showControls = useCallback(() => {
     // Scrubber state is frozen while the controls are hidden (see onProgress),
@@ -1009,7 +1073,7 @@ export default function Player({
       // paused — a paused player with no chrome is just a frozen frame.
       if (menuOpen || pausedRef.current || upNext) return;
       setControls(false);
-    }, HIDE_MS);
+    }, HIDE_NOW_MS);
   }, [menuOpen, upNext]);
   useEffect(() => {
     showControls();
@@ -2862,7 +2926,7 @@ export default function Player({
         onTop: navigation.isFocused(),
         menuOpen,
         upNext: !!upNext,
-        chrome: controls,
+        chrome: PHONE ? false : controls,
         playing: !!uri && !error,
       });
       if (act === 'pass') return false;
@@ -3734,6 +3798,11 @@ export default function Player({
   };
 
   const onLoad = (d: OnLoadData) => {
+    // [android-phone] the picture's shape, for the picture-in-picture window
+    if (PHONE && d.naturalSize && d.naturalSize.width > 0 && d.naturalSize.height > 0) {
+      videoAspect.current = {w: d.naturalSize.width, h: d.naturalSize.height};
+      phoneNative.setPip(!pausedRef.current, d.naturalSize.width, d.naturalSize.height);
+    }
     if (!steps.current.byte) steps.current.byte = Date.now();
     loadedUri.current = uriRef.current; // (the recovery watcher's nudge needs a loaded source)
     // ---- picture and sound (TV round 2026-10-19): a direct start the server
@@ -4324,6 +4393,25 @@ export default function Player({
     );
   }
 
+  // X-Ray from the player (the TV's button and the phone's): see the comments inside
+  const openXrayNow = () => {
+    // the film waits while you read; it resumes when the sheet goes
+    // — except in a watch party, where it keeps playing (the
+    // site's rule): pausing only THIS TV took it out of step
+    // with the room without telling anyone (audit X11).
+    const wasPlaying = !pausedRef.current && !party.current;
+    if (!party.current) setPaused(true);
+    const it = itemRef.current;
+    openXray({
+      query: it?.id && !String(it.id).startsWith('torrent|')
+        ? {itemId: it.id}
+        : {type: (stream?.season ? 'series' : 'movie'), imdbId: stream?.imdbId || it?.imdbId || null, season: stream?.season ?? null, episode: stream?.episode ?? null},
+      title: it?.showTitle || title || it?.title || '',
+      onClose: () => {
+        if (wasPlaying) setPaused(false);
+      },
+    });
+  };
   // Priority: the seek being typed > the far seek in flight > the real clock —
   // the web's updateScrubber.
   const shown = seekPreview != null ? seekPreview : current;
@@ -4360,7 +4448,7 @@ export default function Player({
         rate={rate}
         volume={muted ? 0 : volume}
         muted={muted}
-        resizeMode="contain"
+        resizeMode={PHONE ? (relayout ? 'stretch' : fitMode === 'fill' ? 'cover' : 'contain') : 'contain'}
         progressUpdateInterval={1000}
         // Subtitles are drawn by <Subtitles> below; ExoPlayer's own text
         // renderer stays off so an MKV's DEFAULT-flagged in-container track can
@@ -4387,23 +4475,25 @@ export default function Player({
       {/* The cue layer. Lifted clear of the transport bar while the chrome is up
           — the site can leave its cues where they are because its controls are a
           thin strip; at 10-foot sizes they would sit right on top of them. */}
-      <Subtitles
-        cues={cues}
-        timeRef={timeRef}
-        offset={subOffset}
-        sizePx={CUE_PX[subStyle.subSize]}
-        look={cueStyleLook}
-        // Chrome up: just above the real top of the bottom bar (its scrubber
-        // row is the bar's first line), measured by onLayout — so a cue can
-        // never be drawn under the scrubber whatever the bar's height on this
-        // screen, and does not float mid-picture either (elia, 2026-10-07:
-        // "take the subs down a bit when the timeline is open"). Until the bar
-        // has been measured, the 150 that used to be the only answer. Chrome
-        // hidden: 48, as always. (cues.ts cueBottom)
-        // [player-options] "raised": at least a fifth of the screen up, the
-        // lift above the bar still winning when it is higher (subStyle.ts)
-        bottom={cueBottomFor(subStyle.subPos, cueBottom(controls, chromeLift, chromeH.current || undefined), chromeH.current || winH)}
-      />
+      {PHONE && inPip ? null : (
+        <Subtitles
+          cues={cues}
+          timeRef={timeRef}
+          offset={subOffset}
+          sizePx={CUE_PX[subStyle.subSize]}
+          look={cueStyleLook}
+          // Chrome up: just above the real top of the bottom bar (its scrubber
+          // row is the bar's first line), measured by onLayout — so a cue can
+          // never be drawn under the scrubber whatever the bar's height on this
+          // screen, and does not float mid-picture either (elia, 2026-10-07:
+          // "take the subs down a bit when the timeline is open"). Until the bar
+          // has been measured, the 150 that used to be the only answer. Chrome
+          // hidden: 48, as always. (cues.ts cueBottom)
+          // [player-options] "raised": at least a fifth of the screen up, the
+          // lift above the bar still winning when it is higher (subStyle.ts)
+          bottom={cueBottomFor(subStyle.subPos, cueBottom(controls, chromeLift, chromeH.current || undefined), chromeH.current || winH)}
+        />
+      )}
 
       {/* Mid-playback stall. The site only darkens the picture and explains
           itself for TORRENT streams (.torrent-status); a library file just gets
@@ -4451,8 +4541,98 @@ export default function Player({
         </Animated.View>
       ) : null}
 
+      {/* [android-phone] the touch layer and the phone's controls (the TV's
+          D-pad chrome below is drawn on a TV only). Inside picture-in-picture
+          the window shows the picture and nothing else. */}
+      {PHONE && !inPip ? (
+        <PhoneGestures
+          width={winW}
+          height={winH}
+          now={() => curRef.current}
+          duration={() => durRef.current}
+          armed={!!uri}
+          locked={locked}
+          onTap={() => {
+            // a tap beside an open menu closes it
+            if (menuOpen) {
+              closeMenu();
+              return;
+            }
+            if (controlsRef.current) {
+              if (hideTimer.current) clearTimeout(hideTimer.current);
+              setControls(false);
+            } else showControls();
+          }}
+          onSkip={dir => skip(dir)}
+          onSeek={sec => {
+            showControls();
+            seekTo(sec);
+          }}
+          onFit={f => {
+            setFitMode(f);
+            toast(f === 'fill' ? 'Filling the screen' : 'Fitting the picture');
+          }}
+        />
+      ) : null}
+      {PHONE && controls && !inPip ? (
+        <PhoneChrome
+          title={epSeason && epEpisode ? itemRef.current?.showTitle || title : title}
+          subtitle={subtitleText}
+          badges={[isTorrent ? 'STREAM' : null, usingTranscode ? 'OPTIMIZED' : null].filter(Boolean) as string[]}
+          paused={paused}
+          shown={shown}
+          duration={duration}
+          bufPct={bufPct}
+          band={marksRange && marksRange.end > marksRange.start ? marksRange : null}
+          marks={[intro.current?.start ?? autoIntro.current?.start, intro.current?.end ?? autoIntro.current?.end, creditsStart.current].filter(
+            (t): t is number => t != null && isFinite(t) && t > 0,
+          )}
+          locked={locked}
+          fit={fitMode}
+          landscape={landscape}
+          hasSubs={tracks.length > 0}
+          subsOff={!subKey}
+          rate={rate}
+          party={partyInfo ? `${partyInfo.members.length} · ${partyInfo.code}` : null}
+          next={nextEp ? nextEp.label : null}
+          pip={phoneNative.pipSupported()}
+          onBack={() => canNavigate(navigation) && navigation.goBack()}
+          onToggle={togglePlay}
+          onSkip={dir => skip(dir)}
+          onScrub={sec => {
+            if (hideTimer.current) clearTimeout(hideTimer.current);
+            seekPreviewRef.current = sec;
+            setSeekPreview(sec);
+          }}
+          onSeek={sec => {
+            seekPreviewRef.current = null;
+            setSeekPreview(null);
+            seekTo(sec);
+            showControls();
+          }}
+          onMenu={m => {
+            if (hideTimer.current) clearTimeout(hideTimer.current);
+            setMenu(m);
+          }}
+          onXray={openXrayNow}
+          onNext={() => nextEp && goNext(nextEp, false)}
+          onLock={on => {
+            setLocked(on);
+            phoneNative.haptic('confirm');
+            showControls();
+          }}
+          onFit={() => setFitMode(f => (f === 'fill' ? 'fit' : 'fill'))}
+          onRotate={() => {
+            const next = !landscape;
+            setLandscape(next);
+            navigation.setOptions({orientation: next ? 'landscape' : 'portrait'} as never);
+          }}
+          onPip={() => phoneNative.enterPip()}
+          onTouch={showControls}
+        />
+      ) : null}
       {/* Controls */}
-      {controls ? (
+      {controls && !PHONE ? (
         <View style={styles.controls} pointerEvents="box-none" onLayout={onControlsLayout}>
           {/* box-none, not none: the Back button inside is a real focus target,
               same as the site's .player-top back button. */}
@@ -4653,24 +4833,7 @@ export default function Player({
                 icon="xray"
                 label="X-Ray"
                 onFocusChange={markZone('row')}
-                onPress={() => {
-                  // the film waits while you read; it resumes when the sheet goes
-                  // — except in a watch party, where it keeps playing (the
-                  // site's rule): pausing only THIS TV took it out of step
-                  // with the room without telling anyone (audit X11).
-                  const wasPlaying = !pausedRef.current && !party.current;
-                  if (!party.current) setPaused(true);
-                  const it = itemRef.current;
-                  openXray({
-                    query: it?.id && !String(it.id).startsWith('torrent|')
-                      ? {itemId: it.id}
-                      : {type: (stream?.season ? 'series' : 'movie'), imdbId: stream?.imdbId || it?.imdbId || null, season: stream?.season ?? null, episode: stream?.episode ?? null},
-                    title: it?.showTitle || title || it?.title || '',
-                    onClose: () => {
-                      if (wasPlaying) setPaused(false);
-                    },
-                  });
-                }}
+                onPress={openXrayNow}
               />
               <PBtn uiId="player.party"
                 icon="people"
@@ -5534,8 +5697,9 @@ const styles = StyleSheet.create({
   // above the slimmer bar, opaque so no subtitle cue shows through it.
   menu: {
     position: 'absolute',
-    right: spacing.pageX,
-    bottom: 124,
+    // [android-phone] the phone's: nearer the edge, over its bottom row
+    right: PHONE ? 16 : spacing.pageX,
+    bottom: PHONE ? 104 : 124,
     maxHeight: '62%',
     // A little of the room's light in the glass (elia, 2026-10-07: "give the
     // background there a bit hue"): the site's violet from the top-left, the
@@ -5569,7 +5733,8 @@ const styles = StyleSheet.create({
     // long label shrinks until it touches its own value ("Autoplay next
     // episodeOn").
     gap: spacing.sm,
-    paddingVertical: 8,
+    // [android-phone] a thumb's row
+    paddingVertical: PHONE ? 12 : 8,
     paddingHorizontal: 12,
     marginBottom: 1,
   },
@@ -5621,8 +5786,8 @@ const styles = StyleSheet.create({
   menuSub: {color: colors.textDim, fontSize: 12, fontWeight: '600', marginTop: 2},
   upNext: {
     position: 'absolute',
-    right: spacing.pageX,
-    bottom: 60,
+    right: PHONE ? 16 : spacing.pageX, // [android-phone]
+    bottom: PHONE ? 104 : 60,
     backgroundColor: 'rgba(13,14,24,0.97)',
     borderRadius: radius.l,
     padding: spacing.lg,

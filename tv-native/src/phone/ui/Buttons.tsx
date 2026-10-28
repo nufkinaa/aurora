@@ -185,7 +185,7 @@ const s = StyleSheet.create({
   chipText: {color: colors.text, fontSize: font.small, fontWeight: '700'},
   chipTextOn: {color: colors.bg},
   disabled: {opacity: 0.45},
-  action: {width: 72, alignItems: 'center', gap: 8},
+  action: {width: 82, alignItems: 'center', gap: 8},
   actionDisc: {
     width: 56,
     height: 56,
@@ -197,7 +197,7 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   actionDiscOn: {backgroundColor: '#ffffff', borderColor: '#ffffff'},
-  actionText: {color: colors.text, fontSize: 13, fontWeight: '600', textAlign: 'center', lineHeight: 16},
+  actionText: {color: colors.text, fontSize: 12.5, fontWeight: '600', textAlign: 'center', lineHeight: 16},
   iconCircle: {
     backgroundColor: 'rgba(12,14,30,0.5)',
     borderWidth: StyleSheet.hairlineWidth * 2,
