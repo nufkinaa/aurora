@@ -214,7 +214,7 @@ const PAGE_PROBE = () => {
             const E = v.Events;
             const note = (what, extra) => { if (T.hls.length < 400) T.hls.push({ t: now(), what, ...extra }); };
             note("new", { progressive: !!this.config.progressive, est: this.config.abrEwmaDefaultEstimate });
-            this.on(E.ERROR, (_e, d) => note("error", { details: d && d.details, fatal: !!(d && d.fatal), code: d && d.response && d.response.code, level: d && d.frag ? d.frag.level : undefined }));
+            this.on(E.ERROR, (_e, d) => note("error", { details: d && d.details, fatal: !!(d && d.fatal), code: d && d.response && d.response.code, level: d && d.frag ? d.frag.level : undefined, sn: d && d.frag ? d.frag.sn : undefined, msg: d && d.error ? String(d.error.message || d.error).slice(0, 160) : undefined }));
             this.on(E.LEVEL_SWITCHING, (_e, d) => note("switching", { level: d.level, uri: String(d.uri || (d.url && d.url[0]) || "").split("?")[1] || "" }));
             if (E.FRAG_LOAD_EMERGENCY_ABORTED) this.on(E.FRAG_LOAD_EMERGENCY_ABORTED, (_e, d) => note("gave-up", { sn: d && d.frag && d.frag.sn, level: d && d.frag && d.frag.level }));
             if (E.BUFFER_FLUSHING) this.on(E.BUFFER_FLUSHING, (_e, d) => note("flush", { from: d && d.startOffset, to: d && d.endOffset }));

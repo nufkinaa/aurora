@@ -6180,7 +6180,18 @@ export const renderPlayer = async (root, { id }) => {
       // encoder runs: the stream that stalls. There, a real stall decides
       // (the "waiting" listener below), and only when a measurement of the
       // line agrees it is thin.
-      const starving = capH !== 480 && !atEnd && ahead < 8 && fill < 0.9 && !(nativeHlsOnly && !hls);
+      // NOR on a file played as it is (2026-10-28, the 2.5-hour rig): the
+      // browser decides that buffer as well. Half an hour into a 2 Mbit/s
+      // film on a LAN, with 1,500 s held behind the playhead after a seek,
+      // Chrome kept a few seconds ahead and fetched at the film's own rate;
+      // a scene a little above the average read as "not gaining", and the
+      // step-down took a healthy direct play onto a 480p CPU encode (both
+      // builds, the same spot of the film; on 1.13.0 it then fell to 0:00
+      // and froze for five minutes). There a real stall decides too — unless
+      // the line as last measured on this device (lineKbps) says it is thin
+      // for this file, when the step-down may still come before the freeze.
+      const thinLine = () => { const k = lineKbps(); return k > 0 && fileKbps > 0 && k < fileKbps * 1.5; };
+      const starving = capH !== 480 && !atEnd && ahead < 8 && fill < 0.9 && (hls ? true : !nativeHlsOnly && thinLine());
       if (starving) {
         thinSince = thinSince || now;
         // two seconds of it — or at once when there is almost nothing left
