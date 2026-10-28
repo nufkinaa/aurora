@@ -604,9 +604,15 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
   );
   // Keep node responsive: ffmpeg yields CPU to the server under contention.
   require("../lib/children").track(proc, "remux");
-  // (below normal where it can be raised again — lib/prio.js: on Linux it
-  // could not, and a TV's encode at nice 10 starved behind any other work)
-  try { os.setPriority(proc.pid, require("../lib/prio").viewer()); } catch {}
+  // It starts at NORMAL priority and steps down to the viewers' own
+  // (lib/prio.js: below normal where it can be raised again; on Linux without
+  // root it stays at normal) once its playlist is out — see job.ready below.
+  // It used to be below normal from its first instruction: on a busy Windows
+  // box a below-normal process may not run for a long time, and a COPY start
+  // or a TV seek waited 20 s and failed "Remux did not start in time" (seen
+  // by the TV 5.7.1 rig: three seeks in a row after a freeze, and a fresh
+  // copy start while the PC was loaded) — the same starvation jit's
+  // producers had before they kept normal priority for their first segment.
   // a re-encode is somebody watching: background work stands back (cpuwork.js)
   // `idle` while PAUSED far ahead of its reader (procpause, see pace): a
   // suspended encoder takes no CPU, and it used to count all the same — on a
@@ -679,7 +685,14 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
   // once its own playlist is there and its viewer two segments behind.
   const sf = require("../lib/startfirst");
   const first = sf.wait(path.basename(dir));
-  job.ready.then(() => { job.readyDone = true; first.end(); }, () => first.end());
+  job.ready.then(() => {
+    job.readyDone = true;
+    first.end();
+    // its first segment is out: from here it yields to the server and to
+    // whoever else is waiting (unless held, or lowered far ahead — those put
+    // back their own priority)
+    if (job.proc === proc && !job.sfHeld && !job.leadLow) { try { os.setPriority(proc.pid, require("../lib/prio").viewer()); } catch {} }
+  }, () => first.end());
   if (heavy) {
     try {
       sf.track(job, {

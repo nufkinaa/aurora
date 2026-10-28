@@ -60,6 +60,9 @@ const MIXES = {
   copy: ["web-jit", "tv-offset", "phone-jit"], // repackaged: the video copied, the sound to AAC
   encode: ["web-encode"], // the full 1080p CPU encode (a device that cannot decode the file's video)
   torrent: ["tv-torrent", "web-tjit"],
+  // copy starts beside CPU encodes: n=4 is 3 encodes + a TV offset copy, n=5 is 4 + 1, n=8 is 6 + 2
+  // (a copy start must never be starved by the encodes — remux.js keeps normal priority for its first segment)
+  "encode-copy": ["web-encode", "web-encode", "web-encode", "tv-offset"],
 };
 const MIX_NOTE = {
   typical: "typical (house-recorded): 30 % direct, 55 % repackaged (TV offset copy, web/phone jit copy), 10 % encoded (720p/480p rungs), 5 % torrent; TVs 55 %, phones 25 %, desktops 20 %",
