@@ -18,6 +18,7 @@ const GUARDED = ['components/NavRail.tsx', 'screens/Browse.tsx', 'screens/Home.t
 const EXEMPT: Record<string, string> = {
   'focus.ts': 'the hook itself',
   'playback/Player.tsx': 'acts on what was pressed, never on where focus is',
+  'components/RecommendSheet.tsx': "the note field's own DOWN / UP (to Send / the faces): acts on what was pressed while the field held focus — Android searches from the cursor of a long note and picks the wrong button",
 };
 
 const walk = (dir: string): string[] =>

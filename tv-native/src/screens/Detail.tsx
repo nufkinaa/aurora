@@ -3324,7 +3324,12 @@ const styles = StyleSheet.create({
   badgeText: {color: colors.text, fontSize: 12, fontWeight: '900', letterSpacing: 1},
   actions: {flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg, flexWrap: 'wrap'},
   actionsDense: {marginTop: spacing.md},
-  actionsSecondary: {flexDirection: 'row', gap: 2, marginTop: spacing.sm, marginLeft: -16, flexWrap: 'wrap'},
+  // Its own width, past the 42% lockup: six discs (five and a wide one — My List, Recommend,
+  // Versions, "Problem with this copy?", X-Ray, Watched) sit on ONE line. At the lockup's
+  // width a library film's row wrapped into two, and with a long title and a household
+  // banner under the row the synopsis was pushed off the screen (Mi TV, 5.7.0 pass);
+  // more than six still wrap.
+  actionsSecondary: {flexDirection: 'row', gap: 2, marginTop: spacing.sm, marginLeft: -16, flexWrap: 'wrap', width: 66 * 5 + 92 + 2 * 5 + 8},
   playBtn: {backgroundColor: colors.white, paddingVertical: 9, paddingHorizontal: 22, minHeight: 40, justifyContent: 'center'},
   // under the film's Play: the download's strip and the one-line hint
   // clear of the focused Play's ring (it reaches ~6dp past the button)

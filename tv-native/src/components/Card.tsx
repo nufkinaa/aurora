@@ -408,7 +408,8 @@ function JsCard({
               <Text style={styles.labelText} numberOfLines={1} ellipsizeMode="tail">
                 {item.title}
               </Text>
-              <Text style={styles.labelSub} numberOfLines={1} ellipsizeMode="tail">
+              {/* [household] two lines: "From Dana and Ben" is wider than a poster at the 14dp floor */}
+              <Text style={styles.labelSub} numberOfLines={2} ellipsizeMode="tail">
                 {metaLine}
               </Text>
             </>
@@ -657,7 +658,8 @@ function NativeCard({
               <Text style={styles.labelText} numberOfLines={1} ellipsizeMode="tail">
                 {item.title}
               </Text>
-              <Text style={styles.labelSub} numberOfLines={1} ellipsizeMode="tail">
+              {/* [household] two lines: "From Dana and Ben" is wider than a poster at the 14dp floor */}
+              <Text style={styles.labelSub} numberOfLines={2} ellipsizeMode="tail">
                 {metaLine}
               </Text>
             </>

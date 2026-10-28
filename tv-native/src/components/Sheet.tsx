@@ -8,6 +8,8 @@ import {sheetMaxHeight} from '../popupFit';
 import theme, {useTvMetrics} from '../theme';
 
 const {colors, fontSize, spacing} = theme;
+// the widest focus ring past its button (the violet offset ring of a primary button)
+const RING_ROOM = 8;
 
 export default function Sheet({
   title,
@@ -54,7 +56,7 @@ export default function Sheet({
         style={[styles.card, {width, maxHeight: sheetMaxHeight(height, spacing.pageX)}, accent && styles.cardAccent]}>
         {kicker ? <Text style={styles.kicker}>{kicker}</Text> : null}
         {title ? <Text style={styles.title}>{title}</Text> : null}
-        <ScrollView ref={scrollRef} style={styles.body} showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scrollRef} style={styles.body} contentContainerStyle={styles.bodyIn} showsVerticalScrollIndicator={false}>
           {children}
         </ScrollView>
       </TVFocusGuideView>
@@ -93,7 +95,12 @@ const styles = StyleSheet.create({
     maxWidth: '92%',
   },
   // grows with its content up to the card's ceiling, then scrolls
-  body: {flexGrow: 0, flexShrink: 1},
+  body: {flexGrow: 0, flexShrink: 1, margin: -RING_ROOM},
+  // A ScrollView clips to its own box, and the button at the body's left edge (Play on the
+  // hold-OK sheet, Send on the picker) had the left and bottom of its focus ring cut off.
+  // The body reaches RING_ROOM past the card's padding on every side and gives it back as
+  // padding: the content sits exactly where it did, the rings have room to draw.
+  bodyIn: {padding: RING_ROOM},
   backdropDeep: {backgroundColor: 'rgba(5,6,12,0.86)'},
   cardAccent: {
     borderColor: 'rgba(139,123,255,0.55)',

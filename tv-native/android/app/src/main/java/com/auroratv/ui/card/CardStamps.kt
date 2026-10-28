@@ -215,6 +215,8 @@ class CardStamps private constructor(private val ctx: Context, private val decor
 
   val labelText = TextStamp(decor.labelText, 1)
   val labelSub = TextStamp(decor.labelSub, 1)
+  // [household] the card's line under its title ("From Dana and Ben"): up to two lines, as Card.tsx
+  val labelMeta = TextStamp(decor.labelSub, 2)
   val frameTitle = TextStamp(decor.frameTitle, 1)
   val frameSub = TextStamp(decor.frameSub, 1)
   val frameMeta = TextStamp(decor.frameMeta, 0)

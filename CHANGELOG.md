@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.13.3 — 2026-10-28
+
+- **Aurora TV 5.7.0** (checked on the Mi TV, also with sign-in required): household recommendations on the TV — the "Recommended by your household" row on Home (with the people's names on each card, wrapping onto two lines), a "Show all recommended" tile when there are more than 15, Recommend from a title page or the hold-OK sheet with a face picker and a note, the hourly limit and the kids rules shown on the faces, "Not for me" with Undo, the arrival toast, and Settings → Recommendations. Also the start-up fixes of 1.13.1 on the TV (no 0:00 after a quality drop, the start-up steps in Report a problem), and focus rings at the edge of every sheet are no longer cut off.
+
 ## 1.13.2 — 2026-10-28
 
 - **Seeking in a converted film no longer starts a second converter** next to the first one, and the player no longer gives up on a piece of video a fraction of a second after it starts arriving — which is what made a seek drop from 1080p to 480p.

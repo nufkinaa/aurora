@@ -160,6 +160,22 @@ export const captureFocus = () => {
   };
 };
 
+/** Runs `fn` once focus has left the element that holds it now — or after `maxMs`, whatever
+ *  happened. For a sheet that REPLACES another: the first one, closing, hands focus back to
+ *  its opener (a native focus event, a frame or more later), and only then may the second
+ *  open, so its trap captures the opener and gives focus back to it on close. Opened at
+ *  once, it captured the closing sheet's button — gone by then — and focus fell to the top
+ *  of Home (the hold-OK sheet's Recommend, Mi TV 5.7.0 pass). */
+export const afterFocusLeaves = (fn: () => void, maxMs = 400) => {
+  const from = held;
+  const t0 = Date.now();
+  const tick = () => {
+    if ((held && held !== from) || Date.now() - t0 >= maxMs) fn();
+    else setTimeout(tick, 16);
+  };
+  setTimeout(tick, 0);
+};
+
 // ------------------------------------------------------- focus is never lost
 
 const fallbacks: NodeRef[] = [];

@@ -13,7 +13,7 @@ import {prepareTrailer, ResolvedTrailer} from '../trailers';
 import type {ActionItem} from '../overlay';
 import {api, artSrc, HeroItem, imgSrc, ImgSource, LIST_ADDED, StreamRef, XrayData, XrayPerson, XrayQuery} from '../api';
 import {playingContext, recentErrors} from '../errors';
-import {useKeyTrap} from '../focus';
+import {afterFocusLeaves, useKeyTrap} from '../focus';
 import {closeOverlay, openRecommend, useOverlay} from '../overlay';
 import {fromLine, noteLine, titleKey, WORDS as HH} from '../householdRecs'; // [household]
 import {householdChanged} from '../householdLive'; // [household]
@@ -235,7 +235,18 @@ function PeekSheet({item, onRemove}: {item: HeroItem; onRemove?: (item: HeroItem
         {inList !== null ? (
           <Ghost uiId="peek.mylist" label={inList ? `✓  ${HH.inList}` : hh ? `+  ${HH.addToList}` : '+  My List'} onPress={toggleList} />
         ) : null}
-        {canRecommend ? <Ghost uiId="peek.recommend" label={HH.recommend} onPress={() => openRecommend(item)} /> : null}
+        {canRecommend ? (
+          <Ghost
+            uiId="peek.recommend"
+            label={HH.recommend}
+            onPress={() => {
+              // this sheet goes first and gives focus back to its card; then the picker opens
+              // (focus.ts afterFocusLeaves) — so closing the picker lands on that card again
+              closeOverlay();
+              afterFocusLeaves(() => openRecommend(item));
+            }}
+          />
+        ) : null}
         {hh ? <Ghost uiId="peek.hh.dismiss" label={hidden ? HH.undo : HH.notForMe} onPress={notForMe} /> : null}
         {onRemove ? (
           <Ghost
