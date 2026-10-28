@@ -1,4 +1,4 @@
 {
-  "versionName": "5.7.1",
-  "notes": "The player now recovers by itself when a film stops, and never starts over from the beginning. Please update."
+  "versionName": "5.8.0",
+  "notes": "Household recommendations look better, and skip intro, recap and Up next are much more accurate. Please update."
 }

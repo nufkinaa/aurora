@@ -3,6 +3,13 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.14.2 — 2026-10-28
+
+- **"Recommended by your household" sits right under "Recommended for You" for everyone** — also for people who had moved or hidden a Home row before it existed (it used to land at the bottom of their Home). If you placed it yourself, it stays where you put it.
+- **Aurora TV 5.8.0** (checked on the Mi TV, also with sign-in required):
+  - **Household recommendations, redesigned for the TV:** the "From Dana / and 10 others" lines on two even lines that read on bright posters too, a proper "Show all" tile, a one-line person filter on the Show all page, compact "You sent" rows with a coloured status, a Recommend sheet whose note and Send always stay in view, Hebrew names and notes the right way round, and smoother scrolling along the row than before.
+  - **Skip intro, Skip recap and Up next from 1.14.0 on the TV:** the button on the intro's very first frame, still there on an episode that just landed while it's being analysed, no false Skip recap, Up next on the credits card, and no countdown after a scene that follows the credits.
+
 ## 1.14.1 — 2026-10-28
 
 - **A memory leak in the website player is fixed.** When the line or the server was slow, a subtitle that waited for the picture was mistaken for a failed one and reloaded, and the old subtitle track kept the whole player in memory after you left it. Old players are now freed every time (checked 18 times in a row, also on a deliberately slow line).
