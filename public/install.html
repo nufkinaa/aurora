@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#070811" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>Get Aurora — on your TV, phone and computer</title>
+  <meta name="description" content="Aurora is your household's own streaming service: the films and shows on your server, on the TV, the phone and the computer. Get the apps." />
+  <!-- Added to a Home Screen from here, it is the app (the manifest's start_url is "/"), full-screen, named Aurora -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Aurora" />
+  <link rel="apple-touch-icon" href="/icon-180.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+  <!-- The profile's theme and look, as the app sets them (index.html), applied
+       before the sheets: a visitor who uses Aurora sees the page in their own
+       colours, a stranger in the default ones. -->
+  <script>
+    (() => {
+      try {
+        const t = localStorage.getItem("aurora-theme");
+        if (t === "oled" || t === "warm") document.documentElement.dataset.theme = t;
+        document.documentElement.dataset.look = localStorage.getItem("aurora-look") === "legacy" ? "legacy" : "glass";
+        const a = localStorage.getItem("aurora-accent");
+        if (a && /^#[0-9a-f]{6}$/i.test(a)) {
+          const s = document.documentElement.style;
+          s.setProperty("--accent", a);
+          s.setProperty("--accent-rgb", [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16)).join(", "));
+        }
+      } catch {
+        document.documentElement.dataset.look = "glass";
+      }
+    })();
+  </script>
+  <!-- the largest picture on the first screen (the TV, at every size): asked for at once -->
+  <link rel="preload" as="image" type="image/avif" href="/install/hero-tv-960.avif" imagesrcset="/install/hero-tv-480.avif 480w, /install/hero-tv-960.avif 960w, /install/hero-tv-1440.avif 1440w" imagesizes="(max-width: 720px) 72vw, 760px" fetchpriority="high" />
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/install.css" />
+  <script type="module" src="/js/install.js"></script>
+</head>
+<body>
+  <!-- the glass look's sky, the app's own painter (js/aurora-sky.js), started once the page is idle -->
+  <canvas class="sky" id="sky" aria-hidden="true"></canvas>
+  <a class="skip" href="#get">Skip to the apps</a>
+
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="/install" aria-label="Aurora — get the apps">
+        <!-- brand:mark -->
+        <svg class="brand-mark" viewBox="117 84 344 344" aria-hidden="true"><defs><linearGradient id="bm-a" gradientUnits="userSpaceOnUse" x1="140" y1="250" x2="400" y2="110"><stop offset="0" stop-color="#46c896"/><stop offset="1" stop-color="#8cffbe"/></linearGradient><linearGradient id="bm-b" gradientUnits="userSpaceOnUse" x1="136" y1="0" x2="440" y2="0"><stop offset="0" stop-color="#5fc4d8"/><stop offset="1" stop-color="#9be4f2"/></linearGradient><linearGradient id="bm-c" gradientUnits="userSpaceOnUse" x1="140" y1="430" x2="390" y2="300"><stop offset="0" stop-color="#6856e2"/><stop offset="1" stop-color="#8b7bff"/></linearGradient><clipPath id="bm-k"><path d="M136 122A34 34 0 0 1 187 92.6L425 227A34 34 0 0 1 425 285L187 419.4A34 34 0 0 1 136 390Z"/></clipPath></defs><g clip-path="url(#bm-k)"><path fill="url(#bm-a)" d="M96 240C214 292 288 190 480 226V60H96Z"/><path fill="url(#bm-b)" d="M96 260C214 312 288 204.7 480 238.3V283.7C288 259.3 214 386 96 334Z"/><path fill="url(#bm-c)" d="M96 354C214 406 288 274 480 296V452H96Z"/></g></svg>
+        <span>Aurora</span>
+      </a>
+      <nav class="top-nav" aria-label="On this page">
+        <a href="#get">Get the apps</a>
+        <a href="#features">Features</a>
+        <a href="#new">What's new</a>
+      </nav>
+      <a class="btn btn-glass btn-small" href="/">Open Aurora</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- ============ hero ============ -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow">Your household's own streaming service</p>
+        <h1 id="hero-title">Every film you own.<br /><span class="grad">On every screen.</span></h1>
+        <p class="promise">Aurora plays the films and shows on your server — on the TV, on your phone and on your computer, picking up wherever you left off.</p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#get">Get the apps</a>
+          <a class="btn btn-glass" href="/">Open Aurora</a>
+        </div>
+        <ul class="hero-versions" aria-label="Current versions">
+          <li data-state="{{tv.state}}"><span class="dot" aria-hidden="true"></span>Android TV <b>{{tv.version}}</b></li>
+          <li><span class="dot" aria-hidden="true"></span>Website <b>{{web.version}}</b></li>
+          <li data-state="{{phone.state}}"><span class="dot" aria-hidden="true"></span>Android phone <b>{{phone.short}}</b></li>
+        </ul>
+      </div>
+
+      <!-- TV + laptop + phone, each showing the real app -->
+      <div class="devices" role="img" aria-label="Aurora on a TV, a laptop and a phone: the TV shows the TV app's Home with recommendations from the household, the laptop the website's Home with a film's billboard, the phone the website's Home">
+        <div class="tv">
+          <div class="tv-screen">
+            <picture>
+              <source type="image/avif" srcset="/install/hero-tv-480.avif 480w, /install/hero-tv-960.avif 960w, /install/hero-tv-1440.avif 1440w" sizes="(max-width: 720px) 72vw, 760px" />
+              <img src="/install/hero-tv-960.webp" srcset="/install/hero-tv-480.webp 480w, /install/hero-tv-960.webp 960w, /install/hero-tv-1440.webp 1440w" sizes="(max-width: 720px) 72vw, 760px" width="1440" height="810" alt="" fetchpriority="high" decoding="async" />
+            </picture>
+          </div>
+          <div class="tv-stand" aria-hidden="true"></div>
+        </div>
+        <div class="laptop">
+          <div class="laptop-lid">
+            <div class="laptop-screen">
+              <picture>
+                <source type="image/avif" srcset="/install/hero-laptop-480.avif 480w, /install/hero-laptop-800.avif 800w, /install/hero-laptop-1200.avif 1200w, /install/hero-laptop-1600.avif 1600w" sizes="(max-width: 720px) 62vw, 560px" />
+                <img src="/install/hero-laptop-800.webp" srcset="/install/hero-laptop-480.webp 480w, /install/hero-laptop-800.webp 800w, /install/hero-laptop-1200.webp 1200w, /install/hero-laptop-1600.webp 1600w" sizes="(max-width: 720px) 62vw, 560px" width="1600" height="1000" alt="" decoding="async" />
+              </picture>
+            </div>
+          </div>
+          <div class="laptop-base" aria-hidden="true"></div>
+        </div>
+        <div class="phone">
+          <div class="phone-screen">
+            <picture>
+              <source type="image/avif" srcset="/install/hero-phone-240.avif 240w, /install/hero-phone-360.avif 360w, /install/hero-phone-540.avif 540w" sizes="(max-width: 720px) 22vw, 170px" />
+              <img src="/install/hero-phone-360.webp" srcset="/install/hero-phone-240.webp 240w, /install/hero-phone-360.webp 360w, /install/hero-phone-540.webp 540w" sizes="(max-width: 720px) 22vw, 170px" width="540" height="1169" alt="" decoding="async" />
+            </picture>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ the apps ============ -->
+    <section class="section" id="get" aria-labelledby="get-title">
+      <header class="section-head">
+        <p class="eyebrow">Get the apps</p>
+        <h2 id="get-title">One Aurora. Every screen in the house.</h2>
+        <p class="lede">Sign in once on each device with your Aurora profile — your list, your progress and your settings follow you everywhere.</p>
+      </header>
+
+      <div class="platforms">
+        <!-- Android TV / Google TV -->
+        <article class="plat plat-tv g" id="tv" data-state="{{tv.state}}" aria-labelledby="tv-title">
+          <div class="plat-main">
+            <div class="plat-head">
+              <span class="plat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
+              <div>
+                <h3 id="tv-title">Android TV &amp; Google TV</h3>
+                <p class="ver">{{{tv.line}}}<span class="size">{{tv.size}}</span></p>
+              </div>
+              <span class="here-badge" hidden>This device</span>
+            </div>
+            <p class="plat-what">The whole of Aurora made for the sofa: a remote-first home, the player with skip intro and subtitles in your language, watch parties, voice search, and your phone as the remote.</p>
+            <div class="plat-actions">
+              <a class="btn btn-primary" id="tv-download" href="/download" download="aurora-tv.apk">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+                Download for Android TV
+              </a>
+              <p class="plat-none">The TV app has not been published on this server yet.</p>
+            </div>
+            <h4 class="steps-title">Install it on the TV with Downloader</h4>
+            <ol class="steps">
+              <li><b>Get Downloader.</b> On the TV, open the Play Store, search for <em>Downloader</em> (by AFTVnews) and install it.</li>
+              <li><b>Let it install apps.</b> Settings → Apps → Security &amp; restrictions → Unknown sources → turn on <em>Downloader</em>. <span class="note">On some Google TV models this switch only shows once developer mode is on: Settings → System → About → press <em>Android TV OS build</em> seven times.</span></li>
+              <li><b>Type the address.</b> Open Downloader, type
+                <span class="addr"><code id="tv-addr">{{host}}/download</code><button class="copy" type="button" data-copy="tv-addr" aria-label="Copy the address">Copy</button></span>
+                and press <em>Go</em>. When it has downloaded, press <em>Install</em>, then <em>Open</em>.</li>
+              <li><b>Sign in.</b> The TV shows a code — scan it with your phone, or type it at <code>{{host}}/link</code>.</li>
+            </ol>
+          </div>
+          <aside class="plat-qr" aria-labelledby="qr-title">
+            <div class="qr" id="qr" data-path="/download"></div>
+            <p id="qr-title" class="qr-cap">Scan with a phone to open the download link — handy for sending it to the TV.</p>
+          </aside>
+        </article>
+
+        <!-- iPhone / iPad -->
+        <article class="plat g" id="ios" aria-labelledby="ios-title">
+          <div class="ios-intro">
+          <div class="plat-head">
+            <span class="plat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 4.8h3"/></svg></span>
+            <div>
+              <h3 id="ios-title">iPhone &amp; iPad</h3>
+              <p class="ver">Website {{web.version}} · no App Store needed</p>
+            </div>
+            <span class="here-badge" hidden>This device</span>
+          </div>
+          <p class="plat-what">Add Aurora to your Home Screen and it opens full-screen like any app — AirPlay, picture-in-picture and offline saves included.</p>
+          </div>
+          <ol class="ios-steps" aria-label="Add Aurora to your Home Screen">
+            <li>
+              <div class="ios-art" aria-hidden="true">
+                <div class="ios-bar"><span class="ios-url">{{host}}</span></div>
+                <div class="ios-toolbar"><i></i><i></i><b class="ios-share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11v9h12v-9"/></svg></b><i></i><i></i></div>
+              </div>
+              <p><b>1.</b> Open this address in <b>Safari</b> and tap <b>Share</b>.</p>
+            </li>
+            <li>
+              <div class="ios-art" aria-hidden="true">
+                <div class="ios-sheet">
+                  <span class="ios-row">Copy</span>
+                  <span class="ios-row ios-row-hi">Add to Home Screen <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/></svg></span>
+                  <span class="ios-row">Add Bookmark</span>
+                </div>
+              </div>
+              <p><b>2.</b> Scroll down and tap <b>Add to Home Screen</b>.</p>
+            </li>
+            <li>
+              <div class="ios-art ios-home" aria-hidden="true">
+                <span class="ios-app"><i></i></span><span class="ios-app"><i></i></span><span class="ios-app ios-aurora"><img src="/icon-180.png" width="180" height="180" alt="" loading="lazy" decoding="async" /></span><span class="ios-app"><i></i></span>
+                <span class="ios-label">Aurora</span>
+              </div>
+              <p><b>3.</b> Tap <b>Add</b>. Aurora is on your Home Screen.</p>
+            </li>
+          </ol>
+        </article>
+
+        <!-- Android phone -->
+        <article class="plat g" id="android" data-state="{{phone.state}}" aria-labelledby="android-title">
+          <div class="plat-head">
+            <span class="plat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg></span>
+            <div>
+              <h3 id="android-title">Android phone</h3>
+              <p class="ver">{{{phone.line}}}<span class="size">{{phone.size}}</span></p>
+            </div>
+            <span class="soon-badge">Coming soon</span>
+            <span class="here-badge" hidden>This device</span>
+          </div>
+          <p class="plat-what plat-soon-text">A native app for Android phones is on its way. Until then the website does everything on a phone — save films for offline, the remote, watch parties.</p>
+          <p class="plat-what plat-ready-text">Aurora for Android phones: offline saves, the remote for your TV and watch parties, in an app of its own.</p>
+          <div class="plat-actions plat-ready-only">
+            <a class="btn btn-primary" href="/aurora-phone.apk" download="aurora-phone.apk">Download for Android</a>
+          </div>
+          <ol class="steps">
+            <li class="plat-soon-only">Open <code>{{host}}</code> in Chrome.</li>
+            <li class="plat-soon-only">Tap <b>⋮</b> → <b>Add to Home screen</b> (or <b>Install app</b>).</li>
+            <li class="plat-ready-only">Download the file, open it, and allow your browser to install apps when Android asks.</li>
+          </ol>
+        </article>
+
+        <!-- Computer -->
+        <article class="plat g" id="computer" aria-labelledby="computer-title">
+          <div class="plat-head">
+            <span class="plat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="17" height="11.5" rx="1.8"/><path d="M2 19.5h20"/></svg></span>
+            <div>
+              <h3 id="computer-title">Computer</h3>
+              <p class="ver">{{{web.line}}}</p>
+            </div>
+            <span class="here-badge" hidden>This device</span>
+          </div>
+          <p class="plat-what">Windows, Mac, Linux or a Chromebook: Aurora runs in the browser — no download. Install it as an app to give it its own window and a place in the dock.</p>
+          <div class="plat-actions">
+            <a class="btn btn-glass" href="/">Open Aurora</a>
+            <button class="btn btn-glass install-pwa" type="button" hidden>Install app</button>
+          </div>
+          <ol class="steps">
+            <li>Open <code>{{host}}</code> in <b>Chrome</b> or <b>Edge</b>.</li>
+            <li>Click the <b>Install</b> icon at the right of the address bar (or menu → <b>Install Aurora</b>).</li>
+            <li>Or just keep using it in any browser — Safari and Firefox included.</li>
+          </ol>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============ features ============ -->
+    <section class="section" id="features" aria-labelledby="features-title">
+      <header class="section-head">
+        <p class="eyebrow">Features</p>
+        <h2 id="features-title">Everything a streaming service does. On a server that is yours.</h2>
+      </header>
+
+      <div class="feature feature-big">
+        <figure class="shot shot-laptop">
+          <picture>
+            <source type="image/avif" srcset="/install/f-home-480.avif 480w, /install/f-home-800.avif 800w, /install/f-home-1200.avif 1200w, /install/f-home-1600.avif 1600w" sizes="(max-width: 900px) 92vw, 760px" />
+            <img src="/install/f-home-800.webp" srcset="/install/f-home-480.webp 480w, /install/f-home-800.webp 800w, /install/f-home-1200.webp 1200w, /install/f-home-1600.webp 1600w" sizes="(max-width: 900px) 92vw, 760px" width="1600" height="861" loading="lazy" decoding="async" alt="Aurora's Home on a computer: Good evening, Dana — Continue Watching with two titles part-way through, and a row of film and series posters recommended for her." />
+          </picture>
+        </figure>
+        <div class="feature-copy">
+          <h3>A Home that knows you</h3>
+          <p>Continue watching right where you stopped, recommendations that learn what you like, everything new on the server — and a big, beautiful billboard to start the evening.</p>
+          <ul class="ticks"><li>One profile per person, kids profiles with age limits</li><li>My List, ratings and "More like this"</li><li>Search by voice, in more than one language</li></ul>
+        </div>
+      </div>
+
+      <div class="feature feature-big feature-flip">
+        <figure class="shot shot-tv">
+          <picture>
+            <source type="image/avif" srcset="/install/f-tv-480.avif 480w, /install/f-tv-960.avif 960w, /install/f-tv-1440.avif 1440w" sizes="(max-width: 900px) 92vw, 760px" />
+            <img src="/install/f-tv-960.webp" srcset="/install/f-tv-480.webp 480w, /install/f-tv-960.webp 960w, /install/f-tv-1440.webp 1440w" sizes="(max-width: 900px) 92vw, 760px" width="1440" height="810" loading="lazy" decoding="async" alt="The Aurora TV app on a television: the household recommendations page, with filters for everyone or one person and a grid of recommended titles." />
+          </picture>
+        </figure>
+        <div class="feature-copy">
+          <h3>Made for the big screen</h3>
+          <p>The Android TV app is built for the remote — fast, smooth on modest TV boxes, and with the same profiles, lists and progress as everywhere else.</p>
+          <ul class="ticks"><li>Sign in by scanning a code with your phone</li><li>Plays the file directly when the TV can, converts when it can't</li><li>Updates itself when a new version is out</li></ul>
+        </div>
+      </div>
+
+      <div class="feature-grid">
+        <article class="fcard g">
+          <figure class="shot">
+            <picture>
+              <source type="image/avif" srcset="/install/f-title-480.avif 480w, /install/f-title-800.avif 800w, /install/f-title-1200.avif 1200w" sizes="(max-width: 900px) 92vw, 560px" />
+              <img src="/install/f-title-800.webp" srcset="/install/f-title-480.webp 480w, /install/f-title-800.webp 800w, /install/f-title-1200.webp 1200w" sizes="(max-width: 900px) 92vw, 560px" width="1200" height="750" loading="lazy" decoding="async" alt="A title page: the film Copper Sky with its poster, rating, genres, synopsis and the buttons Play, Play on TV, My List and Recommend." />
+            </picture>
+          </figure>
+          <h3>Every title, properly</h3>
+          <p>Poster, synopsis, cast and your own rating. Play it here, send it to the TV, or save it for the plane.</p>
+        </article>
+        <article class="fcard g">
+          <figure class="shot">
+            <picture>
+              <source type="image/avif" srcset="/install/f-player-480.avif 480w, /install/f-player-800.avif 800w, /install/f-player-1200.avif 1200w" sizes="(max-width: 900px) 92vw, 560px" />
+              <img src="/install/f-player-800.webp" srcset="/install/f-player-480.webp 480w, /install/f-player-800.webp 800w, /install/f-player-1200.webp 1200w" sizes="(max-width: 900px) 92vw, 560px" width="1200" height="750" loading="lazy" decoding="async" alt="The player, paused on a film with an English subtitle line on screen, and the controls: the timeline, play, skip back and forward, subtitles, X-Ray and Watch together." />
+            </picture>
+          </figure>
+          <h3>Subtitles that just work</h3>
+          <p>Found in your language and matched to your copy — and if they drift, Resync listens to the film and puts them back in time.</p>
+        </article>
+        <article class="fcard g">
+          <figure class="shot">
+            <picture>
+              <source type="image/avif" srcset="/install/f-party-480.avif 480w, /install/f-party-800.avif 800w, /install/f-party-1200.avif 1200w" sizes="(max-width: 900px) 92vw, 560px" />
+              <img src="/install/f-party-800.webp" srcset="/install/f-party-480.webp 480w, /install/f-party-800.webp 800w, /install/f-party-1200.webp 1200w" sizes="(max-width: 900px) 92vw, 560px" width="1200" height="750" loading="lazy" decoding="async" alt="A watch party in the player: the Watch together panel with its four-letter code, the three people in the party and a row of reactions." />
+            </picture>
+          </figure>
+          <h3>Watch together, apart</h3>
+          <p>Start a party, share the four-letter code, and everyone's play, pause and jump follow — on TVs, phones and computers alike.</p>
+        </article>
+        <article class="fcard g">
+          <figure class="shot">
+            <picture>
+              <source type="image/avif" srcset="/install/f-intro-480.avif 480w, /install/f-intro-800.avif 800w, /install/f-intro-1200.avif 1200w" sizes="(max-width: 900px) 92vw, 560px" />
+              <img src="/install/f-intro-800.webp" srcset="/install/f-intro-480.webp 480w, /install/f-intro-800.webp 800w, /install/f-intro-1200.webp 1200w" sizes="(max-width: 900px) 92vw, 560px" width="1200" height="750" loading="lazy" decoding="async" alt="An episode playing, with the Skip intro button in the corner." />
+            </picture>
+          </figure>
+          <h3>Skip intro, recap and credits</h3>
+          <p>Aurora hears each show's theme and offers Skip intro the moment it starts. Up next comes with the credits, not before.</p>
+        </article>
+        <article class="fcard g">
+          <figure class="shot shot-phone-in">
+            <picture>
+              <source type="image/avif" srcset="/install/f-remote-360.avif 360w, /install/f-remote-540.avif 540w" sizes="240px" />
+              <img src="/install/f-remote-360.webp" srcset="/install/f-remote-360.webp 360w, /install/f-remote-540.webp 540w" sizes="240px" width="540" height="1169" loading="lazy" decoding="async" alt="The remote on a phone: Copper Sky playing on the Living room TV, with play and pause, skip, the timeline, subtitles and a touchpad." />
+            </picture>
+          </figure>
+          <h3>Your phone is the remote</h3>
+          <p>Press Play on TV on any title. Then pause, skip, change subtitles or swipe the touchpad — from the sofa, without hunting for the remote.</p>
+        </article>
+        <article class="fcard g">
+          <figure class="shot">
+            <picture>
+              <source type="image/avif" srcset="/install/f-household-480.avif 480w, /install/f-household-800.avif 800w, /install/f-household-1200.avif 1200w" sizes="(max-width: 900px) 92vw, 560px" />
+              <img src="/install/f-household-800.webp" srcset="/install/f-household-480.webp 480w, /install/f-household-800.webp 800w, /install/f-household-1200.webp 1200w" sizes="(max-width: 900px) 92vw, 560px" width="1200" height="750" loading="lazy" decoding="async" alt="The row Recommended by your household on Home: each title says who recommended it, like From Avi and Noa." />
+            </picture>
+          </figure>
+          <h3>Recommended by your household</h3>
+          <p>Loved something? Recommend it to the people you live with, with a note. It waits for them on their Home — kids only get what suits their age.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============ what's new ============ -->
+    <section class="section" id="new" aria-labelledby="new-title">
+      <header class="section-head">
+        <p class="eyebrow">What's new</p>
+        <h2 id="new-title">Better every week.</h2>
+      </header>
+      <div class="notes g">
+        <div class="tabs" role="tablist" aria-label="Release notes by app">
+          <button class="tab" role="tab" id="tab-tv" aria-controls="notes-tv" aria-selected="true" type="button">Android TV</button>
+          <button class="tab" role="tab" id="tab-web" aria-controls="notes-web" aria-selected="false" type="button" tabindex="-1">Website &amp; server</button>
+          <button class="tab" role="tab" id="tab-phone" aria-controls="notes-phone" aria-selected="false" type="button" tabindex="-1">Android phone</button>
+        </div>
+        <div class="panel" role="tabpanel" id="notes-tv" aria-labelledby="tab-tv" tabindex="0">{{{notes.tv}}}</div>
+        <div class="panel" role="tabpanel" id="notes-web" aria-labelledby="tab-web" tabindex="0">{{{notes.web}}}</div>
+        <div class="panel" role="tabpanel" id="notes-phone" aria-labelledby="tab-phone" tabindex="0">{{{notes.phone}}}</div>
+        <p class="notes-more"><a href="/install/changes">Every release, newest first →</a></p>
+      </div>
+    </section>
+
+    <section class="closing" aria-labelledby="closing-title">
+      <h2 id="closing-title">Press play.</h2>
+      <p>Your films, on every screen in the house.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#get">Get the apps</a>
+        <a class="btn btn-glass" href="/">Open Aurora</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="foot-in">
+      <span class="brand brand-small"><svg class="brand-mark" viewBox="117 84 344 344" aria-hidden="true"><g clip-path="url(#bm-k)"><path fill="url(#bm-a)" d="M96 240C214 292 288 190 480 226V60H96Z"/><path fill="url(#bm-b)" d="M96 260C214 312 288 204.7 480 238.3V283.7C288 259.3 214 386 96 334Z"/><path fill="url(#bm-c)" d="M96 354C214 406 288 274 480 296V452H96Z"/></g></svg><span>Aurora</span></span>
+      <p>Self-hosted streaming for your household. Your films stay on your server.</p>
+      <nav aria-label="More"><a href="/">Open Aurora</a><a href="/install/changes">Every release</a><a href="/download">Android TV app</a></nav>
+    </div>
+  </footer>
+</body>
+</html>
