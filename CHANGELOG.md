@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.14.1 — 2026-10-28
+
+- **A memory leak in the website player is fixed.** When the line or the server was slow, a subtitle that waited for the picture was mistaken for a failed one and reloaded, and the old subtitle track kept the whole player in memory after you left it. Old players are now freed every time (checked 18 times in a row, also on a deliberately slow line).
+- **Saving offline on a phone can't stall any more.** Your own "Original" save ran at the very lowest priority, so on a busy server it could sit at "Preparing" for good; it now runs at the same priority as watching (copies made ahead of time stay at the lowest).
+- **Classic look: notices in the player no longer cover the buttons.** A message like "Undo" sat over the dock for a few seconds and caught taps on Next episode, Subtitles and Settings; it now sits just above the dock. The glass look is unchanged.
+
 ## 1.14.0 — 2026-10-28
 
 **Skip intro, Skip recap and Up next, rebuilt** (checked against the real intros, recaps and credits of 46 episodes, frame by frame):
