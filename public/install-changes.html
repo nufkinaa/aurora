@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#070811" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>Every release — Aurora</title>
+  <meta name="description" content="What changed in every release of Aurora: the Android TV app, the website and the server." />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+  <script>
+    (() => {
+      try {
+        const t = localStorage.getItem("aurora-theme");
+        if (t === "oled" || t === "warm") document.documentElement.dataset.theme = t;
+        document.documentElement.dataset.look = localStorage.getItem("aurora-look") === "legacy" ? "legacy" : "glass";
+      } catch {
+        document.documentElement.dataset.look = "glass";
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/install.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="/install" aria-label="Aurora — get the apps">
+        <!-- brand:mark -->
+        <svg class="brand-mark" viewBox="117 84 344 344" aria-hidden="true"><defs><linearGradient id="bm-a" gradientUnits="userSpaceOnUse" x1="140" y1="250" x2="400" y2="110"><stop offset="0" stop-color="#46c896"/><stop offset="1" stop-color="#8cffbe"/></linearGradient><linearGradient id="bm-b" gradientUnits="userSpaceOnUse" x1="136" y1="0" x2="440" y2="0"><stop offset="0" stop-color="#5fc4d8"/><stop offset="1" stop-color="#9be4f2"/></linearGradient><linearGradient id="bm-c" gradientUnits="userSpaceOnUse" x1="140" y1="430" x2="390" y2="300"><stop offset="0" stop-color="#6856e2"/><stop offset="1" stop-color="#8b7bff"/></linearGradient><clipPath id="bm-k"><path d="M136 122A34 34 0 0 1 187 92.6L425 227A34 34 0 0 1 425 285L187 419.4A34 34 0 0 1 136 390Z"/></clipPath></defs><g clip-path="url(#bm-k)"><path fill="url(#bm-a)" d="M96 240C214 292 288 190 480 226V60H96Z"/><path fill="url(#bm-b)" d="M96 260C214 312 288 204.7 480 238.3V283.7C288 259.3 214 386 96 334Z"/><path fill="url(#bm-c)" d="M96 354C214 406 288 274 480 296V452H96Z"/></g></svg>
+        <span>Aurora</span>
+      </a>
+      <nav class="top-nav" aria-label="Pages">
+        <a href="/install">Get the apps</a>
+        <a href="#tv">Android TV</a>
+        <a href="#web">Website &amp; server</a>
+      </nav>
+      <a class="btn btn-glass btn-small" href="/">Open Aurora</a>
+    </div>
+  </header>
+  <main class="changes" id="main">
+    <p class="eyebrow">What's new</p>
+    <h1>Every release</h1>
+    <p class="lede">The headline of each change, newest first. The Android TV app is on version {{tv.version}}, the website and server on {{web.version}}.</p>
+    <h2 id="tv">Android TV</h2>
+    <div class="notes g">{{{notes.all.tv}}}</div>
+    <h2 id="web">Website &amp; server</h2>
+    <div class="notes g">{{{notes.all.web}}}</div>
+    <p class="notes-more"><a href="/install">← Get the apps</a></p>
+  </main>
+</body>
+</html>

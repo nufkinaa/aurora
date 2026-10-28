@@ -352,6 +352,15 @@ app.get("/link", (req, res) => {
   res.redirect(code ? `/#/pair/${code}` : "/#/pair");
 });
 
+// The product page: every app there is, its current version, how to install
+// it and what changed lately (src/lib/installpage.js). Public on purpose — a
+// new TV or phone meets it before it can sign in — and it says nothing about
+// the household: no library, no names, only the apps' versions. Its pictures
+// are public/install/* (static, below).
+const installpage = require("./src/lib/installpage");
+app.get("/install", installpage.send("install.html"));
+app.get("/install/changes", installpage.send("install-changes.html"));
+
 // The Android TV build. /download is the one path a person has to remember:
 // point a TV browser (or Downloader) at it and the install file starts coming
 // down — no page, no button. Registered ahead of express.static so the old

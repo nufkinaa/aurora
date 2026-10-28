@@ -77,6 +77,9 @@ const paintCodeForm = (screen) => {
     el("div", { style: { display: "flex", gap: "10px", marginTop: "18px", flexWrap: "wrap" } },
       goBtn,
       el("button", { class: "btn focusable", onclick: () => navigate("#/") }, "Cancel")),
+    // no Aurora on that TV yet: the install page has the app and the steps
+    el("p", { class: "pair-sub", style: { margin: "18px 0 0", fontSize: "0.9em" } },
+      "No Aurora on the TV yet? ", el("a", { href: "/install#tv", class: "focusable" }, "Get the TV app")),
   );
   screen.append(el("div", { class: "pair-wrap" }, card));
   setTimeout(() => input.focus({ preventScroll: true }), 60);

@@ -821,7 +821,10 @@ export const renderPreferences = async (root) => {
       el("div", { class: "page-pad" },
         latest ? list(latest) : el("p", { class: "pref-note" }, "No notes yet."),
         more || null,
-        older));
+        older,
+        // the product page: every app, its version and how to install it (/install)
+        el("p", { class: "pref-note", style: { marginTop: "14px" } },
+          el("a", { href: "/install", class: "focusable" }, "Get the apps — TV, phone and computer →"))));
   };
 
   // The fold for the less-used sections. Open or shut is remembered per device.
