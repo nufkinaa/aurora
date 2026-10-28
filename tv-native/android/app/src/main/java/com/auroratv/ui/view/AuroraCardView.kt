@@ -439,10 +439,12 @@ class AuroraCardView(context: Context) : View(context) {
           parts.add(st.labelSub to c.t1)
           parts.add(st.labelText to c.t2)
         }
-        // [household] the title over the card's line ("From Dana") — Card.tsx DeepCard
+        // [household] the title over the card's two lines ("From Dana" / "and Ben", the
+        // second held open with a no-break space) — Card.tsx DeepCard / MetaLabel
         "labelMeta" -> {
           parts.add(st.labelText to c.t1)
           parts.add(st.labelMeta to c.t2)
+          if (c.t3.isNotEmpty()) parts.add(st.labelMeta to c.t3)
         }
         else -> {
           parts.add(st.frameTitle to c.t1)

@@ -98,6 +98,10 @@ function loadCard(card: boolean, cardtext: boolean, before?: () => void): Loaded
   return out;
 }
 
+// [household] the invisible left-to-right mark and the held-open line (Card.tsx MetaLabel)
+const LRM = '‎';
+const HOLD = ' ';
+
 const render = (L: Loaded, k: string): TestRenderer.ReactTestRenderer => {
   let r!: TestRenderer.ReactTestRenderer;
   L.T.act(() => {
@@ -133,7 +137,7 @@ function nativeSays(r: TestRenderer.ReactTestRenderer) {
   const lines = [art.props.t1 ?? '', art.props.t2 ?? '', art.props.t3 ?? ''];
   const mode = (art.props.textMode ?? '') as string;
   const shown =
-    mode === 'label' ? [lines[0]] : mode === 'labelEp' || mode === 'labelMeta' ? [lines[0], lines[1]] : mode === 'frame' ? [lines[0], lines[2]] : mode === 'frameEp' ? [lines[0], lines[1], lines[2]] : [];
+    mode === 'label' ? [lines[0]] : mode === 'labelEp' ? [lines[0], lines[1]] : mode === 'labelMeta' ? [lines[0], lines[1], lines[2]] : mode === 'frame' ? [lines[0], lines[2]] : mode === 'frameEp' ? [lines[0], lines[1], lines[2]] : [];
   return {
     lines: shown.filter((t, i) => !(mode.startsWith('frame') && i === shown.length - 1 && t === '')),
     hasNew: !!art.props.tagNew,
@@ -229,7 +233,8 @@ describe('DeepCard says what JsCard draws', () => {
   test('the label paths are all exercised', () => {
     const modes = Object.keys(ITEMS).map(k => nativeSays(render(DeepCard, k)).art.props.textMode ?? '');
     expect(new Set(modes)).toEqual(new Set(['', 'label', 'labelEp', 'labelMeta', 'frame', 'frameEp']));
-    expect(nativeSays(render(DeepCard, 'household')).lines).toEqual(['Dune', 'From Dana and Avi']);
+    // [household] the title, then the line in its two pieces, each drawn left to right (a mark first)
+    expect(nativeSays(render(DeepCard, 'household')).lines).toEqual([`${LRM}Dune`, `${LRM}From Dana`, `${LRM}and Avi`]);
     expect(nativeSays(render(DeepCard, 'episodeNoShow')).lines).toEqual(['', 'S2 E3 · Pilot']);
   });
   test('the kind follows the item type', () => {
@@ -327,9 +332,13 @@ describe('household cards', () => {
   test('a meta line without `caption` changes nothing (every other shelf)', () => {
     const JsCard = loadCard(false, false);
     expect(jsSays(mk(JsCard, dune, {showKind: true})).lines).toEqual([]);
-    expect(jsSays(mk(JsCard, dune, {showKind: true, caption: true})).lines).toEqual(['Dune', 'From Dana']);
+    // one sender: the third line is held open (a no-break space), so every title of the row sits
+    // at the same height
+    expect(jsSays(mk(JsCard, dune, {showKind: true, caption: true})).lines).toEqual([`${LRM}Dune`, `${LRM}From Dana`, HOLD]);
     const NativeCard = loadCard(true, false);
-    expect(jsSays(mk(NativeCard, dune, {caption: true})).lines).toEqual(['Dune', 'From Dana']);
+    expect(jsSays(mk(NativeCard, dune, {caption: true})).lines).toEqual([`${LRM}Dune`, `${LRM}From Dana`, HOLD]);
+    const Deep = loadCard(true, true, () => jest.dontMock('../../src/cardDecor'));
+    expect(nativeSays(mk(Deep, dune, {caption: true})).lines).toEqual([`${LRM}Dune`, `${LRM}From Dana`, HOLD]);
   });
   test('a recommendation not looked at yet carries NEW (the website’s card), in every implementation', () => {
     const fresh = {...dune, hh: {key: 'tt1', from: [{id: 'd', name: 'Dana', at: 1}], unseen: true}} as HeroItem;
@@ -351,8 +360,10 @@ describe('household cards', () => {
       expect(f.length).toBe(1);
       expect(f[0].props.uiId).toBe('home.hh.all');
       expect(f[0].props.onLongPress).toBeUndefined();
-      const icons = r.root.findAll(n => (n.type as unknown) === 'Svg' && n.props.fill != null);
+      // no Svg at all (no kind tag; its arrow is a text glyph — an Svg paints on the UI thread)
+      const icons = r.root.findAll(n => (n.type as unknown) === 'Svg');
       expect(icons.length).toBe(0);
+      expect(r.root.findAll(n => (n.type as unknown) === 'Text').map(textOfNode)).toEqual(['›', 'Show all recommended']);
       const views = r.root.findAll(n => (n.type as unknown) === 'AuroraNative');
       for (const v of views) expect(v.props.tagKind).toBeUndefined();
     }

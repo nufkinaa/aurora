@@ -22,7 +22,7 @@
 // row holds (a ping, Not for me, a send) tells Home, which reads its rows
 // again the way it does on library_updated.
 import {api} from './api';
-import {arrivalToast, newestAt, HhCard} from './householdRecs';
+import {arrivalToast, ltr, newestAt, HhCard} from './householdRecs';
 import {registerProfileCache} from './profileScope';
 import {onMessage} from './realtime';
 import {showToast} from './toast';
@@ -64,7 +64,8 @@ const check = async () => {
     const text = arrivalToast(items, newest);
     noteShown(items);
     if (text) {
-      showToast(text, '💌');
+      // (a line that starts with a Hebrew name still reads left to right: householdRecs.ts ltr)
+      showToast(ltr(text), '💌');
       track('feat', {f: 'hhrec-toast'});
     }
   } catch {
