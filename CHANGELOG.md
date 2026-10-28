@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.13.7 — 2026-10-28
+
+- **The picture never stands still for minutes any more.** When the browser's video pipeline breaks mid-film (a decoding error, or the browser refusing the video pieces), the website player now rebuilds the same stream at the same spot by itself — twice, within a couple of seconds — and only after a third failure in 3 minutes shows "The film stopped and didn't come back by itself" with Try again from the same spot (and quietly tries again every 30 s while it waits). A pause the browser makes by itself on an error is no longer mistaken for yours, and the freeze watcher now always ends a frozen picture with Try again instead of leaving it. Before, such a failure could switch to a full conversion and then leave a still picture with no message.
+
 ## 1.13.6 — 2026-10-28
 
 - **A film playing straight from the file is no longer switched to a 480p conversion mid-film on a good line.** After a long while (or a seek) the browser keeps much of the film behind you and fetches just in time, only a few seconds ahead; the player took that for a slow line and dropped to a converted 480p copy — on older versions with a restart from 0:00. Now a short buffer only counts when this device's measured line really is too thin for the file; otherwise only real stalls decide. Measured over 2 hours of side-by-side playback: no step-down, no stalls, played to the end. The same long run found nothing that slowly gets worse (page memory, server memory, dropped frames all flat).
