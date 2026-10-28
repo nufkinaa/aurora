@@ -380,3 +380,34 @@ test("canceled while copying: nothing lands, the temp file goes; a temp left by 
   assert.equal(fs.existsSync(stale), false, "the leftover partial copy was removed");
   assert.deepEqual(videosIn(dir), [`${req.title} (${req.year}).mkv`]);
 });
+
+// 2026-10-28: an episode asked for as type "series" (the word the sources API
+// and the website's episode flow use) was stored as a MOVIE — create() took
+// anything but "show" for a film — and 15 episodes were filed in the Movies
+// folder. Every word for a show is a show now; an unknown one is refused.
+test("typeOf: every word for a show is a show, for a film a movie; no type is a movie unless an episode is named; anything else is unknown", () => {
+  for (const t of ["show", "series", "Series", "episode", "tv", " SHOW "]) assert.equal(D.typeOf(t), "show", t);
+  for (const t of ["movie", "film", "Movie"]) assert.equal(D.typeOf(t), "movie", t);
+  assert.equal(D.typeOf(undefined), "movie");
+  assert.equal(D.typeOf(""), "movie");
+  assert.equal(D.typeOf(null, { season: 1, episode: 2 }), "show");
+  for (const t of ["anime", "music", "1", "movies?"]) assert.equal(D.typeOf(t), null, t);
+});
+
+test("an episode asked for as type \"series\" (or \"episode\", \"tv\") lands in the shows library as an episode; an unknown type is refused", async () => {
+  await reset();
+  const showDir = path.join(config.LIBRARIES.shows[0], "Landing Show (2019)", "Season 01");
+  for (const [i, word] of ["series", "episode", "tv"].entries()) {
+    const H = HASH(["e", "f", "a"][i]);
+    engine.define(H, { fill: 0x30 + i });
+    const id = await start(episode(H, { type: word, episode: 10 + i }));
+    assert.equal(jobOf(id).type, "show", `"${word}" is stored as a show`);
+    const job = await land(H, id);
+    assert.equal(path.dirname(job.destPath), showDir, `"${word}": filed with the show, not in Movies`);
+    assert.equal(path.basename(job.destPath), `Landing Show S01E${10 + i}.mkv`);
+  }
+  assert.deepEqual(videosIn(config.LIBRARIES.movies[0]), [], "nothing in the Movies folder");
+  const bad = downloads.create(episode(HASH("b"), { type: "anime" }));
+  assert.match(bad.error || "", /Unknown download type "anime"/);
+  assert.equal(downloads.rawJobs().length, 3, "no job for the unknown type");
+});

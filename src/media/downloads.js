@@ -399,11 +399,29 @@ const listFor = (viewer) => {
   return store.data.map((j) => publicJobFor(j, viewer, lookup));
 };
 
+// What a request's `type` means: "show" or "movie" — or null for a word this
+// server does not know. The sources API and the website's episode flow say
+// "series" (Cinemeta's word), others "episode" or "tv": every one of them is a
+// show. It used to be "show" or else a movie — 15 episodes asked for as
+// "series" were filed in the Movies folder (2026-10-28). No type at all is a
+// movie as it always was, unless the request names an episode. PURE.
+const SHOW_WORDS = new Set(["show", "series", "episode", "tv", "tvshow", "tv-show", "tv_show", "season"]);
+const MOVIE_WORDS = new Set(["movie", "film"]);
+const typeOf = (type, { season = null, episode = null } = {}) => {
+  if (type == null || type === "") return season != null && season !== "" && episode != null && episode !== "" ? "show" : "movie";
+  const t = String(type).trim().toLowerCase();
+  if (SHOW_WORDS.has(t)) return "show";
+  if (MOVIE_WORDS.has(t)) return "movie";
+  return null;
+};
+
 const create = (fields) => {
   const {
-    infoHash, fileIdx, type, imdbId, title, label, year, poster,
+    infoHash, fileIdx, imdbId, title, label, year, poster,
     quality, sizeBytes, season, episode, provider, seeders, profile, smart, release,
   } = fields || {};
+  const type = typeOf((fields || {}).type, { season, episode });
+  if (!type) return { error: `Unknown download type "${String((fields || {}).type).slice(0, 20)}" — say "movie" or "show".` };
   // "Get another version": the copy in the library it replaces. Only
   // media/replace.js sets it, with everything already checked — the routes
   // never pass a client's body through as this.
@@ -1959,7 +1977,7 @@ module.exports = {
   // seams test/dlrace-queue.test.js uses to play the queue out against a fake
   // engine (never in a running server).
   _internals: {
-    safeName, folderKey, chooseFolder, diskGate, destinationFor, store,
+    safeName, folderKey, chooseFolder, diskGate, destinationFor, store, typeOf,
     landingName, placeNoClobber, tempNameFor, nameTakenAny: nameTaken,
     active, seams, line, resume: () => resume(), poll: () => poll(), raceTick: () => raceTick(seams.clock(), raceCfg()),
     setEngine: (engine) => { aria2 = engine; },
