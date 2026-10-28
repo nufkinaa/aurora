@@ -17,7 +17,7 @@ const scanner = require("../src/media/scanner");
 const scanwalk = require("../src/media/scanwalk");
 const statsnap = require("../src/lib/statsnap");
 
-let root, movies, shows, savedLibraries;
+let root, movies, shows, savedLibraries, realCache;
 const touch = (...p) => {
   const f = path.join(...p);
   fs.mkdirSync(path.dirname(f), { recursive: true });
@@ -38,6 +38,14 @@ before(() => {
   for (const e of [1, 2, 3]) touch(shows, "Gamma", "Season 1", `Gamma S01E0${e}.mkv`);
   touch(shows, "Gamma", "Season 1", "Extras", "Gamma S01E99.mkv");
   savedLibraries = { movies: config.LIBRARIES.movies, shows: config.LIBRARIES.shows };
+  // library-walk.json in a cache folder of this file's own: the checkout's
+  // data/cache is shared by every test file, and the others (each in its own
+  // process, at the same time) save their own walks there — an empty library
+  // walk (sha1 of nothing, da39a3ee...) written between this file's save and
+  // its read is what made "the walk is saved" fail under load and on CI
+  realCache = config.CACHE_DIR;
+  config.CACHE_DIR = path.join(root, "cache");
+  fs.mkdirSync(config.CACHE_DIR, { recursive: true });
   config.LIBRARIES.movies = [movies];
   config.LIBRARIES.shows = [shows];
 });
@@ -47,6 +55,7 @@ after(async () => {
   config.LIBRARIES.shows = savedLibraries.shows;
   scanner.scan();
   await require("../src/media/scanworker").stop();
+  config.CACHE_DIR = realCache;
   fs.rmSync(root, { recursive: true, force: true });
 });
 
@@ -160,10 +169,11 @@ test("scanAsync walks in a worker and gives the same index as scan(); calls that
 test("the walk is saved and a restart builds from it (boot) without reading a folder", async () => {
   scanner.scan();
   const file = path.join(config.CACHE_DIR, "library-walk.json");
-  // the save is asynchronous: wait for it
+  assert.ok(file.startsWith(root), "this file's own cache folder");
+  // the save is asynchronous: wait for it (a loaded machine may take a while)
   const want = scanner.scanStats().last.hash;
   let saved = null;
-  for (let i = 0; i < 200; i++) {
+  for (const end = Date.now() + 15000; Date.now() < end;) {
     try { saved = JSON.parse(fs.readFileSync(file, "utf8")); if (saved.hash === want) break; } catch {}
     await new Promise((r) => setTimeout(r, 20));
   }

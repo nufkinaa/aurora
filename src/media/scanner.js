@@ -1136,11 +1136,14 @@ const saveWalk = (snap) => {
   try {
     text = JSON.stringify({ v: SAVED_V, roots, dirs: snap.dirs, dirAt: snap.dirAt, files: snap.files, hash: snap.hash });
   } catch { done(); return; }
-  const tmp = `${file}.tmp`;
+  // a temp name of this process's own: another process of the same checkout
+  // (a tool, a test file) saving at the same moment never writes into it
+  const tmp = `${file}.${process.pid}.tmp`;
   fs.writeFile(tmp, text, (err) => {
-    if (err) return done();
+    if (err) { fs.unlink(tmp, () => {}); return done(); }
     fs.rename(tmp, file, (err2) => {
       if (!err2) savedHash = snap.hash;
+      else fs.unlink(tmp, () => {});
       done();
     });
   });
