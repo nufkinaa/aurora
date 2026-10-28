@@ -41,7 +41,13 @@ ui.test("pressing Play: the start-up mark names every step in order, from the pr
 });
 
 ui.test("the admin's App health shows the starts, step by step, and names the slow one's slowest step", async ({ page, srv }) => {
-  // a slow start, as a far server's would arrive
+  // a slow start, as a far server's would arrive — after the server served it
+  // its playlist and first segment (from this address: lib/starttrace.js)
+  const base = `${srv.url}/stream/transcode/${srv.lib.film1.id}/jit`;
+  const pl = await (await fetch(`${base}/index.m3u8?seg=fmp4`)).text();
+  const first = pl.split("\n").find((l) => /^seg\d{5}\.m4s/.test(l));
+  assert.equal((await fetch(`${base}/init.mp4?v=copy&seg=fmp4`)).status, 200);
+  assert.equal((await fetch(`${base}/${first}`)).status, 200);
   await fetch(`${srv.url}/api/play-mark/${srv.lib.film1.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "start-up", ms: 91000, total: 91400, slow: "byte", path: "jit", steps: "open:20,item:90,history:95,mount:120,decide:130,ask:140,byte:90100,frame:91400", seg: 89000 }) });
   await page.goto(`${srv.url}/admin`);
   await page.fill('.gate input[aria-label="Admin password"]', srv.adminPassword);
@@ -56,6 +62,9 @@ ui.test("the admin's App health shows the starts, step by step, and names the sl
   assert.ok(steps.some((t) => /first byte/.test(t) && /1$/.test(t.trim())), `the steps table: ${JSON.stringify(steps)}`);
   const recent = await page.locator("#tel-starts-recent tr").allTextContents();
   assert.ok(recent.some((t) => /Test Film One/.test(t) && /91 s from the press \(jit\), mostly first byte \(90 s\)/.test(t) && /first segment made in 89 s/.test(t)), `recent: ${JSON.stringify(recent)}`);
+  // …and what the server itself did for that start: when its first segment went out
+  assert.ok(recent.some((t) => /Test Film One/.test(t) && /on the server: first segment \(0\) out \d+\.\d s after the playlist, (\d+\.\d s of it made here|on disk)/.test(t) && /1 segment, none slow/.test(t)), `recent: ${JSON.stringify(recent)}`);
+  await page.locator("#tel-starts-recent").screenshot({ path: require("path").join(__dirname, "artifacts", "startup-timeline-admin.png") }).catch(() => {});
 });
 
 ui.run({ concurrency: 1 });

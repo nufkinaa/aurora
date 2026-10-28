@@ -139,7 +139,18 @@ router.post("/api/play-mark/:id", (req, res) => {
   // (a start-up's steps are one longer field: "open:12,item:40,…,frame:3100")
   const lenOf = (k) => (name === "start-up" && k === "steps" ? 240 : 40);
   const fields = Object.entries(b).filter(([k]) => !["name", "ms"].includes(k)).slice(0, name === "start-up" ? 8 : 6);
-  const extra = fields.map(([k, v]) => `${tidy(k, 16)}=${tidy(v, lenOf(k))}`).join(" ");
+  // a start-up comes with the server's own side of that start (lib/starttrace.js:
+  // when its first segment went out, how long it waited here) — an iPhone's
+  // own player shows the page none of its requests
+  let srvSide = null;
+  if (name === "start-up") {
+    try {
+      const st = require("../lib/starttrace");
+      srvSide = st.of(require("../realtime").clientIp(req), tidy(req.params.id, 64), { maxAgeMs: 5 * 60 * 1000 });
+      if (srvSide) srvSide.text = st.text(srvSide);
+    } catch {}
+  }
+  const extra = fields.map(([k, v]) => `${tidy(k, 16)}=${tidy(v, lenOf(k))}`).join(" ") + (srvSide ? ` srv=${srvSide.text}` : "");
   if (name) console.log(`[play] ${tidy(req.params.id, 12)} +${ms}ms ${name}${extra ? " " + extra : ""}`);
   // the same mark as a number, for the healer's playback statistics (lib/playmarks.js)
   if (name) {
@@ -148,7 +159,7 @@ router.post("/api/play-mark/:id", (req, res) => {
       for (const [k, v] of fields) rest[tidy(k, 16)] = tidy(v, lenOf(k));
       const who = { id: tidy(req.params.id, 12), extra: rest, ip: require("../realtime").clientIp(req), ua: req.get("user-agent") };
       // (a start-up is kept apart from the plays: lib/playmarks.js recordStart)
-      if (name === "start-up") require("../lib/playmarks").recordStart(who);
+      if (name === "start-up") require("../lib/playmarks").recordStart({ ...who, srvSide });
       else require("../lib/playmarks").record({ ...who, name, ms });
     } catch {}
   }

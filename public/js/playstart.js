@@ -180,3 +180,15 @@ export const fallbackSources = (streams = [], chosen = null, n = 3) =>
     .filter((x) => !x.cam && !x.prerelease && !x.dubbed && !x.badHere && x.seeders > 0)
     .sort((a, b) => (b.seeders || 0) - (a.seeders || 0))
     .slice(0, n);
+
+// A jit playlist for a NATIVE player (an iPhone's) that begins at `at`
+// seconds: the start point rides along (?start=…&until=…) and the playlist
+// answers with EXT-X-START (media/jit.js playlistStart) — the phone's own
+// player then begins there instead of fetching the top of the film first.
+// `until`: a few minutes from now — an address that is handed on later
+// (AirPlay's twin) no longer carries it. Anything else is returned as it is.
+const NATIVE_START_FOR_S = 5 * 60;
+export const nativeStartUrl = (url, at, nowMs = Date.now()) => {
+  if (!(at > 0.5) || typeof url !== "string" || !/\/jit\/index\.m3u8(\?|$)/.test(url)) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}start=${Math.floor(at)}&until=${Math.floor(nowMs / 1000) + NATIVE_START_FOR_S}`;
+};

@@ -12,7 +12,10 @@
 //   mount    the player is built
 //   decide   the way it will play is chosen (file, stream, encode)
 //   ask      the first request for the film itself went out
-//   byte     its first byte arrived
+//   byte     its first byte arrived (on an iPhone's own player — native HLS —
+//            the element's first `progress` event: its requests never reach
+//            Resource Timing. The server's own side of the start is added to
+//            the mark by the server: src/lib/starttrace.js)
 //   frame    the first frame of the film is on the screen
 // A step's own time is the gap since the step before it; the SLOW step is the
 // longest of those gaps.

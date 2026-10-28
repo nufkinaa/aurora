@@ -206,7 +206,8 @@ const tableFor = async (indexKey, readRange, fileSize, { mp4 = false } = {}) => 
 
 // fmt: null → MPEG-TS (hls.js); "fmp4" → fragmented MP4 (Apple native HLS —
 // required for HEVC, fine for h264). Same table, same producer contract.
-const playlistText = (entry, suffix, fmt) => {
+// `start`: where a NATIVE player should begin (EXT-X-START) — see playlistStart.
+const playlistText = (entry, suffix, fmt, { start = null } = {}) => {
   const target = Math.ceil(Math.max(...entry.table.map((s) => s.dur)));
   const lines = [
     "#EXTM3U",
@@ -216,6 +217,9 @@ const playlistText = (entry, suffix, fmt) => {
     "#EXT-X-PLAYLIST-TYPE:VOD",
     "#EXT-X-INDEPENDENT-SEGMENTS",
   ];
+  if (Number.isFinite(start) && start > 0 && (!(entry.durationSec > 0) || start < entry.durationSec)) {
+    lines.push(`#EXT-X-START:TIME-OFFSET=${start.toFixed(3)},PRECISE=YES`);
+  }
   if (fmt === "fmp4") lines.push(`#EXT-X-MAP:URI="init.mp4${suffix}"`);
   const ext = fmt === "fmp4" ? "m4s" : "ts";
   entry.table.forEach((s, i) => {
@@ -224,6 +228,36 @@ const playlistText = (entry, suffix, fmt) => {
   });
   lines.push("#EXT-X-ENDLIST");
   return lines.join("\n") + "\n";
+};
+
+// THE NATIVE PLAYER'S START POINT. An iPhone plays HLS itself (AVPlayer): the
+// element is given the playlist and begins at the TOP of the film — the
+// player's seek to the resume point can only be made at loadedmetadata,
+// which comes after the first segment of the film has been asked for, made
+// and fetched. Measured (Chrome's own HLS with an iPhone's user agent, the
+// nearest stand-in; tools/ttff/vps.js iphone-jit-resume): a resume asked for
+// segment 0 AND segment 1 of a cold copy, then the resume segment — 3.9 s to
+// the first frame where the same start from the top took 0.9 s — and on the
+// server the first-segment warm-up for the resume point was taken over by a
+// producer for segment 0, then a third one was started back at the resume
+// point (tools/ttff/ioscold.js: 3 producer starts for one resume). So the
+// player names where it begins (?start=<s>) and the playlist says so
+// (EXT-X-START, the HLS way to say "begin here"): the native player's first
+// segment is the resume point's. Bounded so an address handed on can't
+// carry it where it does not belong: only until `until` (seconds since the
+// epoch, the player sets a few minutes), and never for an Apple TV — the
+// AirPlay receiver is handed the phone's address and is put at the phone's
+// position by AirPlay itself (js/airplay.js). PURE: null = no EXT-X-START.
+const START_MAX_AHEAD_SEC = 15 * 60; // an `until` further off than this is not believed
+const playlistStart = (query = {}, { ua = "", nowSec = Date.now() / 1000, durationSec = 0 } = {}) => {
+  const s = String(query.start == null ? "" : query.start);
+  if (!/^\d{1,6}(\.\d{1,3})?$/.test(s)) return null;
+  const start = parseFloat(s);
+  if (!(start > 0.5) || (durationSec > 0 && start >= durationSec - 1)) return null;
+  const until = Number(query.until);
+  if (!Number.isFinite(until) || until < nowSec || until > nowSec + START_MAX_AHEAD_SEC) return null;
+  if (/Apple ?TV|AppleTV/i.test(String(ua || ""))) return null;
+  return start;
 };
 
 const extOf = (fmt) => (fmt === "fmp4" ? "m4s" : "ts");
@@ -1815,6 +1849,7 @@ module.exports = {
   forgetDeclined,
   tableFor,
   playlistText,
+  playlistStart,
   jobFor,
   ensureSegment,
   ensureInit,

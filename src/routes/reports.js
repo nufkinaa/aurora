@@ -35,6 +35,15 @@ const startupOf = (s) => {
 // File one report. `extra` is what a feature adds to it (a "Get another
 // version" request carries `replace`: media/replace.js); `quiet` skips the
 // admin's phone (the feature has told them already).
+// What the server itself did for the title being played, from this address
+// (lib/starttrace.js): its start — when the first segment went out, how long
+// it waited here — and its last few segments (a "loading too long" mid-play:
+// were they slow to be made, or slow to arrive?).
+const serverSideOf = (ip, itemId) => {
+  if (!ip || !itemId) return null;
+  try { return require("../lib/starttrace").of(ip, String(itemId), { maxAgeMs: 3 * 3600 * 1000 }); } catch { return null; }
+};
+
 const add = ({ text, profile = null, context = {}, ip = null, extra = null, quiet = false }) => {
   const ctx = context && typeof context === "object" ? context : {};
   const report = {
@@ -58,13 +67,15 @@ const add = ({ text, profile = null, context = {}, ip = null, extra = null, quie
       playMarks: (Array.isArray(ctx.playMarks) ? ctx.playMarks.slice(-30) : [])
         .map((m) => {
           const out = { name: clean(m && m.name, 32), ms: Math.max(0, parseInt(m && m.ms, 10) || 0), path: clean(m && m.path, 24) || undefined };
-          // what makes a mark mean something: why a path, which rendition, which stage of a stall
-          for (const k of ["why", "v", "to", "stage", "code", "slow"]) if (m && m[k] != null && m[k] !== "") out[k] = clean(m[k], 40);
+          // what makes a mark mean something: why a path, which rendition, which stage of a stall,
+          // where in the film a path began (a resume: "path:jit from 1240 s")
+          for (const k of ["why", "v", "to", "stage", "code", "slow", "from"]) if (m && m[k] != null && m[k] !== "") out[k] = clean(m[k], 40);
           return out;
         })
         .filter((m) => m.name),
       // the start-up step by step from the press: { total, slow, path, steps: [[name, ms]…], srv }
       startup: startupOf(ctx.startup),
+      server: serverSideOf(ip, clean(ctx.itemId, 80)),
     },
     ip, // (req.ip is the reverse proxy itself behind one)
     ...(extra && typeof extra === "object" ? extra : {}),

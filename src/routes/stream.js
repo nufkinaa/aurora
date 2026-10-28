@@ -440,6 +440,9 @@ router.get("/stream/hls/:id/:file", (req, res) => {
 const jit = require("../media/jit");
 const ladder = require("../media/ladder");
 const { timed } = require("../lib/servertiming");
+const starttrace = require("../lib/starttrace");
+// (the address a start is kept under — the same the play marks use)
+const clientIpOf = (req) => { try { return require("../realtime").clientIp(req); } catch { return ""; } };
 
 // Who is reading a stream, for "whose goodbye is it" (jit.release, and
 // remux.release for the offset jobs): the sign-in session, the TV app's own
@@ -475,8 +478,10 @@ const libraryTable = async (entry, key, size) => {
 // Nothing is waited for and nothing is answered differently; the bounds are
 // jit.warmSegment's (never a second producer, an encode only on an idle
 // server, a few starts a minute, the producer stops by itself).
-const warmStart = async (req, { entry, key, table, fmt, rungs = null, name = null }) => {
-  const hint = ladder.parseStartHint(req.get("x-aurora-start"));
+// (`at`: where the player begins when the request itself says so — a native
+// player's ?start=, which can send no header of its own)
+const warmStart = async (req, { entry, key, table, fmt, rungs = null, name = null, at = null }) => {
+  const hint = ladder.parseStartHint(req.get("x-aurora-start")) || (Number.isFinite(at) ? { at, kbps: 0, v: null } : null);
   if (!hint) return;
   try {
     // which rendition: the one the client named, else by its line (the
@@ -540,6 +545,7 @@ router.get("/stream/transcode/:id/jit/master.m3u8", async (req, res) => {
 });
 
 router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
+  const reqAt = Date.now();
   const entry = resolveKind(req.params.id, "video");
   if (!entry || !fs.existsSync(entry.path)) return res.status(404).send("Not found");
   if (!configLib().ffmpegAvailable) return res.status(503).send("ffmpeg not available");
@@ -588,8 +594,13 @@ router.get("/stream/transcode/:id/jit/index.m3u8", async (req, res) => {
     const suffix = `?v=${v}${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}${v !== "copy" && req.query.need === "1" ? "&need=1" : ""}&m=${segVersion(st)}`;
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
-    res.send(jit.playlistText(table, suffix, fmt));
-    warmStart(req, { entry, key, table, fmt, name: v });
+    // a native player's own start point (EXT-X-START: jit.playlistStart)
+    const start = jit.playlistStart(req.query, { ua: req.get("user-agent"), durationSec: table.durationSec });
+    res.send(jit.playlistText(table, suffix, fmt, { start }));
+    // (the server's side of this start, for the start-up line: lib/starttrace.js)
+    const hinted = ladder.parseStartHint(req.get("x-aurora-start"));
+    try { starttrace.playlist({ ip: clientIpOf(req), id: req.params.id, ms: Date.now() - reqAt, start: start != null ? start : hinted ? hinted.at : null }); } catch {}
+    warmStart(req, { entry, key, table, fmt, name: v, at: start });
   } catch (err) {
     res.status(500).send(err.message);
   }
@@ -676,6 +687,13 @@ router.get("/stream/transcode/:id/jit/:file", async (req, res) => {
     if (hungUp) return; // nobody to answer
     // how long a player waited for this segment — a tally, for the healer
     if (!isInit) { try { require("../lib/signals").hit("seg-wait", !file ? "none" : Date.now() - askedAt >= 4000 ? "slow" : "ok"); } catch {} }
+    // …and for this start's server side (lib/starttrace.js)
+    if (file) {
+      try {
+        if (isInit) starttrace.init({ ip: clientIpOf(req), id: req.params.id });
+        else starttrace.segment({ ip: clientIpOf(req), id: req.params.id, k: parseInt(m[1], 10), waitMs: Date.now() - askedAt, made: !onDisk, table: table.table });
+      } catch {}
+    }
     // an encoded rendition with no encoder free: 503, so the player moves to
     // another rendition instead of waiting on this one
     if (!file && jit.refusedJustNow(job)) {

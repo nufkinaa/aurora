@@ -171,7 +171,8 @@ ui.test("an iPhone on a server that requires sign-in: on the link's twin as soon
     assert.match(master.text, /#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English"[^\n]*DEFAULT=YES/);
     await page.locator("#toasts .toast", { hasText: "Playing on the TV." }).last().waitFor({ timeout: 5000 });
     await wireless(page, false);
-    await page.waitForFunction(() => /\/air\/[^/]+\/stream\/transcode\/[^?]+\/jit\/index\.m3u8\?seg=fmp4$/.test(document.querySelector(".player video").getAttribute("src") || ""), null, { timeout: 15000 });
+    // (back where the TV was: the address says where it begins — playstart.js nativeStartUrl)
+    await page.waitForFunction(() => /\/air\/[^/]+\/stream\/transcode\/[^?]+\/jit\/index\.m3u8\?seg=fmp4(&start=\d+&until=\d+)?$/.test(document.querySelector(".player video").getAttribute("src") || ""), null, { timeout: 15000 });
     await page.waitForFunction(() => document.querySelector(".player video").readyState >= 2, null, { timeout: 15000 });
     await page.evaluate(() => document.querySelector(".player video").play().catch(() => {}));
     await player.advancing(page, { by: 0.5, timeout: 20000 });

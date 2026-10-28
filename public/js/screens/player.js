@@ -22,7 +22,7 @@ import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio, langOf } from "
 import { savedDelay, saveDelay } from "../subdelay.js";
 import { createAirplay } from "../airplay.js";
 import { registerPlayerTarget, takeRemoteStart, playerChanged, onDevices, getDevices, chooseDevice, playOn, ICONS as REMOTE_ICONS } from "../remote.js"; // [phone-remote]
-import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM, decodeStalled, lineTimeOnly, deadSource } from "../playstart.js";
+import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM, decodeStalled, lineTimeOnly, deadSource, nativeStartUrl } from "../playstart.js";
 // [player-options] night mode, dialogue boost, the look of subtitles (2026-10-19)
 import { readStyle, nextChoice, styleLabel, cueCss, cueShadow, cueBackdrop, CUE_VW, CUE_MIN_PX, RAISED_PCT, SUB_STYLE_KEYS, SUB_STYLE_NAMES, SUB_COLORS } from "../subStyle.js";
 import { audioFxFor, AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES } from "../audiofx.js";
@@ -1521,12 +1521,18 @@ export const renderPlayer = async (root, { id }) => {
         } catch {}
         hls = null;
       }
-      video.src = airSrc(url);
+      // …and the jit playlist is told where that is (?start=: EXT-X-START,
+      // media/jit.js playlistStart): the phone's own player then begins
+      // THERE — it used to fetch the top of the film first (the element
+      // begins at 0 until loadedmetadata), a cold segment or two the viewer
+      // never sees, before the seek. The seek below stays for a player that
+      // ignores the tag; one that honoured it is already there.
+      video.src = airSrc(nativeStartUrl(url, startAt));
       if (startAt > 0) {
         const once = () => {
           video.removeEventListener("loadedmetadata", once);
           try {
-            video.currentTime = startAt;
+            if (Math.abs((video.currentTime || 0) - startAt) > 0.5) video.currentTime = startAt;
           } catch {}
         };
         video.addEventListener("loadedmetadata", once);

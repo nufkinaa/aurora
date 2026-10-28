@@ -365,7 +365,8 @@ router.get("/stream/torrent/hls/:infoHash/:fileIdx/jit/index.m3u8", async (req, 
     const suffix = `?v=${v}${fmt ? "&seg=fmp4" : ""}${req.query.vtag === "hvc1" ? "&vtag=hvc1" : ""}${audio ? `&a=${audio}` : ""}${v !== "copy" && req.query.need === "1" ? "&need=1" : ""}`;
     res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
     res.setHeader("Cache-Control", "no-cache");
-    res.send(jit.playlistText(table, suffix, fmt));
+    // (a native player's own start point, as for a library file: jit.playlistStart)
+    res.send(jit.playlistText(table, suffix, fmt, { start: jit.playlistStart(req.query, { ua: req.get("user-agent"), durationSec: table.durationSec }) }));
   } catch (err) {
     res.status(504).send("Torrent not ready: " + err.message);
   }

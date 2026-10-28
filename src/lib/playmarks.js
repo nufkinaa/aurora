@@ -151,7 +151,18 @@ const parseSteps = (text) => {
   }
   return out;
 };
-const recordStart = ({ id, extra = {}, ip = "", ua = "", now = Date.now() }) => {
+// `srvSide`: what the server itself did for this start (lib/starttrace.js of)
+// — kept as the few numbers the admin's line shows.
+const SRV_KEYS = ["pl", "init", "k", "segAt", "seg", "n", "slow"];
+const srvOf = (t) => {
+  if (!t || typeof t !== "object") return null;
+  const out = {};
+  for (const k of SRV_KEYS) if (Number.isFinite(t[k])) out[k] = Math.max(0, Math.round(t[k]));
+  if (t.made != null) out.made = !!t.made;
+  if (t.top) out.top = true;
+  return Object.keys(out).length ? out : null;
+};
+const recordStart = ({ id, extra = {}, ip = "", ua = "", srvSide = null, now = Date.now() }) => {
   const steps = parseSteps(extra.steps);
   if (!id || !steps.length) return null;
   let slow = null;
@@ -166,6 +177,7 @@ const recordStart = ({ id, extra = {}, ip = "", ua = "", now = Date.now() }) => 
     total, slow, slowMs, steps,
     seg: Number.isFinite(parseInt(extra.seg, 10)) ? parseInt(extra.seg, 10) : null,
     pl: Number.isFinite(parseInt(extra.pl, 10)) ? parseInt(extra.pl, 10) : null,
+    srvSide: srvOf(srvSide),
   };
   starts.push(s);
   while (starts.length > MAX_STARTS || (starts.length && now - starts[0].at > KEEP_MS)) starts.shift();
@@ -191,11 +203,11 @@ const startSummary = (list = starts, now = Date.now(), sinceMs = 24 * 3600 * 100
     byPath: Object.fromEntries(Object.entries(byPath).map(([k, a]) => [k, { n: a.length, p50: pct(a, 50), p90: pct(a, 90) }])),
     stepP50: Object.fromEntries(STEPS.filter((k) => gaps[k]).map((k) => [k, { p50: pct(gaps[k], 50), p90: pct(gaps[k], 90) }])),
     slow: { n: slowOnes.length, overMs: SLOW_START_MS, byStep },
-    recent: slowOnes.slice(-12).reverse().map((s) => ({ at: s.at, id: s.id, app: s.app, device: s.device, path: s.path, total: s.total, slow: s.slow, slowMs: s.slowMs, steps: s.steps, seg: s.seg, pl: s.pl })),
+    recent: slowOnes.slice(-12).reverse().map((s) => ({ at: s.at, id: s.id, app: s.app, device: s.device, path: s.path, total: s.total, slow: s.slow, slowMs: s.slowMs, steps: s.steps, seg: s.seg, pl: s.pl, srvSide: s.srvSide || null })),
   };
 };
 
 const list = () => plays;
 const _reset = () => { plays.length = 0; latest.clear(); starts.length = 0; };
 
-module.exports = { record, summarize, troubledJustNow, list, deviceOf, START_GRACE_MS, _reset, recordStart, startSummary, SLOW_START_MS, STEPS };
+module.exports = { srvOf, record, summarize, troubledJustNow, list, deviceOf, START_GRACE_MS, _reset, recordStart, startSummary, SLOW_START_MS, STEPS };

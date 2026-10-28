@@ -92,6 +92,11 @@ const CASES = {
   "iphone": { title: "project", flavour: "iphone", what: "iPhone native HLS (HEVC10 fMP4 copy)" },
   "iphone-resume": { title: "project", flavour: "iphone", mode: "resume", what: "iPhone, resumed 40% in" },
   "iphone-encode": { title: "about", flavour: "iphone-h264", what: "an iPhone that cannot take the HEVC: CPU encode" },
+  // ("iphone" above plays Project Hail Mary as the FILE in Chrome — HEVC + AAC
+  // in MKV; a real iPhone cannot play MKV and gets the jit copy. An episode
+  // with E-AC-3 is the jit copy in Chrome too.)
+  "iphone-jit": { title: "silo1", flavour: "iphone", what: "iPhone native HLS, the jit copy (HEVC10 + E-AC-3 → AAC, fMP4)" },
+  "iphone-jit-resume": { title: "silo1", flavour: "iphone", mode: "resume", what: "the same, resumed 40% in" },
   "tv-direct": { title: "knives", flavour: "tv", tv: "direct", what: "TV: the file (ExoPlayer's requests)" },
   "tv-offset": { title: "about", flavour: "tv", tv: "copy", what: "TV: sound it cannot play → offset copy job" },
   "tv-offset-resume": { title: "about", flavour: "tv", tv: "copy", mode: "resume", what: "TV: offset copy job, resumed 40% in" },
