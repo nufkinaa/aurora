@@ -93,6 +93,8 @@ class MainApplication : Application(), ReactApplication {
           // fixes behind the AuroraRender switches — all off unless switched on — plus the QA
           // module of the device harness (inert outside a -PqaReceiver build).
           add(AuroraUiPackage())
+          // the phone app's window and device module (docs/android-phone/PLAN.md); never on a TV
+          if (BuildConfig.PHONE) add(com.auroratv.phone.PhonePackage())
         },
     )
   }

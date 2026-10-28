@@ -1,0 +1,51 @@
+// A page's heading under the top bar (the website's .page-head): the title,
+// big, and a line under it. On a pushed screen (`back`) a round Back button
+// takes the logo's place.
+import React from 'react';
+import {StyleSheet, Text, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {useNavigation} from '@react-navigation/native';
+import {IconCircle} from './Buttons';
+import {colors, GUTTER} from '../theme';
+
+export const usePageTop = () => useSafeAreaInsets().top + 70;
+
+export default function PageHead({title, sub, children}: {title: string; sub?: string | null; children?: React.ReactNode}) {
+  const top = usePageTop();
+  return (
+    <View style={[s.head, {paddingTop: top}]}>
+      <Text style={s.title} accessibilityRole="header" numberOfLines={2}>
+        {title}
+      </Text>
+      {sub ? <Text style={s.sub}>{sub}</Text> : null}
+      {children}
+    </View>
+  );
+}
+
+/** A pushed screen's own top bar: Back on the left, the screen's title beside it. */
+export function BackBar({title, right}: {title?: string; right?: React.ReactNode}) {
+  const insets = useSafeAreaInsets();
+  const nav = useNavigation();
+  return (
+    <View pointerEvents="box-none" style={[s.back, {top: insets.top + 8}]}>
+      <IconCircle icon="back" label="Back" onPress={() => nav.canGoBack() && nav.goBack()} />
+      {title ? (
+        <Text style={s.backTitle} numberOfLines={1}>
+          {title}
+        </Text>
+      ) : (
+        <View style={{flex: 1}} />
+      )}
+      {right}
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  head: {paddingHorizontal: GUTTER, paddingBottom: 12},
+  title: {color: colors.text, fontSize: 32, fontWeight: '900', letterSpacing: -0.3},
+  sub: {color: colors.textDim, fontSize: 16, marginTop: 4},
+  back: {position: 'absolute', left: GUTTER, right: GUTTER, flexDirection: 'row', alignItems: 'center', gap: 12, zIndex: 10},
+  backTitle: {flex: 1, color: colors.text, fontSize: 18, fontWeight: '800'},
+});

@@ -18,6 +18,7 @@ import {showToast} from './toast';
 import {setUsageEnabled, setUsageProfile, track} from './usage';
 import {startTarget, stopTarget} from './remote/target'; // [phone-remote]
 import {startHouseholdLive} from './householdLive'; // [household]
+import {isPhone} from './formFactor'; // [android-phone]
 
 export default function SessionWiring() {
   const {profileId} = useApp();
@@ -55,10 +56,11 @@ export default function SessionWiring() {
     // [phone-remote] this TV can be played on / steered from the profile's phones
     // (remote/target.ts: announced on every socket open, so the order with
     // connect() does not matter)
-    startTarget(profileId);
+    // (the phone app steers TVs; it is not one to be played on — android-phone)
+    if (!isPhone()) startTarget(profileId);
     // [/phone-remote]
     return () => {
-      stopTarget(); // [phone-remote] device_leave, while the socket is still open
+      if (!isPhone()) stopTarget(); // [phone-remote] device_leave, while the socket is still open
       offPerson();
       leavePerson();
       offActive.remove();

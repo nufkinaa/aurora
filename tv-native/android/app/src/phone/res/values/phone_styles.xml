@@ -1,0 +1,18 @@
+<resources>
+    <!-- The phone app's theme (src/phone/AndroidManifest.xml). Aurora is always dark: the
+         page colour behind everything (it is what shows in the cold-start moment before
+         React draws), light status / navigation bar icons, and the bars drawn over by the
+         app (edge-to-edge, PhoneActivity). -->
+    <style name="PhoneTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+        <item name="android:windowBackground">@color/aurora_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+        <item name="colorAccent">#8b7bff</item>
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>

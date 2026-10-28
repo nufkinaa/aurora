@@ -1,0 +1,108 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- AURORA FOR ANDROID PHONES (docs/android-phone/PLAN.md). The phone build
+         (`gradlew assembleRelease -Paurora=phone`) uses THIS manifest instead of
+         src/main's — the TV one. Same code, same modules; what differs is what the
+         system is told: a phone launcher icon (no leanback), both orientations,
+         picture-in-picture, links that open the app, and none of the TV's
+         launcher rows / global search / boot job. -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Wi-Fi-only saving to the phone (the offline downloads) asks what the line is -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- [player-options] night mode / dialogue boost on the player's own audio session -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- "ready to watch" and the saves to the phone. Android 13+ asks once, when first needed. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- the in-app updater hands a downloaded APK to the system installer -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- voice search (VoiceModule.kt): asked the first time the mic is tapped -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="vnd.youtube" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" android:host="www.youtube.com" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+        <package android:name="com.google.android.youtube" />
+    </queries>
+
+    <application
+      android:name=".MainApplication"
+      android:label="@string/app_name"
+      android:icon="@mipmap/ic_launcher"
+      android:roundIcon="@mipmap/ic_launcher_round"
+      android:allowBackup="false"
+      android:theme="@style/PhoneTheme"
+      android:usesCleartextTraffic="true"
+      android:supportsRtl="true"
+      android:enableOnBackInvokedCallback="true">
+      <!-- configChanges: a rotation, a fold, a split-screen resize or a window size change
+           is handled by React Native's own layout (useWindowDimensions) — the activity is
+           not recreated, so a film playing on rotation keeps playing. -->
+      <activity
+        android:name=".PhoneActivity"
+        android:label="@string/app_name"
+        android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|navigation"
+        android:launchMode="singleTask"
+        android:screenOrientation="fullUser"
+        android:resizeableActivity="true"
+        android:supportsPictureInPicture="true"
+        android:windowSoftInputMode="adjustResize"
+        android:exported="true">
+        <intent-filter>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent-filter>
+        <!-- aurora-phone://open?… — the app's own links (notifications, the share sheet) -->
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="aurora-phone" />
+        </intent-filter>
+        <!-- nufurora.com links (a title, a watch party, the remote) open the app. They open
+             by themselves once nufurora.com serves /.well-known/assetlinks.json for this
+             app's signing key; until then Android asks, or the person turns "Open supported
+             links" on in the app's settings. -->
+        <intent-filter android:autoVerify="true">
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" android:host="nufurora.com" android:path="/" />
+        </intent-filter>
+      </activity>
+      <!-- Hears the result of a quiet update (UpdateResultReceiver.kt). -->
+      <receiver android:name=".UpdateResultReceiver" android:exported="false" />
+      <!-- The device harness's door: disabled unless a QA variant asked for it (-PqaReceiver). -->
+      <receiver
+        android:name=".ui.qa.QaReceiver"
+        android:enabled="${qaReceiver}"
+        android:exported="${qaReceiver}">
+        <intent-filter>
+          <action android:name="com.auroratv.QA" />
+        </intent-filter>
+      </receiver>
+      <profileable android:shell="${qaReceiver}" />
+      <provider
+        android:name="androidx.core.content.FileProvider"
+        android:authorities="${applicationId}.fileprovider"
+        android:exported="false"
+        android:grantUriPermissions="true">
+        <meta-data
+          android:name="android.support.FILE_PROVIDER_PATHS"
+          android:resource="@xml/file_paths" />
+      </provider>
+    </application>
+</manifest>

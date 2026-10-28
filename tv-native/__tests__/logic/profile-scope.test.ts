@@ -31,6 +31,8 @@ const PROFILE: Record<string, string[]> = {
   'navSection.ts': ['cache', 'cacheAt', 'loading'],
   'party.ts': ['pending'],
   'personSync.ts': ['active', 'asking', 'entering'],
+  // [android-phone] the tab the phone's bottom bar is on goes back to Home for the next profile
+  'phone/tabs.ts': ['current'],
   'prefetch.ts': ['profileId', 'idleTimer', 'idleRest', 'warmedSections', 'dwell'],
   'realtime.ts': ['identity', 'lastActivity', 'lastLibraryMsg'],
   // [phone-remote] this TV as the profile's target (device_leave when the profile is left)
@@ -46,6 +48,9 @@ const PROFILE: Record<string, string[]> = {
 
 // file → variable → why it is NOT a profile's
 const DEVICE: Record<string, Record<string, string>> = {
+  // [android-phone]
+  'phone/tabs.ts': {subs: 'listeners (the tab bar, the tab host)', reselect: 'listeners (a tab scrolls to its top)'},
+  'phone/profileMenu.ts': {switchFn: "the app's one handler (AppContext's switchProfile)", nameOf: "the app's one handler (reads the current profile's name)"},
   'party.ts': {deviceId: 'this TV, as a party member (person + device)', clockOffset: "the server's clock as this box sees it", samples: 'the clock pings behind it', rejoining: 'a rejoin in flight (the party itself is the profile’s and is left with it)'},
   'api.ts': {
     baseUrl: 'which server',

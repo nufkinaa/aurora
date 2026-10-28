@@ -80,6 +80,14 @@ androidComponents {
 }
 
 /**
+ * WHICH APP THIS BUILD IS (docs/android-phone/PLAN.md). Nothing given: the TV app, exactly as
+ * it always was — same applicationId, manifest, JS entry and output path. `-Paurora=phone`: the
+ * Android PHONE app — applicationId com.aurora.phone (installs beside the TV app, never over it),
+ * its own manifest and activity (src/phone/), its own JS entry (index.phone.js), its own APK name.
+ */
+def auroraPhone = String.valueOf(project.findProperty('aurora') ?: 'tv') == 'phone'
+
+/**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
@@ -129,6 +137,9 @@ react {
 
     /* Autolinking */
     autolinkLibrariesWithApp()
+
+    // the phone app's own JS root: its bundle carries no TV screen, the TV's no phone screen
+    if (auroraPhone) entryFile = file("../../index.phone.js")
 }
 
 /**
@@ -186,6 +197,22 @@ android {
         buildConfigField "boolean", "QA_RECEIVER", qaReceiver ? 'true' : 'false'
         buildConfigField "String", "QA_TOKEN", "\"${qaToken}\""
         manifestPlaceholders += [qaReceiver: qaReceiver ? 'true' : 'false']
+        // Which app (see auroraPhone above). The phone app counts its own versions.
+        buildConfigField "boolean", "PHONE", auroraPhone ? 'true' : 'false'
+        if (auroraPhone) {
+            applicationId "com.aurora.phone"
+            versionCode 1
+            versionName "1.0.0"
+        }
+    }
+    if (auroraPhone) {
+        sourceSets {
+            main {
+                manifest.srcFile 'src/phone/AndroidManifest.xml'
+                java.srcDirs += 'src/phone/java'
+                res.srcDirs += 'src/phone/res'
+            }
+        }
     }
     buildFeatures {
         buildConfig true
@@ -226,6 +253,14 @@ android {
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
+    }
+}
+
+// the phone app's APK is named for itself (app/build/outputs/apk/release/aurora-phone-release.apk),
+// so a phone build never leaves a file where the TV's release APK is looked for
+if (auroraPhone) {
+    android.applicationVariants.configureEach { variant ->
+        variant.outputs.configureEach { outputFileName = "aurora-phone-${variant.buildType.name}.apk" }
     }
 }
 
