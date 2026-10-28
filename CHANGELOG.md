@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.13.9 — 2026-10-28
+
+- **Resuming an episode on an iPhone starts much sooner.** The iPhone's own player always began at the very top of the film and only jumped to where you left off after loading the first pieces from the top — on the server that meant three start-ups instead of one. Now the film's address tells the iPhone where to start, and the server prepares exactly that spot first (measured on a copy of an iPhone's requests: 1.7 → 1.05 s, and 3.4–8.3 → 1.7–3.1 s for higher-quality episodes). If an iPhone ignores the hint, it simply works as before. AirPlay to an Apple TV is never moved by it.
+- **Report a problem and admin's Slow starts now show the server's side of every start** (when the first piece was ready, and for mid-film waits the last pieces' times), so a slow report says whether the phone or the server was slow.
+- Asking for an episode download with the word "series", "episode" or "tv" files it as an episode of the show (it was saved as a film); an unknown type is refused with a clear message.
+
 ## 1.13.8 — 2026-10-28
 
 - **Aurora TV 5.7.1** (checked on the Mi TV, also with sign-in required): the TV player now recovers by itself like the website — after an error it reloads the same film at the same spot (twice, within a couple of seconds), a frozen picture is nudged and then reloaded, and only if that can't help a card says "The film stopped and didn't come back by itself" with Try again from the same spot (and a quiet retry every 30 s). It never restarts a film at 0:00 any more. Report a problem from the player puts you straight in its text box, and in Recommend the remote moves to and from the note reliably, also after typing.
