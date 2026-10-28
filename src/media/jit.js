@@ -1144,11 +1144,28 @@ const settle = (job, run) => {
 // from advance): the viewer sees ten softer seconds a second or more
 // sooner, and the rest of the film is as it always was. Not for the graphics
 // card (it has no such preset), not for a look-ahead nobody waits on.
+//
+// …but THE SAME STREAM as the producer that takes over. Plain ultrafast is
+// another kind of H.264: Constrained Baseline, no B-frames, one reference
+// picture, nothing reordered — the ladder's superfast is High with B-frames
+// (four references, two reordered). Where the fast segment handed over, the
+// decoder met a new sequence header mid-play and started over: measured on
+// a watch party's CPU-encoded guest (8 cores), a 120–140 ms hitch and 4–12
+// dropped frames over four jumps, none without the fast segment. With these
+// the header is the same byte for byte (High, the same B-frame structure;
+// b-adapt=0 is a fixed pattern, the cheap kind) and only what each picture
+// says of itself differs (CAVLC, no deblocking): about 1.45x superfast's
+// speed here instead of 1.9x — most of the head start, without the seam.
 const FAST_PRESET = "ultrafast";
+const FAST_X264 = "8x8dct=1:bframes=3:b-adapt=0:b-pyramid=normal";
 const fastArgs = (args) => {
   const out = args.slice();
   const i = out.indexOf("-preset");
-  if (i >= 0 && out[i + 1] != null) out[i + 1] = FAST_PRESET;
+  // (already ultrafast — encbudget's preset while this machine is behind real
+  // time: the ladder's own producers make that same stream, nothing to add)
+  if (i < 0 || out[i + 1] == null || out[i + 1] === FAST_PRESET) return out;
+  out[i + 1] = FAST_PRESET;
+  out.splice(i + 2, 0, "-x264-params", FAST_X264);
   return out;
 };
 const handOver = (dir, job, run) => {
@@ -1834,6 +1851,6 @@ module.exports = {
     MAX_PRODUCERS_PER_JOB, MAX_EXTRA_PRODUCERS, CLAIM_MS, READER_TTL_MS, STEAL_LEAD, BUSY_WAIT_MS, COVER_AHEAD,
     setOutsideEncodes: (fn) => { outsideEncodes = fn; },
     sigOf, checkKept, readMade, MADE, KEEP_MS, jitRoot,
-    jobs, encodeCensus, abandoned, ABANDONED_MS, speculative, promote, WARM_AHEAD, WARM_MAX_PER_MIN, warmStarts, advance, yieldCpu, paceEncoder, YIELD_LEAD, fastArgs, FAST_PRESET,
+    jobs, encodeCensus, abandoned, ABANDONED_MS, speculative, promote, WARM_AHEAD, WARM_MAX_PER_MIN, warmStarts, advance, yieldCpu, paceEncoder, YIELD_LEAD, fastArgs, FAST_PRESET, FAST_X264,
   },
 };

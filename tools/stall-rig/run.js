@@ -379,8 +379,23 @@ const run = async () => {
     const r = spawnSync(process.execPath, [path.join(__dirname, "..", "..", "scripts", "keeper.js"), "--restart", "--data", srv.dataDir], { encoding: "utf8", windowsHide: true, timeout: 60000 });
     console.log(`${stamp()} RESTART: ${String(r.stdout || r.stderr).trim().slice(0, 200)}`);
   }, m * 60000));
+  // A long session's slow decline shows in these, minute by minute: the page's
+  // heap, the frames the decoder dropped, how much media the element holds
+  // (behind the playhead too) and the server's memory.
+  const serverMem = () => { try { const r = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${srv.pid}).WorkingSet64`], { encoding: "utf8", windowsHide: true, timeout: 15000 }); return Math.round(Number(String(r.stdout).trim()) / 1048576) || null; } catch { return null; } };
   const ticker = setInterval(async () => {
     const parts = [];
+    const srvMb = process.platform === "win32" ? serverMem() : null;
+    for (const cl of clients) {
+      const smp = await cl.page.evaluate(() => {
+        const v = document.querySelector(".player video");
+        const q = v && v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality() : null;
+        let held = 0, behind = 0;
+        if (v) for (let i = 0; i < v.buffered.length; i++) { const a = v.buffered.start(i), b = v.buffered.end(i); held += b - a; behind += Math.max(0, Math.min(b, v.currentTime) - a); }
+        return { heapMb: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null, dropped: q ? q.droppedVideoFrames : null, total: q ? q.totalVideoFrames : null, held: Math.round(held), behind: Math.round(behind), ct: v ? Math.round(v.currentTime) : null, nodes: document.getElementsByTagName("*").length };
+      }).catch(() => null);
+      if (smp) (cl.samples = cl.samples || []).push({ t: Math.round((Date.now() - cl.t0) / 1000), ...smp, srvMb });
+    }
     for (const cl of clients) {
       const st = await cl.page.evaluate(() => { const R = window.__rig; const v = document.querySelector(".player video"); return { n: R.stalls.length, open: R.open ? Math.round(performance.timeOrigin + performance.now() - R.open.start) : 0, ct: v ? Math.round(v.currentTime) : null, ahead: v ? R.aheadOf(v) : null }; }).catch(() => null);
       parts.push(`${cl.name} ct ${st ? st.ct : "?"} ahead ${st ? st.ahead : "?"} stalls ${st ? st.n : "?"}${st && st.open > 1500 ? ` (FROZEN ${st.open} ms)` : ""}`);
@@ -431,11 +446,18 @@ const run = async () => {
       seeks: (R.seeks || []).map((s) => ({ ms: s.ms, ct: s.ct })), actions: cl.actions,
       paths: [...new Set(marks.filter((m) => m.name === "path").map((m) => m.path))],
       marks: marks.filter((m) => !["mount"].includes(m.name)).slice(0, 200).map((m) => `${m.at}s ${m.name}${m.path ? ":" + m.path : ""}${m.why ? ":" + m.why : ""}${m.to ? ":" + m.to : ""}`),
+      samples: cl.samples || [],
       bad, slowSegs, hlsErrors: (R.hls || []).filter((h) => h.what === "error").map((h) => ({ at: Math.round((h.t - cl.t0) / 1000), details: h.details, fatal: h.fatal, code: h.code, url: h.url })),
       stalls,
     };
     results.push(row);
     console.log(`\n== ${cl.name} ${cl.title.title}: played ${row.played}s, ${row.stallCount} stalls, ${(row.stallMs / 1000).toFixed(1)} s frozen; paths ${row.paths.join(",")}; bad requests ${bad.length}; slow segments ${slowSegs.length}; hls errors ${row.hlsErrors.length}`);
+    if (row.samples.length > 2) {
+      const sm = row.samples, f = sm[0], l = sm[sm.length - 1];
+      const tens = [];
+      for (let k = 0; k < sm.length; k += 10) { const a = sm[k], b = sm[Math.min(sm.length - 1, k + 10)]; if (b !== a && a.total != null) tens.push(b.total > a.total ? ((b.dropped - a.dropped) / (b.total - a.total) * 100).toFixed(2) + "%" : "-"); }
+      console.log(`   over the session: heap ${f.heapMb}→${l.heapMb} MB (max ${Math.max(...sm.map((x) => x.heapMb || 0))}), held ${f.held}→${l.held} s (behind ${l.behind} s), DOM ${f.nodes}→${l.nodes}, server ${f.srvMb}→${l.srvMb} MB; dropped per 10 min ${tens.join(" ")}`);
+    }
     for (const s of stalls) console.log(`   stall ${stamp(s.start)} ${s.ms} ms at ${s.ct}s ahead ${s.ahead}s rs ${s.rs} seeking ${s.seeking}${s.unfinished ? " (UNFINISHED)" : ""}`);
   }
   fs.writeFileSync(path.join(OUT_DIR, `${LABEL}.json`), JSON.stringify({ label: LABEL, at: new Date(T0).toISOString(), minutes: MINUTES, cpus: CPUS, hw: HW, script: SCRIPT, results, serverLog: slog.filter((l) => !/\[warm\]/.test(l.line)).map((l) => `${stamp(l.t)} ${l.line.slice(0, 300)}`) }, null, 1));

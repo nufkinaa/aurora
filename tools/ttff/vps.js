@@ -58,6 +58,8 @@ const STEAL = Number(arg("steal", 0));
 // without HEVC on the ladder) — read at real time for as long as the start is measured
 const BUSY = arg("busy", null);
 const VERBOSE = flag("verbose");
+// --watch <s>: how long each start is watched after it (default 12: a fast start hands over ~10 s in)
+const WATCH_MS = Number(arg("watch", 12)) * 1000;
 const OUT_DIR = path.join(__dirname, ".runs");
 fs.mkdirSync(OUT_DIR, { recursive: true });
 const OUT = path.join(OUT_DIR, `vps-${LABEL}.jsonl`);
@@ -456,15 +458,22 @@ const webStart = async (inst, cs, { swarm = null } = {}) => {
     }
     // choppiness: frames the browser dropped while it played (not only stalls)
     const quality0 = await page.evaluate(() => { const v = document.querySelector(".player video"); const q = v && v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality() : null; return q ? { dropped: q.droppedVideoFrames, total: q.totalVideoFrames } : null; }).catch(() => null);
-    await sleep(ok ? 12000 : 500);
+    await sleep(ok ? WATCH_MS : 500);
     const quality1 = await page.evaluate(() => { const v = document.querySelector(".player video"); const q = v && v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality() : null; return q ? { dropped: q.droppedVideoFrames, total: q.totalVideoFrames } : null; }).catch(() => null);
     const dump = await page.evaluate((since) => ({ clicks: window.__ttff.clicks.filter((c) => c.t >= since - 5), nav: window.__ttff.nav.filter((n) => n.t >= since - 5), videos: window.__ttff.dump(since - 3000), hls: window.__ttff.hlsSince(since) }), since);
     if (t0 == null) t0 = (dump.clicks.filter((c) => c.type === "click")[0] || {}).t || since; // (the press on Play: a seek's click on the scrubber comes later)
     const expectFrom = cs.mode === "resume" && t ? Math.round(t.duration * 0.4) - 4 : 0;
-    const row = ttff.digest({ t0, videos: dump.videos.filter((v) => v.created >= t0 - 5), requests: net.all(), watchMs: 12000, expectFrom });
+    const row = ttff.digest({ t0, videos: dump.videos.filter((v) => v.created >= t0 - 5), requests: net.all(), watchMs: WATCH_MS, expectFrom });
     const marks = net.all().filter((r) => r.kind === "mark" && r.body).map((r) => { try { return JSON.parse(r.body); } catch { return null; } }).filter(Boolean);
     row.timeline = timeline({ row, requests: net.all(), slog: inst.slog, t0, marks });
     row.seek = seek;
+    // hitches while it played (after the start): count, longest, frozen in all
+    {
+      const vv = dump.videos.filter((v) => v.created >= t0 - 5 && v.gaps).sort((a, b) => b.events.length - a.events.length)[0];
+      const from = t0 + (row.ttff || 0) + 2000;
+      const g = vv ? vv.gaps.filter((x) => x.t >= from) : [];
+      row.hitches = { n: g.length, maxMs: g.reduce((m, x) => Math.max(m, x.ms), 0), frozenMs: g.reduce((m, x) => m + x.ms - 42, 0), at: g.slice(0, 12).map((x) => `${Math.round(x.t - t0)}:${x.ms}`) };
+    }
     row.next = next;
     if (quality1) row.frames = { dropped: quality1.dropped, total: quality1.total, droppedLast12s: quality0 ? quality1.dropped - quality0.dropped : null, totalLast12s: quality0 ? quality1.total - quality0.total : null };
     row.hls = dump.hls.map((x) => `${x.what}${x.details ? `:${x.details}` : ""}${x.fatal ? "!" : ""}${x.code ? `(${x.code})` : ""}@${Math.round(x.t - t0)}`).slice(0, 30);
@@ -614,7 +623,7 @@ const main = async () => {
         if (stopBusy) { await sleep(Number(arg("busy-watch", 0)) * 1000); row.neighbour = stopBusy.stats(); }
         write(row);
         const tl = row.timeline || {};
-        console.log(`  ${new Date().toISOString().slice(11, 19)} ${c.padEnd(18)} #${run} (library ready in ${Math.round(inst.libraryMs / 1000)} s) ${row.ok ? `ttff ${fmt(row.ttff).padStart(8)}` : `FAILED ${row.why || ""}`}  ${Object.entries(tl).filter(([, v]) => v != null).map(([k, v]) => `${k} ${v}`).join(" · ")}${row.rebufferMs ? `  rebuf ${row.rebufferMs}ms/${row.rebuffers}` : ""}${row.seek ? `  seek ${row.seek.ms} ms` : ""}${row.next ? `  next episode ${row.next.ms} ms` : ""}${row.frames && row.frames.totalLast12s ? `  dropped ${row.frames.droppedLast12s}/${row.frames.totalLast12s} frames` : ""}${row.neighbour ? `  neighbour ${row.neighbour.flavour}: ${row.neighbour.played}s played, ${row.neighbour.stalls} stalls ${row.neighbour.stallMs} ms, refused ${row.neighbour.refused}` : ""}`);
+        console.log(`  ${new Date().toISOString().slice(11, 19)} ${c.padEnd(18)} #${run} (library ready in ${Math.round(inst.libraryMs / 1000)} s) ${row.ok ? `ttff ${fmt(row.ttff).padStart(8)}` : `FAILED ${row.why || ""}`}  ${Object.entries(tl).filter(([, v]) => v != null).map(([k, v]) => `${k} ${v}`).join(" · ")}${row.rebufferMs ? `  rebuf ${row.rebufferMs}ms/${row.rebuffers}` : ""}${row.seek ? `  seek ${row.seek.ms} ms` : ""}${row.next ? `  next episode ${row.next.ms} ms` : ""}${row.hitches && row.hitches.n ? `  hitches ${row.hitches.n} (max ${row.hitches.maxMs} ms, ${row.hitches.frozenMs} ms) ${row.hitches.at.join(" ")}` : ""}${row.frames && row.frames.totalLast12s ? `  dropped ${row.frames.droppedLast12s}/${row.frames.totalLast12s} frames` : ""}${row.neighbour ? `  neighbour ${row.neighbour.flavour}: ${row.neighbour.played}s played, ${row.neighbour.stalls} stalls ${row.neighbour.stallMs} ms, refused ${row.neighbour.refused}` : ""}`);
       } catch (e) {
         console.log(`  ${c} #${run}: ${String(e.stack || e).split("\n").slice(0, 3).join(" | ")}`);
         write({ case: c, run, ok: false, why: String(e.message).split("\n")[0] });

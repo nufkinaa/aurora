@@ -51,11 +51,17 @@ const main = async () => {
       if (lib && lib.enriched && lib.movies.some((m) => m.title.toLowerCase().startsWith(TITLE) && m.duration > 0)) break;
     }
     const film = lib.movies.find((m) => m.title.toLowerCase().startsWith(TITLE));
+    // each member: a profile with a sign-in of its own (test values, this instance only)
     const mk = async (name) => {
-      const { request } = await call("POST", "/api/profiles", { name, realName: name, avatar: "🦊", color: "#2c9fe0" });
+      const username = name.toLowerCase();
+      const password = `pass-${username}`;
+      const { request } = await call("POST", "/api/profiles", { name, password, realName: `${name} Tester`, avatar: "🦊", color: "#2c9fe0" });
       const p = await call("POST", `/api/admin/profile-requests/${request.id}/approve`, {}, admin);
-      await call("PUT", `/api/profiles/${p.id}`, { lookNoticeSeen: true, prefs: { subsDefault: false } }).catch(() => {});
-      return p;
+      const token = (await call("POST", `/api/profiles/${p.id}/unlock`, { password })).token;
+      const th = token ? { "X-Profile-Token": token } : {};
+      await call("PUT", `/api/profiles/${p.id}`, { lookNoticeSeen: true, prefs: { subsDefault: false } }, th).catch(() => {});
+      await call("POST", "/api/auth/claim", { profileId: p.id, username, password }, th).catch(async () => call("POST", "/api/auth/claim", { profileId: p.id, username }, th));
+      return { ...p, username, password };
     };
     const people = [
       { who: "host", flavour: "std" },
@@ -67,11 +73,31 @@ const main = async () => {
     const nohevc = await ttff.launch({ noHevc: true });
     browsers.push(std, nohevc);
     const UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
-    for (const [i, m] of people.entries()) {
-      const p = await mk(`P${i}${Date.now().toString(36).slice(-3)}`);
+    for (const [i, m] of people.entries()) m.profile = await mk(`P${i}${Date.now().toString(36).slice(-3)}`);
+    // the household's sign-in wall is up (closed), as on nufurora
+    await call("POST", "/api/admin/auth-mode", { mode: "closed" }, admin);
+    for (const m of people) {
+      const p = m.profile;
       const b = m.flavour === "nohevc" ? nohevc : std;
       m.ctx = await b.newContext({ viewport: m.flavour === "iphone" ? { width: 390, height: 844 } : { width: 1280, height: 720 }, ...(m.flavour === "iphone" ? { userAgent: UA, isMobile: true, hasTouch: true } : {}), serviceWorkers: "block" });
       await m.ctx.addInitScript(({ id }) => { try { if (sessionStorage.getItem("p-seeded")) return; sessionStorage.setItem("p-seeded", "1"); localStorage.setItem("aurora-profile", id); localStorage.setItem("aurora-kbd-hint", "1"); localStorage.setItem("aurora-nav-hinted", "1"); localStorage.setItem("aurora-player", JSON.stringify({ subsDefault: false })); } catch {} }, { id: p.id });
+      // every hitch while it plays (a frame > 100 ms after the last, not paused or seeking) and every wait
+      await m.ctx.addInitScript(() => {
+        const H = (window.__hitch = { gaps: [], waits: [] });
+        const now = () => performance.timeOrigin + performance.now();
+        const hook = (v) => {
+          if (v.__hooked) return; v.__hooked = true;
+          let last = null, seekAt = 0;
+          v.addEventListener("seeking", () => { seekAt = now(); last = null; });
+          v.addEventListener("pause", () => { last = null; });
+          v.addEventListener("waiting", () => { last = null; H.waits.push({ t: now(), ct: +v.currentTime.toFixed(1) }); });
+          const on = (n, meta) => { const t = performance.timeOrigin + n; if (last != null && t - last > 100 && !v.paused && !v.seeking && t - seekAt > 1500) H.gaps.push({ t, ms: Math.round(t - last), mt: +meta.mediaTime.toFixed(1), h: meta.height }); last = t; v.requestVideoFrameCallback(on); };
+          if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(on);
+        };
+        new MutationObserver(() => { for (const v of document.querySelectorAll("video")) hook(v); }).observe(document, { childList: true, subtree: true });
+      });
+      const login = await m.ctx.request.post(`${srv.url}/api/auth/login`, { data: { username: p.username, password: p.password } });
+      if (login.status() !== 200) throw new Error(`sign-in ${login.status()}`);
       m.page = await m.ctx.newPage();
       m.page.setDefaultTimeout(60000);
     }
@@ -118,6 +144,9 @@ const main = async () => {
     // choppiness over the last minute: frames each one dropped
     row.dropped = {};
     for (const m of people) row.dropped[m.who] = await m.page.evaluate(() => { const v = document.querySelector(".player video"); const q = v && v.getVideoPlaybackQuality && v.getVideoPlaybackQuality(); return q ? `${q.droppedVideoFrames}/${q.totalVideoFrames}` : null; }).catch(() => null);
+    row.hitches = {};
+    for (const m of people) row.hitches[m.who] = await m.page.evaluate(() => window.__hitch).catch(() => null);
+    for (const [who, h] of Object.entries(row.hitches)) if (h) console.log(`  ${who}: ${h.gaps.length} hitches (${h.gaps.reduce((n, g) => n + g.ms, 0)} ms; ${h.gaps.slice(0, 10).map((g) => `${g.ms}ms@${g.mt}s`).join(" ")}), ${h.waits.length} waits (${h.waits.slice(0, 10).map((w) => w.ct).join(" ")})`);
     fs.appendFileSync(OUT, JSON.stringify(row) + "\n");
     console.log(`  dropped frames: ${JSON.stringify(row.dropped)}`);
   } finally {

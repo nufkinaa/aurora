@@ -163,6 +163,21 @@ const PAGE_PROBE = () => {
       if (rec.frames.length < 60) v.requestVideoFrameCallback(onFrame);
     };
     if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(onFrame);
+    // every hitch while it plays: a frame that came > 100 ms after the one
+    // before it, not paused, not seeking (a decoder starting over mid-play, a
+    // segment late) — on its own chain, for as long as the element lives
+    rec.gaps = [];
+    let lastF = null, lastSeek = 0;
+    v.addEventListener("seeking", () => { lastSeek = now(); });
+    const onAny = (n, meta) => {
+      const t = performance.timeOrigin + n;
+      if (lastF != null && t - lastF > 100 && !v.paused && !v.seeking && t - lastSeek > 1500 && rec.gaps.length < 400) rec.gaps.push({ t, ms: Math.round(t - lastF), mt: +meta.mediaTime.toFixed(2), h: meta.height });
+      lastF = t;
+      v.requestVideoFrameCallback(onAny);
+    };
+    v.addEventListener("pause", () => { lastF = null; });
+    v.addEventListener("waiting", () => { lastF = null; });
+    if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(onAny);
     const iv = setInterval(() => {
       if (rec.samples.length >= 900) return clearInterval(iv);
       if (!v.currentSrc && !rec.samples.length) return; // not in use yet (or a probe element)
@@ -212,7 +227,7 @@ const PAGE_PROBE = () => {
   T.dump = (since) =>
     T.videos
       .filter((r) => r.created >= since - 5 && r.events.length)
-      .map((r) => ({ created: r.created, events: r.events, frames: r.frames, samples: r.samples, src: r.el.currentSrc, inPlayer: !!r.el.closest(".player"), duration: r.el.duration }));
+      .map((r) => ({ created: r.created, events: r.events, frames: r.frames, gaps: r.gaps || [], samples: r.samples, src: r.el.currentSrc, inPlayer: !!r.el.closest(".player"), duration: r.el.duration }));
 };
 
 // ---------- the network, as the browser's own network layer saw it ----------

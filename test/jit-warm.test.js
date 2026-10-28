@@ -474,7 +474,7 @@ test("real ffmpeg: an encode a viewer waits on makes its first segment at ultraf
     const base = { url: file, extra: [], fmt: null, vtagHvc1: false, audio: 0 };
     const input = await ladder.encInput(base, { key, name: "h264", fmt: null, audio: 0, jit });
     assert.ok(input && input.enc);
-    assert.equal(J.fastArgs(["-c:v", "libx264", "-preset", "superfast"]).join(" "), "-c:v libx264 -preset ultrafast");
+    assert.equal(J.fastArgs(["-c:v", "libx264", "-preset", "superfast"]).join(" "), `-c:v libx264 -preset ultrafast -x264-params ${J.FAST_X264}`);
     const job = jit.jobFor(d, entry, { enc: true });
     const seg0 = jit.ensureSegment(d, job, input, 4);
     const first = job.producers[0];
