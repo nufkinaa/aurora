@@ -1031,6 +1031,8 @@ export default function Player({
       phoneNative.setKeepAwake(false);
       phoneNative.setImmersive(false);
       phoneNative.setBrightness(-1);
+      // back to the phone's own rotation (and its lock) for the screen under the player
+      phoneNative.setOrientation('auto');
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -62,6 +62,7 @@ export default function OfflinePlayer() {
       phoneNative.setImmersive(false);
       phoneNative.setPip(false);
       phoneNative.setBrightness(-1);
+      phoneNative.setOrientation('auto');
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

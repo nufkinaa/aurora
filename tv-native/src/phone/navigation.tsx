@@ -91,6 +91,9 @@ export default function PhoneNavigator() {
             statusBarTranslucent: true,
             statusBarStyle: 'light',
             navigationBarTranslucent: true,
+            // every screen but the players follows the phone (and its rotation lock);
+            // said in so many words, or leaving a landscape player kept the app landscape
+            orientation: 'default',
           }}>
           <Stack.Screen name="Home" component={Tabs} />
           <Stack.Screen name="Detail" getComponent={SCREENS.Detail} />
