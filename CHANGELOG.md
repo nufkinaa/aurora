@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.13.6 — 2026-10-28
+
+- **A film playing straight from the file is no longer switched to a 480p conversion mid-film on a good line.** After a long while (or a seek) the browser keeps much of the film behind you and fetches just in time, only a few seconds ahead; the player took that for a slow line and dropped to a converted 480p copy — on older versions with a restart from 0:00. Now a short buffer only counts when this device's measured line really is too thin for the file; otherwise only real stalls decide. Measured over 2 hours of side-by-side playback: no step-down, no stalls, played to the end. The same long run found nothing that slowly gets worse (page memory, server memory, dropped frames all flat).
+
 ## 1.13.5 — 2026-10-28
 
 - **No more hitch a few seconds after a seek on a converted film.** The quick first piece made right after a start, seek or resume used a simpler kind of H.264 than the rest of the film, and about 9 seconds later the player met the new kind mid-play and started its decoder over — a 120–140 ms jerk with dropped frames, felt by everyone in a watch party at every jump. The quick piece is now the same kind as the rest; seeks are just as fast, and the jerk is gone (0 dropped frames over 4 jumps in a 4-person party on 8 cores, from 4–12).
