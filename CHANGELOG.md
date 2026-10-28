@@ -3,6 +3,15 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.13.1 — 2026-10-28
+
+**Faster starts and fewer stops** (most of the long waits after pressing Play were the subtitles, not the server or the line):
+- **Subtitles no longer hold the picture.** A subtitle inside the video file is read out of the whole file on the server, and while the browser waited for it the picture froze right after its first frame — 15 to 29 seconds in tests, longer on a slower disk. The player now fetches subtitles itself in the background; the film plays at once and the subtitle appears when it's ready. All of a file's subtitles are read out in one quiet pass, and only the one you chose is fetched — after the first frame.
+- **No more quality see-saw.** The player mistook the time the server spends converting for a slow internet line and kept dropping 1080p → 720p → 480p and back (11 converter restarts and a 12-second freeze in 25 minutes in a test; none now). After a drop in quality the film no longer sits at 0:00.
+- **Conversions on a server without a graphics card:** the piece you're waiting for is made at the fastest setting, then quality catches up; on Linux they no longer run at low priority by mistake; a TV's converted copy isn't limited to one thread on small servers; pictures and thumbnails are made at low priority.
+- A reverse proxy (nginx) can no longer hold back a film while it saves it to disk first; the start shows a spinner instead of a black page; a torrent with no peers moves to the next source after 25 s instead of 90.
+- **Reports show where a start was slow:** Report a problem includes the start-up steps with their times, and admin → App health has "Slow starts" by step.
+
 ## 1.13.0 — 2026-10-28
 
 - **Recommend to your household.** On a title page, the hold sheet or the end of a film, press Recommend, pick one or more people (with a short note if you like) and send. Kids only get what suits their age; someone who already watched it, turned recommendations off, or got four from you this hour is greyed with the reason ("More in 23 min").
