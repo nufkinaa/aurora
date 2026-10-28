@@ -204,6 +204,8 @@ export default function Settings() {
         <Section icon="sparkle" title="What you like" sub="Pick the genres you enjoy — Home leans its rows towards them.">
           {genres === null ? (
             <ActivityIndicator color={colors.text} style={{margin: 16, alignSelf: 'flex-start'}} />
+          ) : !genres.length ? (
+            <Text style={s.note}>Nothing to pick from yet — the library has no genres.</Text>
           ) : (
             <View style={s.chips}>
               {genres.map(g => (

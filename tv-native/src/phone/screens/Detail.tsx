@@ -905,7 +905,10 @@ export default function Detail() {
   }, [imdb, genres.length, loading]);
 
   // ---- draw ----
-  const artH = Math.round(Math.min(height * 0.56, width * 1.25));
+  // landscape / a tablet: a shorter picture, and the page's body in a readable column
+  const wide = width > height && width >= 700;
+  const artH = Math.round(wide ? height * 0.62 : Math.min(height * 0.56, width * 1.25));
+  const column = wide ? {maxWidth: 820, width: '100%' as const, alignSelf: 'center' as const} : null;
   const facts = [year, fmtDuration(full?.duration) || (meta?.runtime ? String(meta.runtime) : null), isShow && seasons.length ? `${seasons.length} season${seasons.length === 1 ? '' : 's'}` : null].filter(Boolean).join(' · ');
   const badges = [full?.certificate || meta?.certificate, resBadge(full?.height, full?.width), full?.subtitles?.length ? 'CC' : null].filter(Boolean) as string[];
   const cast = (meta?.cast || []).slice(0, 6);
@@ -939,7 +942,7 @@ export default function Detail() {
           </View>
         </View>
 
-        <View style={s.body}>
+        <View style={[s.body, column]}>
           {loading && !full && !meta ? <ActivityIndicator color={colors.text} style={{marginVertical: 12}} /> : null}
           <PrimaryButton
             testID="phone.detail.play"
@@ -1028,7 +1031,7 @@ export default function Detail() {
         </View>
 
         {isShow && seasons.length ? (
-          <View style={s.episodes}>
+          <View style={[s.episodes, column]}>
             <Text style={s.h2}>Episodes</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pills}>
               {seasons.map(se => (

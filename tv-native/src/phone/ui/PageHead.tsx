@@ -6,6 +6,7 @@ import {StyleSheet, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {IconCircle} from './Buttons';
+import {StatusScrim} from './TopBar';
 import {colors, GUTTER} from '../theme';
 
 export const usePageTop = () => useSafeAreaInsets().top + 70;
@@ -28,6 +29,8 @@ export function BackBar({title, right}: {title?: string; right?: React.ReactNode
   const insets = useSafeAreaInsets();
   const nav = useNavigation();
   return (
+    <>
+    <StatusScrim />
     <View pointerEvents="box-none" style={[s.back, {top: insets.top + 8}]}>
       <IconCircle icon="back" label="Back" onPress={() => nav.canGoBack() && nav.goBack()} />
       {title ? (
@@ -39,6 +42,7 @@ export function BackBar({title, right}: {title?: string; right?: React.ReactNode
       )}
       {right}
     </View>
+    </>
   );
 }
 

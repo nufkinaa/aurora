@@ -11,7 +11,9 @@
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
         <item name="android:enforceNavigationBarContrast">false</item>
-        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+        <!-- default: in portrait the cutout sits in the status bar the app draws under;
+             in landscape the system keeps the app clear of it -->
+        <item name="android:windowLayoutInDisplayCutoutMode">default</item>
         <item name="colorAccent">#8b7bff</item>
         <item name="android:forceDarkAllowed">false</item>
     </style>

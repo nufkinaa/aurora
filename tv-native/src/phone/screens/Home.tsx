@@ -109,7 +109,7 @@ const Slide = React.memo(function Slide({item, w, h, onPlay, onDetails}: {item: 
 
 function Billboard({items, onPlay, onDetails, active}: {items: HeroItem[]; onPlay: (it: HeroItem) => void; onDetails: (it: HeroItem) => void; active: boolean}) {
   const {width, height} = useWindowDimensions();
-  const h = Math.round(height > width ? Math.min(height * 0.6, width * 1.45) : height * 0.82);
+  const h = Math.round(height > width ? Math.min(height * 0.6, width * 1.45) : height * 0.74);
   const [idx, setIdx] = useState(0);
   const list = useRef<FlatList<HeroItem>>(null);
   const touchedAt = useRef(0);
@@ -404,8 +404,8 @@ export default function Home() {
         title: item.title,
         sub: [item.year, kindOf(item) === 'show' ? 'Series' : 'Film'].filter(Boolean).join(' · '),
         items: [
-          {label: 'Details', uiId: 'phone.peek.details', onPress: () => openItem(navigation, item)},
-          {label: 'Recommend', uiId: 'phone.peek.recommend', onPress: () => openRecommend(item as never)},
+          {label: 'Details', onPress: () => openItem(navigation, item)},
+          {label: 'Recommend', onPress: () => openRecommend(item as never)},
         ],
       });
     },
