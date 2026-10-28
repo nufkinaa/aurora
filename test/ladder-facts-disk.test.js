@@ -19,6 +19,10 @@ test("a probe is asked once; after a restart it is read back, not asked again", 
   const tonemap = require("../src/media/tonemap");
   const ladder = require("../src/media/ladder");
   const real = tonemap.probeJson;
+  // (no ffprobe on a CI runner: probe() asks nothing without one — this test
+  // stubs the asking itself)
+  const realProbe = config.FFPROBE;
+  config.FFPROBE = config.FFPROBE || "ffprobe";
   let asked = 0;
   tonemap.probeJson = async () => {
     asked++;
@@ -37,5 +41,6 @@ test("a probe is asked once; after a restart it is read back, not asked again", 
     assert.ok(ladder._internals.factsOnDisk()["film|123"]);
   } finally {
     tonemap.probeJson = real;
+    config.FFPROBE = realProbe;
   }
 });
