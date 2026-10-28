@@ -30,7 +30,7 @@ import {
   smooth,
   haptic,
 } from "../ui.js";
-import { api } from "../api.js";
+import { api, forgetWarm } from "../api.js";
 import { playOnButton } from "../remote.js"; // [phone-remote]
 import { track } from "../usage.js";
 import { dropdown } from "./browse.js";
@@ -2556,11 +2556,30 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       if (!unaired && canSource) attachHold(epBtn, () => openSources(row));
       // Live repaint of the job without rebuilding the list (every tick of a
       // 24-row season was a lot of DOM for one number).
+      // A card drawn before its job was known (a download started on the TV
+      // or in another tab) gets the words and the mint bar here, in place.
       epBtn._paintJob = (j) => {
-        const span = epBtn.querySelector(".episode-dl");
-        if (span) span.textContent = ` · ${epJobText(j)}`;
-        const fill = epBtn.querySelector(".episode-bar.dl > div");
-        if (fill) fill.style.width = Math.max(2, Math.round((j.progress || 0) * 100)) + "%";
+        epBtn.classList.add("dl");
+        let span = epBtn.querySelector(".episode-dl");
+        if (!span) {
+          span = el("span", { class: "episode-dl" });
+          const kicker = epBtn.querySelector(".episode-kicker");
+          if (kicker) kicker.append(span);
+        }
+        const text = ` · ${epJobText(j)}`;
+        if (span.textContent !== text) span.textContent = text;
+        let fill = epBtn.querySelector(".episode-bar.dl > div");
+        if (!fill) {
+          fill = el("div");
+          const bar = el("div", { class: "episode-bar dl" }, fill);
+          const old = epBtn.querySelector(".episode-bar");
+          const play = epBtn.querySelector(".episode-play");
+          if (old) old.replaceWith(bar);
+          else if (play) play.before(bar);
+          else epBtn.append(bar);
+        }
+        const w = Math.max(2, Math.round((j.progress || 0) * 100)) + "%";
+        if (fill.style.width !== w) fill.style.width = w;
       };
 
       const extras = [];
@@ -2842,8 +2861,12 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   if (imdbId) screen.append(epSourcesLabel, sourcesSection);
   if (imdbId) {
     loadEpJobs().then(() => renderEpisodes());
-    // Live: the card's percent moves with the job; a finished or failed job
-    // redraws the list (a finished one has a library file to show).
+    // Live: the card's percent moves with the job, in place; a finished or
+    // failed job redraws the list (a finished one has a library file to show).
+    // A tick for an episode not on screen (another season, the viewer
+    // browsing) is only remembered: the list used to be rebuilt on every
+    // tick then — every card and still again, the rail back at its start
+    // (elia, 2026-10-28: "it keeps flashing every %").
     const unsub = untilLeave(onMessage("download_update", ({ job }) => {
       if (!screen.isConnected) return unsub();
       if (!job || job.imdbId !== imdbId || !job.season || !job.episode) return;
@@ -2853,7 +2876,6 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         epJobs.set(key, job);
         const card = episodeList.querySelector(`[data-ep="${key}"]`);
         if (card && card._paintJob) card._paintJob(job);
-        else renderEpisodes();
       } else if (was) {
         epJobs.delete(key);
         if (job.status === "done") loadLibrary(true).catch(() => {});
@@ -2910,6 +2932,9 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
           meta || { type: view.type, title: view.title, year: view.year },
           imdbId,
         );
+    // (the show's answer from when the page opened is kept a minute: read
+    // through it, an episode that landed sooner stayed a download card)
+    if (libId) forgetWarm(`/api/item/${encodeURIComponent(libId)}`);
     const fresh = libId ? await api.item(libId).catch(() => null) : null;
     if (!fresh) return;
     lib = fresh;
