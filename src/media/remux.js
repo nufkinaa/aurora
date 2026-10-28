@@ -235,6 +235,7 @@ const touch = (id, mtime, vcodec, ss, fmt, audio = 0, viewer = null, file = null
     if (m) {
       const k = parseInt(m[1], 10);
       if (!(job.readSeg >= k)) job.readSeg = k;
+      noteFetch(job, k, Date.now());
       if (job.paused || job.leadLow) pace(job); // (a reader catching up: resumed / raised at once if it must be)
     }
   }
@@ -672,8 +673,67 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
   // whatever the viewer was already watching survives the failed seek.
   if (victims.length) job.ready.then(retireVictims, () => {});
 
+  // Somebody is waiting for this job's first segment (a TV's start, seek or
+  // resume): CPU encoders far enough ahead of their own viewers stand still
+  // until it is out (lib/startfirst.js). A re-encode is one of those itself,
+  // once its own playlist is there and its viewer two segments behind.
+  const sf = require("../lib/startfirst");
+  const first = sf.wait(path.basename(dir));
+  job.ready.then(() => { job.readyDone = true; first.end(); }, () => first.end());
+  if (heavy) {
+    try {
+      sf.track(job, {
+        child: proc, label: path.basename(dir),
+        aheadSec: () => aheadOf(job, Date.now()),
+        waited: () => !job.readyDone,
+        pausedElsewhere: () => !!job.paused,
+        refresh: () => readEnds(job),
+        priority: () => (job.leadLow ? os.constants.priority.PRIORITY_LOW : require("../lib/prio").viewer()),
+      });
+    } catch {}
+  }
+
   jobs.set(dir, job);
   return job.ready;
+};
+
+// ---------- how far ahead of its viewer (lib/startfirst.js) ----------
+// The film a job has made (the playlist's segment ends, cumulative — read
+// when asked, off the loop) beyond where its viewer is WATCHING, estimated
+// from the end of the first segment it fetched at the time of fetching,
+// moving at real time: never ahead of the truth (the viewer started inside
+// that segment, after it arrived, and stands still when it pauses or
+// stalls), so "made beyond it" is never overstated. A fetch that skips ahead
+// (a seek inside the playlist) moves the estimate on. -Infinity while that
+// cannot be said: no playlist read yet, nothing fetched yet.
+const readEnds = async (job) => {
+  if (job.endsReading) return;
+  job.endsReading = true;
+  try {
+    const text = await fs.promises.readFile(path.join(job.dir, "index.m3u8"), "utf8");
+    const ends = [];
+    let t = 0;
+    for (const m of text.matchAll(/#EXTINF:([\d.]+)/g)) { t += parseFloat(m[1]) || 0; ends.push(t); }
+    job.segEnds = ends;
+  } catch {} finally { job.endsReading = false; }
+};
+const watchedAt = (job, now) => {
+  const rd = job.rd;
+  if (!rd || !job.segEnds) return null;
+  const end = job.segEnds[rd.seg];
+  if (end == null) return null;
+  return Math.max(rd.base, end + (now - rd.at) / 1000);
+};
+const aheadOf = (job, now) => {
+  if (!job.proc || job.done || !job.readyDone || !job.segEnds || !job.segEnds.length) return -Infinity;
+  const p = watchedAt(job, now);
+  return p == null ? -Infinity : job.segEnds[job.segEnds.length - 1] - p;
+};
+const noteFetch = (job, k, now) => {
+  const rd = job.rd;
+  if (rd && k < rd.last + 2) { rd.last = Math.max(rd.last, k); return; }
+  const was = rd ? watchedAt(job, now) : null;
+  job.rd = { seg: k, at: now, last: k, base: was == null ? -Infinity : was };
 };
 
 // A job dir name as dirName() writes it — including the capped encodes
@@ -766,4 +826,4 @@ const sweepStale = async (maxAgeMs = 24 * 3600 * 1000) => {
   }
   return freed;
 };
-module.exports = { AHEAD_MAX, AHEAD_MIN, pace, ensure, touch, noteViewer, release, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, helpers, encodeLoad, sweepIdle, sweepStale, HLS_ROOT, _internals: { CAPS, capOf, isHeavy, validDir, videoArgsFor, scaleFor, maybeHdr, jobs } };
+module.exports = { AHEAD_MAX, AHEAD_MIN, pace, ensure, touch, noteViewer, release, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, helpers, encodeLoad, sweepIdle, sweepStale, HLS_ROOT, _internals: { CAPS, capOf, isHeavy, validDir, videoArgsFor, scaleFor, maybeHdr, jobs, aheadOf, noteFetch, readEnds } };

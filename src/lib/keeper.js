@@ -151,6 +151,18 @@ const killTree = (pid) =>
     resolve();
   });
 
+// What a server that has EXITED left in its process group (POSIX; the
+// group outlives its leader while it has members): ended. A server killed
+// hard (the OOM killer, SIGKILL) runs none of its own exit handlers, and an
+// ffmpeg it had stopped for somebody's start (lib/startfirst.js: SIGSTOP)
+// would otherwise stay stopped for good — the kernel's orphaned-group
+// SIGCONT does not reach a group that is its own session. Only the group:
+// the dead server's own pid may already be somebody else's.
+const killGroup = (pid) => {
+  if (!pid || process.platform === "win32") return;
+  try { process.kill(-pid, "SIGKILL"); } catch {}
+};
+
 const pidAlive = (pid) => {
   if (!pid) return false;
   try { process.kill(pid, 0); return true; } catch (e) { return e && e.code === "EPERM"; }
@@ -224,6 +236,8 @@ class Keeper {
       spawnChild: d.spawnChild || (() => this._spawnReal()),
       probe: d.probe || ((port) => httpProbe(port, this.cfg.probeTimeoutMs)),
       killTree: d.killTree || killTree,
+      // (children handed in by the caller — the tests' — have no group to end)
+      killGroup: d.killGroup || (d.spawnChild ? () => {} : killGroup),
       alert: d.alert || null, // (title, message) — set by the CLI; null = log only
       log: d.log || ((line) => this._logReal(line)),
       saveState: d.saveState || ((s) => writeJsonAtomic(this.stateFile, s)),
@@ -491,6 +505,8 @@ class Keeper {
     this.exits.push(rec);
     while (this.exits.length > this.cfg.exitsKept) this.exits.shift();
     if (this.child === c) this.child = null;
+    // (whatever it left running in its process group ends with it — killGroup)
+    if (c && c.pid) { try { this.d.killGroup(c.pid); } catch {} }
 
     if (this.stopping) {
       this.state = "stopped";
@@ -629,4 +645,4 @@ const reapOrphan = async (stateFile, deps = {}) => {
   return { reaped: s.childPid };
 };
 
-module.exports = { Keeper, DEFAULTS, EXIT, classify, isCrash, backoffMs, jittered, shouldGiveUp, probeVerdict, httpProbe, killTree, pidAlive, cmdlineOf, reapOrphan, writeJsonAtomic };
+module.exports = { Keeper, DEFAULTS, EXIT, classify, isCrash, backoffMs, jittered, shouldGiveUp, probeVerdict, httpProbe, killTree, killGroup, pidAlive, cmdlineOf, reapOrphan, writeJsonAtomic };

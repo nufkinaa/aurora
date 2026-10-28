@@ -464,6 +464,8 @@ router.get("/api/admin/health", (req, res) => {
   // who the CPU is working for: viewer encodes, and the background work
   // standing behind them (media/cpuwork.js)
   try { load.cpu = require("../media/cpuwork").status(); } catch {}
+  // encoders held still while somebody waits for a first segment (lib/startfirst.js)
+  try { load.startFirst = require("../lib/startfirst").status(); } catch {}
   // what the server keeps in memory, and how big each is (lib/caches.js);
   // the library scans (media/scanner.js); the machine's power profile
   try { load.caches = memorySizes(); } catch {}
