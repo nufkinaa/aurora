@@ -20,6 +20,8 @@ import Sky from './ui/Sky';
 import {GlassButton} from './ui/Buttons';
 import {wireProfileMenu} from './profileMenu';
 import {resetTabs} from './tabs';
+import {flushOfflineProgress} from './offline/store';
+import './remote/controller'; // the profile's TVs, heard from the first socket open
 import {colors, GUTTER} from './theme';
 
 const LOGO = require('../assets/logo-mark.png');
@@ -53,6 +55,8 @@ function Main() {
       },
       name: () => '',
     });
+    // what was watched on a saved copy while the server could not hear it
+    flushOfflineProgress();
     loadMe(profileId)
       .then(me => wireProfileMenu({switchProfile: () => (resetTabs(), switchProfile()), name: () => me?.name || ''}))
       .catch(() => {});

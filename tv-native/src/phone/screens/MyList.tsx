@@ -9,7 +9,6 @@ import {api, HeroItem, ProfileState} from '../../api';
 import {useApp} from '../../AppContext';
 import {openItem} from '../../openItem';
 import {Marks, watchStateFor} from '../../watchState';
-import type {RootStackParamList} from '../../navigation';
 import {usePNav} from '../nav';
 import Grid from '../ui/Grid';
 import {ChipButton, GlassButton} from '../ui/Buttons';

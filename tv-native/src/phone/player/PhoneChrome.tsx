@@ -39,6 +39,8 @@ export type ChromeProps = {
   party: string | null; // "3 · K2X9" when in a watch party
   next: string | null; // the next episode's label
   pip: boolean;
+  /** a copy on the phone: no server, so no menus, X-Ray or watch party */
+  simple?: boolean;
   onBack: () => void;
   onToggle: () => void;
   onSkip: (dir: -1 | 1) => void;
@@ -201,10 +203,14 @@ export default function PhoneChrome(p: ChromeProps) {
         </View>
         <View style={s.row} pointerEvents="box-none">
           {p.hasSubs ? <Btn icon="cc" label="Subtitles" onPress={() => p.onMenu('cc')} badge={p.subsOff ? 'off' : undefined} /> : null}
-          <Btn icon="gear" label="Audio and settings" onPress={() => p.onMenu('settings')} />
-          <Btn icon="speed" label="Speed" onPress={() => p.onMenu('speed')} badge={p.rate === 1 ? undefined : `${p.rate}×`} />
-          <Btn icon="xray" label="X-Ray" onPress={p.onXray} />
-          <Btn icon="people" label="Watch together" onPress={() => p.onMenu('party')} />
+          {p.simple ? null : (
+            <>
+              <Btn icon="gear" label="Audio and settings" onPress={() => p.onMenu('settings')} />
+              <Btn icon="speed" label="Speed" onPress={() => p.onMenu('speed')} badge={p.rate === 1 ? undefined : `${p.rate}×`} />
+              <Btn icon="xray" label="X-Ray" onPress={p.onXray} />
+              <Btn icon="people" label="Watch together" onPress={() => p.onMenu('party')} />
+            </>
+          )}
           <View style={{flex: 1}} />
           <Btn icon="aspect" label={p.fit === 'fill' ? 'Fit the picture' : 'Fill the screen'} onPress={p.onFit} on={p.fit === 'fill'} />
           <Btn icon="rotate" label={p.landscape ? 'Portrait' : 'Landscape'} onPress={p.onRotate} />

@@ -20,7 +20,7 @@ import {useLinks} from './links';
 
 export type PhoneStackParamList = RootStackParamList & {
   Remote: undefined;
-  OnPhone: undefined;
+  OfflinePlayer: {id: string};
 };
 
 const SCREENS = {
@@ -34,6 +34,7 @@ const SCREENS = {
   Browse: () => require('./screens/Browse').default,
   Search: () => require('./screens/Search').SearchRoute,
   MyList: () => require('./screens/MyList').default,
+  OfflinePlayer: () => require('./screens/OfflinePlayer').default,
 } as const;
 
 // evaluated one at a time after Home has had its first seconds (the TV's warmScreens)
@@ -102,13 +103,18 @@ export default function PhoneNavigator() {
           <Stack.Screen name="Search" getComponent={SCREENS.Search} />
           <Stack.Screen name="MyList" getComponent={SCREENS.MyList} />
           <Stack.Screen
+            name="OfflinePlayer"
+            getComponent={SCREENS.OfflinePlayer}
+            options={{animation: 'fade', statusBarHidden: true, navigationBarHidden: true, orientation: 'landscape'}}
+          />
+          <Stack.Screen
             name="Player"
             getComponent={SCREENS.Player}
             options={{animation: 'fade', statusBarHidden: true, navigationBarHidden: true, orientation: 'landscape'}}
           />
         </Stack.Navigator>
       </NavigationContainer>
-      {route !== 'Player' ? <TabBar /> : null}
+      {route !== 'Player' && route !== 'OfflinePlayer' ? <TabBar /> : null}
       <PhoneOverlays />
     </View>
   );

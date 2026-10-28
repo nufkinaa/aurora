@@ -20,7 +20,7 @@ import NavRail from '../components/NavRail';
 import {Empty} from '../components/States';
 import {api, ApiError, artSrc, HeroItem, ImgSource, MyDownload} from '../api';
 import {downloadActions, DownloadAction, isReady, startedBy, rowStatus} from '../downloadsLogic';
-import {replaceJobLine} from '../replaceLogic';
+import {ACTIVE, fmtBytes, statusLine} from '../downloadsWords';
 import {openActions} from '../overlay';
 import {useApp} from '../AppContext';
 import {useRouteShown} from '../useRouteShown';
@@ -31,61 +31,8 @@ import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
 
 const {colors, fontSize, spacing, radius} = theme;
-const ACTIVE = ['approved', 'downloading'];
 // A failed read is asked again after these waits (the last one repeats).
 const RETRY_MS = [3000, 8000, 20000, 30000];
-
-const fmtBytes = (b?: number) => {
-  if (!b) return '';
-  const gb = b / 1024 ** 3;
-  return gb >= 1 ? `${gb.toFixed(1)} GB` : `${Math.round(b / 1024 ** 2)} MB`;
-};
-const when = (iso?: string | null) => {
-  const t = Date.parse(iso || '');
-  if (!Number.isFinite(t)) return '';
-  const d = Date.now() - t;
-  if (d < 60e3) return 'just now';
-  if (d < 3600e3) return `${Math.round(d / 60e3)} min ago`;
-  if (d < 86400e3) return `${Math.round(d / 3600e3)} h ago`;
-  return new Date(t).toLocaleDateString();
-};
-const eta = (j: MyDownload) => {
-  if (!j.sizeBytes || !j.downloadSpeed) return '';
-  const s = Math.round((j.sizeBytes * (1 - (j.progress || 0))) / j.downloadSpeed);
-  if (s < 60) return 'under a minute';
-  if (s < 3600) return `${Math.round(s / 60)} min left`;
-  return `${(s / 3600).toFixed(1)} h left`;
-};
-const statusLine = (j: MyDownload) => {
-  // "Get another version": finished, held back while somebody plays the old copy
-  const waiting = replaceJobLine(j);
-  if (waiting) return waiting;
-  switch (j.status) {
-    case 'done':
-      return j.libraryId ? `Ready · ${when(j.doneAt)}` : 'Finished — indexing…';
-    case 'downloading':
-      return j.phase === 'copying'
-        ? `Copying into the library · ${Math.round((j.copyProgress || 0) * 100)}%`
-        : j.phase === 'finding' || j.phase === 'starting'
-        ? 'Finding peers…'
-        : [`${Math.round((j.progress || 0) * 100)}%`, j.downloadSpeed ? `${(j.downloadSpeed / 1e6).toFixed(1)} MB/s` : '', eta(j)]
-            .filter(Boolean)
-            .join(' · ');
-    case 'approved':
-      if (j.accountLimit) return `Queued — starts when one of ${j.mine ? 'your' : 'their'} ${j.accountLimit} running downloads finishes`;
-      return 'Queued — starts when a slot frees up';
-    case 'pending':
-      return j.holdReason ? `Waiting for approval — ${j.holdReason}` : 'Waiting for approval';
-    case 'declined':
-      return 'Declined by the admin';
-    case 'canceled':
-      return 'Canceled';
-    case 'error':
-      return `Failed — ${j.error || 'unknown error'}`;
-    default:
-      return j.status;
-  }
-};
 
 export default function Downloads({navigation}: NativeStackScreenProps<RootStackParamList, 'Downloads'>) {
   const {profileId} = useApp();

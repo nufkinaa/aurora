@@ -45,7 +45,6 @@ import {noteShown, onHouseholdChanged} from '../../householdLive';
 import {openActions, openRecommend} from '../../overlay';
 import {emptyHomeLine} from '../../browseCopy';
 import {resolvePartyRoute} from '../../party';
-import type {RootStackParamList} from '../../navigation';
 import {usePNav} from '../nav';
 import {artSrc, FrameCard, PosterCard} from '../ui/Cards';
 import {PrimaryButton, GlassButton} from '../ui/Buttons';

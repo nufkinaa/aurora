@@ -598,6 +598,18 @@ export type DiscoverMeta = HeroItem & {
 };
 
 // A download job as /api/downloads lists it for the asker (publicJob + mine).
+// [android-phone] the server's offline copies (src/media/offline.js)
+export type OfflineOption = {quality: string; label: string; detail?: string; sizeBytes: number; estimated?: boolean; instant?: boolean; note?: string; ready?: boolean};
+export type OfflineStatus = {
+  state: 'idle' | 'queued' | 'working' | 'ready' | 'error' | 'unavailable' | string;
+  quality?: string;
+  progress?: number;
+  error?: string | null;
+  url?: string;
+  sizeBytes?: number;
+  direct?: boolean;
+  wait?: {reason: string; text: string; before?: number} | null;
+};
 export type MyDownload = DownloadJob & {
   /** waiting only because this account already has this many downloads running (server 1.7.2) */
   accountLimit?: number | null;
@@ -1835,6 +1847,18 @@ export const api = {
     ),
   parties: () => request<{parties: PartySummary[]}>('/api/party'),
   party: (code: string) => request<Party>(`/api/party/${encodeURIComponent(code)}`),
+  // [android-phone] A copy to keep ON THE PHONE — the website's offline flow
+  // (src/media/offline.js): what can be made for this file, ask for one, poll
+  // until it is ready, then fetch `url` (the phone does that with Android's
+  // DownloadManager — phone/offline/). `hevc`: this device plays HEVC, so the
+  // original may be a plain repackage. Cancel: the copy stops when nobody else waits.
+  offlineOptions: (id: string, hevc: boolean) =>
+    request<{options: OfflineOption[]; duration?: number; error?: string}>(`/api/offline/options/${encodeURIComponent(id)}${hevc ? '?hevc=1' : ''}`),
+  offlinePrepare: (id: string, q: string, hevc: boolean) =>
+    post<OfflineStatus>(`/api/offline/prepare/${encodeURIComponent(id)}?q=${encodeURIComponent(q)}${hevc ? '&hevc=1' : ''}`, {}),
+  offlineStatus: (id: string, q: string, hevc: boolean) =>
+    request<OfflineStatus>(`/api/offline/status/${encodeURIComponent(id)}?q=${encodeURIComponent(q)}${hevc ? '&hevc=1' : ''}`),
+  offlineCancel: (id: string, q: string) => post<OfflineStatus>(`/api/offline/cancel/${encodeURIComponent(id)}?q=${encodeURIComponent(q)}`, {}),
   // This profile's own download requests (`mine`), for the My downloads page.
   myDownloads: (profileId: string) =>
     request<MyDownload[]>(`/api/downloads?profile=${encodeURIComponent(profileId)}`),

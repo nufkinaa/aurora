@@ -1,6 +1,7 @@
 // The top bar's profile button: who you are, and where to go from there.
 import {openActions} from '../overlay';
 import {pushScreen} from '../rootNav';
+import {pushPhone} from './nav';
 import {getAuthMode} from '../api';
 
 let switchFn: (() => void) | null = null;
@@ -18,7 +19,7 @@ export const openProfileMenu = () => {
     items: [
       {label: 'Settings', uiId: 'phone.menu.settings', onPress: () => pushScreen('Settings', undefined)},
       {label: 'Downloads', uiId: 'phone.menu.downloads', onPress: () => pushScreen('Downloads', undefined)},
-      {label: 'Your TVs', uiId: 'phone.menu.remote', onPress: () => pushScreen('Remote' as never, undefined as never)},
+      {label: 'Your TVs', uiId: 'phone.menu.remote', onPress: () => pushPhone('Remote')},
       {label: closed ? 'Sign out' : 'Switch profile', uiId: 'phone.menu.switch', onPress: () => switchFn?.()},
     ],
   });

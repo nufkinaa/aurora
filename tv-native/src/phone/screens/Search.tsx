@@ -63,10 +63,11 @@ export function SearchScreen({pushed, startVoice: startWithVoice, startQ}: {push
       .popular(profileId)
       .then(r => live && setPopular((r.items || []).map(i => ({...i, source: 'downloaded' as const}))))
       .catch(() => {});
+    const req = reqId;
     return () => {
       live = false;
       if (debounce.current) clearTimeout(debounce.current);
-      reqId.current++;
+      req.current++;
     };
   }, [profileId]);
 

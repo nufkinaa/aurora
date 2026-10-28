@@ -29,7 +29,6 @@ import {
   Episode,
   getBaseUrl,
   HeroItem,
-  imgSrc,
   Item,
   LIST_ADDED,
   MarkEntry,
@@ -75,6 +74,10 @@ import {BackBar} from '../ui/PageHead';
 import {useTabBarSpace} from '../ui/TabBar';
 import {shareLink} from '../linkParse';
 import {phoneNative} from '../native';
+import {pushPhone} from '../nav';
+import {saveOffline, useOffline} from '../offline/store';
+import {chooseQuality} from '../offline/choose';
+import {Device, playOn, useDevices} from '../remote/controller';
 import {colors, GUTTER, radius} from '../theme';
 
 const isStream = (it: HeroItem) => it.source === 'stream' || !it.id;
@@ -99,6 +102,9 @@ type UiEp = {
   hasSubs: boolean;
   upNext?: boolean;
   dl?: {status: string; progress: number};
+  subs?: {label: string; lang?: string; url: string}[];
+  durationSec?: number;
+  phone?: 'done' | 'saving';
 };
 type UiSeason = {number: number; episodes: UiEp[]};
 
@@ -137,6 +143,7 @@ const EpisodeRow = React.memo(function EpisodeRow({ep, onPress, onLong}: {ep: Ui
           <Text style={s.epFootText} numberOfLines={1}>
             {ep.air === 'tba' ? 'Not scheduled yet' : ep.air === 'upcoming' ? `Airs ${ep.airLabel}` : ep.airLabel || (ep.owned ? 'Downloaded' : 'Stream or save')}
           </Text>
+          {ep.phone ? <Icon name="phone" size={14} color={ep.phone === 'done' ? colors.owned : colors.textDim} /> : null}
           {ep.hasSubs ? <Text style={s.cc}>CC</Text> : null}
           {ep.watched ? <Icon name="check" size={16} color={colors.textDim} /> : null}
         </View>
@@ -184,6 +191,17 @@ export default function Detail() {
   const [hhHidden, setHhHidden] = useState(false);
   const inflight = useRef(new Set<string>());
   const scrollRef = useRef<ScrollView>(null);
+  // copies saved on this phone (phone/offline/store.ts)
+  const saved = useOffline();
+  // [phone-remote] the profile's TVs that are on: "Play on TV"
+  const tvs = useDevices().filter(d => d.caps?.playItem !== false);
+  const phoneState = useCallback(
+    (id: string): 'done' | 'saving' | undefined => {
+      const c = saved.find(x => x.id === id);
+      return !c ? undefined : c.state === 'done' ? 'done' : c.state === 'failed' ? undefined : 'saving';
+    },
+    [saved],
+  );
 
   // ---- reads (the TV's, in the same order) ----
   const refused = useCallback(
@@ -434,6 +452,9 @@ export default function Detail() {
         air,
         hasSubs: !!ep?.subtitles?.length,
         dl: ep ? undefined : jobs[`${sn}x${en}`],
+        subs: (ep?.subtitles || []).filter(t => !!t.url).map(t => ({label: t.label, lang: t.lang, url: t.url})),
+        durationSec: ep?.duration,
+        phone: ep ? phoneState(ep.id) : undefined,
       };
     };
     if (meta?.seasons?.length) {
@@ -448,7 +469,7 @@ export default function Detail() {
       });
     }
     return (full?.seasons || []).map(se => ({number: se.number, episodes: se.episodes.map(ep => build(se.number, ep.episode, ep.title, undefined, null, null, 'aired'))}));
-  }, [isShow, full, meta, progress, epProgress, jobs, imdb]);
+  }, [isShow, full, meta, progress, epProgress, jobs, imdb, phoneState]);
 
   const nextUp = useMemo(() => {
     const hit = pickUp(seasons.flatMap(se => se.episodes));
@@ -608,6 +629,41 @@ export default function Detail() {
     [playEpisode, saveBest],
   );
 
+  // ---- saving to this phone (the website's offline copies) ----
+  const saveEpisodeToPhone = useCallback(
+    (ep: UiEp) => {
+      if (!ep.epId) return;
+      if (ep.phone === 'done') return pushPhone('OfflinePlayer', {id: ep.epId});
+      saveOffline(
+        {id: ep.epId, title: ep.label, showId: full?.id || item.id, showTitle: title, season: ep.season, episode: ep.episode, year, cover: item.cover || item.poster || full?.cover || null, duration: ep.durationSec, subtitles: ep.subs},
+        chooseQuality(`${title} · S${ep.season} E${ep.episode}`),
+      );
+    },
+    [full, item.id, item.cover, item.poster, title, year],
+  );
+  const saveFilmToPhone = () => {
+    if (!ownedMovieId) return;
+    if (phoneState(ownedMovieId) === 'done') return pushPhone('OfflinePlayer', {id: ownedMovieId});
+    saveOffline(
+      {id: ownedMovieId, title, year, cover: full?.cover || item.cover || item.poster || null, duration: full?.duration, subtitles: (full?.subtitles || []).filter(t => !!t.url).map(t => ({label: t.label, lang: t.lang, url: t.url}))},
+      chooseQuality(title),
+    );
+  };
+
+  // ---- Play on TV (the website's button): the film, or the episode Play stands for ----
+  const playOnTv = () => {
+    const target =
+      !isShow && ownedMovieId
+        ? {id: ownedMovieId, title, type: 'movie', imdbId: imdb, cover: full?.cover || item.cover || item.poster || null, duration: full?.duration || null, position: movieResume || null}
+        : isShow && heroEp?.epId
+        ? {id: heroEp.epId, title: heroEp.label, showId: full?.id || item.id, showTitle: title, season: heroEp.season, episode: heroEp.episode, imdbId: imdb, cover: item.cover || item.poster || null, duration: heroEp.durationSec || null, position: nextUp?.at || null}
+        : null;
+    if (!target) return showToast('Only what is on the server plays on a TV — save it first', 'ℹ️');
+    const go = (d: Device) => playOn(d, target, {position: target.position});
+    if (tvs.length === 1) return go(tvs[0]);
+    openActions({title: 'Play on…', items: tvs.map(d => ({label: d.name, tag: d.mine === false && d.profile ? d.profile.name : undefined, onPress: () => go(d)}))});
+  };
+
   // MARK WATCHED IS NOT WATCHING (the TV's rule): the server's mark route, and what
   // each row looked like before THIS page marked it is sent back on unwatched
   const markSnap = useRef(new Map<string, Progress | null>());
@@ -659,6 +715,7 @@ export default function Detail() {
         body: ep.overview ? unescapeHtml(ep.overview) : undefined,
         items: [
           ...(ep.owned ? [{label: 'Play', onPress: () => playEpisode(ep)}] : [{label: 'Save and play', tag: 'the best source, played while it downloads', onPress: () => saveBest(ep.season, ep.episode, true, ep.air)}]),
+          ...(ep.owned ? [{label: ep.phone === 'done' ? 'Play the copy on this phone' : ep.phone ? 'Saving to this phone…' : 'Save to this phone', tag: ep.phone ? undefined : 'watch it with no connection', onPress: () => saveEpisodeToPhone(ep)}] : []),
           ...(!ep.owned ? [{label: 'Sources', tag: 'streams and downloads', onPress: () => openSources(ep.season, ep.episode)}] : []),
           {
             label: ep.watched ? 'Mark unwatched' : 'Mark watched',
@@ -671,8 +728,25 @@ export default function Detail() {
         ],
       });
     },
-    [title, playEpisode, saveBest, openSources, setEpisodeWatched],
+    [title, playEpisode, saveBest, openSources, setEpisodeWatched, saveEpisodeToPhone],
   );
+  // one quality for the whole season (asked once), then each episode in turn
+  const saveSeasonToPhone = async (eps: UiEp[]) => {
+    let q: string | null = null;
+    let stop = false;
+    for (const ep of eps) {
+      if (!ep.epId) continue;
+      await saveOffline(
+        {id: ep.epId, title: ep.label, showId: full?.id || item.id, showTitle: title, season: ep.season, episode: ep.episode, year, cover: item.cover || item.poster || null, duration: ep.durationSec, subtitles: ep.subs},
+        async options => {
+          if (!q) q = await chooseQuality(`${title} · Season ${ep.season}`)(options);
+          if (!q) stop = true;
+          return q;
+        },
+      );
+      if (stop) break;
+    }
+  };
   const markSeason = () => {
     if (!season) return;
     const aired = season.episodes.filter(e => e.air === 'aired');
@@ -889,7 +963,16 @@ export default function Detail() {
           ) : null}
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.actions}>
+            {tvs.length && (ownedMovieId || heroEp?.owned) ? <ActionCircle icon="cast" label={tvs.length === 1 ? `Play on ${tvs[0].name}` : 'Play on TV'} onPress={playOnTv} /> : null}
             {!isShow && !ownedMovieId && imdb ? <ActionCircle icon="play" label="Stream instead" onPress={() => openSources()} /> : null}
+            {ownedMovieId ? (
+              <ActionCircle
+                icon="downloadDevice"
+                label={phoneState(ownedMovieId) === 'done' ? 'On this phone' : phoneState(ownedMovieId) ? 'Saving…' : 'Save to phone'}
+                on={phoneState(ownedMovieId) === 'done'}
+                onPress={saveFilmToPhone}
+              />
+            ) : null}
             {ownedMovieId && movieResume ? <ActionCircle icon="refresh" label="Start over" onPress={() => navigation.push('Player', {id: ownedMovieId, title, restart: true})} /> : null}
             {isShow ? <ActionCircle icon="series" label="All episodes" onPress={() => scrollRef.current?.scrollTo({y: artH + 160, animated: true})} /> : null}
             <ActionCircle icon={inList ? 'check' : 'plus'} label="My List" on={inList} onPress={toggleList} />
@@ -951,6 +1034,13 @@ export default function Detail() {
               {seasons.map(se => (
                 <ChipButton key={se.number} label={`Season ${se.number}`} active={se.number === seasonNo} onPress={() => setSeasonPick(se.number)} />
               ))}
+              {season && season.episodes.some(e => e.owned && !e.phone) ? (
+                <ChipButton
+                  label={`Save season offline (${season.episodes.filter(e => e.owned && !e.phone).length})`}
+                  icon="downloadDevice"
+                  onPress={() => saveSeasonToPhone(season.episodes.filter(e => e.owned && !e.phone))}
+                />
+              ) : null}
               {aired.length ? <ChipButton label={seasonAllWatched ? 'Mark season unwatched' : 'Mark season watched'} icon="check" onPress={markSeason} /> : null}
             </ScrollView>
             {(season?.episodes || []).map(ep => (
