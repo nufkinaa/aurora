@@ -394,7 +394,7 @@ const resumePoint = (item, restart = false) => {
 // element a blob: URL that loads at once; the picture never waits for a
 // subtitle. data-src keeps the real address (the track's identity).
 export const trackSrcOf = (trackEl) => (trackEl ? trackEl.getAttribute("data-src") || trackEl.getAttribute("src") || null : null);
-export const armTrackSrc = (trackEl) => {
+export const armTrackSrc = (trackEl, signal = null) => {
   if (!trackEl || trackEl.hasAttribute("src") || trackEl._arming) return false;
   const url = trackEl.getAttribute("data-src");
   if (!url) return false;
@@ -403,7 +403,7 @@ export const armTrackSrc = (trackEl) => {
     return true;
   }
   trackEl._arming = true;
-  fetch(url, { credentials: "same-origin" })
+  fetch(url, { credentials: "same-origin", ...(signal ? { signal } : {}) })
     .then((r) => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))))
     .then((text) => {
       if (!trackEl.isConnected) return;
@@ -411,7 +411,7 @@ export const armTrackSrc = (trackEl) => {
     })
     // (could not be read: the browser's own way, as before — an error state
     // the player's empty-track repair knows how to retry)
-    .catch(() => { if (trackEl.isConnected && !trackEl.hasAttribute("src")) trackEl.setAttribute("src", url); })
+    .catch(() => { if (!(signal && signal.aborted) && trackEl.isConnected && !trackEl.hasAttribute("src")) trackEl.setAttribute("src", url); })
     .finally(() => { trackEl._arming = false; });
   return true;
 };
@@ -717,16 +717,19 @@ export const renderPlayer = async (root, { id }) => {
   // Subtitles wait for the picture: a text track's first fetch — for an
   // embedded track, a read of the whole film on the server — starts once the
   // first frame is on screen and the stream has some film in hand (15 s
-  // buffered, or 6 s after that frame), not beside the first segments the
+  // buffered, or 3 s after that frame), not beside the first segments the
   // viewer is waiting for on the same disk (measured on master: a 16.5 s
   // freeze right after the start while the track was read). (armSubs below;
   // released from firstFrame.)
   const subsHeld = [];
+  // (a subtitle still being fetched when the player goes is let go of: the
+  // fetch held its track, and the track the player)
+  const subsAbort = typeof AbortController === "function" ? new AbortController() : null;
   // (only what is still switched on by then: a track picked and left again meanwhile is not fetched)
-  const releaseSubs = () => { while (subsHeld.length) { const t = subsHeld.shift(); if (t.track && t.track.mode !== "disabled") armTrackSrc(t); } };
+  const releaseSubs = () => { while (subsHeld.length) { const t = subsHeld.shift(); if (t.track && t.track.mode !== "disabled") armTrackSrc(t, subsAbort && subsAbort.signal); } };
   const armSubs = (trackEl) => {
     if (!trackEl) return;
-    if (startSteps.subsFree) return void armTrackSrc(trackEl);
+    if (startSteps.subsFree) return void armTrackSrc(trackEl, subsAbort && subsAbort.signal);
     if (!subsHeld.includes(trackEl)) subsHeld.push(trackEl);
   };
   const subsLater = () => {
@@ -735,13 +738,15 @@ export const renderPlayer = async (root, { id }) => {
       if (exited) return;
       let ahead = 0;
       try { for (let i = 0; i < video.buffered.length; i++) if (video.buffered.start(i) <= video.currentTime + 0.3 && video.buffered.end(i) > video.currentTime) ahead = video.buffered.end(i) - video.currentTime; } catch {}
-      if (ahead >= 15 || performance.now() - t0s >= 6000) { startSteps.subsFree = true; return releaseSubs(); }
-      setTimeout(check, 500);
+      if (ahead >= 15 || performance.now() - t0s >= 3000) { startSteps.subsFree = true; return releaseSubs(); }
+      startSteps.subsCheck = setTimeout(check, 500);
     };
     check();
   };
   // (a start that never shows a frame still gets its subtitles in the end)
-  setTimeout(() => { startSteps.subsFree = true; releaseSubs(); }, 20000);
+  // (cleared when the player goes: a pending timer that holds the tracks held
+  // the whole player in memory — test/ui/leaks.test.js)
+  startSteps.subsTimer = setTimeout(() => { startSteps.subsFree = true; releaseSubs(); }, 20000);
   const pressAt = (() => { const n = navStartedAt(); return n > 0 && startSteps.open - n < 60000 ? n : startSteps.open; })();
 
   let item;
@@ -4059,7 +4064,7 @@ export const renderPlayer = async (root, { id }) => {
     { const old = trackEl.getAttribute("src"); if (old && old.startsWith("blob:") && old !== bust) { try { URL.revokeObjectURL(old); } catch {} } }
     trackEl.remove();
     if (wasShowing) fresh.track.mode = "showing";
-    if (wasArmed) armTrackSrc(fresh);
+    if (wasArmed) armTrackSrc(fresh, subsAbort && subsAbort.signal);
     return fresh;
   };
   // readyState 2 = LOADED, 3 = ERROR — both "settled"; zero cues then means
@@ -7233,7 +7238,8 @@ export const renderPlayer = async (root, { id }) => {
     subsLater();
     // A moment later (the first segment's timing entry lands when it has
     // arrived whole): the start-up, step by step, from the press.
-    setTimeout(() => {
+    startSteps.startupTimer = setTimeout(() => {
+      if (exited) return;
       try {
         const isMedia = (u) => /\/stream\/(video|transcode|torrent)\//.test(u) || /\/offline\/(media|file)\//.test(u);
         const entries = (performance.getEntriesByType ? performance.getEntriesByType("resource") : []).filter((e) => e.startTime >= pressAt - 5);
@@ -7375,6 +7381,11 @@ export const renderPlayer = async (root, { id }) => {
   // cleanup when the route changes away
   return () => {
     exited = true;
+    clearTimeout(startSteps.subsTimer);
+    clearTimeout(startSteps.subsCheck);
+    clearTimeout(startSteps.startupTimer);
+    subsHeld.length = 0;
+    try { if (subsAbort) subsAbort.abort(); } catch {}
     playGone(); // [analytics]
     clearInterval(saveTimer);
     clearInterval(partySync);
@@ -7423,7 +7434,12 @@ export const renderPlayer = async (root, { id }) => {
     // chain). Switched off and taken out of the <video>, they are let go.
     try {
       for (const tt of video.textTracks) tt.mode = "disabled";
-      for (const t of [...video.querySelectorAll("track")]) t.remove();
+      for (const t of [...video.querySelectorAll("track")]) {
+        // (a subtitle this player fetched itself is let go of with it)
+        const u = t.getAttribute("src");
+        if (u && u.startsWith("blob:") && t.getAttribute("data-src") !== u) { try { URL.revokeObjectURL(u); } catch {} }
+        t.remove();
+      }
     } catch {}
     video.removeAttribute("src");
     video.load();
