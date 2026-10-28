@@ -286,6 +286,44 @@ export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-f
   return img;
 };
 
+// A CSS animation that runs for ever (the greeting's shine on Home) is a
+// frame of main-thread work 60 times a second for as long as it exists —
+// also while it is scrolled far out of sight. It is held while its element
+// is more than a screen away, and let go at the very point it would have
+// reached had it never stopped (its start time is kept and given back), so
+// whatever is on screen is the same frame for frame. The margin is a whole
+// screen so that it is running again before it can come into view.
+// -> stop(): no more holding (anything held plays on, at its own phase).
+export const holdWhileOffscreen = (node) => {
+  if (typeof IntersectionObserver === "undefined" || !node || !node.getAnimations) return () => {};
+  const held = new Map(); // animation -> the start time it had
+  let shown = true;
+  const apply = () => {
+    for (const a of node.getAnimations()) {
+      // (between play and pause there is a frame; decide once it has settled)
+      if (a.pending) { a.ready.then(apply, () => {}); continue; }
+      if (!shown && a.playState === "running" && a.startTime != null && a.playbackRate === 1) {
+        held.set(a, a.startTime);
+        a.pause();
+      } else if (shown && held.has(a)) {
+        const start = held.get(a);
+        held.delete(a);
+        if (a.playState === "paused") a.startTime = start; // plays again, where it would be
+      }
+    }
+  };
+  const io = new IntersectionObserver((entries) => {
+    shown = entries[entries.length - 1].isIntersecting;
+    apply();
+  }, { rootMargin: "100% 0px" });
+  io.observe(node);
+  return () => {
+    io.disconnect();
+    shown = true;
+    apply();
+  };
+};
+
 // Re-apply a saved scroll offset until the page is tall enough to hold it
 // (grids and rows fill in over several frames). Any real scroll input wins
 // immediately. Returns a stop() for the route's cleanup. (Same pattern the

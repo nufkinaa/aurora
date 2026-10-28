@@ -1,5 +1,5 @@
 // Home: rotating hero billboard + shelves (Continue Watching, My List, ...)
-import { el, icons, fmtDuration, fmtClock, formatRow, artUrl, heroArtWidth, heroCover, heroShowsPoster, restoreScrollY } from "../ui.js";
+import { el, icons, fmtDuration, fmtClock, formatRow, artUrl, heroArtWidth, heroCover, heroShowsPoster, restoreScrollY, holdWhileOffscreen } from "../ui.js";
 import { upgradeArt } from "../artUpgrade.js";
 import { blurOf } from "../blur.js";
 import { api } from "../api.js";
@@ -477,13 +477,17 @@ export const renderHome = async (root) => {
     const day = now.getDay();
     const part = h < 5 ? "Up late" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
     const sub = el("div", { class: "greet-sub" }, " ");
+    const name = el("b", { class: "greet-name" }, state.profile.name);
     screen.append(el("div", { class: "home-greeting big" },
       el("div", { class: "greet-line" },
         (part === "Up late" ? "Up late, " : part + ", "),
-        el("b", { class: "greet-name" }, state.profile.name),
+        name,
         part === "Up late" ? "?" : ""),
       sub,
     ));
+    // the name's shine (screens.css greet-shine) never ends: held while the
+    // greeting is a screen away, at no change to what is on screen (ui.js)
+    cleanups.push(holdWhileOffscreen(name));
     // remark: stats-aware when we can, charming filler when we can't
     const daily = [
       "What's on the plate tonight — a movie, or a show?",
