@@ -59,6 +59,7 @@ const CHAPTER_MARGIN_S = 20; // ... more when a chapter said where it is (its ed
 const PRINTS_PER_SHOW = 8; // a theme per season, short and long versions
 const SIBLINGS = 3;
 const URGENT_SIBLINGS = 2;
+const COPIES_SKIPPED = 3; // at most this many copies of an episode passed over for the next sibling
 const WHOLE_MAX_S = 3 * 3600; // the recap check reads a whole episode, never more than this
 const CREDITS_MIN_S = 20;
 const BANDS = Array.from({ length: 16 }, (_, i) => 100 * Math.pow(3500 / 100, i / 15)); // 100 Hz … 3.5 kHz, log-spaced
@@ -521,18 +522,72 @@ const siblingsOf = (show, season, ep, max) => {
 // (two comparisons or more agreed), "pair" (one comparison: used, but it
 // takes the company of another to win, and is replaced by a confirmed one).
 const RANK = { pair: 0, confirmed: 1, chapters: 2 };
-const printsOf = (showId) => (prints.data[showId] && Array.isArray(prints.data[showId].prints) ? prints.data[showId].prints : []);
+// A known intro carries, beside its fingerprint, WHERE in it the intro is
+// (`in`: [start, end] s, in the slice's own clock): the margins either side
+// are that episode's own sound — its cold open, the scene after its title
+// card. An episode that shares a margin too is a copy of the episode the
+// intro was learned from (another name, the other version of a replaced
+// file): its match is held to those bounds (matchesOf). Without them its
+// intro ran on into the margin, 5 s per round, and the longer intro then
+// replaced the known one ("a longer version"): 47.4 -> 52.4 -> 57.5 s on
+// Avatar: The Last Airbender S1E4 copies.
+// Intros kept before the bounds existed are not used (and are learned again).
+const boundsOk = (t) => Array.isArray(t.in) && t.in.length === 2 && Number.isFinite(t.in[0]) && Number.isFinite(t.in[1]) && t.in[1] > t.in[0];
+const printsOf = (showId) => (prints.data[showId] && Array.isArray(prints.data[showId].prints) ? prints.data[showId].prints.filter(boundsOk) : []);
+// A known intro as a comparison: { fp, trusted, kind, bounds, t } or null.
+const comparisonOf = (t) => {
+  const fp = boundsOk(t) ? introprint.decode(t) : null;
+  return fp ? { fp, trusted: RANK[t.trust] >= RANK.confirmed, kind: "known", bounds: { start: t.in[0], end: t.in[1] }, t } : null;
+};
 const knownIntros = (show, ep, mtime) =>
   printsOf(show.id)
-    // (never an episode against its own intro: that matches everything)
+    // (never an episode against its own intro: that only repeats what it said)
     .filter((t) => !(t.from === ep.id && t.mtime === mtime))
-    .map((t) => ({ fp: introprint.decode(t), trusted: RANK[t.trust] >= RANK.confirmed, kind: "known", t }))
-    .filter((c) => c.fp);
+    .map(comparisonOf)
+    .filter(Boolean);
+// What `head` shares with one comparison, intro-sized: [{ start, end, … }]
+// in head's clock. Against a known intro: a match that shares (nearly) all
+// of a margin's sound is the episode the intro was learned from, again —
+// it is held to the intro's own bounds. Any other match keeps its edges: an
+// episode whose intro starts a little before (or ends a little after) where
+// it was learned shares only that much of a margin, and that is real.
+const MARGIN_SHARED = 0.8;
+const sharesMargin = (fp, from, to, at0, at1) => {
+  // valid frames of fp in [from, to) s, and how many of them lie in [at0, at1]
+  let valid = 0;
+  let covered = 0;
+  const a = Math.max(0, introprint.frameAt(from));
+  const b = Math.min(fp.codes.length, introprint.frameAt(to));
+  for (let f = a; f < b; f++) {
+    if (!fp.valid[f]) continue;
+    valid++;
+    const t = introprint.timeOf(f);
+    if (t >= at0 && t <= at1) covered++;
+  }
+  return valid >= introprint.FPS && covered / valid >= MARGIN_SHARED;
+};
+const matchesOf = (head, c, minS) => {
+  const found = introprint.match(head, c.fp, { minS });
+  if (!c.bounds) return found;
+  const out = [];
+  const len = introprint.timeOf(c.fp.codes.length);
+  for (const m of found) {
+    // head time h is the known intro's h + offset / FPS
+    const shift = m.offset / introprint.FPS;
+    const t0 = m.start + shift;
+    const t1 = m.end + shift;
+    const copy = sharesMargin(c.fp, 0, c.bounds.start, t0, t1) || sharesMargin(c.fp, c.bounds.end, len, t0, t1);
+    const start = copy ? Math.max(m.start, c.bounds.start - shift) : m.start;
+    const end = copy ? Math.min(m.end, c.bounds.end - shift) : m.end;
+    if (end - start >= minS) out.push({ ...m, start, end, ...(copy ? { copy: true } : {}) });
+  }
+  return out.sort((x, y) => y.end - y.start - (x.end - x.start));
+};
 // Fold an intro just found (its fingerprint slice) into a show's list of
 // known ones. Pure: -> { list, changed }. `meta`: { trust, len, from, mtime, season }.
 const mergePrints = (known, slice, meta) => {
   const list = known.slice();
-  const rec = { ...introprint.encode(slice), ...meta, at: meta.at || Date.now(), uses: 1 };
+  const rec = { ...introprint.encode(slice), ...(slice.at ? { in: [round2(slice.at.start), round2(slice.at.end)] } : {}), ...meta, at: meta.at || Date.now(), uses: 1 };
   // the same intro as one already known?
   const same = list.findIndex((t) => {
     const fp = introprint.decode(t);
@@ -551,9 +606,14 @@ const mergePrints = (known, slice, meta) => {
   list[same] = { ...rec, uses: (t.uses || 0) + 1 };
   return { list, changed: true };
 };
+// (`at`: where the intro is in the slice's own clock — its first frame is
+// head frame `from`, so every time in it is head time less from / FPS)
 const sliceFor = (head, intro, margin = PRINT_MARGIN_S) => {
   const slice = introprint.cut(head, intro.start - margin, intro.end + margin);
-  return slice.codes.length < introprint.FPS * INTRO_MIN_S ? null : slice;
+  if (slice.codes.length < introprint.FPS * INTRO_MIN_S) return null;
+  const from = Math.max(0, introprint.frameAt(intro.start - margin));
+  slice.at = { start: intro.start - from / introprint.FPS, end: intro.end - from / introprint.FPS };
+  return slice;
 };
 const learn = (ctx, head, intro, trust, margin = PRINT_MARGIN_S) => {
   if (!head || !intro || !ctx.show || !ctx.show.id) return;
@@ -572,7 +632,7 @@ const learn = (ctx, head, intro, trust, margin = PRINT_MARGIN_S) => {
 const introFrom = async (head, comparisons, limitS) => {
   const lists = [];
   for (const c of comparisons) {
-    const found = introprint.match(head, c.fp, { minS: INTRO_MIN_S }).filter((x) => x.end - x.start <= INTRO_MAX_S);
+    const found = matchesOf(head, c, INTRO_MIN_S).filter((x) => x.end - x.start <= INTRO_MAX_S);
     lists.push({ found, trusted: c.trusted });
     await new Promise((r) => setImmediate(r));
   }
@@ -593,7 +653,7 @@ const checkDbIntro = (head, comparisons, dbIntro) => {
   const len = dbIntro.end - dbIntro.start;
   let best = null;
   for (const c of comparisons) {
-    for (const m of introprint.match(head, c.fp, { minS: DB_HEARD_MIN_S })) {
+    for (const m of matchesOf(head, c, DB_HEARD_MIN_S)) {
       const overlap = Math.min(m.end, dbIntro.end) - Math.max(m.start, dbIntro.start);
       if (overlap <= 0 || m.end - m.start > INTRO_MAX_S) continue;
       if (!best || overlap > best.overlap) best = { overlap, m };
@@ -630,9 +690,16 @@ const analyzeIntro = async (ctx, cache, { urgent = false } = {}) => {
     if (r && r.trusted) return { intro: r, head, via: "known", comparisons: known };
   }
   const comparisons = [...known];
-  for (const s of siblingsOf(show, season, ep, urgent ? URGENT_SIBLINGS : SIBLINGS)) {
+  // (a sibling that is this very recording — a copy, the other version —
+  // is passed over for the next one: it shares the scene after the intro)
+  const want = urgent ? URGENT_SIBLINGS : SIBLINGS;
+  let siblings = 0;
+  for (const s of siblingsOf(show, season, ep, want + COPIES_SKIPPED)) {
+    if (siblings >= want) break;
     const fp = await headOf(cache, s.entry.path, s.duration);
-    if (fp) comparisons.push({ fp, trusted: false, kind: "sibling" });
+    if (!fp || introprint.sameRecording(head, fp)) continue;
+    comparisons.push({ fp, trusted: false, kind: "sibling" });
+    siblings++;
   }
   const r = await introFrom(head, comparisons, limitS);
   // (learned from whenever siblings took part — a longer version of a known
@@ -651,14 +718,28 @@ const analyzeIntro = async (ctx, cache, { urgent = false } = {}) => {
 //   -> { start, end, scene?, snapped? } or null
 const SCENE_MIN_S = 15;
 const CREDITS_LONE_MIN_S = 25;
+// Is the episode in `b` a copy of the one in `a`? By their heads when this
+// analysis read them (introprint.sameRecording), else by the tails: a copy
+// shares the whole four minutes, an episode at most its credits — 200 s of
+// identical credits would start before the tail anyway. (On this house's
+// library: two different episodes shared at most 110 s of a head, 65 s of a
+// tail, 38 % of the sound side by side.)
+const SAME_TAIL_S = 200;
+const copyOf = (cache, a, b, tailA, tailB) => {
+  const ha = (cache.get(a) || {}).head;
+  const hb = (cache.get(b) || {}).head;
+  if (ha && hb) return introprint.sameRecording(ha, hb);
+  return introprint.sameRecording(tailA, tailB, SAME_TAIL_S);
+};
 const analyzeCredits = async (ctx, cache, { threads = null } = {}) => {
   const { show, season, ep, entry, duration } = ctx;
   const me = await tailOf(cache, entry.path, duration);
   if (!me.tail) return null;
   const others = [];
-  for (const s of siblingsOf(show, season, ep, SIBLINGS)) {
+  for (const s of siblingsOf(show, season, ep, SIBLINGS + COPIES_SKIPPED)) {
+    if (others.length >= SIBLINGS) break;
     const o = await tailOf(cache, s.entry.path, s.duration);
-    if (o.tail) others.push(o.tail);
+    if (o.tail && !copyOf(cache, entry.path, s.entry.path, me.tail, o.tail)) others.push(o.tail);
   }
   const r = await creditsFrom(me.tail, others, me.tailStart, duration);
   if (!r) return null;
@@ -733,7 +814,7 @@ const checkRecap = async (ctx, cache, head, recap) => {
   for (const s of siblingsOf(ctx.show, ctx.season, ctx.ep, 6)) {
     if (before.some((b) => b.ep.id === s.ep.id)) continue;
     const fp = await headOf(cache, s.entry.path, s.duration);
-    if (fp) controls.push(fp);
+    if (fp && !introprint.sameRecording(head, fp)) controls.push(fp); // (a copy of this episode has its recap too)
     if (controls.length) break;
   }
   return recapVerdict(head, wholes, recap, controls);
@@ -841,7 +922,13 @@ const analyzeEpisode = async (ctx, cache, { urgent = false, introOnly = false, t
 // edges, known intros per show, the show's other seasons), the credits the
 // same way (and a scene after them), the databases' intro and recap checked
 // against the sound.
-const ANALYSIS_V = 3;
+// 4: a known intro keeps where in it the intro is, and a copy of the
+// episode it was learned from is held to that; a copy of an episode (another
+// name, the other version) is no sibling — the same file gives the same
+// intro and credits, whoever it is compared with (an Avatar S1E4 copy had its
+// intro end 10 s late, and the known intro grew with it). Known intros kept
+// before this are learned again.
+const ANALYSIS_V = 4;
 let running = false;
 let held = false; // waiting for a place behind a viewer encode (cpuwork.js)
 let again = false;
@@ -1631,4 +1718,4 @@ const forget = (episodeId) => {
   return true;
 };
 
-module.exports = { run, get, forget, coverage, busy, fillEpisode, refreshFromDatabases, request, landed, _internals: { cardFrames, refineCreditsByCard, findCard, refineCreditsByPicture, scoreSources, trustedSource, trustOf, creditsFrom, recapVerdict, CREDITS_MIN_S, chooseIntro, chooseRecap, dbShift, checkDbIntro, checkRecap, analyzeCredits, dbChanged, previousOf, mergePrints, sliceFor, orderSiblings, RANK, HEAD_FIRST_S, analyzeIntro, analyzeEpisode, siblingsOf, knownIntros, learn, introFrom, write, runEpisode, contextOf, pumpUrgent, urgentQ, soon, store, prints, headLimit, INTRO_MIN_S, INTRO_LONE_MIN_S, INTRO_MAX_S, PRINT_MARGIN_S, fingerprint, fingerprintAsync, longestRun, consensus, fromChapters, similar, tightenStart, parseBlackdetect, snapToBlack, INVALID, FRAME, HOP, SR, ANALYSIS_V, analysisDue, noneRecord, NONE_RETRY_MS, mtimeOf, chooseCredits, cvDue, cvRecord, CV_V, CV_SURE, CV_ALONE, AGREE_S, cvAborts: () => cvAborts, mtimeMemoFor: (fn) => { mtimeMemo = new Map(); try { return fn(); } finally { mtimeMemo = null; } } } };
+module.exports = { run, get, forget, coverage, busy, fillEpisode, refreshFromDatabases, request, landed, _internals: { comparisonOf, matchesOf, copyOf, cardFrames, refineCreditsByCard, findCard, refineCreditsByPicture, scoreSources, trustedSource, trustOf, creditsFrom, recapVerdict, CREDITS_MIN_S, chooseIntro, chooseRecap, dbShift, checkDbIntro, checkRecap, analyzeCredits, dbChanged, previousOf, mergePrints, sliceFor, orderSiblings, RANK, HEAD_FIRST_S, analyzeIntro, analyzeEpisode, siblingsOf, knownIntros, learn, introFrom, write, runEpisode, contextOf, pumpUrgent, urgentQ, soon, store, prints, headLimit, INTRO_MIN_S, INTRO_LONE_MIN_S, INTRO_MAX_S, PRINT_MARGIN_S, fingerprint, fingerprintAsync, longestRun, consensus, fromChapters, similar, tightenStart, parseBlackdetect, snapToBlack, INVALID, FRAME, HOP, SR, ANALYSIS_V, analysisDue, noneRecord, NONE_RETRY_MS, mtimeOf, chooseCredits, cvDue, cvRecord, CV_V, CV_SURE, CV_ALONE, AGREE_S, cvAborts: () => cvAborts, mtimeMemoFor: (fn) => { mtimeMemo = new Map(); try { return fn(); } finally { mtimeMemo = null; } } } };

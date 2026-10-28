@@ -45,8 +45,8 @@ const legacyIntro = (me, siblings, duration) => {
 // siblings in orderSiblings' order, and learning what was found)
 const knownFor = (list, ep) => list
   .filter((t) => t.from !== ep.key)
-  .map((t) => ({ fp: introprint.decode(t), trusted: I.RANK[t.trust] >= I.RANK.confirmed }))
-  .filter((c) => c.fp);
+  .map(I.comparisonOf)
+  .filter(Boolean);
 const nowIntro = async (ep, siblings, known, { urgent = false } = {}) => {
   const limitS = I.headLimit(ep.duration);
   if (urgent && known.length) {
@@ -58,7 +58,9 @@ const nowIntro = async (ep, siblings, known, { urgent = false } = {}) => {
     const r = await I.introFrom(ep.fp2, known, limitS);
     if (r && r.trusted) return { intro: r, via: "known" };
   }
-  const comparisons = [...known, ...siblings.slice(0, urgent ? 2 : 3).map((s) => ({ fp: s.fp2, trusted: false }))];
+  // (copies of this very episode passed over, as analyzeIntro does)
+  const distinct = siblings.filter((s) => !introprint.sameRecording(ep.fp2, s.fp2));
+  const comparisons = [...known, ...distinct.slice(0, urgent ? 2 : 3).map((s) => ({ fp: s.fp2, trusted: false }))];
   const r = comparisons.length ? await I.introFrom(ep.fp2, comparisons, limitS) : null;
   return { intro: r, via: r ? (r.others > 0 ? "siblings" : "known") : null };
 };
