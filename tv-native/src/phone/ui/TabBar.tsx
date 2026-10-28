@@ -49,8 +49,12 @@ export default function TabBar() {
               accessibilityState={{selected: on}}
               accessibilityLabel={it.label}
               onPress={() => go(it.tab)}
-              style={[s.item, on && s.itemOn]}>
-              <Text style={[s.label, on && s.labelOn]} numberOfLines={1}>
+              style={s.item}>
+              {/* the lit pill is its own layer: the item itself never changes style
+                  (an item that went from lit to plain lost its word under Fabric —
+                  Pixel 9 emulator, 2026-10-28) */}
+              <View style={[s.pill, !on && s.pillOff]} pointerEvents="none" />
+              <Text style={[s.label, {opacity: on ? 1 : 0.8}]} numberOfLines={1}>
                 {it.label}
               </Text>
             </Tap>
@@ -62,8 +66,9 @@ export default function TabBar() {
           accessibilityState={{selected: tab === 'search'}}
           accessibilityLabel="Search"
           onPress={() => go('search')}
-          style={[s.search, tab === 'search' && s.itemOn]}>
-          <Icon name="search" size={26} color={tab === 'search' ? '#fff' : 'rgba(255,255,255,0.82)'} />
+          style={s.search}>
+          <View style={[s.pill, tab !== 'search' && s.pillOff]} pointerEvents="none" />
+          <Icon name="search" size={26} color="#fff" />
         </Tap>
       </View>
     </View>
@@ -87,8 +92,8 @@ const s = StyleSheet.create({
     shadowColor: '#000',
   },
   item: {flex: 1, height: TAB_H - 10, borderRadius: (TAB_H - 10) / 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
-  itemOn: {backgroundColor: colors.tabPill, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)'},
-  label: {color: 'rgba(255,255,255,0.8)', fontSize: 15, fontWeight: '700'},
-  labelOn: {color: '#fff', fontWeight: '800'},
+  pill: {...StyleSheet.absoluteFill, borderRadius: (TAB_H - 10) / 2, backgroundColor: colors.tabPill, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)'},
+  pillOff: {opacity: 0},
+  label: {color: '#fff', fontSize: 15, fontWeight: '800'},
   search: {width: 58, height: TAB_H - 10, borderRadius: (TAB_H - 10) / 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
 });

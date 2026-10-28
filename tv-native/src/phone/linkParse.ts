@@ -69,6 +69,7 @@ export function parsePhoneLink(url: string | null | undefined, hosts: string[] =
   const tt = /^tt\d{3,12}$/;
   switch (parts[0] || '') {
     case '':
+    case 'home':
       return {kind: 'tab', tab: 'home'};
     case 'movie':
       return parts[1] && id.test(parts[1]) ? {kind: 'item', action: 'detail', item: {id: parts[1], title: '', type: 'movie', source: 'downloaded'}} : null;

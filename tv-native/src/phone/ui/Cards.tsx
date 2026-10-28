@@ -89,7 +89,7 @@ export const PosterCard = memo(function PosterCard({
       delayLongPress={380}
       style={[s.poster, {width, height: h}]}>
       {src && !failed ? (
-        <Image source={src} style={StyleSheet.absoluteFill} resizeMode="cover" onError={() => setFailed(true)} fadeDuration={150} />
+        <Image source={src} style={[StyleSheet.absoluteFill, s.round]} resizeMode="cover" onError={() => setFailed(true)} fadeDuration={150} />
       ) : (
         <TitleTile title={item.title} />
       )}
@@ -135,7 +135,7 @@ export const FrameCard = memo(function FrameCard({
       onPress={() => onPress?.(item)}
       style={[s.frame, {width, height: h}]}>
       {src && !failed ? (
-        <Image source={src} style={StyleSheet.absoluteFill} resizeMode="cover" onError={() => setFailed(true)} fadeDuration={150} />
+        <Image source={src} style={[StyleSheet.absoluteFill, {borderRadius: radius.xl - 1}]} resizeMode="cover" onError={() => setFailed(true)} fadeDuration={150} />
       ) : (
         <TitleTile title={title} wide />
       )}
@@ -167,14 +167,17 @@ export const FrameCard = memo(function FrameCard({
 });
 
 const s = StyleSheet.create({
+  // NO overflow clipping on the cards: a rounded clip on every card of a shelf is a
+  // clip-path per card per frame while it scrolls; the picture rounds itself
+  // (Fresco draws it rounded) and nothing else on the card reaches its corners.
+  round: {borderRadius: radius.l - 1},
   poster: {
     borderRadius: radius.l,
-    overflow: 'hidden',
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: StyleSheet.hairlineWidth * 2,
     borderColor: 'rgba(255,255,255,0.22)',
   },
-  tile: {alignItems: 'center', justifyContent: 'center', padding: 10, backgroundColor: 'rgba(110,90,220,0.28)'},
+  tile: {alignItems: 'center', justifyContent: 'center', padding: 10, backgroundColor: 'rgba(110,90,220,0.28)', borderRadius: radius.l - 1},
   tileText: {color: colors.text, fontSize: 15, fontWeight: '800', textAlign: 'center'},
   kind: {
     position: 'absolute',
@@ -217,13 +220,13 @@ const s = StyleSheet.create({
   },
   frame: {
     borderRadius: radius.xl,
-    overflow: 'hidden',
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: StyleSheet.hairlineWidth * 2,
     borderColor: 'rgba(255,255,255,0.2)',
   },
   frameFade: {
     ...StyleSheet.absoluteFill,
+    borderRadius: radius.xl - 1,
     experimental_backgroundImage: 'linear-gradient(180deg, rgba(5,6,12,0) 35%, rgba(5,6,12,0.55) 62%, rgba(5,6,12,0.92) 100%)',
   },
   frameText: {position: 'absolute', left: 14, right: 14, bottom: 12},

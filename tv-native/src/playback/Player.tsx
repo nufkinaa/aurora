@@ -2654,6 +2654,18 @@ export default function Player({
             // (only the uri this was armed for — a reload of the source
             // after an error carries its own position)
             ...(startAt.current && startAt.current.uri === uri ? {startPosition: startAt.current.ms} : {}),
+            // [android-phone] what the lock screen and the notification show
+            // (read once with the uri: a source that changed later would reload)
+            ...(PHONE
+              ? {
+                  metadata: {
+                    title: itemRef.current?.showTitle || title,
+                    subtitle: itemRef.current?.season != null ? `S${itemRef.current.season} E${itemRef.current.episode}${epTitle ? ` · ${epTitle}` : ''}` : itemRef.current?.year ? String(itemRef.current.year) : '',
+                    artist: 'Aurora',
+                    imageUri: assetUrl(itemRef.current?.cover || itemRef.current?.backdrop || stream?.cover || null) || undefined,
+                  },
+                }
+              : {}),
           }
         : undefined,
     [uri, lowRam],
@@ -4454,6 +4466,9 @@ export default function Player({
         // renderer stays off so an MKV's DEFAULT-flagged in-container track can
         // never draw a second, mistimed copy (rule 2).
         selectedTextTrack={NO_NATIVE_TEXT}
+        // [android-phone] play / pause / seek from the notification, the lock
+        // screen, a headset or a watch (media3's MediaSession)
+        showNotificationControls={PHONE}
         onLoad={onLoad}
         onReadyForDisplay={() => {
           // A resume that is still to be sought to (onLoad does it, right

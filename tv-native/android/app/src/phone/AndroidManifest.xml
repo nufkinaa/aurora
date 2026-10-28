@@ -17,6 +17,10 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- voice search (VoiceModule.kt): asked the first time the mic is tapped -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- the player's notification / lock-screen controls (react-native-video's media3
+         MediaSessionService, declared below) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
@@ -90,6 +94,16 @@
             <data android:scheme="https" android:host="nufurora.com" android:path="/" />
         </intent-filter>
       </activity>
+      <!-- The player's media session: play / pause / seek from the notification, the lock
+           screen, headsets and watches (Player.tsx showNotificationControls). -->
+      <service
+        android:name="com.brentvatne.exoplayer.VideoPlaybackService"
+        android:exported="false"
+        android:foregroundServiceType="mediaPlayback">
+        <intent-filter>
+          <action android:name="androidx.media3.session.MediaSessionService" />
+        </intent-filter>
+      </service>
       <!-- Hears the result of a quiet update (UpdateResultReceiver.kt). -->
       <receiver android:name=".UpdateResultReceiver" android:exported="false" />
       <!-- The device harness's door: disabled unless a QA variant asked for it (-PqaReceiver). -->
