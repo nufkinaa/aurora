@@ -263,13 +263,30 @@ const grant = (kind, meta = {}) => {
   };
 };
 
+// Intro detection (introdetect.js) reads a few minutes of sound on one
+// thread and fingerprints it in a helper of its own, both at the lowest
+// priority, for a few seconds an episode: on a machine with cores to spare
+// several run side by side — up to INTRO_SLOTS, the cores less two — as long
+// as nothing but intro detection is running (and, like everything here, no
+// viewer encode, none for the quiet period). Anything else in the queue
+// waits its turn as before.
+const INTRO_SLOTS_MAX = 6;
+const introSlots = () => (deps.low() ? 1 : Math.max(1, Math.min(INTRO_SLOTS_MAX, deps.cpus() - 2)));
+const fits = (kind, weight) => {
+  if (used() === 0 || used() + weight <= budget()) return true;
+  if (kind !== "intro") return false;
+  let n = 0;
+  for (const j of jobs.values()) { if (j.kind !== "intro") return false; n++; }
+  return n < introSlots();
+};
+
 const drain = () => {
   if (!viewer.quiet()) return;
   for (const j of jobs.values()) resume(j);
   // hand the budget to whoever is waiting, in order
   while (waiters.length) {
     const w = waiters[0];
-    if (used() > 0 && used() + w.weight > budget()) break;
+    if (!fits(w.kind, w.weight)) break;
     waiters.shift();
     w.resolve(grant(w.kind, w.meta));
   }
@@ -283,8 +300,10 @@ const background = {
   mayStart(kind = "encode") {
     const w = weightOf(kind);
     if (!viewer.quiet()) return false;
-    return used() === 0 || used() + w <= budget();
+    return fits(kind, w);
   },
+  // how many intro detections may run side by side (see fits)
+  introSlots,
   // Resolves with a place in the budget (see grant) when one may start: no
   // viewer encode running, none for the quiet period, room in the budget —
   // in the order asked.   meta: { label, pausable, onShed }
