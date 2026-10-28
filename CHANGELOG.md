@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.14.4 — 2026-10-29
+
+- **A product page at /install** with every Aurora app in one place: the Android TV app (download, the Downloader address with a copy button, how to allow the install, and a QR code), iPhone and iPad (Add to Home Screen, in pictures), computers (install as an app, or just use the browser), and the Android phone app as soon as it exists. It shows each app's version, what's new in the latest releases, and a tour of the features with screenshots. It opens without signing in and shows nothing about your household or library. /download still hands a TV the app directly, as before.
+- Settings → What's new links to "Get the apps", and the TV-code screen links to the TV app for a TV that doesn't have Aurora yet.
+
 ## 1.14.3 — 2026-10-29
 
 - **The season list no longer flashes while an episode downloads.** Looking at another season during a download rebuilt every card and picture on every percent (and snapped the phone's episode rail back to the start); now only the downloading episode's bar and percentage move, in place. A download started on another device shows its progress on the card too, and when the episode lands its card turns into Play right away (it could stay a download card for up to a minute).
