@@ -51,6 +51,8 @@ const MINUTES = Number(arg("minutes", 30));
 const SCRIPT = String(arg("script", "seeks"));
 const CPUS = Number(arg("cpus", 0));
 const CPU_OFFSET = Number(arg("cpu-offset", 0)); // which CPUs: from this one on (two rigs side by side)
+// --mask <n>: an exact affinity mask instead (e.g. 0x55 = four real cores 0,2,4,6; 0x5500 = 8,10,12,14)
+const MASK = arg("mask", null) != null ? Number(arg("mask")) : null;
 const HW = String(arg("hw", "off"));
 const RATE = Number(arg("rate", 1));
 const HEADED = !!arg("headed", false);
@@ -72,8 +74,8 @@ const stamp = (t = Date.now()) => `${((t - T0) / 1000).toFixed(1).padStart(7)}s`
 // ---- the instance's CPUs: a preload that sets its own affinity before any
 // server code runs; every ffmpeg it spawns inherits the mask.
 const affinityPreload = (cpus) => {
-  const file = path.join(OUT_DIR, `affinity-${cpus}-${CPU_OFFSET}.js`);
-  const mask = ((2 ** cpus - 1) * 2 ** CPU_OFFSET).toString();
+  const file = path.join(OUT_DIR, `affinity-${MASK ? "m" + MASK : cpus}-${CPU_OFFSET}.js`);
+  const mask = (MASK || (2 ** cpus - 1) * 2 ** CPU_OFFSET).toString();
   fs.writeFileSync(file, `"use strict";
 try {
   require("child_process").spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "(Get-Process -Id " + process.pid + ").ProcessorAffinity = ${mask}"], { windowsHide: true, timeout: 20000 });
@@ -402,7 +404,7 @@ const run = async () => {
   clearInterval(ticker);
   for (const t of restartTimers) clearTimeout(t);
   for (const cl of clients) {
-    const R = await cl.page.evaluate(() => { const R = window.__rig; const v = document.querySelector(".player video"); return { stalls: R.stalls, seeks: R.seeks, open: R.open, events: R.events, hls: R.hls, played: R.played, ct: v ? v.currentTime : null, src: v ? v.currentSrc : null }; }).catch((e) => ({ error: e.message }));
+    const R = await cl.page.evaluate(() => { const R = window.__rig; const v = document.querySelector(".player video"); const q = v && v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality() : null; return { stalls: R.stalls, seeks: R.seeks, open: R.open, events: R.events, hls: R.hls, played: R.played, ct: v ? v.currentTime : null, src: v ? v.currentSrc : null, frames: q ? { dropped: q.droppedVideoFrames, total: q.totalVideoFrames } : null }; }).catch((e) => ({ error: e.message }));
     const reqs = cl.net.all().filter((r) => r.kind !== "image" && r.kind !== "script");
     // every stall in context
     const ctxOf = (s) => {
@@ -424,7 +426,7 @@ const run = async () => {
     const marks = reqs.filter((r) => r.kind === "mark" && r.body).map((r) => { try { const m = JSON.parse(r.body); return { at: Math.round((r.start - cl.t0) / 1000), ...m }; } catch { return null; } }).filter(Boolean);
     const row = {
       label: LABEL, client: cl.name, title: cl.title.title, flavour: cl.c.flavour, line: cl.c.line, minutes: MINUTES, cpus: CPUS, hw: HW,
-      played: Math.round(R.played || 0), endAt: R.ct, src: (R.src || "").replace(/^https?:\/\/[^/]+/, "").slice(0, 120),
+      played: Math.round(R.played || 0), endAt: R.ct, frames: R.frames || null, src: (R.src || "").replace(/^https?:\/\/[^/]+/, "").slice(0, 120),
       stallCount: stalls.length, stallMs: stalls.reduce((n, s) => n + (s.ms || 0), 0),
       seeks: (R.seeks || []).map((s) => ({ ms: s.ms, ct: s.ct })), actions: cl.actions,
       paths: [...new Set(marks.filter((m) => m.name === "path").map((m) => m.path))],

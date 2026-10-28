@@ -94,6 +94,8 @@ const CASES = {
   "tv-offset": { title: "about", flavour: "tv", tv: "copy", what: "TV: sound it cannot play → offset copy job" },
   "tv-offset-resume": { title: "about", flavour: "tv", tv: "copy", mode: "resume", what: "TV: offset copy job, resumed 40% in" },
   "tv-encode": { title: "about", flavour: "tv", tv: "h264", what: "TV: picture it cannot play → offset H.264 encode" },
+  "episode-next": { title: "silo1", flavour: "desktop", mode: "next", what: "an episode, then the Next episode button" },
+  "encode-episode-next": { title: "silo1", flavour: "nohevc", mode: "next", what: "the same on a browser without HEVC: both episodes CPU-encoded" },
   "torrent-warm": { torrent: "warm", flavour: "desktop", what: "a torrent stream, its metadata cached, a quick seeder" },
   "torrent-cold": { torrent: "cold", flavour: "desktop", what: "a torrent stream, nothing cached: metadata from the peer" },
   "torrent-slow": { torrent: "slow", flavour: "desktop", what: "a torrent stream from a slow seeder (real-swarm-like)" },
@@ -438,7 +440,24 @@ const webStart = async (inst, cs, { swarm = null } = {}) => {
       }, to, { timeout: 120000, polling: 100 }).then(() => true, () => false);
       seek = { ms: landed ? Date.now() - s0 : null, to: Math.round(to) };
     }
+    // NEXT: the Next episode button in this episode's player (an episode change, as Up next makes it)
+    let next = null;
+    if (ok && cs.mode === "next") {
+      await sleep(4000);
+      await page.mouse.move(500, 250);
+      const btn = '.player .pbtn[aria-label="Next episode"]';
+      await page.waitForSelector(`${btn}:not(.hidden)`, { timeout: 20000 }).catch(() => {});
+      const n0 = Date.now();
+      const before = await page.evaluate(() => location.hash);
+      await page.click(btn).catch(() => {});
+      const moved = await page.waitForFunction((h) => location.hash !== h && /#\/play\//.test(location.hash), before, { timeout: 15000 }).then(() => true, () => false);
+      const landed = moved && await page.waitForFunction(() => { const v = document.querySelector(".player video"); return v && !v.paused && v.currentTime > 0.3 && v.readyState >= 3; }, null, { timeout: 120000, polling: 100 }).then(() => true, () => false);
+      next = { ms: landed ? Date.now() - n0 : null };
+    }
+    // choppiness: frames the browser dropped while it played (not only stalls)
+    const quality0 = await page.evaluate(() => { const v = document.querySelector(".player video"); const q = v && v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality() : null; return q ? { dropped: q.droppedVideoFrames, total: q.totalVideoFrames } : null; }).catch(() => null);
     await sleep(ok ? 12000 : 500);
+    const quality1 = await page.evaluate(() => { const v = document.querySelector(".player video"); const q = v && v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality() : null; return q ? { dropped: q.droppedVideoFrames, total: q.totalVideoFrames } : null; }).catch(() => null);
     const dump = await page.evaluate((since) => ({ clicks: window.__ttff.clicks.filter((c) => c.t >= since - 5), nav: window.__ttff.nav.filter((n) => n.t >= since - 5), videos: window.__ttff.dump(since - 3000), hls: window.__ttff.hlsSince(since) }), since);
     if (t0 == null) t0 = (dump.clicks.filter((c) => c.type === "click")[0] || {}).t || since; // (the press on Play: a seek's click on the scrubber comes later)
     const expectFrom = cs.mode === "resume" && t ? Math.round(t.duration * 0.4) - 4 : 0;
@@ -446,6 +465,8 @@ const webStart = async (inst, cs, { swarm = null } = {}) => {
     const marks = net.all().filter((r) => r.kind === "mark" && r.body).map((r) => { try { return JSON.parse(r.body); } catch { return null; } }).filter(Boolean);
     row.timeline = timeline({ row, requests: net.all(), slog: inst.slog, t0, marks });
     row.seek = seek;
+    row.next = next;
+    if (quality1) row.frames = { dropped: quality1.dropped, total: quality1.total, droppedLast12s: quality0 ? quality1.dropped - quality0.dropped : null, totalLast12s: quality0 ? quality1.total - quality0.total : null };
     row.hls = dump.hls.map((x) => `${x.what}${x.details ? `:${x.details}` : ""}${x.fatal ? "!" : ""}${x.code ? `(${x.code})` : ""}@${Math.round(x.t - t0)}`).slice(0, 30);
     // (a seek: everything up to where it landed, or gave up)
     const until = seek ? Date.now() - t0 : (row.ttff || 30000) + 3000;
@@ -593,7 +614,7 @@ const main = async () => {
         if (stopBusy) { await sleep(Number(arg("busy-watch", 0)) * 1000); row.neighbour = stopBusy.stats(); }
         write(row);
         const tl = row.timeline || {};
-        console.log(`  ${new Date().toISOString().slice(11, 19)} ${c.padEnd(18)} #${run} (library ready in ${Math.round(inst.libraryMs / 1000)} s) ${row.ok ? `ttff ${fmt(row.ttff).padStart(8)}` : `FAILED ${row.why || ""}`}  ${Object.entries(tl).filter(([, v]) => v != null).map(([k, v]) => `${k} ${v}`).join(" · ")}${row.rebufferMs ? `  rebuf ${row.rebufferMs}ms/${row.rebuffers}` : ""}${row.seek ? `  seek ${row.seek.ms} ms` : ""}${row.neighbour ? `  neighbour ${row.neighbour.flavour}: ${row.neighbour.played}s played, ${row.neighbour.stalls} stalls ${row.neighbour.stallMs} ms, refused ${row.neighbour.refused}` : ""}`);
+        console.log(`  ${new Date().toISOString().slice(11, 19)} ${c.padEnd(18)} #${run} (library ready in ${Math.round(inst.libraryMs / 1000)} s) ${row.ok ? `ttff ${fmt(row.ttff).padStart(8)}` : `FAILED ${row.why || ""}`}  ${Object.entries(tl).filter(([, v]) => v != null).map(([k, v]) => `${k} ${v}`).join(" · ")}${row.rebufferMs ? `  rebuf ${row.rebufferMs}ms/${row.rebuffers}` : ""}${row.seek ? `  seek ${row.seek.ms} ms` : ""}${row.next ? `  next episode ${row.next.ms} ms` : ""}${row.frames && row.frames.totalLast12s ? `  dropped ${row.frames.droppedLast12s}/${row.frames.totalLast12s} frames` : ""}${row.neighbour ? `  neighbour ${row.neighbour.flavour}: ${row.neighbour.played}s played, ${row.neighbour.stalls} stalls ${row.neighbour.stallMs} ms, refused ${row.neighbour.refused}` : ""}`);
       } catch (e) {
         console.log(`  ${c} #${run}: ${String(e.stack || e).split("\n").slice(0, 3).join(" | ")}`);
         write({ case: c, run, ok: false, why: String(e.message).split("\n")[0] });
