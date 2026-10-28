@@ -1,5 +1,5 @@
 // Shared UI pieces: media cards and horizontal rows.
-import { el, icons, fmtDuration, toast, posterImg, backupPosterUrl } from "./ui.js";
+import { el, icons, fmtDuration, toast, posterImg, backupPosterUrl, viewWidth } from "./ui.js";
 import { navigate } from "./router.js";
 import { state, progressFor, ratingFor } from "./state.js";
 import { api } from "./api.js";
@@ -281,7 +281,8 @@ const rowCards = (items, opts) => {
 // them off the right edge. The rest of a shelf is built the moment it is
 // scrolled, nudged, or focus walks near its end — the viewer sees the same
 // row, it is just not paid for until it is looked at.
-const HEAD_COUNT = () => Math.max(8, Math.ceil(window.innerWidth / 150) + 4);
+// (viewWidth: innerWidth without laying the half-built page out again — ui.js)
+const HEAD_COUNT = () => Math.max(8, Math.ceil(viewWidth() / 150) + 4);
 const fillRowLater = (scroller, items, opts) => {
   const head = HEAD_COUNT();
   // what the shelf shows: patchShelf (below) puts a newer list here, and the
