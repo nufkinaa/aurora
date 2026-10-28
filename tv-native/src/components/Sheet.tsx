@@ -18,6 +18,7 @@ export default function Sheet({
   accent,
   onClose,
   scrollRef,
+  footer,
   children,
 }: {
   title?: string;
@@ -30,6 +31,9 @@ export default function Sheet({
   // The body's ScrollView, for a sheet that has to bring a row into view
   // itself (ReplaceSheet: the row focus returns to when its list remounts).
   scrollRef?: React.Ref<ScrollView>;
+  // Kept in view under the scrolling body (the picker's note and Send / Cancel: with a big
+  // household the faces filled the sheet and Send was three presses below its edge).
+  footer?: React.ReactNode;
   children: React.ReactNode;
 }) {
   useKeyTrap(true);
@@ -59,6 +63,7 @@ export default function Sheet({
         <ScrollView ref={scrollRef} style={styles.body} contentContainerStyle={styles.bodyIn} showsVerticalScrollIndicator={false}>
           {children}
         </ScrollView>
+        {footer ? <View style={styles.footer}>{footer}</View> : null}
       </TVFocusGuideView>
     </View>
   );
@@ -101,6 +106,8 @@ const styles = StyleSheet.create({
   // The body reaches RING_ROOM past the card's padding on every side and gives it back as
   // padding: the content sits exactly where it did, the rings have room to draw.
   bodyIn: {padding: RING_ROOM},
+  // the same ring room as the body, and a hairline where the scrolling part ends
+  footer: {marginHorizontal: -RING_ROOM, paddingHorizontal: RING_ROOM, paddingBottom: RING_ROOM - 4, marginBottom: -(RING_ROOM - 4), paddingTop: spacing.md, marginTop: 4, borderTopWidth: 1, borderTopColor: colors.line},
   backdropDeep: {backgroundColor: 'rgba(5,6,12,0.86)'},
   cardAccent: {
     borderColor: 'rgba(139,123,255,0.55)',

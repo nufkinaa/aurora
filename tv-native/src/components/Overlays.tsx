@@ -15,7 +15,7 @@ import {api, artSrc, HeroItem, imgSrc, ImgSource, LIST_ADDED, StreamRef, XrayDat
 import {playingContext, recentErrors} from '../errors';
 import {afterFocusLeaves, noteFocus, noteFocusLost, useKeyTrap} from '../focus';
 import {closeOverlay, openRecommend, useOverlay} from '../overlay';
-import {fromLine, noteLine, titleKey, WORDS as HH} from '../householdRecs'; // [household]
+import {cardLinesShown, fromLine, ltr, noteLineShown, titleKey, WORDS as HH} from '../householdRecs'; // [household]
 import {householdChanged} from '../householdLive'; // [household]
 import {openItem} from '../openItem';
 import {resolvePartyRoute} from '../party';
@@ -216,10 +216,10 @@ function PeekSheet({item, onRemove}: {item: HeroItem; onRemove?: (item: HeroItem
             <Text style={styles.peekLeft}>{`${pct}% watched · ${fmtLeft(prog.duration - prog.position)}`}</Text>
           ) : null}
           {/* the website's peek: "From Ben and Dana" and the newest note */}
-          {hh ? <Text style={styles.peekHh}>{item.meta || fromLine(hh.from.map(f => f.name))}</Text> : null}
+          {hh ? <Text style={styles.peekHh}>{ltr(cardLinesShown(item.meta || fromLine(hh.from.map(f => f.name)), hh.from).filter(Boolean).join(' '))}</Text> : null}
           {hh && hh.note && hh.noteBy ? (
             <Text style={styles.peekHhNote} numberOfLines={2}>
-              {noteLine(hh.note, hh.noteBy)}
+              {noteLineShown(hh.note, hh.noteBy)}
             </Text>
           ) : null}
           {synopsis ? (

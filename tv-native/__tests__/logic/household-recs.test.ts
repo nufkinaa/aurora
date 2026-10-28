@@ -295,7 +295,8 @@ describe('householdLive: a ping becomes one toast, once', () => {
     mockHandlers.get('household_recs')!({type: 'household_recs', profile: 'me'});
     await flush();
     expect(showToast).toHaveBeenCalledTimes(1);
-    expect(showToast.mock.calls[0][0]).toBe('Dana recommended Dune');
+    // the words to the letter, a left-to-right mark first (a Hebrew name never flips the line)
+    expect(showToast.mock.calls[0][0]).toBe('‎Dana recommended Dune');
     expect(track).toHaveBeenCalledWith('feat', {f: 'hhrec-toast'});
     expect(changed).toHaveBeenCalledTimes(1);
     // a repeat send (only the note changed) pings again: the same time, no toast
@@ -332,5 +333,37 @@ describe('householdLive: a ping becomes one toast, once', () => {
     expect(live._householdLive.state().newest).toBe(1000);
     clearProfileCaches();
     expect(live._householdLive.state()).toEqual({profile: null, newest: 0, asking: false});
+  });
+});
+
+// [household] the card's two lines and right-to-left names (the design pass, 2026-10-28)
+describe('the card lines and right-to-left names', () => {
+  const R = require('../../src/householdRecs');
+  test('cardLines: the first sender, then the rest — together the server line, word for word', () => {
+    expect(R.cardLines('From Dana')).toEqual(['From Dana', '']);
+    expect(R.cardLines('From Dana and Avi')).toEqual(['From Dana', 'and Avi']);
+    expect(R.cardLines('From Dana and 10 others')).toEqual(['From Dana', 'and 10 others']);
+    expect(R.cardLines('From Maximiliana Rosenthal and נועם בן-דוד')).toEqual(['From Maximiliana Rosenthal', 'and נועם בן-דוד']);
+    // a name with "and" in it stays whole when the senders are known
+    expect(R.cardLines('From Tom and Jerry and Avi', [{name: 'Tom and Jerry'}, {name: 'Avi'}])).toEqual(['From Tom and Jerry', 'and Avi']);
+    expect(R.cardLines('From Tom and Jerry', [{name: 'Tom and Jerry'}])).toEqual(['From Tom and Jerry', '']);
+    expect(R.cardLines('')).toEqual(['', '']);
+    for (const m of ['From Dana', 'From Dana and Avi', 'From Dana and 2 others']) {
+      const [a, b] = R.cardLines(m);
+      expect([a, b].filter(Boolean).join(' ')).toBe(m);
+    }
+  });
+  test('the marks are not words: stripped, every line is the table words', () => {
+    const [a, b] = R.cardLinesShown('From Maximiliana Rosenthal and נועם בן-דוד', [{name: 'Maximiliana Rosenthal'}, {name: 'נועם בן-דוד'}]);
+    expect(R.plain(a)).toBe('From Maximiliana Rosenthal');
+    expect(R.plain(b)).toBe('and נועם בן-דוד');
+    expect(b).toContain('‎נועם בן-דוד‎'); // the Hebrew name fenced off
+    expect(R.plain(R.nameWord('נועם', 'Mute'))).toBe('נועם · Mute');
+    expect(R.nameWord('נועם', 'Mute').startsWith('‎')).toBe(true);
+    expect(R.plain(R.noteLineShown('סרט מדהים', 'Dana'))).toBe(R.noteLine('סרט מדהים', 'Dana'));
+    expect(R.notesShown([{name: 'Dana', note: 'Go'}, {name: 'Avi'}]).map(R.plain)).toEqual(R.notesOf([{name: 'Dana', note: 'Go'}, {name: 'Avi'}]));
+    // a Latin name is left as it is (no marks inside)
+    expect(R.iso('Dana')).toBe('Dana');
+    expect(R.ltr('')).toBe('');
   });
 });

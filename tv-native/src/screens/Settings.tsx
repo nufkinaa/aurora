@@ -13,7 +13,7 @@
 // Genres are toggled against the same endpoint the site uses, so a change here
 // shows up in the browser's rows too.
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {View, Text, ScrollView, StyleSheet, ActivityIndicator} from 'react-native';
+import {View, Text, ScrollView, StyleSheet, ActivityIndicator, TVFocusGuideView} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Chip from '../components/Chip';
 import Focusable from '../components/Focusable';
@@ -40,7 +40,7 @@ import {nextChoice, readStyle, styleLabel, SUB_STYLE_KEYS, SUB_STYLE_SETTINGS, S
 import {AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES} from '../audioFx';
 import TvNamePicker, {useTvName} from '../remote/TvNamePicker'; // [phone-remote]
 import {HouseholdSettings} from '../api'; // [household]
-import {WORDS as HH} from '../householdRecs'; // [household]
+import {nameWord, WORDS as HH} from '../householdRecs'; // [household]
 import {householdChanged} from '../householdLive'; // [household]
 
 const {colors, fontSize, spacing, radius} = theme;
@@ -135,15 +135,18 @@ function HouseholdPrefs({profileId, onSent}: {profileId: string; onSent: () => v
           onPress={() => st && save({on: !st.on}, {...st, on: !st.on})}
         />
       </View>
-      {st && st.people.length ? (
+      {/* the mute list only while recommendations are on (the website's: off, nobody reaches you) */}
+      {st && st.on && st.people.length ? (
         <>
           <Text style={[styles.note, styles.hhMuteLine]}>{HH.muteLine}</Text>
-          {/* the website's chips: "Dana · Mute" / "Avi · Muted" */}
-          <View style={styles.hhChips}>
+          {/* the website's chips: "Dana · Mute" / "Avi · Muted". A focus guide: DOWN from the
+              switch lands on the FIRST chip (or the one last used), and UP from What you sent
+              too — Android's own search picked a chip in the middle of the second line (Mi TV). */}
+          <TVFocusGuideView autoFocus style={styles.hhChips}>
             {st.people.map((p, i) => (
-              <Chip uiId="settings.hh.mute" key={p.id} small edgeLeft={i === 0} on={p.muted} label={`${p.name} · ${p.muted ? HH.muted : HH.mute}`} onPress={() => mute(p)} />
+              <Chip uiId="settings.hh.mute" key={p.id} small edgeLeft={i === 0} on={p.muted} label={nameWord(p.name, p.muted ? HH.muted : HH.mute)} onPress={() => mute(p)} />
             ))}
-          </View>
+          </TVFocusGuideView>
         </>
       ) : null}
       <View style={[styles.list, styles.hhSent]}>

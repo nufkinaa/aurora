@@ -27,6 +27,8 @@ import {acceptTvEvent} from '../focus';
 import {
   NOTE_MAX,
   WORDS,
+  iso,
+  ltr,
   noteCounter,
   notePress,
   pickable,
@@ -77,13 +79,19 @@ const Face = React.memo(function RecFace({
       onPress={() => onToggle(p)}
       highlightColor={colors.surfaceHover}
       accessibilityLabel={p.name}
-      style={[styles.face, !can && styles.faceOff]}>
-      <View style={[styles.avatar, {backgroundColor: p.color || colors.surfaceHover}, on && styles.avatarOn]}>
-        {pic ? (
-          <Image source={pic} style={styles.avatarImg} resizeMode="cover" fadeDuration={0} />
-        ) : (
-          <Text style={styles.avatarGlyph}>{p.avatar || '🍿'}</Text>
-        )}
+      style={styles.face}>
+      {/* a greyed face dims its picture and words, not its focus ring: the ring must read as
+          clearly on a face you cannot pick as on one you can (it says why underneath) */}
+      <View style={[styles.faceIn, !can && styles.faceOff]}>
+      <View style={styles.avatarBox}>
+        <View style={[styles.avatar, {backgroundColor: p.color || colors.surfaceHover}, on && styles.avatarOn]}>
+          {pic ? (
+            <Image source={pic} style={styles.avatarImg} resizeMode="cover" fadeDuration={0} />
+          ) : (
+            <Text style={styles.avatarGlyph}>{p.avatar || '🍿'}</Text>
+          )}
+        </View>
+        {/* the ✓ as a badge on the circle's edge, outside its clip (inside, the circle cut it) */}
         {on ? (
           <View style={styles.tick}>
             <Text style={styles.tickText}>✓</Text>
@@ -91,13 +99,14 @@ const Face = React.memo(function RecFace({
         ) : null}
       </View>
       <Text style={styles.name} numberOfLines={1}>
-        {p.name}
+        {ltr(iso(p.name))}
       </Text>
       {p.line ? (
         <Text style={styles.why} numberOfLines={2}>
           {p.line}
         </Text>
       ) : null}
+      </View>
     </Focusable>
   );
 });
@@ -111,6 +120,8 @@ export default function RecommendSheet({title, imdbId}: {title: TitleLike; imdbI
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  // the field's own focus look (a TextInput is not a Focusable: no ring of its own)
+  const [noteOn, setNoteOn] = useState(false);
   // Send, for the note field to hand focus to (see the TextInput below), and the
   // sheet's body, so a refusal line under the buttons never pushes them out of view
   const sendRef = useRef<{requestTVFocus?: () => void} | null>(null);
@@ -143,6 +154,7 @@ export default function RecommendSheet({title, imdbId}: {title: TitleLike; imdbI
     () => () => {
       noteFocused.current = false;
       noteLeftAt.current = Date.now();
+      setNoteOn(false);
     },
     [],
   );
@@ -205,13 +217,13 @@ export default function RecommendSheet({title, imdbId}: {title: TitleLike; imdbI
       const line = sendToast(a);
       if (line) {
         closeOverlay();
-        showToast(line, '💌');
+        showToast(ltr(line), '💌');
         // what the sender's own pages show (You sent) moved
         householdChanged();
         return;
       }
       // nothing went: the sheet says why, and the faces say what changed (a limit, someone off)
-      setError(sendStatus(a));
+      setError(ltr(sendStatus(a)));
       const list = await loadPeople().catch(() => people || []);
       setPeople(list);
       setPicked(s => keepPickable(s, list));
@@ -222,7 +234,58 @@ export default function RecommendSheet({title, imdbId}: {title: TitleLike; imdbI
   };
 
   return (
-    <Sheet title={pickerTitle(name)} onClose={closeOverlay} width={760} scrollRef={bodyRef}>
+    <Sheet
+      title={pickerTitle(iso(name))}
+      onClose={closeOverlay}
+      width={820}
+      scrollRef={bodyRef}
+      footer={
+        <>
+          {people && people.length ? (
+            <View style={styles.noteRow}>
+              <TextInput
+                style={[styles.input, noteOn && styles.inputOn]}
+                multiline
+                numberOfLines={2}
+                value={note}
+                onChangeText={v => setNote(typedNote(v))}
+                maxLength={NOTE_MAX * 2 /* code units; typedNote cuts at 140 code points */}
+                placeholder={WORDS.notePlaceholder}
+                placeholderTextColor={colors.textFaint}
+                blurOnSubmit
+                // The keyboard's ✓ ends the typing: focus goes on to Send. Left to Android, the
+                // field's blur put focus on the page UNDER the sheet (Mi TV, 5.7.0 pass).
+                onSubmitEditing={() => setTimeout(() => sendRef.current?.requestTVFocus?.(), 0)}
+                onFocus={() => {
+                  noteFocused.current = true;
+                  noteGotAt.current = Date.now();
+                  setNoteOn(true);
+                }}
+                onBlur={leftNote}
+              />
+              <Text style={styles.counter}>{noteCounter(note)}</Text>
+            </View>
+          ) : null}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <View style={styles.actions}>
+            <Focusable
+              ref={sendRef as never}
+              onFocusChange={notOnNote}
+              uiId="recommend.send"
+              round
+              light={to.length > 0}
+              ring="violet"
+              hasTVPreferredFocus={!!people && firstPickable < 0}
+              onPress={send}
+              style={[styles.primary, !to.length && styles.primaryOff]}>
+              {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={[styles.primaryText, !to.length && styles.primaryTextOff]}>{sendLabel(to.length)}</Text>}
+            </Focusable>
+            <Focusable uiId="recommend.close" onFocusChange={notOnNote} round hasTVPreferredFocus={!!error && !people} onPress={closeOverlay} style={styles.ghost}>
+              <Text style={styles.ghostText}>Cancel</Text>
+            </Focusable>
+          </View>
+        </>
+      }>
       <Text style={styles.line}>{WORDS.pickerLine}</Text>
       {people === null && !error ? <ActivityIndicator color={colors.text} style={styles.wait} /> : null}
       {people && people.length === 0 ? <Text style={styles.empty}>There's nobody else on this server yet.</Text> : null}
@@ -241,72 +304,34 @@ export default function RecommendSheet({title, imdbId}: {title: TitleLike; imdbI
           ))}
         </View>
       ) : null}
-      {people && people.length ? (
-        <View style={styles.noteRow}>
-          <TextInput
-            style={styles.input}
-            multiline
-            numberOfLines={2}
-            value={note}
-            onChangeText={v => setNote(typedNote(v))}
-            maxLength={NOTE_MAX * 2 /* code units; typedNote cuts at 140 code points */}
-            placeholder={WORDS.notePlaceholder}
-            placeholderTextColor={colors.textFaint}
-            blurOnSubmit
-            // The keyboard's ✓ ends the typing: focus goes on to Send. Left to Android, the
-            // field's blur put focus on the page UNDER the sheet (Mi TV, 5.7.0 pass).
-            onSubmitEditing={() => setTimeout(() => sendRef.current?.requestTVFocus?.(), 0)}
-            onFocus={() => {
-              noteFocused.current = true;
-              noteGotAt.current = Date.now();
-            }}
-            onBlur={leftNote}
-          />
-          <Text style={styles.counter}>{noteCounter(note)}</Text>
-        </View>
-      ) : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <View style={styles.actions}>
-        <Focusable
-          ref={sendRef as never}
-          onFocusChange={notOnNote}
-          uiId="recommend.send"
-          round
-          light={to.length > 0}
-          ring="violet"
-          hasTVPreferredFocus={!!people && firstPickable < 0}
-          onPress={send}
-          style={[styles.primary, !to.length && styles.primaryOff]}>
-          {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={[styles.primaryText, !to.length && styles.primaryTextOff]}>{sendLabel(to.length)}</Text>}
-        </Focusable>
-        <Focusable uiId="recommend.close" onFocusChange={notOnNote} round hasTVPreferredFocus={!!error && !people} onPress={closeOverlay} style={styles.ghost}>
-          <Text style={styles.ghostText}>Cancel</Text>
-        </Focusable>
-      </View>
     </Sheet>
   );
 }
 
-// 132: five faces still fit the 760 sheet (5 × 132 + 4 gaps = 692 of 696), and the longest
-// line, "Not taking recommendations", breaks between its words (at 120 it broke inside one)
-const FACE_W = 132;
-const AV = 64;
+// Six faces to a line (6 × 116 + 5 gaps of 6 = 726 of the 731 the sheet has inside: it is held to
+// 92% of the 864 between the safe insets), so a big household takes fewer lines above the note
+// and Send (which stay put); "Not taking recommendations" still breaks between its words.
+const FACE_W = 116;
+const AV = 56;
 const styles = StyleSheet.create({
   line: {color: colors.textDim, fontSize: fontSize.body, marginBottom: spacing.md},
   wait: {marginVertical: spacing.xl},
   empty: {color: colors.textDim, fontSize: fontSize.body, marginVertical: spacing.md},
-  faces: {flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm},
-  face: {width: FACE_W, alignItems: 'center', paddingVertical: 10, paddingHorizontal: 6, borderRadius: radius.m},
+  faces: {flexDirection: 'row', flexWrap: 'wrap', gap: 6},
+  face: {width: FACE_W, paddingVertical: 8, paddingHorizontal: 4, borderRadius: radius.m},
+  faceIn: {alignItems: 'center'},
   faceOff: {opacity: 0.42},
   avatar: {width: AV, height: AV, borderRadius: AV / 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderWidth: 2, borderColor: 'transparent'},
   avatarOn: {borderColor: colors.accent},
   avatarImg: {position: 'absolute', top: 0, left: 0, width: AV, height: AV},
-  avatarGlyph: {fontSize: 30},
-  tick: {position: 'absolute', right: 0, bottom: 0, width: 24, height: 24, borderRadius: 12, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center'},
-  tickText: {color: colors.white, fontSize: 14, fontWeight: '900'},
-  name: {color: colors.text, fontSize: fontSize.body, fontWeight: '700', marginTop: 6, maxWidth: FACE_W - 12},
-  why: {color: colors.textDim, fontSize: fontSize.small, marginTop: 2, textAlign: 'center', maxWidth: FACE_W - 12},
-  noteRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.md},
+  avatarGlyph: {fontSize: 27},
+  avatarBox: {width: AV, height: AV},
+  tick: {position: 'absolute', right: -5, bottom: -3, width: 24, height: 24, borderRadius: 12, backgroundColor: colors.accent, borderWidth: 2, borderColor: '#131522', alignItems: 'center', justifyContent: 'center'},
+  tickText: {color: colors.white, fontSize: 12, fontWeight: '900', lineHeight: 15},
+  name: {color: colors.text, fontSize: fontSize.body, fontWeight: '700', marginTop: 5, maxWidth: FACE_W - 8},
+  // the face's whole width (past its 4dp padding): "recommendations" broke inside the word at 106
+  why: {color: colors.textDim, fontSize: fontSize.small, marginTop: 2, textAlign: 'center', width: FACE_W, marginHorizontal: -4},
+  noteRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.md},
   input: {
     flex: 1,
     backgroundColor: 'rgba(255,255,255,0.06)',
@@ -319,9 +344,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     textAlignVertical: 'top',
   },
+  // focused: the white edge every focused control has (2dp, so 1dp less padding keeps the size)
+  inputOn: {borderColor: colors.focusRing, borderWidth: 2, paddingVertical: 11, paddingHorizontal: 15, backgroundColor: 'rgba(255,255,255,0.09)'},
   counter: {color: colors.textFaint, fontSize: fontSize.small, fontWeight: '700', minWidth: 56, textAlign: 'right'},
   error: {color: '#ff8080', fontSize: fontSize.body, marginTop: spacing.sm},
-  actions: {flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.lg, justifyContent: 'space-between'},
+  actions: {flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md, justifyContent: 'space-between'},
   primary: {backgroundColor: colors.white, paddingVertical: 12, paddingHorizontal: 26, minWidth: 150, alignItems: 'center'},
   primaryOff: {backgroundColor: 'rgba(255,255,255,0.16)'},
   primaryText: {color: colors.bg, fontSize: fontSize.body, fontWeight: '800'},
