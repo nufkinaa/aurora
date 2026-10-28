@@ -1,4 +1,4 @@
 {
-  "versionName": "5.7.0",
-  "notes": "Recommend films and shows to your household, and see what they recommended to you on Home. Faster, steadier starts. Please update."
+  "versionName": "5.7.1",
+  "notes": "The player now recovers by itself when a film stops, and never starts over from the beginning. Please update."
 }

@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.13.8 — 2026-10-28
+
+- **Aurora TV 5.7.1** (checked on the Mi TV, also with sign-in required): the TV player now recovers by itself like the website — after an error it reloads the same film at the same spot (twice, within a couple of seconds), a frozen picture is nudged and then reloaded, and only if that can't help a card says "The film stopped and didn't come back by itself" with Try again from the same spot (and a quiet retry every 30 s). It never restarts a film at 0:00 any more. Report a problem from the player puts you straight in its text box, and in Recommend the remote moves to and from the note reliably, also after typing.
+
 ## 1.13.7 — 2026-10-28
 
 - **The picture never stands still for minutes any more.** When the browser's video pipeline breaks mid-film (a decoding error, or the browser refusing the video pieces), the website player now rebuilds the same stream at the same spot by itself — twice, within a couple of seconds — and only after a third failure in 3 minutes shows "The film stopped and didn't come back by itself" with Try again from the same spot (and quietly tries again every 30 s while it waits). A pause the browser makes by itself on an error is no longer mistaken for yours, and the freeze watcher now always ends a frozen picture with Try again instead of leaving it. Before, such a failure could switch to a full conversion and then leave a still picture with no message.
