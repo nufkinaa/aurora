@@ -722,8 +722,10 @@ export const sameParties = (a: PartySummary[], b: PartySummary[]) =>
 export type Segments = {
   intro: {start: number; end: number} | null;
   recap?: {start: number; end: number} | null;
-  credits: {start: number} | null;
+  credits: {start: number; end?: number | null; scene?: boolean} | null;
   source?: string | null;
+  /** the server is reading this episode now: ask again (AUTO_ASK_MS) */
+  pending?: boolean;
 };
 export type TrailerAnswer =
   | {source: 'apple'; hls: string; id: string; quality?: number}

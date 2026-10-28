@@ -74,6 +74,9 @@ export type UpNextPlan = {
   countdown: number | null;
   /** the main button: Play now / Choose episode / Keep watching */
   primary: 'play' | 'choose' | 'keep';
+  /** a scene follows the credits: no countdown over it — the next episode
+   *  starts by itself when this one ends (player.js the same) */
+  atEnd?: boolean;
 };
 
 /** What the card is, by the website's rule (player.js showUpNext):
@@ -92,10 +95,13 @@ export const planUpNext = (o: {
   guest: boolean;
   /** episodes that started by themselves, in a row, up to and including this one */
   autoRun: number;
+  /** the server heard a scene after the credits (/api/intro/auto credits.scene) */
+  scene?: boolean;
 }): UpNextPlan => {
   if (o.next.kind === 'stream') return {card: 'upnext', countdown: null, primary: 'choose'};
   const autoplay = o.autoplayPref && !(o.inParty && o.guest);
   if (autoplay && !o.inParty && o.autoRun >= STILL_WATCHING_AFTER) return {card: 'still', countdown: null, primary: 'keep'};
+  if (autoplay && o.scene) return {card: 'upnext', countdown: null, primary: 'play', atEnd: true};
   return {card: 'upnext', countdown: autoplay ? UPNEXT_COUNTDOWN_SEC : null, primary: 'play'};
 };
 
@@ -139,6 +145,23 @@ export const skippableAt = (
   if (inside(o.recap)) return {kind: 'recap', range: o.recap};
   if (inside(o.intro)) return {kind: 'intro', range: o.intro};
   return null;
+};
+
+/** How long to wait before asking again about an episode whose intro the
+ *  server is still working out (its answer says `pending`): the website's
+ *  player.js AUTO_ASK_MS, the same list (about three minutes in all). */
+export const AUTO_ASK_MS = [2000, 2000, 3000, 3000, 5000, 5000, 5000, 10000, 10000, 10000, 15000, 15000, 30000, 30000, 30000];
+/** Seconds until the next skippable range starts, when that is within
+ *  `within` s (the clock is reported once a second: a range that starts
+ *  before the next report is looked at again exactly then); else null. */
+export const nextSkipStartIn = (
+  t: number,
+  o: {recap: Range | null; intro: Range | null},
+  within = 1.2,
+): number | null => {
+  const ds = [o.recap, o.intro].filter((x): x is Range => !!x && x.start > t).map(x => x.start - t);
+  const d = ds.length ? Math.min(...ds) : null;
+  return d != null && d <= within ? d : null;
 };
 
 // ------------------------------------------------- a stall on direct play

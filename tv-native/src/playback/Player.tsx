@@ -85,7 +85,7 @@ import Video, {
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Focusable from '../components/Focusable';
 import Icon, {IconName} from '../components/Icon';
-import {api, ApiError, assetUrl, imgSrc, mediaHeaders, Item, Party, PartyItem, ProfileState, SubtitleTrack} from '../api';
+import {api, ApiError, assetUrl, imgSrc, mediaHeaders, Item, Party, PartyItem, ProfileState, Segments, SubtitleTrack} from '../api';
 import {useApp} from '../AppContext';
 import {useRouteShown} from '../useRouteShown';
 import {setPlayingContext} from '../errors';
@@ -120,6 +120,7 @@ import {ignoreIntro, loadIgnoredIntros, loadPrefs, savePrefs, Prefs, PREFS_DEFAU
 import {PERSON_KEYS, PersonKey} from '../personPrefs';
 import {resumePoint, SKIP_STEPS} from '../episodeRules';
 import {
+  AUTO_ASK_MS,
   backAction,
   nextAutoRun,
   NextEp,
@@ -129,6 +130,7 @@ import {
   planUpNext,
   Range,
   rangeOf,
+  nextSkipStartIn,
   readNext,
   skippableAt,
   STALL_MARK_MS,
@@ -716,11 +718,15 @@ export default function Player({
     next: NextEp;
     countdown: number | null;
     still: boolean;
+    /** a scene follows the credits: the next episode starts when this one ends */
+    atEnd?: boolean;
   } | null>(null);
   // Skip intro / Skip recap: inside a known range right now (the button
   // shows), and which of the two it would skip.
   const [inIntro, setInIntro] = useState(false);
   const inIntroRef = useRef(false);
+  // the look again at the moment a range starts (onProgress)
+  const skipSoon = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [skipKind, setSkipKind] = useState<'intro' | 'recap'>('intro');
   const skipKindRef = useRef<'intro' | 'recap'>('intro');
   // The card for a film that stopped and did not come back by itself (see
@@ -867,6 +873,8 @@ export default function Player({
   // themselves live in refs — the 4 Hz progress loop reads them).
   const [marksTick, setMarksTick] = useState(0);
   const creditsStart = useRef<number | null>(null);
+  // the server heard a scene after the credits: Up next does not count down over it
+  const creditsScene = useRef(false);
   const introKey = useRef<string | null>(null);
   // Party: mute the events our own remote-apply causes; keep the party across
   // an Up next hand-over; land a late joiner once the clock is valid.
@@ -1760,8 +1768,12 @@ export default function Player({
         : streamedEp
           ? api.segments({imdbId: stream!.imdbId as string, season: stream!.season, episode: stream!.episode, duration: it.duration || 0})
           : null;
-    if (ask) {
-      Promise.all([ask, loadIgnoredIntros()])
+    // An episode nobody has measured yet is read by the server the moment it
+    // is asked about (`pending`): ask again shortly (AUTO_ASK_MS, the site's
+    // schedule), so the button is there when the intro starts.
+    let again: ReturnType<typeof setTimeout> | null = null;
+    const take = (n: number, p: Promise<Segments>) => {
+      Promise.all([p, loadIgnoredIntros()])
         .then(([r, ignored]) => {
           if (!live || !r) return;
           const off = !!key && ignored.includes(key); // "ignore the detected intro" covers both
@@ -1769,13 +1781,21 @@ export default function Player({
           const rc = rangeOf(r.recap);
           if (i && !off) autoIntro.current = i;
           if (rc && !off) autoRecap.current = rc;
-          if (r.credits && isFinite(r.credits.start)) creditsStart.current = r.credits.start;
+          if (r.credits && isFinite(r.credits.start)) {
+            creditsStart.current = r.credits.start;
+            creditsScene.current = !!r.credits.scene;
+          }
           setMarksTick(t => t + 1);
+          if (r.pending && !stream && it.showId && n < AUTO_ASK_MS.length) {
+            again = setTimeout(() => { if (live) take(n + 1, api.introAuto(id)); }, AUTO_ASK_MS[n]);
+          }
         })
         .catch(() => {});
-    }
+    };
+    if (ask) take(0, ask);
     return () => {
       live = false;
+      if (again) clearTimeout(again);
     };
   }, [meta, stream, id]);
   const activeIntro = () => intro.current || autoIntro.current;
@@ -3439,9 +3459,10 @@ export default function Player({
       inParty,
       guest: inParty && party.role !== 'host',
       autoRun: autoRun.current,
+      scene: creditsScene.current,
     });
     if (plan.card === 'still') track('feat', {f: 'still_watching_shown'});
-    setUpNext({next, countdown: plan.countdown, still: plan.card === 'still'});
+    setUpNext({next, countdown: plan.countdown, still: plan.card === 'still', atEnd: !!plan.atEnd});
     setControls(true);
     if (countdownTimer.current) clearInterval(countdownTimer.current);
     countdownTimer.current = null;
@@ -3849,6 +3870,28 @@ export default function Player({
       inIntroRef.current = inR;
       setInIntro(inR);
     }
+    // Progress comes once a second: a range that starts before the next
+    // event is looked at again exactly then (the site does the same) — the
+    // button comes with the intro's first note, not up to a second later.
+    if (skipSoon.current) { clearTimeout(skipSoon.current); skipSoon.current = null; }
+    const soonIn = !seg && !pausedRef.current ? nextSkipStartIn(content, {recap: autoRecap.current, intro: intro.current || autoIntro.current}) : null;
+    if (soonIn != null) {
+      skipSoon.current = setTimeout(() => {
+        skipSoon.current = null;
+        if (exited.current || pausedRef.current) return;
+        const now = timeRef.current();
+        const s2 = skippableAt(now, {recap: autoRecap.current, intro: intro.current || autoIntro.current});
+        if (!s2) return;
+        if (s2.kind !== skipKindRef.current) {
+          skipKindRef.current = s2.kind;
+          setSkipKind(s2.kind);
+        }
+        if (!inIntroRef.current) {
+          inIntroRef.current = true;
+          setInIntro(true);
+        }
+      }, (soonIn / (rateRef.current || 1)) * 1000 + 20);
+    }
     // Up next at the detected credits; otherwise a window that scales with the
     // runtime — for any episode whose next one is known, streamed ones too
     // (playerRules.ts upNextState). Only while playing: pausing on the last
@@ -3873,7 +3916,7 @@ export default function Player({
   // the next one whatever the card said, the setting included.
   const endOnCard = () => {
     if (!upNext) return false;
-    if (upNext.countdown != null) goNext(upNext.next, true);
+    if (upNext.countdown != null || upNext.atEnd) goNext(upNext.next, true);
     else setPaused(true);
     return true;
   };

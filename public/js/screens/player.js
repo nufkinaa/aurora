@@ -694,6 +694,11 @@ const BUSY_WAIT_MAX_S = 5;
 let playerOrigin = null; // the page the current run of players was opened from
 const PROGRESS_FRESH_MS = 30000; // see renderPlayer: progress read this recently is not read again
 
+// How long the player waits before asking again about an episode whose
+// intro the server is still working out (`pending`) — the TV's
+// playerRules.ts AUTO_ASK_MS is the same list.
+const AUTO_ASK_MS = [2000, 2000, 3000, 3000, 5000, 5000, 5000, 10000, 10000, 10000, 15000, 15000, 30000, 30000, 30000];
+
 export const renderPlayer = async (root, { id }) => {
   // Where the viewer was before the player (exit() goes back there). An
   // episode that started from the one before it (Up next, Next episode)
@@ -5666,10 +5671,15 @@ export const renderPlayer = async (root, { id }) => {
       return; // no countdown: nothing starts until someone answers
     }
     let remaining = 15;
+    // a scene after the credits: the card without a countdown, and the next
+    // episode when this one ends (playerRules.ts planUpNext atEnd)
+    const atEnd = autoplay && creditsScene;
+    nextAtEnd = atEnd ? next : null;
+    const counting = autoplay && !atEnd;
     const counter = el(
       "span",
       { class: "ring" },
-      autoplay ? String(remaining) : "",
+      counting ? String(remaining) : "",
     );
     upNextEl = el(
       "div",
@@ -5693,15 +5703,15 @@ export const renderPlayer = async (root, { id }) => {
         el(
           "button",
           { "data-ui": "player.upnext.dismiss", class: "btn focusable", onclick: dismissUpNext },
-          autoplay ? counter : null,
-          autoplay ? " Dismiss" : "Dismiss",
+          counting ? counter : null,
+          counting ? " Dismiss" : "Dismiss",
         ),
       ),
     );
     overlay.append(upNextEl);
     upNextEl.querySelector(".btn-primary").focus({ preventScroll: true });
 
-    if (autoplay) {
+    if (counting) {
       countdownTimer = setInterval(() => {
         remaining--;
         counter.textContent = String(remaining);
@@ -5727,6 +5737,7 @@ export const renderPlayer = async (root, { id }) => {
 
   const dismissUpNext = () => {
     clearInterval(countdownTimer);
+    nextAtEnd = null;
     if (upNextEl) upNextEl.remove();
     upNextEl = null;
   };
@@ -5789,6 +5800,10 @@ export const renderPlayer = async (root, { id }) => {
   // guessed distance from the end.
   let autoIntro = null;
   let creditsStart = null;
+  // the server heard a scene after the credits: Up next does not count down
+  // over it — the next episode starts when this one ends (the TV the same)
+  let creditsScene = false;
+  let nextAtEnd = null;
   // "Previously on…" — only the public databases know these (a recap repeats
   // in no other episode, so the audio comparison can never find one). The
   // same button offers it, under its own name.
@@ -5840,7 +5855,10 @@ export const renderPlayer = async (root, { id }) => {
     const ok = (x) => x && isFinite(x.start) && isFinite(x.end) && x.end > x.start;
     if (ok(r.intro) && !introIgnored()) autoIntro = r.intro;
     if (ok(r.recap) && !introIgnored()) autoRecap = r.recap;
-    if (r.credits && isFinite(r.credits.start)) creditsStart = r.credits.start;
+    if (r.credits && isFinite(r.credits.start)) {
+      creditsStart = r.credits.start;
+      creditsScene = !!r.credits.scene;
+    }
     paintScrubMarks();
   };
   if (isEpisode) {
@@ -5851,15 +5869,22 @@ export const renderPlayer = async (root, { id }) => {
     // (a tick later: applying them repaints the scrubber's marks, which reads
     // names declared just below this block)
     if (item._offline && item.segments) Promise.resolve().then(() => applyAutoSegments(item.segments));
-    api
+    // An episode nobody has measured yet is read by the server the moment it
+    // is asked about (`pending`): ask again shortly, so the button is there
+    // when the intro starts — the TV asks on the same schedule
+    // (playerRules.ts AUTO_ASK_MS).
+    const askAuto = (n) => api
       .introAuto(item.id)
       .then((r) => {
+        if (exited) return;
         applyAutoSegments(r);
-        if (item._offline && r) {
+        if (item._offline && r && !r.pending) {
           offline.patchSaved(item.id, { segments: { intro: r.intro || null, recap: r.recap || null, credits: r.credits || null }, extrasAt: Date.now() }).catch(() => {});
         }
+        if (r && r.pending && n < AUTO_ASK_MS.length) setTimeout(() => { if (!exited) askAuto(n + 1); }, AUTO_ASK_MS[n]);
       })
       .catch(() => {});
+    askAuto(0);
   } else if (isStreamEpisode) {
     api
       .segments({ imdbId: item.imdbId, season: item.season, episode: item.episode, duration: item.duration || 0 })
@@ -5909,6 +5934,7 @@ export const renderPlayer = async (root, { id }) => {
     overlay.append(markChip);
   };
   let skipLabel = "intro";
+  let skipSoon = null;
   const maybeSkipIntro = () => {
     if (!activeIntro() && !autoRecap) return;
     const seg = video.paused ? null : skippableNow();
@@ -5917,6 +5943,16 @@ export const renderPlayer = async (root, { id }) => {
       skipIntroBtn.innerHTML = `<span>Skip ${seg.kind}</span> ⏭`;
     }
     skipIntroBtn.classList.toggle("hidden", !seg);
+    // The clock is reported a few times a second: a range starting before
+    // the next report is looked at again exactly when it starts — the
+    // button comes with the first note, not up to a quarter second later.
+    clearTimeout(skipSoon);
+    skipSoon = null;
+    if (!seg && !video.paused) {
+      const t = effTime();
+      const next = [autoRecap, activeIntro()].filter((x) => x && x.start > t).map((x) => x.start - t).sort((a, b) => a - b)[0];
+      if (next != null && next <= 1) skipSoon = setTimeout(() => { skipSoon = null; if (!exited) maybeSkipIntro(); }, (next / (video.playbackRate || 1)) * 1000 + 5);
+    }
   };
 
   // ---------- video events ----------
@@ -6324,6 +6360,15 @@ export const renderPlayer = async (root, { id }) => {
       return;
     }
     saveProgress();
+    // the scene after the credits has played: the next episode, as the
+    // countdown would have started it
+    if (nextAtEnd && !exited) {
+      const next = nextAtEnd;
+      if (inParty()) autoRun.write(0);
+      else autoRun.write(autoRunN + 1, next.id);
+      goNext(next);
+      return;
+    }
     if (!isEpisode && !localEpisode) exit();
   });
   // ---- the error card (2026-10-07) ----

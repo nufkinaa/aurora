@@ -131,13 +131,14 @@ export const toneNavFromImage = (url) => {
   img.decoding = "async";
   img.onload = () => {
     if (token !== navToken) return;
-    try {
-      // the hero is as wide as the window and its art covers it from the top
-      if (!paint(img, img.naturalWidth, img.naturalHeight, window.innerWidth, Math.max(window.innerHeight * 0.7, 320), "cover")) return;
-      navUnder = underFor(regionLuma(context(), { x: 0, y: 0, w: 1, h: 0.2 }));
-    } catch {
-      navUnder = null;
-    }
+    // The brightness this used to measure here — the whole picture drawn
+    // onto a canvas (a full decode on the main thread, at every turn of the
+    // billboard) and its top band averaged — is no longer put anywhere:
+    // since 2026-10-06 applyNav only clears the nav's layer (above). What
+    // the measuring decided is kept as it was: whether the picture could be
+    // drawn at all, which is what arms the scroll handler below.
+    if (!img.naturalWidth || !img.naturalHeight) return;
+    navUnder = 0;
     applyNav();
   };
   img.onerror = () => {};

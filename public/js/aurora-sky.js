@@ -405,8 +405,34 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   // The player covers the whole viewport with black — a sky animating under
   // it is pure battery. While one is open the loop sleeps and checks back
   // once a second (a full-screen overlay, not a page, so no route event).
-  const covered = () => !!document.querySelector(".player");
+  // (a live list: asking it is not a search of the whole page, as
+  // querySelector was — and this is asked every frame)
+  const players = document.getElementsByClassName("player");
+  const covered = () => players.length > 0;
   let napTimer = null;
+  // The sky paints every FRAME_MS (33–83 ms), not every frame. Where the
+  // wait is long (a paint that is dear here: 83 ms) the loop sleeps on a
+  // timer between two paints and wakes three frames before the next one is
+  // due, so it still paints on exactly the frame it always did (the first
+  // one at or after the due time) — a margin wide enough that a busy main
+  // thread delays the wake no more than it would delay the frame itself.
+  // Asking for every frame kept the page producing 60 (or 120) frames a
+  // second for a picture that changes 12 times.
+  const WAKE_EARLY_MS = 50;
+  let wakeTimer = 0;
+  const next = (now) => {
+    let due = last + FRAME_MS;
+    if (scrolling(now)) due = Math.max(due, scrolledAt + 150);
+    // (from the clock as it is NOW: `now` is when this frame began, and the
+    // paint just made in it may have used up a good part of the wait)
+    const wait = due - performance.now() - WAKE_EARLY_MS;
+    if (wait > 4) {
+      wakeTimer = setTimeout(() => {
+        wakeTimer = 0;
+        if (raf == null) raf = requestAnimationFrame(loop);
+      }, wait);
+    } else raf = requestAnimationFrame(loop);
+  };
   const loop = (now) => {
     raf = null;
     if (!alive() || still()) return;
@@ -421,7 +447,7 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
       paint(now / 1000);
       retune(performance.now() - t0);
     }
-    raf = requestAnimationFrame(loop);
+    next(now);
   };
   const kick = () => {
     if (!alive()) return;
@@ -429,7 +455,7 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
       paint(6, true);
       return;
     }
-    if (raf == null) raf = requestAnimationFrame(loop);
+    if (raf == null && !wakeTimer) raf = requestAnimationFrame(loop);
   };
   document.addEventListener("visibilitychange", kick);
   window.addEventListener("resize", kick);
@@ -439,6 +465,8 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   return () => {
     if (raf != null) cancelAnimationFrame(raf);
     raf = null;
+    clearTimeout(wakeTimer);
+    wakeTimer = 0;
     clearTimeout(napTimer);
     document.removeEventListener("visibilitychange", kick);
     document.removeEventListener("scroll", onScroll, { capture: true });

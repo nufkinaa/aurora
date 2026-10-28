@@ -1,8 +1,11 @@
-// Intro / recap / credits / preview timestamps from the two public,
-// crowd-sourced databases — SkipDB (api.skipdb.tv) and TheIntroDB
-// (api.theintrodb.org). Both are keyed by IMDb id + season + episode, both
-// take the stream's duration so a cut with an extra logo up front can be told
-// apart, and neither needs a key to read.
+// Intro / recap / credits / preview timestamps from three public,
+// crowd-sourced databases — SkipDB (api.skipdb.tv), TheIntroDB
+// (api.theintrodb.org) and IntroDB (api.introdb.app, the one Infuse backs).
+// All three are keyed by IMDb id + season + episode and need no key to read;
+// the first two also take the stream's duration so a cut with an extra logo
+// up front can be told apart (IntroDB does not — for a library episode
+// introdetect.js checks every database's answer against the file's own
+// sound, and moves or drops it).
 //
 // Where this sits: Aurora's own detector (introdetect.js — chapter markers,
 // then the audio every episode of a season shares) is measured on the very
@@ -40,6 +43,7 @@ const { JsonStore } = require("../lib/jsonstore");
 
 const SKIPDB = "https://api.skipdb.tv/api/segments";
 const TIDB = "https://api.theintrodb.org/v3/media";
+const INTRODB = "https://api.introdb.app/segments";
 const FRESH_MS = 20 * 3600 * 1000; // under a day, so the daily round always finds yesterday's answers due
 const RECENT_MS = 30 * 24 * 3600 * 1000; // a streamed episode played this recently is kept current
 const FAIL_TTL = 60 * 60 * 1000;
@@ -109,6 +113,24 @@ const fromTidb = (j) => {
   return out;
 };
 
+// IntroDB: one object per type in seconds (start_sec / end_sec), with how
+// many people submitted it; "outro" is the credits, "post_credits" a scene
+// after them. no_intro / no_recap / no_outro: people said there is none.
+const fromIntroDb = (j) => {
+  if (!j || typeof j !== "object") return {};
+  const out = {};
+  for (const [theirs, ours] of [["intro", "intro"], ["recap", "recap"], ["outro", "credits"]]) {
+    const o = j[theirs];
+    if (!o || typeof o !== "object") continue;
+    const start = Number.isFinite(o.start_ms) ? o.start_ms / 1000 : Number(o.start_sec);
+    const end = Number.isFinite(o.end_ms) ? o.end_ms / 1000 : Number(o.end_sec);
+    if (!Number.isFinite(start)) continue;
+    out[ours] = { start: Math.round(start * 10) / 10, end: Number.isFinite(end) ? Math.round(end * 10) / 10 : null, count: Number(o.submission_count) || 1 };
+  }
+  for (const t of ["intro", "recap", "outro"]) if (j[`no_${t}`] === true) out[`no_${t === "outro" ? "credits" : t}`] = true;
+  return out;
+};
+
 // Does a segment make sense for this kind and this runtime?
 const plausible = (type, seg, duration) => {
   if (!seg || !Number.isFinite(seg.start) || seg.start < 0) return false;
@@ -134,9 +156,12 @@ const near = (a, b, tol) => a != null && b != null && Math.abs(a - b) <= tol;
 
 // Merge what the two databases said into one answer, segment by segment.
 // Exported for tests: this is the judgement the whole module exists for.
-const merge = (skipdb, tidb, duration) => {
+const merge = (skipdb, tidb, duration, introdb = null) => {
   const out = { intro: null, recap: null, credits: null, preview: null, source: null };
   const used = new Set();
+  // which segments BOTH databases named, within 5 s (a recap is shown on
+  // that alone — recaprules.js)
+  const agreed = {};
   for (const type of ["intro", "recap", "credits", "preview"]) {
     const a = skipdb && skipdb[type];
     const b = tidb && tidb[type];
@@ -149,6 +174,7 @@ const merge = (skipdb, tidb, duration) => {
       // end for credits more often) unless it is the unmatched one
       pick = a.match === "out-of-range" ? b : a;
       used.add("skipdb").add("theintrodb");
+      agreed[type] = true;
     } else if (aOk && (a.match === "exact" || a.match === "shifted")) {
       pick = a;
       used.add("skipdb");
@@ -161,8 +187,32 @@ const merge = (skipdb, tidb, duration) => {
       used.add("skipdb");
     }
     if (pick) out[type] = { start: pick.start, end: Number.isFinite(pick.end) ? pick.end : null };
+    // IntroDB: a third, independent opinion. Agreeing with what the other
+    // two gave makes that answer agreed; alone, it is used where they had
+    // nothing (it has no runtime to match a cut by — introdetect checks it
+    // against the file's sound).
+    const c = introdb && introdb[type];
+    if (c && plausible(type, c, duration)) {
+      if (out[type] && near(out[type].start, c.start, 5)) { agreed[type] = true; used.add("introdb"); }
+      else if (!out[type]) { out[type] = { start: c.start, end: Number.isFinite(c.end) ? c.end : null }; used.add("introdb"); }
+    }
   }
   out.source = used.size ? [...used].join("+") : null;
+  if (Object.keys(agreed).length) out.agreed = agreed;
+  // what each database said, kept for the evaluation and the admin (which
+  // one to trust is measured, not assumed — tools/intro-eval)
+  const each = {};
+  const keep = (name, src) => {
+    if (!src) return;
+    const o = {};
+    for (const t of ["intro", "recap", "credits", "preview"]) if (src[t] && Number.isFinite(src[t].start)) o[t] = { start: src[t].start, end: Number.isFinite(src[t].end) ? src[t].end : null };
+    for (const t of ["no_intro", "no_recap", "no_credits"]) if (src[t]) o[t] = true;
+    if (Object.keys(o).length) each[name] = o;
+  };
+  keep("skipdb", skipdb);
+  keep("theintrodb", tidb);
+  keep("introdb", introdb);
+  if (Object.keys(each).length) out.each = each;
   return out;
 };
 
@@ -185,6 +235,7 @@ const keepKnown = (fresh, old) => {
     if (!out[t] && old[t]) {
       out[t] = old[t];
       for (const s of String(old.source || "").split("+").filter(Boolean)) used.add(s);
+      if (old.agreed && old.agreed[t]) out.agreed = { ...(out.agreed || {}), [t]: true };
     }
   }
   out.source = used.size ? [...used].join("+") : null;
@@ -216,11 +267,13 @@ const ask = (key, { imdbId, season, episode, duration }) => {
     return p.toString();
   };
   const p = (async () => {
-    const [a, b] = await Promise.allSettled([
+    const [a, b, c] = await Promise.allSettled([
       politely("skipdb", () => getJson(`${SKIPDB}?${qs({ duration })}`)),
       politely("tidb", () => getJson(`${TIDB}?${qs({ duration_ms: duration ? duration * 1000 : 0 })}`)),
+      // (IntroDB wants an episode: a film is not asked)
+      season && episode ? politely("introdb", () => getJson(`${INTRODB}?${qs({})}`)) : Promise.resolve(null),
     ]);
-    if (a.status === "rejected" && b.status === "rejected") {
+    if (a.status === "rejected" && b.status === "rejected" && c.status === "rejected") {
       failures.set(key, Date.now());
       return null;
     }
@@ -228,9 +281,10 @@ const ask = (key, { imdbId, season, episode, duration }) => {
       a.status === "fulfilled" ? fromSkipDb(a.value) : {},
       b.status === "fulfilled" ? fromTidb(b.value) : {},
       duration,
+      c.status === "fulfilled" ? fromIntroDb(c.value) : {},
     );
     const prev = store.data[key];
-    if (a.status === "rejected" || b.status === "rejected") res = keepKnown(res, prev && prev.res);
+    if (a.status === "rejected" || b.status === "rejected" || c.status === "rejected") res = keepKnown(res, prev && prev.res);
     store.data[key] = { ...(prev || {}), at: Date.now(), res };
     prune();
     store.save();
@@ -294,4 +348,4 @@ const refreshRecent = async ({ limit = 600 } = {}) => {
   return { asked, changed };
 };
 
-module.exports = { lookup, cached, enabled, refreshRecent, _internals: { merge, plausible, fromSkipDb, fromTidb, keyFor, keepKnown, FRESH_MS } };
+module.exports = { lookup, cached, enabled, refreshRecent, _internals: { merge, plausible, fromSkipDb, fromTidb, fromIntroDb, keyFor, keepKnown, FRESH_MS } };

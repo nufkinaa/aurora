@@ -3,6 +3,21 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.14.0 — 2026-10-28
+
+**Skip intro, Skip recap and Up next, rebuilt** (checked against the real intros, recaps and credits of 46 episodes, frame by frame):
+- **Intros are found by their shared sound at any point in an episode** — music or a narrator, after a cold open of any length, short and long versions, a new theme in a new season — and the button appears on the intro's first moment and skips to its last. A show remembers its intros, so a single new episode is matched on its own; an episode without an intro gets no button. On Avatar: Seven Havens and The Last Airbender every intro is now found and placed within a fraction of a second (before: about two thirds, some 6–12 s off, E9 had none). On Silo, Ted, Reacher and The Magicians: found 10 % → 90 %.
+- **Skip recap only when there really is a recap** — heard as the previous episodes, or confirmed by two databases; never on a first episode. The Last Airbender's false "Skip recap" is gone.
+- **Up next comes when the credits start,** not during the last scene: found from the shared end theme and the "Written by" card on any background, colourful or black (The Last Airbender: within 0.3 s on all six, was up to 20 s off). After a scene that follows the credits, Up next waits without a countdown and the next episode starts when the film ends.
+- **Three intro databases, checked against the sound:** SkipDB, TheIntroDB and now IntroDB; each answer is moved onto your copy or dropped, and the server learns per show which one is right.
+- **Ready in time:** an episode is analysed as soon as it lands (and at once if someone presses Play first), in the background on the free cores and never while someone's film is being converted; the whole library is re-read once in the background after this update.
+- The TV app's part (the button on the very first moment, the wait-for-analysis, Up next after a post-credits scene) comes with the next TV release.
+
+## 1.13.11 — 2026-10-28
+
+- **The website is lighter on weaker devices — looks and works exactly the same.** The glass sky no longer wakes on every frame just to wait; the Home greeting's shine rests while it is scrolled out of view (and picks up exactly where it would have been); a billboard change no longer decodes the whole picture for a brightness nobody used; Home reads the screen width once instead of once per shelf. Measured on a slowed phone and desktop (CPU ×4): scrolling Home 57.5 → 1 ms blocked, Back to Home painted 716 → 561 ms, opening a title 904 → 777 ms, the Movies grid 1743 → 1333 ms of work while scrolling, typing in search 84 → 72 ms per key. Before/after screenshots of every screen, both looks and five sizes, are identical.
+- A measuring kit for the website ships in tools/webperf (with a baseline to compare against).
+
 ## 1.13.10 — 2026-10-28
 
 - **Several people can start converted films at once without waiting on each other.** While someone is waiting for the first seconds of their film, conversions that are already well ahead of their own viewer (12 s or more) are held for a moment — paused on Linux, put on idle priority on Windows — and let go as soon as the waited-for piece is out, after 10 s at most, or the moment their own viewer comes close. Measured with real conversions on 8 cores: with 3 conversions running ahead, a newcomer's first piece came in 2.1 s instead of 8.3 s; nobody's film stopped mid-play in a 38-minute test with three converted streams and seeks.

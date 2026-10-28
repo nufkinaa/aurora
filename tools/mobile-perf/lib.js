@@ -88,6 +88,9 @@ const DEVICES = {
   "phone-390": { width: 390, height: 844, dpr: 3, mobile: true },
   "phone-412": { width: 412, height: 915, dpr: 2.625, mobile: true },
   "tablet-820": { width: 820, height: 1180, dpr: 2, mobile: true },
+  // the iPad Pro 12.9" and the narrow Android phone of the web perf pass (tools/webperf)
+  "tablet-1024": { width: 1024, height: 1366, dpr: 2, mobile: true },
+  "phone-360x800": { width: 360, height: 800, dpr: 3, mobile: true },
   "desktop-1440": { width: 1440, height: 900, dpr: 1, mobile: false },
 };
 const emulate = async (page, device) => {
