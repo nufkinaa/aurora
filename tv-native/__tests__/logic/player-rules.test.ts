@@ -1,7 +1,9 @@
 // The player's rules shared with the website (playerRules.ts): what is next,
 // the Up next card, "Still watching?", Skip intro / recap, a direct-play stall.
 import {
+  AUTO_ASK_MS,
   nextAutoRun,
+  nextSkipStartIn,
   NextEp,
   nextFile,
   planUpNext,
@@ -138,6 +140,35 @@ describe('Skip intro / Skip recap', () => {
 
   test('a recap that overlaps the intro wins while inside it', () => {
     expect(skippableAt(55, {recap: {start: 40, end: 70}, intro})!.kind).toBe('recap');
+  });
+
+  test('a scene after the credits: the card, no countdown — the next episode when this one ends (player.js the same)', () => {
+    const o = {next: lib, autoplayPref: true, inParty: false, guest: false, autoRun: 0};
+    expect(planUpNext({...o, scene: true})).toEqual({card: 'upnext', countdown: null, primary: 'play', atEnd: true});
+    expect(planUpNext(o).countdown).not.toBeNull();
+    expect(planUpNext({...o, autoplayPref: false, scene: true}).atEnd).toBeUndefined();
+  });
+
+  test('a range starting before the next once-a-second report is looked at again exactly then', () => {
+    expect(nextSkipStartIn(59.4, {recap: null, intro: {start: 60, end: 110}})).toBeCloseTo(0.6);
+    expect(nextSkipStartIn(58.5, {recap: null, intro: {start: 60, end: 110}})).toBeNull(); // the next report comes first
+    expect(nextSkipStartIn(60.2, {recap: null, intro: {start: 60, end: 110}})).toBeNull(); // already inside
+    expect(nextSkipStartIn(4.5, {recap: {start: 5, end: 40}, intro: {start: 60, end: 110}})).toBeCloseTo(0.5);
+    expect(nextSkipStartIn(4.5, {recap: null, intro: null})).toBeNull();
+  });
+
+  test('an episode still being read is asked about again on the website’s schedule', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const web: string = fs.readFileSync(path.join(__dirname, '../../../public/js/screens/player.js'), 'utf8');
+    const m = /const AUTO_ASK_MS = \[([^\]]*)\]/.exec(web);
+    expect(m).not.toBeNull();
+    expect(m![1].split(',').map(x => Number(x.trim()))).toEqual(AUTO_ASK_MS);
+    // about three minutes in all, the first look again within two seconds
+    expect(AUTO_ASK_MS[0]).toBeLessThanOrEqual(2000);
+    const total = AUTO_ASK_MS.reduce((a, b) => a + b, 0);
+    expect(total).toBeGreaterThan(150000);
+    expect(total).toBeLessThan(240000);
   });
 
   test('only a real range is used', () => {
