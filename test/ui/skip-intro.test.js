@@ -177,6 +177,7 @@ for (const [name, e, iphone, quality, resume] of CASES) {
       if (!quality) assert.fail(`the film is already at ${t0} s (the theme starts at ${intro.start})`);
       await page.locator(".player .skip-intro:not(.hidden)").waitFor({ timeout: 1500 });
     }
+    if (process.env.UI_SHOTS_DIR) await page.screenshot({ path: path.join(process.env.UI_SHOTS_DIR, `skip-intro-${name.replace(/[^a-z0-9]+/gi, "-")}.png`) }).catch(() => {});
     await page.locator(".player .skip-intro:not(.hidden)").click();
     // (an encode restarts at the segment that holds the target: up to a
     // segment early — the player's seek on an encode, not Skip intro's)
