@@ -69,6 +69,23 @@ export const cleanNote = (v: unknown): string => {
   const one = v.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').replace(/\s+/g, ' ').trim();
   return Array.from(one).slice(0, NOTE_MAX).join('');
 };
+// ---- the note field and the D-pad (RecommendSheet.tsx) ----
+// JS hears a D-pad press only when its key comes UP, after the focus engine moved on the
+// key-DOWN — later by however long the key was held — and a focus event can also reach JS
+// a moment after its own key event (an injected key). So which press a key event is, is
+// read from the ORDER of events, with slack for the late focus event: on the Mi TV a focus
+// event reached JS more than 80 ms after its own (injected) key event, and the next press
+// was then read as one made in the field (DOWN from the faces jumped to Send).
+export const NOTE_SAME_PRESS_MS = 300;
+/** A key event while the picker is up: 'arrived' (this press brought focus to the field —
+ *  done), 'elsewhere' (not the field's press), or 'field' (made in the field: the sheet
+ *  sends DOWN to Send and UP to the faces itself, Android's search from the cursor being
+ *  wrong for a long note). */
+export const notePress = (o: {inField: boolean; gotAt: number; leftAt: number; prevKeyAt: number}): 'arrived' | 'elsewhere' | 'field' => {
+  const before = o.prevKeyAt + NOTE_SAME_PRESS_MS;
+  if (o.inField) return o.gotAt > before ? 'arrived' : 'field';
+  return o.leftAt > before ? 'field' : 'elsewhere';
+};
 /** What the field holds while typing: line breaks folded, cut at NOTE_MAX code points (spaces kept). */
 export const typedNote = (v: string): string =>
   // eslint-disable-next-line no-control-regex

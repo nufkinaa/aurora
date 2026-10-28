@@ -13,7 +13,7 @@ import {prepareTrailer, ResolvedTrailer} from '../trailers';
 import type {ActionItem} from '../overlay';
 import {api, artSrc, HeroItem, imgSrc, ImgSource, LIST_ADDED, StreamRef, XrayData, XrayPerson, XrayQuery} from '../api';
 import {playingContext, recentErrors} from '../errors';
-import {afterFocusLeaves, useKeyTrap} from '../focus';
+import {afterFocusLeaves, noteFocus, noteFocusLost, useKeyTrap} from '../focus';
 import {closeOverlay, openRecommend, useOverlay} from '../overlay';
 import {fromLine, noteLine, titleKey, WORDS as HH} from '../householdRecs'; // [household]
 import {householdChanged} from '../householdLive'; // [household]
@@ -265,6 +265,17 @@ function PeekSheet({item, onRemove}: {item: HeroItem; onRemove?: (item: HeroItem
 // ---------------------------------------------------------------- report
 function ReportSheet({hint}: {hint?: string}) {
   const [text, setText] = useState('');
+  // The field is not a Focusable, so it never told focus.ts it holds focus: opened from
+  // the player's menu, the menu row that unmounted under it set off focus.ts's rescue
+  // 120 ms later, which found "nobody" and put focus back on the player's scrubber behind
+  // the sheet — UP twice to reach the field (Mi TV, 5.7.0 pass). Said here, focus stays
+  // in the sheet; the node gives it back to the field if it is ever asked to.
+  const inputRef = useRef<TextInput>(null);
+  const fieldNode = useRef({requestTVFocus: () => inputRef.current?.focus()});
+  // …and says so when it lets go, the sheet closing included: otherwise focus.ts went on
+  // believing the gone field held focus, never rescued it, and the player under the sheet
+  // was left with nothing focused (OK did nothing until a key woke the chrome).
+  useEffect(() => () => noteFocusLost(fieldNode.current), []);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const send = async () => {
@@ -306,10 +317,13 @@ function ReportSheet({hint}: {hint?: string}) {
         A few words is enough. Where you are, what is playing and the last errors this TV saw come along by themselves.
       </Text>
       <TextInput
+        ref={inputRef}
         style={styles.input}
         value={text}
         onChangeText={setText}
         autoFocus
+        onFocus={() => noteFocus(fieldNode.current, false)}
+        onBlur={() => noteFocusLost(fieldNode.current)}
         multiline
         numberOfLines={3}
         placeholder="What went wrong? What did you expect?"
