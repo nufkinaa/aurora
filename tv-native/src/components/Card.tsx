@@ -127,16 +127,13 @@ function ShowAllTile({
       onFocusChange={onFocus ? f => f && onFocus(item, index ?? 0) : undefined}
       focusOverlay={<View style={styles.brighten} />}
       style={[styles.card, styles.allTile]}>
-      <View style={styles.allCentre} pointerEvents="none">
-        <View style={styles.allRing}>
-          {/* a glyph, not an Svg icon: react-native-svg paints a software bitmap on the UI
-              thread at mount and on every focus change, the one thing a shelf must not do */}
-          <Text style={styles.allArrow}>›</Text>
-        </View>
-        <Text style={styles.allText} numberOfLines={3}>
-          {item.title || HH.showAll}
-        </Text>
-      </View>
+      {/* two Texts and nothing else (the ring is the glyph's own box): the tile mounts and
+          unmounts as a held key runs the row to its end and back, so it is kept as light as a
+          native card (an Svg arrow and two wrapper views cost the hold a few late frames, Mi TV) */}
+      <Text style={styles.allRing}>›</Text>
+      <Text style={styles.allText} numberOfLines={3}>
+        {item.title || HH.showAll}
+      </Text>
     </Focusable>
   );
 }
@@ -1051,21 +1048,23 @@ const styles = StyleSheet.create({
   // [household] "From Dana" / "and 2 others" under the title: the household's violet (the
   // title page's and the hold-OK sheet's "Recommended by …"), lifted a step so it reads at 3 m
   // over the frame shade, a weight under the title's; tight under it, as one block.
+  // No text shadow: these two lines sit in the foot of the frame shade (0.95 → 0.72), dark under
+  // any poster, and a blurred shadow is drawn again on every frame a shelf moves — with it on both
+  // lines a held key across the row had more late frames than before the pass (Mi TV A/B).
   labelMeta: {
     color: '#b3a8ff',
     fontSize: 14,
     fontWeight: '600',
     lineHeight: 17,
-    textShadowColor: 'rgba(0,0,0,0.8)',
-    textShadowOffset: {width: 0, height: 1},
-    textShadowRadius: 6,
   },
   // [household] the Show all tile
   allTile: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
     borderColor: 'rgba(139,123,255,0.42)',
     backgroundColor: '#1d1b3a',
   },
-  allCentre: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12},
   allRing: {
     width: 46,
     height: 46,
@@ -1073,10 +1072,13 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(179,168,255,0.75)',
     backgroundColor: 'rgba(139,123,255,0.22)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    color: colors.text,
+    fontSize: 30,
+    lineHeight: 40,
+    fontWeight: '300',
+    textAlign: 'center',
+    overflow: 'hidden',
   },
-  allArrow: {color: colors.text, fontSize: 30, lineHeight: 34, fontWeight: '300', marginTop: -3, marginLeft: 2},
   allText: {color: colors.text, fontSize: 15, lineHeight: 19, fontWeight: '800', textAlign: 'center', marginTop: 14},
 
   // `.card-tag` top 10 → 7, padding 3/8 → 2/6, radius 7 → 5. The fill is the
