@@ -1234,20 +1234,13 @@ const settle = (job, run) => {
 // says of itself differs (CAVLC, no deblocking): about 1.45x superfast's
 // speed here instead of 1.9x — most of the head start, without the seam.
 const FAST_PRESET = "ultrafast";
-// (one value for every encoder: encbudget.presetArgs gives an ultrafast
-// ladder, remux or torrent encode the same parameters)
-const FAST_X264 = budget.FAST_X264;
+const FAST_X264 = "8x8dct=1:bframes=3:b-adapt=0:b-pyramid=normal";
 const fastArgs = (args) => {
   const out = args.slice();
   const i = out.indexOf("-preset");
-  if (i < 0 || out[i + 1] == null) return out;
   // (already ultrafast — encbudget's preset while this machine is behind real
-  // time, which carries these parameters itself: the ladder's own producers
-  // make that same stream, nothing to add; one without them gets them)
-  if (out[i + 1] === FAST_PRESET) {
-    if (!out.includes("-x264-params")) out.splice(i + 2, 0, "-x264-params", FAST_X264);
-    return out;
-  }
+  // time: the ladder's own producers make that same stream, nothing to add)
+  if (i < 0 || out[i + 1] == null || out[i + 1] === FAST_PRESET) return out;
   out[i + 1] = FAST_PRESET;
   out.splice(i + 2, 0, "-x264-params", FAST_X264);
   return out;

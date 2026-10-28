@@ -162,9 +162,7 @@ const videoArgsFor = (vcodec, vf = null) => {
         // crf 18 is visually transparent for H.264 (23 showed blocking and
         // smeared grain — elia: "I don't want low-bitrate artifacts"), and
         // superfast keeps real time on a modest CPU where veryfast would not.
-        // superfast; ultrafast while this machine is behind real time (kept
-        // to superfast's stream structure — encbudget.presetArgs)
-        ...require("./encbudget").presetArgs(),
+        "-preset", require("./encbudget").presetNow() /* superfast; ultrafast while this machine is behind real time */,
         "-crf", "18",
         "-pix_fmt", "yuv420p", // fold 10-bit down to 8-bit for browsers
         "-g", "48",

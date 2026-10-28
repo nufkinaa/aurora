@@ -435,20 +435,6 @@ const overloaded = () => deps.now() < state.overloadedUntil;
 // the TV's next offset job) gets the faster one.
 const SLOW_PRESET_MS = 30 * 60 * 1000;
 const presetNow = () => (state.slowAt && deps.now() - state.slowAt < SLOW_PRESET_MS ? "ultrafast" : "superfast");
-// …and the x264 arguments that go with it. Plain "ultrafast" is another kind
-// of H.264 (Constrained Baseline, no B-frames, one reference picture) than
-// "superfast" (High, B-frames): a viewer whose film crosses from one encode to
-// the next (a seek, a resume, another rung, the TV's next offset job, jit's
-// fast first segment handing over) met a new sequence header there and the
-// decoder started over — a hitch and dropped frames (1.13.5, jit fastArgs).
-// With FAST_X264 an ultrafast encode keeps superfast's header field for field
-// (High, the same B-frame structure; b-adapt=0 is the cheap fixed pattern —
-// test/jit-fast-header.test.js holds the two to that with real ffmpeg).
-const FAST_X264 = "8x8dct=1:bframes=3:b-adapt=0:b-pyramid=normal";
-const presetArgs = () => {
-  const p = presetNow();
-  return p === "ultrafast" ? ["-preset", p, "-x264-params", FAST_X264] : ["-preset", p];
-};
 // What share of the whole machine Aurora's own encoders are using now: each
 // running encoder's cost (thread-seconds per film-second, on the reference
 // machine) × the film it is making per second ÷ this machine's speed per
@@ -555,6 +541,6 @@ const _reset = () => {
 module.exports = {
   start, calibrate, refine, capacity, costFor, costOf, memOf, unit, reserve, slots, admit, progress, forget, overloaded, explain, override, ownShare,
   HEADROOM, COST_REF, REF_CAL, MAX_FIXED,
-  presetNow, presetArgs, FAST_X264,
+  presetNow,
   _internals: { SLOW_PRESET_MS, deps, state, measure, calArgs, outDims, memBudgetMb, speed, sampleCpu, sampleOther, otherShare, _reset, BEHIND_FOR_MS, OVERLOAD_HOLD_MS, UNKNOWN_SPEED, MEM_RESERVE_MB },
 };
