@@ -227,7 +227,9 @@ const encVideoArgs = (rung, { vf = null, fmt = null } = {}) => {
   return [
     "-c:v", "libx264",
     // the same picture the single-rendition encode makes (remux.js)
-    "-preset", require("./encbudget").presetNow() /* superfast; ultrafast while this machine is behind real time */,
+    // superfast; ultrafast while this machine is behind real time (kept to
+    // superfast's stream structure — encbudget.presetArgs)
+    ...require("./encbudget").presetArgs(),
     "-crf", "18",
     "-pix_fmt", "yuv420p",
     "-profile:v", "high",
