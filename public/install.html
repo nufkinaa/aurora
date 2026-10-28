@@ -7,7 +7,12 @@
   <meta name="format-detection" content="telephone=no" />
   <title>Get Aurora — on your TV, phone and computer</title>
   <meta name="description" content="Aurora is your household's own streaming service: the films and shows on your server, on the TV, the phone and the computer. Get the apps." />
+  <!-- Added to a Home Screen from here, it is the app (the manifest's start_url is "/"), full-screen, named Aurora -->
   <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Aurora" />
   <link rel="apple-touch-icon" href="/icon-180.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
   <!-- The profile's theme and look, as the app sets them (index.html), applied
