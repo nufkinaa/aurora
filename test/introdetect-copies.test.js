@@ -14,6 +14,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 
+const config = require("../src/config");
 const scanner = require("../src/media/scanner");
 const metadata = require("../src/media/metadata");
 const printPool = require("../src/media/introprint-pool");
@@ -58,7 +59,7 @@ FILES.c9 = { file: "/lib/deep path with spaces/Copies Show S01E09.mkv", pcm: sou
 const COPIES_OF_4 = ["e4", "c7", "c9"];
 const NUM = { c7: 7, c9: 9 };
 
-const saved = { shows: scanner.index.shows, resolve: scanner.resolve, getCached: metadata.getCached, read: printPool.read };
+const saved = { shows: scanner.index.shows, resolve: scanner.resolve, getCached: metadata.getCached, read: printPool.read, ffmpeg: config.FFMPEG, ffprobe: config.FFPROBE };
 const setLibrary = (ids, showId = "copies-show") => {
   scanner.index.shows = [{ id: showId, title: "Copies Show", seasons: [{ number: 1, episodes: ids.map((id) => ({ id, episode: NUM[id] || Number(id.slice(1)), season: 1 })) }] }];
 };
@@ -82,6 +83,10 @@ const pass = async (ids, lanes, mode = "full") => {
 const urgent = async (id) => { I.urgentQ.push(id); await I.pumpUrgent(); };
 
 test.before(() => {
+  // (the files are not on disk: the chapters probe and the picture's look at
+  // the credits find nothing — also where there is no ffmpeg at all, as in CI)
+  if (!config.FFMPEG) config.FFMPEG = "aurora-test-no-ffmpeg";
+  if (!config.FFPROBE) config.FFPROBE = "aurora-test-no-ffprobe";
   scanner.resolve = (id) => (FILES[id] ? { path: FILES[id].file, kind: "video" } : saved.resolve(id));
   const files = new Set(Object.values(FILES).map((f) => f.file));
   metadata.getCached = (p) => (files.has(p) ? { duration: DUR } : saved.getCached(p));
@@ -97,6 +102,8 @@ test.after(() => {
   scanner.resolve = saved.resolve;
   metadata.getCached = saved.getCached;
   printPool.read = saved.read;
+  config.FFMPEG = saved.ffmpeg;
+  config.FFPROBE = saved.ffprobe;
   reset();
 });
 
