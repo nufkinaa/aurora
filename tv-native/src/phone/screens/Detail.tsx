@@ -44,7 +44,7 @@ import {openActions, openRecommend, openTrailer, openXray} from '../../overlay';
 import {autoPlayStep, fallbackSources, jobSource, pickBest, runningJobFor, streamPlayItem} from '../../playBest';
 import {heroRelease, ReleaseStatus} from '../../releaseWords';
 import {pickUp, startSeason} from '../../episodeRules';
-import {bannerLine, notesOf, titleKey, WORDS as HH} from '../../householdRecs';
+import {bannerLine, ltr, notesShown, titleKey, WORDS as HH} from '../../householdRecs';
 import {householdChanged} from '../../householdLive';
 import {loadMe, patchMe, peekMe} from '../../navSection';
 import {track} from '../../usage';
@@ -995,8 +995,9 @@ export default function Detail() {
 
           {hhFrom.length && !hhHidden ? (
             <View style={s.hh}>
-              <Text style={s.hhLine}>{bannerLine(hhFrom)}</Text>
-              {notesOf(hhFrom).map(n => (
+              <Text style={s.hhLine}>{ltr(bannerLine(hhFrom))}</Text>
+              {/* two notes at most (the TV's and the site's rule, 1.14.2) */}
+              {notesShown(hhFrom).slice(0, 2).map(n => (
                 <Text key={n} style={s.hhNote}>
                   {n}
                 </Text>
