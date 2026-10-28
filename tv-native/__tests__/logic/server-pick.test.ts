@@ -137,3 +137,15 @@ test('a trailing slash is not part of the address', async () => {
   const w = world({[NUFURORA]: {answer: 50}});
   expect(await pickServer([NUFURORA + '/'], w.deps)).toBe(NUFURORA);
 });
+
+// [android-phone] the phone app waits twice as long (a first TLS handshake on mobile data)
+test('scale 2 (the phone): every wait doubles, the order and the rules stay', async () => {
+  const w = world({[NUFURORA]: {answer: INTERNET_PING_MS + 500}});
+  expect(await pickServer([NUFURORA, HOME], {...w.deps, scale: 2})).toBe(NUFURORA);
+  expect(w.calls[0].timeout).toBe(INTERNET_PING_MS * 2);
+  const tv = world({[NUFURORA]: {answer: INTERNET_PING_MS + 500}});
+  // the TV's (no scale): that answer is too late the first time
+  expect(tv.calls.length).toBe(0);
+  await pickServer([NUFURORA, HOME], tv.deps);
+  expect(tv.calls[0].timeout).toBe(INTERNET_PING_MS);
+});

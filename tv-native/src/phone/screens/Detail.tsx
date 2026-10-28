@@ -186,6 +186,8 @@ export default function Detail() {
   const [note, setNote] = useState<{text: string; tone: 'live' | 'warn' | 'ok' | 'hint'} | null>(null);
   const [similar, setSimilar] = useState<HeroItem[] | null>(null);
   const [moreText, setMoreText] = useState(false);
+  // scrolled past the picture: the top bar carries the title on dark glass
+  const [pastArt, setPastArt] = useState(false);
   const [seasonPick, setSeasonPick] = useState<number | null>(null);
   const [hhFrom, setHhFrom] = useState<{id: string; name: string; note?: string}[]>([]);
   const [hhHidden, setHhHidden] = useState(false);
@@ -917,7 +919,16 @@ export default function Detail() {
   const seasonAllWatched = aired.length > 0 && aired.every(e => e.watched);
   return (
     <View style={s.root}>
-      <ScrollView ref={scrollRef} contentContainerStyle={{paddingBottom: bottom + 24}} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={{paddingBottom: bottom + 24}}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={32}
+        onScroll={e => {
+          // as soon as the lockup (kicker, name) reaches the bar
+          const past = e.nativeEvent.contentOffset.y > artH - insets.top - 260;
+          if (past !== pastArt) setPastArt(past);
+        }}>
         <View style={{height: artH}}>
           {art ? <Image source={art} style={StyleSheet.absoluteFill} resizeMode="cover" fadeDuration={200} /> : null}
           <View style={s.artFade} pointerEvents="none" />
@@ -1064,8 +1075,8 @@ export default function Detail() {
           </View>
         ) : null}
       </ScrollView>
-      <View style={[s.topFade, {height: insets.top + 64}]} pointerEvents="none" />
-      <BackBar />
+      {pastArt ? null : <View style={[s.topFade, {height: insets.top + 64}]} pointerEvents="none" />}
+      <BackBar solid={pastArt} title={pastArt ? unescapeHtml(title) : undefined} />
     </View>
   );
 }

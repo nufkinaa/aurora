@@ -14,6 +14,7 @@ import type {ResyncAnswer, ResyncBody, SubTiming} from './playback/resync';
 import type {Play} from './avCaps';
 import type {ReleaseStatus} from './releaseWords';
 import {currentCapsId} from './av';
+import {isPhone} from './formFactor';
 
 let baseUrl = '';
 let token: string | null = null;
@@ -1248,6 +1249,8 @@ export const resolveServer = async (_savedUrl?: string | null): Promise<string |
     ping: pingUrl,
     now: Date.now,
     sleep: ms => new Promise<void>(r => setTimeout(r, ms)),
+    // [android-phone] a phone on mobile data gets twice the TV's waits
+    scale: isPhone() ? 2 : 1,
   });
   if (url) {
     // what THIS server said — not whichever answered last

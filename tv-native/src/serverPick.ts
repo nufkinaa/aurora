@@ -65,20 +65,24 @@ export type PickDeps = {
   ping: (url: string, timeoutMs: number) => Promise<boolean>;
   now: () => number;
   sleep: (ms: number) => Promise<void>;
+  /** [android-phone] every wait times this (default 1: the TV's). A phone on mobile data
+   *  can take seconds for its first TLS handshake; the phone app passes 2. */
+  scale?: number;
 };
 
 /** The first address, in list order, that answers — or null. */
 export async function pickServer(candidates: readonly string[], d: PickDeps): Promise<string | null> {
   for (let i = 0; i < candidates.length; i++) {
     const url = candidates[i].replace(/\/+$/, '');
-    const wait = pingBudget(url);
+    const k = d.scale && d.scale > 0 ? d.scale : 1;
+    const wait = pingBudget(url) * k;
     const t0 = d.now();
     if (await d.ping(url, wait)) return url;
     if (i !== 0) continue;
     // the first address's second look
-    const pause = RETRY_NOT_BEFORE_MS - (d.now() - t0);
+    const pause = RETRY_NOT_BEFORE_MS * k - (d.now() - t0);
     if (pause > 0) await d.sleep(pause);
-    const left = Math.min(wait, FIRST_BUDGET_MS - (d.now() - t0));
+    const left = Math.min(wait, FIRST_BUDGET_MS * k - (d.now() - t0));
     if (left >= RETRY_MIN_MS && (await d.ping(url, left))) return url;
   }
   return null;

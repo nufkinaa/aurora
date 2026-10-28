@@ -25,12 +25,12 @@ export default function PageHead({title, sub, children}: {title: string; sub?: s
 }
 
 /** A pushed screen's own top bar: Back on the left, the screen's title beside it. */
-export function BackBar({title, right}: {title?: string; right?: React.ReactNode}) {
+export function BackBar({title, right, solid}: {title?: string; right?: React.ReactNode; solid?: boolean}) {
   const insets = useSafeAreaInsets();
   const nav = useNavigation();
   return (
     <>
-    <StatusScrim />
+    {solid ? <View pointerEvents="none" style={[s.band, {height: insets.top + 64}]} /> : <StatusScrim />}
     <View pointerEvents="box-none" style={[s.back, {top: insets.top + 8}]}>
       <IconCircle icon="back" label="Back" onPress={() => nav.canGoBack() && nav.goBack()} />
       {title ? (
@@ -52,4 +52,6 @@ const s = StyleSheet.create({
   sub: {color: colors.textDim, fontSize: 16, marginTop: 4},
   back: {position: 'absolute', left: GUTTER, right: GUTTER, flexDirection: 'row', alignItems: 'center', gap: 12, zIndex: 10},
   backTitle: {flex: 1, color: colors.text, fontSize: 18, fontWeight: '800'},
+  // the bar once the page has scrolled past its picture: the page's name on dark glass
+  band: {position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9, backgroundColor: 'rgba(12,13,26,0.98)', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.12)'},
 });
