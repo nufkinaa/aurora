@@ -1064,6 +1064,22 @@ export const renderPlayer = async (root, { id }) => {
   const HLS_RECOVERY_WINDOW_MS = 30000;
   let hlsRecoveries = 0;
   let lastRecoveryAt = 0;
+  // (hls.js's own mend of a media error: at most this often — see mseAgain)
+  const MEDIA_MEND_EVERY_MS = 20000;
+  let lastMediaMendAt = 0;
+  // (assigned further down, with the stall watcher's state it reads; a media
+  // error before that is mended by hls.js alone)
+  let mseAgain = () => false;
+  // when the element last paused ITSELF on an error (0: it did not, it has
+  // played since, or the viewer has pressed since): such a pause is a stall
+  // to the stall watcher, not the viewer's pause
+  let errorPausedAt = 0;
+  // hls.js's appends refused on one stream: that many and the media under it
+  // is gone bad (it can go on refusing for ever without a fatal error —
+  // measured with every append refused: 267 refusals in 30 s, nothing fatal)
+  const APPEND_FAILS_MAX = 6;
+  let appendFails = 0;
+  let appendFailsGen = -1;
   let hlsRecoverTimer = null;
   // Shared with the stall recovery block far below ("a stream that silently
   // stops") — declared HERE because startHls, seekTo and saveProgress touch
@@ -1599,6 +1615,11 @@ export const renderPlayer = async (root, { id }) => {
             try { lineTimeOnly(d && (d.part && d.part.stats && d.part.stats.loaded ? d.part.stats : d.frag && d.frag.stats)); } catch {}
           });
           hls.on(window.Hls.Events.ERROR, (_evt, data) => {
+            if (!data.fatal && data.details === "bufferAppendError" && !exited && gen === hlsGen) {
+              if (appendFailsGen !== gen) { appendFailsGen = gen; appendFails = 0; }
+              if (++appendFails === APPEND_FAILS_MAX && !probing) mseAgain("append");
+              return;
+            }
             // Recover from transient network/media errors instead of dying
             if (!data.fatal) return;
             if (exited || gen !== hlsGen) return; // we already moved on (see hlsGen)
@@ -1620,7 +1641,20 @@ export const renderPlayer = async (root, { id }) => {
               return;
             }
             if (data.type === window.Hls.ErrorTypes.MEDIA_ERROR) {
-              hls.recoverMediaError();
+              // hls.js's own mend first (a fresh MediaSource on the element)…
+              // but not for ever: on the stall rig (2026-10-28) every level's
+              // segment was refused one after the other, mended, refused
+              // again, and the picture stood still for minutes. A second one
+              // straight after the first: the stream built again at this spot,
+              // a bounded number of times, then the card (mseAgain).
+              const nowM = Date.now();
+              if (nowM - lastMediaMendAt > MEDIA_MEND_EVERY_MS) {
+                lastMediaMendAt = nowM;
+                mark("media-error", { did: "mend", details: data.details, at: Math.round(effTime()) });
+                hls.recoverMediaError();
+                return;
+              }
+              if (!mseAgain(data.details || "media")) hls.recoverMediaError();
               return;
             }
             // Anything else fatal — most often the PLAYLIST itself failing
@@ -3674,6 +3708,7 @@ export const renderPlayer = async (root, { id }) => {
   const togglePlay = () => {
     if (seekLocked()) return;
     uiHit("player.playpause"); // [analytics]
+    errorPausedAt = 0; // (a press: from now on a pause is the viewer's)
     if (video.paused) {
       video.play().catch(() => {});
       showFlash(icons.play);
@@ -6548,7 +6583,7 @@ export const renderPlayer = async (root, { id }) => {
     }
     if (
       late || userSeek || !stMoved ||
-      video.paused || video.ended || playBlocked || errorCard ||
+      (video.paused && !errorPausedAt) || video.ended || playBlocked || errorCard ||
       probing || seekWait || pendingSeek != null || seekPreview != null || scrubDragging ||
       holdEl || steppingDown || video.webkitCurrentPlaybackTargetIsWireless
     ) return stReset();
@@ -6635,7 +6670,18 @@ export const renderPlayer = async (root, { id }) => {
         // "loading" can pass (hls.js gives up on a request); the rest cannot
         if (why !== "loading" || stStalled >= STALL_LEAVE_S) {
           stStage = 2;
-          stNote("left", ct, { why });
+          // the rebuilds this stream may have are spent and it is still
+          // frozen: never a still picture with nothing said — the card, with
+          // Try again from this spot
+          if (why === "budget") {
+            stNote("card", ct, { why });
+            const url = stall.url;
+            const lad = stall.lad;
+            showErrorCard(
+              "The stream stopped and didn't come back by itself. Try again from the same spot, or go back.",
+              () => { if (!exited && !onAir() && url) { stRebuilds.length = 0; startHls(url, ct, lad && ladderNow()); } },
+            );
+          } else stNote("left", ct, { why });
         }
         return;
       }
@@ -6770,7 +6816,84 @@ export const renderPlayer = async (root, { id }) => {
     }, 1000 * NATIVE_RETRY_S[n - 1]);
     return true;
   };
+  // THE SAME hls.js STREAM AGAIN, AT THIS SPOT, when the media pipeline under
+  // it failed: the element's own error on a stream it has been playing, or
+  // hls.js's media error again right after its own mend. A fresh MediaSource
+  // on a reset element (startHls), 0.3 s and then 2 s later; a third within
+  // three minutes is not tried by itself — the card, with Try again from the
+  // same spot, and one more try every 30 s behind it while it is up.
+  // Measured on the stall rig (2026-10-28): the element's decode error five
+  // seconds after a switch was read as "this device refuses the copy" and the
+  // film went to the full encode; the next error there showed a card that
+  // waited for the viewer, the element paused by the error, the picture still
+  // for over five minutes.
+  const MSE_AGAIN_MAX = 2;
+  const MSE_AGAIN_WINDOW_MS = 3 * 60000;
+  const mseAgains = [];
+  let mseTimer = null;
+  let mseBeat = null;
+  video.addEventListener("playing", () => { clearTimeout(mseBeat); mseBeat = null; });
+  mseAgain = (why) => {
+    const url = stall.url;
+    if (exited || onAir() || !url) return false;
+    const lad = stall.lad;
+    const now = Date.now();
+    while (mseAgains.length && now - mseAgains[0] > MSE_AGAIN_WINDOW_MS) mseAgains.shift();
+    const content = backTo();
+    const pos = Math.max(0, content - (usingTranscode ? clockBase : 0));
+    const again = () => {
+      if (exited || onAir()) return;
+      startHls(url, pos, lad && ladderNow());
+      // (this has its own card: the stall watcher's hold only keeps the 0
+      // the reset element reports out of the saved place)
+      if (pos > 2) stall.hold = { gen: hlsGen, pos, at: Date.now(), carded: true };
+    };
+    clearTimeout(mseTimer);
+    if (mseAgains.length >= MSE_AGAIN_MAX) {
+      // a copy this device has not really played (half a minute of it) that
+      // keeps failing: its decoder may refuse the file's video after all —
+      // the full encode, as a copy refused at its start gets (below)
+      if (usingTranscode && currentV === "copy" && !switchedToTranscode && copyPlayed < 30) {
+        switchedToTranscode = true;
+        copyRefused = true;
+        toast("This device refused the fast path — re-encoding instead…", "⚙️");
+        reportMark("client_switch", { reason: "media-error", to: "h264", position: content });
+        mark("media-error", { did: "h264", why, played: Math.round(copyPlayed) });
+        startTranscodeAt(content, "h264", { fallbackToZero: true });
+        return true;
+      }
+      mark("media-error", { did: "card", why, at: Math.round(content) });
+      try { if (hls) hls.stopLoad(); } catch {}
+      const retry = () => { mseAgains.length = 0; clearTimeout(mseBeat); again(); };
+      showErrorCard("The film stopped and didn't come back by itself. Try again from the same spot, or go back.", retry);
+      clearTimeout(mseBeat);
+      const beat = () => {
+        if (exited || !errorCard) return;
+        hideErrorCard();
+        spinner.classList.remove("hidden");
+        again();
+      };
+      mseBeat = setTimeout(beat, 30000);
+      return true;
+    }
+    mseAgains.push(now);
+    mark("media-error", { did: "rebuild", why, n: mseAgains.length, at: Math.round(content) });
+    spinner.classList.remove("hidden");
+    mseTimer = setTimeout(again, mseAgains.length === 1 ? 300 : 2000);
+    return true;
+  };
+  video.addEventListener("playing", () => { errorPausedAt = 0; });
   video.addEventListener("error", () => {
+    // (the element pauses itself on an error: that pause is not the viewer's —
+    // the stall watcher keeps counting through it)
+    errorPausedAt = Date.now();
+    // An hls.js stream this element has been PLAYING (its clock moved on
+    // this very stream) that fails in the element: the media pipeline, not
+    // a device refusing a codec — the same stream again at this spot
+    // (mseAgain). A copy refused from its first frame still goes below.
+    if (hls && !onAir() && stall.url && stGen === hlsGen && stMoved) {
+      if (mseAgain("element")) return;
+    }
     // On AirPlay the error is the TV's: a fresh link, or a word on why
     // (js/airplay.js) — never this device's fallbacks below
     if (air && air.onError()) return;
