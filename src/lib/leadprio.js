@@ -29,6 +29,9 @@ const deps = {
 // holder: the run / job object (keeps its own state on it). → "low" | "back" | null
 const step = (holder, pid, lead) => {
   if (!holder || !pid || deps.platform() !== "win32" || !Number.isFinite(lead)) return null;
+  // held at the idle class for somebody's start (lib/startfirst.js): nothing
+  // changes until it is let go (which puts back what leadLow says)
+  if (holder.sfHeld) return null;
   if (!holder.leadLow && lead >= LOW_AT) {
     try {
       holder.leadPrio = deps.get(pid);

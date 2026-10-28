@@ -33,6 +33,9 @@ const untrackPid = (pid) => { pids.delete(pid); };
 // normal priority back just before the kill. Returns whether a kill was sent.
 const killNow = (child, signal = "SIGKILL") => {
   if (!child) return false;
+  // an encoder held for somebody's start (lib/startfirst.js: SIGSTOP) is let go
+  // first, so whatever the signal it is acted on at once
+  try { require("./startfirst").letGo(child); } catch {}
   try {
     if (child.pid && child.exitCode == null && child.signalCode == null) {
       const os = require("os");

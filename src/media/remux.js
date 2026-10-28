@@ -162,7 +162,9 @@ const videoArgsFor = (vcodec, vf = null) => {
         // crf 18 is visually transparent for H.264 (23 showed blocking and
         // smeared grain — elia: "I don't want low-bitrate artifacts"), and
         // superfast keeps real time on a modest CPU where veryfast would not.
-        "-preset", require("./encbudget").presetNow() /* superfast; ultrafast while this machine is behind real time */,
+        // superfast; ultrafast while this machine is behind real time (kept
+        // to superfast's stream structure — encbudget.presetArgs)
+        ...require("./encbudget").presetArgs(),
         "-crf", "18",
         "-pix_fmt", "yuv420p", // fold 10-bit down to 8-bit for browsers
         "-g", "48",
@@ -233,6 +235,7 @@ const touch = (id, mtime, vcodec, ss, fmt, audio = 0, viewer = null, file = null
     if (m) {
       const k = parseInt(m[1], 10);
       if (!(job.readSeg >= k)) job.readSeg = k;
+      noteFetch(job, k, Date.now());
       if (job.paused || job.leadLow) pace(job); // (a reader catching up: resumed / raised at once if it must be)
     }
   }
@@ -601,9 +604,15 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
   );
   // Keep node responsive: ffmpeg yields CPU to the server under contention.
   require("../lib/children").track(proc, "remux");
-  // (below normal where it can be raised again — lib/prio.js: on Linux it
-  // could not, and a TV's encode at nice 10 starved behind any other work)
-  try { os.setPriority(proc.pid, require("../lib/prio").viewer()); } catch {}
+  // It starts at NORMAL priority and steps down to the viewers' own
+  // (lib/prio.js: below normal where it can be raised again; on Linux without
+  // root it stays at normal) once its playlist is out — see job.ready below.
+  // It used to be below normal from its first instruction: on a busy Windows
+  // box a below-normal process may not run for a long time, and a COPY start
+  // or a TV seek waited 20 s and failed "Remux did not start in time" (seen
+  // by the TV 5.7.1 rig: three seeks in a row after a freeze, and a fresh
+  // copy start while the PC was loaded) — the same starvation jit's
+  // producers had before they kept normal priority for their first segment.
   // a re-encode is somebody watching: background work stands back (cpuwork.js)
   // `idle` while PAUSED far ahead of its reader (procpause, see pace): a
   // suspended encoder takes no CPU, and it used to count all the same — on a
@@ -670,8 +679,74 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
   // whatever the viewer was already watching survives the failed seek.
   if (victims.length) job.ready.then(retireVictims, () => {});
 
+  // Somebody is waiting for this job's first segment (a TV's start, seek or
+  // resume): CPU encoders far enough ahead of their own viewers stand still
+  // until it is out (lib/startfirst.js). A re-encode is one of those itself,
+  // once its own playlist is there and its viewer two segments behind.
+  const sf = require("../lib/startfirst");
+  const first = sf.wait(path.basename(dir));
+  job.ready.then(() => {
+    job.readyDone = true;
+    first.end();
+    // its first segment is out: from here it yields to the server and to
+    // whoever else is waiting (unless held, or lowered far ahead — those put
+    // back their own priority)
+    if (job.proc === proc && !job.sfHeld && !job.leadLow) { try { os.setPriority(proc.pid, require("../lib/prio").viewer()); } catch {} }
+  }, () => first.end());
+  if (heavy) {
+    try {
+      sf.track(job, {
+        child: proc, label: path.basename(dir),
+        aheadSec: () => aheadOf(job, Date.now()),
+        waited: () => !job.readyDone,
+        pausedElsewhere: () => !!job.paused,
+        refresh: () => readEnds(job),
+        priority: () => (job.leadLow ? os.constants.priority.PRIORITY_LOW : require("../lib/prio").viewer()),
+      });
+    } catch {}
+  }
+
   jobs.set(dir, job);
   return job.ready;
+};
+
+// ---------- how far ahead of its viewer (lib/startfirst.js) ----------
+// The film a job has made (the playlist's segment ends, cumulative — read
+// when asked, off the loop) beyond where its viewer is WATCHING, estimated
+// from the end of the first segment it fetched at the time of fetching,
+// moving at real time: never ahead of the truth (the viewer started inside
+// that segment, after it arrived, and stands still when it pauses or
+// stalls), so "made beyond it" is never overstated. A fetch that skips ahead
+// (a seek inside the playlist) moves the estimate on. -Infinity while that
+// cannot be said: no playlist read yet, nothing fetched yet.
+const readEnds = async (job) => {
+  if (job.endsReading) return;
+  job.endsReading = true;
+  try {
+    const text = await fs.promises.readFile(path.join(job.dir, "index.m3u8"), "utf8");
+    const ends = [];
+    let t = 0;
+    for (const m of text.matchAll(/#EXTINF:([\d.]+)/g)) { t += parseFloat(m[1]) || 0; ends.push(t); }
+    job.segEnds = ends;
+  } catch {} finally { job.endsReading = false; }
+};
+const watchedAt = (job, now) => {
+  const rd = job.rd;
+  if (!rd || !job.segEnds) return null;
+  const end = job.segEnds[rd.seg];
+  if (end == null) return null;
+  return Math.max(rd.base, end + (now - rd.at) / 1000);
+};
+const aheadOf = (job, now) => {
+  if (!job.proc || job.done || !job.readyDone || !job.segEnds || !job.segEnds.length) return -Infinity;
+  const p = watchedAt(job, now);
+  return p == null ? -Infinity : job.segEnds[job.segEnds.length - 1] - p;
+};
+const noteFetch = (job, k, now) => {
+  const rd = job.rd;
+  if (rd && k < rd.last + 2) { rd.last = Math.max(rd.last, k); return; }
+  const was = rd ? watchedAt(job, now) : null;
+  job.rd = { seg: k, at: now, last: k, base: was == null ? -Infinity : was };
 };
 
 // A job dir name as dirName() writes it — including the capped encodes
@@ -764,4 +839,4 @@ const sweepStale = async (maxAgeMs = 24 * 3600 * 1000) => {
   }
   return freed;
 };
-module.exports = { AHEAD_MAX, AHEAD_MIN, pace, ensure, touch, noteViewer, release, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, helpers, encodeLoad, sweepIdle, sweepStale, HLS_ROOT, _internals: { CAPS, capOf, isHeavy, validDir, videoArgsFor, scaleFor, maybeHdr, jobs } };
+module.exports = { AHEAD_MAX, AHEAD_MIN, pace, ensure, touch, noteViewer, release, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, helpers, encodeLoad, sweepIdle, sweepStale, HLS_ROOT, _internals: { CAPS, capOf, isHeavy, validDir, videoArgsFor, scaleFor, maybeHdr, jobs, aheadOf, noteFetch, readEnds } };

@@ -130,6 +130,26 @@ test("a crash is restarted with a doubling wait, and a stable run clears the str
   assert.equal(w.alerts.length, 0);
 });
 
+test("whatever an exited server left in its process group is ended (an ffmpeg a hard kill caught held still — lib/startfirst.js)", async () => {
+  const w = world();
+  const groups = [];
+  w.keeper.d.killGroup = (pid) => groups.push(pid);
+  w.keeper.start();
+  const first = w.last().pid;
+  w.last().emit("exit", null, "SIGKILL"); // the OOM killer: none of the server's own handlers ran
+  assert.deepEqual(groups, [first]);
+  await w.advance(1001);
+  assert.equal(w.children.length, 2);
+  w.last().emit("exit", 75, null); // a wanted restart too
+  assert.deepEqual(groups, [first, first + 1]);
+  // the default for children handed in (the tests' fakes) touches no real process group
+  const w2 = world();
+  assert.doesNotThrow(() => w2.keeper.d.killGroup(1000));
+  // the real one: POSIX only, the group alone (never the pid — it may already be somebody else's)
+  assert.equal(typeof K.killGroup, "function");
+  if (process.platform === "win32") assert.doesNotThrow(() => K.killGroup(4));
+});
+
 test("exit code 75 (Restart from the admin page) and 3 (the watchdog) come straight back and are not crashes", async () => {
   const w = world();
   w.keeper.start();

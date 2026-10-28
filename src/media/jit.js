@@ -47,6 +47,8 @@ const { parseMkvIndex } = require("./mkvindex");
 const { parseMp4Index } = require("./mp4index");
 // a dir is never deleted on the event loop (renamed away, removed in the background)
 const { removeDir, isLeftover } = require("../lib/rmqueue");
+let startfirstMod = null;
+const startfirst = () => startfirstMod || (startfirstMod = require("../lib/startfirst"));
 
 const TARGET_SEG_SEC = 6;
 const IDLE_MS = 150000;
@@ -531,11 +533,27 @@ const noteReader = (job, k, now) => {
     const d = k - r.seg;
     if (d >= -2 && d <= READER_NEAR && (!hit || Math.abs(d) < Math.abs(k - hit.seg))) hit = r;
   }
+  // Where this reader's viewer is WATCHING, estimated for lib/startfirst.js
+  // (how much film is made beyond it): from the END of the first segment it
+  // asked for, at the time of asking, moving at real time. It can only run
+  // ahead of the real playhead — the viewer starts somewhere inside that
+  // segment, after it has arrived, and stands still when it pauses or
+  // stalls — so the film "made beyond it" is never overstated. A request
+  // that skips forward (a seek inside the reader's reach) moves it on.
+  // `got`: it has been given a segment since (nothing yet = a first segment
+  // being waited for: a start, a seek, a resume, another rung).
+  const endOf = (i) => { const t = job.table && job.table[i]; return t ? t.start + (t.dur || 0) : 0; };
   if (!hit) {
-    hit = { seg: k, at: now };
+    hit = { seg: k, at: now, anchorSec: endOf(k), anchorAt: now, got: false };
     job.readers.push(hit);
     if (job.readers.length > 8) job.readers.shift();
   } else {
+    if (k >= hit.seg + 2) {
+      const was = hit.anchorSec + (now - hit.anchorAt) / 1000;
+      hit.anchorSec = Math.max(was, endOf(k));
+      hit.anchorAt = now;
+      hit.got = false;
+    }
     // back at a reader that was left for another one, and recently: twice
     // in a row and these are two players, not one that is seeking
     if (job.lastReader && job.lastReader !== hit && now - hit.at < CLAIM_MS) {
@@ -547,6 +565,7 @@ const noteReader = (job, k, now) => {
     hit.at = now;
   }
   job.lastReader = hit;
+  return hit;
 };
 const contended = (job, now) => now - job.contendedAt < CONTEND_MS;
 
@@ -563,6 +582,26 @@ const usage = (job, run, now) => {
     seg = seg == null ? r.seg : Math.max(seg, r.seg);
   }
   return { at, lead: run.nextSeg - 1 - (seg != null ? seg : run.fromSeg) };
+};
+// How much film (s) a producer has made beyond where its readers' viewers are
+// watching (noteReader's estimate, which only errs low): the least over the
+// readers in its range (usage's). -Infinity when it cannot be said safely: it
+// has made nothing yet, nobody reads it, or one of its readers has had
+// nothing yet (that one is waiting for its first segment). lib/startfirst.js
+// holds an encoder only with two segments' worth of this.
+const aheadOf = (job, run, now) => {
+  if (run.stopped || !run.proc || run.warm != null || !(run.nextSeg > run.fromSeg)) return -Infinity;
+  const t = job.table && job.table[run.nextSeg - 1];
+  if (!t) return -Infinity;
+  const madeEnd = t.start + (t.dur || 0);
+  let min = Infinity;
+  for (const r of job.readers) {
+    if (now - r.at >= READER_TTL_MS) continue;
+    if (r.seg < run.fromSeg - leadMin(job) - 1 || r.seg - run.nextSeg >= COVER_AHEAD) continue;
+    if (!r.got || !Number.isFinite(r.anchorSec) || !Number.isFinite(r.anchorAt)) return -Infinity;
+    min = Math.min(min, madeEnd - (r.anchorSec + (now - r.anchorAt) / 1000));
+  }
+  return min === Infinity ? -Infinity : min;
 };
 
 // Pure: what a request for a segment NO producer covers should do.
@@ -720,7 +759,8 @@ const promote = (dir, job, run) => {
   run.spec = null;
   try { spec.release(); } catch {}
   if (!run.proc || run.stopped) return;
-  try { os.setPriority(run.proc.pid, os.constants.priority.PRIORITY_NORMAL); run.yielding = false; } catch {}
+  if (run.sfHeld) run.yielding = false; // (held — lib/startfirst.js: letting go puts back NORMAL)
+  else { try { os.setPriority(run.proc.pid, os.constants.priority.PRIORITY_NORMAL); run.yielding = false; } catch {} }
   asViewer(dir, job, run, run.proc);
 };
 // Encoders running for OTHER titles (and outside jit), and for this title's
@@ -1116,6 +1156,9 @@ const onClosed = (dir, job, run, i, start) => {
 const yieldCpu = (run, proc = run.proc) => {
   if (run.yielding || !proc) return;
   run.yielding = true;
+  // (held for somebody's start — lib/startfirst.js, the idle class on
+  // Windows: that priority stays; letting go puts back the one this says)
+  if (run.sfHeld) return;
   try { os.setPriority(proc.pid, viewerPriority()); } catch {}
 };
 // …but not while its reader is right behind it: what it makes next is what
@@ -1132,7 +1175,7 @@ const paceEncoder = (job, run, now) => {
   if (run.warm != null) return yieldCpu(run); // a warm-up yields from the start
   const lead = usage(job, run, now).lead;
   if (lead >= YIELD_LEAD) return yieldCpu(run);
-  if (run.yielding && !run.leadLow && require("../lib/prio").canRaise()) {
+  if (run.yielding && !run.leadLow && !run.sfHeld && require("../lib/prio").canRaise()) {
     try { os.setPriority(run.proc.pid, os.constants.priority.PRIORITY_NORMAL); run.yielding = false; } catch {}
   }
 };
@@ -1191,13 +1234,20 @@ const settle = (job, run) => {
 // says of itself differs (CAVLC, no deblocking): about 1.45x superfast's
 // speed here instead of 1.9x — most of the head start, without the seam.
 const FAST_PRESET = "ultrafast";
-const FAST_X264 = "8x8dct=1:bframes=3:b-adapt=0:b-pyramid=normal";
+// (one value for every encoder: encbudget.presetArgs gives an ultrafast
+// ladder, remux or torrent encode the same parameters)
+const FAST_X264 = budget.FAST_X264;
 const fastArgs = (args) => {
   const out = args.slice();
   const i = out.indexOf("-preset");
+  if (i < 0 || out[i + 1] == null) return out;
   // (already ultrafast — encbudget's preset while this machine is behind real
-  // time: the ladder's own producers make that same stream, nothing to add)
-  if (i < 0 || out[i + 1] == null || out[i + 1] === FAST_PRESET) return out;
+  // time, which carries these parameters itself: the ladder's own producers
+  // make that same stream, nothing to add; one without them gets them)
+  if (out[i + 1] === FAST_PRESET) {
+    if (!out.includes("-x264-params")) out.splice(i + 2, 0, "-x264-params", FAST_X264);
+    return out;
+  }
   out[i + 1] = FAST_PRESET;
   out.splice(i + 2, 0, "-x264-params", FAST_X264);
   return out;
@@ -1276,6 +1326,19 @@ const startProducer = (dir, job, input, fromSeg, { quiet = false, fast = false }
       } catch {}
     } else {
       asViewer(dir, job, run, proc);
+    }
+    // a CPU encoder may be held while somebody else waits for a first segment
+    // — only with two segments made beyond its own viewers (aheadOf)
+    if (!input.enc.hw) {
+      try {
+        startfirst().track(run, {
+          child: proc, label: `${path.basename(dir)} from seg${fromSeg}`,
+          aheadSec: () => aheadOf(job, run, Date.now()),
+          priority: () => (run.leadLow ? os.constants.priority.PRIORITY_LOW : run.yielding ? viewerPriority() : os.constants.priority.PRIORITY_NORMAL),
+          // (a speed measured across a hold says nothing: encbudget starts over)
+          onRelease: () => budget.forget(run),
+        });
+      } catch {}
     }
   }
   let errTail = "";
@@ -1391,7 +1454,7 @@ const ensureSegment = async (dir, job, input, k, { gone = null } = {}) => {
     input = { ...input, enc: job.encArgs || (job.encArgs = input.enc) };
   }
   checkKept(dir, job, input);
-  noteReader(job, k, now);
+  const reader = noteReader(job, k, now);
   // a viewer is here: no warm-up bound applies, and what was speculative is theirs
   for (const run of job.producers) promote(dir, job, run);
   // A producer that was lowered to the idle priority for running far ahead
@@ -1410,11 +1473,25 @@ const ensureSegment = async (dir, job, input, k, { gone = null } = {}) => {
   job.waiting = (job.waiting || 0) + 1;
   job.wanted.push(k);
   (job.wantedGone = job.wantedGone || []).push(gone);
+  // A viewer waiting for its FIRST segment (a reader that has had nothing
+  // yet): encoders far enough ahead of their own viewers stand still until it
+  // is out (lib/startfirst.js).
+  const first = reader && !reader.got && !fs.existsSync(segPath(dir, k, input.fmt)) ? startfirst().wait(`${path.basename(dir)} seg${k}`) : null;
   try {
     const file = await ensureSegmentInner(dir, job, input, k, gone);
+    if (file && reader && !reader.got) {
+      // (its viewer cannot play this segment before it has it: the estimated
+      // playhead starts moving now, not when it was asked for — still never
+      // ahead of the real one)
+      const t = job.table[k];
+      if (t && reader.anchorSec <= t.start + (t.dur || 0) + 1e-6) reader.anchorAt = Math.max(reader.anchorAt, Date.now());
+      reader.got = true;
+    }
+    if (first) first.end();
     if (file && !(gone && gone())) resumeAhead(dir, job, input, k);
     return file;
   } finally {
+    if (first) first.end();
     job.waiting--;
     let i = job.wanted.findIndex((x, j) => x === k && job.wantedGone[j] === gone);
     if (i < 0) i = job.wanted.indexOf(k);
@@ -1882,7 +1959,7 @@ module.exports = {
     TARGET_SEG_SEC, TS_OFFSET_SEC, BOUNDARY_TOL_SEC,
     sourceRate, admitEncode, park, tables, building, MAX_TABLES, get MAX_ENCODES() { return budget.slots(); }, ENC_LEAD_MAX, ENC_LEAD_MIN, COPY_LEAD_MAX, COPY_LEAD_MIN,
     // producers and readers
-    plan, noteReader, usage, reapable, contended, coversRun, extraCount, stopRun,
+    plan, noteReader, usage, aheadOf, reapable, contended, coversRun, extraCount, stopRun,
     MAX_PRODUCERS_PER_JOB, MAX_EXTRA_PRODUCERS, CLAIM_MS, READER_TTL_MS, STEAL_LEAD, BUSY_WAIT_MS, COVER_AHEAD,
     setOutsideEncodes: (fn) => { outsideEncodes = fn; },
     sigOf, checkKept, readMade, MADE, KEEP_MS, jitRoot,
