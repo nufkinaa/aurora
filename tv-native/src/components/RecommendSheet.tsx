@@ -13,8 +13,8 @@
 // Everything the sheet decides is householdRecs.ts (pure, tested); the people
 // and their states are the server's (GET /recommend/people), and so is every
 // refusal (a refusal is an answer: its line is the toast).
-import React, {useEffect, useMemo, useState} from 'react';
-import {ActivityIndicator, Image, StyleSheet, Text, TextInput, View} from 'react-native';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
+import {ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, useTVEventHandler, View} from 'react-native';
 import Focusable from './Focusable';
 import Sheet from './Sheet';
 import {api, HouseholdPerson, imgSrc} from '../api';
@@ -23,6 +23,7 @@ import {rootNav} from '../rootNav';
 import {showToast} from '../toast';
 import {track} from '../usage';
 import {householdChanged} from '../householdLive';
+import {acceptTvEvent} from '../focus';
 import {
   NOTE_MAX,
   WORDS,
@@ -52,17 +53,23 @@ const Face = React.memo(function RecFace({
   on,
   first,
   onToggle,
+  faceRef,
+  onFocusChange,
 }: {
   p: HouseholdPerson;
   on: boolean;
   first: boolean;
   onToggle: (p: HouseholdPerson) => void;
+  faceRef?: React.Ref<View>;
+  onFocusChange: (focused: boolean) => void;
 }) {
   const can = pickable(p);
   // the photo through imgSrc: the session / profile headers ride along (closed mode)
   const pic = p.avatarImage ? imgSrc(p.avatarImage) : null;
   return (
     <Focusable
+      ref={faceRef}
+      onFocusChange={onFocusChange}
       uiId="recommend.person"
       hasTVPreferredFocus={first}
       scaleTo={1.04}
@@ -103,6 +110,50 @@ export default function RecommendSheet({title, imdbId}: {title: TitleLike; imdbI
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  // Send, for the note field to hand focus to (see the TextInput below), and the
+  // sheet's body, so a refusal line under the buttons never pushes them out of view
+  const sendRef = useRef<{requestTVFocus?: () => void} | null>(null);
+  // DOWN from the note goes to Send, UP to the faces, wherever the cursor is. Android searches
+  // from the field's CURSOR: after a long note DOWN found Cancel at the far right — and OK
+  // there closed the sheet with nothing sent (Mi TV, 5.7.0 pass). A TextInput takes no
+  // nextFocus* prop (only a View does), so the keys are read here: the D-pad reaches JS while
+  // the field holds focus (the on-screen keyboard has its own window; its keys never come here).
+  // The field wraps (multiline) so the whole note stays readable. Known limit, not solved
+  // here: once a note has been typed, the D-pad from the faces or Send no longer lands on the
+  // field (react-native's EditText; a fresh field, or one with an offered note, is found).
+  const firstFace = useRef<{requestTVFocus?: () => void} | null>(null);
+  const noteFocused = useRef(false);
+  // The field's focus events and the key events travel apart, either can arrive first: the
+  // blur of the press that LEFT the field may come before that press ("had focus a moment ago"
+  // counts), and the focus of the press that ENTERED it may come before that one (a press a
+  // moment after the field got focus is the one that brought it there — not its own).
+  const noteLeftAt = useRef(0);
+  const noteGotAt = useRef(0);
+  // The field's blur does not always reach JS (focus taken by requestTVFocus, Mi TV): every
+  // other element of the sheet says so itself when it takes focus.
+  const leftNote = useMemo(
+    () => () => {
+      noteFocused.current = false;
+      noteLeftAt.current = Date.now();
+    },
+    [],
+  );
+  const notOnNote = useMemo(() => (f: boolean) => f && noteFocused.current && leftNote(), [leftNote]);
+  useTVEventHandler(evt => {
+    if (!evt || !acceptTvEvent(evt)) return;
+    const now = Date.now();
+    if (!noteFocused.current && now - noteLeftAt.current > 250) return;
+    if (noteFocused.current && now - noteGotAt.current < 250) return;
+    if (evt.eventType === 'down') setTimeout(() => sendRef.current?.requestTVFocus?.(), 0);
+    // UP: only when Android's search left focus where it was (a short note finds its face)
+    else if (evt.eventType === 'up') setTimeout(() => noteFocused.current && firstFace.current?.requestTVFocus?.(), 60);
+  });
+  const bodyRef = useRef<ScrollView | null>(null);
+  useEffect(() => {
+    if (!error) return;
+    const t = setTimeout(() => bodyRef.current?.scrollToEnd({animated: false}), 0);
+    return () => clearTimeout(t);
+  }, [error]);
 
   const loadPeople = () => api.recommendPeople(profileId!, key!, titleType(title)).then(r => r.people || []);
   useEffect(() => {
@@ -163,14 +214,22 @@ export default function RecommendSheet({title, imdbId}: {title: TitleLike; imdbI
   };
 
   return (
-    <Sheet title={pickerTitle(name)} onClose={closeOverlay} width={760}>
+    <Sheet title={pickerTitle(name)} onClose={closeOverlay} width={760} scrollRef={bodyRef}>
       <Text style={styles.line}>{WORDS.pickerLine}</Text>
       {people === null && !error ? <ActivityIndicator color={colors.text} style={styles.wait} /> : null}
       {people && people.length === 0 ? <Text style={styles.empty}>There's nobody else on this server yet.</Text> : null}
       {people && people.length ? (
         <View style={styles.faces}>
           {people.map((p, i) => (
-            <Face key={p.id} p={p} on={picked.has(p.id)} first={i === firstPickable} onToggle={onToggle} />
+            <Face
+              key={p.id}
+              p={p}
+              on={picked.has(p.id)}
+              first={i === firstPickable}
+              onToggle={onToggle}
+              faceRef={i === 0 ? (firstFace as never) : undefined}
+              onFocusChange={notOnNote}
+            />
           ))}
         </View>
       ) : null}
@@ -178,12 +237,22 @@ export default function RecommendSheet({title, imdbId}: {title: TitleLike; imdbI
         <View style={styles.noteRow}>
           <TextInput
             style={styles.input}
+            multiline
+            numberOfLines={2}
             value={note}
             onChangeText={v => setNote(typedNote(v))}
             maxLength={NOTE_MAX * 2 /* code units; typedNote cuts at 140 code points */}
             placeholder={WORDS.notePlaceholder}
             placeholderTextColor={colors.textFaint}
             blurOnSubmit
+            // The keyboard's ✓ ends the typing: focus goes on to Send. Left to Android, the
+            // field's blur put focus on the page UNDER the sheet (Mi TV, 5.7.0 pass).
+            onSubmitEditing={() => setTimeout(() => sendRef.current?.requestTVFocus?.(), 0)}
+            onFocus={() => {
+              noteFocused.current = true;
+              noteGotAt.current = Date.now();
+            }}
+            onBlur={leftNote}
           />
           <Text style={styles.counter}>{noteCounter(note)}</Text>
         </View>
@@ -191,6 +260,8 @@ export default function RecommendSheet({title, imdbId}: {title: TitleLike; imdbI
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <View style={styles.actions}>
         <Focusable
+          ref={sendRef as never}
+          onFocusChange={notOnNote}
           uiId="recommend.send"
           round
           light={to.length > 0}
@@ -200,7 +271,7 @@ export default function RecommendSheet({title, imdbId}: {title: TitleLike; imdbI
           style={[styles.primary, !to.length && styles.primaryOff]}>
           {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={[styles.primaryText, !to.length && styles.primaryTextOff]}>{sendLabel(to.length)}</Text>}
         </Focusable>
-        <Focusable uiId="recommend.close" round hasTVPreferredFocus={!!error && !people} onPress={closeOverlay} style={styles.ghost}>
+        <Focusable uiId="recommend.close" onFocusChange={notOnNote} round hasTVPreferredFocus={!!error && !people} onPress={closeOverlay} style={styles.ghost}>
           <Text style={styles.ghostText}>Cancel</Text>
         </Focusable>
       </View>
@@ -208,7 +279,9 @@ export default function RecommendSheet({title, imdbId}: {title: TitleLike; imdbI
   );
 }
 
-const FACE_W = 120;
+// 132: five faces still fit the 760 sheet (5 × 132 + 4 gaps = 692 of 696), and the longest
+// line, "Not taking recommendations", breaks between its words (at 120 it broke inside one)
+const FACE_W = 132;
 const AV = 64;
 const styles = StyleSheet.create({
   line: {color: colors.textDim, fontSize: fontSize.body, marginBottom: spacing.md},
@@ -224,7 +297,7 @@ const styles = StyleSheet.create({
   tick: {position: 'absolute', right: 0, bottom: 0, width: 24, height: 24, borderRadius: 12, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center'},
   tickText: {color: colors.white, fontSize: 14, fontWeight: '900'},
   name: {color: colors.text, fontSize: fontSize.body, fontWeight: '700', marginTop: 6, maxWidth: FACE_W - 12},
-  why: {color: colors.textDim, fontSize: fontSize.small, marginTop: 2, textAlign: 'center', maxWidth: FACE_W - 8},
+  why: {color: colors.textDim, fontSize: fontSize.small, marginTop: 2, textAlign: 'center', maxWidth: FACE_W - 12},
   noteRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.md},
   input: {
     flex: 1,
@@ -236,6 +309,7 @@ const styles = StyleSheet.create({
     fontSize: fontSize.body,
     paddingVertical: 12,
     paddingHorizontal: 16,
+    textAlignVertical: 'top',
   },
   counter: {color: colors.textFaint, fontSize: fontSize.small, fontWeight: '700', minWidth: 56, textAlign: 'right'},
   error: {color: '#ff8080', fontSize: fontSize.body, marginTop: spacing.sm},
