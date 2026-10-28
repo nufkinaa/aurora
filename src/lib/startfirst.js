@@ -51,7 +51,7 @@
 const os = require("os");
 
 const HOLD_AHEAD_SEC = 12; // two of jit's 6 s segments: never held with less
-const HOLD_FROM_SEC = HOLD_AHEAD_SEC + 2; // (a hold starts with a little more, so one is not let go a tick later)
+const HOLD_FROM_SEC = HOLD_AHEAD_SEC + 0.5; // (a hold starts with a little more, so one is not let go a tick later)
 const MAX_HOLD_MS = 10 * 1000;
 const REHOLD_MS = 2 * 1000;
 const WAIT_TTL_MS = 30 * 1000;

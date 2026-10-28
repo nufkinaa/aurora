@@ -1445,7 +1445,14 @@ const ensureSegment = async (dir, job, input, k, { gone = null } = {}) => {
   const first = reader && !reader.got && !fs.existsSync(segPath(dir, k, input.fmt)) ? startfirst().wait(`${path.basename(dir)} seg${k}`) : null;
   try {
     const file = await ensureSegmentInner(dir, job, input, k, gone);
-    if (file && reader) reader.got = true;
+    if (file && reader && !reader.got) {
+      // (its viewer cannot play this segment before it has it: the estimated
+      // playhead starts moving now, not when it was asked for — still never
+      // ahead of the real one)
+      const t = job.table[k];
+      if (t && reader.anchorSec <= t.start + (t.dur || 0) + 1e-6) reader.anchorAt = Math.max(reader.anchorAt, Date.now());
+      reader.got = true;
+    }
     if (first) first.end();
     if (file && !(gone && gone())) resumeAhead(dir, job, input, k);
     return file;
