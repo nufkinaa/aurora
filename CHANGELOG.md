@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.13.10 — 2026-10-28
+
+- **Several people can start converted films at once without waiting on each other.** While someone is waiting for the first seconds of their film, conversions that are already well ahead of their own viewer (12 s or more) are held for a moment — paused on Linux, put on idle priority on Windows — and let go as soon as the waited-for piece is out, after 10 s at most, or the moment their own viewer comes close. Measured with real conversions on 8 cores: with 3 conversions running ahead, a newcomer's first piece came in 2.1 s instead of 8.3 s; nobody's film stopped mid-play in a 38-minute test with three converted streams and seeks.
+- **A repackaged start (and a TV's seek) no longer fails with "Remux did not start in time" on a busy server:** its first piece is made at normal priority and it steps down only once it is playing.
+- If the server is killed, its helper processes are always cleaned up, so nothing can stay paused.
+
 ## 1.13.9 — 2026-10-28
 
 - **Resuming an episode on an iPhone starts much sooner.** The iPhone's own player always began at the very top of the film and only jumped to where you left off after loading the first pieces from the top — on the server that meant three start-ups instead of one. Now the film's address tells the iPhone where to start, and the server prepares exactly that spot first (measured on a copy of an iPhone's requests: 1.7 → 1.05 s, and 3.4–8.3 → 1.7–3.1 s for higher-quality episodes). If an iPhone ignores the hint, it simply works as before. AirPlay to an Apple TV is never moved by it.
