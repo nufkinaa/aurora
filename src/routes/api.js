@@ -183,8 +183,15 @@ router.post("/api/trailer/report", (req, res) => {
   res.json({ ok: true });
 });
 
+// An episode with no answer measured on its own file is read NOW (bounded,
+// lowest priority — introdetect.request): the answer then says `pending`
+// and the player asks again a few seconds later, so the button is there
+// when the intro starts instead of on the next play.
 router.get("/api/intro/auto/:id", (req, res) => {
-  res.json(require("../media/introdetect").get(req.params.id));
+  const introdetect = require("../media/introdetect");
+  const pending = introdetect.request(req.params.id);
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ ...introdetect.get(req.params.id), ...(pending ? { pending: true } : {}) });
 });
 
 // The same question for something that is NOT a library file — a streamed
@@ -202,7 +209,14 @@ router.get("/api/segments", async (req, res) => {
       episode: parseInt(req.query.episode, 10) || null,
       duration: Math.max(0, parseFloat(req.query.duration) || 0),
     }, { played: true });
-    res.json(r);
+    // a recap only where one is likely (recaprules.js: a stream has no sound
+    // here to check it against)
+    const recaprules = require("../media/recaprules");
+    const season = parseInt(req.query.season, 10) || null;
+    const episode = parseInt(req.query.episode, 10) || null;
+    const { agreed, ...out } = r;
+    if (out.recap && !recaprules.trustRecap(out.recap, { season, episode, intro: out.intro, agreed: !!(agreed && agreed.recap) })) out.recap = null;
+    res.json(out);
   } catch {
     res.json({ intro: null, recap: null, credits: null, preview: null, source: null });
   }

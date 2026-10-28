@@ -121,6 +121,33 @@ test("the budget: an encode takes all of it; OCR and intro detection fit togethe
   });
 });
 
+test("intro detection: several side by side on a machine with cores to spare, only while nothing else runs", async () => {
+  await world("linux", async () => {
+    C.deps.cpus = () => 8; // budget 1 (eight threads or fewer), intro slots 6
+    assert.equal(cpuwork.background.budget(), 1);
+    assert.equal(cpuwork.background.introSlots(), 6);
+    const places = [];
+    for (let i = 0; i < 6; i++) places.push(cpuwork.background.gate("intro", { label: `e${i}` }));
+    for (const p of places) assert.equal(await settled(p), true, "six at once");
+    const seventh = cpuwork.background.gate("intro", { label: "e6" });
+    assert.equal(await settled(seventh), false, "not a seventh");
+    const ocr = cpuwork.background.gate("ocr", { label: "ocr" });
+    (await places[0]).release();
+    assert.equal(await settled(seventh), true, "the next one in");
+    assert.equal(await settled(ocr), false, "anything else waits for the budget as before");
+    for (const p of [...places.slice(1), seventh]) (await p).release();
+    assert.equal(await settled(ocr), true);
+    // and behind an OCR (or anything else), an intro waits like everyone
+    const intro = cpuwork.background.gate("intro", {});
+    assert.equal(await settled(intro), false);
+    (await ocr).release();
+    assert.equal(await settled(intro), true);
+    (await intro).release();
+    C.deps.low = () => true;
+    assert.equal(cpuwork.background.introSlots(), 1, "the low-power profile: one at a time");
+  });
+});
+
 test("NO new background job starts while a viewer encode runs — nor for the quiet period after it; then it does", async () => {
   await world("linux", async (w) => {
     const v = fakeChild();

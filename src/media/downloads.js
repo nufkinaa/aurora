@@ -1777,6 +1777,9 @@ const finish = async (job, destPath) => {
   if (job.type === "show") {
     const libId = scanner.idForPath(destPath);
     if (libId) require("./introdetect").fillEpisode(libId).catch(() => {});
+    // and its own sound is next in line for the audio pass (not whenever the
+    // whole-library rounds reach it)
+    if (libId) { try { require("./introdetect").landed(libId); } catch {} }
   }
   // A play-ready copy, when this household's devices need one (preconvert.js
   // decides — most of the time the answer is "no", and nothing is made).
