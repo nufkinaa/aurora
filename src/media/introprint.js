@@ -294,6 +294,31 @@ const match = (A, B, { minS = 8, peaks = 3 } = {}) => {
   return found.sort((x, y) => y.end - y.start - (x.end - x.start));
 };
 
+// ---------- the same recording ----------
+// Two copies of ONE episode (a byte-identical copy under another name, the
+// other version of a replaced file, a re-encode) share everything, not just
+// the intro: compared, they say nothing about where the intro ends — the
+// scene after it is shared too, so the "intro" ran on into it (Avatar: The
+// Last Airbender S1E4 against its own copy: 10 s past the title card). Two
+// episodes share at most an intro (and a recap, at another offset): at one
+// offset, `minS` seconds of shared sound is far more than any intro — and
+// so is nine tenths of all the sound the two have side by side (a short
+// episode's head is a minute; its intro never fills it).
+const SAME_RECORDING_S = 200;
+const SAME_RECORDING_SHARE = 0.9;
+const sameRecording = (A, B, minS = SAME_RECORDING_S) => {
+  if (!A || !B) return false;
+  const p = offsets(A, B, 1)[0];
+  if (!p) return false;
+  const o = p.offset;
+  const both = (i) => A.valid[i] && B.valid[i + o];
+  let shared = 0;
+  for (const r of stretches(A, B, o)) for (let i = r.start; i <= r.end; i++) if (both(i)) shared++;
+  let side = 0;
+  for (let i = Math.max(0, -o); i < Math.min(A.codes.length, B.codes.length - o); i++) if (both(i)) side++;
+  return shared / FPS >= minS || (side >= 30 * FPS && shared >= SAME_RECORDING_SHARE * side);
+};
+
 // ---------- what several comparisons agree on ----------
 // `lists`: one entry per comparison — { found: [candidates], trusted } —
 // where a trusted comparison is a known intro (a template). Returns
@@ -426,6 +451,6 @@ const decode = (t) => {
 
 module.exports = {
   SR, N, HOP, NB, FPS,
-  fingerprint, fingerprintAsync, offsets, stretches, match, agree, cut, encode, decode, timeOf, frameAt, popcount, creditsCandidates, audibleAfter, loudness, reheard,
-  AGREE_S,
+  fingerprint, fingerprintAsync, offsets, stretches, match, agree, cut, encode, decode, timeOf, frameAt, popcount, creditsCandidates, audibleAfter, loudness, reheard, sameRecording,
+  AGREE_S, SAME_RECORDING_S,
 };
