@@ -339,6 +339,9 @@ const prepare = (id, quality, caps = {}, { keepMs = 0 } = {}) => {
         job.ahead = false;
         for (const x of queue) if (jobKey(x.id, x.q) === key) x.ahead = false;
         console.log(`[offline] ${id} at ${q}: the copy being made ahead of time is now asked for by somebody — it goes first`);
+        // (a repackaging already under way is somebody's now: up to their level —
+        // where a priority can be raised again; elsewhere it stays where it is)
+        if (job.state === "working" && job.child && job.lane === "copy" && require("../lib/prio").canRaise()) cpuwork.viewer.level(job.child);
       }
       makeRoomFor(key);
       pump();
@@ -571,7 +574,12 @@ const start = ({ id, q, ahead, e, job, place }) => {
   );
   job.child = child;
   if (place) place.attach(child);
-  else cpuwork.background.lower(child); // a repackaging: quick, but still nobody's stream
+  // a repackaging: quick, and nobody's stream. Made ahead of time, nobody
+  // waits for it: the lowest priority. A person's (Original on a phone): at
+  // the viewers' level — at the lowest it starved behind any stream being
+  // encoded on every core, and the phone said "Preparing" for minutes.
+  else if (ahead) cpuwork.background.lower(child);
+  else cpuwork.viewer.level(child);
   let buf = "";
   child.stdout.on("data", (d) => {
     job.lastOutputAt = Date.now();

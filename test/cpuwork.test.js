@@ -304,7 +304,9 @@ test("the play-ready copy (offline.js) obeys all of it: waits for viewers, cappe
       assert.ok(spawned[2].args.includes(files.aaaaaaaaaaa1), "then the play-ready copy made ahead of time");
       spawned[2].emit("exit", 1, null); spawned[2].emit("close", 1);
     });
-    // a repackaging (video copied) is the disk's speed: not held back, no thread cap — but still lowest priority
+    // a repackaging (video copied) is the disk's speed: not held back, no thread cap — and a person's
+    // runs at the viewers' priority (at the lowest it got no CPU beside a stream encoded on every core;
+    // offline-queue.test.js: one made ahead of time stays at the lowest)
     await world("linux", async (w) => {
       metadata.getCached = () => ({ duration: 600, width: 1920, height: 1080, video: { codec: "h264" }, audioStreams: [{ codec: "ac3" }] });
       cpuwork.viewer.track(fakeChild(), {});
@@ -314,7 +316,8 @@ test("the play-ready copy (offline.js) obeys all of it: waits for viewers, cappe
       assert.equal(spawned.length, before + 1, "started at once, viewers or not");
       const c = spawned[spawned.length - 1];
       assert.ok(c.args.includes("copy") && !c.args.includes("-threads"));
-      assert.ok(w.priorities.some(([pid, prio]) => pid === c.pid && prio === LOW));
+      assert.ok(w.priorities.some(([pid, prio]) => pid === c.pid && prio === cpuwork.PRIORITY.viewer));
+      assert.ok(!w.priorities.some(([pid, prio]) => pid === c.pid && prio === LOW), "not the idle class");
       c.emit("exit", 1, null); c.emit("close", 1);
     });
   } finally {

@@ -508,9 +508,14 @@ const player = {
       return t >= min && t <= max;
     }, { min, max }, { timeout }),
   // The controls fade while a film plays; a pointer move brings them back.
+  // (inside the page: on a phone-sized page x = 500 is past its right edge,
+  // where a move reaches nothing — once the controls had faded, before the
+  // first wake, nothing brought them back: player-phone-fit timed out)
   wake: async (page) => {
     wakeX = wakeX === 500 ? 520 : 500;
-    await page.mouse.move(wakeX, 250);
+    const vw = (page.viewportSize() || { width: 1280 }).width;
+    const x = vw > 540 ? wakeX : Math.round(vw / 2) + (wakeX === 500 ? -10 : 10);
+    await page.mouse.move(x, 250);
     await page.waitForFunction(() => { const p = document.querySelector(".player"); return !!p && !p.classList.contains("controls-hidden"); });
   },
   press: async (page, label) => {

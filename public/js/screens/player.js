@@ -3222,7 +3222,15 @@ export const renderPlayer = async (root, { id }) => {
   // Up next, Skip intro, the resume card) positions against this in CSS
   // instead of against a fixed offset tuned for the one-row desktop dock.
   const dockEl = overlay.querySelector(".player-bottom");
-  const paintDockH = () => overlay.style.setProperty("--dock-h", `${dockEl.offsetHeight || 0}px`);
+  // (…and on the page as --player-dock-h, for what is not inside the player:
+  // the toasts, which in the classic look sat ON the dock — an Undo toast
+  // took the taps meant for Next episode or Settings. Read only while a
+  // player is on the page — body:has(.player) — so it is never cleared.)
+  const paintDockH = () => {
+    const h = `${dockEl.offsetHeight || 0}px`;
+    overlay.style.setProperty("--dock-h", h);
+    if (dockEl.offsetHeight) document.documentElement.style.setProperty("--player-dock-h", h);
+  };
   const dockRO = window.ResizeObserver ? new ResizeObserver(paintDockH) : null;
   if (dockRO) dockRO.observe(dockEl);
   else window.addEventListener("resize", paintDockH);
@@ -3949,6 +3957,16 @@ export const renderPlayer = async (root, { id }) => {
     return from;
   };
 
+  // A track that was fetched and came back with nothing (readyState 2 =
+  // LOADED, 3 = ERROR, and no cues) — the one the repair below fetches
+  // again. Not a track still waiting for its address: one switched on while
+  // subtitles wait for the picture (armSubs) reads ERROR too, with no src,
+  // and it was "repaired" — built again — before it had ever been asked for.
+  const settledEmpty = (trackEl) =>
+    !!trackEl && !!trackEl.track && trackEl.hasAttribute("src") &&
+    (trackEl.readyState === 2 || trackEl.readyState === 3) &&
+    (!trackEl.track.cues || trackEl.track.cues.length === 0);
+
   const selectTrack = (idx) => {
     const tracks = video.textTracks;
     if (idx >= 0) armSubs([...video.querySelectorAll("track")][idx]);
@@ -3966,12 +3984,7 @@ export const renderPlayer = async (root, { id }) => {
     if (idx >= 0)
       setTimeout(() => {
         const trackEl = [...video.querySelectorAll("track")][idx];
-        const settled =
-          trackEl && (trackEl.readyState === 2 || trackEl.readyState === 3);
-        if (
-          settled &&
-          (!trackEl.track.cues || trackEl.track.cues.length === 0)
-        ) {
+        if (settledEmpty(trackEl)) {
           reloadTrackEl(trackEl);
         } else {
           applyOffsetToTrack(tracks[idx]);
@@ -4114,6 +4127,12 @@ export const renderPlayer = async (root, { id }) => {
     const wasShowing = trackEl.track && trackEl.track.mode === "showing";
     video.insertBefore(fresh, trackEl); // same position keeps textTracks order
     { const old = trackEl.getAttribute("src"); if (old && old.startsWith("blob:") && old !== bust) { try { URL.revokeObjectURL(old); } catch {} } }
+    // (switched off BEFORE it is taken out: a track that leaves its <video>
+    // still "showing" stays on the document's own list of text tracks for
+    // good (Chromium's style engine, for cue styling) — and its cuechange
+    // listener holds this whole player: every player whose subtitle was
+    // fetched again stayed in memory, test/ui/leaks.test.js)
+    try { if (trackEl.track) trackEl.track.mode = "disabled"; } catch {}
     trackEl.remove();
     if (wasShowing) fresh.track.mode = "showing";
     if (wasArmed) armTrackSrc(fresh, subsAbort && subsAbort.signal);
@@ -4126,8 +4145,7 @@ export const renderPlayer = async (root, { id }) => {
     for (const trackEl of [...video.querySelectorAll("track")]) {
       const tt = trackEl.track;
       if (!tt || tt.mode === "disabled") continue;
-      const settled = trackEl.readyState === 2 || trackEl.readyState === 3;
-      if (settled && (!tt.cues || tt.cues.length === 0)) {
+      if (settledEmpty(trackEl)) {
         reloadTrackEl(trackEl);
         n++;
       }

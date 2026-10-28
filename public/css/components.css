@@ -744,6 +744,12 @@
   gap: 10px;
   pointer-events: none;
 }
+/* the classic look's player: above its dock, whatever its height (player.js
+   --player-dock-h) — they sat on it, over Settings and full screen, and an
+   Undo toast took the clicks meant for them (the glass look has its own) */
+html:not([data-look="glass"]) body:has(.player) #toasts {
+  bottom: calc(var(--player-dock-h, 104px) + 12px);
+}
 .toast {
   display: flex;
   align-items: center;

@@ -92,4 +92,34 @@ ui.test("the player: after four films, none of the players that were left is sti
   assert.deepEqual(await alive(page), [], "players that were left are still alive");
 });
 
+// The same on a slower line, where the subtitle that is on still waits for
+// the picture (player.js armSubs) when the player looks whether it loaded:
+// a track with no address yet reads "error", and it was built again — the
+// old one taken out while still "showing", which the document keeps on its
+// own list of text tracks for good, with the cuechange listener that holds
+// the player. Above it was a matter of timing (a busy machine: about one run
+// in three); throttled, every player stayed.
+ui.test("the player on a slow line: the subtitle waiting for the picture holds none of the players that were left", async ({ page, context, srv, goto, signIn, freshProfile, lib }) => {
+  await signIn(await freshProfile());
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("HeapProfiler.enable");
+  await goto("#/movies");
+  await cdp.send("Network.enable");
+  await cdp.send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: 400 * 1024, uploadThroughput: -1 });
+  for (let i = 0; i < 3; i++) {
+    await player.open(page, srv, lib.film1.id, { query: "?restart=1" });
+    await remember(page, "#app .player");
+    // (and the subtitle that waited still comes: its cues are in once it is asked for)
+    if (i === 0) await page.waitForFunction(() => [...document.querySelectorAll(".player video track")].some((t) => t.track && t.track.mode === "showing" && t.track.cues && t.track.cues.length > 0), null, { timeout: 20000 });
+    await player.press(page, "Back");
+    await page.waitForSelector(".player", { state: "detached" });
+    await waitForScreen(page);
+  }
+  await cdp.send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+  await goto("#/downloads");
+  await page.evaluate(() => { window.__uiRun = null; });
+  await collect(cdp);
+  assert.deepEqual(await alive(page), [], "players that were left are still alive");
+});
+
 ui.run({ concurrency: 1 });
