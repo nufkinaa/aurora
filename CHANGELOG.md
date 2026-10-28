@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.14.3 — 2026-10-29
+
+- **The season list no longer flashes while an episode downloads.** Looking at another season during a download rebuilt every card and picture on every percent (and snapped the phone's episode rail back to the start); now only the downloading episode's bar and percentage move, in place. A download started on another device shows its progress on the card too, and when the episode lands its card turns into Play right away (it could stay a download card for up to a minute).
+
 ## 1.14.2 — 2026-10-28
 
 - **"Recommended by your household" sits right under "Recommended for You" for everyone** — also for people who had moved or hidden a Home row before it existed (it used to land at the bottom of their Home). If you placed it yourself, it stays where you put it.
