@@ -146,6 +146,9 @@ const main = async () => {
   const themes = list("themes", "default");
   const routes = list("routes", Object.keys(ROUTE_STATES).join(","));
   const FIXED_NOW = new Date("2026-10-10T19:30:00").getTime();
+  const EXTRA_WAIT = Number(argv("extra-wait", 0));
+  const IMG_CACHE = argv("img-cache") ? path.resolve(argv("img-cache")) : null;
+  if (IMG_CACHE) fs.mkdirSync(IMG_CACHE, { recursive: true });
   // Software drawing (--disable-gpu). With the GPU rasteriser the same picture
   // bytes in the same box came out two ways, a few levels of colour apart,
   // about one picture in ten per load; the software one is repeatable.
@@ -169,6 +172,12 @@ const main = async () => {
         page.on("requestfailed", (r) => pending.delete(r));
         page.on("pageerror", (e) => problems.push(`${device} ${look}: page error ${e.message}`));
         await page.evaluateOnNewDocument(FREEZE, FIXED_NOW);
+        // (with --img-cache: the warm pass's pictures must not answer the
+        // photographed pass from the browser's own cache — see below)
+        if (IMG_CACHE && pass === "shoot") await cdp.send("Network.clearBrowserCache");
+        // (and the offline worker would answer pictures itself, where the
+        // page's own interception never sees them: both sides go without it)
+        if (IMG_CACHE) await page.setBypassServiceWorker(true);
         // Episode stills: a version of the site that fetches them straight
         // from the catalogue's host (every version before they were routed
         // through the server) would get nothing here — no host but this
@@ -183,6 +192,36 @@ const main = async () => {
           if (u && u.host === "episodes.metahub.space") {
             const file = STILLS[parseInt(crypto.createHash("md5").update(u.pathname).digest("hex").slice(0, 8), 16) % STILLS.length];
             return void r.respond({ status: 200, contentType: "image/jpeg", body: fs.readFileSync(path.join(ART, file)) }).catch(() => {});
+          }
+          // --img-cache <dir>: every picture the photographed pass asks for
+          // is answered with the bytes the FIRST such request got, shared by
+          // every run that names the same folder. Two instances (two versions
+          // of the site) cut and encode their pictures each on their own, and
+          // on a machine short of memory the server sometimes refuses to cut
+          // one and sends the original instead: the same picture, other
+          // bytes, a few levels of colour apart — a difference between the
+          // two SERVERS' moods, not between the two sites. (Not in the warm
+          // pass, which is there to let each server make its cuts.)
+          if (IMG_CACHE && pass === "shoot" && u && /^\/img\//.test(u.pathname)) {
+            const key = path.join(IMG_CACHE, crypto.createHash("sha1").update(u.pathname + u.search + "|" + device).digest("hex"));
+            return void (async () => {
+              try {
+                if (fs.existsSync(key + ".json")) {
+                  const meta = JSON.parse(fs.readFileSync(key + ".json", "utf-8"));
+                  return await r.respond({ status: 200, contentType: meta.type, headers: { "cache-control": "no-store" }, body: fs.readFileSync(key + ".bin") });
+                }
+                const res = await fetch(ctx.inst.url + u.pathname + u.search, { headers: { accept: r.headers().accept || "*/*" } });
+                const body = Buffer.from(await res.arrayBuffer());
+                const type = res.headers.get("content-type") || "application/octet-stream";
+                if (res.status === 200 && !fs.existsSync(key + ".json")) {
+                  const tmp = `${key}.${process.pid}.tmp`;
+                  fs.writeFileSync(tmp, body);
+                  fs.renameSync(tmp, key + ".bin");
+                  fs.writeFileSync(key + ".json", JSON.stringify({ type }));
+                }
+                await r.respond({ status: res.status, contentType: type, headers: { "cache-control": "no-store" }, body });
+              } catch (e) { if (process.env.SHOTS_DEBUG) console.error("img-cache:", e.message); r.continue().catch(() => {}); }
+            })();
           }
           r.continue().catch(() => {});
         });
@@ -213,6 +252,10 @@ const main = async () => {
             if (pass === "warm") { await sleep(400); continue; }
             if (!ok) problems.push(`${device} ${route}.${look}.${theme}.${state}: did not settle`);
             await sleep(700); // blur-up placeholders are dropped 500 ms after a picture lands
+            // --extra-wait <ms>: what arrives on its own a little later (the
+            // New tab's dot at the first idle moment, a picture upgraded once
+            // the viewer has been still 2.5 s) is in the picture too
+            if (EXTRA_WAIT) await sleep(EXTRA_WAIT);
             await page.screenshot({ path: path.join(dir, `${route}.${look}.${theme}.${state}.png`), captureBeyondViewport: false });
             n++;
           }

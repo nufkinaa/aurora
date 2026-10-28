@@ -22,7 +22,8 @@ up() { # ref label -> starts an instance, writes .cache/<label>.json
   for i in $(seq 1 180); do [ -f "$state" ] && break; sleep 1; done
   [ -f "$state" ] || { echo "instance $label did not start"; tail -5 "$HERE/.cache/$label.log"; exit 1; }
 }
-down() { local pid; pid="$(node -p "require('$HERE/.cache/$1.json').pid" 2>/dev/null)"; [ -n "$pid" ] && taskkill //PID "$pid" //T //F >/dev/null 2>&1; rm -f "$HERE/.cache/$1.json"; }
+# (the pid is read through stdin: node on Windows cannot open a /c/... path)
+down() { local pid; pid="$(node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync(0,'utf8')).pid))" < "$HERE/.cache/$1.json" 2>/dev/null)"; [ -n "$pid" ] && taskkill //PID "$pid" //T //F >/dev/null 2>&1; rm -f "$HERE/.cache/$1.json"; }
 up "$REFA" "$LA"; up "$REFB" "$LB"
 CA="$REFA"; [ "$REFA" = "WORKTREE" ] && CA=""
 CB="$REFB"; [ "$REFB" = "WORKTREE" ] && CB=""

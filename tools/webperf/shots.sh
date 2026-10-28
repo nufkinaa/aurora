@@ -24,13 +24,17 @@ up() { # ref label
   for i in $(seq 1 180); do [ -f "$state" ] && break; sleep 1; done
   [ -f "$state" ] || { echo "instance $label did not start"; tail -5 "$HERE/.cache/$label.log"; exit 1; }
 }
-down() { local pid; pid="$(node -p "require('$HERE/.cache/$1.json').pid" 2>/dev/null)"; [ -n "$pid" ] && taskkill //PID "$pid" //T //F >/dev/null 2>&1; rm -f "$HERE/.cache/$1.json"; }
+# (the pid is read through stdin: node on Windows cannot open a /c/... path)
+down() { local pid; pid="$(node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync(0,'utf8')).pid))" < "$HERE/.cache/$1.json" 2>/dev/null)"; [ -n "$pid" ] && taskkill //PID "$pid" //T //F >/dev/null 2>&1; rm -f "$HERE/.cache/$1.json"; }
 up "$REFA" "$NAME-A"; up "$REFB" "$NAME-B"
+# the pictures both sides are shown are the same bytes (shots.js --img-cache)
+IMGC="$HERE/.cache/imgcache-$NAME"
+rm -rf "$IMGC"
 cd "$MP"
 for run in 1 2; do
-  node shots.js --instance "$HERE/.cache/$NAME-A.json" --label "$NAME-a$run" "${ARGS[@]}" > "$HERE/.cache/$NAME-a$run.log" 2>&1 &
+  node shots.js --instance "$HERE/.cache/$NAME-A.json" --label "$NAME-a$run" --img-cache "$IMGC" "${ARGS[@]}" > "$HERE/.cache/$NAME-a$run.log" 2>&1 &
   PA=$!
-  node shots.js --instance "$HERE/.cache/$NAME-B.json" --label "$NAME-b$run" "${ARGS[@]}" > "$HERE/.cache/$NAME-b$run.log" 2>&1 &
+  node shots.js --instance "$HERE/.cache/$NAME-B.json" --label "$NAME-b$run" --img-cache "$IMGC" "${ARGS[@]}" > "$HERE/.cache/$NAME-b$run.log" 2>&1 &
   PB=$!
   wait $PA; wait $PB
 done
