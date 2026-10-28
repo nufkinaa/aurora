@@ -61,6 +61,21 @@ for (const [name, viewport] of [["390", { width: 390, height: 844 }], ["375", { 
         const left = Math.max(0, b.clip.left);
         assert.ok(b.left >= left - 0.5 && b.right <= right + 0.5, `${b.label} is cut off: ${JSON.stringify(b)} (screen ${m.vw})`);
       }
+      // a toast (here an Undo one, which takes taps) sits above the dock, not on it:
+      // in the classic look it stood on the dock's second row — over Next episode
+      // and Settings — and took their taps for six seconds (localplay.test.js)
+      const t = await page.evaluate(async () => {
+        const { toast } = await import("/js/ui.js");
+        toast("Removed “Holiday Film”", "🗑", { label: "Undo", onClick() {} });
+        const el = document.querySelector("#toasts .toast:last-child");
+        await Promise.all(el.getAnimations().map((a) => a.finished.catch(() => {})));
+        const r = el.getBoundingClientRect();
+        const d = document.querySelector(".player .player-bottom").getBoundingClientRect();
+        return { toast: { top: r.top, bottom: r.bottom }, dockTop: d.top };
+      });
+      await shot(page, `${look}-${name}-toast`);
+      assert.ok(t.toast.bottom <= t.dockTop + 0.5, `the toast stands on the dock: ${JSON.stringify(t)}`);
+      await player.wake(page);
       for (const label of ["Subtitles", "Settings"]) {
         await player.menu(page, label, { all: true });
         // the menu grows in (an animation): measure it where it comes to rest

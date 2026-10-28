@@ -651,7 +651,7 @@
     display: none;
   }
   html:not([data-look="glass"]) body:has(.player) #toasts {
-    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--player-dock-h, 160px) + 12px); /* above the two-row dock (it includes the home indicator) */
   }
   html:not([data-look="glass"]) body:has(.player) #offline-banner {
     bottom: 0;

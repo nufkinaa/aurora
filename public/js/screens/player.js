@@ -3211,7 +3211,15 @@ export const renderPlayer = async (root, { id }) => {
   // Up next, Skip intro, the resume card) positions against this in CSS
   // instead of against a fixed offset tuned for the one-row desktop dock.
   const dockEl = overlay.querySelector(".player-bottom");
-  const paintDockH = () => overlay.style.setProperty("--dock-h", `${dockEl.offsetHeight || 0}px`);
+  // (…and on the page as --player-dock-h, for what is not inside the player:
+  // the toasts, which in the classic look sat ON the dock — an Undo toast
+  // took the taps meant for Next episode or Settings. Read only while a
+  // player is on the page — body:has(.player) — so it is never cleared.)
+  const paintDockH = () => {
+    const h = `${dockEl.offsetHeight || 0}px`;
+    overlay.style.setProperty("--dock-h", h);
+    if (dockEl.offsetHeight) document.documentElement.style.setProperty("--player-dock-h", h);
+  };
   const dockRO = window.ResizeObserver ? new ResizeObserver(paintDockH) : null;
   if (dockRO) dockRO.observe(dockEl);
   else window.addEventListener("resize", paintDockH);
