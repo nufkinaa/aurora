@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.13.5 — 2026-10-28
+
+- **No more hitch a few seconds after a seek on a converted film.** The quick first piece made right after a start, seek or resume used a simpler kind of H.264 than the rest of the film, and about 9 seconds later the player met the new kind mid-play and started its decoder over — a 120–140 ms jerk with dropped frames, felt by everyone in a watch party at every jump. The quick piece is now the same kind as the rest; seeks are just as fast, and the jerk is gone (0 dropped frames over 4 jumps in a 4-person party on 8 cores, from 4–12).
+
 ## 1.13.4 — 2026-10-28
 
 - The saved library walk is written through a temporary file of its own per process and tidied up if the write fails, so two processes in one folder can never leave a broken file behind (the server would then read the folders again on start — safe, but slower). A test that shared the file with other tests now has its own.
