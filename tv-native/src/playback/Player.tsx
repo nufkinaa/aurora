@@ -131,7 +131,6 @@ import {
   rangeOf,
   readNext,
   skippableAt,
-  stallStep,
   STALL_MARK_MS,
   stallClockFirstFrame,
   stallClockNew,
@@ -159,6 +158,7 @@ import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
 import {menuMaxHeight} from '../popupFit';
 import {refreshTuning, tuning, TUNING_DEFAULTS} from './tuning';
+import {againStep, CARD_RETRY_MS, REFUSED_UNDER_S, spotOf, StopKind, stopWords, watchNew, watchReset, watchTick} from './recovery';
 import {Clock, clockBaseFor, clockFromHeaders, toContent, toMedia} from './clock';
 import {Cue, cueBottom, cueTextAt, parseVtt} from './cues';
 import {delaysForItem, loadDelays, roundDelay, saveDelay} from './subDelay';
@@ -723,8 +723,12 @@ export default function Player({
   const inIntroRef = useRef(false);
   const [skipKind, setSkipKind] = useState<'intro' | 'recap'>('intro');
   const skipKindRef = useRef<'intro' | 'recap'>('intro');
-  // The direct-play stall card (see the watchdog by that name).
-  const [stallCard, setStallCard] = useState(false);
+  // The card for a film that stopped and did not come back by itself (see
+  // the recovery block, playback/recovery.ts): 'film' after errors, 'stream'
+  // after a frozen picture — the website's two wordings.
+  const [stopCard, setStopCard] = useState<StopKind | null>(null);
+  const stopCardRef = useRef<StopKind | null>(null);
+  stopCardRef.current = stopCard;
   // The resume card — "Resuming from 12:34" with the frame, Start over beside it.
   const [resumeCard, setResumeCard] = useState<{at: number} | null>(null);
   // The watch party this player is in, for the pill and the panel.
@@ -779,6 +783,21 @@ export default function Player({
   const recoveries = useRef(0);
   const lastRecoveryAt = useRef(0);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The recovery of a film that stopped mid-play (playback/recovery.ts; the
+  // wiring is the block of that name further down): the frozen-picture
+  // watcher's state, the reloads after errors, their timers, the spot a
+  // reload of ours is heading for (0: none), the uri whose onLoad came, and
+  // the seconds played of the current PATH (direct / copy / an encode).
+  const watch = useRef(watchNew());
+  const againTries = useRef<number[]>([]);
+  const againTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cardBeat = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heldAt = useRef(0);
+  const ownProbe = useRef(-1);
+  const loadedUri = useRef<string | null>(null);
+  const pathKey = useRef('');
+  const pathPlayed = useRef(0);
+  const lastProgCt = useRef(0);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -828,9 +847,12 @@ export default function Player({
   // …unless the chrome is up, in which case the scrubber takes it back: the
   // Skip intro button and the resume card unmount while focused.
   const scrubRef = useRef<{requestTVFocus?: () => void} | null>(null);
+  // …and never while a sheet is up over the player (Report a problem, X-Ray):
+  // the focus is the sheet's, and taking it back to the scrubber behind the
+  // sheet is what made the report's field two presses of UP away.
   const focusSink = useRef({
     requestTVFocus: () => {
-      if (controlsRef.current) scrubRef.current?.requestTVFocus?.();
+      if (controlsRef.current && !overlayOpen()) scrubRef.current?.requestTVFocus?.();
     },
   });
   useFocusFallback(focusSink);
@@ -2777,7 +2799,7 @@ export default function Player({
       }
       if (t === 'fastForward') return skip(1);
       if (t === 'rewind') return skip(-1);
-      if (menuOpen || upNext || slowStart || stallCard) return; // the overlay's own focusables handle it
+      if (menuOpen || upNext || slowStart || stopCard) return; // the overlay's own focusables handle it
       if (!controls) {
         if (t === 'left') return skip(-1);
         if (t === 'right') return skip(1);
@@ -2805,7 +2827,7 @@ export default function Player({
       }
       showControls(); // any activity keeps the chrome alive
     },
-    [controls, menuOpen, upNext, slowStart, stallCard, skip, togglePlay, showControls, navigation],
+    [controls, menuOpen, upNext, slowStart, stopCard, skip, togglePlay, showControls, navigation],
   );
   useTVEventHandler(onTV);
 
@@ -3030,7 +3052,12 @@ export default function Player({
     if (!base) return;
     switchedToTranscode.current = true;
     toast("This encode won't decode here — switching to transcode…");
-    startTranscodeAt(base, curRef.current, 'h264', {fallbackToZero: true});
+    // From where the film stands — and back at 0:00 only when that is where
+    // it was: a probe that failed mid-film used to restart it from the
+    // beginning. (Failing there, the film stays on its file: the watcher
+    // below tries it again, then says so.)
+    const at = spotOf({resumeAt: resumeAt.current, held: heldAt.current, cur: curRef.current});
+    startTranscodeAt(base, at, 'h264', {fallbackToZero: at < 5});
   }, [startTranscodeAt, stream, toast]);
   useEffect(() => {
     if (!canFallback) return;
@@ -3041,7 +3068,10 @@ export default function Player({
       const ct = curRef.current;
       const ahead = bufRef.current - ct > 3;
       if (!pausedRef.current && ahead && ct === lastCT) {
-        if (++stalls >= 3) fallbackToTranscode(); // ~6s
+        // ~6s — on a file this device has hardly played: one it has played
+        // half a minute of decodes here, and a picture that stops on it is
+        // the recovery watcher's (the same file again at this spot)
+        if (++stalls >= 3 && pathPlayed.current < REFUSED_UNDER_S) fallbackToTranscode();
       } else {
         stalls = 0;
       }
@@ -3100,7 +3130,7 @@ export default function Player({
     switchedToTranscode.current = true; // the decode-stall fallback must not undo this
     track('feat', {f: 'slow_start_lower'});
     toast('Lower quality — 480p');
-    const at = resumeAt.current || curRef.current || 0;
+    const at = spotOf({resumeAt: resumeAt.current, held: heldAt.current, cur: curRef.current});
     startTranscodeAt(base, at, 'h264-480').then(ok => {
       if (ok || exited.current) return;
       // Probe refused (no encoder free, or no answer): the file keeps loading.
@@ -3119,6 +3149,9 @@ export default function Player({
     const iv = setInterval(() => {
       if (exited.current || pausedRef.current || !bufferingRef.current) return;
       if (!usingTranscodeRef.current || probing.current) return;
+      // a library film that has shown its picture: the recovery watcher's
+      // (it reloads at 20 s, then says so — this one never did)
+      if (!isTorrent && playTracked.current) return;
       if (Date.now() - progAt.current < 25000) return;
       const base = itemRef.current?.transcodeBase || stream?.transcodeBase;
       if (!base || recoveries.current >= MAX_RECOVERIES) return;
@@ -3136,79 +3169,165 @@ export default function Player({
       setUri(`${transcodeUrl(base, streamOffset.current, currentV.current)}&g=${++gen.current}`);
     }, 5000);
     return () => clearInterval(iv);
-  }, [stream, transcodeUrl]);
+  }, [stream, transcodeUrl, isTorrent]);
 
-  // Direct-play stall watchdog — a library file played as it is (no
-  // repackaging). The watchdog above only covers repackaged streams; a direct
-  // file whose connection went quiet mid-film just sat on a spinner with
-  // nothing said (audit F40). The site's staged recovery, with its timings
-  // (playerRules.ts stallStep): a nudge at 6 s (seek to where we are — that
-  // alone restarts a reader that gave up), the source handed over again at
-  // 20 s (at the same position), and at 45 s a card that says so and offers a
-  // way out. One of each per stall; the picture moving again ends the stall.
-  // After two re-hands in one film the next stall goes straight to the card.
-  // A torrent is left alone — its own status copy says what the swarm is doing.
-  const stallAt = useRef({since: 0, nudged: false, rebuilt: false, carded: false});
-  const stallRebuilds = useRef(0);
-  const rebuildDirect = useCallback(() => {
-    const it = itemRef.current;
-    if (!it?.videoUrl || usingTranscodeRef.current) return;
-    if (curRef.current > 5) resumeAt.current = curRef.current;
-    const base = assetUrl(it.videoUrl) as string;
-    // the same file again: `g` only makes the address new, so the player
-    // really reloads it (the server ignores it)
-    setUri(`${base}${base.includes('?') ? '&' : '?'}g=${++gen.current}`);
+  // ---------------------------------------------------------------- recovery
+  // A FILM THAT STOPS MID-PLAY comes back by itself, at the same spot; when it
+  // cannot, the card says so, with Try again from that spot and a quiet try
+  // every 30 s behind it. The website's rule since 1.13.7 (its mseAgain and
+  // stall watcher) — the rules and their numbers are playback/recovery.ts;
+  // this is the wiring. On every path a library film can take: direct, copy,
+  // encode. (A torrent stream keeps its own status copy and ladder.)
+  //
+  // What it replaces (2026-10-28): an error on a film that had been playing
+  // went to the full encode (a direct film — at 0:00 if that probe failed) or
+  // was asked for again four times and then left on a spinner, with a toast
+  // and a retry every 30 s but nothing on screen to press (a repackaged one);
+  // and the stall watchdog only counted a picture ExoPlayer itself called
+  // "buffering" on a direct file — an errored player (idle) or a decoder that
+  // hung with its buffer full (ready) was never counted, and a frozen copy or
+  // encode was given up on after four re-asks with nothing said.
+  useEffect(
+    () => () => {
+      if (againTimer.current) clearTimeout(againTimer.current);
+      if (cardBeat.current) clearTimeout(cardBeat.current);
+    },
+    [],
+  );
+  // THE SAME SOURCE AGAIN, AT THIS SPOT: the address made new (`g`, which the
+  // server ignores) so ExoPlayer really loads it again, and the spot carried
+  // by resumeAt — onLoad seeks there (a direct file natively; a repackaged
+  // stream through commitSeek, which restarts the job at it if the revived
+  // playlist does not span it). A playlist starts at its job's offset, so a
+  // spot within 5 s of that needs no seek. The spot is the one a reload of
+  // ours is already heading for when there is one: a source that failed
+  // before it got there reports 0, and that is never where the film goes.
+  const reloadSame = useCallback(() => {
+    const u = uriRef.current;
+    if (exited.current || !u) return;
+    const at = spotOf({resumeAt: resumeAt.current, held: heldAt.current, cur: curRef.current});
+    heldAt.current = at;
+    watch.current.hold = true;
+    console.log(`[player] the same source again at ${at.toFixed(1)}`);
+    // A repackaged stream whose spot is past the start of its job: that job
+    // made again AT the spot (the far seek's probe, same codec), not the old
+    // playlist handed over again — that one played from where its job began
+    // (seconds of an earlier scene, measured 80 s back on the Mi TV with the
+    // encoder killed) until the seek to the spot came through.
+    const base = itemRef.current?.transcodeBase || stream?.transcodeBase;
+    if (usingTranscodeRef.current && base && at > clockBase.current + 5) {
+      resumeAt.current = 0;
+      ownProbe.current = probeToken.current + 1; // (the token this probe takes — the watcher keeps counting through it)
+      startTranscodeAt(base, at, currentV.current);
+      return;
+    }
+    if (at > (usingTranscodeRef.current ? clockBase.current : 0) + 5) resumeAt.current = at;
+    setBuffering(true);
+    const bare = u.replace(/[?&]g=\d+$/, '');
+    setUri(`${bare}${bare.includes('?') ? '&' : '?'}g=${++gen.current}`);
+  }, [startTranscodeAt, stream]);
+  const hideStop = useCallback(() => {
+    if (cardBeat.current) clearTimeout(cardBeat.current);
+    cardBeat.current = null;
+    if (!stopCardRef.current) return;
+    stopCardRef.current = null;
+    setStopCard(null);
   }, []);
+  const showStop = useCallback(
+    (kind: StopKind) => {
+      if (exited.current) return;
+      if (againTimer.current) clearTimeout(againTimer.current);
+      againTimer.current = null;
+      if (!stopCardRef.current) {
+        const at = spotOf({resumeAt: resumeAt.current, held: heldAt.current, cur: curRef.current});
+        mark('stop-card', {kind, at: Math.round(at), app: 'tv'});
+      }
+      console.log(`[player] the card: ${kind}`);
+      stopCardRef.current = kind;
+      setStopCard(kind);
+      // one more quiet try every 30 s while the card is up; the card stays
+      // until the picture moves again (the watcher's 'moved')
+      if (cardBeat.current) clearTimeout(cardBeat.current);
+      const beat = () => {
+        cardBeat.current = null;
+        if (exited.current || !stopCardRef.current) return;
+        console.log('[player] the card is up: one more quiet try');
+        reloadSame();
+        cardBeat.current = setTimeout(beat, CARD_RETRY_MS);
+      };
+      cardBeat.current = setTimeout(beat, CARD_RETRY_MS);
+    },
+    [mark, reloadSame],
+  );
+  // The card's Try again: from the same spot, with the tries counted afresh.
+  const tryAgain = useCallback(() => {
+    againTries.current.length = 0;
+    watchReset(watch.current);
+    hideStop();
+    mark('media-error', {did: 'retry', at: Math.round(spotOf({resumeAt: resumeAt.current, held: heldAt.current, cur: curRef.current})), app: 'tv'});
+    reloadSame();
+  }, [hideStop, mark, reloadSame]);
+  // THE FROZEN-PICTURE WATCHER, once a second (recovery.ts watchTick): the
+  // clock standing still while the film should be moving — whatever
+  // ExoPlayer calls its state (buffering, idle after an error, ready with a
+  // decoder that hung). Not before the first picture (the slow-start card's),
+  // not while the viewer has it paused, a seek or a switch owns the moment,
+  // the card is up, or at the end of what the film has.
   useEffect(() => {
     if (isTorrent) return;
     const iv = setInterval(() => {
-      const d = stallAt.current;
-      const stuck =
-        !exited.current &&
+      if (exited.current) return;
+      const ct = curRef.current;
+      const ended = durRef.current > 0 && durRef.current - ct <= 2;
+      // (our own reload's probe is part of the stall it mends: a server that
+      // does not answer it still gets the card at 45 s, not 45 s after the
+      // probe gave up; a seek's probe is the viewer's, and is waited for)
+      const probingOurs = probing.current && probeToken.current === ownProbe.current;
+      const countable =
         playTracked.current &&
         !pausedRef.current &&
-        bufferingRef.current &&
-        !usingTranscodeRef.current &&
-        !probing.current &&
-        pendingSeek.current == null;
-      if (!stuck) {
-        if (d.since) {
-          stallAt.current = {since: 0, nudged: false, rebuilt: false, carded: false};
-          setStallCard(c => (c ? false : c));
+        (!probing.current || probingOurs) &&
+        pendingSeek.current == null &&
+        seekPreviewRef.current == null &&
+        !stopCardRef.current &&
+        !ended &&
+        navigation.isFocused();
+      const out = watchTick(watch.current, {
+        now: Date.now(),
+        ct,
+        countable,
+        loaded: !!uriRef.current && loadedUri.current === uriRef.current,
+        party: !!party.current,
+      });
+      if (out === 'moved') {
+        // (logcat: when a reload of ours got the film moving again — the time to recovery)
+        if (heldAt.current > 0) console.log(`[player] moving again at ${ct.toFixed(1)}`);
+        heldAt.current = 0;
+        if (stopCardRef.current) {
+          mark('media-error', {did: 'back', at: Math.round(ct), app: 'tv'});
+          hideStop();
         }
-        return;
-      }
-      if (!d.since) d.since = Date.now();
-      let step = stallStep(Date.now() - d.since, d);
-      if (step === 'rebuild' && stallRebuilds.current >= 2) {
-        d.rebuilt = true;
-        step = 'card';
-      }
-      if (step === 'nudge') {
-        d.nudged = true;
-        mark('stall-nudge', {at: Math.round(curRef.current || 0), app: 'tv'});
-        videoRef.current?.seek(toMedia(clockBase.current, curRef.current));
-      } else if (step === 'rebuild') {
-        d.rebuilt = true;
-        stallRebuilds.current += 1;
-        mark('stall-rebuild', {at: Math.round(curRef.current || 0), app: 'tv'});
+      } else if (out === 'nudge') {
+        // A direct file: a seek to where it stands restarts a reader that gave
+        // up. A repackaged stream is not nudged — ExoPlayer's own HLS loader
+        // retries its segments, and on a CPU encode slower than the film the nudge
+        // fired at every short wait (Mi TV, 2026-10-28: 7-11 s waits, a seek in
+        // each) where a seek can only drop what was arriving — its first step
+        // is the reload at 20 s, as the 25 s re-ask it replaces was.
+        if (usingTranscodeRef.current) return;
+        mark('stall-nudge', {at: Math.round(ct), app: 'tv'});
+        videoRef.current?.seek(toMedia(clockBase.current, ct));
+      } else if (out === 'rebuild') {
+        mark('stall-rebuild', {at: Math.round(ct), app: 'tv'});
         toast('Still stuck — loading it again…');
-        rebuildDirect();
-      } else if (step === 'card') {
-        d.carded = true;
-        mark('stall-card', {at: Math.round(curRef.current || 0), app: 'tv'});
-        setStallCard(true);
+        reloadSame();
+      } else if (out === 'card') {
+        mark('stall-card', {at: Math.round(ct), app: 'tv'});
+        showStop('stream');
       }
     }, 1000);
     return () => clearInterval(iv);
-  }, [isTorrent, mark, rebuildDirect, toast]);
-  // The card's own ways out: once more (and the card goes until the next
-  // stall has lasted as long), the 480p encode where the file has one, or Back.
-  const stallRetry = useCallback(() => {
-    stallAt.current = {since: 0, nudged: true, rebuilt: true, carded: false};
-    setStallCard(false);
-    rebuildDirect();
-  }, [rebuildDirect]);
+  }, [isTorrent, mark, reloadSame, showStop, hideStop, toast, navigation]);
 
   // ---------------------------------------------------------------- Up Next
   // WHICH EPISODE IS NEXT is the server's answer (GET /api/next-episode — one
@@ -3595,6 +3714,7 @@ export default function Player({
 
   const onLoad = (d: OnLoadData) => {
     if (!steps.current.byte) steps.current.byte = Date.now();
+    loadedUri.current = uriRef.current; // (the recovery watcher's nudge needs a loaded source)
     // ---- picture and sound (TV round 2026-10-19): a direct start the server
     // decided on this box's word, whose sound no renderer took (ExoPlayer
     // plays such a film SILENT rather than failing): the word did not hold.
@@ -3677,6 +3797,18 @@ export default function Player({
     progAt.current = Date.now();
     bufRef.current = toContent(clockBase.current, d.playableDuration || 0);
     if (d.currentTime > 0) everPlayed.current = true;
+    // what this device has played of the current PATH (recovery.ts: a path
+    // played less than half a minute that keeps failing may be refused here)
+    {
+      const key = usingTranscodeRef.current ? currentV.current : 'direct';
+      if (key !== pathKey.current) {
+        pathKey.current = key;
+        pathPlayed.current = 0;
+      }
+      const step = content - lastProgCt.current;
+      lastProgCt.current = content;
+      if (step > 0 && step <= 4) pathPlayed.current += step;
+    }
     // THE PLAYLIST GROWS; localDur MUST GROW WITH IT. It was written once, at
     // onLoad, when an event playlist is ~2-8s long — so half an hour in, the
     // "edge" commitSeek tested against was still ~8s past the offset and EVERY
@@ -3789,6 +3921,49 @@ export default function Player({
     if (navigation.isFocused()) navigation.goBack();
   };
 
+  // AN ERROR ON A FILM THAT HAS BEEN PLAYING (recovery.ts againStep): the
+  // same source again at this spot, 0.3 s and then 2 s later; a third within
+  // three minutes is not tried by itself — the card, with Try again, and a
+  // quiet try every 30 s behind it. A path this device has played less than
+  // half a minute of that keeps failing gets the full encode instead (it may
+  // be refusing it after all), from the same spot.
+  const recoverAgain = (why: string) => {
+    if (stopCardRef.current) return; // the card is up: its quiet tries carry on
+    const base = itemRef.current?.transcodeBase || stream?.transcodeBase;
+    const canEncode =
+      !!base &&
+      (usingTranscodeRef.current ? currentV.current === 'copy' && !triedH264.current : !switchedToTranscode.current);
+    const at = spotOf({resumeAt: resumeAt.current, held: heldAt.current, cur: curRef.current});
+    const a = againStep(againTries.current, Date.now(), {played: pathPlayed.current, canEncode});
+    mark('media-error', {did: a.kind, why: why.slice(0, 40), n: a.kind === 'again' ? a.n : 0, at: Math.round(at), played: Math.round(pathPlayed.current), app: 'tv'});
+    if (a.kind === 'again') {
+      setBuffering(true);
+      if (againTimer.current) clearTimeout(againTimer.current);
+      const g = gen.current; // a seek that hands over a new source meanwhile owns it
+      againTimer.current = setTimeout(() => {
+        againTimer.current = null;
+        if (exited.current || gen.current !== g || probing.current) return;
+        reloadSame();
+      }, a.delayMs);
+      return;
+    }
+    if (a.kind === 'encode' && base) {
+      againTries.current.length = 0;
+      if (!usingTranscodeRef.current) {
+        fallbackToTranscode();
+        return;
+      }
+      triedH264.current = true;
+      switchedToTranscode.current = true;
+      toast('This device refused the fast path — re-encoding instead…');
+      startTranscodeAt(base, at, 'h264', {fallbackToZero: at < 5}).then(ok => {
+        if (!ok && !exited.current) showStop('film');
+      });
+      return;
+    }
+    showStop('film');
+  };
+
   const onError = (e?: {error?: {errorString?: string; errorException?: string}}) => {
     const detail = `${e?.error?.errorString || ''} ${e?.error?.errorException || ''}`;
     console.log('[player] error:', detail);
@@ -3812,6 +3987,15 @@ export default function Player({
     if (claimGen.current && claimGen.current === gen.current && !everPlayed.current) {
       claimSwallowed.current = gen.current;
       setBuffering(true);
+      return;
+    }
+
+    // A film that has been playing (its codec decoded fine a moment ago, so
+    // the codec is not what failed), on any path: the same source again at
+    // this spot, twice, then the card (recoverAgain). A torrent stream keeps
+    // its own ladder below.
+    if (everPlayed.current && !isTorrent) {
+      recoverAgain(detail.trim());
       return;
     }
 
@@ -4181,7 +4365,7 @@ export default function Player({
       {/* Mid-playback stall. The site only darkens the picture and explains
           itself for TORRENT streams (.torrent-status); a library file just gets
           a spinner, because there is nothing useful to say about it. */}
-      {buffering ? (
+      {buffering && !stopCard ? (
         <View style={[styles.bufferWrap, isTorrent && styles.bufferWash]} pointerEvents="none">
           <ActivityIndicator color={colors.white} size="large" />
           {isTorrent ? (
@@ -4954,13 +5138,16 @@ export default function Player({
         </TVFocusGuideView>
       ) : null}
 
-      {/* The picture stopped and did not come back (the direct-play stall
-          watchdog): say so, with a way out — the same box as the slow start. */}
-      {stallCard && !upNext && !menuOpen && !slowStart ? (
+      {/* The film stopped and did not come back by itself (the recovery
+          block: errors, or a frozen picture): say so, with Try again from the
+          same spot and a way out — the same box as the slow start, the
+          website's words. A quiet try runs every 30 s behind it; the picture
+          moving again takes it away. */}
+      {stopCard && !upNext && !menuOpen && !slowStart ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.upNext}>
-          <Text style={styles.upNextTitle}>Playback has stalled — the connection to the server went quiet</Text>
+          <Text style={styles.upNextTitle}>{stopWords(stopCard)}</Text>
           <View style={styles.upNextActions}>
-            <Focusable uiId="player.stall.retry" round light ring="violet" hasTVPreferredFocus onFocusChange={markZone('menu')} onPress={stallRetry} style={styles.btnPrimary}>
+            <Focusable uiId={stopCard === 'film' ? 'player.retry' : 'player.stall.retry'} round light ring="violet" hasTVPreferredFocus onFocusChange={markZone('menu')} onPress={tryAgain} style={styles.btnPrimary}>
               <Text style={styles.btnPrimaryText}>Try again</Text>
             </Focusable>
             {canLowerQuality ? (
@@ -4968,7 +5155,7 @@ export default function Player({
                 round
                 onFocusChange={markZone('menu')}
                 onPress={() => {
-                  setStallCard(false);
+                  hideStop();
                   lowerQuality();
                 }}
                 style={styles.btn}>

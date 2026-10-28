@@ -28,6 +28,7 @@ import {
   NOTE_MAX,
   WORDS,
   noteCounter,
+  notePress,
   pickable,
   pickerTitle,
   sendLabel,
@@ -118,17 +119,24 @@ export default function RecommendSheet({title, imdbId}: {title: TitleLike; imdbI
   // there closed the sheet with nothing sent (Mi TV, 5.7.0 pass). A TextInput takes no
   // nextFocus* prop (only a View does), so the keys are read here: the D-pad reaches JS while
   // the field holds focus (the on-screen keyboard has its own window; its keys never come here).
-  // The field wraps (multiline) so the whole note stays readable. Known limit, not solved
-  // here: once a note has been typed, the D-pad from the faces or Send no longer lands on the
-  // field (react-native's EditText; a fresh field, or one with an offered note, is found).
+  // The field wraps (multiline) so the whole note stays readable.
   const firstFace = useRef<{requestTVFocus?: () => void} | null>(null);
   const noteFocused = useRef(false);
-  // The field's focus events and the key events travel apart, either can arrive first: the
-  // blur of the press that LEFT the field may come before that press ("had focus a moment ago"
-  // counts), and the focus of the press that ENTERED it may come before that one (a press a
-  // moment after the field got focus is the one that brought it there — not its own).
+  // The field's focus events and the key events travel apart, either can arrive first, and
+  // JS hears a D-pad press only when the key comes UP — after the focus engine has already
+  // moved on its key-DOWN, later by however long the key was held. So which press a key event
+  // is, is read from the ORDER (focus.ts pressMovedFocus has the same rule): the field got
+  // focus after the key event before this one — this press brought it there, and is not the
+  // field's; it lost focus after that one — this press started in the field. A 250 ms window
+  // stood here before: a press held longer than that (a real remote, not adb) to come UP or
+  // DOWN onto the field was read as a press made in it and thrown on to the faces or Send —
+  // the field could not be reached again once a note had been typed (Mi TV, 5.7.0/5.7.1).
+  // A focus event a moment AFTER a key event still belongs to that key's press (an injected
+  // key, adb or a phone remote, comes up in the same millisecond it went down, and its key-up
+  // can reach JS before the focus event does): householdRecs.ts notePress.
   const noteLeftAt = useRef(0);
   const noteGotAt = useRef(0);
+  const prevKeyAt = useRef(Date.now());
   // The field's blur does not always reach JS (focus taken by requestTVFocus, Mi TV): every
   // other element of the sheet says so itself when it takes focus.
   const leftNote = useMemo(
@@ -141,9 +149,9 @@ export default function RecommendSheet({title, imdbId}: {title: TitleLike; imdbI
   const notOnNote = useMemo(() => (f: boolean) => f && noteFocused.current && leftNote(), [leftNote]);
   useTVEventHandler(evt => {
     if (!evt || !acceptTvEvent(evt)) return;
-    const now = Date.now();
-    if (!noteFocused.current && now - noteLeftAt.current > 250) return;
-    if (noteFocused.current && now - noteGotAt.current < 250) return;
+    const prev = prevKeyAt.current;
+    prevKeyAt.current = Date.now();
+    if (notePress({inField: noteFocused.current, gotAt: noteGotAt.current, leftAt: noteLeftAt.current, prevKeyAt: prev}) !== 'field') return;
     if (evt.eventType === 'down') setTimeout(() => sendRef.current?.requestTVFocus?.(), 0);
     // UP: only when Android's search left focus where it was (a short note finds its face)
     else if (evt.eventType === 'up') setTimeout(() => noteFocused.current && firstFace.current?.requestTVFocus?.(), 60);
