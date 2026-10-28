@@ -27,6 +27,7 @@ import theme from '../theme';
 import {firstPoster} from '../telemetry'; // [analytics]
 import {fixOn, nativeOn, registerCardDecor} from '../render';
 import {buildDecor, CardStyles} from '../cardDecor';
+import {cardLinesShown, ltr, WORDS as HH} from '../householdRecs'; // [household]
 import AuroraCard, {Commands as CardCommands, ImageFailedEvent, ImageLoadedEvent, ImageRetryEvent} from '../specs/AuroraCardNativeComponent';
 
 const {colors, radius, cardAura} = theme;
@@ -68,6 +69,77 @@ const Shade = React.memo(function CardShade() {
 const FrameShade = React.memo(function CardFrameShade() {
   return <Image source={FRAME_SHADE} style={styles.shade} resizeMode="stretch" fadeDuration={0} />;
 });
+
+// [household] The words of a recommended card, in three lines that always take three lines:
+// the title, the first sender ("From Dana"), the rest ("and 2 others") — each ONE line, cut
+// with an ellipsis. The third line is held open (a no-break space) when there is only one
+// sender, so every card of the row has its title at the same height: left to Android the
+// line wrapped wherever the width ran out ("From" / "Maximiliana R…"), and a row's titles
+// sat at three different heights. The title is drawn left to right like every other word on
+// the card, a Hebrew one too (it used to hang at the right edge, under a left-aligned line).
+const HOLD = ' ';
+const metaParts = (title: string | null | undefined, meta: string, from?: {name?: string | null}[] | null): [string, string, string] => {
+  const [a, b] = cardLinesShown(meta, from);
+  return [ltr(String(title ?? '')), a, b || HOLD];
+};
+function MetaLabel({title, meta, from}: {title?: string | null; meta: string; from?: {name?: string | null}[] | null}) {
+  const [t, a, b] = metaParts(title, meta, from);
+  return (
+    <>
+      <Text style={styles.labelText} numberOfLines={1} ellipsizeMode="tail">
+        {t}
+      </Text>
+      <Text style={styles.labelMeta} numberOfLines={1} ellipsizeMode="tail">
+        {a}
+      </Text>
+      <Text style={styles.labelMeta} numberOfLines={1} ellipsizeMode="tail">
+        {b}
+      </Text>
+    </>
+  );
+}
+
+// [household] The tile after the household row's 15th card ("Show all recommended", only
+// when there are more): the card's own size, edge, focus and lift, a violet tint and an arrow
+// in a ring — the household's colour, as on the title page and the hold-OK sheet — instead of
+// the grey tile of a poster that failed to load, which it used to be. One per row: plain RN.
+function ShowAllTile({
+  index,
+  onPress,
+  onFocus,
+  hasTVPreferredFocus,
+  edgeRight,
+  item,
+  ref,
+}: Pick<CardProps, 'index' | 'onPress' | 'onFocus' | 'hasTVPreferredFocus' | 'edgeRight' | 'item' | 'ref'>) {
+  return (
+    <Focusable
+      uiId="home.hh.all"
+      scaleTo={1.055}
+      lift={cardAura.lift}
+      ringWidth={cardAura.edge.width}
+      ringColor={cardAura.edge.color}
+      shadow={cardAura.shadow}
+      hasTVPreferredFocus={hasTVPreferredFocus}
+      ref={ref}
+      edgeRight={edgeRight}
+      onPress={() => onPress(item)}
+      onFocusChange={onFocus ? f => f && onFocus(item, index ?? 0) : undefined}
+      focusOverlay={<View style={styles.brighten} />}
+      style={[styles.card, styles.allTile]}>
+      <View style={styles.allCentre} pointerEvents="none">
+        <View style={styles.allRing}>
+          {/* a glyph, not an Svg icon: react-native-svg paints a software bitmap on the UI
+              thread at mount and on every focus change, the one thing a shelf must not do */}
+          <Text style={styles.allArrow}>›</Text>
+        </View>
+        <Text style={styles.allText} numberOfLines={3}>
+          {item.title || HH.showAll}
+        </Text>
+      </View>
+    </Focusable>
+  );
+}
 
 // A picture that will not load is asked for again, but not forever: three
 // slow rounds (30 s, 2 min, 8 min — the server remembers a failed upstream
@@ -284,8 +356,10 @@ function JsCard({
   // corner belongs to the ✕.
   const kind = showKind && !landscape && !onRemove && !item.cta;
 
+  // [household] the row's Show all tile (after every hook: a recycled card may change kind)
+  if (item.cta) return <ShowAllTile item={item} index={index} onPress={onPress} onFocus={onFocus} hasTVPreferredFocus={hasTVPreferredFocus} edgeRight={edgeRight} ref={ref} />;
   return (
-    <Focusable uiId={item.cta ? 'home.hh.all' : 'card.open'} // [household] the row's Show all tile
+    <Focusable uiId="card.open"
       // components.css:255 — scale(1.055) translateY(-3px).
       scaleTo={1.055}
       lift={cardAura.lift}
@@ -372,7 +446,10 @@ function JsCard({
         </View>
       )}
 
-      {showLabel ? (frame ? <FrameShade /> : <Shade />) : null}
+      {/* [household] a card with the "From …" lines takes the frame card's deeper fade:
+          three lines reach a third of the way up, where the poster shade is already thin
+          (white words over a white or yellow poster did not read, Mi TV) */}
+      {showLabel ? (frame || metaLine ? <FrameShade /> : <Shade />) : null}
 
       {/* `.card-label` — the show name above "S1 E1 · Episode" on an episode card,
           the plain title otherwise. One line, tail-ellipsised: the CSS is
@@ -404,15 +481,7 @@ function JsCard({
               </Text>
             </>
           ) : metaLine ? (
-            <>
-              <Text style={styles.labelText} numberOfLines={1} ellipsizeMode="tail">
-                {item.title}
-              </Text>
-              {/* [household] two lines: "From Dana and Ben" is wider than a poster at the 14dp floor */}
-              <Text style={styles.labelSub} numberOfLines={2} ellipsizeMode="tail">
-                {metaLine}
-              </Text>
-            </>
+            <MetaLabel title={item.title} meta={metaLine} from={item.hh?.from} />
           ) : (
             <Text style={styles.labelText} numberOfLines={1} ellipsizeMode="tail">
               {item.title}
@@ -571,8 +640,10 @@ function NativeCard({
   // JsCard's showBlur minus the parts native tracks itself (broken, loaded).
   const blurUri = blur && src && !wasDrawn(src.uri) ? blur : undefined;
 
+  // [household] the row's Show all tile (after every hook: a recycled card may change kind)
+  if (item.cta) return <ShowAllTile item={item} index={index} onPress={onPress} onFocus={onFocus} hasTVPreferredFocus={hasTVPreferredFocus} edgeRight={edgeRight} ref={ref} />;
   return (
-    <Focusable uiId={item.cta ? 'home.hh.all' : 'card.open'} // [household] the row's Show all tile
+    <Focusable uiId="card.open"
       scaleTo={1.055}
       lift={cardAura.lift}
       ringWidth={cardAura.edge.width}
@@ -613,7 +684,7 @@ function NativeCard({
         backupHeadersJson={backupHeadersJson}
         blurUri={blurUri}
         tile={!src}
-        shade={showLabel ? (frame ? 'frame' : 'poster') : 'none'}
+        shade={showLabel ? (frame || metaLine ? 'frame' : 'poster') : 'none'}
         onImageLoaded={onImageLoaded}
         onImageFailed={onImageFailed}
         onImageRetry={onImageRetry}
@@ -654,15 +725,7 @@ function NativeCard({
               </Text>
             </>
           ) : metaLine ? (
-            <>
-              <Text style={styles.labelText} numberOfLines={1} ellipsizeMode="tail">
-                {item.title}
-              </Text>
-              {/* [household] two lines: "From Dana and Ben" is wider than a poster at the 14dp floor */}
-              <Text style={styles.labelSub} numberOfLines={2} ellipsizeMode="tail">
-                {metaLine}
-              </Text>
-            </>
+            <MetaLabel title={item.title} meta={metaLine} from={item.hh?.from} />
           ) : (
             <Text style={styles.labelText} numberOfLines={1} ellipsizeMode="tail">
               {item.title}
@@ -803,9 +866,11 @@ function DeepCard({
   const epLine = isEpisode ? `S${item.season} E${item.episode} · ${item.title}` : '';
   // [household] 'labelMeta': the title over the card's line (t2 "From Dana").
   const textMode = !showLabel ? '' : frame ? (isEpisode ? 'frameEp' : 'frame') : isEpisode ? 'labelEp' : metaLine ? 'labelMeta' : 'label';
-  const t1 = !showLabel ? '' : frame ? String((isEpisode ? item.showTitle || item.title : item.title) ?? '') : String((isEpisode ? item.showTitle || '' : item.title) ?? '');
-  const t2 = showLabel && isEpisode ? epLine : showLabel && metaLine ? metaLine : '';
-  const t3 = showLabel && frame && left ? `▶  ${left}` : '';
+  // [household] labelMeta: t1 the title, t2 + t3 the two "From …" lines (MetaLabel's)
+  const meta = textMode === 'labelMeta' ? metaParts(item.title, metaLine, item.hh?.from) : null;
+  const t1 = !showLabel ? '' : meta ? meta[0] : frame ? String((isEpisode ? item.showTitle || item.title : item.title) ?? '') : String((isEpisode ? item.showTitle || '' : item.title) ?? '');
+  const t2 = showLabel && isEpisode ? epLine : meta ? meta[1] : '';
+  const t3 = meta ? meta[2] : showLabel && frame && left ? `▶  ${left}` : '';
 
   // ---- what JS still owns of the picture's life (NativeCard's) ------------
   const art = React.useRef<React.ElementRef<typeof AuroraCard> | null>(null);
@@ -852,8 +917,10 @@ function DeepCard({
   const draws = !!textMode || isNew || !!tagKind || pct != null || tileShown;
   const decor = draws ? decorJson() : undefined;
 
+  // [household] the row's Show all tile (after every hook: a recycled card may change kind)
+  if (item.cta) return <ShowAllTile item={item} index={index} onPress={onPress} onFocus={onFocus} hasTVPreferredFocus={hasTVPreferredFocus} edgeRight={edgeRight} ref={ref} />;
   return (
-    <Focusable uiId={item.cta ? 'home.hh.all' : 'card.open'} // [household] the row's Show all tile
+    <Focusable uiId="card.open"
       scaleTo={1.055}
       lift={cardAura.lift}
       ringWidth={cardAura.edge.width}
@@ -887,7 +954,7 @@ function DeepCard({
         backupHeadersJson={backupHeadersJson}
         blurUri={blurUri}
         tile={!src}
-        shade={showLabel ? (frame ? 'frame' : 'poster') : 'none'}
+        shade={showLabel ? (frame || metaLine ? 'frame' : 'poster') : 'none'}
         decor={decor}
         textMode={textMode || undefined}
         t1={t1 || undefined}
@@ -981,6 +1048,36 @@ const styles = StyleSheet.create({
     textShadowOffset: {width: 0, height: 1},
     textShadowRadius: 6,
   },
+  // [household] "From Dana" / "and 2 others" under the title: the household's violet (the
+  // title page's and the hold-OK sheet's "Recommended by …"), lifted a step so it reads at 3 m
+  // over the frame shade, a weight under the title's; tight under it, as one block.
+  labelMeta: {
+    color: '#b3a8ff',
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 17,
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: {width: 0, height: 1},
+    textShadowRadius: 6,
+  },
+  // [household] the Show all tile
+  allTile: {
+    borderColor: 'rgba(139,123,255,0.42)',
+    backgroundColor: '#1d1b3a',
+  },
+  allCentre: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12},
+  allRing: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 1.5,
+    borderColor: 'rgba(179,168,255,0.75)',
+    backgroundColor: 'rgba(139,123,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  allArrow: {color: colors.text, fontSize: 30, lineHeight: 34, fontWeight: '300', marginTop: -3, marginLeft: 2},
+  allText: {color: colors.text, fontSize: 15, lineHeight: 19, fontWeight: '800', textAlign: 'center', marginTop: 14},
 
   // `.card-tag` top 10 → 7, padding 3/8 → 2/6, radius 7 → 5. The fill is the
   // authored rgba(6,8,16,0.72); `backdrop-filter: blur(4px)` has no RN equivalent

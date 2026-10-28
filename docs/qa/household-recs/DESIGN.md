@@ -218,3 +218,34 @@ Home's row: `{ id: "household", title: "Recommended by your household", sub?: "2
 - The TV toasts an arrival only for recommendations newer than the last one it showed; the
   website toasts each unseen one it has not told in this tab (the first ping after a reload can
   differ by one).
+
+## The TV's design pass (2026-10-28, branch design-household-tv)
+
+Words unchanged — everything below is layout. Photos and the before/after note:
+`docs/qa/household-design/tv/`.
+
+- **Placement**: the row sits directly under "Recommended for You" also for a person whose Home
+  row order was saved before 1.13.0 (a stored order that does not name `household` used to send
+  it to the foot of Home) — `orderRows` in `src/routes/api.js`; no Recommended row (kids, little
+  history): where it would have been, after Continue Watching / New episodes.
+- **The card**: the title, then the line in two pieces, each one line — "From Dana" / "and 10
+  others" — the second held open for a single sender, so every title of the row sits at one
+  height; the household violet for the From lines; the frame card's deeper shade under the
+  words (white words over a white poster did not read).
+- **Right-to-left names** (both apps should do this): a line that may START with a name, a note or
+  a title gets an invisible left-to-right mark, and a Hebrew name / note is fenced off with one on
+  each side — otherwise "נועם recommended Dune" is laid out as a right-to-left line ("recommended
+  Dune נועם"), "נועם · Mute" reads "Mute · נועם" and a Hebrew note by Dana reads "Dana — ”note“".
+  (The Unicode isolates FSI/PDI were ignored by the Mi TV's text stack.) TV: householdRecs.ts
+  `ltr` / `iso`.
+- **Show all tile**: the card's size and focus, a violet wash and an arrow in a ring.
+- **Show all page**: the person filter is one scrolling line (it wrapped to two or three with a big
+  household); You sent rows are compact, the note in italics, each person's status a pill with the
+  state's colour (Seen white, In their list violet, Watching cyan, Watched mint).
+- **Picker**: the note and Send / Cancel stay in view under the faces (with 14 people Send was
+  below the sheet's edge), six faces to a line, a greyed face keeps a full focus ring, the note
+  field shows a focus edge.
+- **Title page banner**: who + Not for me on one line, the notes under it at the lockup's width
+  set off by a violet rule (two at most, two lines each).
+- **Settings**: DOWN from the switch lands on the first mute chip (a focus guide); the mute chips
+  only while recommendations are on (as the website).

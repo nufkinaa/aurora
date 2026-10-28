@@ -88,6 +88,8 @@ export function buildDecor(
     labelRaised: boxOf(st('label', 'labelRaised'), p),
     labelText: textOf(st('labelText'), p),
     labelSub: textOf(st('labelSub'), p),
+    // [household] the "From …" lines of a recommended card (Card.tsx labelMeta)
+    labelMeta: textOf(st('labelMeta'), p),
     frameLabel: boxOf(st('frameLabel'), p),
     frameTitle: textOf(st('frameTitle'), p),
     frameSub: textOf(st('frameSub'), p),

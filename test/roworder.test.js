@@ -57,3 +57,25 @@ test("the recommender's generated rows sit with Recommended, in reading order; t
   assert.ok(stored.includes("theme-heist") && stored.includes("person-525") && stored.includes("because-tt1"));
   assert.ok(!stored.includes("stretch"), "and a hidden one stays hidden");
 });
+
+test("'Recommended by your household' sits right under Recommended for You by default", () => {
+  const rows = [R("continue"), R("recommended"), R("because-tt1"), R("trending-stream"), R("household"), R("mylist")];
+  assert.deepEqual(ids(orderRows(rows)).slice(0, 3), ["continue", "recommended", "household"]);
+  // no Recommended row (a kids profile, little history): it takes that place
+  const noRec = ids(orderRows([R("trending-stream"), R("household"), R("continue"), R("mylist")]));
+  assert.deepEqual(noRec.slice(0, 2), ["continue", "household"]);
+});
+
+test("a stored order that predates the household row keeps it under Recommended, wherever that went", () => {
+  const rows = [R("continue"), R("recommended"), R("because-tt1"), R("trending-stream"), R("household"), R("mylist")];
+  const out = ids(orderRows(rows, { order: ["mylist", "trending-stream", "recommended", "continue", "because-tt1"], hidden: [] }));
+  assert.deepEqual(out, ["mylist", "trending-stream", "recommended", "household", "continue", "because-tt1"]);
+  // Recommended hidden: after Continue Watching (its default neighbour above)
+  const hid = ids(orderRows(rows, { order: ["mylist", "continue", "trending-stream"], hidden: ["recommended"] }));
+  assert.deepEqual(hid.slice(0, 3), ["mylist", "continue", "household"]);
+  // the person placed it themselves: it stays where they put it
+  const placed = ids(orderRows(rows, { order: ["continue", "recommended", "mylist", "household"], hidden: [] }));
+  assert.deepEqual(placed.slice(0, 4), ["continue", "recommended", "mylist", "household"]);
+  // hidden: hidden
+  assert.ok(!ids(orderRows(rows, { order: ["continue"], hidden: ["household"] })).includes("household"));
+});

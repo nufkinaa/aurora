@@ -56,6 +56,66 @@ export const noteLine = (note: string, by: string): string => `“${note}” —
 /** The notes worth a line, newest first (the server sends them newest first). */
 export const notesOf = (from: {name: string; note?: string | null}[]): string[] =>
   from.filter(f => f.note && String(f.note).trim()).map(f => noteLine(String(f.note).trim(), f.name));
+/** noteLine as drawn: a Hebrew note or name keeps its own direction, the line reads left to right. */
+export const noteLineShown = (note: string, by: string): string => ltr(`“${iso(note)}” — ${iso(by)}`);
+/** notesOf as drawn. */
+export const notesShown = (from: {name: string; note?: string | null}[]): string[] =>
+  from.filter(f => f.note && String(f.note).trim()).map(f => noteLineShown(String(f.note).trim(), f.name));
+/** "<name> · <word>" (a mute chip, a You sent status) as drawn. */
+export const nameWord = (name: string, word: string): string => ltr(`${iso(name)} · ${word}`);
+// ---------- right-to-left names in a left-to-right app ----------
+// Android sets a line's direction from its FIRST strong letter: "נועם recommended Dune" became a
+// right-to-left line, its English words drawn on the wrong side of the name ("recommended Dune
+// נועם", Mi TV), and "נועם · Mute" read "Mute · נועם". Lines that may START with a person's name, a
+// note or a title are given an invisible left-to-right mark first, and each name / note is
+// fenced off with marks so its own letters still run right to left. The WORDS stay exactly the table's — the
+// marks are not letters (a test strips them and compares).
+const LRM = '‎';
+/** A line that reads left to right whatever its first word is. */
+export const ltr = (s: string): string => (s ? LRM + s : s);
+/** One name / note / title kept whole inside a left-to-right line: a mark on each side closes its
+ *  right-to-left run, so the quote marks, the dash and the words after it stay where they are
+ *  written. (The Unicode isolates FSI…PDI are the textbook way; the Mi TV's text stack ignored
+ *  them, and a Hebrew note came out as "name — ”note“".) A Latin name is left as it is. */
+export const iso = (s: string): string => (s && /[֐-ࣿיִ-﷿ﹰ-ﻼ]/.test(s) ? LRM + s + LRM : s);
+/** Drops the marks again (the tests; anything that compares words). */
+export const plain = (s: string): string => String(s || '').replace(/[‎‏⁦-⁩]/g, '');
+
+/**
+ * The card's "From …" line in two pieces, each drawn on ONE line of its own (Card.tsx): the first
+ * sender, then the rest. Left to Android, "From Maximiliana Rosenthal" broke after "From" and
+ * "From Dana and Avi" broke wherever the width ran out, so the cards of one row had their words
+ * at three different heights. Split at the names the server put in (hh.from, newest first — the
+ * order household.js `names` uses), so a name with "and" in it stays whole; without them, at the
+ * first " and ". Together the two pieces are the server's line, word for word.
+ *   "From Dana"                → ["From Dana", ""]
+ *   "From Dana and Avi"        → ["From Dana", "and Avi"]
+ *   "From Dana and 10 others"  → ["From Dana", "and 10 others"]
+ */
+export const cardLines = (meta: string | null | undefined, from?: {name?: string | null}[] | null): [string, string] => {
+  const m = String(meta || '').trim();
+  if (!m) return ['', ''];
+  const first = from && from[0] && from[0].name ? `From ${from[0].name}` : '';
+  if (first && m.startsWith(first)) {
+    const rest = m.slice(first.length).trim();
+    if (!rest) return [m, ''];
+    if (rest.startsWith('and ')) return [first, rest];
+  }
+  const at = m.indexOf(' and ', 'From '.length);
+  return at > 0 ? [m.slice(0, at), m.slice(at + 1)] : [m, ''];
+};
+/** The two card lines as drawn: names isolated (a Hebrew name never flips the line). */
+export const cardLinesShown = (meta: string | null | undefined, from?: {name?: string | null}[] | null): [string, string] => {
+  const [a, b] = cardLines(meta, from);
+  const names = (from || []).map(f => String(f.name || '')).filter(n => iso(n) !== n);
+  const mark = (s: string) => {
+    let out = s;
+    for (const n of names) out = out.split(n).join(iso(n));
+    return ltr(out);
+  };
+  return [mark(a), mark(b)];
+};
+
 /** The picker's title: Recommend “Dune”. */
 export const pickerTitle = (title: string): string => `Recommend “${title}”`;
 /** The send button: "Send" (nobody picked — and then it does nothing) · "Send to N". */

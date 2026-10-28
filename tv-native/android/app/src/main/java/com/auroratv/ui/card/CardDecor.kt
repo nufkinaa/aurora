@@ -67,6 +67,8 @@ class CardDecor private constructor(o: JSONObject) {
   val labelRaised = Box(o.optJSONObject("labelRaised"))
   val labelText = Text(o.optJSONObject("labelText"))
   val labelSub = Text(o.optJSONObject("labelSub"))
+  /** [household] the "From …" lines (Card.tsx labelMeta); a decor without it: labelSub's look. */
+  val labelMeta = Text(o.optJSONObject("labelMeta") ?: o.optJSONObject("labelSub"))
   val frameLabel = Box(o.optJSONObject("frameLabel"))
   val frameTitle = Text(o.optJSONObject("frameTitle"))
   val frameSub = Text(o.optJSONObject("frameSub"))

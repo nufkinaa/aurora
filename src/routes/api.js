@@ -903,6 +903,24 @@ const orderRows = (rows, prefs = null) => {
       .map((row, at) => ({ row, at, r: rank.has(row.id) ? rank.get(row.id) : order.length + at }))
       .sort((a, b) => a.r - b.r || a.at - b.at)
       .map((e) => e.row);
+    // "Recommended by your household" is newer than most stored orders (a person who
+    // moved or hid any row before 1.13.0 saved the whole list without it): one the
+    // stored order does not name keeps its default place — right under Recommended
+    // for You, wherever the person put that — rather than sinking to the foot of Home.
+    // Where the person placed it themselves, it stays there.
+    const hh = out.findIndex((r) => r.id === "household");
+    if (hh !== -1 && !rank.has("household")) {
+      const [row] = out.splice(hh, 1);
+      const rec = out.findIndex((r) => r.id === "recommended");
+      // no Recommended row (a kids profile, too little history): where it would have been
+      let at = rec + 1;
+      if (rec === -1) {
+        const before = new Set(ROW_ORDER.slice(0, ROW_ORDER.indexOf("recommended") + 1));
+        at = 0;
+        out.forEach((r, i) => { if (before.has(r.id)) at = i + 1; });
+      }
+      out.splice(at, 0, row);
+    }
   }
   if (out.length > 1 && out[0].id === "upcoming") {
     const i = out.findIndex((r) => r.id !== "upcoming");

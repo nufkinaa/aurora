@@ -42,7 +42,7 @@ import {heroRelease, ReleaseStatus} from '../releaseWords';
 import {isOpen, onMessage} from '../realtime';
 import {canNavigate} from '../navLock';
 import {openTrailer, openActions, openRecommend, openReplace, openXray} from '../overlay';
-import {bannerLine, notesOf, titleKey, WORDS as HH} from '../householdRecs'; // [household]
+import {bannerLine, ltr, notesShown, titleKey, WORDS as HH} from '../householdRecs'; // [household]
 import {householdChanged} from '../householdLive'; // [household]
 import {track} from '../usage';
 import {replaceOffered, WORDS as REPLACE_WORDS} from '../replaceLogic';
@@ -254,22 +254,31 @@ function HhBanner({
   onNotForMe: () => void;
 }) {
   const toTop = useContext(ToTop);
-  const notes = notesOf(from).slice(0, 3);
+  // two notes at most, two lines each: a long note (140 characters) and a long title must still
+  // leave the synopsis on the screen
+  const notes = notesShown(from).slice(0, 2);
+  // Who, with Not for me beside it; the notes under both, the lockup's whole width, set off as
+  // quotes by a violet rule. (Beside the pill the notes had a third of the width and a long
+  // name was cut: "Recommended by Maximiliana Rosent…", Mi TV.)
   return (
     <View style={styles.hhBanner}>
-      <View style={styles.hhText}>
-        <Text style={styles.hhLine} numberOfLines={1}>
-          {bannerLine(from)}
+      <View style={styles.hhHead}>
+        <Text style={styles.hhLine} numberOfLines={2}>
+          {ltr(bannerLine(from))}
         </Text>
-        {notes.map(n => (
-          <Text key={n} style={styles.hhNote} numberOfLines={2}>
-            {n}
-          </Text>
-        ))}
+        <Focusable uiId="detail.hh.dismiss" round onFocusChange={f => f && toTop?.()} onPress={onNotForMe} style={styles.hhBtn}>
+          <Text style={styles.hhBtnText}>{hidden ? HH.undo : HH.notForMe}</Text>
+        </Focusable>
       </View>
-      <Focusable uiId="detail.hh.dismiss" round onFocusChange={f => f && toTop?.()} onPress={onNotForMe} style={styles.hhBtn}>
-        <Text style={styles.hhBtnText}>{hidden ? HH.undo : HH.notForMe}</Text>
-      </Focusable>
+      {notes.length ? (
+        <View style={styles.hhNotes}>
+          {notes.map(n => (
+            <Text key={n} style={styles.hhNote} numberOfLines={2}>
+              {n}
+            </Text>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -3363,11 +3372,14 @@ const styles = StyleSheet.create({
   ghostTextSmall: {fontSize: fontSize.small},
   note: {color: colors.accent, fontSize: fontSize.small, fontWeight: '700', marginTop: spacing.sm},
   // [household] the recommendation banner under the icon row
-  hhBanner: {flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.sm, maxWidth: 720},
-  hhText: {flexShrink: 1},
-  hhLine: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800'},
-  hhNote: {color: colors.text, fontSize: fontSize.small, fontStyle: 'italic', marginTop: 2},
-  hhBtn: {backgroundColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', paddingVertical: 7, paddingHorizontal: 16},
+  // the icon row's own width (actionsSecondary), past the 42% lockup: who + Not for me on one
+  // line for a long name too (at the lockup's width "Maximiliana Rosenthal" broke in two)
+  hhBanner: {marginTop: spacing.sm, width: 66 * 5 + 92 + 2 * 5 + 8},
+  hhHead: {flexDirection: 'row', alignItems: 'center', gap: spacing.md},
+  hhLine: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800', flexShrink: 1},
+  hhNotes: {marginTop: 4, paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: 'rgba(139,123,255,0.55)', gap: 3},
+  hhNote: {color: colors.text, fontSize: fontSize.small, lineHeight: 17, fontStyle: 'italic'},
+  hhBtn: {backgroundColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', paddingVertical: 5, paddingHorizontal: 16},
   hhBtnText: {color: colors.text, fontSize: fontSize.small, fontWeight: '700'},
   loading: {position: 'absolute', bottom: spacing.xl, left: spacing.contentLeft},
 
