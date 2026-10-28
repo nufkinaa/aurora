@@ -150,6 +150,15 @@ const viewer = {
     background._viewersChanged();
     return entry;
   },
+  // A short job a person is waiting on that is nobody's stream — their own
+  // offline repackaging (offline.js): at the viewers' CPU priority, without
+  // counting as a viewer (it holds nothing back). At the idle class it got
+  // no CPU at all while somebody's stream was being encoded on every core —
+  // "Preparing on the server" for as long as that stream ran.
+  level(child) {
+    if (child && child.pid) { try { deps.setPriority(child.pid, PRIORITY.viewer); } catch {} }
+    return child;
+  },
   count: () => viewers.size,
   busy: () => viewers.size > 0,
   list: () => [...viewers.values()].map(({ release, idle, reclaim, ...v }) => ({ ...v, idle: isIdle({ idle }) })),

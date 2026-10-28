@@ -311,3 +311,35 @@ test("a person's encode running under a viewer says it is paused", async () => {
     v.end();
   });
 });
+
+test("a person's Original runs at the viewers' CPU priority, a repackaging made ahead of time at the lowest — the idle class starved it behind a stream encoded on every core", async () => {
+  await harness(async ({ spawned }) => {
+    const set = new Map(); // pid -> the last priority given
+    C.deps.setPriority = (pid, prio) => { set.set(pid, prio); };
+    offline.prepare("h264mkv00001", "original", {}, AHEAD); // made ahead of time
+    await tick();
+    assert.equal(set.get(spawned[0].pid), cpuwork.PRIORITY.background);
+    spawned[0].finish();
+    await tick();
+    offline.prepare("h264mkv00002", "original", {}); // the person on the phone
+    await tick();
+    assert.equal(spawned.length, 2);
+    assert.equal(set.get(spawned[1].pid), cpuwork.PRIORITY.viewer, "somebody waits on it: not the idle class");
+    assert.notEqual(cpuwork.PRIORITY.viewer, cpuwork.PRIORITY.background);
+  });
+});
+
+test("a repackaging made ahead of time that a person then asks for is raised to their level where a priority can be raised", async () => {
+  await harness(async ({ spawned }) => {
+    const set = new Map();
+    C.deps.setPriority = (pid, prio) => { set.set(pid, prio); };
+    offline.prepare("h264mkv00001", "original", {}, AHEAD);
+    await tick();
+    assert.equal(set.get(spawned[0].pid), cpuwork.PRIORITY.background);
+    offline.prepare("h264mkv00001", "original", {}); // the person asks for the very copy
+    await tick();
+    assert.equal(spawned.length, 1, "the same copy, not a second one");
+    const raised = require("../src/lib/prio").canRaise();
+    assert.equal(set.get(spawned[0].pid), raised ? cpuwork.PRIORITY.viewer : cpuwork.PRIORITY.background);
+  });
+});
