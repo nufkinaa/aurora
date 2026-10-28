@@ -1908,7 +1908,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   // block, before the genres and the rating); on wider screens it stays the
   // line under the hero.
   const placeCast = (node) => {
-    const syn = window.innerWidth <= 720 ? screen.querySelector(".detail-hero .detail-synopsis-wrap") : null;
+    const syn = matchMedia("(max-width: 720px)").matches ? screen.querySelector(".detail-hero .detail-synopsis-wrap") : null;
     if (syn) syn.after(node);
     else (screen.querySelector(".detail-hero") || screen.lastElementChild).after(node);
   };

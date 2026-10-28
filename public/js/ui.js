@@ -286,6 +286,17 @@ export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-f
   return img;
 };
 
+// The window's width (innerWidth), for code that runs while a screen is being
+// built. On a phone, reading innerWidth lays the page out first (Chrome sizes
+// a phone's viewport from its content), so a question asked once per shelf
+// laid Home out again after every shelf it added. The answer only changes
+// when the window does: it is read once, and again after each resize.
+let widthNow = 0;
+export const viewWidth = () => widthNow || (widthNow = window.innerWidth);
+if (typeof window !== "undefined" && window.addEventListener) {
+  window.addEventListener("resize", () => { widthNow = 0; }, { capture: true, passive: true });
+}
+
 // A CSS animation that runs for ever (the greeting's shine on Home) is a
 // frame of main-thread work 60 times a second for as long as it exists —
 // also while it is scrolled far out of sight. It is held while its element
