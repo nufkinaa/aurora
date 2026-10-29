@@ -3,6 +3,16 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.5 — 2026-10-29
+
+**Aurora for Android phones 1.0.1** — phones with 1.0.0 offer the update by themselves.
+- **The website's look, sizes and all.** The app now has the website's night sky, its frosted top bar and tabs, and the same sizes for the hero, rows, posters, Continue Watching, title pages (episodes are cards that scroll sideways), Search, Settings, the profile menu, the profile wall and sign-in. It was checked on small, mid-size, large and foldable phones, with the largest text, sideways and with the 3-button navigation bar. Still smooth on weak phones.
+- **Sign in a TV.** Scanning the TV's QR code with the phone opens the app on "Sign this TV in?"; you can also type the TV's code under Settings → Sign in a TV or Your TVs.
+- **New in the app:** Get another version (player, films, episodes), your star rating, the "On this server" lines, What's new, Get the apps, add a profile or request access, edit your profile and password, a profile photo, Wrapped and Swipe your taste.
+- **Fixed:** the player's menus (subtitles, audio, speed, Watch together) ignored taps after the first launch; picture in picture for films saved on the phone; links that arrived on the profile wall, or after the app was closed with Back, were lost; more of the website's links open the right screen.
+- **Safer updates.** An update is checked before it installs (its checksum, size, build and signature), resumes after a dropped connection, says plainly when the server can't be reached, never offers an older version and checks for room first. "Check for updates" is in Settings.
+- Server: /phone-version.json carries the app's checksum, and the /install page shows a new app file at once.
+
 ## 1.15.4 — 2026-10-29
 
 - **iPhone top bar.** On iPhones with the Dynamic Island (14 Pro and newer, 15, 16, 17) the logo and the buttons at the top sit a little lower, clear of the island, in Safari and from the Home Screen. Pages below them move down with them. The bar should also look sharper: the dark box behind the right-hand buttons is gone and the logo's glow no longer blurs it. In the classic look, the top bar no longer sits under the clock when Aurora is opened from the Home Screen. Notch iPhones, Android and landscape are unchanged.
