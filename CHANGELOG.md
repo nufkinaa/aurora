@@ -3,6 +3,19 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.14.6 — 2026-10-29
+
+- **"Recommended by your household" looks the part on the website.** The add-to-My-List button sits neatly in the card's corner (a proper finger-sized target on phones, a green tick once added); "From Dana / and 10 others" is on two lines so the count is never cut off; "Show all recommended" sits by the row's title on wide screens. The Recommend picker keeps its title and Send in view with many people, explains greyed people in readable words, and lets the note grow as you type. The Show all page has a clear For you / You sent switch, a swipeable line of people on phones, and titles under the posters you sent. Hebrew names, titles and notes read the right way round. A title you marked "Not for me" no longer comes back when Home refreshes at the same moment.
+
+## 1.14.5 — 2026-10-29
+
+- **Skip intro gives the same, right answer every time.** A show's remembered intro kept a few seconds of the episode around it, and a second copy of an episode (a replaced version, or the same file under another name) matched those seconds too, so its intro end crept 5–10 s into the next scene — and the remembered intro grew with it. Now a remembered intro knows exactly where it starts and ends, and a copy of an episode is never used to judge another copy. The library is re-read once in the background after this update so intros that had grown are put right.
+
+## 1.14.4 — 2026-10-29
+
+- **A product page at /install** with every Aurora app in one place: the Android TV app (download, the Downloader address with a copy button, how to allow the install, and a QR code), iPhone and iPad (Add to Home Screen, in pictures), computers (install as an app, or just use the browser), and the Android phone app as soon as it exists. It shows each app's version, what's new in the latest releases, and a tour of the features with screenshots. It opens without signing in and shows nothing about your household or library. /download still hands a TV the app directly, as before.
+- Settings → What's new links to "Get the apps", and the TV-code screen links to the TV app for a TV that doesn't have Aurora yet.
+
 ## 1.14.3 — 2026-10-29
 
 - **The season list no longer flashes while an episode downloads.** Looking at another season during a download rebuilt every card and picture on every percent (and snapped the phone's episode rail back to the start); now only the downloading episode's bar and percentage move, in place. A download started on another device shows its progress on the card too, and when the episode lands its card turns into Play right away (it could stay a download card for up to a minute).

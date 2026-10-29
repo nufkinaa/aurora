@@ -7,7 +7,7 @@ import { attachRowArrows } from "./rowArrows.js";
 import * as narrator from "./narrator.js";
 import { attachPeek } from "./peek.js";
 import { warmTitle } from "./prefetch.js";
-import { addFromRec } from "./recommend.js";
+import { addFromRec, fromParts } from "./recommend.js";
 
 // A flat "Rated 3★" wastes a moment the viewer just chose to have; the
 // reaction scales with the score instead.
@@ -106,6 +106,13 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
   const newEp = item.newEpisode;
   const waiting = newEp && item.newEpisodeCount > 1 ? item.newEpisodeCount : 0;
   const behind = waiting ? ` · ${waiting} new` : "";
+  // a household recommendation's "From Dana and 2 others", in its two parts
+  // (recommend.js fromParts) when they are those words
+  const metaParts = () => {
+    const parts = item.hh && fromParts((item.hh.from || []).map((f) => f.name));
+    if (!parts || parts.join(" ").trim().replace(/[\u2068\u2069]/g, "") !== item.meta) return [item.meta];
+    return [el("span", { class: "who-a" }, parts[0]), parts[1] ? " " : null, parts[1] ? el("span", { class: "who-b" }, parts[1]) : null];
+  };
   const labelFor = () => {
     if (isEpisode) {
       return el("div", { class: "card-label" },
@@ -114,7 +121,7 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
         (item.meta || left) && el("span", { class: "card-meta" }, item.meta || left));
     }
     if (item.meta) {
-      return el("div", { class: "card-label" }, item.title, el("span", { class: "card-meta" }, item.meta));
+      return el("div", { class: "card-label" }, item.title, el("span", { class: "card-meta" }, ...metaParts()));
     }
     if (newEp) {
       return el("div", { class: "card-label" }, `S${newEp.season} E${newEp.episode}${behind}`);
@@ -123,6 +130,13 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
     return el("div", { class: "card-label" }, item.title, wide && left && el("span", { class: "card-meta" }, left));
   };
   const label = labelFor();
+  // a household recommendation's "+" (one press to My List) owns the card's
+  // top-right corner, as the remove ✕ does on Continue Watching
+  const hhAdd = !!item.hh && !!state.profile && !onRemove;
+  // Series or film: only where the row it sits in mixes the two, and never on
+  // an episode (its own label already reads "S3 E2") or a card with a button
+  // in that corner (the remove ✕, the "+")
+  const kindTag = showKind && !isEpisode && !onRemove && !hhAdd;
   const showLabel = wide || isEpisode || item.upNext || !!newEp || !!item.meta;
 
   const node = el(
@@ -151,7 +165,7 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
         [
           item.source === "stream" && !item.badge && "stream",
           item.badge && String(item.badge.text || "").toLowerCase(),
-          showKind && !isEpisode && !onRemove && (item.type === "show" ? "series" : "film"),
+          kindTag && (item.type === "show" ? "series" : "film"),
           isNew && "new",
           item.meta || left,
         ].filter(Boolean).map((w) => `, ${w}`).join(""),
@@ -182,10 +196,8 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
     // streams, so it was on nearly every poster and said nothing)
     // Tonight-row state (glass look): READY · plays from disk, LIVE · a party, NEW
     item.badge && el("span", { class: `card-tag ${item.badge.tone || ""}`, "aria-hidden": "true", "data-t": item.badge.text }),
-    // Series or film. Only where the row it sits in mixes the two, and never on an
-    // episode (its own label already reads "S3 E2") or a card carrying the remove
-    // ✕, which owns this corner.
-    showKind && !isEpisode && !onRemove &&
+    // Series or film (kindTag, above)
+    kindTag &&
       el("span", {
         class: `card-tag kind ${item.type === "show" ? "series" : "film"}`,
         "aria-hidden": "true",
@@ -198,16 +210,21 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
     showLabel && label,
     // a household recommendation: one press puts it on My List (the card
     // stays, marked, until Home is next refreshed — then it has left the row)
-    item.hh && state.profile && !onRemove &&
+    hhAdd &&
       el("span", { "data-ui": "card.hh.add",
         class: "card-hhadd",
         role: "button",
         title: "Add to My List",
         "aria-label": "Add to My List",
         html: icons.plus,
+        // a tap here is not a tap on the card: the card must not take the
+        // focus (its lifted, ringed look — and a row that scrolls to it).
+        // (A pointer focuses what it is over anyway: focus.js.)
+        onmousedown: (e) => e.preventDefault(),
         onclick: async (e) => {
           e.stopPropagation();
           e.preventDefault();
+          if (document.activeElement === node && matchMedia("(hover: none)").matches) node.blur();
           if (node.classList.contains("hh-added")) return;
           if (await addFromRec(item)) markListed(true);
         },

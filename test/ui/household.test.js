@@ -163,6 +163,145 @@ for (const [look, viewport] of LOOKS) {
     await shot(page, `${tag}-8-title-banner`);
   });
 
+  // The design (2026-10-28, elia: "on mobile the Add to List button does not
+  // look that great — make sure it really looks good"): the + owns the
+  // card's top-right corner with a finger-sized press area, nothing on the
+  // card overlaps, who-recommended takes up to two lines, Hebrew keeps its
+  // own direction; a picker with many people keeps its title and Send on
+  // screen; the title page's line stacks on a phone.
+  ui.test(`${tag}: the design — the card's corners, press sizes, two-line who, Hebrew; many faces; the banner`, { viewport }, async ({ page, goto, signIn, api, lib }) => {
+    const phone = viewport.width < 600;
+    const maya = await person(api, "Maya");
+    const max = await person(api, "Maximiliana Josephine");
+    const heb = await person(api, "דנה");
+    const ben = await person(api, "Ben");
+    await setLook(api, maya, look);
+    const hebTitle = { ...cat(7000 + n), title: "השוטר הטוב — סרט ארוך מאוד עם שם ארוך" };
+    const longTitle = { ...cat(7100 + n), title: "Dr. Strangelove or: How I Learned to Stop Worrying and Love the Bomb" };
+    await send(api, ben, maya, longTitle);
+    await send(api, heb, maya, longTitle);
+    await send(api, max, maya, longTitle, "Watch it with the lights off and the sound up — the last twenty minutes are the best thing I've seen all year. Don't read a thing.");
+    await send(api, heb, maya, hebTitle, "חובה לראות! הסוף מטורף");
+    await send(api, ben, maya, { id: lib.film1.id }, "Short");
+    await signIn(maya);
+    await goto("#/");
+    await page.waitForSelector(HH_ROW);
+    await page.evaluate((sel) => document.querySelector(sel).scrollIntoView({ block: "center" }), HH_ROW);
+    await page.waitForTimeout(300);
+    const facts = await page.evaluate((sel) => {
+      const box = (n) => { if (!n) return null; const b = n.getBoundingClientRect(); return b.width ? { l: b.left, t: b.top, r: b.right, b: b.bottom, w: b.width, h: b.height } : null; };
+      const hit = (a, b) => !!(a && b && a.l < b.r - 0.5 && b.l < a.r - 0.5 && a.t < b.b - 0.5 && b.t < a.b - 0.5);
+      // the cards wholly on screen
+      return [...document.querySelectorAll(`${sel} .row-scroller > .card`)].filter((c) => { const b = c.getBoundingClientRect(); return b.left >= 0 && b.right <= innerWidth; }).map((c) => {
+        const add = c.querySelector(".card-hhadd");
+        const meta = c.querySelector(".card-meta");
+        const label = c.querySelector(".card-label");
+        const parts = { card: box(c), add: box(add), new: box(c.querySelector(".card-new")), label: box(label), meta: box(meta) };
+        // the press area: a 44 px square around the +'s centre all lands on it
+        let pressed = 0;
+        const cx = (parts.add.l + parts.add.r) / 2, cy = (parts.add.t + parts.add.b) / 2;
+        for (let dx = -21; dx <= 21; dx += 7) for (let dy = -21; dy <= 21; dy += 7) {
+          const e = document.elementFromPoint(cx + dx, cy + dy);
+          if (e && e.closest(".card-hhadd") === add) pressed++;
+        }
+        const lh = parseFloat(getComputedStyle(meta).lineHeight);
+        return {
+          name: c.getAttribute("aria-label"),
+          parts, pressed,
+          kindTags: c.querySelectorAll(".card-tag.kind").length,
+          overlaps: [["add", "new"], ["add", "label"], ["new", "label"]].filter(([a, b]) => hit(parts[a], parts[b])).map((x) => x.join("/")),
+          metaLines: Math.round(parts.meta.h / lh),
+          // "and 2 others" is never the part that is cut
+          countCut: (() => { const b = meta.querySelector(".who-b"); return b ? b.scrollWidth > b.clientWidth + 1 : false; })(),
+          metaParts: [...meta.children].map((x) => x.className),
+          labelDir: getComputedStyle(label).unicodeBidi,
+        };
+      });
+    }, HH_ROW);
+    for (const f of facts) {
+      const { card: c, add, label } = f.parts;
+      assert.ok(add, `${f.name}: a + on the card`);
+      assert.equal(f.kindTags, 0, `${f.name}: the + owns the corner (no kind tag)`);
+      assert.ok(c.r - add.r >= 4 && c.r - add.r <= 12 && add.t - c.t >= 4 && add.t - c.t <= 12, `${f.name}: the + sits in the top-right corner (${JSON.stringify(add)} in ${JSON.stringify(c)})`);
+      assert.ok(add.w >= 26 && add.w <= 32 && Math.abs(add.w - add.h) < 1, `${f.name}: a round disc of 26–32 px (${add.w})`);
+      if (phone) assert.equal(f.pressed, 49, `${f.name}: a finger's 44 px press area (${f.pressed}/49 points)`);
+      assert.deepEqual(f.overlaps, [], `${f.name}: nothing on the card overlaps`);
+      assert.ok(label.l >= c.l && label.r <= c.r && label.b <= c.b, `${f.name}: the words stay on the card`);
+      assert.ok(f.metaLines >= 1 && f.metaLines <= 2, `${f.name}: who takes one or two lines (${f.metaLines})`);
+      assert.equal(f.countCut, false, `${f.name}: the count is never cut`);
+      assert.equal(f.labelDir, "plaintext", "each line in the direction of its own words");
+    }
+    assert.ok(facts.length >= 2, `cards on screen: ${facts.length}`);
+    const strange = facts.find((f) => /^Dr\. Strangelove/.test(f.name));
+    assert.match(strange.name, new RegExp(`From ${max.name} and 2 others`));
+    assert.deepEqual(strange.metaParts, ["who-a", "who-b"], "who, then how many more, in two parts");
+    // a right-to-left name or title inside an English line is isolated
+    // (invisible FSI…PDI marks, as the TV does); a left-to-right one is not
+    const bidi = await page.evaluate(async () => {
+      const m = await import("/js/recommend.js");
+      return [m.arrivalLine([{ title: "Dune", hh: { from: [{ name: "נועם" }] } }]), m.arrivalLine([{ title: "הלהקה", hh: { from: [{ name: "Dana" }] } }]), m.fromLine(["Dana", "Avi"]), m.fromLine(["נועם", "Avi", "Eve"])];
+    });
+    assert.deepEqual(bidi, ["\u2068נועם\u2069 recommended Dune", "Dana recommended \u2068הלהקה\u2069", "From Dana and Avi", "From \u2068נועם\u2069 and 2 others"]);
+    const hebCard = facts.find((f) => /^השוטר/.test(f.name));
+    if (hebCard) assert.deepEqual(hebCard.metaParts, ["who-a"], "a Hebrew sender's card still draws its who line");
+    // a + press: In My List, and the card does not take the focus (no lifted, ringed card)
+    const first = page.locator(`${HH_ROW} .row-scroller > .card`).first();
+    await first.locator('[data-ui="card.hh.add"]').click();
+    await page.waitForFunction((sel) => document.querySelector(`${sel} .row-scroller > .card`).classList.contains("hh-added"), HH_ROW);
+    // (a pointer focuses what it is over — focus.js — so only a finger's tap is the question)
+    if (phone) assert.equal(await first.evaluate((n) => document.activeElement === n), false, "the card did not take the focus");
+    assert.equal(await first.locator(".card-hhadd").getAttribute("aria-label"), "In My List");
+
+    // the picker with many people: the title and Send stay on screen, the faces scroll
+    for (const nm of ["Avi", "Eve", "Gil", "Hod", "Ido", "Lea", "Omer", "Tal", "Ziv"]) await person(api, nm);
+    await goto(`#/movie/${lib.film2.id}`);
+    await page.locator('#app [data-ui="detail.recommend"]').first().click();
+    await page.waitForSelector(".rec-sheet .rec-person");
+    await page.locator(".rec-person", { hasText: max.name }).first().click();
+    const sheet = await page.evaluate(() => {
+      const r = (s) => { const b = document.querySelector(s).getBoundingClientRect(); return { t: b.top, b: b.bottom, h: b.height }; };
+      const list = document.querySelector(".rec-people");
+      const name = [...document.querySelectorAll(".rec-person .rec-name")].find((x) => /^Maximiliana/.test(x.textContent));
+      return { vh: innerHeight, head: r(".rec-head"), send: r('.rec-sheet [data-ui="recommend.send"]'), scrolls: list.scrollHeight > list.clientHeight + 2, people: document.querySelectorAll(".rec-person").length,
+        nameLines: Math.round(name.getBoundingClientRect().height / parseFloat(getComputedStyle(name).lineHeight)) };
+    });
+    assert.ok(sheet.people >= 12, `many people (${sheet.people})`);
+    assert.ok(sheet.head.t >= 0 && sheet.send.b <= sheet.vh, `the title and Send are on screen (${JSON.stringify(sheet)})`);
+    assert.ok(sheet.scrolls, "the faces scroll between them");
+    assert.equal(sheet.nameLines, 2, "a long name takes two lines, not an ellipsis");
+    if (phone) assert.ok(sheet.send.h >= 44, "Send is a finger's size");
+    // a greyed face: the face fades, its reason stays readable
+    const off = await page.evaluate(() => {
+      const p = document.querySelector(".rec-person.off");
+      if (!p) return null;
+      return { face: Number(getComputedStyle(p.querySelector(".rec-face")).opacity), cell: Number(getComputedStyle(p).opacity), line: p.querySelector(".rec-line") ? Number(getComputedStyle(p.querySelector(".rec-line")).opacity) : null };
+    });
+    if (off) {
+      assert.equal(off.cell, 1, "the greyed cell itself is not faded…");
+      assert.ok(off.face < 0.6, "…its face is");
+    }
+    await page.locator(".rec-note").fill("x".repeat(140));
+    const grown = await page.evaluate(() => { const t = document.querySelector(".rec-note"); return t.scrollHeight <= t.clientHeight + 2; });
+    assert.ok(grown, "the note grows to show what was typed");
+    await assertNoHorizontalOverflow(page, "the Recommend sheet with many people");
+    await shot(page, `${tag}-17-design-picker-many`);
+    await page.locator('.rec-sheet [data-ui="recommend.close"]').click();
+    await page.waitForSelector(".rec-wrap", { state: "detached" });
+
+    // the title page's line: on a phone Not for me goes under the words
+    await goto(`#/movie/${lib.film1.id}`);
+    await page.waitForSelector("#app .rec-banner:not(.hidden)");
+    const ban = await page.evaluate(() => {
+      const r = (s) => { const b = document.querySelector(s).getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom, h: b.height }; };
+      return { text: r("#app .rec-banner-body > div"), no: r("#app .rec-banner-no"), body: r("#app .rec-banner-body") };
+    });
+    if (phone) assert.ok(ban.no.t >= ban.text.b - 1, `Not for me under the words on a phone (${JSON.stringify(ban)})`);
+    else assert.ok(ban.no.l >= ban.text.r - 1, "Not for me beside the words");
+    assert.ok(ban.no.r <= ban.body.r + 0.5, "inside its box");
+    if (phone) assert.ok(ban.no.h >= 44, "a finger's size");
+    await assertNoHorizontalOverflow(page, "the title page's line");
+  });
+
   ui.test(`${tag}: Show all recommended — only past 15; the page, its filter, You sent`, { viewport }, async ({ page, goto, signIn, api }) => {
     const avi = await person(api, "Avi");
     await setLook(api, avi, look);
@@ -185,6 +324,23 @@ for (const [look, viewport] of LOOKS) {
     const all = page.locator(`${HH_ROW} [data-ui="home.hh.all"]`);
     await all.waitFor();
     assert.equal((await all.innerText()).trim(), "Show all recommended");
+    // where it sits: a wide screen, at the right end of the title line; a
+    // phone, under the shelf — never over a card or the title
+    const where = await page.evaluate((sel) => {
+      const r = (n) => { const b = n.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom, h: b.height }; };
+      const s = document.querySelector(sel);
+      const title = s.querySelector(".row-title");
+      const range = document.createRange();
+      range.selectNodeContents(title);
+      return { link: r(s.querySelector(".hh-all")), title: r(title), words: r(range), shelf: r(s.querySelector(".row-scroller > .card")), vw: innerWidth };
+    }, HH_ROW);
+    if (viewport.width < 600) {
+      assert.ok(where.link.t >= where.shelf.b, `under the shelf on a phone (${JSON.stringify(where)})`);
+      assert.ok(where.link.h >= 44, "a finger's size");
+    } else {
+      assert.ok(where.link.b <= where.shelf.t && where.link.l > where.words.r, `at the end of the title line (${JSON.stringify(where)})`);
+      assert.ok(where.link.r <= where.vw, "on screen");
+    }
     await page.evaluate((sel) => document.querySelector(sel).scrollIntoView({ block: "center" }), `${HH_ROW} .hh-all`);
     await shot(page, `${tag}-9-show-all-link`);
     await all.click();

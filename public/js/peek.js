@@ -11,7 +11,7 @@ import { api } from "./api.js";
 import { navigate } from "./router.js";
 import { pushScope, popScope } from "./focus.js";
 import { track } from "./usage.js";
-import { recommendButton, dismissRec, fromLine } from "./recommend.js";
+import { recommendButton, dismissRec, fromLine, noteLine } from "./recommend.js";
 
 const escapeHtml = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -137,7 +137,7 @@ export const openPeek = (item, { open = null, onRemove = null } = {}) => {
       // a household recommendation: who, and the note
       item.hh && el("div", { class: "peek-hh" },
         el("div", { class: "peek-hh-from", html: icons.recommend + `<span>${escapeHtml(fromLine((item.hh.from || []).map((f) => f.name)))}</span>` }),
-        item.hh.note && el("div", { class: "peek-hh-note" }, `“${item.hh.note}” — ${item.hh.noteBy || ""}`)),
+        item.hh.note && noteLine(item.hh.note, item.hh.noteBy || "", "peek-hh-note")),
       synopsis,
       el("div", { class: "peek-actions" },
         playable && el("button", { "data-ui": "peek.play", class: "btn btn-primary focusable", html: icons.play + `<span>${pct !== null ? "Resume" : "Play"}</span>`, onclick: play }),

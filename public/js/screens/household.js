@@ -30,7 +30,7 @@ export const renderHousehold = async (root, params = {}) => {
   track("feat", { f: "hhrec-all" });
 
   const count = el("span", { class: "count" });
-  const tabs = el("div", { class: "filter-bar hh-tabs", role: "tablist" });
+  const tabs = el("div", { class: "filter-bar hh-tabs" });
   const filters = el("div", { class: "filter-bar hh-filters" });
   const body = el("div");
   screen.append(
@@ -62,7 +62,7 @@ export const renderHousehold = async (root, params = {}) => {
 
   let seenSent = false;
   const paint = async () => {
-    tabs.replaceChildren(tab("for", "For you"), tab("sent", "You sent"));
+    tabs.replaceChildren(el("div", { class: "hh-tabs-track", role: "tablist", "aria-label": ROW_TITLE }, tab("for", "For you"), tab("sent", "You sent")));
     filters.replaceChildren();
     body.replaceChildren(el("div", { class: "grid" }, ...Array.from({ length: 6 }, () => el("div", { class: "grid-skel skeleton" }))));
     if (lastTab === "for") {
@@ -71,9 +71,10 @@ export const renderHousehold = async (root, params = {}) => {
       if (!screen.isConnected || lastTab !== "for") return;
       // looking at the page counts every recommendation as looked at
       if (!seenSent) { seenSent = true; api.householdSeen(pid).catch(() => {}); }
-      count.textContent = r.total ? String(r.total) : "";
       const people = r.people || [];
       if (lastFrom && !people.some((p) => p.id === lastFrom)) lastFrom = null;
+      // the count is what is shown: one person's, when the filter says so
+      count.textContent = r.total ? String(lastFrom ? (r.items || []).length : r.total) : "";
       if (people.length > 1) {
         const chip = (id, label) => el("button", {
           "data-ui": "household.filter",
@@ -97,10 +98,11 @@ export const renderHousehold = async (root, params = {}) => {
       body.replaceChildren(el("div", { class: "grid hh-sent" }, ...items.map((i) => {
         const { hh, ...cardItem } = i; // (not a recommendation TO this person: no "+")
         return el("div", { class: "hh-sent-item" },
-          card(cardItem, { showKind: true }),
+          card(cardItem),
+          el("div", { class: "hh-sent-title", "aria-hidden": "true" }, i.title || ""),
           el("ul", { class: "hh-sent-to", "aria-label": `${i.title}: who got it` },
             ...(hh.to || []).map((t) => el("li", { class: `hh-st ${t.status}` },
-              el("span", { class: "hh-st-name" }, t.name),
+              el("span", { class: "hh-st-name", title: t.name }, t.name),
               el("span", { class: "hh-st-word" }, STATUS_WORDS[t.status] || STATUS_WORDS.sent)))));
       })));
     }

@@ -575,8 +575,11 @@ export const renderHome = async (root) => {
   };
   // "Recommended by your household": after the row, "Show all recommended" —
   // only when there are more than the row shows (the server says: `more`)
+  // (a wide screen draws it at the right end of the row's title line, a
+  // phone under the shelf — the same button, placed by CSS: .row.has-all)
   const syncShowAll = (node, r) => {
     let link = node.querySelector(".hh-all");
+    node.classList.toggle("has-all", !!r.more);
     if (!r.more) { if (link) link.remove(); return; }
     if (!link) {
       link = el("button", {
@@ -584,10 +587,9 @@ export const renderHome = async (root) => {
         type: "button",
         class: "btn small focusable hh-all",
         onclick: () => navigate("#/household"),
-      });
+      }, el("span", {}, SHOW_ALL), el("span", { class: "hh-all-chev", "aria-hidden": "true", html: icons.chevronRight }));
       node.append(link);
     }
-    link.textContent = SHOW_ALL;
     link.setAttribute("aria-label", `${SHOW_ALL} (${r.total})`);
   };
   // Append, then put the shelf back where it was (a detached node can't scroll).
@@ -740,6 +742,7 @@ export const renderHome = async (root) => {
     applyFresh("idle");
   };
   const takeFresh = (next) => {
+    next = withoutTakenOff(next);
     rememberHome(pid, next);
     fresh = next;
     if (screen.isConnected) applyFresh("quiet");
@@ -759,6 +762,16 @@ export const renderHome = async (root) => {
   // A card taken off a shelf by hand (Continue Watching's ✕) — or put back
   // (Undo, a failed removal): what the page shows is read back from the shelf,
   // and a removed title leaves the newest answer too, so no merge returns it.
+  // ...and stays gone from any answer that was already on its way when it
+  // was taken off (a Home fetched a moment before "Not for me" still has it)
+  const takenOff = new Map(); // row id -> Set of item keys
+  const withoutTakenOff = (home) => {
+    if (!takenOff.size || !home || !Array.isArray(home.rows)) return home;
+    return { ...home, rows: home.rows.map((r) => {
+      const off = takenOff.get(r.id);
+      return off && off.size ? { ...r, items: (r.items || []).filter((x) => !off.has(itemKey(x))) } : r;
+    }) };
+  };
   rowsHost.addEventListener("aurora-shelf-changed", (e) => {
     const section = e.target && e.target.closest ? e.target.closest("[data-row-id]") : null;
     const scroller = section && section.querySelector(".row-scroller");
@@ -770,6 +783,10 @@ export const renderHome = async (root) => {
     const items = scroller._fillRow ? [...built, ...all.slice(last + 1).filter((x) => !built.includes(x))] : built;
     const before = (shown.rows.find((r) => r.id === id) || { items: [] }).items;
     const gone = new Set(before.filter((x) => !items.includes(x)).map(itemKey));
+    const off = takenOff.get(id) || new Set();
+    for (const k of gone) off.add(k);
+    for (const x of items) off.delete(itemKey(x)); // put back (Undo)
+    takenOff.set(id, off);
     scroller._rowItems = items;
     shown = { ...shown, rows: shown.rows.map((r) => (r.id === id ? { ...r, items } : r)) };
     if (fresh && gone.size) fresh = { ...fresh, rows: fresh.rows.map((r) => (r.id === id ? { ...r, items: r.items.filter((x) => !gone.has(itemKey(x))) } : r)) };
