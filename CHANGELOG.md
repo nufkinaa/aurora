@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.4 — 2026-10-29
+
+- **iPhone top bar.** On iPhones with the Dynamic Island (14 Pro and newer, 15, 16, 17) the logo and the buttons at the top sit a little lower, clear of the island, in Safari and from the Home Screen. Pages below them move down with them. The bar should also look sharper: the dark box behind the right-hand buttons is gone and the logo's glow no longer blurs it. In the classic look, the top bar no longer sits under the clock when Aurora is opened from the Home Screen. Notch iPhones, Android and landscape are unchanged.
+
 ## 1.15.3 — 2026-10-29
 
 - **One-click downloads on /install.** A Download section near the top: a tile for each app — Android TV, Android phone, iPhone & iPad, Web — with its icon, version and size; one tap downloads the file (named like Aurora-TV-5.8.1.apk) or opens the right steps. Your own device's tile comes first. Each download has a Verify panel with its SHA-256. Platforms still to come (Windows, macOS, Linux, Fire TV, Samsung, LG, Apple TV) sit on one quiet "Coming later" line. New addresses /download/tv/latest and /download/phone/latest; /download and /download/phone work as before.
