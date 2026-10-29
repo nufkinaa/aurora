@@ -23,6 +23,7 @@ import {resetTabs} from './tabs';
 import {flushOfflineProgress} from './offline/store';
 import './remote/controller'; // the profile's TVs, heard from the first socket open
 import {LOW_END} from './lowEnd';
+import {checkOnStart} from './update/store';
 import {deviceInfo} from '../perfTier';
 
 // one line for the device pass: which settings this phone runs with
@@ -62,6 +63,8 @@ function Main() {
     });
     // what was watched on a saved copy while the server could not hear it
     flushOfflineProgress();
+    // a newer phone build on the server: the "Update ready" sheet, a few seconds in
+    checkOnStart();
     loadMe(profileId)
       .then(me => wireProfileMenu({switchProfile: () => (resetTabs(), switchProfile()), name: () => me?.name || ''}))
       .catch(() => {});
@@ -76,11 +79,15 @@ function Main() {
 
 const PHONE_UI: RootUi = {
   Frame,
-  Loading: () => (
+  Loading: ({note}) => (
     <View style={s.center}>
       <Sky dim />
       <Image source={LOGO} style={s.logo} resizeMode="contain" />
       <ActivityIndicator color={colors.text} size="large" style={{marginTop: 18}} />
+      {/* the patient first launch (serverPick.ts): said once it is taking a while */}
+      <Text style={[s.detail, {marginTop: 14, opacity: note ? 1 : 0}]} accessibilityLiveRegion="polite">
+        {note || ' '}
+      </Text>
     </View>
   ),
   Offline: ({onRetry}) => (

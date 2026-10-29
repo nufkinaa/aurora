@@ -66,7 +66,8 @@ import {
 export type RootUi = {
   /** Around every stage (the TV's logical canvas; the phone's safe-area frame). */
   Frame: React.ComponentType<{children?: React.ReactNode}>;
-  Loading: React.ComponentType;
+  /** Finding the server; `note` once it is taking a while (the phone's patient first launch). */
+  Loading: React.ComponentType<{note?: string}>;
   /** Neither server address answered. */
   Offline: React.ComponentType<{onRetry: () => void}>;
   /** The admin banned this address (`reason` in the admin's words, may be empty). */
@@ -123,6 +124,8 @@ export default function AppRoot({ui}: {ui: RootUi}) {
   const [notice, setNotice] = useState('');
   // The ban's reason, in the admin's words.
   const [banReason, setBanReason] = useState('');
+  // what the loading screen says while the server is taking a while to answer
+  const [loadingNote, setLoadingNote] = useState('');
   // The forced reset: whose, and the password that was just typed (null when
   // the TV never saw one — QR pairing, Google).
   const [reset, setReset] = useState<{profileId: string; typed: string | null} | null>(null);
@@ -150,7 +153,11 @@ export default function AppRoot({ui}: {ui: RootUi}) {
       // draw it in its first frame (homeSnapshot.ts says when it may).
       primeSnapshot(s.profileId);
       // No saved URL is not a special case any more: the addresses are in code.
-      const live = await resolveServer(s.serverUrl);
+      setLoadingNote('');
+      const live = await resolveServer(s.serverUrl, (round, spent) => {
+        markLaunch(`round${round}`, `after ${spent}ms`);
+        if (alive) setLoadingNote('Still connecting — waiting for the network…');
+      });
       markLaunch('server', live ? 'found' : 'none');
       if (!alive) return;
       if (!live) {
@@ -573,7 +580,7 @@ export default function AppRoot({ui}: {ui: RootUi}) {
   const {Frame, Loading, Offline, Banned, Gate, SignIn, NewPassword, Main} = ui;
   return (
     <Frame>
-      {stage === 'loading' ? <Loading /> : null}
+      {stage === 'loading' ? <Loading note={loadingNote} /> : null}
       {stage === 'offline' ? <Offline onRetry={() => setBoot(n => n + 1)} /> : null}
       {stage === 'gate' ? <Gate onChosen={onChosen} notice={notice} /> : null}
       {stage === 'login' ? <SignIn onSignedIn={onSignedIn} notice={notice} /> : null}

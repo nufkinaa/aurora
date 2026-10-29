@@ -16,7 +16,7 @@ import Field from '../ui/Field';
 import {GlassButton, PrimaryButton} from '../ui/Buttons';
 import {GUTTER} from '../theme';
 
-const PHONE_VERSION = '1.0.0';
+import {PHONE_APP_VERSION as PHONE_VERSION} from '../../update';
 
 export function JoinPartySheet({onClose}: {onClose: () => void}) {
   const [code, setCode] = useState('');
@@ -43,7 +43,7 @@ export function JoinPartySheet({onClose}: {onClose: () => void}) {
         <Field value={code} onChangeText={t => setCode(t.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8))} autoFocus autoCapitalize="characters" autoCorrect={false} placeholder="ABCD" returnKeyType="go" onSubmitEditing={join} style={s.code} />
         {err ? <Text style={s.err}>{err}</Text> : null}
         <View style={s.row}>
-          <PrimaryButton label="Join" icon="people" onPress={join} busy={busy} disabled={code.trim().length < 4} style={{flex: 1}} />
+          <PrimaryButton uiId="party.join" label="Join" icon="people" onPress={join} busy={busy} disabled={code.trim().length < 4} style={{flex: 1}} />
           <GlassButton label="Cancel" onPress={onClose} />
         </View>
       </View>
@@ -92,7 +92,7 @@ export function ReportSheet({hint, onClose}: {hint?: string; onClose: () => void
         <Field value={text} onChangeText={setText} autoFocus multiline placeholder="What went wrong? What did you expect?" style={s.text} />
         {err ? <Text style={s.err}>{err}</Text> : null}
         <View style={s.row}>
-          <PrimaryButton label="Send report" icon="send" onPress={send} busy={busy} disabled={!text.trim()} style={{flex: 1}} />
+          <PrimaryButton uiId="report.send" label="Send report" icon="send" onPress={send} busy={busy} disabled={!text.trim()} style={{flex: 1}} />
           <GlassButton label="Cancel" onPress={onClose} />
         </View>
       </View>

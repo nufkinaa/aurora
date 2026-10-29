@@ -20,7 +20,7 @@ import type {RootStackParamList} from '../../navigation';
 import {usePNav} from '../nav';
 import {PosterCard} from '../ui/Cards';
 import {ChipButton} from '../ui/Buttons';
-import {BackBar} from '../ui/PageHead';
+import {BackBar, useSolidBar} from '../ui/PageHead';
 import {gridColumns} from '../ui/Grid';
 import {useTabBarSpace} from '../ui/TabBar';
 import Tap from '../ui/Tap';
@@ -29,6 +29,7 @@ import {colors, GUTTER, radius} from '../theme';
 type Tab = 'forYou' | 'sent';
 
 export default function Household() {
+  const bar = useSolidBar();
   const route = useRoute<RouteProp<RootStackParamList, 'Household'>>();
   const navigation = usePNav();
   const {profileId} = useApp();
@@ -100,6 +101,8 @@ export default function Household() {
     return (
       <View style={s.root}>
         <FlatList
+          onScroll={bar.onScroll}
+          scrollEventThrottle={32}
           data={sent || []}
           keyExtractor={(x, i) => `${x.hh.key}-${i}`}
           ListHeaderComponent={head}
@@ -123,13 +126,15 @@ export default function Household() {
             );
           }}
         />
-        <BackBar />
+        <BackBar solid={bar.solid} title={bar.solid ? WORDS.pageTitle : undefined} />
       </View>
     );
   }
   return (
     <View style={s.root}>
       <FlatList
+        onScroll={bar.onScroll}
+        scrollEventThrottle={32}
         key={`cols-${cols}`}
         data={items || []}
         numColumns={cols}
@@ -148,7 +153,7 @@ export default function Household() {
           </View>
         )}
       />
-      <BackBar />
+      <BackBar solid={bar.solid} title={bar.solid ? WORDS.pageTitle : undefined} />
     </View>
   );
 }

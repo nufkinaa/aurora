@@ -100,8 +100,8 @@ export const quiet = () =>
 
 // ---------- controls ----------
 /** A tagged control was pressed (Focusable's onPress). Counter increment only. */
-export const uiHit = (id: string) => {
-  if (!off) controls.hit(screen || '?', id, 'remote');
+export const uiHit = (id: string, input: 'remote' | 'touch' = 'remote') => {
+  if (!off) controls.hit(screen || '?', id, input);
 };
 
 // ---------- errors ----------

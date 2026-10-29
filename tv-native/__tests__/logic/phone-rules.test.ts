@@ -6,6 +6,8 @@ import {parsePhoneLink, shareLink} from '../../src/phone/linkParse';
 import {fromNative, nextSaved, noRoomText, pickOption, roomFor, stateLine} from '../../src/phone/offline/rules';
 import {greeting} from '../../src/phone/greeting';
 import {isWeakPhone} from '../../src/phone/lowEnd';
+import {HIDE_AFTER, nextShown, STEP} from '../../src/phone/ui/tabBarShown';
+import {progressLine, shouldOffer, SNOOZE_MS} from '../../src/phone/update/rules';
 
 describe('player gestures', () => {
   test('a drag says what it is only past a few px, sideways first', () => {
@@ -140,5 +142,32 @@ describe('a weak phone (lowEnd.ts)', () => {
     // nothing known about the memory: not weak on that alone
     expect(isWeakPhone(false, undefined, 35)).toBe(false);
     expect(isWeakPhone(false, 0, 'ios')).toBe(false);
+  });
+});
+
+describe('the tab bar steps aside while a page scrolls down (ui/tabBarShown.ts)', () => {
+  test('down past the top hides it, any real step up brings it back, the top always shows it', () => {
+    expect(nextShown(true, 0, 40)).toBe(true); // near the top
+    expect(nextShown(true, 200, 260)).toBe(false); // scrolling down, well in
+    expect(nextShown(false, 260, 262)).toBe(false); // a finger resting
+    expect(nextShown(false, 600, 560)).toBe(true); // up again
+    expect(nextShown(false, 300, HIDE_AFTER / 2)).toBe(true); // back at the top
+    expect(nextShown(true, 100, 100 + STEP + 1)).toBe(true); // not yet past HIDE_AFTER
+  });
+});
+
+describe('the phone app’s update offer (phone/update/rules.ts)', () => {
+  test('a version is offered unless Later held that same version back, for a day', () => {
+    const now = 1_000_000;
+    expect(shouldOffer('1.0.1', null, now)).toBe(true);
+    expect(shouldOffer('1.0.1', {version: '1.0.1', until: now + 1000}, now)).toBe(false);
+    expect(shouldOffer('1.0.1', {version: '1.0.1', until: now - 1}, now)).toBe(true);
+    expect(shouldOffer('1.0.2', {version: '1.0.1', until: now + SNOOZE_MS}, now)).toBe(true);
+    expect(shouldOffer(null, null, now)).toBe(false);
+  });
+  test('the progress line', () => {
+    expect(progressLine(0, 0)).toBe('Downloading…');
+    expect(progressLine(21 * 1024 ** 2, 42 * 1024 ** 2)).toBe('Downloading… 50% of 42.0 MB');
+    expect(progressLine(5 * 1024 ** 2, 0)).toBe('Downloading… 5.0 MB');
   });
 });

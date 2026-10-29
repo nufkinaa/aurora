@@ -9,6 +9,9 @@
 declare const globalThis: {__AURORA_PHONE__?: boolean};
 
 export const isPhone = (): boolean => globalThis.__AURORA_PHONE__ === true;
+/** What this app calls itself to the server: usage stats, play marks, the
+ *  devices socket's hello (the server keeps "phone" apart from "tv" and "web"). */
+export const appId = (): 'phone' | 'tv' => (isPhone() ? 'phone' : 'tv');
 export const markPhone = () => {
   globalThis.__AURORA_PHONE__ = true;
 };

@@ -25,7 +25,8 @@ import {getAuthMode, getBaseUrl, getSession} from './api';
 import {registerProfileCache} from './profileScope';
 import * as tel from './telemetry';
 import {normMessage} from './telemetryCore';
-import {APP_VERSION} from './update';
+import {runningVersion} from './update';
+import {appId, isPhone} from './formFactor';
 
 type Ev = {n: string; t: number; p: Record<string, string | number | boolean>};
 const queue: Ev[] = [];
@@ -127,11 +128,11 @@ const flush = (force = false) => {
     body: JSON.stringify({
       profile,
       sid,
-      device: 'tv',
-      look: 'tv',
+      device: isPhone() ? 'phone' : 'tv',
+      look: isPhone() ? 'glass' : 'tv',
       iid: tel.installId(),
-      app: 'tv',
-      v: APP_VERSION,
+      app: appId(),
+      v: runningVersion(),
       model: who.model,
       os: who.os,
       auth: getAuthMode(),
@@ -153,7 +154,7 @@ const flush = (force = false) => {
 function arm() {
   if (!timer) timer = setTimeout(flush, FLUSH_MS);
 }
-tel.wire({poke: arm, version: APP_VERSION});
+tel.wire({poke: arm, version: runningVersion()});
 
 // track('feat', {f: 'party_start'}) — props are short strings, numbers, booleans.
 export const track = (name: string, props: Record<string, string | number | boolean> = {}) => {

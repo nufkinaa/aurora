@@ -87,6 +87,32 @@ androidComponents {
  */
 def auroraPhone = String.valueOf(project.findProperty('aurora') ?: 'tv') == 'phone'
 
+// QA SAFETY (-PauroraQa, passed by the QA build script): a QA build talks to a
+// private instance through `adb reverse` and nothing else. This check fails the
+// build when src/api.ts's SERVER_CANDIDATES names anything but the loopback
+// address — nufurora.com, the house server, any other host — so a QA variant
+// can never reach a real server (the 2026-10-28 slip: an early phone QA build
+// kept nufurora.com second and once fell through to it).
+def auroraQa = project.hasProperty('auroraQa')
+if (auroraQa) {
+    def qaGuard = tasks.register('auroraQaGuard') {
+        def api = file('../../src/api.ts')
+        inputs.file(api)
+        doLast {
+            def m = (api.getText('UTF-8') =~ /(?s)export const SERVER_CANDIDATES = \[(.*?)\];/)
+            if (!m.find()) throw new GradleException('QA guard: SERVER_CANDIDATES not found in src/api.ts')
+            def urls = (m.group(1) =~ /'([^']*)'/).collect { it[1] }
+            def bad = urls.findAll { !(it ==~ /http:\/\/127\.0\.0\.1(:\d+)?\/?/) }
+            if (urls.isEmpty() || !bad.isEmpty() || m.group(1).toLowerCase().contains('nufurora')) {
+                throw new GradleException("QA guard: a QA build may only list http://127.0.0.1 - SERVER_CANDIDATES has ${urls}")
+            }
+            println "QA guard: SERVER_CANDIDATES = ${urls}"
+        }
+    }
+    tasks.matching { it.name == 'preBuild' }.configureEach { dependsOn qaGuard }
+}
+
+
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.

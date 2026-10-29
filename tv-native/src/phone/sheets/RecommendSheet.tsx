@@ -146,8 +146,8 @@ export default function RecommendSheet({title, imdbId, onClose}: {title: TitleLi
       </View>
       {error ? <Text style={s.error}>{error}</Text> : null}
       <View style={s.buttons}>
-        <PrimaryButton label={sendLabel(to.length)} icon="send" onPress={send} busy={busy} disabled={!to.length} style={{flex: 1}} />
-        <GlassButton label="Cancel" onPress={onClose} />
+        <PrimaryButton uiId="recommend.send" label={sendLabel(to.length)} icon="send" onPress={send} busy={busy} disabled={!to.length} style={{flex: 1}} />
+        <GlassButton uiId="recommend.close" label="Cancel" onPress={onClose} />
       </View>
     </Sheet>
   );

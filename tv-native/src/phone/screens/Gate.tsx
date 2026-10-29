@@ -18,6 +18,7 @@ const LOGO = require('../../assets/logo-mark.png');
 function Tile({p, first, onPress, size}: {p: Profile; first: boolean; onPress: () => void; size: number}) {
   return (
     <Tap
+      uiId="profile.pick"
       accessibilityRole="button"
       accessibilityLabel={`${p.name}${p.kids ? ', kids profile' : ''}${p.hasPassword ? ', has a password' : ''}${p.locked ? ', locked' : ''}`}
       onPress={onPress}
@@ -89,7 +90,7 @@ export default function Gate({onChosen, notice}: {onChosen: OnChosen; notice: st
         />
         {w.pinError ? <Text style={s.error}>{w.pinError}</Text> : null}
         <View style={s.row}>
-          <PrimaryButton label={w.pinFor.mode === 'exit' ? 'Unlock' : 'Open'} onPress={w.submitPin} busy={w.busy} style={s.grow} />
+          <PrimaryButton uiId="profile.pin.submit" label={w.pinFor.mode === 'exit' ? 'Unlock' : 'Open'} onPress={w.submitPin} busy={w.busy} style={s.grow} />
           <GlassButton
             label="Back"
             onPress={() => {
@@ -132,7 +133,7 @@ export default function Gate({onChosen, notice}: {onChosen: OnChosen; notice: st
         />
         {w.pwError ? <Text style={s.error}>{w.pwError}</Text> : null}
         <View style={s.row}>
-          <PrimaryButton label="Unlock" onPress={() => w.choose(p, w.password)} busy={w.busy} style={s.grow} />
+          <PrimaryButton uiId="profile.unlock" label="Unlock" onPress={() => w.choose(p, w.password)} busy={w.busy} style={s.grow} />
           <GlassButton label="Back" onPress={() => w.setPwFor(null)} />
         </View>
       </Door>

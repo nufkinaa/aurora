@@ -5,10 +5,17 @@
 import {AppState, NativeEventEmitter, NativeModules} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {getBaseUrl, getSession} from './api';
+import {isPhone} from './formFactor';
 import {cleanExit, reportError, tmValue, updateOffered} from './telemetry'; // [analytics]
 
 // Keep in lockstep with android/app/build.gradle versionName on each release.
 export const APP_VERSION = '5.8.0';
+// [android-phone] The phone app's own series (build.gradle's `auroraPhone` block:
+// versionName / versionCode), announced by the server at /phone-version.json from
+// public/aurora-phone.apk and fetched from /download/phone.
+export const PHONE_APP_VERSION = '1.0.0';
+/** The version of the app that is running (the TV's or the phone's). */
+export const runningVersion = () => (isPhone() ? PHONE_APP_VERSION : APP_VERSION);
 
 const cmp = (a: string, b: string) => {
   const pa = a.split('.').map(n => parseInt(n, 10) || 0);
@@ -31,14 +38,14 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
   try {
     // Cache-busted: the device's HTTP cache served a stale copy under a long
     // max-age (measured on the Streamer).
-    const res = await fetch(`${base}/tv-version.json?t=${Date.now()}`, {signal: ctrl.signal});
+    const res = await fetch(`${base}/${isPhone() ? 'phone' : 'tv'}-version.json?t=${Date.now()}`, {signal: ctrl.signal});
     clearTimeout(t);
     if (!res.ok) return null;
     const j = (await res.json()) as {versionName?: string; notes?: string};
     tmValue('update_check', Date.now() - askedAt); // [analytics]
-    if (j.versionName && cmp(APP_VERSION, j.versionName) < 0) {
+    if (j.versionName && cmp(runningVersion(), j.versionName) < 0) {
       updateOffered(j.versionName); // [analytics] offered → running it, across the restart
-      return {version: j.versionName, url: `${base}/download`, notes: j.notes};
+      return {version: j.versionName, url: isPhone() ? `${base}/download/phone` : `${base}/download`, notes: j.notes};
     }
   } catch {
     clearTimeout(t);

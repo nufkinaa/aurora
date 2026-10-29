@@ -24,7 +24,7 @@ import {AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES} from '../../audioFx';
 import {WORDS as HH} from '../../householdRecs';
 import {householdChanged} from '../../householdLive';
 import {pushPhone, usePNav} from '../nav';
-import {BackBar} from '../ui/PageHead';
+import {BackBar, useColumn, useSolidBar} from '../ui/PageHead';
 import ListRow from '../ui/Row';
 import Glass from '../ui/Glass';
 import Avatar from '../ui/Avatar';
@@ -35,7 +35,8 @@ import {resetTabs} from '../tabs';
 import {OFFLINE_QUALITIES, offlinePrefs, setOfflinePrefs, useOfflineUsage} from '../offline/store';
 import {colors, GUTTER} from '../theme';
 
-const PHONE_VERSION = '1.0.0';
+import {PHONE_APP_VERSION as PHONE_VERSION} from '../../update';
+import {checkNow} from '../update/store';
 
 const Section = ({icon, title, sub, children}: {icon: React.ComponentProps<typeof Icon>['name']; title: string; sub?: string; children: React.ReactNode}) => (
   <Glass style={s.card}>
@@ -83,13 +84,13 @@ function HouseholdPrefs({profileId, onSent}: {profileId: string; onSent: () => v
   const mutedIds = (st?.people || []).filter(p => p.muted).map(p => p.id);
   return (
     <Section icon="send" title={HH.settingsSection}>
-      <ListRow title={HH.settingsSwitch} detail={HH.settingsSwitchNote} right={<Toggle value={!!st?.on} disabled={!st} onChange={v => st && save({on: v}, {...st, on: v})} />} />
+      <ListRow uiId="settings.hh.toggle" title={HH.settingsSwitch} detail={HH.settingsSwitchNote} right={<Toggle value={!!st?.on} disabled={!st} onChange={v => st && save({on: v}, {...st, on: v})} />} />
       {st && st.people.length ? (
         <>
           <Text style={s.note}>{HH.muteLine}</Text>
           <View style={s.chips}>
             {st.people.map(p => (
-              <ChipButton
+              <ChipButton uiId="settings.hh.mute"
                 key={p.id}
                 label={`${p.name} · ${p.muted ? HH.muted : HH.mute}`}
                 active={p.muted}
@@ -99,18 +100,21 @@ function HouseholdPrefs({profileId, onSent}: {profileId: string; onSent: () => v
           </View>
         </>
       ) : null}
-      <ListRow title="What you sent" detail="What you recommended, and whether each person saw it, put it on their list or watched it." chevron onPress={onSent} />
+      <ListRow uiId="settings.hh.sent" title="What you sent" detail="What you recommended, and whether each person saw it, put it on their list or watched it." chevron onPress={onSent} />
     </Section>
   );
 }
 
 export default function Settings() {
+  const bar = useSolidBar();
+  const column = useColumn();
   const navigation = usePNav();
   const {profileId, switchProfile} = useApp();
   const me = useMe(profileId);
   const insets = useSafeAreaInsets();
   const bottom = useTabBarSpace();
   const [prefs, setPrefs] = useState<Prefs>(PREFS_DEFAULTS);
+  const [checking, setChecking] = useState(false);
   const [genres, setGenres] = useState<string[] | null>(null);
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [notifyNote, setNotifyNote] = useState<string | null>(null);
@@ -186,7 +190,7 @@ export default function Settings() {
 
   return (
     <View style={s.root}>
-      <ScrollView contentContainerStyle={{paddingTop: insets.top + 70, paddingBottom: bottom + 24, paddingHorizontal: GUTTER}}>
+      <ScrollView onScroll={bar.onScroll} scrollEventThrottle={32} contentContainerStyle={[{paddingTop: insets.top + 70, paddingBottom: bottom + 24, paddingHorizontal: GUTTER}, column]}>
         <Text style={s.h1}>Settings</Text>
         <Text style={s.sub}>for {me?.name || 'this profile'}</Text>
 
@@ -198,7 +202,7 @@ export default function Settings() {
               <Text style={s.meSub}>{me?.hasPassword ? 'Password set' : 'No password set'}{me?.kids ? ` · Kids, up to ${me.kids.maxAge}` : ''}</Text>
             </View>
           </View>
-          <ListRow icon="swap" title={getAuthMode() === 'closed' ? 'Sign out' : 'Switch profile'} chevron onPress={() => (resetTabs(), switchProfile())} />
+          <ListRow uiId="phone.settings.switch" icon="swap" title={getAuthMode() === 'closed' ? 'Sign out' : 'Switch profile'} chevron onPress={() => (resetTabs(), switchProfile())} />
         </Section>
 
         <Section icon="sparkle" title="What you like" sub="Pick the genres you enjoy — Home leans its rows towards them.">
@@ -209,26 +213,26 @@ export default function Settings() {
           ) : (
             <View style={s.chips}>
               {genres.map(g => (
-                <ChipButton key={g} label={g} active={spellingsOf(g).some(x => liked.has(x))} onPress={() => toggleGenre(g)} />
+                <ChipButton uiId="settings.genre" key={g} label={g} active={spellingsOf(g).some(x => liked.has(x))} onPress={() => toggleGenre(g)} />
               ))}
             </View>
           )}
         </Section>
 
         <Section icon="info" title="Aurora">
-          <ListRow icon="download" title="My downloads" detail="What you asked the server to fetch — ready, on its way, waiting. And what is saved on this phone." chevron onPress={() => navigation.push('Downloads', undefined)} />
-          <ListRow icon="remote" title="Your TVs" detail="Use this phone as the remote, or play something on a TV." chevron onPress={() => pushPhone('Remote', undefined)} />
-          <ListRow icon="people" title="Join a watch party" detail="Type the code from another screen and watch in step." chevron onPress={openJoinParty} />
-          <ListRow icon="warning" title="Report a problem" detail="A few words; where you were and the last errors come along by themselves." chevron onPress={() => openReport()} />
+          <ListRow uiId="settings.downloads" icon="download" title="My downloads" detail="What you asked the server to fetch — ready, on its way, waiting. And what is saved on this phone." chevron onPress={() => navigation.push('Downloads', undefined)} />
+          <ListRow uiId="phone.settings.remote" icon="remote" title="Your TVs" detail="Use this phone as the remote, or play something on a TV." chevron onPress={() => pushPhone('Remote', undefined)} />
+          <ListRow uiId="settings.party" icon="people" title="Join a watch party" detail="Type the code from another screen and watch in step." chevron onPress={openJoinParty} />
+          <ListRow uiId="settings.report" icon="warning" title="Report a problem" detail="A few words; where you were and the last errors come along by themselves." chevron onPress={() => openReport()} />
         </Section>
 
         <Section icon="play" title="Playback">
-          <ListRow title="Autoplay next episode" detail="Start the next episode automatically when one finishes." right={<Toggle value={!!prefs.autoplayNext} onChange={v => set('autoplayNext', v)} />} />
+          <ListRow uiId="settings.autoplay" title="Autoplay next episode" detail="Start the next episode automatically when one finishes." right={<Toggle value={!!prefs.autoplayNext} onChange={v => set('autoplayNext', v)} />} />
         </Section>
 
         <Section icon="cc" title="Subtitles">
-          <ListRow title="Turn subtitles on automatically" detail="When a title offers subtitles, switch one on without asking." right={<Toggle value={!!prefs.subsDefault} onChange={v => set('subsDefault', v)} />} />
-          <ListRow title="Preferred subtitle language" detail="The language to pick. If a title doesn't have it, Aurora goes and gets it." right={<Value text={SUB_LANG_LABEL[prefs.subLang] || SUB_LANG_LABEL.any} />} onPress={() => cycle('subLang', SUB_LANGS)} />
+          <ListRow uiId="settings.subs.auto" title="Turn subtitles on automatically" detail="When a title offers subtitles, switch one on without asking." right={<Toggle value={!!prefs.subsDefault} onChange={v => set('subsDefault', v)} />} />
+          <ListRow uiId="settings.subs.lang" title="Preferred subtitle language" detail="The language to pick. If a title doesn't have it, Aurora goes and gets it." right={<Value text={SUB_LANG_LABEL[prefs.subLang] || SUB_LANG_LABEL.any} />} onPress={() => cycle('subLang', SUB_LANGS)} />
           <View style={s.preview}>
             <SubStylePreview style={subStyle} sizePx={{S: 16, M: 20, L: 24, XL: 28}[subStyle.subSize]} />
           </View>
@@ -282,7 +286,7 @@ export default function Settings() {
               />
             }
           />
-          <ListRow icon="storage" title="On this phone" detail="Play, or remove, what is saved here." chevron onPress={() => navigation.push('Downloads', undefined)} />
+          <ListRow uiId="phone.settings.saved" icon="storage" title="On this phone" detail="Play, or remove, what is saved here." chevron onPress={() => navigation.push('Downloads', undefined)} />
         </Section>
 
         <Section icon="bell" title="Notifications">
@@ -309,7 +313,7 @@ export default function Settings() {
         <HouseholdPrefs profileId={profileId} onSent={() => navigation.push('Household', {tab: 'sent'})} />
 
         <Section icon="lock" title="Privacy">
-          <ListRow
+          <ListRow uiId="settings.usagestats"
             title="Usage stats"
             detail="Which screens and features get used, and how long they took — to your own server only, never anything typed. Off here is off for you on every device."
             right={<Toggle value={prefs.usageStats !== false} onChange={v => set('usageStats', v)} />}
@@ -318,15 +322,28 @@ export default function Settings() {
 
         <Section icon="phone" title="This phone">
           <ListRow title={`Aurora for Android ${PHONE_VERSION}`} detail={`Connected to ${getBaseUrl().replace(/^https?:\/\//, '')}`} />
+          <ListRow
+            icon="downloadDevice"
+            title="Check for updates"
+            detail={checking ? 'Asking the server…' : 'A newer Aurora for this phone, from your server. Android asks you to confirm before it installs.'}
+            uiId="settings.update"
+            onPress={async () => {
+              if (checking) return;
+              setChecking(true);
+              const r = await checkNow().catch(() => 'latest' as const);
+              setChecking(false);
+              if (r === 'latest') showToast(`You're on the latest version (${PHONE_VERSION})`, '✓');
+            }}
+          />
         </Section>
 
         {getSession() && !me?.kids ? (
           <Section icon="logout" title="Account">
-            <ListRow icon="logout" title="Sign out on this phone" detail="Ends this phone's session — you'll sign in again with your password or a code." danger onPress={signOut} />
+            <ListRow uiId="settings.signout" icon="logout" title="Sign out on this phone" detail="Ends this phone's session — you'll sign in again with your password or a code." danger onPress={signOut} />
           </Section>
         ) : null}
       </ScrollView>
-      <BackBar />
+      <BackBar solid={bar.solid} title={bar.solid ? 'Settings' : undefined} />
     </View>
   );
 }

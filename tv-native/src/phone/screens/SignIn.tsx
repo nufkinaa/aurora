@@ -134,8 +134,8 @@ export default function SignIn({onSignedIn, notice}: {onSignedIn: (profileId: st
                 style={s.field}
               />
               {error ? <Text style={s.error}>{error}</Text> : null}
-              <PrimaryButton label="Sign in" onPress={submit} busy={busy} disabled={!username.trim() || !password} style={s.primary} />
-              <GlassButton label="Use a code instead" icon="phone" onPress={() => setMode('code')} style={s.secondary} />
+              <PrimaryButton uiId="signin.submit" label="Sign in" onPress={submit} busy={busy} disabled={!username.trim() || !password} style={s.primary} />
+              <GlassButton uiId="signin.mode.qr" label="Use a code instead" icon="phone" onPress={() => setMode('code')} style={s.secondary} />
             </>
           ) : (
             <>
@@ -149,7 +149,7 @@ export default function SignIn({onSignedIn, notice}: {onSignedIn: (profileId: st
                 </Text>
               </View>
               {pairErr ? <Text style={s.error}>{pairErr}</Text> : null}
-              <GlassButton label="Type a password instead" onPress={() => setMode('typed')} style={s.secondary} />
+              <GlassButton uiId="signin.mode.typed" label="Type a password instead" onPress={() => setMode('typed')} style={s.secondary} />
             </>
           )}
         </ScrollView>

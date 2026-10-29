@@ -22,7 +22,7 @@ import {openActions} from '../../overlay';
 import {DownloadAction, downloadActions, isReady, rowStatus, startedBy} from '../../downloadsLogic';
 import {ACTIVE, fmtBytes, statusLine} from '../../downloadsWords';
 import {pushPhone, usePNav} from '../nav';
-import {BackBar} from '../ui/PageHead';
+import {BackBar, useColumn, useSolidBar} from '../ui/PageHead';
 import {useTabBarSpace} from '../ui/TabBar';
 import Tap from '../ui/Tap';
 import Icon from '../ui/Icon';
@@ -36,7 +36,7 @@ const LABEL: Record<DownloadAction, string> = {play: 'Play', title: 'Title page'
 function Row({pic, title, line, sub, pct, right, onPress, onLongPress, tone}: {pic?: string | null; title: string; line: string; sub?: string | null; pct?: number | null; right?: React.ReactNode; onPress?: () => void; onLongPress?: () => void; tone?: 'ok' | 'warn' | 'live'}) {
   const src = pic ? artSrc(pic, 60).src : null;
   return (
-    <Tap flat onPress={onPress} onLongPress={onLongPress} disabled={!onPress && !onLongPress} style={s.row} accessibilityRole="button" accessibilityLabel={`${title}, ${line}`}>
+    <Tap uiId="downloads.row" flat onPress={onPress} onLongPress={onLongPress} disabled={!onPress && !onLongPress} style={s.row} accessibilityRole="button" accessibilityLabel={`${title}, ${line}`}>
       <View style={s.pic}>{src ? <Image source={src} style={StyleSheet.absoluteFill} resizeMode="cover" /> : <Icon name="film" size={22} color={colors.textFaint} />}</View>
       <View style={{flex: 1}}>
         <Text style={s.title} numberOfLines={2}>
@@ -54,6 +54,8 @@ function Row({pic, title, line, sub, pct, right, onPress, onLongPress, tone}: {p
 }
 
 export default function Downloads() {
+  const bar = useSolidBar();
+  const column = useColumn();
   const navigation = usePNav();
   const live = useIsFocused();
   const {profileId} = useApp();
@@ -230,7 +232,9 @@ export default function Downloads() {
   return (
     <View style={s.root}>
       <ScrollView
-        contentContainerStyle={{paddingTop: insets.top + 70, paddingBottom: bottom + 24}}
+        onScroll={bar.onScroll}
+        scrollEventThrottle={32}
+        contentContainerStyle={[{paddingTop: insets.top + 70, paddingBottom: bottom + 24}, column]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -264,7 +268,7 @@ export default function Downloads() {
         {others.length ? <Text style={s.h2}>Downloading for the rest of the house</Text> : null}
         {others.map(j => serverRow(j, false))}
       </ScrollView>
-      <BackBar />
+      <BackBar solid={bar.solid} title={bar.solid ? 'Downloads' : undefined} />
     </View>
   );
 }

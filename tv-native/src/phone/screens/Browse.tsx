@@ -16,7 +16,7 @@ import type {RootStackParamList} from '../../navigation';
 import {usePNav} from '../nav';
 import Grid from '../ui/Grid';
 import {ChipButton, GlassButton} from '../ui/Buttons';
-import PageHead, {BackBar} from '../ui/PageHead';
+import PageHead, {BackBar, useSolidBar} from '../ui/PageHead';
 import TopBar from '../ui/TopBar';
 import {useTabBarSpace} from '../ui/TabBar';
 import Sheet from '../ui/Sheet';
@@ -38,6 +38,7 @@ const byTitle = (a: HeroItem, b: HeroItem) => (a.title || '').localeCompare(b.ti
 const norm = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
 export function BrowseScreen({kind, pushed}: {kind: 'movie' | 'show'; pushed?: boolean}) {
+  const bar = useSolidBar();
   const navigation = usePNav();
   const {profileId} = useApp();
   const me = useMe(profileId);
@@ -188,18 +189,19 @@ export function BrowseScreen({kind, pushed}: {kind: 'movie' | 'show'; pushed?: b
       <PageHead title={title} sub={owned ? `${owned} on the server` : null} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
         {CATEGORIES.map(c => (
-          <ChipButton key={c.id} label={c.label} active={category === c.id} onPress={() => setCategory(c.id)} />
+          <ChipButton uiId="browse.category.pick" key={c.id} label={c.label} active={category === c.id} onPress={() => setCategory(c.id)} />
         ))}
       </ScrollView>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[s.chips, {paddingTop: 0}]}>
-        <ChipButton label={genre || 'All genres'} icon="chevronDown" active={!!genre} onPress={() => setGenreSheet(true)} />
-        <ChipButton label="Unwatched" icon={unwatched ? 'check' : undefined} active={unwatched} onPress={() => setUnwatched(u => !u)} />
+        <ChipButton uiId="phone.browse.genre" label={genre || 'All genres'} icon="chevronDown" active={!!genre} onPress={() => setGenreSheet(true)} />
+        <ChipButton uiId="browse.unwatched" label="Unwatched" icon={unwatched ? 'check' : undefined} active={unwatched} onPress={() => setUnwatched(u => !u)} />
       </ScrollView>
     </View>
   );
   return (
     <View style={s.root}>
       <Grid
+        onScroll={bar.onScroll}
         listRef={listRef}
         items={items}
         onPress={open}
@@ -225,7 +227,7 @@ export function BrowseScreen({kind, pushed}: {kind: 'movie' | 'show'; pushed?: b
           loading || lib === null ? null : err ? (
             <View style={s.empty}>
               <Text style={s.emptyText}>Couldn't load this list.</Text>
-              <GlassButton label="Try again" icon="refresh" onPress={() => setTryN(n => n + 1)} style={{marginTop: 12}} />
+              <GlassButton uiId="browse.retry" label="Try again" icon="refresh" onPress={() => setTryN(n => n + 1)} style={{marginTop: 12}} />
             </View>
           ) : (
             <View style={s.empty}>
@@ -235,7 +237,7 @@ export function BrowseScreen({kind, pushed}: {kind: 'movie' | 'show'; pushed?: b
           )
         }
       />
-      {pushed ? <BackBar /> : <TopBar />}
+      {pushed ? <BackBar solid={bar.solid} title={bar.solid ? title : undefined} /> : <TopBar solid={bar.solid} />}
       <Sheet visible={genreSheet} onClose={() => setGenreSheet(false)} title="Genre">
         <ListRow
           title="All genres"

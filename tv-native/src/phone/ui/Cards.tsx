@@ -83,6 +83,7 @@ export const PosterCard = memo(function PosterCard({
   const f = progressOf(item);
   return (
     <Tap
+      uiId="card.open"
       accessibilityRole="button"
       accessibilityLabel={item.title}
       onPress={() => onPress?.(item)}
@@ -131,6 +132,7 @@ export const FrameCard = memo(function FrameCard({
   const left = minutesLeft(item);
   return (
     <Tap
+      uiId="card.open"
       accessibilityRole="button"
       accessibilityLabel={sub ? `${title}, ${sub}` : title}
       onPress={() => onPress?.(item)}
@@ -155,9 +157,11 @@ export const FrameCard = memo(function FrameCard({
       </View>
       {onRemove ? (
         <Tap
+          uiId="phone.home.remove"
           accessibilityRole="button"
           accessibilityLabel={`Remove ${title} from Continue Watching`}
           onPress={() => onRemove(item)}
+          hitSlop={10}
           borderless
           style={s.remove}>
           <Icon name="close" size={18} color={colors.text} />

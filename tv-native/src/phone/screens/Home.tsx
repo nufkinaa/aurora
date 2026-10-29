@@ -17,6 +17,7 @@
 // and a fresh answer never moves what is on screen while you look (homeMerge.ts
 // "quiet"); pull down to read it again.
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
   AppState,
@@ -51,6 +52,7 @@ import {PrimaryButton, GlassButton} from '../ui/Buttons';
 import Tap from '../ui/Tap';
 import Icon from '../ui/Icon';
 import TopBar from '../ui/TopBar';
+import {useSolidBar} from '../ui/PageHead';
 import {useTabBarSpace} from '../ui/TabBar';
 import {greeting} from '../greeting';
 import {onReselect} from '../tabs';
@@ -72,7 +74,7 @@ function snapshotFor(profileId: string, got: Primed | undefined): HomeData | nul
 const kindOf = (it: HeroItem) => (it.type === 'show' || (it as {type?: string}).type === 'series' ? 'show' : 'movie');
 
 // ---------------------------------------------------------------- billboard
-const Slide = React.memo(function Slide({item, w, h, onPlay, onDetails}: {item: HeroItem; w: number; h: number; onPlay: (it: HeroItem) => void; onDetails: (it: HeroItem) => void}) {
+const Slide = React.memo(function Slide({item, w, h, onPlay, onDetails, onTextH}: {item: HeroItem; w: number; h: number; onPlay: (it: HeroItem) => void; onDetails: (it: HeroItem) => void; onTextH?: (h: number) => void}) {
   const show = kindOf(item) === 'show';
   const portrait = h > w;
   // a tall phone shows more of a poster than of a 16:9 backdrop: the backdrop is the
@@ -85,7 +87,7 @@ const Slide = React.memo(function Slide({item, w, h, onPlay, onDetails}: {item: 
       <Tap flat onPress={() => onDetails(item)} style={[s.slide, {height: h}]} accessibilityLabel={`${item.title}, details`}>
         {src ? <Image source={src} style={StyleSheet.absoluteFill} resizeMode="cover" fadeDuration={FADE_MS} /> : null}
         <View style={s.slideFade} pointerEvents="none" />
-        <View style={s.slideText}>
+        <View style={s.slideText} onLayout={onTextH ? e => onTextH(Math.ceil(e.nativeEvent.layout.height)) : undefined}>
           <View style={[s.kicker, {borderColor: show ? 'rgba(127,209,232,0.4)' : 'rgba(240,198,126,0.4)'}]}>
             <Text style={[s.kickerText, {color: show ? colors.kindSeries : colors.kindFilm}]}>{show ? 'SERIES' : 'FILM'}</Text>
           </View>
@@ -99,8 +101,8 @@ const Slide = React.memo(function Slide({item, w, h, onPlay, onDetails}: {item: 
             </Text>
           ) : null}
           <View style={s.heroBtns}>
-            <PrimaryButton testID="phone.hero.play" icon="play" label={item.source === 'stream' ? 'Stream' : 'Play'} onPress={() => onPlay(item)} style={s.heroBtn} />
-            <GlassButton testID="phone.hero.details" icon="info" label="Details" onPress={() => onDetails(item)} style={s.heroBtn} />
+            <PrimaryButton uiId="home.hero.play" testID="phone-hero-play" icon="play" label={item.source === 'stream' ? 'Stream' : 'Play'} onPress={() => onPlay(item)} style={s.heroBtn} />
+            <GlassButton uiId="home.hero.details" testID="phone-hero-details" icon="info" label="Details" onPress={() => onDetails(item)} style={s.heroBtn} />
           </View>
         </View>
       </Tap>
@@ -110,7 +112,13 @@ const Slide = React.memo(function Slide({item, w, h, onPlay, onDetails}: {item: 
 
 function Billboard({items, onPlay, onDetails, active}: {items: HeroItem[]; onPlay: (it: HeroItem) => void; onDetails: (it: HeroItem) => void; active: boolean}) {
   const {width, height} = useWindowDimensions();
-  const h = Math.round(height > width ? Math.min(height * 0.6, width * 1.45) : height * 0.74);
+  // landscape: a shorter billboard, so the greeting sits above the tab bar at rest — but never
+  // so short that a slide's words (kicker, name, buttons; measured) reach up under the top bar
+  const insets = useSafeAreaInsets();
+  const [textH, setTextH] = useState(0);
+  const onTextH = useCallback((t: number) => setTextH(was => (t > was ? t : was)), []);
+  const floor = textH ? textH + 40 + insets.top + 8 + 46 + 12 : 0;
+  const h = Math.max(Math.round(height > width ? Math.min(height * 0.6, width * 1.45) : height * 0.6), floor);
   const [idx, setIdx] = useState(0);
   const list = useRef<FlatList<HeroItem>>(null);
   const touchedAt = useRef(0);
@@ -127,6 +135,14 @@ function Billboard({items, onPlay, onDetails, active}: {items: HeroItem[]; onPla
     }, HERO_DWELL_MS);
     return () => clearInterval(t);
   }, [active, n, width]);
+  // a turn of the phone: the pager stays on the slide it showed (its offset was in the old width)
+  const idxRef = useRef(idx);
+  idxRef.current = idx;
+  // (once the list has its new size: a jump made before that is clamped to the old one)
+  const snap = useCallback(() => list.current?.scrollToOffset({offset: idxRef.current * width, animated: false}), [width]);
+  useEffect(() => {
+    snap();
+  }, [snap]);
   const onEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const i = Math.round(e.nativeEvent.contentOffset.x / width);
     if (i !== idx) setIdx(Math.max(0, Math.min(n - 1, i)));
@@ -141,7 +157,7 @@ function Billboard({items, onPlay, onDetails, active}: {items: HeroItem[]; onPla
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         keyExtractor={(it, i) => `${it.id || it.imdbId || it.title}-${i}`}
-        renderItem={({item}) => <Slide item={item} w={width} h={h} onPlay={onPlay} onDetails={onDetails} />}
+        renderItem={({item}) => <Slide item={item} w={width} h={h} onPlay={onPlay} onDetails={onDetails} onTextH={onTextH} />}
         getItemLayout={(_, i) => ({length: width, offset: width * i, index: i})}
         onScrollBeginDrag={() => {
           touchedAt.current = Date.now();
@@ -150,6 +166,7 @@ function Billboard({items, onPlay, onDetails, active}: {items: HeroItem[]; onPla
         initialNumToRender={2}
         windowSize={3}
         extraData={width}
+        onContentSizeChange={snap}
       />
       <View style={s.dots} pointerEvents="none">
         {items.map((_, i) => (
@@ -271,6 +288,8 @@ export default function Home() {
   const lastFetch = useRef(0);
   const savedText = useRef<string | null>(null);
   const listRef = useRef<FlatList<Block>>(null);
+  // the billboard's picture may sit under the bar; its words and buttons may not
+  const bar = useSolidBar(data?.hero.length ? 140 : 12);
 
   // the launch mark the device checks read: Home's shelves first on screen
   const firstData = useRef(data);
@@ -412,8 +431,8 @@ export default function Home() {
         title: item.title,
         sub: [item.year, kindOf(item) === 'show' ? 'Series' : 'Film'].filter(Boolean).join(' · '),
         items: [
-          {label: 'Details', onPress: () => openItem(navigation, item)},
-          {label: 'Recommend', onPress: () => openRecommend(item as never)},
+          {label: 'Details', uiId: 'phone.peek.details', onPress: () => openItem(navigation, item)},
+          {label: 'Recommend', uiId: 'phone.peek.recommend', onPress: () => openRecommend(item as never)},
         ],
       });
     },
@@ -469,7 +488,7 @@ export default function Home() {
           <>
             <Text style={s.errTitle}>Couldn't load Home</Text>
             <Text style={s.errSub}>{error}</Text>
-            <GlassButton label="Try again" icon="refresh" onPress={() => load(true)} style={{marginTop: 16}} />
+            <GlassButton uiId="home.retry" label="Try again" icon="refresh" onPress={() => load(true)} style={{marginTop: 16}} />
           </>
         ) : (
           <ActivityIndicator color={colors.text} size="large" />
@@ -491,6 +510,7 @@ export default function Home() {
           touched.current = true;
         }}
         onScroll={e => {
+          bar.onScroll(e);
           const y = e.nativeEvent.contentOffset.y;
           const on = y < 300;
           if (on !== heroOn) setHeroOn(on);
@@ -503,7 +523,7 @@ export default function Home() {
         ListEmptyComponent={null}
       />
       {empty ? <Text style={s.empty}>{emptyHomeLine(me?.kids?.maxAge ?? null).message}</Text> : null}
-      <TopBar />
+      <TopBar solid={bar.solid} />
     </View>
   );
 }

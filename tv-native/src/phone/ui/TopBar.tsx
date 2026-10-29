@@ -12,23 +12,24 @@ import Avatar from './Avatar';
 import {openProfileMenu} from '../profileMenu';
 import {setTab} from '../tabs';
 import {GUTTER} from '../theme';
+import {BarBand, StatusScrim} from './Scrims';
 
 const LOGO = require('../../assets/logo-mark.png');
 
-export default function TopBar({transparent = true}: {transparent?: boolean}) {
+export default function TopBar({transparent = true, solid}: {transparent?: boolean; solid?: boolean}) {
   const insets = useSafeAreaInsets();
   const {profileId} = useApp();
   const me = useMe(profileId);
   return (
     <>
-    <StatusScrim />
+    {solid ? <BarBand /> : <StatusScrim />}
     <View pointerEvents="box-none" style={[s.bar, {top: insets.top + 8}, !transparent && s.solid]}>
-      <IconCircle label="Aurora — Home" onPress={() => setTab('home')} size={46} style={s.logo}>
+      <IconCircle uiId="nav.home" label="Aurora — Home" onPress={() => setTab('home')} size={46} style={s.logo}>
         <Image source={LOGO} style={{width: 30, height: 30}} resizeMode="contain" />
       </IconCircle>
       <View style={{flex: 1}} />
-      <IconCircle icon="gear" label="Settings" onPress={() => pushScreen('Settings', undefined)} />
-      <IconCircle label={`${me?.name || 'Profile'} — profile menu`} onPress={() => openProfileMenu()} style={{marginLeft: 10}}>
+      <IconCircle uiId="nav.settings" icon="gear" label="Settings" onPress={() => pushScreen('Settings', undefined)} />
+      <IconCircle uiId="nav.profile" label={`${me?.name || 'Profile'} — profile menu`} onPress={() => openProfileMenu()} style={{marginLeft: 10}}>
         <Avatar p={me} size={38} round />
       </IconCircle>
     </View>
@@ -36,16 +37,11 @@ export default function TopBar({transparent = true}: {transparent?: boolean}) {
   );
 }
 
-/** A soft dark band under the status bar, so the clock stays readable over whatever scrolls beneath it. */
-export function StatusScrim() {
-  const insets = useSafeAreaInsets();
-  return <View pointerEvents="none" style={[s.scrim, {height: insets.top + 40}]} />;
-}
 
 export const TOP_BAR_H = 62;
+export {StatusScrim};
 
 const s = StyleSheet.create({
-  scrim: {position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9, experimental_backgroundImage: 'linear-gradient(180deg, rgba(7,8,17,0.78) 0%, rgba(7,8,17,0.45) 55%, rgba(7,8,17,0) 100%)'},
   bar: {position: 'absolute', left: GUTTER, right: GUTTER, flexDirection: 'row', alignItems: 'center', zIndex: 10},
   solid: {},
   logo: {width: 58, borderRadius: 23},

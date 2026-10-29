@@ -19,7 +19,7 @@ import type {RootStackParamList} from '../../navigation';
 import {usePNav} from '../nav';
 import Tap from '../ui/Tap';
 import Icon from '../ui/Icon';
-import {BackBar} from '../ui/PageHead';
+import {BackBar, useSolidBar} from '../ui/PageHead';
 import {useTabBarSpace} from '../ui/TabBar';
 import {colors, GUTTER, radius} from '../theme';
 
@@ -34,6 +34,7 @@ const DL_BADGE: Record<string, {text: string; owned?: boolean}> = {
 const dlKey = (h: string, i: number) => `${h}:${i}`;
 
 export default function Sources() {
+  const bar = useSolidBar();
   const route = useRoute<RouteProp<RootStackParamList, 'Sources'>>();
   const {type, imdbId, title, year, season, episode, runtime, poster} = route.params;
   const navigation = usePNav();
@@ -193,11 +194,11 @@ export default function Sources() {
         ) : null}
         {s.badHere ? <Text style={st.bad}>{`Reported here: ${s.badHere.label}`}</Text> : null}
         <View style={st.btns}>
-          <Tap onPress={() => askFirst(s, 'download', () => save(s))} style={st.save} accessibilityRole="button" accessibilityLabel={`Save ${s.qualityLabel || s.quality}`}>
+          <Tap uiId="detail.source.download" onPress={() => askFirst(s, 'download', () => save(s))} style={st.save} accessibilityRole="button" accessibilityLabel={`Save ${s.qualityLabel || s.quality}`}>
             <Icon name="download" size={18} color={colors.bg} />
             <Text style={st.saveText}>{job?.status === 'done' ? 'Saved' : job && DL_ACTIVE.includes(job.status) ? 'Saving…' : 'Save'}</Text>
           </Tap>
-          <Tap onPress={() => askFirst(s, 'play', () => play(s))} style={st.stream} accessibilityRole="button" accessibilityLabel={`Stream ${s.qualityLabel || s.quality}`}>
+          <Tap uiId="detail.source.play" onPress={() => askFirst(s, 'play', () => play(s))} style={st.stream} accessibilityRole="button" accessibilityLabel={`Stream ${s.qualityLabel || s.quality}`}>
             <Icon name="play" size={16} color={colors.text} />
             <Text style={st.streamText}>Stream</Text>
           </Tap>
@@ -219,6 +220,8 @@ export default function Sources() {
   return (
     <View style={st.root}>
       <FlatList
+        onScroll={bar.onScroll}
+        scrollEventThrottle={32}
         data={ordered || []}
         keyExtractor={s => dlKey(s.infoHash, s.fileIdx)}
         renderItem={render}
@@ -232,7 +235,7 @@ export default function Sources() {
         initialNumToRender={8}
         windowSize={7}
       />
-      <BackBar />
+      <BackBar solid={bar.solid} title={bar.solid ? 'Sources' : undefined} />
     </View>
   );
 }
@@ -256,8 +259,8 @@ const st = StyleSheet.create({
   tags: {color: colors.textFaint, fontSize: 12, marginTop: 4},
   bad: {color: '#ffb3b3', fontSize: 12, marginTop: 4},
   btns: {flexDirection: 'row', gap: 10, marginTop: 12},
-  save: {flex: 1, height: 44, borderRadius: 22, backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, overflow: 'hidden'},
+  save: {flex: 1, height: 48, borderRadius: 24, backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, overflow: 'hidden'},
   saveText: {color: colors.bg, fontSize: 15, fontWeight: '800'},
-  stream: {flex: 1, height: 44, borderRadius: 22, backgroundColor: 'rgba(12,14,30,0.55)', borderWidth: 1, borderColor: colors.glassEdge, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, overflow: 'hidden'},
+  stream: {flex: 1, height: 48, borderRadius: 24, backgroundColor: 'rgba(12,14,30,0.55)', borderWidth: 1, borderColor: colors.glassEdge, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, overflow: 'hidden'},
   streamText: {color: colors.text, fontSize: 15, fontWeight: '800'},
 });

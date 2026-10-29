@@ -9,6 +9,9 @@ import {
   LAN_PING_MS,
   FIRST_BUDGET_MS,
   RETRY_NOT_BEFORE_MS,
+  pickServerPatiently,
+  PATIENCE_MS,
+  RETRY_SCALE,
 } from '../../src/serverPick';
 import {SERVER_CANDIDATES} from '../../src/api';
 
@@ -148,4 +151,53 @@ test('scale 2 (the phone): every wait doubles, the order and the rules stay', as
   expect(tv.calls.length).toBe(0);
   await pickServer([NUFURORA, HOME], tv.deps);
   expect(tv.calls[0].timeout).toBe(INTERNET_PING_MS);
+});
+
+describe('[android-phone] the first launch’s patience (pickServerPatiently)', () => {
+  const QA = 'http://127.0.0.1:4000';
+  test('the network wakes after 8 s: found on a later round, inside the patience', async () => {
+    // silent for the first 8 s of the world, then answers in 20 ms
+    let t0 = -1;
+    const w = world({});
+    const ping = w.deps.ping;
+    const waits: number[] = [];
+    const deps = {
+      ...w.deps,
+      scale: 2,
+      ping: async (url: string, timeout: number) => {
+        if (t0 < 0) t0 = w.at();
+        if (w.at() - t0 >= 8000) {
+          await w.deps.sleep(20);
+          return true;
+        }
+        return ping(url, timeout);
+      },
+      onWait: (round: number) => waits.push(round),
+    };
+    const got = await pickServerPatiently([QA], deps);
+    expect(got).toBe(QA);
+    expect(w.at()).toBeLessThan(PATIENCE_MS);
+    expect(waits[0]).toBe(2);
+  });
+  test('a later round asks with shorter pings than the first', async () => {
+    const w = world({[QA]: 'silent'});
+    await pickServerPatiently([QA], {...w.deps, scale: 2});
+    const first = w.calls[0].timeout;
+    const later = w.calls[w.calls.length - 1].timeout;
+    expect(first).toBe(LAN_PING_MS * 2);
+    expect(later).toBeLessThanOrEqual(LAN_PING_MS * RETRY_SCALE);
+  });
+  test('nothing answers: null, and no round starts after the patience', async () => {
+    const w = world({[QA]: 'silent'});
+    expect(await pickServerPatiently([QA], {...w.deps, scale: 2})).toBeNull();
+    for (const c of w.calls) expect(c.at).toBeLessThan(PATIENCE_MS);
+    expect(w.at()).toBeLessThan(PATIENCE_MS + LAN_PING_MS * 2);
+  });
+  test('answers at once: one ping, no wait', async () => {
+    const w = world({[QA]: {answer: 15}});
+    const waits: number[] = [];
+    expect(await pickServerPatiently([QA], {...w.deps, onWait: r => waits.push(r)})).toBe(QA);
+    expect(w.calls.length).toBe(1);
+    expect(waits).toEqual([]);
+  });
 });

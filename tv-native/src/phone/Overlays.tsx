@@ -12,6 +12,7 @@ import {colors, GUTTER, radius, TAB_H, TAB_INSET} from './theme';
 import XraySheet from './sheets/XraySheet';
 import RecommendSheet from './sheets/RecommendSheet';
 import {JoinPartySheet, ReportSheet} from './sheets/SmallSheets';
+import UpdateSheet from './sheets/UpdateSheet';
 
 export default function PhoneOverlays() {
   const o = useOverlay();
@@ -39,6 +40,7 @@ export default function PhoneOverlays() {
             {o.body ? <Text style={s.body}>{o.body}</Text> : null}
             {o.items.map((it, i) => (
               <ListRow
+                uiId={it.uiId || 'actions.pick'}
                 key={`${i}-${it.label}`}
                 title={it.label}
                 detail={it.tag}
@@ -60,6 +62,7 @@ export default function PhoneOverlays() {
       {o?.kind === 'recommend' ? <RecommendSheet title={o.title} imdbId={o.imdbId || null} onClose={closeOverlay} /> : null}
       {o?.kind === 'join' ? <JoinPartySheet onClose={closeOverlay} /> : null}
       {o?.kind === 'report' ? <ReportSheet hint={o.hint} onClose={closeOverlay} /> : null}
+      <UpdateSheet />
       <Toasts />
     </>
   );

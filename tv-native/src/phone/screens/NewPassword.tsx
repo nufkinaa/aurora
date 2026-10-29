@@ -120,8 +120,8 @@ export default function NewPassword({
         />
         <Field ref={againRef} value={again} onChangeText={setAgain} secureTextEntry placeholder="The same again" returnKeyType="go" onSubmitEditing={save} style={s.field} />
         {error ? <Text style={s.error}>{error}</Text> : null}
-        <PrimaryButton label="Save and go on" onPress={save} busy={busy} style={s.primary} />
-        <GlassButton label="Sign out" icon="logout" onPress={onSignOut} style={s.secondary} />
+        <PrimaryButton uiId="newpassword.submit" label="Save and go on" onPress={save} busy={busy} style={s.primary} />
+        <GlassButton uiId="newpassword.signout" label="Sign out" icon="logout" onPress={onSignOut} style={s.secondary} />
       </ScrollView>
     </KeyboardAvoidingView>
   );

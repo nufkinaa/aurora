@@ -2,8 +2,9 @@
 // Movies · Shows · My List · Search, the tab you are on in a lit pill. Drawn
 // over every screen but the player; a tap from deeper in the stack (a title
 // page) goes back to the tabs first, as the site's bar does.
-import React from 'react';
-import {StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import React, {useEffect, useRef} from 'react';
+import {Animated, Easing, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {useTabBarShown} from './tabBarShown';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {StackActions} from '@react-navigation/native';
 import Tap from './Tap';
@@ -13,11 +14,11 @@ import {setTab, Tab, useTab} from '../tabs';
 import {phoneNative} from '../native';
 import {colors, TAB_H, TAB_INSET} from '../theme';
 
-const ITEMS: {tab: Tab; label: string}[] = [
-  {tab: 'home', label: 'Home'},
-  {tab: 'movies', label: 'Movies'},
-  {tab: 'shows', label: 'Shows'},
-  {tab: 'list', label: 'My List'},
+const ITEMS: {tab: Tab; label: string; uiId: string}[] = [
+  {tab: 'home', label: 'Home', uiId: 'nav.home'},
+  {tab: 'movies', label: 'Movies', uiId: 'nav.movies'},
+  {tab: 'shows', label: 'Shows', uiId: 'nav.shows'},
+  {tab: 'list', label: 'My List', uiId: 'nav.mylist'},
 ];
 
 /** How much room the bar takes at the bottom of a screen (content pads by it). */
@@ -36,13 +37,23 @@ export default function TabBar() {
     setTab(t);
   };
   const barW = Math.min(width - TAB_INSET * 2, 560);
+  // out of the way while a page scrolls down (ui/tabBarShown.ts)
+  const shown = useTabBarShown();
+  const away = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(away, {toValue: shown ? 0 : 1, duration: shown ? 180 : 220, easing: Easing.out(Easing.cubic), useNativeDriver: true}).start();
+  }, [shown, away]);
+  const drop = TAB_H + TAB_INSET * 2 + insets.bottom + 12;
   return (
-    <View pointerEvents="box-none" style={[s.wrap, {bottom: insets.bottom + TAB_INSET}]}>
+    <Animated.View
+      pointerEvents={shown ? 'box-none' : 'none'}
+      style={[s.wrap, {bottom: insets.bottom + TAB_INSET, transform: [{translateY: away.interpolate({inputRange: [0, 1], outputRange: [0, drop]})}]}]}>
       <View style={[s.bar, {width: barW}]} accessibilityRole="tablist">
         {ITEMS.map(it => {
           const on = tab === it.tab;
           return (
             <Tap
+              uiId={it.uiId}
               key={it.tab}
               flat
               accessibilityRole="tab"
@@ -61,6 +72,7 @@ export default function TabBar() {
           );
         })}
         <Tap
+          uiId="nav.search"
           flat
           accessibilityRole="tab"
           accessibilityState={{selected: tab === 'search'}}
@@ -71,7 +83,7 @@ export default function TabBar() {
           <Icon name="search" size={26} color="#fff" />
         </Tap>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

@@ -18,11 +18,14 @@ type Base = {
   /** a picture on the button's left (Continue's episode still) */
   leading?: React.ReactNode;
   testID?: string;
+  /** [analytics] the control's id (Tap.uiId) */
+  uiId?: string;
 };
 
-export function PrimaryButton({label, icon, onPress, onLongPress, busy, disabled, style, leading, testID}: Base) {
+export function PrimaryButton({label, icon, onPress, onLongPress, busy, disabled, style, leading, testID, uiId}: Base) {
   return (
     <Tap
+      uiId={uiId}
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -40,9 +43,10 @@ export function PrimaryButton({label, icon, onPress, onLongPress, busy, disabled
   );
 }
 
-export function GlassButton({label, icon, onPress, onLongPress, busy, disabled, style, testID}: Base) {
+export function GlassButton({label, icon, onPress, onLongPress, busy, disabled, style, testID, uiId}: Base) {
   return (
     <Tap
+      uiId={uiId}
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -59,9 +63,10 @@ export function GlassButton({label, icon, onPress, onLongPress, busy, disabled, 
 }
 
 /** A small glass chip-button ("Save season offline (3)", "Mark season watched"). */
-export function ChipButton({label, icon, onPress, active, style, disabled}: Base & {active?: boolean}) {
+export function ChipButton({label, icon, onPress, active, style, disabled, uiId}: Base & {active?: boolean}) {
   return (
     <Tap
+      uiId={uiId}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{selected: !!active}}
@@ -86,9 +91,11 @@ export function ActionCircle({
   busy,
   tint,
   testID,
+  uiId,
 }: Base & {on?: boolean; tint?: string}) {
   return (
     <Tap
+      uiId={uiId}
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -120,7 +127,9 @@ export function IconCircle({
   style,
   badge,
   children,
+  uiId,
 }: {
+  uiId?: string;
   icon?: PhoneIconName;
   label: string;
   onPress?: () => void;
@@ -131,6 +140,7 @@ export function IconCircle({
 }) {
   return (
     <Tap
+      uiId={uiId}
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}

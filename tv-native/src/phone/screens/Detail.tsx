@@ -71,6 +71,7 @@ import {artSrc, Bar, PosterCard} from '../ui/Cards';
 import Icon from '../ui/Icon';
 import Tap from '../ui/Tap';
 import {BackBar} from '../ui/PageHead';
+import {scrollReporter} from '../ui/tabBarShown';
 import {useTabBarSpace} from '../ui/TabBar';
 import {shareLink} from '../linkParse';
 import {phoneNative} from '../native';
@@ -116,6 +117,7 @@ const EpisodeRow = React.memo(function EpisodeRow({ep, onPress, onLong}: {ep: Ui
   const dim = ep.air !== 'aired';
   return (
     <Tap
+      uiId="detail.episode.play"
       flat
       onPress={() => onPress(ep)}
       onLongPress={() => onLong(ep)}
@@ -189,6 +191,8 @@ export default function Detail() {
   const [moreText, setMoreText] = useState(false);
   // scrolled past the picture: the top bar carries the title on dark glass
   const [pastArt, setPastArt] = useState(false);
+  const [lockH, setLockH] = useState(0);
+  const [reportScroll] = useState(scrollReporter);
   const [seasonPick, setSeasonPick] = useState<number | null>(null);
   const [hhFrom, setHhFrom] = useState<{id: string; name: string; note?: string}[]>([]);
   const [hhHidden, setHhHidden] = useState(false);
@@ -918,7 +922,11 @@ export default function Detail() {
   // ---- draw ----
   // landscape / a tablet: a shorter picture, and the page's body in a readable column
   const wide = width > height && width >= 700;
-  const artH = Math.round(wide ? height * 0.62 : Math.min(height * 0.56, width * 1.25));
+  // The lockup (kicker, name, facts) is measured: the picture is always tall enough for it to sit
+  // below the back button (a long name, landscape), and the bar turns solid the moment the
+  // kicker's top would reach the button — so the two never overlap, at rest or scrolled.
+  const barBottom = insets.top + 8 + 46 + 10;
+  const artH = Math.max(Math.round(wide ? height * 0.5 : Math.min(height * 0.56, width * 1.25)), lockH ? lockH + 14 + barBottom : 0);
   const column = wide ? {maxWidth: 820, width: '100%' as const, alignSelf: 'center' as const} : null;
   const facts = [year, fmtDuration(full?.duration) || (meta?.runtime ? String(meta.runtime) : null), isShow && seasons.length ? `${seasons.length} season${seasons.length === 1 ? '' : 's'}` : null].filter(Boolean).join(' · ');
   const badges = [full?.certificate || meta?.certificate, resBadge(full?.height, full?.width), full?.subtitles?.length ? 'CC' : null].filter(Boolean) as string[];
@@ -934,14 +942,18 @@ export default function Detail() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={32}
         onScroll={e => {
-          // as soon as the lockup (kicker, name) reaches the bar
-          const past = e.nativeEvent.contentOffset.y > artH - insets.top - 260;
+          reportScroll(e.nativeEvent.contentOffset.y);
+          // as soon as the lockup's top (the kicker) reaches the back button
+          const past = e.nativeEvent.contentOffset.y > (lockH ? artH - 14 - lockH - barBottom : artH - insets.top - 260);
           if (past !== pastArt) setPastArt(past);
         }}>
         <View style={{height: artH}}>
           {art ? <Image source={art} style={StyleSheet.absoluteFill} resizeMode="cover" fadeDuration={FADE_MS} /> : null}
           <View style={s.artFade} pointerEvents="none" />
-          <View style={s.lockup}>
+          <View style={s.lockup} onLayout={e => {
+            const h = Math.ceil(e.nativeEvent.layout.height);
+            if (Math.abs(h - lockH) > 1) setLockH(h);
+          }}>
             <View style={[s.kicker, {borderColor: isShow ? 'rgba(127,209,232,0.45)' : 'rgba(240,198,126,0.45)'}]}>
               <Text style={[s.kickerText, {color: isShow ? colors.kindSeries : colors.kindFilm}]}>{isShow ? 'SERIES' : 'FILM'}</Text>
             </View>
@@ -964,8 +976,8 @@ export default function Detail() {
 
         <View style={[s.body, column]}>
           {loading && !full && !meta ? <ActivityIndicator color={colors.text} style={{marginVertical: 12}} /> : null}
-          <PrimaryButton
-            testID="phone.detail.play"
+          <PrimaryButton uiId="detail.play"
+            testID="phone-detail-play"
             icon={primaryIcon as never}
             label={primaryLabel}
             busy={!!busyKey}
@@ -986,31 +998,31 @@ export default function Detail() {
           ) : null}
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.actions}>
-            {tvs.length && (ownedMovieId || heroEp?.owned) ? <ActionCircle icon="cast" label={tvs.length === 1 ? `Play on ${tvs[0].name}` : 'Play on TV'} onPress={playOnTv} /> : null}
-            {!isShow && !ownedMovieId && imdb ? <ActionCircle icon="play" label="Stream instead" onPress={() => openSources()} /> : null}
+            {tvs.length && (ownedMovieId || heroEp?.owned) ? <ActionCircle uiId="phone.detail.playon" icon="cast" label={tvs.length === 1 ? `Play on ${tvs[0].name}` : 'Play on TV'} onPress={playOnTv} /> : null}
+            {!isShow && !ownedMovieId && imdb ? <ActionCircle uiId="detail.sources" icon="play" label="Stream instead" onPress={() => openSources()} /> : null}
             {ownedMovieId ? (
-              <ActionCircle
+              <ActionCircle uiId="phone.save.film"
                 icon="downloadDevice"
                 label={phoneState(ownedMovieId) === 'done' ? 'On this phone' : phoneState(ownedMovieId) ? 'Saving…' : 'Save to phone'}
                 on={phoneState(ownedMovieId) === 'done'}
                 onPress={saveFilmToPhone}
               />
             ) : null}
-            {ownedMovieId && movieResume ? <ActionCircle icon="refresh" label="Start over" onPress={() => navigation.push('Player', {id: ownedMovieId, title, restart: true})} /> : null}
-            {isShow ? <ActionCircle icon="series" label="All episodes" onPress={() => scrollRef.current?.scrollTo({y: artH + 160, animated: true})} /> : null}
-            <ActionCircle icon={inList ? 'check' : 'plus'} label="My List" on={inList} onPress={toggleList} />
-            <ActionCircle icon="send" label="Recommend" onPress={() => openRecommend(item, imdb)} />
-            {isShow && followImdb ? <ActionCircle icon={following ? 'check' : 'bell'} label={following ? 'Following' : 'Follow'} on={following} onPress={toggleFollow} /> : null}
+            {ownedMovieId && movieResume ? <ActionCircle uiId="detail.restart" icon="refresh" label="Start over" onPress={() => navigation.push('Player', {id: ownedMovieId, title, restart: true})} /> : null}
+            {isShow ? <ActionCircle uiId="phone.detail.episodes" icon="series" label="All episodes" onPress={() => scrollRef.current?.scrollTo({y: artH + 160, animated: true})} /> : null}
+            <ActionCircle uiId="detail.mylist" icon={inList ? 'check' : 'plus'} label="My List" on={inList} onPress={toggleList} />
+            <ActionCircle uiId="detail.recommend" icon="send" label="Recommend" onPress={() => openRecommend(item, imdb)} />
+            {isShow && followImdb ? <ActionCircle uiId="detail.follow" icon={following ? 'check' : 'bell'} label={following ? 'Following' : 'Follow'} on={following} onPress={toggleFollow} /> : null}
             {imdb || full ? (
-              <ActionCircle
+              <ActionCircle uiId="detail.xray"
                 icon="xray"
                 label="X-Ray"
                 onPress={() => openXray({query: full && !isShow ? {itemId: full.id} : {type: isShow ? 'series' : 'movie', imdbId: imdb}, title})}
               />
             ) : null}
-            {ownedMovieId ? <ActionCircle icon="check" label={movieWatched ? 'Watched' : 'Mark watched'} on={movieWatched} onPress={toggleMovieWatched} /> : null}
-            {trailers.length || imdb ? <ActionCircle icon="film" label="Trailer" onPress={() => openTrailer(trailers, title, {imdbId: imdb, type: isShow ? 'show' : 'movie', year})} /> : null}
-            <ActionCircle icon="share" label="Share" onPress={share} />
+            {ownedMovieId ? <ActionCircle uiId="detail.watched" icon="check" label={movieWatched ? 'Watched' : 'Mark watched'} on={movieWatched} onPress={toggleMovieWatched} /> : null}
+            {trailers.length || imdb ? <ActionCircle uiId="detail.trailer" icon="film" label="Trailer" onPress={() => openTrailer(trailers, title, {imdbId: imdb, type: isShow ? 'show' : 'movie', year})} /> : null}
+            <ActionCircle uiId="phone.detail.share" icon="share" label="Share" onPress={share} />
           </ScrollView>
 
           {hhFrom.length && !hhHidden ? (
@@ -1022,7 +1034,7 @@ export default function Detail() {
                   {n}
                 </Text>
               ))}
-              <Tap flat onPress={hhNotForMe} style={{alignSelf: 'flex-start', marginTop: 6}}>
+              <Tap uiId="detail.hh.dismiss" flat onPress={hhNotForMe} style={{alignSelf: 'flex-start', marginTop: 2, minHeight: 48, justifyContent: 'center'}}>
                 <Text style={s.link}>{HH.notForMe}</Text>
               </Tap>
             </View>
@@ -1056,16 +1068,16 @@ export default function Detail() {
             <Text style={s.h2}>Episodes</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pills}>
               {seasons.map(se => (
-                <ChipButton key={se.number} label={`Season ${se.number}`} active={se.number === seasonNo} onPress={() => setSeasonPick(se.number)} />
+                <ChipButton uiId="detail.season.pick" key={se.number} label={`Season ${se.number}`} active={se.number === seasonNo} onPress={() => setSeasonPick(se.number)} />
               ))}
               {season && season.episodes.some(e => e.owned && !e.phone) ? (
-                <ChipButton
+                <ChipButton uiId="phone.save.season"
                   label={`Save season offline (${season.episodes.filter(e => e.owned && !e.phone).length})`}
                   icon="downloadDevice"
                   onPress={() => saveSeasonToPhone(season.episodes.filter(e => e.owned && !e.phone))}
                 />
               ) : null}
-              {aired.length ? <ChipButton label={seasonAllWatched ? 'Mark season unwatched' : 'Mark season watched'} icon="check" onPress={markSeason} /> : null}
+              {aired.length ? <ChipButton uiId="detail.season.watched" label={seasonAllWatched ? 'Mark season unwatched' : 'Mark season watched'} icon="check" onPress={markSeason} /> : null}
             </ScrollView>
             {(season?.episodes || []).map(ep => (
               <EpisodeRow key={ep.key} ep={ep} onPress={onEpisode} onLong={episodeActions} />

@@ -64,10 +64,11 @@ const fmt = (s: number) => {
   return (h ? `${h}:${String(m).padStart(2, '0')}` : `${m}`) + `:${String(sec).padStart(2, '0')}`;
 };
 
-function Btn({icon, label, onPress, big, badge, on, mid}: {icon: PhoneIconName; label: string; onPress: () => void; big?: boolean; badge?: string; on?: boolean; mid?: boolean}) {
+function Btn({icon, label, onPress, big, badge, on, mid, uiId}: {icon: PhoneIconName; label: string; onPress: () => void; big?: boolean; badge?: string; on?: boolean; mid?: boolean; uiId?: string}) {
   const size = big ? 76 : mid ? 56 : 48;
   return (
     <Tap
+      uiId={uiId}
       borderless
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -148,7 +149,7 @@ export default function PhoneChrome(p: ChromeProps) {
     return (
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
         <View style={[s.lockOnly, {top: insets.top + 16, right: padR}]}>
-          <Btn icon="lock" label="Unlock the controls" onPress={() => p.onLock(false)} on />
+          <Btn uiId="phone.player.unlock" icon="lock" label="Unlock the controls" onPress={() => p.onLock(false)} on />
         </View>
       </View>
     );
@@ -164,7 +165,7 @@ export default function PhoneChrome(p: ChromeProps) {
       </View>
 
       <View style={[s.top, {paddingTop: insets.top + 8, paddingLeft: padL, paddingRight: padR}]} pointerEvents="box-none">
-        <Btn icon="back" label="Back" onPress={p.onBack} />
+        <Btn uiId="player.back" icon="back" label="Back" onPress={p.onBack} />
         <View style={s.titles} pointerEvents="none">
           <Text style={s.title} numberOfLines={1}>
             {p.title}
@@ -185,14 +186,14 @@ export default function PhoneChrome(p: ChromeProps) {
             </View>
           ) : null}
         </View>
-        {p.pip ? <Btn icon="pip" label="Picture in picture" onPress={p.onPip} /> : null}
-        <Btn icon="lockOpen" label="Lock the controls" onPress={() => p.onLock(true)} />
+        {p.pip ? <Btn uiId="phone.player.pip" icon="pip" label="Picture in picture" onPress={p.onPip} /> : null}
+        <Btn uiId="phone.player.lock" icon="lockOpen" label="Lock the controls" onPress={() => p.onLock(true)} />
       </View>
 
       <View style={s.middle} pointerEvents="box-none">
-        <Btn mid icon="back10" label="Back 10 seconds" onPress={() => p.onSkip(-1)} />
-        <Btn big icon={p.paused ? 'play' : 'pause'} label={p.paused ? 'Play' : 'Pause'} onPress={p.onToggle} />
-        <Btn mid icon="forward10" label="Forward 10 seconds" onPress={() => p.onSkip(1)} />
+        <Btn uiId="player.seek.back" mid icon="back10" label="Back 10 seconds" onPress={() => p.onSkip(-1)} />
+        <Btn uiId="player.playpause" big icon={p.paused ? 'play' : 'pause'} label={p.paused ? 'Play' : 'Pause'} onPress={p.onToggle} />
+        <Btn uiId="player.seek.fwd" mid icon="forward10" label="Forward 10 seconds" onPress={() => p.onSkip(1)} />
       </View>
 
       <View style={[s.bottom, {paddingBottom: Math.max(insets.bottom, 10) + 4, paddingLeft: padL, paddingRight: padR}]} pointerEvents="box-none">
@@ -202,20 +203,20 @@ export default function PhoneChrome(p: ChromeProps) {
           <Text style={[s.time, s.timeRight]}>{p.duration ? `-${fmt(left)}` : ''}</Text>
         </View>
         <View style={s.row} pointerEvents="box-none">
-          {p.hasSubs ? <Btn icon="cc" label="Subtitles" onPress={() => p.onMenu('cc')} badge={p.subsOff ? 'off' : undefined} /> : null}
+          {p.hasSubs ? <Btn uiId="player.subtitles.open" icon="cc" label="Subtitles" onPress={() => p.onMenu('cc')} badge={p.subsOff ? 'off' : undefined} /> : null}
           {p.simple ? null : (
             <>
-              <Btn icon="gear" label="Audio and settings" onPress={() => p.onMenu('settings')} />
-              <Btn icon="speed" label="Speed" onPress={() => p.onMenu('speed')} badge={p.rate === 1 ? undefined : `${p.rate}×`} />
-              <Btn icon="xray" label="X-Ray" onPress={p.onXray} />
-              <Btn icon="people" label="Watch together" onPress={() => p.onMenu('party')} />
+              <Btn uiId="player.settings.open" icon="gear" label="Audio and settings" onPress={() => p.onMenu('settings')} />
+              <Btn uiId="player.speed.open" icon="speed" label="Speed" onPress={() => p.onMenu('speed')} badge={p.rate === 1 ? undefined : `${p.rate}×`} />
+              <Btn uiId="player.xray" icon="xray" label="X-Ray" onPress={p.onXray} />
+              <Btn uiId="player.party" icon="people" label="Watch together" onPress={() => p.onMenu('party')} />
             </>
           )}
           <View style={{flex: 1}} />
-          <Btn icon="aspect" label={p.fit === 'fill' ? 'Fit the picture' : 'Fill the screen'} onPress={p.onFit} on={p.fit === 'fill'} />
-          <Btn icon="rotate" label={p.landscape ? 'Portrait' : 'Landscape'} onPress={p.onRotate} />
+          <Btn uiId="phone.player.fit" icon="aspect" label={p.fit === 'fill' ? 'Fit the picture' : 'Fill the screen'} onPress={p.onFit} on={p.fit === 'fill'} />
+          <Btn uiId="phone.player.rotate" icon="rotate" label={p.landscape ? 'Portrait' : 'Landscape'} onPress={p.onRotate} />
           {p.next ? (
-            <Tap onPress={p.onNext} style={s.next} accessibilityRole="button" accessibilityLabel={`Next episode — ${p.next}`}>
+            <Tap uiId="player.next" onPress={p.onNext} style={s.next} accessibilityRole="button" accessibilityLabel={`Next episode — ${p.next}`}>
               <Icon name="next" size={22} color="#fff" />
               <Text style={s.nextText} numberOfLines={1}>
                 Next

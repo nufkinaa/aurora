@@ -87,3 +87,44 @@ export async function pickServer(candidates: readonly string[], d: PickDeps): Pr
   }
   return null;
 }
+
+// ---- [android-phone] THE FIRST LAUNCH'S PATIENCE ----------------------------
+// Measured on the Pixel 9 emulator (2026-10-29): straight after the phone
+// boots, and on the first launch after an install, the app's sockets go
+// nowhere for several seconds — both pings to a healthy server hung their
+// full 4 s and the app showed "Can't reach Aurora", while a shell on the
+// same phone reached the same address at once and "Try again" worked a moment
+// later. The network was still coming up for the app, not down.
+//
+// So the phone does not give up on the first round: while the whole start has
+// taken less than PATIENCE_MS it waits a little (BACKOFF_MS, growing) and walks
+// the list again, saying so on the loading screen. Only after that is it the
+// offline screen. The TV keeps its single round (pickServer).
+//
+// The further rounds ask with SHORTER pings (RETRY_SCALE of the TV's waits): a
+// ping sent while the app's network was still asleep stays dead after it wakes
+// (its connection attempt went nowhere), so the way to notice the wake-up soon
+// is a fresh ping often, not a long one.
+export const PATIENCE_MS = 15000;
+export const BACKOFF_MS = [500, 1000, 1500, 2000];
+export const RETRY_SCALE = 0.75;
+
+export type PatientDeps = PickDeps & {
+  /** told before each further round: the round about to start (2, 3, …) and the time spent so far */
+  onWait?: (round: number, spentMs: number) => void;
+};
+
+/** pickServer, again and again with a growing pause, for up to `patienceMs` in all. */
+export async function pickServerPatiently(candidates: readonly string[], d: PatientDeps, patienceMs = PATIENCE_MS): Promise<string | null> {
+  const t0 = d.now();
+  for (let round = 1; ; round++) {
+    const url = await pickServer(candidates, round === 1 ? d : {...d, scale: RETRY_SCALE});
+    if (url) return url;
+    const spent = d.now() - t0;
+    const pause = BACKOFF_MS[Math.min(round - 1, BACKOFF_MS.length - 1)];
+    // a further round only when it can still start inside the patience
+    if (spent + pause >= patienceMs) return null;
+    d.onWait?.(round + 1, spent);
+    await d.sleep(pause);
+  }
+}

@@ -14,6 +14,7 @@ import {routeStarted} from '../routeTiming';
 import {dropWindowBackground, frameScreen, restoreWindowBackground} from '../perfTier';
 import Tabs from './screens/Tabs';
 import TabBar from './ui/TabBar';
+import {setTabBarShown} from './ui/tabBarShown';
 import Sky from './ui/Sky';
 import PhoneOverlays from './Overlays';
 import {useLinks} from './links';
@@ -82,6 +83,7 @@ export default function PhoneNavigator() {
           setRoute(r?.name || 'Home');
         }}
         onStateChange={() => {
+          setTabBarShown(true); // a new page: the tab bar is out again
           const r = navRef.getCurrentRoute();
           if (!r) return;
           routeStarted(`phone:${r.name.toLowerCase()}`, r.key);

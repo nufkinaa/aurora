@@ -18,6 +18,7 @@
 //                       report sent again without it
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {NativeModules} from 'react-native';
+import {isPhone} from './formFactor';
 import {buildReport, FRAME_RATE_SETTLE_MS, FRAME_RATE_WAIT_MS, Lies, mergeLies, NativeAv} from './avCaps';
 
 type AvNative = {
@@ -75,7 +76,7 @@ export const reportCaps = (post: (r: unknown) => Promise<{id?: string}>, serverK
   reporting = (async () => {
     try {
       const [caps, lies] = await Promise.all([n.getCapabilities(), loadLies()]);
-      const report = buildReport(caps, lies);
+      const report = buildReport(caps, lies, isPhone() ? 'phone' : 'tv');
       const res = await post(report);
       if (res && typeof res.id === 'string' && /^[0-9a-f]{16}$/.test(res.id)) {
         capsId = res.id;

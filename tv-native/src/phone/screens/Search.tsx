@@ -244,18 +244,18 @@ export function SearchScreen({pushed, startVoice: startWithVoice, startQ}: {push
             accessibilityLabel="Search"
           />
           {q ? (
-            <Tap borderless onPress={() => run('')} style={s.clear} accessibilityLabel="Clear the search">
+            <Tap borderless hitSlop={8} onPress={() => run('')} style={s.clear} accessibilityLabel="Clear the search">
               <Icon name="close" size={20} color={colors.textDim} />
             </Tap>
           ) : null}
         </View>
-        <IconCircle icon="mic" label={listening ? 'Stop listening' : 'Search by voice'} onPress={() => (listening ? voiceCtl.current?.stop() : startVoice())} size={54} style={listening ? s.micOn : undefined} />
+        <IconCircle uiId="search.voice" icon="mic" label={listening ? 'Stop listening' : 'Search by voice'} onPress={() => (listening ? voiceCtl.current?.stop() : startVoice())} size={54} style={listening ? s.micOn : undefined} />
       </View>
       {voiceText ? (
         <View style={s.voice}>
           <Text style={s.voiceText}>{voiceText}</Text>
           {listening ? (
-            <ChipButton
+            <ChipButton uiId="search.voice.lang"
               label={LANG_SELF[otherLang(voice.lang)]}
               onPress={() => {
                 const next = otherLang(voice.lang);
@@ -283,7 +283,7 @@ export function SearchScreen({pushed, startVoice: startWithVoice, startQ}: {push
           </View>
           <View style={s.wrap}>
             {recent.map(r => (
-              <ChipButton key={r} label={r} icon="clock" onPress={() => run(r, true)} />
+              <ChipButton uiId="search.recent.pick" key={r} label={r} icon="clock" onPress={() => run(r, true)} />
             ))}
           </View>
         </View>
@@ -301,7 +301,7 @@ export function SearchScreen({pushed, startVoice: startWithVoice, startQ}: {push
       {!idle && suggestions.length ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={s.shelf}>
           {suggestions.map((sg, i) => (
-            <ChipButton key={`${sg.kind}-${i}`} label={chipLabel(sg)} icon={sg.kind === 'person' ? 'person' : sg.kind === 'genre' ? 'sparkle' : 'search'} onPress={() => pickSuggestion(sg)} />
+            <ChipButton uiId="search.suggestion.pick" key={`${sg.kind}-${i}`} label={chipLabel(sg)} icon={sg.kind === 'person' ? 'person' : sg.kind === 'genre' ? 'sparkle' : 'search'} onPress={() => pickSuggestion(sg)} />
           ))}
         </ScrollView>
       ) : null}
@@ -314,7 +314,7 @@ export function SearchScreen({pushed, startVoice: startWithVoice, startQ}: {push
       {!idle && noteText && phase === 'done' ? (
         <View style={s.noteBox}>
           <Text style={s.noteText}>{noteText}</Text>
-          {note === 'offline' || note === 'unreachable' ? <GlassButton label={SEARCH_TEXT.retry} icon="refresh" onPress={() => run(q, true)} style={{alignSelf: 'flex-start'}} /> : null}
+          {note === 'offline' || note === 'unreachable' ? <GlassButton uiId="search.retry" label={SEARCH_TEXT.retry} icon="refresh" onPress={() => run(q, true)} style={{alignSelf: 'flex-start'}} /> : null}
         </View>
       ) : null}
     </View>
@@ -361,7 +361,7 @@ const s = StyleSheet.create({
   block: {marginTop: 14},
   blockHead: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: GUTTER},
   blockTitle: {color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: 10},
-  link: {color: colors.accent, fontSize: 15, fontWeight: '700', padding: 6},
+  link: {color: colors.accent, fontSize: 15, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 14},
   wrap: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: GUTTER},
   shelf: {paddingHorizontal: GUTTER, gap: 8, paddingBottom: 6},
   busy: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: GUTTER, paddingVertical: 10},

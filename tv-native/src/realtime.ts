@@ -4,7 +4,8 @@
 // backoff. Messages are dispatched by `type` to whoever subscribed.
 import {AppState, Platform} from 'react-native';
 import {getBaseUrl, getSession, forgetLibraryReads} from './api';
-import {APP_VERSION} from './update';
+import {APP_VERSION, PHONE_APP_VERSION} from './update';
+import {appId, isPhone} from './formFactor';
 import {registerProfileCache} from './profileScope';
 import {wsDown, wsUp} from './telemetry'; // [analytics]
 import {
@@ -132,7 +133,8 @@ export const send = (data: Record<string, unknown>) => {
 const deviceInfo = () => {
   const c = (Platform.constants || {}) as {Brand?: string; Manufacturer?: string; Model?: string};
   const maker = c.Brand || c.Manufacturer || '';
-  return {app: 'tv', build: `Aurora TV ${APP_VERSION}`, model: [maker, c.Model].filter(Boolean).join(' ') || 'Android TV'};
+  const phone = isPhone();
+  return {app: appId(), build: phone ? `Aurora phone ${PHONE_APP_VERSION}` : `Aurora TV ${APP_VERSION}`, model: [maker, c.Model].filter(Boolean).join(' ') || (phone ? 'Android phone' : 'Android TV')};
 };
 
 // What this TV is doing, as the site reports it (ws.js reportActivity): the

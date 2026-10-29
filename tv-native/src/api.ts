@@ -7,7 +7,7 @@ import {httpFailed} from './telemetry'; // [analytics] (telemetry.ts imports not
 import {takeBlur} from './blur';
 import {registerProfileCache} from './profileScope';
 import {tooManyWait, TOO_MANY_RETRIES} from './serverManners';
-import {pickServer} from './serverPick';
+import {pickServer, pickServerPatiently} from './serverPick';
 import type {TasteCard, Verdict} from './tasteSession';
 import type {ResyncAnswer, ResyncBody, SubTiming} from './playback/resync';
 // what this box can play, and the server's decision from it (TV round 2026-10-19)
@@ -1195,11 +1195,14 @@ type Pinged = {authMode: string | null; imgBlur: boolean; hosts: string[]};
 const pinged = new Map<string, Pinged>();
 const pingUrl = (url: string, timeoutMs = 2000): Promise<boolean> => {
   const ctrl = new AbortController();
+  const t0 = Date.now();
+  let settled = false;
   // /api/ping, NOT /api/home: ping is tiny, stays open in EVERY auth mode
   // (closed mode 401s /api/home, which made resolveServer declare a healthy
   // server dead), and reports the mode — captured here so boot has it free.
   const attempt = fetch(url.replace(/\/+$/, '') + '/api/ping', {signal: ctrl.signal})
     .then(async res => {
+      settled = true;
       if (!res.ok) return false;
       try {
         const j = await res.json();
@@ -1214,9 +1217,15 @@ const pingUrl = (url: string, timeoutMs = 2000): Promise<boolean> => {
       }
       return true;
     })
-    .catch(() => false);
+    .catch(e => {
+      settled = true;
+      // [android-phone] why a ping failed, for the first-launch device check
+      if (isPhone()) console.log(`[faststart] ping ${url} failed after ${Date.now() - t0}ms: ${String((e as Error)?.message || e).slice(0, 80)}`);
+      return false;
+    });
   const timeout = new Promise<boolean>(resolve =>
     setTimeout(() => {
+      if (isPhone() && !settled) console.log(`[faststart] ping ${url} timed out after ${timeoutMs}ms`);
       // Best-effort cancel so a slow socket does not linger; the race is already
       // decided regardless of whether this actually aborts.
       try {
@@ -1244,14 +1253,17 @@ const pingUrl = (url: string, timeoutMs = 2000): Promise<boolean> => {
 // Every call walks the list from the top: a Retry on the offline screen, and
 // the next launch, start at the first address again, so a run that fell back
 // to the second address is that run only.
-export const resolveServer = async (_savedUrl?: string | null): Promise<string | null> => {
-  const url = await pickServer(SERVER_CANDIDATES, {
+export const resolveServer = async (_savedUrl?: string | null, onWait?: (round: number, spentMs: number) => void): Promise<string | null> => {
+  const deps = {
     ping: pingUrl,
     now: Date.now,
-    sleep: ms => new Promise<void>(r => setTimeout(r, ms)),
+    sleep: (ms: number) => new Promise<void>(r => setTimeout(r, ms)),
     // [android-phone] a phone on mobile data gets twice the TV's waits
     scale: isPhone() ? 2 : 1,
-  });
+  };
+  // [android-phone] the phone keeps asking while its network wakes up (serverPick.ts
+  // pickServerPatiently); the TV asks one round, as it always did
+  const url = isPhone() ? await pickServerPatiently(SERVER_CANDIDATES, {...deps, onWait}) : await pickServer(SERVER_CANDIDATES, deps);
   if (url) {
     // what THIS server said — not whichever answered last
     const said = pinged.get(url);

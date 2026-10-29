@@ -16,7 +16,9 @@ export default function ListRow({
   chevron,
   disabled,
   testID,
+  uiId,
 }: {
+  uiId?: string;
   icon?: PhoneIconName;
   title: string;
   detail?: string | null;
@@ -29,6 +31,7 @@ export default function ListRow({
 }) {
   return (
     <Tap
+      uiId={uiId}
       testID={testID}
       flat
       disabled={disabled || !onPress}

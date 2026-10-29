@@ -213,6 +213,8 @@ const SKIP_CHAIN_MS = 900;
 const HIDE_MS = 7000;
 // [android-phone] the phone's controls step aside sooner (a thumb brings them back)
 const PHONE = isPhone();
+// what the play marks say this app is (the server keeps phone, tv and web apart)
+const APP_ID = PHONE ? 'phone' : 'tv';
 const HIDE_NOW_MS = PHONE ? 4000 : HIDE_MS;
 // seekTo()'s debounce: a burst of remote presses moves the scrubber instantly
 // but touches the network once, after the presses stop.
@@ -2670,6 +2672,8 @@ export default function Player({
               : {}),
           }
         : undefined,
+    // the metadata is read once with the uri on purpose (see above): a change would reload the source
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [uri, lowRam],
   );
 
@@ -3026,7 +3030,7 @@ export default function Player({
     [id, isTorrent],
   );
   useEffect(() => {
-    mark('mount', {app: 'tv'});
+    mark('mount', {app: APP_ID});
   }, [mark]);
   // A stall is buffering that lasts: over three seconds, after the first
   // frame, and not one the viewer caused by seeking a moment ago.
@@ -3040,13 +3044,13 @@ export default function Player({
       stallTimer.current = null;
       if (!on) {
         const ms = stallClockOff(stallClock.current, Date.now());
-        if (ms) mark('stall-end', {lasted: ms, at: Math.round(curRef.current || 0), app: 'tv'});
+        if (ms) mark('stall-end', {lasted: ms, at: Math.round(curRef.current || 0), app: APP_ID});
         return;
       }
       if (!stallClockOn(stallClock.current, Date.now())) return;
       stallTimer.current = setTimeout(() => {
         if (!playTracked.current || pausedRef.current || probing.current) return;
-        mark('stall', {at: Math.round(curRef.current || 0), transcode: usingTranscodeRef.current, app: 'tv'});
+        mark('stall', {at: Math.round(curRef.current || 0), transcode: usingTranscodeRef.current, app: APP_ID});
         track('feat', {f: 'stall_tv'});
       }, STALL_MARK_MS);
     },
@@ -3204,7 +3208,7 @@ export default function Player({
       if (waited < SLOW_START_MS) return;
       if (!slowMarked.current) {
         slowMarked.current = true;
-        mark('slow-start', {at: Math.round(waited / 1000), transcode: usingTranscodeRef.current, app: 'tv'});
+        mark('slow-start', {at: Math.round(waited / 1000), transcode: usingTranscodeRef.current, app: APP_ID});
       }
       const next = waited >= SLOW_BIG_MS ? 'big' : 'slow';
       setSlowStart(cur => (cur === next ? cur : next));
@@ -3338,7 +3342,7 @@ export default function Player({
       againTimer.current = null;
       if (!stopCardRef.current) {
         const at = spotOf({resumeAt: resumeAt.current, held: heldAt.current, cur: curRef.current});
-        mark('stop-card', {kind, at: Math.round(at), app: 'tv'});
+        mark('stop-card', {kind, at: Math.round(at), app: APP_ID});
       }
       console.log(`[player] the card: ${kind}`);
       stopCardRef.current = kind;
@@ -3362,7 +3366,7 @@ export default function Player({
     againTries.current.length = 0;
     watchReset(watch.current);
     hideStop();
-    mark('media-error', {did: 'retry', at: Math.round(spotOf({resumeAt: resumeAt.current, held: heldAt.current, cur: curRef.current})), app: 'tv'});
+    mark('media-error', {did: 'retry', at: Math.round(spotOf({resumeAt: resumeAt.current, held: heldAt.current, cur: curRef.current})), app: APP_ID});
     reloadSame();
   }, [hideStop, mark, reloadSame]);
   // THE FROZEN-PICTURE WATCHER, once a second (recovery.ts watchTick): the
@@ -3402,7 +3406,7 @@ export default function Player({
         if (heldAt.current > 0) console.log(`[player] moving again at ${ct.toFixed(1)}`);
         heldAt.current = 0;
         if (stopCardRef.current) {
-          mark('media-error', {did: 'back', at: Math.round(ct), app: 'tv'});
+          mark('media-error', {did: 'back', at: Math.round(ct), app: APP_ID});
           hideStop();
         }
       } else if (out === 'nudge') {
@@ -3413,14 +3417,14 @@ export default function Player({
         // each) where a seek can only drop what was arriving — its first step
         // is the reload at 20 s, as the 25 s re-ask it replaces was.
         if (usingTranscodeRef.current) return;
-        mark('stall-nudge', {at: Math.round(ct), app: 'tv'});
+        mark('stall-nudge', {at: Math.round(ct), app: APP_ID});
         videoRef.current?.seek(toMedia(clockBase.current, ct));
       } else if (out === 'rebuild') {
-        mark('stall-rebuild', {at: Math.round(ct), app: 'tv'});
+        mark('stall-rebuild', {at: Math.round(ct), app: APP_ID});
         toast('Still stuck — loading it again…');
         reloadSame();
       } else if (out === 'card') {
-        mark('stall-card', {at: Math.round(ct), app: 'tv'});
+        mark('stall-card', {at: Math.round(ct), app: APP_ID});
         showStop('stream');
       }
     }, 1000);
@@ -3792,7 +3796,7 @@ export default function Player({
       ms,
       transcode: usingTranscodeRef.current,
       v: usingTranscodeRef.current ? currentV.current : 'direct',
-      app: 'tv',
+      app: APP_ID,
       meta: startMs.current.meta,
       armed: startMs.current.armed,
       buf: tuning().startBufferMs, // the start buffer in force (tuning.ts)
@@ -3807,7 +3811,7 @@ export default function Player({
     const path = usingTranscodeRef.current ? (currentV.current === 'copy' ? 'copy' : 'encode') : 'direct';
     startup.current = startupOf(mountedAt.current, {open: mountedAt.current, ...steps.current}, path);
     if (startup.current) {
-      mark('start-up', {app: 'tv', total: startup.current.total, slow: startup.current.slow, path, steps: stepsText(startup.current)});
+      mark('start-up', {app: APP_ID, total: startup.current.total, slow: startup.current.slow, path, steps: stepsText(startup.current)});
     }
   };
 
@@ -4061,7 +4065,7 @@ export default function Player({
       (usingTranscodeRef.current ? currentV.current === 'copy' && !triedH264.current : !switchedToTranscode.current);
     const at = spotOf({resumeAt: resumeAt.current, held: heldAt.current, cur: curRef.current});
     const a = againStep(againTries.current, Date.now(), {played: pathPlayed.current, canEncode});
-    mark('media-error', {did: a.kind, why: why.slice(0, 40), n: a.kind === 'again' ? a.n : 0, at: Math.round(at), played: Math.round(pathPlayed.current), app: 'tv'});
+    mark('media-error', {did: a.kind, why: why.slice(0, 40), n: a.kind === 'again' ? a.n : 0, at: Math.round(at), played: Math.round(pathPlayed.current), app: APP_ID});
     if (a.kind === 'again') {
       setBuffering(true);
       if (againTimer.current) clearTimeout(againTimer.current);
@@ -4094,7 +4098,7 @@ export default function Player({
     const detail = `${e?.error?.errorString || ''} ${e?.error?.errorException || ''}`;
     console.log('[player] error:', detail);
     playerError(detail, (e?.error as {errorCode?: string} | undefined)?.errorCode); // [analytics] ExoPlayer's error name and code, never the address
-    mark('error', {m: detail.trim().slice(0, 40), at: Math.round(curRef.current || 0), app: 'tv'});
+    mark('error', {m: detail.trim().slice(0, 40), at: Math.round(curRef.current || 0), app: APP_ID});
     const base = itemRef.current?.transcodeBase || stream?.transcodeBase;
 
     // Errors while a far-seek probe is in flight are EXPECTED: the probe's

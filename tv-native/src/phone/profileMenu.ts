@@ -17,10 +17,10 @@ export const openProfileMenu = () => {
   openActions({
     title: nameOf() || 'Your profile',
     items: [
-      {label: 'Settings', onPress: () => pushScreen('Settings', undefined)},
-      {label: 'Downloads', onPress: () => pushScreen('Downloads', undefined)},
-      {label: 'Your TVs', onPress: () => pushPhone('Remote')},
-      {label: closed ? 'Sign out' : 'Switch profile', onPress: () => switchFn?.()},
+      {label: 'Settings', uiId: 'phone.menu.settings', onPress: () => pushScreen('Settings', undefined)},
+      {label: 'Downloads', uiId: 'phone.menu.downloads', onPress: () => pushScreen('Downloads', undefined)},
+      {label: 'Your TVs', uiId: 'phone.menu.remote', onPress: () => pushPhone('Remote')},
+      {label: closed ? 'Sign out' : 'Switch profile', uiId: 'phone.menu.switch', onPress: () => switchFn?.()},
     ],
   });
 };

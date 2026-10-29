@@ -3,6 +3,7 @@
 // TV never drew (tabs, lock, share, picture-in-picture…), in the same 24×24
 // filled style (Material paths).
 import React from 'react';
+import {I18nManager, View} from 'react-native';
 import Svg, {Path} from 'react-native-svg';
 import TvIcon, {IconName as TvIconName} from '../../components/Icon';
 
@@ -53,12 +54,21 @@ const EXTRA = {
 
 export type PhoneIconName = TvIconName | keyof typeof EXTRA;
 
+// Icons that point somewhere along the line of reading: mirrored when the phone
+// reads right to left (Hebrew), as Android mirrors its own. Play, forward/back 10 s
+// and media icons keep their direction (they point along time, not the page).
+const MIRRORED = new Set<string>(['back', 'chevronLeft', 'chevronRight', 'send']);
+
 export default function Icon({name, size = 24, color = '#fff'}: {name: PhoneIconName; size?: number; color?: string}) {
   const d = (EXTRA as Record<string, string>)[name];
-  if (!d) return <TvIcon name={name as TvIconName} size={size} color={color} />;
-  return (
+  const drawn = !d ? (
+    <TvIcon name={name as TvIconName} size={size} color={color} />
+  ) : (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
       <Path d={d} />
     </Svg>
   );
+  return I18nManager.isRTL && MIRRORED.has(name) ? <View style={FLIP}>{drawn}</View> : drawn;
 }
+
+const FLIP = {transform: [{scaleX: -1}]};

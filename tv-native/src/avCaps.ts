@@ -39,7 +39,7 @@ export type NativeAv = {
 export type Lies = {passthrough?: string[]; decode?: string[]; video?: string[]};
 
 export type CapsReport = {
-  client: 'tv';
+  client: 'tv' | 'phone';
   model?: string;
   sdk?: number;
   video: Record<string, {profiles?: string[]; maxW?: number; maxH?: number; maxFps?: number; maxLevel?: number}>;
@@ -83,7 +83,7 @@ export const profileFor = (codec: string | null | undefined, bitDepth: number | 
 };
 
 /** The report for the server: what the box said, minus what it lied about. */
-export const buildReport = (n: NativeAv | null | undefined, lies: Lies = {}): CapsReport => {
+export const buildReport = (n: NativeAv | null | undefined, lies: Lies = {}, client: 'tv' | 'phone' = 'tv'): CapsReport => {
   const src = n || {};
   const video: CapsReport['video'] = {};
   const lieVideo = list(lies.video);
@@ -102,7 +102,7 @@ export const buildReport = (n: NativeAv | null | undefined, lies: Lies = {}): Ca
   // E-AC-3 that cannot be passed through cannot carry Atmos (JOC) through either
   const pass = list(src.passthrough).filter(x => !liePass.includes(x) && !(x === 'eac3-joc' && liePass.includes('eac3')));
   const out: CapsReport = {
-    client: 'tv',
+    client,
     video,
     hdr: list(src.hdr),
     dv: Array.isArray(src.dv) ? src.dv.filter(x => typeof x === 'number') : [],

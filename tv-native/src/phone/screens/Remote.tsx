@@ -16,7 +16,7 @@ import {imgSrc} from '../../api';
 import {openActions} from '../../overlay';
 import {showToast} from '../../toast';
 import {command, Device, useDevices, useDeviceState} from '../remote/controller';
-import {BackBar} from '../ui/PageHead';
+import {BackBar, useColumn, useSolidBar} from '../ui/PageHead';
 import {ChipButton} from '../ui/Buttons';
 import Tap from '../ui/Tap';
 import Icon, {PhoneIconName} from '../ui/Icon';
@@ -31,15 +31,17 @@ const fmt = (s: number) => {
   return (h ? `${h}:${String(m).padStart(2, '0')}` : `${m}`) + `:${String(a % 60).padStart(2, '0')}`;
 };
 
-function Key({icon, label, onPress, size = 64, filled}: {icon: PhoneIconName; label: string; onPress: () => void; size?: number; filled?: boolean}) {
+function Key({icon, label, onPress, size = 64, filled, uiId}: {icon: PhoneIconName; label: string; onPress: () => void; size?: number; filled?: boolean; uiId?: string}) {
   return (
-    <Tap borderless accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={[s.key, {width: size, height: size, borderRadius: size / 2}, filled && s.keyOn]}>
+    <Tap uiId={uiId} borderless accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={[s.key, {width: size, height: size, borderRadius: size / 2}, filled && s.keyOn]}>
       <Icon name={icon} size={Math.round(size * 0.42)} color={filled ? colors.bg : colors.text} />
     </Tap>
   );
 }
 
 export default function Remote() {
+  const bar = useSolidBar();
+  const column = useColumn();
   const insets = useSafeAreaInsets();
   const list = useDevices();
   const [pick, setPick] = useState<string | null>(null);
@@ -72,7 +74,7 @@ export default function Remote() {
   const poster = now?.poster ? imgSrc(now.poster) : null;
   return (
     <View style={s.root}>
-      <ScrollView contentContainerStyle={{paddingTop: insets.top + 70, paddingBottom: insets.bottom + 40, paddingHorizontal: GUTTER}}>
+      <ScrollView onScroll={bar.onScroll} scrollEventThrottle={32} contentContainerStyle={[{paddingTop: insets.top + 70, paddingBottom: insets.bottom + 40, paddingHorizontal: GUTTER}, column]}>
         <Text style={s.h1}>Your TVs</Text>
         {!list.length ? (
           <View style={s.empty}>
@@ -83,7 +85,7 @@ export default function Remote() {
           <>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.devs}>
               {list.map(d => (
-                <ChipButton key={d.deviceId} icon="series" label={d.mine === false && d.profile?.name ? `${d.name} · ${d.profile.name}` : d.name} active={d.deviceId === dev?.deviceId} onPress={() => setPick(d.deviceId)} />
+                <ChipButton uiId="phone.remote.device" key={d.deviceId} icon="series" label={d.mine === false && d.profile?.name ? `${d.name} · ${d.profile.name}` : d.name} active={d.deviceId === dev?.deviceId} onPress={() => setPick(d.deviceId)} />
               ))}
             </ScrollView>
 
@@ -106,15 +108,15 @@ export default function Remote() {
                     <Text style={s.time}>{now.duration ? `-${fmt(now.duration - now.position)}` : ''}</Text>
                   </View>
                   <View style={s.transport}>
-                    <Key icon="back10" label="Back 10 seconds" onPress={() => go('skip', {by: -10})} size={56} />
-                    <Key icon={now.paused ? 'play' : 'pause'} label={now.paused ? 'Play' : 'Pause'} onPress={() => go('toggle')} size={72} filled />
-                    <Key icon="forward10" label="Forward 10 seconds" onPress={() => go('skip', {by: 10})} size={56} />
-                    {now.hasNext ? <Key icon="next" label={`Next — ${now.nextLabel || 'episode'}`} onPress={() => go('next')} size={56} /> : null}
+                    <Key uiId="phone.remote.seek" icon="back10" label="Back 10 seconds" onPress={() => go('skip', {by: -10})} size={56} />
+                    <Key uiId="phone.remote.playpause" icon={now.paused ? 'play' : 'pause'} label={now.paused ? 'Play' : 'Pause'} onPress={() => go('toggle')} size={72} filled />
+                    <Key uiId="phone.remote.seek" icon="forward10" label="Forward 10 seconds" onPress={() => go('skip', {by: 10})} size={56} />
+                    {now.hasNext ? <Key uiId="phone.remote.next" icon="next" label={`Next — ${now.nextLabel || 'episode'}`} onPress={() => go('next')} size={56} /> : null}
                   </View>
                   <View style={s.trackRow}>
-                    {now.subs.length ? <ChipButton icon="cc" label="Subtitles" onPress={() => tracks('sub')} /> : null}
-                    {now.audios.length > 1 ? <ChipButton icon="volume" label="Audio" onPress={() => tracks('audio')} /> : null}
-                    <ChipButton icon="close" label="Stop" onPress={() => go('stop')} />
+                    {now.subs.length ? <ChipButton uiId="phone.remote.subtitles" icon="cc" label="Subtitles" onPress={() => tracks('sub')} /> : null}
+                    {now.audios.length > 1 ? <ChipButton uiId="phone.remote.audio" icon="volume" label="Audio" onPress={() => tracks('audio')} /> : null}
+                    <ChipButton uiId="phone.remote.stop" icon="close" label="Stop" onPress={() => go('stop')} />
                   </View>
                 </>
               ) : (
@@ -124,42 +126,42 @@ export default function Remote() {
 
             <View style={s.pad}>
               <View style={s.ring}>
-                <Tap borderless style={[s.arrow, {alignSelf: 'center'}]} onPress={() => key('up')} accessibilityLabel="Up">
+                <Tap borderless style={[s.arrow, {alignSelf: 'center'}]} uiId="phone.remote.arrow" onPress={() => key('up')} accessibilityLabel="Up">
                   <Icon name="chevronUp" size={34} color={colors.text} />
                 </Tap>
                 <View style={s.mid}>
-                  <Tap borderless style={s.arrow} onPress={() => key('left')} accessibilityLabel="Left">
+                  <Tap borderless style={s.arrow} uiId="phone.remote.arrow" onPress={() => key('left')} accessibilityLabel="Left">
                     <Icon name="chevronLeft" size={34} color={colors.text} />
                   </Tap>
-                  <Tap borderless style={s.ok} onPress={() => key('ok')} accessibilityLabel="OK">
+                  <Tap borderless style={s.ok} uiId="phone.remote.ok" onPress={() => key('ok')} accessibilityLabel="OK">
                     <Text style={s.okText}>OK</Text>
                   </Tap>
-                  <Tap borderless style={s.arrow} onPress={() => key('right')} accessibilityLabel="Right">
+                  <Tap borderless style={s.arrow} uiId="phone.remote.arrow" onPress={() => key('right')} accessibilityLabel="Right">
                     <Icon name="chevronRight" size={34} color={colors.text} />
                   </Tap>
                 </View>
-                <Tap borderless style={[s.arrow, {alignSelf: 'center'}]} onPress={() => key('down')} accessibilityLabel="Down">
+                <Tap borderless style={[s.arrow, {alignSelf: 'center'}]} uiId="phone.remote.arrow" onPress={() => key('down')} accessibilityLabel="Down">
                   <Icon name="chevronDown" size={34} color={colors.text} />
                 </Tap>
               </View>
               <View style={s.side}>
-                <Key icon="back" label="Back" onPress={() => key('back')} />
-                <Key icon="home" label="Home" onPress={() => key('home')} />
+                <Key uiId="phone.remote.back" icon="back" label="Back" onPress={() => key('back')} />
+                <Key uiId="phone.remote.home" icon="home" label="Home" onPress={() => key('home')} />
               </View>
             </View>
 
             {vol?.supported ? (
               <View style={s.vol}>
-                <Key icon="volumeOff" label={vol.muted ? 'Unmute' : 'Mute'} onPress={() => go('mute', {on: !vol.muted})} size={52} filled={!!vol.muted} />
-                <Key icon="minus" label="Volume down" onPress={() => go('volume', {step: -1})} size={52} />
+                <Key uiId="phone.remote.volume" icon="volumeOff" label={vol.muted ? 'Unmute' : 'Mute'} onPress={() => go('mute', {on: !vol.muted})} size={52} filled={!!vol.muted} />
+                <Key uiId="phone.remote.volume" icon="minus" label="Volume down" onPress={() => go('volume', {step: -1})} size={52} />
                 <Text style={s.volText}>{vol.level != null ? `${Math.round(vol.level * 100)}` : ''}</Text>
-                <Key icon="plus" label="Volume up" onPress={() => go('volume', {step: 1})} size={52} />
+                <Key uiId="phone.remote.volume" icon="plus" label="Volume up" onPress={() => go('volume', {step: 1})} size={52} />
               </View>
             ) : null}
           </>
         )}
       </ScrollView>
-      <BackBar />
+      <BackBar solid={bar.solid} title={bar.solid ? 'Your TVs' : undefined} />
     </View>
   );
 }

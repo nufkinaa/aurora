@@ -12,7 +12,7 @@ import {Marks, watchStateFor} from '../../watchState';
 import {usePNav} from '../nav';
 import Grid from '../ui/Grid';
 import {ChipButton, GlassButton} from '../ui/Buttons';
-import PageHead from '../ui/PageHead';
+import PageHead, {useSolidBar} from '../ui/PageHead';
 import TopBar from '../ui/TopBar';
 import {useTabBarSpace} from '../ui/TabBar';
 import Sheet from '../ui/Sheet';
@@ -43,6 +43,7 @@ const FILTERS: Filter[] = [
 ];
 
 export default function MyList() {
+  const bar = useSolidBar();
   const navigation = usePNav();
   const focused = useIsFocused();
   const {profileId} = useApp();
@@ -89,9 +90,9 @@ export default function MyList() {
       <PageHead title="My List" sub={items ? `${items.length} ${items.length === 1 ? 'title' : 'titles'}` : null} />
       {items && items.length ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
-          <ChipButton label={sortLabel} icon="chevronDown" onPress={() => setSortSheet(true)} />
+          <ChipButton uiId="mylist.filter" label={sortLabel} icon="chevronDown" onPress={() => setSortSheet(true)} />
           {FILTERS.map(f => (
-            <ChipButton key={`${f.group}-${f.id}`} label={f.label} active={picked[f.group] === f.id} onPress={() => toggle(f)} />
+            <ChipButton uiId="mylist.filter" key={`${f.group}-${f.id}`} label={f.label} active={picked[f.group] === f.id} onPress={() => toggle(f)} />
           ))}
         </ScrollView>
       ) : null}
@@ -100,6 +101,7 @@ export default function MyList() {
   return (
     <View style={s.root}>
       <Grid
+        onScroll={bar.onScroll}
         listRef={listRef}
         items={shown}
         onPress={open}
@@ -125,12 +127,12 @@ export default function MyList() {
               <Text style={s.emptyText}>
                 {err || (items.length ? 'Nothing matches. Try fewer filters?' : 'My List is empty. Tap + on anything that catches your eye.')}
               </Text>
-              {!items.length && !err ? <GlassButton label="Browse movies" icon="film" onPress={() => setTab('movies')} /> : null}
+              {!items.length && !err ? <GlassButton uiId="phone.mylist.browse" label="Browse movies" icon="film" onPress={() => setTab('movies')} /> : null}
             </View>
           )
         }
       />
-      <TopBar />
+      <TopBar solid={bar.solid} />
       <Sheet visible={sortSheet} onClose={() => setSortSheet(false)} title="Sort">
         {SORTS.map(x => (
           <ListRow
