@@ -96,3 +96,12 @@ The release build (for elia, later) is the same command without the QA line: nuf
 
 ## 13. Battery
 1. One hour of browsing with the screen on, no film: `adb shell dumpsys batterystats com.aurora.phone` — no wakelocks held outside playback; the socket reconnects on return from background.
+
+## 14. A weak phone (2–3 GB, Android 8–10, e.g. a Galaxy A10 / Redmi 8)
+1. `adb logcat -s ReactNativeJS | grep "low-end"` prints `[phone] low-end: yes (…)`; on a mid-range phone it prints `no`.
+2. Cold start (app killed, profile remembered): `adb logcat -s ReactNativeJS | grep faststart` — `paint t=` under 1500 ms, and the whole launch (tap to shelves) under 3 s.
+3. Home and Movies: a minute of flinging, then `adb shell dumpsys gfxinfo com.aurora.phone` — Janky frames under 5 %, 90th percentile under 32 ms.
+4. Looks the same as on a fast phone: no missing pictures, no blank shelves after a fast fling (they fill in), pictures appear without a fade.
+5. `adb shell dumpsys meminfo com.aurora.phone` after ten screens: TOTAL PSS around 250 MB or less; Home button then `adb shell am send-trim-memory com.aurora.phone BACKGROUND` — the bitmaps drop to a few MB.
+6. Switching tabs: Movies, Shows, My List and Search start at the top again after another tab was used (a weak phone lets them go); Home keeps its place.
+7. A film starts within ~4 s on Wi-Fi; the player does not stutter while the controls fade.
