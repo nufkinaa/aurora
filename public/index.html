@@ -39,7 +39,17 @@
         // Glass is the default; only a profile that chose the classic look
         // ("legacy") boots without it.
         if (localStorage.getItem("aurora-look") !== "legacy") document.documentElement.dataset.look = "glass";
-        const a = localStorage.getItem("aurora-accent");
+        // An iPhone with the Dynamic Island (14 Pro and later): the top
+        // controls sit a little lower (tokens.css --top-gap). From the Home
+        // Screen the top inset says so by itself; in a Safari tab it is 0 on
+        // every iPhone, so the screen tells: the island phones are 852, 874,
+        // 912, 932 or 956 points tall, the notch ones 812, 844, 896 or 926,
+        // the older ones less (a phone set to Display Zoom counts as smaller).
+        if (/iPhone/.test(navigator.userAgent)) {
+          const tall = Math.max(screen.width, screen.height);
+          if (tall >= 852 && tall !== 896 && tall !== 926) document.documentElement.classList.add("ios-island");
+        }
+        const a =localStorage.getItem("aurora-accent");
         if (a && /^#[0-9a-f]{6}$/i.test(a)) {
           const s = document.documentElement.style;
           s.setProperty("--accent", a);

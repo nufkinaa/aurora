@@ -2931,7 +2931,7 @@ html[data-look="glass"] .pbtn.big svg {
      while the cast and the facts scroll beneath it */
   .xr-top {
     position: sticky;
-    top: calc(66px + env(safe-area-inset-top, 0px));
+    top: calc(66px + env(safe-area-inset-top, 0px) + var(--top-gap, 0px));
     z-index: 5;
     flex-wrap: wrap;
     gap: 8px;
@@ -3302,8 +3302,21 @@ html[data-look="glass"]:root .card.wide .card-progress {
      (and where they always were in a browser tab); the tab bar rides low,
      over the home-indicator strip rather than a whole inset above it. */
   html[data-look="glass"]:root .nav {
-    padding-top: max(10px, env(safe-area-inset-top, 0px));
+    /* (--nav-h carries the island gap on a phone — tokens.css, responsive.css —
+       and the pills come down by the same amount) */
+    padding-top: calc(max(10px, env(safe-area-inset-top, 0px)) + var(--top-gap, 0px));
     height: calc(var(--nav-h) + max(0px, env(safe-area-inset-top, 0px) - 10px));
+    /* Not a scroll box (responsive.css makes the classic strip one below
+       860 px): this one is as wide as its three pills. As a scroller it
+       clipped the pills' soft shadows into a hard dark rectangle behind them,
+       and on iPhone Safari an overflow-scrolling box is a composited
+       scrolling layer of its own — the frosted pills (backdrop-filter) inside
+       it are the layers iOS has been drawing soft. Nothing scrolls here, so
+       nothing is lost. */
+    overflow: visible;
+    -webkit-overflow-scrolling: auto;
+    -webkit-mask-image: none;
+    mask-image: none;
     /* NOT a bar across the top of the screen. iOS 26 treats a fixed element
        that spans the top edge as the page's top bar: it lays its own frosted
        band behind it and fills the status-bar strip above with a flat colour
@@ -3328,7 +3341,7 @@ html[data-look="glass"]:root .card.wide .card-progress {
     position: fixed;
     z-index: 100;
     left: max(var(--page-x), env(safe-area-inset-left, 0px));
-    top: calc(max(10px, env(safe-area-inset-top, 0px)) + 4px);
+    top: calc(max(10px, env(safe-area-inset-top, 0px)) + 4px + var(--top-gap, 0px));
     margin: 0;
   }
   html[data-look="glass"]:root .nav-items {
