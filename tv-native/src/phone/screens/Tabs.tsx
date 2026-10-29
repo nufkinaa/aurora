@@ -7,6 +7,7 @@ import React, {useEffect, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 import {Freeze} from 'react-freeze';
 import {Tab, TABS, useTab} from '../tabs';
+import {LOW_END} from '../lowEnd';
 
 const SCREENS: Record<Tab, () => React.ComponentType> = {
   home: () => require('./Home').default,
@@ -20,7 +21,8 @@ export default function Tabs() {
   const tab = useTab();
   const [opened, setOpened] = useState<Set<Tab>>(() => new Set([tab]));
   useEffect(() => {
-    setOpened(o => (o.has(tab) ? o : new Set([...o, tab])));
+    // a weak phone keeps Home and the tab on show; the others are let go when left
+    setOpened(o => (LOW_END ? new Set<Tab>(['home', tab]) : o.has(tab) ? o : new Set([...o, tab])));
   }, [tab]);
   return (
     <View style={s.root}>

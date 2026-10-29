@@ -11,7 +11,7 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../navigation';
 import {navRef} from '../rootNav';
 import {routeStarted} from '../routeTiming';
-import {frameScreen} from '../perfTier';
+import {dropWindowBackground, frameScreen, restoreWindowBackground} from '../perfTier';
 import Tabs from './screens/Tabs';
 import TabBar from './ui/TabBar';
 import Sky from './ui/Sky';
@@ -58,14 +58,20 @@ const Stack = createNativeStackNavigator<PhoneStackParamList>();
 const navTheme = {...DefaultTheme, dark: true, colors: {...DefaultTheme.colors, background: 'transparent', card: 'transparent', text: '#f3f4f8'}};
 
 
+// Once the sky is on screen the window's own background is a full-screen fill
+// under an opaque picture: let it go (the TV's Ambient does the same), and put
+// it back when the navigator leaves (the wall, sign-in).
+const dropFill = () => requestAnimationFrame(dropWindowBackground);
+
 export default function PhoneNavigator() {
   useEffect(() => warm(), []);
+  useEffect(() => () => restoreWindowBackground(), []);
   useLinks();
   // the tab bar is drawn over every screen but the player
   const [route, setRoute] = useState('Home');
   return (
     <View style={s.root}>
-      <Sky />
+      <Sky onDrawn={dropFill} />
       <NavigationContainer
         ref={navRef as never}
         theme={navTheme}

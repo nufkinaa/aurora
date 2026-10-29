@@ -55,6 +55,7 @@ import {useTabBarSpace} from '../ui/TabBar';
 import {greeting} from '../greeting';
 import {onReselect} from '../tabs';
 import {phoneNative} from '../native';
+import {FADE_MS, LISTS} from '../lowEnd';
 import {colors, FRAME_W, GUTTER, POSTER_W, radius, SHELF_GAP} from '../theme';
 
 
@@ -82,7 +83,7 @@ const Slide = React.memo(function Slide({item, w, h, onPlay, onDetails}: {item: 
   return (
     <View style={{width: w, height: h, paddingHorizontal: 8}}>
       <Tap flat onPress={() => onDetails(item)} style={[s.slide, {height: h}]} accessibilityLabel={`${item.title}, details`}>
-        {src ? <Image source={src} style={StyleSheet.absoluteFill} resizeMode="cover" fadeDuration={200} /> : null}
+        {src ? <Image source={src} style={StyleSheet.absoluteFill} resizeMode="cover" fadeDuration={FADE_MS} /> : null}
         <View style={s.slideFade} pointerEvents="none" />
         <View style={s.slideText}>
           <View style={[s.kicker, {borderColor: show ? 'rgba(127,209,232,0.4)' : 'rgba(240,198,126,0.4)'}]}>
@@ -215,9 +216,9 @@ const Shelf = React.memo(function Shelf({
         contentContainerStyle={s.shelfList}
         ItemSeparatorComponent={Gap}
         getItemLayout={(_, i) => ({length: w + SHELF_GAP, offset: (w + SHELF_GAP) * i, index: i})}
-        initialNumToRender={frame ? 2 : 4}
+        initialNumToRender={frame ? 2 : LISTS.shelfInitial}
         maxToRenderPerBatch={4}
-        windowSize={5}
+        windowSize={LISTS.shelfWindow}
         removeClippedSubviews
         decelerationRate="fast"
         snapToInterval={w + SHELF_GAP}
@@ -270,6 +271,13 @@ export default function Home() {
   const lastFetch = useRef(0);
   const savedText = useRef<string | null>(null);
   const listRef = useRef<FlatList<Block>>(null);
+
+  // the launch mark the device checks read: Home's shelves first on screen
+  const firstData = useRef(data);
+  useEffect(() => {
+    if (!data) return;
+    requestAnimationFrame(() => markLaunch('paint', data === firstData.current ? 'src=snapshot' : 'src=network'));
+  }, [data]);
 
   // the box's copy, when it had not been read yet at mount
   useEffect(() => {
@@ -488,9 +496,9 @@ export default function Home() {
           if (on !== heroOn) setHeroOn(on);
         }}
         scrollEventThrottle={64}
-        initialNumToRender={5}
-        maxToRenderPerBatch={3}
-        windowSize={7}
+        initialNumToRender={LISTS.homeInitial}
+        maxToRenderPerBatch={LISTS.homeBatch}
+        windowSize={LISTS.homeWindow}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} colors={[colors.accentStrong]} progressBackgroundColor="#1b1d36" />}
         ListEmptyComponent={null}
       />

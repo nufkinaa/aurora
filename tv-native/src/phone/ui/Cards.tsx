@@ -15,6 +15,7 @@ import {PixelRatio} from 'react-native';
 import Tap from './Tap';
 import Icon from './Icon';
 import {colors, FRAME_H, FRAME_W, POSTER_H, POSTER_W, radius} from '../theme';
+import {FADE_MS} from '../lowEnd';
 
 /** artSrc (api.ts), never asking past the server's widest variant: a picture drawn wider than
  *  that is asked for at the widest (the original, unsized, would be fetched from the internet
@@ -89,7 +90,7 @@ export const PosterCard = memo(function PosterCard({
       delayLongPress={380}
       style={[s.poster, {width, height: h}]}>
       {src && !failed ? (
-        <Image source={src} style={[StyleSheet.absoluteFill, s.round]} resizeMode="cover" onError={() => setFailed(true)} fadeDuration={150} />
+        <Image source={src} style={[StyleSheet.absoluteFill, s.round]} resizeMode="cover" onError={() => setFailed(true)} fadeDuration={FADE_MS} />
       ) : (
         <TitleTile title={item.title} />
       )}
@@ -135,7 +136,7 @@ export const FrameCard = memo(function FrameCard({
       onPress={() => onPress?.(item)}
       style={[s.frame, {width, height: h}]}>
       {src && !failed ? (
-        <Image source={src} style={[StyleSheet.absoluteFill, {borderRadius: radius.xl - 1}]} resizeMode="cover" onError={() => setFailed(true)} fadeDuration={150} />
+        <Image source={src} style={[StyleSheet.absoluteFill, {borderRadius: radius.xl - 1}]} resizeMode="cover" onError={() => setFailed(true)} fadeDuration={FADE_MS} />
       ) : (
         <TitleTile title={title} wide />
       )}

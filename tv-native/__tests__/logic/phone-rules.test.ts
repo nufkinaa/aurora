@@ -5,6 +5,7 @@ import {decideDrag, deltaLabel, levelAfter, pinchVerdict, seekTarget, zoneOf, SE
 import {parsePhoneLink, shareLink} from '../../src/phone/linkParse';
 import {fromNative, nextSaved, noRoomText, pickOption, roomFor, stateLine} from '../../src/phone/offline/rules';
 import {greeting} from '../../src/phone/greeting';
+import {isWeakPhone} from '../../src/phone/lowEnd';
 
 describe('player gestures', () => {
   test('a drag says what it is only past a few px, sideways first', () => {
@@ -125,5 +126,19 @@ describe('Home’s greeting (the website’s words)', () => {
     expect(greeting('Dana', new Date(2026, 9, 28, 2)).line).toBe('Up late, Dana?');
     expect(greeting('Dana', new Date(2026, 9, 30, 20)).sub).toBe('Friday. Movie night is legally required.');
     expect(greeting('Dana', new Date(2026, 9, 31, 12)).sub).toBe('Weekend. A double feature is fully justified.');
+  });
+});
+
+describe('a weak phone (lowEnd.ts)', () => {
+  const GB = 1024 ** 3;
+  test('Android or perfTier says low-RAM, under 3.5 GB, or Android 8.1 and older', () => {
+    expect(isWeakPhone(true, 8 * GB, 35)).toBe(true);
+    expect(isWeakPhone(false, 3 * GB, 35)).toBe(true);
+    expect(isWeakPhone(false, 4 * GB, 27)).toBe(true);
+    expect(isWeakPhone(false, 4 * GB, 28)).toBe(false);
+    expect(isWeakPhone(false, 8 * GB, 35)).toBe(false);
+    // nothing known about the memory: not weak on that alone
+    expect(isWeakPhone(false, undefined, 35)).toBe(false);
+    expect(isWeakPhone(false, 0, 'ios')).toBe(false);
   });
 });

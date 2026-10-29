@@ -74,6 +74,7 @@ import {BackBar} from '../ui/PageHead';
 import {useTabBarSpace} from '../ui/TabBar';
 import {shareLink} from '../linkParse';
 import {phoneNative} from '../native';
+import {FADE_MS, LOW_END} from '../lowEnd';
 import {pushPhone} from '../nav';
 import {saveOffline, useOffline} from '../offline/store';
 import {chooseQuality} from '../offline/choose';
@@ -204,6 +205,10 @@ export default function Detail() {
     },
     [saved],
   );
+
+  // the device pass's timing: from the page's mount to its button knowing what it does
+  const t0 = useRef(Date.now());
+  const timed = useRef(false);
 
   // ---- reads (the TV's, in the same order) ----
   const refused = useCallback(
@@ -871,6 +876,10 @@ export default function Detail() {
     if (!isShow && heroRel?.line) return {text: heroRel.line, tone: 'warn' as const, pct: null};
     return null;
   })();
+  if (!timed.current && !loading && (full || meta) && (!isShow || heroEp)) {
+    timed.current = true;
+    console.log(`[phone] title page ready +${Date.now() - t0.current}ms`);
+  }
   const primaryStill = isShow && heroEp?.thumb ? artSrc(heroEp.thumb, 80).src : null;
 
   // ---- more like this ----
@@ -898,7 +907,7 @@ export default function Detail() {
           }
         }
       } catch {}
-      if (live) setSimilar(pool.slice(0, 18));
+      if (live) setSimilar(pool.slice(0, LOW_END ? 10 : 18));
     })();
     return () => {
       live = false;
@@ -930,7 +939,7 @@ export default function Detail() {
           if (past !== pastArt) setPastArt(past);
         }}>
         <View style={{height: artH}}>
-          {art ? <Image source={art} style={StyleSheet.absoluteFill} resizeMode="cover" fadeDuration={200} /> : null}
+          {art ? <Image source={art} style={StyleSheet.absoluteFill} resizeMode="cover" fadeDuration={FADE_MS} /> : null}
           <View style={s.artFade} pointerEvents="none" />
           <View style={s.lockup}>
             <View style={[s.kicker, {borderColor: isShow ? 'rgba(127,209,232,0.45)' : 'rgba(240,198,126,0.45)'}]}>

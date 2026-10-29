@@ -22,6 +22,11 @@ import {wireProfileMenu} from './profileMenu';
 import {resetTabs} from './tabs';
 import {flushOfflineProgress} from './offline/store';
 import './remote/controller'; // the profile's TVs, heard from the first socket open
+import {LOW_END} from './lowEnd';
+import {deviceInfo} from '../perfTier';
+
+// one line for the device pass: which settings this phone runs with
+console.log(`[phone] low-end: ${LOW_END ? 'yes' : 'no'} (${((deviceInfo()?.totalMem || 0) / 1024 ** 3).toFixed(1)} GB, Android ${require('react-native').Platform.Version})`);
 import {colors, GUTTER} from './theme';
 
 const LOGO = require('../assets/logo-mark.png');
@@ -100,7 +105,8 @@ export default function PhoneApp() {
 }
 
 const s = StyleSheet.create({
-  root: {flex: 1, backgroundColor: colors.bg},
+  // no fill of its own: the window's (the same colour) is under it, and every screen draws the sky
+  root: {flex: 1},
   center: {flex: 1, alignItems: 'center', justifyContent: 'center', padding: GUTTER * 2},
   logo: {width: 72, height: 72},
   title: {color: colors.text, fontSize: 24, fontWeight: '800', marginTop: 18, textAlign: 'center'},

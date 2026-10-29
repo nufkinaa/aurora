@@ -7,6 +7,7 @@ import {FlatList, FlatListProps, StyleSheet, View, useWindowDimensions} from 're
 import {HeroItem} from '../../api';
 import {PosterCard} from './Cards';
 import {GUTTER} from '../theme';
+import {LISTS} from '../lowEnd';
 
 const MIN_W = 104;
 const GAP = 10;
@@ -52,9 +53,9 @@ export default function Grid({items, onPress, onLongPress, header, footer, empty
       ItemSeparatorComponent={Sep}
       onEndReached={onEndReached}
       onEndReachedThreshold={1.2}
-      initialNumToRender={cols * 4}
+      initialNumToRender={cols * LISTS.gridRows}
       maxToRenderPerBatch={cols * 2}
-      windowSize={7}
+      windowSize={LISTS.gridWindow}
       removeClippedSubviews
       refreshControl={refreshControl}
       onScroll={onScroll}
