@@ -3,6 +3,16 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.0 — 2026-10-29
+
+**Aurora for Android phones 1.0.0** — the first phone app, from the same code as the TV app (it installs beside the TV app and never replaces it). Get it at /install or /download/phone.
+- Your whole Aurora on the phone in the glass look: Home with every row (household recommendations too), Movies, Shows, My List, Search with voice, title pages, Settings, portrait and landscape, Hebrew phones laid out right to left.
+- A player made for touch: tap, double-tap to skip 10 s, drag to scrub, swipe for brightness and volume, pinch to fill the screen, lock; subtitles with your style, audio tracks, X-Ray, Skip intro / recap and Up next, and the same recovery as the website and the TV.
+- Save films and episodes to the phone and watch them with no connection; picture in picture; controls on the lock screen and in the notification; watch parties; the phone as a remote for your TVs; recommend to your household.
+- Made for older, weaker phones too: on a slow 2-core test phone Home opens in about a second and scrolls smoothly (under 4 % of frames late).
+- It updates itself: the app offers a new version when this server has one (Android asks you to confirm the install).
+- Server: the phone app has its own download (/download/phone), version check, usage and People-tab label, and Aurora serves the file that lets nufurora.com links open in the app.
+
 ## 1.14.7 — 2026-10-29
 
 - **"Get the apps" is easy to find:** a quiet link at the bottom of the sign-in and request-access cards (also when adding a profile), and a row in the profile menu that opens from your picture at the top right, right after What's new. It opens the /install page. Rows in that menu are a little taller on touch screens so they're easier to hit.
