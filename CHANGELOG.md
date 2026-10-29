@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.14.7 — 2026-10-29
+
+- **"Get the apps" is easy to find:** a quiet link at the bottom of the sign-in and request-access cards (also when adding a profile), and a row in the profile menu that opens from your picture at the top right, right after What's new. It opens the /install page. Rows in that menu are a little taller on touch screens so they're easier to hit.
+
 ## 1.14.6 — 2026-10-29
 
 - **"Recommended by your household" looks the part on the website.** The add-to-My-List button sits neatly in the card's corner (a proper finger-sized target on phones, a green tick once added); "From Dana / and 10 others" is on two lines so the count is never cut off; "Show all recommended" sits by the row's title on wide screens. The Recommend picker keeps its title and Send in view with many people, explains greyed people in readable words, and lets the note grow as you type. The Show all page has a clear For you / You sent switch, a swipeable line of people on phones, and titles under the posters you sent. Hebrew names, titles and notes read the right way round. A title you marked "Not for me" no longer comes back when Home refreshes at the same moment.

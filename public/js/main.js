@@ -717,6 +717,8 @@ const showProfileMenu = () => {
     // saved titles, saves under way, a video from this device (screens/saved.js)
     item("On this device", () => { close(); navigate("#/saved"); }),
     item("What's new", () => { close(); navigate("#/new"); }),
+    // the product page with every Aurora app (same words as the sign-in card)
+    el("a", { href: "/install", class: "nav-menu-item focusable", "data-ui": "nav.getapps" }, "Get the apps"),
     item("Report a problem", () => { close(); showReportSheet(); }),
     item("Join a watch party", () => { close(); showJoinParty(); }),
     // [phone-remote] there while a TV (or another computer) of this profile is on

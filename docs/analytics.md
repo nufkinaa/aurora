@@ -137,7 +137,7 @@ A control is tagged where it is built:
 - website: `"data-ui": "detail.play"` on the element (one delegated click listener reads it; nothing is ever guessed from a control's text). A control that is not a click on an element — a keyboard shortcut, a tap zone — calls `uiHit("player.seek.fwd")`.
 - TV: `uiId="detail.play"` on a `Focusable`, `Btn` or `Chip` (and the small wrappers that pass it through). Without it nothing happens.
 
-The vocabulary (`src/lib/tel/controls-vocab.js`) — 284 ids: 185 on the website, 157 on the TV, 93 on both. 134 on the phone app (letter `p`, the table after this one).
+The vocabulary (`src/lib/tel/controls-vocab.js`) — 286 ids: 187 on the website, 157 on the TV, 93 on both. 134 on the phone app (letter `p`, the table after this one).
 
 | Area | Website only | TV app only | Both |
 |---|---|---|---|
@@ -149,7 +149,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 284 ids: 185 on the website
 | downloads | `downloads.cancel` `downloads.open` `downloads.play` `downloads.remove` `downloads.retry` | `downloads.row` | – |
 | home | `home.hero.pick` | `home.hero.party` `home.switchprofile` | `home.hero.details` `home.hero.mute` `home.hero.play` `home.retry` `home.hh.all` |
 | mylist | – | `mylist.filter` | – |
-| nav | `nav.downloads` `nav.new` `nav.remote` `nav.saved` | – | `nav.ai` `nav.home` `nav.movies` `nav.mylist` `nav.profile` `nav.search` `nav.settings` `nav.shows` |
+| nav | `nav.downloads` `nav.getapps` `nav.new` `nav.remote` `nav.saved` | – | `nav.ai` `nav.home` `nav.movies` `nav.mylist` `nav.profile` `nav.search` `nav.settings` `nav.shows` |
 | newpassword | – | `newpassword.signout` `newpassword.submit` | – |
 | party | – | `party.join` | – |
 | peek | `peek.close` `peek.playontv` `peek.remove` | – | `peek.details` `peek.mylist` `peek.play` `peek.hh.dismiss` `peek.recommend` |
@@ -168,7 +168,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 284 ids: 185 on the website
 | search | `search.clear` | – | `search.recent.pick` `search.suggestion.pick` `search.voice` `search.voice.lang` `search.retry` |
 | settings | `settings.accent` `settings.done` `settings.link` `settings.look` `settings.rows.hide` `settings.theme` `settings.toggle` | `settings.audio.dialogue` `settings.audio.night` `settings.autoplay` `settings.av.fps` `settings.av.surround` `settings.downloads` `settings.genre` `settings.notices` `settings.party` `settings.report` `settings.signout` `settings.taste` `settings.subs.auto` `settings.subs.bg` `settings.subs.color` `settings.subs.lang` `settings.subs.opacity` `settings.subs.pos` `settings.subs.size` `settings.subs.weight` `settings.trailers` `settings.tvname` `settings.tvname.pick` `settings.update` `settings.usagestats` `settings.whatsnew` `settings.hh.sent` `settings.hh.toggle` | `settings.hh.mute` |
 | taste | `taste.back` `taste.edit` `taste.key` `taste.swipe` `taste.unnope` | – | `taste.done` `taste.love` `taste.more` `taste.nope` `taste.skip` `taste.undo` |
-| signin | – | `signin.mode.google` `signin.mode.qr` `signin.mode.typed` `signin.request` `signin.submit` | – |
+| signin | `signin.getapps` | `signin.mode.google` `signin.mode.qr` `signin.mode.typed` `signin.request` `signin.submit` | – |
 | state | – | `state.action` | – |
 | update | – | `update.install` `update.later` `update.restart` `update.retry` | – |
 | whatsnew | – | `whatsnew.log` | `whatsnew.go` |

@@ -81,6 +81,7 @@ module.exports = {
   // nav
   "nav.ai": "wt",
   "nav.downloads": "w",
+  "nav.getapps": "w", // the profile menu's "Get the apps" (/install)
   "nav.home": "wtp",
   "nav.movies": "wtp",
   "nav.mylist": "wtp",
@@ -267,6 +268,7 @@ module.exports = {
   "taste.undo": "wt",
   "taste.unnope": "w",
   // signin
+  "signin.getapps": "w", // "Get the apps" at the foot of the sign-in / request-access card
   "signin.mode.google": "t",
   "signin.mode.qr": "tp",
   "signin.mode.typed": "tp",
