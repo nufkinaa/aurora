@@ -221,10 +221,12 @@ const suite = (opts = {}) => {
   //   options.viewport        DESKTOP (default) or PHONE, or any { width, height }
   //   options.allow           console.error / page-error texts (string or RegExp) this test expects
   //   options.permissions     e.g. ["notifications"] — granted to the page's origin
+  //   options.device          more browser-context options for this test (deviceScaleFactor,
+  //                           userAgent, screen …), laid over the viewport's defaults
   //   options.todo / skip     as in node:test
   const uiTest = (name, options, fn) => {
     if (typeof options === "function") { fn = options; options = {}; }
-    const { viewport = DESKTOP, allow = [], permissions = null, ...nodeOpts } = options;
+    const { viewport = DESKTOP, allow = [], permissions = null, device = null, ...nodeOpts } = options;
     // (a page that hangs must not hang the run: two minutes is far beyond
     // the slowest test here, the real-time stall ladder at ~45 s)
     queue.push([name, { timeout: 120000, ...nodeOpts }, async (t) => {
@@ -238,6 +240,7 @@ const suite = (opts = {}) => {
         // hide them from page.route; offline copies are out of scope here.
         serviceWorkers: "block",
         ...(permissions ? { permissions } : {}),
+        ...(device || {}),
       });
       // Nothing leaves this machine: anything that is not the private
       // instance is answered at once with an empty 404.

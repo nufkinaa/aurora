@@ -89,6 +89,21 @@
   /* Layout */
   --page-x: clamp(24px, 4.5vw, 64px);
   --nav-h: 68px;
+  /* Extra room under the status bar on a Dynamic Island iPhone (14 Pro and
+     later), 0 everywhere else. From the Home Screen the island phones report
+     a top inset of 54-62 px, the notch ones 44-50 and the older ones 20 (0 on
+     anything that is not a phone in portrait): past 50 px the clamp jumps
+     straight to the full 10 px. In a Safari tab the top inset is 0 on every
+     iPhone, so the boot script in index.html recognises an island phone by
+     its screen and adds html.ios-island (below). responsive.css adds it to
+     the phone --nav-h, so everything placed under the top controls moves
+     with them. */
+  --top-gap: clamp(0px, (env(safe-area-inset-top, 0px) - 50px) * 1000, 10px);
+}
+@media (orientation: portrait) {
+  html.ios-island {
+    --top-gap: 10px;
+  }
 }
 
 /* ---------- Themes (per-profile; set as <html data-theme="…"> by the boot

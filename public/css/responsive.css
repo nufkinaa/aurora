@@ -80,7 +80,9 @@
   }
   :root {
     --page-x: 16px;
-    --nav-h: 56px;
+    /* + the island gap (tokens.css): headings, the title cover, the profile
+       menu and the rest that are placed from --nav-h move with the controls */
+    --nav-h: calc(56px + var(--top-gap, 0px));
     --fs-hero: clamp(1.8rem, 9vw, 2.4rem);
   }
 
@@ -600,7 +602,15 @@
    bottom, in thumb reach, and the top keeps the logo, Settings and the
    profile. Flat, like the rest of the classic look. Glass has its own. */
 @media (max-width: 600px) {
+  /* From the Home Screen the page runs under the status bar: the bar starts
+     under it (and a little lower on an island iPhone — tokens.css), and
+     --nav-h, which the headings and the rest are placed from, grows with it.
+     env() is 0 in a Safari tab and on everything that is not an iPhone. */
+  html:not([data-look="glass"]) {
+    --nav-h: calc(56px + env(safe-area-inset-top, 0px) + var(--top-gap, 0px));
+  }
   html:not([data-look="glass"]) .nav {
+    padding-top: calc(env(safe-area-inset-top, 0px) + var(--top-gap, 0px));
     -webkit-mask-image: none;
     mask-image: none;
   }
