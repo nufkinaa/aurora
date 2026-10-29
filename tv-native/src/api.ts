@@ -1107,6 +1107,11 @@ async function readKept<T>(path: string, last: Kept<T> | null, keep: (k: Kept<T>
   return value;
 }
 
+/** [android-phone] The same reads and writes for the phone's own screens' calls that
+ *  live beside them (phone/*): every header, timeout, error shape and 401 rule as above. */
+export const apiRequest = <T>(path: string, options: RequestInit = {}) => request<T>(path, options);
+export const apiPost = <T>(path: string, body: unknown) => post<T>(path, body);
+export const apiOwnHeaders = (): Record<string, string> => ({...(token ? {'X-Profile-Token': token} : {}), ...(ownHeaders() || {})});
 function post<T>(path: string, body: unknown): Promise<T> {
   return request<T>(path, {
     method: 'POST',
