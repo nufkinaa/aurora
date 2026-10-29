@@ -109,6 +109,12 @@ On the private instance: copy a newer phone build (versionName higher than the i
 1. A few seconds after start: "Update ready · Aurora for Android 1.0.1 · this phone has 1.0.0" with the notes. Later closes it and it does not come back that day for that version; Settings → This phone → Check for updates brings it back ("You're on the latest version" when there is none).
 2. Update, first time: "Android asks once: allow Aurora to install apps" → Allow in Settings opens Android's Install unknown apps page for Aurora. **The person** switches it on and comes back: the download starts by itself (progress, MB), then Android's installer asks to confirm. Nothing installs without that confirm. (Emulator: verified up to Android's page; switching it on was left to a person.)
 3. After the install the app opens as the new version (Settings shows it); `/download/phone` and the /install page's button hand over the same file.
+4. (phone-features, 2026-10-29: every case of docs/android-phone/FEATURES.md "The updater, case by case" was run on the emulator.) On a REAL phone, once:
+   - Google Play Protect: phones with Play services may put up "App scan recommended" over Android's update question for a sideloaded app. "More details → Install without scanning" (or "Scan app") goes on; the update itself is unchanged. Note what the phone shows.
+   - Put the phone to sleep during the download (screen off, in a pocket): it finishes by itself (Android's download manager); waking the phone and opening Aurora goes on to Android's question.
+   - Cancel in Android's question: the sheet says "The update wasn't installed", and "Install the update" asks again without downloading again.
+   - After Update: Aurora opens again by itself as the new version and says "Aurora is updated to …" once; still signed in, saved copies still there.
+5. Links: scan a TV's sign-in QR with the phone's camera (Google Lens): Aurora opens on "Sign this TV in?"; approve; the TV signs in. With Aurora closed by Back first, the same. With Aurora not installed, the browser opens nufurora.com/#/pair/CODE.
 
 ## 16. App links (nufurora.com)
 1. `curl https://nufurora.com/.well-known/assetlinks.json` — the phone's package and the SHA-256 of the signing certificate (`apksigner verify --print-certs` on the APK), served by Aurora itself (config `phoneCertSha256` / `AURORA_PHONE_CERT_SHA256`, else read from public/aurora-phone.apk). No redirect on the way.

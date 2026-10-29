@@ -12,12 +12,12 @@ Branch `phone-features` (on top of `phone-web-look`, phone 1.0.1). One row per f
 | Feature | Website | TV | Phone app | Status | How verified |
 |---|---|---|---|---|---|
 | Sign in with username/email + password (closed mode) | login.js | SignIn.tsx | screens/SignIn.tsx | ✅ | E (closed-mode server) |
-| Sign in with a code shown on the device (approved elsewhere) | — (it approves) | SignIn.tsx QR | SignIn.tsx "Use a code instead" | ✅ | E |
+| Sign in with a code shown on the device (approved elsewhere) | — (it approves) | SignIn.tsx QR | SignIn.tsx "Use a code instead" | ✅ | E (approved from a script; the phone walked in) |
 | **Sign in a TV — the TV's QR (`/link?code=…`)** | `/link` → #/pair/:code (pair.js) | shows the QR | **screens/PairTv.tsx**, opened by the link (manifest claims `nufurora.com/link`) | 🔧 the app ignored it | E (warm, cold, after Back closed the app, at the wall then after sign-in), U |
 | **Sign in a TV — type its code** | #/pair (pair.js) | — | Settings → Aurora → *Sign in a TV*; Your TVs → *Sign in a TV* | 🆕 | E (wrong code, right code), U |
 | Sign in a TV on an open / transition server (phone holds no sign-in, or another profile's) | pair.js "Sign in to approve" | — | PairTv "Sign in to approve" (only this profile's sign-in is accepted) | 🆕 | E (Unclaimed QA; Other QA's sign-in refused) |
 | Who's watching? wall, locked profiles, password | profiles.js | ProfileGate.tsx | screens/Gate.tsx | ✅ | E |
-| Kids profiles, household PIN to leave | profiles.js, kids | ProfileGate + kids lock | Gate.tsx (shared AppRoot rules) | ✅ | R (shared AppRoot code, TV-verified) |
+| Kids profiles, household PIN to leave | profiles.js, kids | ProfileGate + kids lock | Gate.tsx (shared AppRoot rules) | ✅ | R (shared AppRoot code, TV-verified; no kids profile on the test server) |
 | Switch profile | profile menu | Settings | profile menu, Settings | ✅ | E |
 | Sign out on this phone | Settings → Sign-in | Settings | Settings → Account | ✅ | E |
 | Forced new password | resetwall.js | NewPassword.tsx | screens/NewPassword.tsx | ✅ | R (shared AppRoot rule) |
@@ -33,16 +33,16 @@ Branch `phone-features` (on top of `phone-web-look`, phone 1.0.1). One row per f
 
 | Feature | Website | TV | Phone app | Status | How verified |
 |---|---|---|---|---|---|
-| Home rows, billboard, greeting, Continue watching (✕ to remove) | home.js | Home.tsx | screens/Home.tsx | ✅ | E |
-| Recommended by your household (row, banner, Not for me, page) | home.js, household.js | Home, Household.tsx | Home, Detail banner, screens/Household.tsx | ✅ | E (row/page on the test server) |
-| Recommend to household | recommend.js | RecommendSheet | sheets/RecommendSheet.tsx | ✅ | E |
-| Movies / Shows grids, categories, genre, Unwatched, Surprise me | browse.js | Browse.tsx | screens/Browse.tsx | ✅ | E |
-| My List (filters, sort) | browse.js #/list | MyList.tsx | screens/MyList.tsx | ✅ | E |
-| Title page: play, resume, start over, stream instead, My List, X-Ray, mark watched, follow, trailer, share | details.js / discover-detail.js | Detail.tsx | screens/Detail.tsx | ✅ | E |
+| Home rows, billboard, greeting, Continue watching (✕ to remove) | home.js | Home.tsx | screens/Home.tsx | ✅ | E (rows, billboard, greeting); R (✕) |
+| Recommended by your household (row, banner, Not for me, page) | home.js, household.js | Home, Household.tsx | Home, Detail banner, screens/Household.tsx | ✅ | R |
+| Recommend to household | recommend.js | RecommendSheet | sheets/RecommendSheet.tsx | ✅ | E (sent to Other QA; the server's "sent" list has it) |
+| Movies / Shows grids, categories, genre, Unwatched, Surprise me | browse.js | Browse.tsx | screens/Browse.tsx | ✅ | E (grid, open a title) |
+| My List (filters, sort) | browse.js #/list | MyList.tsx | screens/MyList.tsx | ✅ | E (added from a title page; the server's list has it; the tab shows it) |
+| Title page: play, resume, start over, stream instead, My List, X-Ray, mark watched, follow, trailer, share | details.js / discover-detail.js | Detail.tsx | screens/Detail.tsx | ✅ | E (play, resume, My List, X-Ray sheet, watched); R (trailer, share, follow) |
 | **Your rating (1–5 stars)** | components.js starRating | — (not on the TV yet) | **ui/StarRating.tsx** on the title page, same key (IMDb id) | 🆕 | E (4★ stored as the site stores it), U |
 | **"On this server" lines** (on disk, size, how many episodes) | discover-detail.js serverInfoFor | — | Detail, under Your rating | 🆕 | E, U |
-| Seasons, episodes (cards), mark season/episode watched | details.js | Detail.tsx | Detail.tsx | ✅ | E |
-| Search, recent searches, suggestions, voice | search.js, voice.js | Search.tsx, voice | screens/Search.tsx | ✅ | E (typed; mic asks for the permission) |
+| Seasons, episodes (cards), mark season/episode watched | details.js | Detail.tsx | Detail.tsx | ✅ | E (Test Show: the cards, an episode's choices) |
+| Search, recent searches, suggestions, voice | search.js, voice.js | Search.tsx, voice | screens/Search.tsx | ✅ | E (a `#/search/<words>` link searched: library results, and the offline test server's honest "couldn't reach the catalogue"); voice R |
 | Person sheet (tap a cast name) | personSheet.js | PersonSheet | — | ◐ cast is plain text on the phone |
 | Pick for me (AI mood) | pickforme.js | Pick.tsx | — | 🌐 for now — needs the server's AI switched on; the link opens the app with "that page is on the website" |
 | Swipe your taste (+ Edit list) | taste.js | Taste.tsx | screens/Taste.tsx (drag the card; ✕ / ↑ / ♥; Undo) | 🆕 | E (a right drag stored Love on the server, Undo took it back), U |
@@ -54,16 +54,16 @@ Branch `phone-features` (on top of `phone-web-look`, phone 1.0.1). One row per f
 
 | Feature | Website | TV | Phone app | Status | How verified |
 |---|---|---|---|---|---|
-| Genres you like | preferences.js | Settings.tsx | Settings | ✅ | E |
-| Subtitles: on by themselves, language, the six style rows with a preview | preferences.js | Settings.tsx | Settings (personPrefs: same on every device) | ✅ | E |
+| Genres you like | preferences.js | Settings.tsx | Settings | ✅ | R |
+| Subtitles: on by themselves, language, the six style rows with a preview | preferences.js | Settings.tsx | Settings (personPrefs: same on every device) | ✅ | R (rows seen, not changed) |
 | Audio language | remembered per pick (`prefs.audioLang`) | the same | the same (shared player) | ✅ | R |
-| Night mode, dialogue boost | preferences.js | Settings | Settings, player menu | ✅ | E |
-| Autoplay next episode | preferences.js | Settings | Settings | ✅ | E |
+| Night mode, dialogue boost | preferences.js | Settings | Settings, player menu | ✅ | E (in the player menu) |
+| Autoplay next episode | preferences.js | Settings | Settings | ✅ | R |
 | Quality / data use | Internet: Automatic / Data saver / Full | — | the player's *Lower quality* on a slow start; saves to the phone pick a quality | ◐ no Data-saver switch on the phone; ExoPlayer's own bitrate and the server's capped encode do the job |
-| **What's new** (the CHANGELOG through the server) | preferences.js What's new, #/new | WhatsNew.tsx | **screens/WhatsNew.tsx** (Settings, the profile menu, `#/new`) | 🆕 | E, U |
-| Get the apps | /install | — | profile menu → the browser's /install | 🆕 | E |
+| **What's new** (the CHANGELOG through the server) | preferences.js What's new, #/new | WhatsNew.tsx | **screens/WhatsNew.tsx** (Settings, the profile menu, `#/new`) | 🆕 | E (opened from `#/new`: 1.15.4, 1.15.3 …), U |
+| Get the apps | /install | — | profile menu → the browser's /install | 🆕 | R (opens the browser; Chrome's first-run terms were not accepted on the emulator) |
 | Notifications ("tell me when it lands") | Web Push | the TV's notice | Settings → Notifications (Android notifications) | ✅ | E (the permission prompt) |
-| Recommendations: on/off, mute people, What you sent | preferences.js | Settings | Settings | ✅ | E |
+| Recommendations: on/off, mute people, What you sent | preferences.js | Settings | Settings | ✅ | E (seen), R (switches) |
 | Usage stats on/off | preferences.js | Settings | Settings | ✅ | R |
 | On the TV: match frame rate, surround | preferences.js | Settings | — | 🌐 TV-only settings |
 | Phone as a remote: this device's name, let others play here | preferences.js | — | — | ◐ the phone is a remote (Your TVs), not a screen others can play on |
@@ -73,8 +73,8 @@ Branch `phone-features` (on top of `phone-web-look`, phone 1.0.1). One row per f
 
 | Feature | Website | TV | Phone app | Status | How verified |
 |---|---|---|---|---|---|
-| Sources / pick a release, save to the server | discover-detail.js | Sources.tsx | screens/Sources.tsx | ✅ | E (lists; no download started) |
-| My downloads (cancel, retry, remove, the household's) | downloads.js | Downloads.tsx | screens/Downloads.tsx | ✅ | E |
+| Sources / pick a release, save to the server | discover-detail.js | Sources.tsx | screens/Sources.tsx | ✅ | R (the private test server has no internet, so no sources; no server download was started anywhere) |
+| My downloads (cancel, retry, remove, the household's) | downloads.js | Downloads.tsx | screens/Downloads.tsx | ✅ | E (the screen and its offline answer); R (cancel/retry: no server download was started) |
 | **Get another version** (a bad copy) | replaceCopy.js | ReplaceSheet | **sheets/ReplaceSheet.tsx** — from the player's settings menu, a film's *Another version*, an episode's choices | 🔧 the player's entry opened nothing on the phone | E (reasons → sources step; the private server cannot reach a provider, so no pick) |
 | Get the next episode ready, tidy up after watching | preferences.js | Settings | Settings | ✅ | R |
 | Save to the phone (offline), quality, Wi-Fi only, play offline | offlinePicker.js (browser cache) | — | offline/*, OfflinePlayer.tsx (DownloadManager, real files) | ✅ | E (small film, then removed) |
@@ -84,22 +84,23 @@ Branch `phone-features` (on top of `phone-web-look`, phone 1.0.1). One row per f
 
 | Feature | Website | TV | Phone app | Status | How verified |
 |---|---|---|---|---|---|
-| Direct play, copy, encode (by what the phone decodes) | player.js | Player.tsx + avCaps | shared Player + avCaps | ✅ | E (the test film played; capabilities reported) |
+| Direct play, copy, encode (by what the phone decodes) | player.js | Player.tsx + avCaps | shared Player + avCaps | ✅ | E (the test films played; capabilities reported) |
+| **The player's menus by touch** (subtitles, audio and settings, speed, Watch together, Get another version, Skip intro, Up next …) | — | D-pad | the shared Player's menus | 🔧 a tap did nothing from the second launch on (the TV's native Focusable answers the remote's OK only; the phone now always uses the Pressable one) | E (subtitles Off, Watch together → Start / Share / End, Get another version — each by a tap) |
 | Resume, start over | player.js | Player | Player | ✅ | E |
-| Subtitles (pick, style, timing), audio tracks, speed | player.js | Player | Player + PhoneChrome | ✅ | E |
+| Subtitles (pick, style, timing), audio tracks, speed | player.js | Player | Player + PhoneChrome | ✅ | E (subtitles shown, switched off) |
 | Skip intro / recap / credits, Up next | player.js | Player | Player | ✅ | R (shared, TV-verified) |
-| X-Ray | xray.js | XraySheet | sheets/XraySheet.tsx | ✅ | E |
+| X-Ray | xray.js | XraySheet | sheets/XraySheet.tsx | ✅ | E (opens; the offline test server has no X-Ray data) |
 | Picture in picture, background audio, lock-screen controls | browser PiP | — | PhoneActivity PiP + media session | ✅ streaming · 🔧 a saved copy did not shrink into PiP (react-native-video reset the window's PiP rules) | E (streaming: PiP window + the media notification/session; the saved-copy fix is in the last build) |
-| Gestures (seek, brightness, volume, double-tap, pinch, lock) | phone gestures | — | player/PhoneGestures.tsx | ✅ | U, E |
+| Gestures (seek, brightness, volume, double-tap, pinch, lock) | phone gestures | — | player/PhoneGestures.tsx | ✅ | U; E (tap for the controls) |
 | Report a problem | report.js | Overlays | sheets/SmallSheets.tsx | ✅ | R |
 
 ## Together
 
 | Feature | Website | TV | Phone app | Status | How verified |
 |---|---|---|---|---|---|
-| Watch party: host, react, hand over, end/leave | player.js party | Player | shared Player | ✅ | E |
-| **Watch party: share the invite** | party.js Share invite | — (no share sheet) | **Player → Watch together → Share the invite** (Android share sheet, `…/#/party/CODE`) | 🆕 | E |
-| Watch party: join by code or link | main.js #/party, Join sheet | Settings | Settings / menu Join sheet, `#/party/CODE` links | ✅ | E |
+| Watch party: host, react, hand over, end/leave | player.js party | Player | shared Player | 🔧 (the menus by touch, above) | E (started Q2CK, ended; the server's party list empty after) |
+| **Watch party: share the invite** | party.js Share invite | — (no share sheet) | **Player → Watch together → Share the invite** (Android share sheet, `…/#/party/CODE`) | 🆕 | E ("Watch Test Film Two with me on Aurora — …/#/party/Q2CK") |
+| Watch party: join by code or link | main.js #/party, Join sheet | Settings | Settings / menu Join sheet, `#/party/CODE` links | ✅ | U (links); R (join) |
 | Phone remote: pick a TV, D-pad, volume, tracks, play/pause/seek | #/remote | the receiver | screens/Remote.tsx | ✅ | R (needs a TV on the socket; not used here) |
 | Remote: rename the TV, touchpad, subtitle timing, Continue watching when idle | remote.js | — | — | ◐ website extras |
 | Play on TV (from a title page) | details.js | — | Detail *Play on TV* | ✅ | R |
