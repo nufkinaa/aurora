@@ -31,7 +31,7 @@
 // address again. The setup screen that used to ask is deleted.
 import {clearHomeScreen, noteAppRun} from './src/homeScreen';
 import React from 'react';
-import {View, StatusBar, ActivityIndicator, StyleSheet} from 'react-native';
+import {View, StatusBar, ActivityIndicator, StyleSheet, Text} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {TvCanvas} from './src/canvas';
 import ProfileGate from './src/screens/ProfileGate';
@@ -56,9 +56,11 @@ const Frame = ({children}: {children?: React.ReactNode}) => (
 
 const TV_UI: RootUi = {
   Frame,
-  Loading: () => (
+  Loading: ({note}) => (
     <View style={styles.center}>
       <ActivityIndicator color={theme.colors.text} size="large" />
+      {/* the patient start (serverPick.ts pickServerPatiently): said once it is taking a while */}
+      <Text style={[styles.note, {opacity: note ? 1 : 0}]}>{note || ' '}</Text>
     </View>
   ),
   Offline: ({onRetry}) => (
@@ -103,4 +105,5 @@ export default function App() {
 const styles = StyleSheet.create({
   root: {flex: 1, backgroundColor: theme.colors.bg},
   center: {flex: 1, alignItems: 'center', justifyContent: 'center'},
+  note: {marginTop: 18, color: theme.colors.textDim, fontSize: theme.fontSize.body},
 });

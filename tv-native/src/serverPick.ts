@@ -99,7 +99,9 @@ export async function pickServer(candidates: readonly string[], d: PickDeps): Pr
 // So the phone does not give up on the first round: while the whole start has
 // taken less than PATIENCE_MS it waits a little (BACKOFF_MS, growing) and walks
 // the list again, saying so on the loading screen. Only after that is it the
-// offline screen. The TV keeps its single round (pickServer).
+// offline screen. The TV asks the same way since the Mi TV regression pass of
+// 2026-10-29 (its waits unscaled): a box opened while its Wi-Fi was still
+// joining showed the offline screen after 0.7 s and stayed on it.
 //
 // The further rounds ask with SHORTER pings (RETRY_SCALE of the TV's waits): a
 // ping sent while the app's network was still asleep stays dead after it wakes

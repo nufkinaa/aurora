@@ -7,7 +7,7 @@ import {httpFailed} from './telemetry'; // [analytics] (telemetry.ts imports not
 import {takeBlur} from './blur';
 import {registerProfileCache} from './profileScope';
 import {tooManyWait, TOO_MANY_RETRIES} from './serverManners';
-import {pickServer, pickServerPatiently} from './serverPick';
+import {pickServerPatiently} from './serverPick';
 import type {TasteCard, Verdict} from './tasteSession';
 import type {ResyncAnswer, ResyncBody, SubTiming} from './playback/resync';
 // what this box can play, and the server's decision from it (TV round 2026-10-19)
@@ -1261,9 +1261,12 @@ export const resolveServer = async (_savedUrl?: string | null, onWait?: (round: 
     // [android-phone] a phone on mobile data gets twice the TV's waits
     scale: isPhone() ? 2 : 1,
   };
-  // [android-phone] the phone keeps asking while its network wakes up (serverPick.ts
-  // pickServerPatiently); the TV asks one round, as it always did
-  const url = isPhone() ? await pickServerPatiently(SERVER_CANDIDATES, {...deps, onWait}) : await pickServer(SERVER_CANDIDATES, deps);
+  // [android-phone] the app keeps asking while its network wakes up (serverPick.ts
+  // pickServerPatiently). The TV too (Mi TV regression pass, 2026-10-29): with one
+  // round, a box opened while its Wi-Fi was still joining — or a server back a few
+  // seconds later — showed "Can't reach Aurora" after 0.7 s and stayed there until
+  // Retry; now it says "Still connecting…" and walks in once the server answers.
+  const url = await pickServerPatiently(SERVER_CANDIDATES, {...deps, onWait});
   if (url) {
     // what THIS server said — not whichever answered last
     const said = pinged.get(url);
