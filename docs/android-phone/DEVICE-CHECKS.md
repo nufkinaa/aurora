@@ -5,12 +5,10 @@ What the emulator (Pixel 9 AVD, Android 17 preview, x86_64) could not prove. Run
 ## Build and install
 
 ```
-cd tv-native/android
-# QA (emulator / test phone): bash $TEMP/aurora-agents/android-phone/build-qa.sh  — or by hand:
-#   put 'http://127.0.0.1:4000', // QA VARIANT  as the ONLY entry of SERVER_CANDIDATES (src/api.ts)
-gradlew.bat assembleRelease -Paurora=phone -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
-#   restore src/api.ts; `grep -c "QA VARIANT" src/api.ts` must print 0
-adb -s <phone> install -r app/build/outputs/apk/release/aurora-phone-release.apk
+# QA (emulator / test phone) — 127.0.0.1 only; Gradle's auroraQaGuard (-PauroraQa) fails the
+# build if SERVER_CANDIDATES names anything else:
+ABIS=arm64-v8a,armeabi-v7a bash tv-native/tools/build-phone-qa.sh
+adb -s <phone> install -r tv-native/android/app/build/outputs/apk/release/aurora-phone-release.apk
 adb -s <phone> reverse tcp:4000 tcp:<private instance port>
 ```
 
@@ -105,3 +103,26 @@ The release build (for elia, later) is the same command without the QA line: nuf
 5. `adb shell dumpsys meminfo com.aurora.phone` after ten screens: TOTAL PSS around 250 MB or less; Home button then `adb shell am send-trim-memory com.aurora.phone BACKGROUND` — the bitmaps drop to a few MB.
 6. Switching tabs: Movies, Shows, My List and Search start at the top again after another tab was used (a weak phone lets them go); Home keeps its place.
 7. A film starts within ~4 s on Wi-Fi; the player does not stutter while the controls fade.
+
+## 15. Updates (the phone app's own)
+On the private instance: copy a newer phone build (versionName higher than the installed one, versionCode higher) to `<instance root>/public/aurora-phone.apk`, notes in `public/phone-version.json` (`{"versionName":"1.0.1","notes":"…"}`). `curl <instance>/phone-version.json` answers the APK's own version.
+1. A few seconds after start: "Update ready · Aurora for Android 1.0.1 · this phone has 1.0.0" with the notes. Later closes it and it does not come back that day for that version; Settings → This phone → Check for updates brings it back ("You're on the latest version" when there is none).
+2. Update, first time: "Android asks once: allow Aurora to install apps" → Allow in Settings opens Android's Install unknown apps page for Aurora. **The person** switches it on and comes back: the download starts by itself (progress, MB), then Android's installer asks to confirm. Nothing installs without that confirm. (Emulator: verified up to Android's page; switching it on was left to a person.)
+3. After the install the app opens as the new version (Settings shows it); `/download/phone` and the /install page's button hand over the same file.
+
+## 16. App links (nufurora.com)
+1. `curl https://nufurora.com/.well-known/assetlinks.json` — the phone's package and the SHA-256 of the signing certificate (`apksigner verify --print-certs` on the APK), served by Aurora itself (config `phoneCertSha256` / `AURORA_PHONE_CERT_SHA256`, else read from public/aurora-phone.apk). No redirect on the way.
+2. `adb shell pm get-app-links com.aurora.phone` → nufurora.com `verified` (after a fresh install; `adb shell pm verify-app-links --re-verify com.aurora.phone` to ask again).
+
+## 17. First launch and the network
+1. Phone just rebooted (or just out of airplane mode), app opened at once: the loading screen may say "Still connecting — waiting for the network…" for a few seconds, then Home — not "Can't reach Aurora" (`adb logcat -s ReactNativeJS | grep faststart` shows `round2`, `round3` and `server … found`).
+2. Really offline (airplane mode): "Can't reach Aurora." after about 15 s, Try again works once the network is back.
+
+## 18. Hebrew phone (right to left)
+1. With the phone's language set to Hebrew the layout mirrors: back button and kicker on the right, the tab bar Home on the right, row chevrons and the back arrow point the other way; play / ±10 s keep their direction.
+2. Title pages (film, show, a long name, landscape): the kicker never sits under the back button, at rest or scrolled; once scrolled the bar turns solid with the name.
+
+## 19. Bars while scrolling
+1. Every page: once scrolled, the top bar turns solid dark (no card or billboard under its buttons, the clock readable).
+2. Scrolling down a long page slides the tab bar away; any scroll up, the top of the page or a new page brings it back.
+3. Landscape: the billboard and title pictures are shorter, the words never under the top bar; Settings / Downloads / Your TVs read in a centred column.
