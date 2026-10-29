@@ -19,14 +19,32 @@ import { track } from "./usage.js";
 
 // ---------- words (the TV prints the same: tv-native/src/householdRecs.ts) ----------
 export const NOTE_MAX = 140;
+// A name or a title written right to left (Hebrew, Arabic) inside an English
+// line is isolated with invisible direction marks (FSI … PDI), as the TV does:
+// "נועם recommended Dune", "אבי 2 · Mute" keep their order and their own
+// direction whatever sits beside them. A left-to-right one is left untouched.
+const RTL_ANY = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+export const iso = (v) => {
+  const t = String(v == null ? "" : v);
+  return RTL_ANY.test(t) ? `\u2068${t}\u2069` : t;
+};
 export const names = (list) => {
-  const n = (list || []).filter(Boolean);
+  const n = (list || []).filter(Boolean).map(iso);
   if (n.length === 0) return "";
   if (n.length === 1) return n[0];
   if (n.length === 2) return `${n[0]} and ${n[1]}`;
   return `${n[0]} and ${n.length - 1} others`;
 };
 export const fromLine = (list) => ((list || []).length ? `From ${names(list)}` : "");
+// The same words in two parts, for a card: "From Dana" · "and 2 others".
+// Where the line is too narrow, the second part wraps whole under the first
+// and only the NAME is cut — never the count ("From Maximiliana J… / and 2
+// others", not "From Maximiliana Josephine and 2…").
+export const fromParts = (list) => {
+  const n = (list || []).filter(Boolean).map(iso);
+  if (!n.length) return null;
+  return [`From ${n[0]}`, n.length === 1 ? "" : n.length === 2 ? `and ${n[1]}` : `and ${n.length - 1} others`];
+};
 export const byLine = (list) => `Recommended by ${names(list)}`;
 export const sendLabel = (n) => (n > 0 ? `Send to ${n}` : "Send");
 export const STATUS_WORDS = { sent: "Sent", seen: "Seen", added: "In their list", watching: "Watching", watched: "Watched" };
@@ -35,7 +53,7 @@ export const SHOW_ALL = "Show all recommended";
 export const HIDDEN_LINE = "Hidden from your recommendations";
 export const arrivalLine = (unseen) =>
   unseen.length === 1
-    ? `${unseen[0].hh.from[0].name} recommended ${unseen[0].title}`
+    ? `${iso(unseen[0].hh.from[0].name)} recommended ${iso(unseen[0].title)}`
     : `${unseen.length} new recommendations from your household`;
 const noteLen = (s) => Array.from(String(s || "")).length;
 
@@ -120,6 +138,14 @@ export const openRecommend = async (item) => {
 
   const list = el("div", { class: "rec-people", role: "group", "aria-label": "People" },
     el("div", { class: "rec-loading" }, "…"));
+  // many people: the faces scroll between the fixed title and Send; a soft
+  // fade on the side where more of them wait
+  const edges = () => {
+    const more = list.scrollHeight - list.clientHeight > 2;
+    list.classList.toggle("more-above", more && list.scrollTop > 2);
+    list.classList.toggle("more-below", more && list.scrollTop < list.scrollHeight - list.clientHeight - 2);
+  };
+  list.addEventListener("scroll", edges, { passive: true });
   const status = el("div", { class: "rec-status", role: "status", "aria-live": "polite" });
   const note = el("textarea", {
     class: "rec-note focusable",
@@ -134,12 +160,19 @@ export const openRecommend = async (item) => {
     sendBtn.textContent = sendLabel(chosen.size);
     sendBtn.disabled = chosen.size === 0;
   };
+  // the note grows with what is typed (up to a few lines — CSS max-height),
+  // so a long one is read whole rather than scrolled inside two lines
+  const fitNote = () => {
+    note.style.height = "";
+    if (note.scrollHeight > note.clientHeight + 1) note.style.height = `${note.scrollHeight + 2}px`;
+  };
   note.addEventListener("input", () => {
     const chars = Array.from(note.value);
     if (chars.length > NOTE_MAX) {
       note.value = chars.slice(0, NOTE_MAX).join("");
     }
     counter.textContent = `${noteLen(note.value)}/${NOTE_MAX}`;
+    fitNote();
   });
   // Enter sends (Shift+Enter is a space: the note is one line)
   note.addEventListener("keydown", (e) => {
@@ -148,6 +181,7 @@ export const openRecommend = async (item) => {
 
   const paintPeople = () => {
     list.innerHTML = "";
+    sheet.classList.toggle("nobody", !people.length);
     if (!people.length) {
       list.append(el("div", { class: "rec-empty" }, "There's nobody else on this server yet."));
       return;
@@ -190,7 +224,9 @@ export const openRecommend = async (item) => {
       const refused = (r.refused || []).map((x) => x.line).filter(Boolean);
       if ((r.sent || []).length) {
         close();
-        toast([r.line, ...refused].join(" · "), "📨");
+        // (the server's words, with the names kept whole: iso)
+        const sentLine = `Recommended to ${names(r.sent.map((x) => x.name))}`;
+        toast([sentLine, ...refused].join(" · "), "📨");
         return;
       }
       status.textContent = refused.join(" · ") || r.line || "Nothing was sent";
@@ -202,6 +238,7 @@ export const openRecommend = async (item) => {
       }
       paintPeople();
       paintSend();
+      edges();
     } catch (e) {
       status.textContent = (e && e.message) || "Couldn't send that — try again";
       paintSend();
@@ -211,13 +248,14 @@ export const openRecommend = async (item) => {
   const sheet = el("div", { class: "rec-sheet", role: "dialog", "aria-modal": "true", "aria-label": `Recommend “${title}”` },
     el("div", { class: "rec-head" },
       el("div", {},
-        el("h2", { class: "rec-title" }, `Recommend “${title}”`),
+        el("h2", { class: "rec-title" }, `Recommend “${iso(title)}”`),
         el("p", { class: "rec-sub" }, "Pick who should see it")),
       el("button", { "data-ui": "recommend.close", type: "button", class: "btn btn-icon focusable rec-close", "aria-label": "Close", html: "✕", onclick: () => close() })),
     list,
-    el("label", { class: "rec-note-wrap" }, note, counter),
-    status,
-    el("div", { class: "rec-actions" }, sendBtn),
+    el("div", { class: "rec-foot" },
+      el("label", { class: "rec-note-wrap" }, note, counter),
+      status,
+      el("div", { class: "rec-actions" }, sendBtn)),
   );
   const wrap = el("div", { class: "rec-wrap ui-overlay", onclick: (e) => e.target === wrap && close() }, sheet);
   wrap._onBack = (e) => { e.preventDefault(); close(); };
@@ -246,6 +284,8 @@ export const openRecommend = async (item) => {
   }
   paintPeople();
   paintSend();
+  fitNote();
+  edges();
   (list.querySelector(".rec-person:not(.off)") || sendBtn).focus({ preventScroll: true });
 };
 
@@ -294,6 +334,20 @@ export const dismissRec = async (item, { onDone = null, onUndo = null } = {}) =>
   return true;
 };
 
+// “note” — Dana, as one line in the page's direction with the note and the
+// name each kept whole in their own (a Hebrew note between English quotes
+// otherwise has its quote marks and dash shuffled to the wrong ends); the
+// dash never wraps away from the name.
+// A note written in Hebrew (its first letter right-to-left) is a right-to-left
+// line: right-aligned, the name at its end, the marks curling round it the
+// way they do round an English one.
+const RTL_FIRST = /^[^A-Za-z\u00C0-\u024F\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]*[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+export const noteLine = (note, name, cls) => {
+  const rtl = RTL_FIRST.test(String(note || ""));
+  return el("div", { class: cls, ...(rtl ? { dir: "rtl" } : {}) }, rtl ? "”" : "“", el("bdi", {}, note), rtl ? "“" : "”", name ? " " : "",
+    name ? el("span", { style: { whiteSpace: "nowrap" } }, "— ", el("bdi", {}, name)) : "");
+};
+
 // The title page's line: who recommended it, the notes, and Not for me.
 // Fills itself in (and counts the title as seen); stays empty when nobody did.
 export const recBanner = (item) => {
@@ -310,7 +364,7 @@ export const recBanner = (item) => {
         el("span", { class: "rec-banner-icon", "aria-hidden": "true", html: icons.recommend }),
         el("div", {},
           el("div", { class: "rec-banner-head" }, byLine(nameList)),
-          ...from.filter((f) => f.note).map((f) => el("div", { class: "rec-banner-note" }, `“${f.note}” — ${f.name}`))),
+          ...from.filter((f) => f.note).map((f) => noteLine(f.note, f.name, "rec-banner-note"))),
         el("button", {
           "data-ui": "detail.hh.dismiss",
           type: "button",

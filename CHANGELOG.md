@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.14.6 — 2026-10-29
+
+- **"Recommended by your household" looks the part on the website.** The add-to-My-List button sits neatly in the card's corner (a proper finger-sized target on phones, a green tick once added); "From Dana / and 10 others" is on two lines so the count is never cut off; "Show all recommended" sits by the row's title on wide screens. The Recommend picker keeps its title and Send in view with many people, explains greyed people in readable words, and lets the note grow as you type. The Show all page has a clear For you / You sent switch, a swipeable line of people on phones, and titles under the posters you sent. Hebrew names, titles and notes read the right way round. A title you marked "Not for me" no longer comes back when Home refreshes at the same moment.
+
 ## 1.14.5 — 2026-10-29
 
 - **Skip intro gives the same, right answer every time.** A show's remembered intro kept a few seconds of the episode around it, and a second copy of an episode (a replaced version, or the same file under another name) matched those seconds too, so its intro end crept 5–10 s into the next scene — and the remembered intro grew with it. Now a remembered intro knows exactly where it starts and ends, and a copy of an episode is never used to judge another copy. The library is re-read once in the background after this update so intros that had grown are put right.

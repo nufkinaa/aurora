@@ -16,6 +16,7 @@ import * as offlineStore from "../offline.js";
 import { dataMode, setDataMode, netInfo } from "../net.js";
 import * as push from "../push.js";
 import * as remote from "../remote.js"; // [phone-remote]
+import { iso } from "../recommend.js";
 
 // One settings row: label + explanation on the left, a button cycling the value
 // on the right. Every row here drives behaviour that already exists in the
@@ -350,7 +351,7 @@ const householdSection = async (linkRow) => {
           const muted = (s.people || []).filter((x) => (x.id === p.id ? !x.muted : x.muted)).map((x) => x.id);
           save({ muted });
         },
-      }, `${p.name} · ${p.muted ? "Muted" : "Mute"}`);
+      }, `${iso(p.name)} · ${p.muted ? "Muted" : "Mute"}`);
       mutes.append(b);
     }
   };
