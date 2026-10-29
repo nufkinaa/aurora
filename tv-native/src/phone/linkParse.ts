@@ -12,7 +12,8 @@
 //   https://nufurora.com/#/search/<words>         website's own form of it)
 //   https://nufurora.com/#/play/<id>              play it (the website's "… is ready" push)
 //   https://nufurora.com/#/new, #/household[/sent], #/saved
-//   #/wrapped, #/taste, #/pick, #/requests        website-only pages: said so, nothing opened
+//   #/wrapped, #/taste[/list]                     Your Aurora Wrapped, Swipe your taste (its Edit list)
+//   #/pick, #/requests                            website-only pages: said so, nothing opened
 //   https://nufurora.com/#/downloads, #/list, #/movies, #/shows, #/preferences
 //   https://nufurora.com/link?code=<CODE>         a TV's sign-in QR: "Sign in this TV?"
 //   https://nufurora.com/link, #/pair[/<CODE>]    the same, or its type-the-code field
@@ -24,7 +25,7 @@ export type PhoneLink =
   | {kind: 'search'; q: string}
   | {kind: 'pair'; code: string | null}
   | {kind: 'play'; id: string}
-  | {kind: 'screen'; name: 'Remote' | 'Downloads' | 'Settings' | 'WhatsNew' | 'Household'; params?: Record<string, unknown>}
+  | {kind: 'screen'; name: 'Remote' | 'Downloads' | 'Settings' | 'WhatsNew' | 'Household' | 'Wrapped' | 'Taste' | 'TasteList'; params?: Record<string, unknown>}
   | {kind: 'web'; path: string}
   | {kind: 'tab'; tab: 'home' | 'movies' | 'shows' | 'list' | 'search'};
 
@@ -131,7 +132,9 @@ export function parsePhoneLink(url: string | null | undefined, hosts: string[] =
     case 'saved':
       return {kind: 'screen', name: 'Downloads'};
     case 'wrapped':
+      return {kind: 'screen', name: 'Wrapped'};
     case 'taste':
+      return {kind: 'screen', name: parts[1] === 'list' ? 'TasteList' : 'Taste'};
     case 'pick':
     case 'requests':
       return {kind: 'web', path: parts[0]};

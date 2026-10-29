@@ -15,6 +15,7 @@ type Native = {
   getVolume(): Promise<number>;
   setVolume(v: number): void;
   haptic(kind: 'tick' | 'long' | 'confirm'): void;
+  pickAndUploadPhoto?(url: string, headers: Record<string, string>): Promise<string | null>;
   getConstants?: () => {sdk: number; pipSupported: boolean};
   sdk?: number;
   pipSupported?: boolean;
@@ -43,6 +44,12 @@ export const phoneNative = {
   getVolume: async () => (N ? N.getVolume().catch(() => 0.5) : 0.5),
   setVolume: (v: number) => N?.setVolume(v),
   haptic: (kind: 'tick' | 'long' | 'confirm' = 'tick') => N?.haptic(kind),
+  /** Settings → Upload a photo: Android's photo picker, the picture made smaller (longest
+   *  side 1024, JPEG, under 2 MB) and POSTed to `url` with `headers` as its raw body.
+   *  Resolves the server's answer (JSON text), null when the picker was closed; rejects
+   *  with a sentence (the server's refusal, or why it could not be read or sent). */
+  pickAndUploadPhoto: (url: string, headers: Record<string, string>): Promise<string | null> =>
+    N?.pickAndUploadPhoto ? N.pickAndUploadPhoto(url, headers) : Promise.reject(new Error("This phone can't pick a photo here.")),
 };
 
 /** Picture-in-picture came or went (the player hides its chrome inside the window). */

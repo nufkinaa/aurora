@@ -128,7 +128,7 @@ module.exports = {
   "player.party": "wtp",
   "player.party.handover": "wtp",
   "player.party.react": "wtp",
-  "player.party.share": "wp",
+  "player.party.share": "wtp", // (the phone build only: PHONE in the shared Player.tsx)
   "player.party.start": "wtp",
   "player.party.tapjoin": "w",
   "player.pip": "w",
@@ -161,11 +161,11 @@ module.exports = {
   "player.upnext.play": "wtp",
   "player.xray": "wtp",
   // profile
-  "profile.add": "w",
+  "profile.add": "wp",
   "profile.gate.close": "w",
   "profile.pick": "wtp",
   "profile.pin.submit": "tp",
-  "profile.save": "w",
+  "profile.save": "wp",
   "profile.unlock": "wtp",
   // household (the "Show all recommended" page)
   "household.filter": "wt",
@@ -238,7 +238,7 @@ module.exports = {
   "settings.report": "tp",
   "settings.rows.hide": "w",
   "settings.signout": "tp",
-  "settings.taste": "t",
+  "settings.taste": "tp",
   "settings.subs.auto": "tp",
   "settings.subs.bg": "t",
   "settings.subs.color": "t",
@@ -256,23 +256,23 @@ module.exports = {
   "settings.usagestats": "tp",
   "settings.whatsnew": "t",
   // taste (the swipe picker, #/taste)
-  "taste.back": "w",
-  "taste.done": "wt",
-  "taste.edit": "w",
+  "taste.back": "wp",
+  "taste.done": "wtp",
+  "taste.edit": "wp",
   "taste.key": "w",
-  "taste.love": "wt",
-  "taste.more": "wt",
-  "taste.nope": "wt",
-  "taste.skip": "wt",
-  "taste.swipe": "w",
-  "taste.undo": "wt",
-  "taste.unnope": "w",
+  "taste.love": "wtp",
+  "taste.more": "wtp",
+  "taste.nope": "wtp",
+  "taste.skip": "wtp",
+  "taste.swipe": "wp",
+  "taste.undo": "wtp",
+  "taste.unnope": "wp",
   // signin
   "signin.getapps": "w", // "Get the apps" at the foot of the sign-in / request-access card
   "signin.mode.google": "t",
   "signin.mode.qr": "tp",
   "signin.mode.typed": "tp",
-  "signin.request": "t",
+  "signin.request": "tp",
   "signin.submit": "tp",
   // state
   "state.action": "t",
@@ -291,6 +291,9 @@ module.exports = {
   "phone.detail.episodes": "p", // a show's page: All episodes
   "phone.detail.playon": "p", // a title's page: Play on TV
   "phone.detail.share": "p", // a title's page: Share
+  "phone.edit.avatar": "p", // Edit profile: an emoji of the avatar picker
+  "phone.edit.color": "p", // Edit profile: a colour of the colour picker
+  "phone.edit.removepw": "p", // Edit profile: Remove password
   "phone.episode.more": "p", // a show's episode card: its round corner button (the choices)
   "phone.home.remove": "p", // the x on a Continue Watching card
   "phone.menu.apps": "p", // the profile menu: Get the apps (/install)
@@ -330,16 +333,26 @@ module.exports = {
   "phone.remote.stop": "p", // the remote: stop
   "phone.remote.subtitles": "p", // the remote: subtitles
   "phone.remote.volume": "p", // the remote: mute, volume down / up
+  "phone.request.done": "p", // Request access: Done / Back to sign in (after "Request sent")
+  "phone.request.leave": "p", // Request access: Cancel / Back to sign in
+  "phone.request.send": "p", // Request access: Send my request
   "phone.save.film": "p", // a film's page: save on this phone
   "phone.save.season": "p", // a show's page: save a season on this phone
+  "phone.settings.editprofile": "p", // Settings: Edit profile & password
   "phone.settings.pair": "p", // Settings: Sign in a TV
+  "phone.settings.photo": "p", // Settings: Upload a photo / Change photo
+  "phone.settings.photoremove": "p", // Settings: Remove photo
   "phone.settings.remote": "p", // Settings: Your TVs
   "phone.settings.whatsnew": "p", // Settings: What's new
   "phone.settings.saved": "p", // Settings: On this phone
   "phone.settings.switch": "p", // Settings: Switch profile / Sign out
+  "phone.settings.wrapped": "p", // Settings: Your Aurora Wrapped
+  "phone.taste.retry": "p", // Swipe your taste / Edit list: Try again (titles did not load)
   "phone.update.allow": "p", // the update: Allow in Settings (install unknown apps)
   "phone.update.done": "p", // the update: Got it (what's new, after the update)
   "phone.whatsnew.apps": "p", // What's new: every app and its changes (/install/changes)
   "phone.whatsnew.older": "p", // What's new: Show older
   "phone.whatsnew.retry": "p", // What's new: Try again
+  "phone.wrapped.browse": "p", // Wrapped: Back to browsing / Find something to watch
+  "phone.wrapped.retry": "p", // Wrapped: Try again (stats did not load)
 };

@@ -256,7 +256,8 @@ export const later = () => {
   const v = state.info?.version;
   const was = state.phase;
   stopFollowing();
-  if (was === 'downloading' || was === 'verifying') N?.cancel().catch(() => {});
+  // whatever came down goes too (a kept file is never used again: the next Update fetches afresh)
+  if (was !== 'updated' && (dlId != null || dlFile)) N?.cancel().catch(() => {});
   dlId = null;
   dlFile = null;
   set({phase: 'hidden'});

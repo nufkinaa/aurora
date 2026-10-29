@@ -26,7 +26,7 @@ import {pushPhone, usePNav} from '../nav';
 import {BackBar, useColumn, usePageTop, useSolidBar} from '../ui/PageHead';
 import ListRow from '../ui/Row';
 import Glass from '../ui/Glass';
-import Avatar from '../ui/Avatar';
+import {ProfileCard} from './EditProfile';
 import {ChipButton} from '../ui/Buttons';
 import Icon from '../ui/Icon';
 import {useTabBarSpace} from '../ui/TabBar';
@@ -195,14 +195,11 @@ export default function Settings() {
         <Text style={s.sub}>for {me?.name || 'this profile'}</Text>
 
         <Section icon="person" title="Your profile">
-          <View style={s.me}>
-            <Avatar p={me} size={56} />
-            <View style={{flex: 1}}>
-              <Text style={s.meName}>{me?.name || ''}</Text>
-              <Text style={s.meSub}>{me?.hasPassword ? 'Password set' : 'No password set'}{me?.kids ? ` · Kids, up to ${me.kids.maxAge}` : ''}</Text>
-            </View>
-          </View>
+          {/* the face, Edit profile & password, Upload / Change / Remove photo (EditProfile.tsx) */}
+          <ProfileCard profileId={profileId} me={me} />
           <ListRow uiId="phone.settings.switch" icon="swap" title={getAuthMode() === 'closed' ? 'Sign out' : 'Switch profile'} chevron onPress={() => (resetTabs(), switchProfile())} />
+          <ListRow uiId="phone.settings.wrapped" icon="sparkle" title="Your Aurora Wrapped" detail="Your year in numbers, with a few roasts." chevron onPress={() => pushPhone('Wrapped', undefined)} />
+          <ListRow uiId="settings.taste" icon="star" title="Swipe your taste" detail="Love it, not for me, or haven't seen — one title at a time. Home learns from every answer." chevron onPress={() => pushPhone('Taste', undefined)} />
         </Section>
 
         <Section icon="sparkle" title="What you like" sub="Pick the genres you enjoy — Home leans its rows towards them.">

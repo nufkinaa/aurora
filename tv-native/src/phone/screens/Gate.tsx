@@ -1,8 +1,10 @@
 // "Who's watching?" — the profile wall on the phone (the website's picker:
 // the faces in a grid, a lit tile for the one this phone used last). Every
 // rule — a password, the household PIN, the kids lock, a locked profile — is
-// the TV's wall's, shared (profileWall.ts); this file only draws it.
-import React from 'react';
+// the TV's wall's, shared (profileWall.ts); this file only draws it. The last
+// tile, "Add profile", opens the site's request-access card (profiles.js
+// addTile → login.js signupView, standalone): a request the admin approves.
+import React, {useCallback, useState} from 'react';
 import {ActivityIndicator, Image, KeyboardAvoidingView, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {imgSrc, Profile} from '../../api';
@@ -11,6 +13,8 @@ import Tap from '../ui/Tap';
 import Field from '../ui/Field';
 import {GlassButton, PrimaryButton} from '../ui/Buttons';
 import Sky from '../ui/Sky';
+import {REQUEST} from '../profiles';
+import RequestAccess, {LoginShell} from './RequestProfile';
 import {colors, G_EDGE, GUTTER} from '../theme';
 
 function Tile({p, first, onPress, size}: {p: Profile; first: boolean; onPress: () => void; size: number}) {
@@ -43,6 +47,22 @@ function Tile({p, first, onPress, size}: {p: Profile; first: boolean; onPress: (
   );
 }
 
+/** The wall's last tile (.profile-tile.add): a "＋" in an outlined square, "Add profile". */
+function AddTile({onPress, size}: {onPress: () => void; size: number}) {
+  return (
+    <Tap uiId="profile.add" accessibilityRole="button" accessibilityLabel={REQUEST.addProfile} onPress={onPress} style={[s.tile, {width: size + 20}]}>
+      <View style={[s.addFace, {width: size, height: size}]}>
+        <Text style={s.addPlus} allowFontScaling={false}>
+          ＋
+        </Text>
+      </View>
+      <Text style={s.name} numberOfLines={1}>
+        {REQUEST.addProfile}
+      </Text>
+    </Tap>
+  );
+}
+
 function Door({insets, children}: {insets: {top: number; bottom: number}; children: React.ReactNode}) {
   return (
     <View style={s.root}>
@@ -64,6 +84,17 @@ export default function Gate({onChosen, notice}: {onChosen: OnChosen; notice: st
   const {width} = useWindowDimensions();
   // .big-avatar: 84 (the lit one a step larger)
   const size = width < 360 ? 76 : 84;
+  const [adding, setAdding] = useState(false);
+  const leaveAdding = useCallback(() => setAdding(false), []);
+
+  // "Add profile": the request-access card, standalone (its way out is Cancel / Done)
+  if (adding) {
+    return (
+      <LoginShell>
+        <RequestAccess standalone onLeave={leaveAdding} />
+      </LoginShell>
+    );
+  }
 
   // the household PIN (leaving a kids profile, or a profile with no password)
   if (w.pinFor) {
@@ -154,6 +185,7 @@ export default function Gate({onChosen, notice}: {onChosen: OnChosen; notice: st
           {w.ordered.map((p, i) => (
             <Tile key={p.id} p={p} first={i === 0} size={size} onPress={() => w.onTile(p)} />
           ))}
+          {w.profiles !== null ? <AddTile size={size} onPress={() => setAdding(true)} /> : null}
         </View>
         {w.busy ? <ActivityIndicator color={colors.text} style={{marginTop: 20}} /> : null}
       </ScrollView>
@@ -183,6 +215,9 @@ const s = StyleSheet.create({
   kidsText: {color: '#2a1d00', fontSize: 11, fontWeight: '900', letterSpacing: 0.5},
   name: {color: colors.textDim, fontSize: 14.4, fontWeight: '700', lineHeight: 21.6},
   nameFirst: {color: colors.text},
+  // .profile-tile.add .big-avatar: no fill, a 2 dp inset line, the plus 40 in the dim grey
+  addFace: {alignItems: 'center', justifyContent: 'center', borderRadius: 20, borderWidth: 2, borderColor: 'rgba(255,255,255,0.14)'},
+  addPlus: {color: colors.textDim, fontSize: 40, lineHeight: 48},
   door: {flexGrow: 1, paddingHorizontal: GUTTER + 8, maxWidth: 520, width: '100%', alignSelf: 'center'},
   field: {marginTop: 24},
   row: {flexDirection: 'row', gap: 10, marginTop: 20},

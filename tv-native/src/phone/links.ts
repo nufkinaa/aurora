@@ -63,7 +63,7 @@ export async function openLink(l: PhoneLink) {
       push(l.name, l.params);
       return;
     case 'web':
-      // a page only the website has (Wrapped, the taste swipe, Pick for me): the app was
+      // a page only the website has (Pick for me, Requests): the app was
       // opened for it, so say where it is rather than drop the person on Home unexplained
       showToast(`That page is on the website — open ${linkHosts()[0]}/#/${l.path} in the browser`, '🌐');
       return;
