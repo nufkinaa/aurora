@@ -417,6 +417,311 @@ html[data-theme="warm"] { --glass-fill: rgba(28, 23, 16, 0.7); }
   font-size: 1.08rem;
 }
 
+/* ---------- download: one tile per release (lib/releases.js) ----------
+   The whole upper part of a tile is one link: a file downloads at once, the
+   website opens. Under it, small: how to install, the notes, Verify. The
+   visitor's own device comes first and carries the white button (the app's
+   rule: white for the one thing to do, glass for the rest). What is not made
+   yet is one quiet line under the tiles, not tiles of its own: a row of
+   "soon" boxes would read as promises and crowd out the real downloads. */
+.section-dl { padding-top: clamp(56px, 8vw, 104px); }
+.dl-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (min-width: 1000px) {
+  .dl-grid { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; }
+}
+.dl {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)), var(--glass-fill);
+  border: 1px solid var(--glass-line);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 18px 44px rgba(0, 0, 0, 0.28);
+  container-type: inline-size;
+  transition: border-color var(--t-fast) var(--ease);
+}
+.dl:hover { border-color: rgba(255, 255, 255, 0.2); }
+.dl-hit {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 20px 20px 18px;
+  border-radius: 21px 21px 0 0;
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--t-fast) var(--ease);
+}
+.dl-hit:only-child { border-radius: 21px; }
+.dl-hit:hover { background: rgba(255, 255, 255, 0.035); }
+.dl-hit:active { background: rgba(255, 255, 255, 0.06); }
+.dl-hit:focus-visible { outline-offset: -3px; }
+.dl-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 16px;
+}
+.dl-icon {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+.dl-icon svg { width: 36px; height: 36px; }
+.dl-here {
+  display: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+  background: rgba(140, 255, 190, 0.12);
+  color: var(--mint);
+  border: 1px solid rgba(140, 255, 190, 0.3);
+}
+.dl-name {
+  font-weight: 700;
+  font-size: 1.08rem;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+.dl-detail,
+.dl-meta {
+  color: var(--text-dim);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+.dl-detail { margin-top: 2px; }
+.dl-meta {
+  margin: 8px 0 18px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.dl-meta time {
+  display: block;
+  color: var(--text-dim);
+}
+.dl-go {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: auto;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  text-align: center;
+  transition: transform var(--t-fast) var(--ease), background-color var(--t-fast) var(--ease);
+}
+.dl-go svg { width: 18px; height: 18px; flex: none; }
+.dl-hit:hover .dl-go { background: rgba(255, 255, 255, 0.14); }
+.dl-hit:active .dl-go { transform: scale(0.97); }
+
+/* a narrow tile: the badge becomes a tab on the tile's corner */
+@container (max-width: 200px) {
+  .dl-here {
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    padding: 3px 9px 4px 10px;
+    border-radius: 0 18px 0 12px;
+    font-size: 0.68rem;
+  }
+}
+
+/* this device */
+.dl.here {
+  border-color: rgba(140, 255, 190, 0.35);
+  background:
+    radial-gradient(110% 80% at 0% 0%, rgba(var(--accent-rgb), 0.2), transparent 62%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)), var(--glass-fill);
+}
+.dl.here .dl-here { display: inline-block; }
+.dl.here .dl-icon {
+  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.45), rgba(70, 200, 150, 0.25));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+.dl.here .dl-go {
+  background: #fff;
+  color: #0b0c14;
+  border-color: transparent;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.3);
+}
+.dl.here .dl-hit:hover .dl-go { background: #e9eaf2; }
+
+/* the small links under a tile */
+.dl-more {
+  display: flex;
+  padding: 0 6px;
+  border-top: 1px solid var(--glass-line);
+}
+.dl-more > a,
+.dl-more > button,
+.dl-verify > summary {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.dl-more > [hidden] { display: none; }
+.dl-more > a:hover,
+.dl-more > button:hover,
+.dl-verify > summary:hover,
+.dl-verify[open] > summary { color: var(--text); }
+.dl-more > a:focus-visible,
+.dl-more > button:focus-visible,
+.dl-verify > summary:focus-visible { outline-offset: -3px; }
+.dl .s { display: none; }
+@container (max-width: 330px) {
+  .dl-more .l { display: none; }
+  .dl-more .s { display: inline; }
+}
+@container (max-width: 250px) {
+  .dl-go .l { display: none; }
+  .dl-go .s { display: inline; }
+}
+.dl-verify {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+}
+.dl-verify > summary { list-style: none; }
+.dl-verify > summary::-webkit-details-marker { display: none; }
+.dl-sum {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 6px;
+  bottom: 50px;
+  z-index: 2;
+  display: grid;
+  gap: 6px;
+  align-content: center;
+  justify-items: start;
+  overflow: auto;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--bg-raised);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+}
+.dl-file {
+  max-width: 100%;
+  font-size: 0.8rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.dl-alg {
+  color: var(--mint);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.dl-sum code {
+  display: block;
+  max-width: 100%;
+  padding: 6px 8px;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--text);
+  word-break: break-all;
+  user-select: all;
+}
+.dl-sum .copy { min-height: 36px; }
+@container (max-width: 240px) {
+  .dl-sum { gap: 4px; padding: 10px; border-radius: 13px; }
+  .dl-file { font-size: 0.72rem; }
+  .dl-alg { font-size: 0.62rem; }
+  .dl-sum code { padding: 4px 6px; font-size: 0.66rem; line-height: 1.4; }
+  .dl-sum .copy { min-height: 32px; padding: 3px 12px; font-size: 0.76rem; }
+}
+
+/* not made yet: one quiet line */
+.dl-later {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px 18px;
+  margin: 26px auto 0;
+  color: var(--text-dim);
+  font-size: 0.84rem;
+}
+.dl-later-t { margin: 0; font-weight: 700; }
+.dl-later ul {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dl-later li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.dl-later svg { width: 15px; height: 15px; flex: none; opacity: 0.75; }
+
+@media (max-width: 560px) {
+  .dl-grid { gap: 10px; }
+  .dl { border-radius: 18px; }
+  .dl-hit { padding: 14px; border-radius: 17px 17px 0 0; }
+  .dl-hit:only-child { border-radius: 17px; }
+  .dl-top { margin-bottom: 12px; }
+  .dl-icon { width: 48px; height: 48px; border-radius: 14px; }
+  .dl-icon svg { width: 32px; height: 32px; }
+  .dl-meta time { display: none; }
+  .dl-name { font-size: 1rem; }
+  .dl-detail,
+  .dl-meta { font-size: 0.8rem; }
+  .dl-meta { margin-bottom: 14px; }
+  .dl-go { font-size: 0.9rem; padding: 10px; }
+  .dl-more { padding: 0 2px; }
+  .dl-later { font-size: 0.8rem; gap: 8px 14px; margin-top: 20px; }
+  .dl-later ul { gap: 6px 14px; }
+}
+
 /* ---------- the apps ---------- */
 .platforms {
   display: grid;
@@ -990,6 +1295,14 @@ html[data-theme="warm"] { --glass-fill: rgba(28, 23, 16, 0.7); }
 .foot nav a:hover { color: var(--text); }
 .brand-small { font-size: 1rem; color: var(--text); }
 .brand-small .brand-mark { width: 22px; height: 22px; }
+.foot-in .foot-marks {
+  flex: 1 1 100%;
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+.foot-marks a { color: inherit; }
 
 /* ---------- the changes page (/install/changes) ---------- */
 .changes {

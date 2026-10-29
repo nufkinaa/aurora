@@ -33,6 +33,21 @@
       } catch {
         document.documentElement.dataset.look = "glass";
       }
+      // The device the page is open on (its own Download tile comes first, its
+      // card says "This device"): before the first paint, so nothing moves.
+      try {
+        const ua = navigator.userAgent;
+        const touchMac = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1; // an iPad asking for the desktop site
+        document.documentElement.dataset.device =
+          /Android/i.test(ua) && /TV|AFT|BRAVIA|Chromecast|GoogleTV|SMART-TV/i.test(ua) ? "tv"
+            : /Android/i.test(ua) ? "android"
+              : /iPhone|iPad|iPod/i.test(ua) || touchMac ? "ios"
+                : /SMART-TV|SmartTV|Tizen|Web0S|webOS/i.test(ua) ? "smarttv"
+                  : /Windows/i.test(ua) ? "windows"
+                    : /Macintosh/i.test(ua) ? "mac"
+                      : /CrOS/i.test(ua) ? "chromeos"
+                        : /Linux/i.test(ua) ? "linux" : "other";
+      } catch {}
     })();
   </script>
   <!-- the largest picture on the first screen (the TV, at every size): asked for at once -->
@@ -44,7 +59,7 @@
 <body>
   <!-- the glass look's sky, the app's own painter (js/aurora-sky.js), started once the page is idle -->
   <canvas class="sky" id="sky" aria-hidden="true"></canvas>
-  <a class="skip" href="#get">Skip to the apps</a>
+  <a class="skip" href="#download">Skip to the downloads</a>
 
   <header class="top">
     <div class="top-in">
@@ -54,7 +69,7 @@
         <span>Aurora</span>
       </a>
       <nav class="top-nav" aria-label="On this page">
-        <a href="#get">Get the apps</a>
+        <a href="#download">Get the apps</a>
         <a href="#features">Features</a>
         <a href="#new">What's new</a>
       </nav>
@@ -70,7 +85,7 @@
         <h1 id="hero-title">Aurora for your TV, phone and computer</h1>
         <p class="promise">Install it on the screens you watch on. Your place, your list and your settings come with you.</p>
         <div class="hero-cta">
-          <a class="btn btn-primary" href="#get">Get the apps</a>
+          <a class="btn btn-primary" href="#download">Get the apps</a>
           <a class="btn btn-glass" href="/">Open Aurora</a>
         </div>
         <ul class="hero-versions" aria-label="Current versions">
@@ -113,10 +128,34 @@
       </div>
     </section>
 
+    <!-- ============ download (lib/releases.js: one tile per release; one tap gets it) ============ -->
+    <section class="section section-dl" id="download" aria-labelledby="download-title">
+      <header class="section-head">
+        <p class="eyebrow">Download</p>
+        <h2 id="download-title">Get Aurora for your device</h2>
+        <p class="lede">Each download is the latest version.</p>
+      </header>
+      <ul class="dl-grid" id="dl-grid" role="list">{{{downloads}}}</ul>
+      <script>
+        // the visitor's own device first (in the reading and Tab order too, not only on screen)
+        (() => {
+          const d = document.documentElement.dataset.device;
+          const grid = document.getElementById("dl-grid");
+          const tile = d && grid && [...grid.children].find((li) => (li.dataset.for || "").split(" ").includes(d));
+          if (!tile) return;
+          tile.classList.add("here");
+          grid.prepend(tile);
+          const hit = tile.querySelector(".dl-hit");
+          if (hit && hit.hasAttribute("aria-label")) hit.setAttribute("aria-label", `${hit.getAttribute("aria-label")} (this device)`);
+        })();
+      </script>
+      {{{downloads.later}}}
+    </section>
+
     <!-- ============ the apps ============ -->
     <section class="section" id="get" aria-labelledby="get-title">
       <header class="section-head">
-        <p class="eyebrow">Get the apps</p>
+        <p class="eyebrow">How to install</p>
         <h2 id="get-title">One Aurora. Every screen in the house.</h2>
         <p class="lede">Sign in once on each device with your Aurora profile — your list, your progress and your settings follow you everywhere.</p>
       </header>
@@ -367,7 +406,7 @@
       <h2 id="closing-title">Press play.</h2>
       <p>Your films, on every screen in the house.</p>
       <div class="hero-cta">
-        <a class="btn btn-primary" href="#get">Get the apps</a>
+        <a class="btn btn-primary" href="#download">Get the apps</a>
         <a class="btn btn-glass" href="/">Open Aurora</a>
       </div>
     </section>
@@ -378,6 +417,7 @@
       <span class="brand brand-small"><svg class="brand-mark" viewBox="117 84 344 344" aria-hidden="true"><g clip-path="url(#bm-k)"><path fill="url(#bm-a)" d="M96 240C214 292 288 190 480 226V60H96Z"/><path fill="url(#bm-b)" d="M96 260C214 312 288 204.7 480 238.3V283.7C288 259.3 214 386 96 334Z"/><path fill="url(#bm-c)" d="M96 354C214 406 288 274 480 296V452H96Z"/></g></svg><span>Aurora</span></span>
       <p>Self-hosted streaming for your household. Your films stay on your server.</p>
       <nav aria-label="More"><a href="/">Open Aurora</a><a href="/install/changes">Every release</a><a href="/download">Android TV app</a></nav>
+      <p class="foot-marks">Android, Google TV, Apple, iPhone, iPad and the other names and marks are their owners' trademarks, shown only to say which device a download is for. The Android robot is reproduced or modified from work created and shared by Google and used according to terms described in the <a href="https://creativecommons.org/licenses/by/3.0/" rel="noopener">Creative Commons 3.0 Attribution License</a>.</p>
     </div>
   </footer>
 </body>

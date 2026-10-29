@@ -407,6 +407,15 @@ app.get("/download/phone", (req, res) => {
   });
 });
 app.get("/aurora-phone.apk", (req, res) => res.redirect(302, "/download/phone"));
+// Every release with a file, by its name in the one list (lib/releases.js):
+// /download/tv/latest is the TV's APK as "Aurora-TV-<version>.apk",
+// /download/phone/latest the phone's — what /install's Download tiles link
+// to. Open in every sign-in mode like the two doors above (which stay as
+// they are: TVs and Downloader know them). Their checksums are worked out a
+// moment after start, so the page has them from its first visitor.
+const releases = require("./src/lib/releases");
+app.get("/download/:id/latest", releases.sendLatest());
+setTimeout(() => releases.warm(), 3000).unref();
 app.get("/phone-version.json", (req, res, next) => {
   let a = null;
   try { a = require("./src/lib/tvapp").phone.announcement(); } catch {}

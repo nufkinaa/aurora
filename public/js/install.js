@@ -5,6 +5,7 @@
 //   - the QR code for /download, drawn here (js/qr.js — no outside service)
 //   - the What's new tabs
 //   - "This device" on the card for the device the page is open on
+//   - the Download tiles' "Release notes" (opens that app's tab) and Verify
 //   - Copy buttons, and Install app where the browser offers it
 //   - the glass look's sky, started once the page is idle (js/aurora-sky.js)
 import { qrSvg } from "./qr.js";
@@ -63,14 +64,12 @@ if (qr) {
 }
 
 // ---------- "This device" ----------
+// (named by the head script of install.html, which also put its Download
+// tile first)
 {
-  const ua = navigator.userAgent;
-  const touchMac = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1; // an iPad asking for the desktop site
-  const which =
-    /Android/i.test(ua) && /TV|AFT|BRAVIA|Chromecast|GoogleTV|SMART-TV/i.test(ua) ? "tv"
-      : /Android/i.test(ua) ? "android"
-        : /iPhone|iPad|iPod/i.test(ua) || touchMac ? "ios"
-          : /Windows|Macintosh|Linux|CrOS/i.test(ua) ? "computer" : null;
+  const d = document.documentElement.dataset.device;
+  const which = d === "tv" || d === "android" || d === "ios" ? d
+    : d === "windows" || d === "mac" || d === "linux" || d === "chromeos" ? "computer" : null;
   const card = which && document.getElementById(which);
   if (card) {
     card.classList.add("here");
@@ -78,6 +77,27 @@ if (qr) {
     if (badge) badge.hidden = false;
     // on a phone, its own way in comes first
     if (which === "ios" || which === "android") card.style.order = "-1";
+  }
+}
+
+// ---------- the Download tiles ----------
+{
+  // "Release notes" opens What's new on that app's tab
+  for (const a of $$("a[data-notes]")) {
+    a.addEventListener("click", () => {
+      const tab = document.getElementById(a.dataset.notes);
+      if (tab) tab.click();
+    });
+  }
+  // one checksum open at a time; Escape closes it
+  const sums = $$(".dl-verify");
+  for (const d of sums) {
+    d.addEventListener("toggle", () => {
+      if (d.open) for (const o of sums) if (o !== d) o.open = false;
+    });
+    d.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && d.open) { d.open = false; $("summary", d).focus(); }
+    });
   }
 }
 
@@ -100,19 +120,19 @@ for (const btn of $$("[data-copy]")) {
 
 // ---------- Install app (where the browser offers it) ----------
 {
-  const btn = $(".install-pwa");
+  const btns = $$(".install-pwa");
   let offer = null;
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();
     offer = e;
-    if (btn) btn.hidden = false;
+    for (const b of btns) b.hidden = false;
   });
-  if (btn) btn.addEventListener("click", async () => {
+  for (const btn of btns) btn.addEventListener("click", async () => {
     if (!offer) return;
     offer.prompt();
     try { await offer.userChoice; } catch {}
     offer = null;
-    btn.hidden = true;
+    for (const b of btns) b.hidden = true;
   });
 }
 

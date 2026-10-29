@@ -15,6 +15,10 @@
 //   Android phone   public/aurora-phone.apk + public/phone-version.json —
 //                   "Coming soon" until that APK exists; the slot lights up
 //                   by itself the day a build is copied there
+//   the Download    lib/releases.js, the one list of every release (its
+//   tiles           file, version, size, date and SHA-256), drawn here with
+//                   lib/platform-icons.js; the ones not made yet go on a
+//                   quiet "Coming later" line
 //
 // The page is public/install.html with {{tokens}}: {{x}} is escaped text,
 // {{{x}}} is HTML built here from escaped parts. Rendered at most once every
@@ -22,18 +26,16 @@
 // new APK shows on the next load.
 const fs = require("fs");
 const path = require("path");
-const apkinfo = require("./apkinfo");
+const apps = require("./releases"); // (the one list of releases)
+const { icon } = require("./platform-icons");
 
 const ROOT = path.join(__dirname, "..", "..");
 const PUBLIC = path.join(ROOT, "public");
-const TV_APK = path.join(PUBLIC, "aurora-tv.apk");
-const PHONE_APK = path.join(PUBLIC, "aurora-phone.apk");
 const PHONE_JSON = path.join(PUBLIC, "phone-version.json");
 const CHANGELOG = path.join(ROOT, "CHANGELOG.md");
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const readJson = (file) => { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return null; } };
-const isoDay = (ms) => (ms ? new Date(ms).toISOString().slice(0, 10) : null);
 
 // ---------- the release notes ----------
 // "## <version> — <date>" headings, "- " bullets (the shape /api/changelog reads).
@@ -172,27 +174,31 @@ const facts = () => {
   const webRel = releases.find((r) => r.version === pkg.version);
   const web = { version: pkg.version || null, date: (webRel && webRel.date) || null };
 
-  const apk = apkinfo.read(TV_APK, { hash: false });
-  let tv = null;
-  if (!apk.error) {
-    const shipped = notes.tv.find((n) => n.version === apk.versionName);
-    tv = { version: apk.versionName, sizeBytes: apk.sizeBytes, date: (shipped && shipped.date) || isoDay(apk.mtimeMs) };
-  }
+  // The apps with a file (lib/releases.js — the one list): read once, for
+  // the Download tiles and the cards below them alike.
+  const dateFor = (entry, version) =>
+    entry.dated === "changelog" ? ((notes.tv.find((n) => n.version === version) || {}).date || null)
+      : entry.kind === "web" || entry.kind === "webapp" ? web.date : null;
+  const downloads = apps.list({ dateFor });
+  const byId = (id) => downloads.find((r) => r.id === id && r.state === "available");
+
+  const t = byId("tv");
+  const tv = t ? { version: t.version, sizeBytes: t.sizeBytes, date: t.date } : null;
 
   // The phone app: lights up once its APK is published beside the TV's.
   let phone = null;
-  if (fs.existsSync(PHONE_APK)) {
-    const info = apkinfo.read(PHONE_APK, { hash: false });
+  const ph = byId("phone");
+  if (ph) {
     const json = readJson(PHONE_JSON) || {};
-    if (!info.error) {
-      phone = { version: info.versionName, sizeBytes: info.sizeBytes, date: json.date || isoDay(info.mtimeMs) };
-      // its notes, when phone-version.json was written for this build (as /phone-version.json says them)
-      const said = typeof json.notes === "string" && json.notes.trim() && (!json.versionName || json.versionName === info.versionName)
-        ? scrub([finish(tidy(json.notes))], words) : [];
-      phone.notes = said.length ? [{ version: phone.version, date: phone.date, items: said }] : [];
-    }
+    phone = { version: ph.version, sizeBytes: ph.sizeBytes, date: ph.date };
+    // its notes, when phone-version.json was written for this build (as /phone-version.json says them)
+    const said = typeof json.notes === "string" && json.notes.trim() && (!json.versionName || json.versionName === ph.version)
+      ? scrub([finish(tidy(json.notes))], words) : [];
+    phone.notes = said.length ? [{ version: phone.version, date: phone.date, items: said }] : [];
   }
-  return { web, tv, phone, notes, complete: words.ready };
+  // (a checksum still being worked out: this page is not kept, the next one has it)
+  const hashed = downloads.every((r) => r.kind !== "file" || r.state !== "available" || r.sha256);
+  return { web, tv, phone, notes, downloads, complete: words.ready && hashed };
 };
 
 // ---------- the page ----------
@@ -211,6 +217,57 @@ const notesHtml = (list, { max = 3, empty = "Nothing here yet." } = {}) => {
   return shown.map((r) =>
     `<article class="release"><h4><span class="release-v">${esc(r.version)}</span>${r.date ? `<time datetime="${esc(r.date)}">${esc(fmtDate(r.date))}</time>` : ""}</h4>` +
     `<ul>${r.items.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></article>`).join("");
+};
+
+// ---------- the Download section ----------
+// One tile per release that can be had today: the whole upper part is ONE
+// link — a file downloads at once (its own name, from /download/<id>/latest),
+// the website opens, the iPhone's goes to its steps. Under it, small: how to
+// install, the release notes, and for a file its SHA-256 ("Verify"). The
+// visitor's own device is moved first by the page (data-for, install.html).
+const NOTES_TAB = { tv: "tab-tv", phone: "tab-phone", web: "tab-web" };
+const DOWN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>';
+const OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h13M13 7l5 5-5 5"/></svg>';
+// (the link's type hint, by the file's kind; one not listed gets none)
+const FILE_TYPES = { apk: "application/vnd.android.package-archive", exe: "application/vnd.microsoft.portable-executable", msi: "application/x-msi", dmg: "application/x-apple-diskimage", AppImage: "application/x-executable", deb: "application/vnd.debian.binary-package" };
+const twoWay = (long, short) => `<span class="l">${esc(long)}</span><span class="s">${esc(short)}</span>`;
+const tileHtml = (r) => {
+  const isFile = r.kind === "file";
+  const bits = isFile ? [r.version, mb(r.sizeBytes)] : [r.version ? `Version ${r.version}` : ""];
+  const meta = bits.filter(Boolean).map(esc).join(" · ");
+  const type = isFile && FILE_TYPES[(/\.(\w+)$/.exec(r.filename || "") || [])[1]];
+  const label = isFile
+    ? `Download Aurora for ${r.name}, version ${r.version}${r.sizeBytes ? `, ${mb(r.sizeBytes)}` : ""}`
+    : r.kind === "web" ? `Open Aurora in the browser, version ${r.version || ""}`.trim() : `Aurora on ${r.name}: ${r.action}`;
+  const hit =
+    `<a class="dl-hit" href="${esc(r.href)}"${isFile ? ` download="${esc(r.filename)}"${type ? ` type="${type}"` : ""}` : ""} aria-label="${esc(label)}">` +
+      `<span class="dl-top"><span class="dl-icon">${icon(r.icon)}</span><span class="dl-here">This device</span></span>` +
+      `<span class="dl-name">${esc(r.name)}</span>` +
+      (r.detail ? `<span class="dl-detail">${esc(r.detail)}</span>` : "") +
+      `<span class="dl-meta">${meta}${r.date ? ` <time datetime="${esc(r.date)}">${esc(fmtDate(r.date))}</time>` : ""}</span>` +
+      `<span class="dl-go">${isFile ? DOWN : OPEN}${r.short ? twoWay(r.action, r.short) : `<span>${esc(r.action)}</span>`}</span>` +
+    `</a>`;
+  const more = [];
+  if (r.steps && r.kind !== "webapp") more.push(`<a href="${esc(r.steps)}">${twoWay("How to install", "Steps")}</a>`);
+  if (r.notes && NOTES_TAB[r.notes]) more.push(`<a href="#new" data-notes="${NOTES_TAB[r.notes]}">${twoWay("Release notes", "Notes")}</a>`);
+  if (r.installable) more.push(`<button class="install-pwa" type="button" hidden>${twoWay("Install app", "Install")}</button>`);
+  if (isFile && r.sha256) {
+    more.push(
+      `<details class="dl-verify"><summary>Verify</summary>` +
+        `<div class="dl-sum" role="group" aria-label="Checksum of ${esc(r.filename)}">` +
+          `<span class="dl-file">${esc(r.filename)}</span>` +
+          `<span class="dl-alg">SHA-256</span>` +
+          `<code id="sha-${esc(r.id)}">${esc(r.sha256)}</code>` +
+          `<button class="copy" type="button" data-copy="sha-${esc(r.id)}" aria-label="Copy the SHA-256 of ${esc(r.filename)}">Copy</button>` +
+        `</div></details>`);
+  }
+  return `<li class="dl" data-id="${esc(r.id)}" data-family="${esc(r.family)}" data-for="${esc(r.for.join(" "))}">${hit}` +
+    (more.length ? `<div class="dl-more">${more.join("")}</div>` : "") + `</li>`;
+};
+const laterHtml = (list) => {
+  if (!list.length) return "";
+  return `<div class="dl-later"><p class="dl-later-t" id="dl-later-t">Coming later</p><ul aria-labelledby="dl-later-t">` +
+    list.map((r) => `<li data-id="${esc(r.id)}">${icon(r.icon)}<span>${esc(r.name)}</span></li>`).join("") + `</ul></div>`;
 };
 
 const values = (f, req) => {
@@ -235,12 +292,15 @@ const values = (f, req) => {
     "notes.phone": f.phone ? notesHtml(f.phone.notes || [], { empty: "The phone app's notes appear here with its next release." }) : `<p class="notes-empty">The Android phone app is on its way — its notes start here with the first release.</p>`,
     "notes.all.tv": notesHtml(f.notes.tvShown, { max: 1000 }),
     "notes.all.web": notesHtml(f.notes.web, { max: 1000 }),
+    "downloads": f.downloads.filter((r) => r.state === "available").map(tileHtml).join(""),
+    // (a file not published yet joins the planned ones, quietly)
+    "downloads.later": laterHtml(f.downloads.filter((r) => r.state !== "available")),
     year: String(new Date().getFullYear()),
   };
 };
 
 // Raw HTML values (built from escaped parts above) — everything else is text.
-const RAW = new Set(["web.line", "tv.line", "phone.line", "notes.tv", "notes.web", "notes.phone", "notes.all.tv", "notes.all.web"]);
+const RAW = new Set(["downloads", "downloads.later", "web.line", "tv.line", "phone.line", "notes.tv", "notes.web", "notes.phone", "notes.all.tv", "notes.all.web"]);
 const render = (name, req) => {
   const assetver = require("./assetver");
   const f = facts();
@@ -278,4 +338,4 @@ const send = (name) => (req, res) => {
   res.type("html").send(hit.html);
 };
 
-module.exports = { send, facts, render, _internals: { parseChangelog, headline, tvHeadline, notesFrom, scrub, householdWords, wordRe, fmtDate, tvVersionIn } };
+module.exports = { send, facts, render, _internals: { tileHtml, laterHtml, parseChangelog, headline, tvHeadline, notesFrom, scrub, householdWords, wordRe, fmtDate, tvVersionIn } };
