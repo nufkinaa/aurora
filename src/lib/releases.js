@@ -94,6 +94,15 @@ const sha256 = (file, st, known) => {
   return null;
 };
 
+// The checksum of any published file by its path, the same way: the hex once it is known,
+// null while it is being worked out (or the file is missing). lib/tvapp.js puts it in
+// /phone-version.json, so the phone can check the update it downloaded.
+const checksumOf = (file) => {
+  let st;
+  try { st = fs.statSync(file); } catch { return null; }
+  return sha256(file, st, null);
+};
+
 // ---------- one entry's facts ----------
 const resolve = (entry, { root = ROOT, dateFor = null, pkg = null } = {}) => {
   const out = {
@@ -167,4 +176,4 @@ const sendLatest = (opts = {}) => (req, res) => {
 // already has them.
 const warm = (opts = {}) => { try { list(opts); } catch {} };
 
-module.exports = { RELEASES, list, resolve, sendLatest, warm, fileName, _internals: { hashes, safeVersion } };
+module.exports = { RELEASES, list, resolve, sendLatest, warm, fileName, checksumOf, _internals: { hashes, safeVersion } };

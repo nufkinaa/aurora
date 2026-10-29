@@ -239,3 +239,41 @@ test("play marks: the phone app is its own app and path, whatever its user-agent
   assert.equal(pm.record({ id: "x2", name: "mount", extra: { app: "tv" }, ip: "10.0.0.8", now }).path, "tv");
   assert.equal(pm.record({ id: "x3", name: "mount", extra: {}, ip: "10.0.0.7", ua: "Mozilla/5.0 (iPhone)", now }).app, "web");
 });
+
+// ---------- the published files, as committed (what nufurora serves after it pulls) ----------
+// The release copies a phone build to public/aurora-phone.apk and writes its notes in
+// public/phone-version.json by hand. The server announces the APK's own version whatever
+// the JSON says (so a phone is never sent into an update loop), but a JSON written for
+// another build means the release notes are silently dropped and the admin page warns:
+// a release that commits the two out of step fails here, before it is pushed.
+const PHONE_APK = path.join(__dirname, "..", "public", "aurora-phone.apk");
+const PHONE_JSON = path.join(__dirname, "..", "public", "phone-version.json");
+test("the committed phone build and its notes file name the same version, and the APK is the phone app", { skip: !fs.existsSync(PHONE_APK) && "no phone APK published" }, () => {
+  const apk = require("../src/lib/apkinfo").read(PHONE_APK, { hash: false });
+  assert.ok(!apk.error, apk.error);
+  assert.equal(apk.package, "com.aurora.phone", "public/aurora-phone.apk must be the phone build (-Paurora=phone), not the TV's");
+  assert.match(apk.versionName, /^\d+\.\d+\.\d+$/);
+  assert.ok(apk.versionCode > 0);
+  if (fs.existsSync(PHONE_JSON)) {
+    const j = JSON.parse(fs.readFileSync(PHONE_JSON, "utf8"));
+    assert.equal(j.versionName, apk.versionName, "public/phone-version.json was written for another build than public/aurora-phone.apk");
+    if (j.date != null) assert.match(j.date, /^\d{4}-\d{2}-\d{2}$/);
+    assert.equal(typeof (j.notes || ""), "string");
+  }
+  // what the phones are told is exactly that file
+  const a = tvapp.phone.announcement();
+  assert.equal(a.versionName, apk.versionName);
+  assert.equal(a.versionCode, apk.versionCode);
+  assert.equal(a.sizeBytes, fs.statSync(PHONE_APK).size);
+  // and the published build is signed with the key the App Links statement vouches for
+  const signer = apksign.read(PHONE_APK);
+  assert.ok(signer.sha256, "the phone APK carries a v2/v3 signature");
+});
+
+test("the committed TV build and tv-version.json name the same version", { skip: !haveTvApk && "no TV APK published" }, () => {
+  const apk = require("../src/lib/apkinfo").read(TV_APK, { hash: false });
+  assert.ok(!apk.error, apk.error);
+  assert.equal(apk.package, "com.auroratv");
+  const jf = path.join(__dirname, "..", "public", "tv-version.json");
+  if (fs.existsSync(jf)) assert.equal(JSON.parse(fs.readFileSync(jf, "utf8")).versionName, apk.versionName, "public/tv-version.json was written for another build than public/aurora-tv.apk");
+});

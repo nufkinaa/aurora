@@ -11,6 +11,7 @@ import ListRow from './ui/Row';
 import {colors, GUTTER, radius, TAB_H, TAB_INSET} from './theme';
 import {tabBottom} from './ui/TabBar';
 import XraySheet from './sheets/XraySheet';
+import ReplaceSheet from './sheets/ReplaceSheet';
 import RecommendSheet from './sheets/RecommendSheet';
 import {JoinPartySheet, ReportSheet} from './sheets/SmallSheets';
 import UpdateSheet from './sheets/UpdateSheet';
@@ -57,6 +58,10 @@ export default function PhoneOverlays() {
           </>
         ) : null}
       </Sheet>
+      {o?.kind === 'replace' ? <ReplaceSheet libraryId={o.libraryId} title={o.title} context={o.context} onClose={() => {
+        closeOverlay();
+        o.onClose?.();
+      }} /> : null}
       {o?.kind === 'xray' ? <XraySheet query={o.query} title={o.title} onClose={() => {
         closeOverlay();
         o.onClose?.();

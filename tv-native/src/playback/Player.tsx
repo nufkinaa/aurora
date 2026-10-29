@@ -68,6 +68,7 @@ import {
   BackHandler,
   Image,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TVFocusGuideView,
@@ -85,7 +86,7 @@ import Video, {
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Focusable from '../components/Focusable';
 import Icon, {IconName} from '../components/Icon';
-import {api, ApiError, assetUrl, imgSrc, mediaHeaders, Item, Party, PartyItem, ProfileState, Segments, SubtitleTrack} from '../api';
+import {api, ApiError, assetUrl, getBaseUrl, imgSrc, mediaHeaders, Item, Party, PartyItem, ProfileState, Segments, SubtitleTrack} from '../api';
 import {useApp} from '../AppContext';
 import {useRouteShown} from '../useRouteShown';
 import {setPlayingContext} from '../errors';
@@ -5295,6 +5296,21 @@ export default function Player({
                   </Focusable>
                 ))}
               </View>
+              {/* [android-phone] the website's "Share invite": Android's share sheet with the
+                  party's link (nufurora.com/#/party/CODE opens the app, or the site, on the
+                  other phone). The TV has no share sheet: unchanged there. */}
+              {PHONE ? (
+                <MenuItem
+                  uiId="player.party.share"
+                  label="Share the invite"
+                  sub="A link that joins this party, for a chat or a message"
+                  onFocusChange={markZone('menu')}
+                  onPress={() => {
+                    const url = `${getBaseUrl() || 'https://nufurora.com'}/#/party/${partyInfo.code}`;
+                    Share.share({message: `Watch ${activityLabel()} with me on Aurora — ${url}`, url, title: 'Watch together'}).catch(() => {});
+                  }}
+                />
+              ) : null}
               {party.role === 'host' && partyInfo.members.length > 1 ? (
                 <MenuItem
                   uiId="player.party.handover"

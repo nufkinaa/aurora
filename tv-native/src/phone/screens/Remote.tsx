@@ -22,6 +22,7 @@ import Tap from '../ui/Tap';
 import Icon, {PhoneIconName} from '../ui/Icon';
 import {Bar} from '../ui/Cards';
 import {phoneNative} from '../native';
+import {pushPhone} from '../nav';
 import {colors, GUTTER, radius} from '../theme';
 
 const fmt = (s: number) => {
@@ -160,6 +161,8 @@ export default function Remote() {
             ) : null}
           </>
         )}
+        {/* a TV on its sign-in screen: its code, typed here (or its QR, scanned with the camera) */}
+        <ChipButton uiId="phone.remote.pair" icon="plus" label="Sign in a TV" onPress={() => pushPhone('PairTv', {code: null})} style={{alignSelf: 'center', marginTop: 24}} />
       </ScrollView>
       <BackBar solid={bar.solid} title={bar.solid ? 'Your TVs' : undefined} />
     </View>

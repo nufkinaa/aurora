@@ -8,7 +8,7 @@ import com.facebook.react.uimanager.ViewManager
 /** The phone app's own modules (registered by MainApplication only when BuildConfig.PHONE). */
 class PhonePackage : ReactPackage {
   override fun createNativeModules(ctx: ReactApplicationContext): List<NativeModule> =
-    listOf(PhoneModule(ctx), OfflineModule(ctx))
+    listOf(PhoneModule(ctx), OfflineModule(ctx), PhoneUpdaterModule(ctx))
 
   override fun createViewManagers(ctx: ReactApplicationContext): List<ViewManager<*, *>> = emptyList()
 }

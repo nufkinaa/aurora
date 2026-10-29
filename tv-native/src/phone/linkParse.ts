@@ -8,15 +8,24 @@
 //   https://nufurora.com/#/discover/series/<tt…>
 //   https://nufurora.com/#/party/<code>           join a watch party
 //   https://nufurora.com/#/remote                 Your TVs
-//   https://nufurora.com/#/search?q=<words>       Search on those words
+//   https://nufurora.com/#/search?q=<words>       Search on those words (and the
+//   https://nufurora.com/#/search/<words>         website's own form of it)
+//   https://nufurora.com/#/play/<id>              play it (the website's "… is ready" push)
+//   https://nufurora.com/#/new, #/household[/sent], #/saved
+//   #/wrapped, #/taste, #/pick, #/requests        website-only pages: said so, nothing opened
 //   https://nufurora.com/#/downloads, #/list, #/movies, #/shows, #/preferences
-//   (aurora-phone://<same hash path> works too: aurora-phone://movie/<id>)
+//   https://nufurora.com/link?code=<CODE>         a TV's sign-in QR: "Sign in this TV?"
+//   https://nufurora.com/link, #/pair[/<CODE>]    the same, or its type-the-code field
+//   (aurora-phone://<same hash path> works too: aurora-phone://movie/<id>, aurora-phone://pair/<CODE>)
 export type LinkItem = {id: string; title: string; type?: 'movie' | 'show'; imdbId?: string; source?: 'stream' | 'downloaded'} & Record<string, unknown>;
 export type PhoneLink =
   | {kind: 'item'; action: 'play' | 'detail'; item: LinkItem}
   | {kind: 'party'; code: string}
   | {kind: 'search'; q: string}
-  | {kind: 'screen'; name: 'Remote' | 'Downloads' | 'Settings'}
+  | {kind: 'pair'; code: string | null}
+  | {kind: 'play'; id: string}
+  | {kind: 'screen'; name: 'Remote' | 'Downloads' | 'Settings' | 'WhatsNew' | 'Household'; params?: Record<string, unknown>}
+  | {kind: 'web'; path: string}
   | {kind: 'tab'; tab: 'home' | 'movies' | 'shows' | 'list' | 'search'};
 
 const get = (query: string, k: string): string | null => {
@@ -28,6 +37,17 @@ const get = (query: string, k: string): string | null => {
     return null;
   }
 };
+
+// A TV's pairing code (src/lib/devicepair.js): six of its alphabet — no 0 / O / 1 / I / L.
+export const PAIR_CODE_LEN = 6;
+const PAIR_CODE_OK = /^[ABCDEFGHJKMNPQRSTUVWXYZ2-9]{6}$/;
+/** What a person typed (or a link carried) as a TV's code → the code, or null when it cannot be one. */
+export function pairCode(raw: unknown): string | null {
+  const c = String(raw ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return PAIR_CODE_OK.test(c) ? c : null;
+}
+/** The field's own clean-up while typing: capitals, letters and digits, six at most. */
+export const typedPairCode = (raw: string) => String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, PAIR_CODE_LEN);
 
 export function parsePhoneLink(url: string | null | undefined, hosts: string[] = ['nufurora.com']): PhoneLink | null {
   if (!url || typeof url !== 'string') return null;
@@ -45,12 +65,19 @@ export function parsePhoneLink(url: string | null | undefined, hosts: string[] =
       return null;
     }
   }
+  const hostOk = (h: string) => hosts.map(x => x.toLowerCase().replace(/^www\./, '')).includes(h.toLowerCase().replace(/^www\./, ''));
+  // the TV's sign-in QR: {server}/link?code=XXXXXX (and {server}/link, where the TV
+  // says "no camera handy? open … and type this code") — the server's /link redirect
+  // to #/pair, answered here without the browser
+  const link = /^https?:\/\/([^/?#]+)\/link\/?(?:\?([^#]*))?(?:#.*)?$/i.exec(u);
+  if (link) return hostOk(link[1]) ? {kind: 'pair', code: pairCode(get(link[2] || '', 'code'))} : null;
+  const ownLink = /^aurora-phone:\/\/link\/?(?:\?(.*))?$/i.exec(u);
+  if (ownLink) return {kind: 'pair', code: pairCode(get(ownLink[1] || '', 'code'))};
   // the website's hash routes, on one of its hosts — or on the app's own scheme
   let path: string | null = null;
   const web = /^https?:\/\/([^/?#]+)\/?(?:index\.html)?(?:\?[^#]*)?#\/?(.*)$/i.exec(u);
   if (web) {
-    const host = web[1].toLowerCase().replace(/^www\./, '');
-    if (!hosts.map(h => h.toLowerCase()).includes(host)) return null;
+    if (!hostOk(web[1])) return null;
     path = web[2];
   } else {
     const own = /^aurora-phone:\/\/(.*)$/i.exec(u);
@@ -84,15 +111,30 @@ export function parsePhoneLink(url: string | null | undefined, hosts: string[] =
       return parts[1] && /^[A-Za-z0-9]{3,12}$/.test(parts[1]) ? {kind: 'party', code: parts[1].toUpperCase()} : null;
     case 'remote':
       return {kind: 'screen', name: 'Remote'};
+    case 'pair':
+      return {kind: 'pair', code: pairCode(parts[1])};
     case 'downloads':
       return {kind: 'screen', name: 'Downloads'};
     case 'preferences':
     case 'settings':
       return {kind: 'screen', name: 'Settings'};
     case 'search': {
-      const q = (get(query, 'q') || '').trim().slice(0, 80);
+      const q = (get(query, 'q') || parts.slice(1).join(' ') || '').trim().slice(0, 80);
       return q ? {kind: 'search', q} : {kind: 'tab', tab: 'search'};
     }
+    case 'play':
+      return parts[1] && id.test(parts[1]) ? {kind: 'play', id: parts[1]} : null;
+    case 'new':
+      return {kind: 'screen', name: 'WhatsNew'};
+    case 'household':
+      return {kind: 'screen', name: 'Household', params: parts[1] === 'sent' ? {tab: 'sent'} : undefined};
+    case 'saved':
+      return {kind: 'screen', name: 'Downloads'};
+    case 'wrapped':
+    case 'taste':
+    case 'pick':
+    case 'requests':
+      return {kind: 'web', path: parts[0]};
     case 'list':
       return {kind: 'tab', tab: 'list'};
     case 'movies':

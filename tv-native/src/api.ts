@@ -299,6 +299,8 @@ export type ProfileState = {
   // The genres this profile said it likes; Home's server-side ranking uses them
   // and the Settings screen edits them.
   likedGenres?: string[];
+  // Your rating, 1–5, by IMDb id or library id (the website's stars; phone/ui/StarRating.tsx).
+  ratings?: Record<string, number>;
 };
 
 export type Episode = {
@@ -919,7 +921,10 @@ export const __resetHeldMarks = () => {
   flushingMarks = false;
 };
 
-async function send(path: string, options: RequestInit = {}, allow304 = false): Promise<Response> {
+// `quietSignin`: a 401 {signinRequired} is the caller's own answer, not "the wall went
+// up" — the phone's "Sign in this TV?" asks for a sign-in itself (PairTv.tsx) instead
+// of being signed out of the profile it is in. Every other call: unchanged.
+async function send(path: string, options: RequestInit = {}, allow304 = false, quietSignin = false): Promise<Response> {
   if (!baseUrl) throw new ApiError(0, 'No server configured');
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -992,7 +997,7 @@ async function send(path: string, options: RequestInit = {}, allow304 = false): 
       // The wall went up (mode flipped, session revoked/expired): route the
       // app to the login screen — once per burst, because every in-flight
       // request on the screen fails together.
-      if (signinRequiredCb && Date.now() - signinFiredAt > 3000) {
+      if (!quietSignin && signinRequiredCb && Date.now() - signinFiredAt > 3000) {
         signinFiredAt = Date.now();
         signinRequiredCb({signedOut: !!body.signedOut});
       }
@@ -1589,6 +1594,8 @@ export const api = {
       (caps ? `${profileId ? '&' : '?'}caps=${caps}` : '');
     return memo(path, 45000, () => request<Item>(path), fresh);
   },
+  rate: (profileId: string, itemId: string, stars: number) =>
+    post<{ratings: Record<string, number>}>(`/api/profiles/${profileId}/rating`, {itemId, stars}),
   state: (profileId: string) =>
     request<ProfileState>(`/api/profiles/${profileId}/state`).then(st => {
       lastState = {profileId, at: Date.now(), st};
@@ -1774,6 +1781,20 @@ export const api = {
       '/api/auth/device/start',
       {},
     ),
+  // The other side of the pairing (the phone's "Sign in this TV?", phone/screens/PairTv.tsx):
+  // who is asking (404 = no such code, 429 = too many looks), and the one tap that hands
+  // the TV this phone's sign-in. A 401 there means "sign in to approve", said quietly.
+  devicePairDescribe: (code: string) =>
+    request<{ip?: string | null; device?: {device?: string | null; os?: string | null} | null; approved?: boolean}>(
+      `/api/auth/device/describe/${encodeURIComponent(code)}`,
+    ),
+  devicePairApprove: (code: string) =>
+    send(
+      '/api/auth/device/approve',
+      {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({code})},
+      false,
+      true,
+    ).then(r => r.json() as Promise<{ok?: boolean}>),
   devicePoll: (code: string, secret: string) =>
     post<Partial<SigninResult> & { pending?: boolean }>('/api/auth/device/poll', {
       code,

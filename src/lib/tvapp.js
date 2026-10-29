@@ -78,6 +78,7 @@ const TV = {
 };
 const PHONE = {
   key: "phone",
+  withChecksum: true,
   apkPath: path.join(ROOT, "public", "aurora-phone.apk"),
   jsonPath: path.join(ROOT, "public", "phone-version.json"),
   words: {
@@ -148,6 +149,14 @@ const appFor = (app) => {
     const json = readJson();
     const out = { versionName: apk.versionName, versionCode: apk.versionCode, sizeBytes: apk.sizeBytes };
     if (json && json.versionName === apk.versionName && json.notes) out.notes = json.notes;
+    // The phone checks what it downloaded against this (phone/update/store.ts): the file's
+    // SHA-256, once worked out (lib/releases.js, off the request's way — absent until then;
+    // the size alone is checked meanwhile). The TVs are told what they always were.
+    if (app.withChecksum) {
+      let sum = null;
+      try { sum = require("./releases").checksumOf(app.apkPath); } catch {}
+      if (sum) out.sha256 = sum;
+    }
     return out;
   };
   return { status, announcement, APK_PATH: app.apkPath, JSON_PATH: app.jsonPath };

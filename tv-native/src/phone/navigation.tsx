@@ -22,6 +22,7 @@ import {useLinks} from './links';
 export type PhoneStackParamList = RootStackParamList & {
   Remote: undefined;
   OfflinePlayer: {id: string};
+  PairTv: {code?: string | null} | undefined;
 };
 
 const SCREENS = {
@@ -36,6 +37,8 @@ const SCREENS = {
   Search: () => require('./screens/Search').SearchRoute,
   MyList: () => require('./screens/MyList').default,
   OfflinePlayer: () => require('./screens/OfflinePlayer').default,
+  PairTv: () => require('./screens/PairTv').default,
+  WhatsNew: () => require('./screens/WhatsNew').default,
 } as const;
 
 // evaluated one at a time after Home has had its first seconds (the TV's warmScreens)
@@ -113,6 +116,8 @@ export default function PhoneNavigator() {
           <Stack.Screen name="Browse" getComponent={SCREENS.Browse} />
           <Stack.Screen name="Search" getComponent={SCREENS.Search} />
           <Stack.Screen name="MyList" getComponent={SCREENS.MyList} />
+          <Stack.Screen name="PairTv" getComponent={SCREENS.PairTv} />
+          <Stack.Screen name="WhatsNew" getComponent={SCREENS.WhatsNew} />
           <Stack.Screen
             name="OfflinePlayer"
             getComponent={SCREENS.OfflinePlayer}

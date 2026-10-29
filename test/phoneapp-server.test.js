@@ -66,8 +66,18 @@ test("the phone's doors, no session, sign-in required: nothing published, then a
     fs.writeFileSync(path.join(srv.root, "public", "phone-version.json"), JSON.stringify({ versionName: info.versionName, notes: "Saved films play offline.", date: "2026-10-29" }));
     r = await get(srv, "/phone-version.json");
     assert.equal(r.status, 200);
-    assert.deepEqual(r.json, { versionName: info.versionName, versionCode: info.versionCode, sizeBytes: info.sizeBytes, notes: "Saved films play offline." });
+    const { sha256: early, ...rest } = r.json;
+    assert.deepEqual(rest, { versionName: info.versionName, versionCode: info.versionCode, sizeBytes: info.sizeBytes, notes: "Saved films play offline." });
     assert.equal(r.headers["cache-control"], "no-cache");
+    // the file's SHA-256 (what the phone checks its download against): worked out off the
+    // request's way, there a moment later — and the very hash of the file /download/phone sends
+    const want256 = require("crypto").createHash("sha256").update(fs.readFileSync(apk)).digest("hex");
+    let sum = early || null;
+    for (let i = 0; !sum && i < 50; i++) {
+      await new Promise((res) => setTimeout(res, 200));
+      sum = (await get(srv, "/phone-version.json")).json.sha256 || null;
+    }
+    assert.equal(sum, want256);
     r = await get(srv, "/download/phone");
     assert.equal(r.status, 200);
     assert.match(r.headers["content-disposition"], /attachment; filename="aurora-phone\.apk"/);

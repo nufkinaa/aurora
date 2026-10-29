@@ -83,7 +83,7 @@
             <category android:name="android.intent.category.DEFAULT" />
             <data android:scheme="aurora" android:host="open" />
         </intent-filter>
-        <!-- nufurora.com links (a title, a watch party, the remote) open the app. They open
+        <!-- nufurora.com links (a title, a watch party, the remote, a TV's sign-in) open the app. They open
              by themselves once nufurora.com serves /.well-known/assetlinks.json for this
              app's signing key; until then Android asks, or the person turns "Open supported
              links" on in the app's settings. -->
@@ -92,6 +92,10 @@
             <category android:name="android.intent.category.DEFAULT" />
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="https" android:host="nufurora.com" android:path="/" />
+            <!-- a TV's sign-in QR (nufurora.com/link?code=…, src/routes/auth.js): "Sign in this
+                 TV?" in the app (phone/screens/PairTv.tsx). Only these two paths: /install,
+                 /download/phone and every other page stay the browser's. -->
+            <data android:path="/link" />
         </intent-filter>
       </activity>
       <!-- The player's media session: play / pause / seek from the notification, the lock

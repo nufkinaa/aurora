@@ -35,7 +35,7 @@ module.exports = {
   "detail.offline.season": "w",
   "detail.offline.seasonall": "w",
   "detail.play": "wtp",
-  "detail.replace": "wt",
+  "detail.replace": "wtp",
   "detail.playontv": "w", // [phone-remote]
   "detail.recommend": "wtp",
   "detail.restart": "wtp",
@@ -128,7 +128,7 @@ module.exports = {
   "player.party": "wtp",
   "player.party.handover": "wtp",
   "player.party.react": "wtp",
-  "player.party.share": "w",
+  "player.party.share": "wp",
   "player.party.start": "wtp",
   "player.party.tapjoin": "w",
   "player.pip": "w",
@@ -171,7 +171,7 @@ module.exports = {
   "household.filter": "wt",
   "household.tab": "wt",
   // rating
-  "rating.star": "w",
+  "rating.star": "wp",
   // remote (the phone as a remote, #/remote) [phone-remote]
   "remote.audio": "w",
   "remote.back": "w",
@@ -202,10 +202,10 @@ module.exports = {
   // report
   "report.send": "wtp",
   // replace ("Problem with this copy? → Get another version")
-  "replace.cancel": "wt",
-  "replace.early": "t", // "Download it anyway" on a pre-release copy (the site asks with its shared confirm sheet)
-  "replace.pick": "wt",
-  "replace.reason": "wt",
+  "replace.cancel": "wtp",
+  "replace.early": "tp", // "Download it anyway" on a pre-release copy (the site asks with its shared confirm sheet)
+  "replace.pick": "wtp",
+  "replace.reason": "wtp",
   // row
   "row.arrow": "w",
   // saved
@@ -300,6 +300,14 @@ module.exports = {
   "phone.menu.settings": "p", // the profile menu: Settings
   "phone.menu.switch": "p", // the profile menu: Switch profile
   "phone.mylist.browse": "p", // an empty My List: Browse movies
+  "phone.pair.approve": "p", // Sign in a TV: Yes — sign it in
+  "phone.pair.cancel": "p", // Sign in a TV: Cancel (the code field)
+  "phone.pair.continue": "p", // Sign in a TV: Continue (the code field)
+  "phone.pair.done": "p", // Sign in a TV: Done / Back to Aurora
+  "phone.pair.ignore": "p", // Sign in a TV: No, ignore it
+  "phone.pair.retry": "p", // Sign in a TV: Try again (the server did not answer)
+  "phone.pair.signin": "p", // Sign in a TV: Sign in to approve
+  "phone.pair.type": "p", // Sign in a TV: Type a code (an expired one)
   "phone.peek.details": "p", // the long-press sheet: Details
   "phone.peek.recommend": "p", // the long-press sheet: Recommend
   "phone.player.fit": "p", // the player: Fit the picture / Fill the screen
@@ -314,6 +322,7 @@ module.exports = {
   "phone.remote.home": "p", // the remote: Home
   "phone.remote.next": "p", // the remote: next episode
   "phone.remote.ok": "p", // the remote: OK
+  "phone.remote.pair": "p", // Your TVs: Sign in a TV
   "phone.remote.playpause": "p", // the remote: play / pause
   "phone.remote.seek": "p", // the remote: jump back / forward
   "phone.remote.stop": "p", // the remote: stop
@@ -321,8 +330,14 @@ module.exports = {
   "phone.remote.volume": "p", // the remote: mute, volume down / up
   "phone.save.film": "p", // a film's page: save on this phone
   "phone.save.season": "p", // a show's page: save a season on this phone
+  "phone.settings.pair": "p", // Settings: Sign in a TV
   "phone.settings.remote": "p", // Settings: Your TVs
+  "phone.settings.whatsnew": "p", // Settings: What's new
   "phone.settings.saved": "p", // Settings: On this phone
   "phone.settings.switch": "p", // Settings: Switch profile / Sign out
   "phone.update.allow": "p", // the update: Allow in Settings (install unknown apps)
+  "phone.update.done": "p", // the update: Got it (what's new, after the update)
+  "phone.whatsnew.apps": "p", // What's new: every app and its changes (/install/changes)
+  "phone.whatsnew.older": "p", // What's new: Show older
+  "phone.whatsnew.retry": "p", // What's new: Try again
 };

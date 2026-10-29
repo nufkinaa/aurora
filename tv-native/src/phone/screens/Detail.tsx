@@ -40,7 +40,9 @@ import {useApp} from '../../AppContext';
 import {canNavigate} from '../../navLock';
 import {showToast} from '../../toast';
 import {onMessage} from '../../realtime';
-import {openActions, openRecommend, openTrailer, openXray} from '../../overlay';
+import {openActions, openRecommend, openReplace, openTrailer, openXray} from '../../overlay';
+import {replaceOffered} from '../../replaceLogic';
+import StarRating from '../ui/StarRating';
 import {autoPlayStep, fallbackSources, jobSource, pickBest, runningJobFor, streamPlayItem} from '../../playBest';
 import {heroRelease, ReleaseStatus} from '../../releaseWords';
 import {pickUp, startSeason} from '../../episodeRules';
@@ -743,6 +745,7 @@ export default function Detail() {
           ...(ep.owned ? [{label: 'Play', onPress: () => playEpisode(ep)}] : [{label: 'Save and play', tag: 'the best source, played while it downloads', onPress: () => saveBest(ep.season, ep.episode, true, ep.air)}]),
           ...(ep.owned ? [{label: ep.phone === 'done' ? 'Play the copy on this phone' : ep.phone ? 'Saving to this phone…' : 'Save to this phone', tag: ep.phone ? undefined : 'watch it with no connection', onPress: () => saveEpisodeToPhone(ep)}] : []),
           ...(!ep.owned ? [{label: 'Sources', tag: 'streams and downloads', onPress: () => openSources(ep.season, ep.episode)}] : []),
+          ...(ep.owned && ep.epId && replaceOffered({libraryId: ep.epId, kids: peekMe(profileId)?.kids, torrentsOff}) ? [{label: 'Get another version', tag: 'a problem with this copy', uiId: 'detail.replace', onPress: () => openReplace({libraryId: ep.epId!, title: `${title} · S${ep.season} E${ep.episode}`, context: {title, itemId: ep.epId}})}] : []),
           {
             label: ep.watched ? 'Mark unwatched' : 'Mark watched',
             tag: ep.watched ? 'back to unseen' : 'ticks it off',
@@ -754,7 +757,7 @@ export default function Detail() {
         ],
       });
     },
-    [title, playEpisode, saveBest, openSources, setEpisodeWatched, saveEpisodeToPhone],
+    [title, playEpisode, saveBest, openSources, setEpisodeWatched, saveEpisodeToPhone, profileId, torrentsOff],
   );
   // one quality for the whole season (asked once), then each episode in turn
   const saveSeasonToPhone = async (eps: UiEp[]) => {
@@ -1040,6 +1043,7 @@ export default function Detail() {
               />
             ) : null}
             {ownedMovieId ? <ActionCircle uiId="detail.watched" icon="check" label={movieWatched ? 'Watched' : 'Mark watched'} on={movieWatched} onPress={toggleMovieWatched} /> : null}
+            {ownedMovieId && replaceOffered({libraryId: ownedMovieId, kids: peekMe(profileId)?.kids, torrentsOff}) ? <ActionCircle uiId="detail.replace" icon="refresh" label="Another version" onPress={() => openReplace({libraryId: ownedMovieId, title, context: {title, itemId: ownedMovieId}})} /> : null}
             {trailers.length || imdb ? <ActionCircle uiId="detail.trailer" icon="film" label="Trailer" onPress={() => openTrailer(trailers, title, {imdbId: imdb, type: isShow ? 'show' : 'movie', year})} /> : null}
             <ActionCircle uiId="phone.detail.share" icon="share" label="Share" onPress={share} />
           </ScrollView>
@@ -1067,6 +1071,7 @@ export default function Detail() {
               {synopsis.length > 140 ? <Text style={s.more}>{moreText ? 'Less' : 'More'}</Text> : null}
             </Tap>
           ) : null}
+          <StarRating profileId={profileId} rateKey={imdb || full?.id || null} />
           {cast.length ? (
             <Text style={s.line}>
               <Text style={s.lineKey}>Cast </Text>

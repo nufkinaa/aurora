@@ -3,4 +3,6 @@
      the installer a content:// URI to it. -->
 <paths>
     <cache-path name="updates" path="updates/" />
+    <!-- the phone app's update (phone/PhoneUpdaterModule.kt: DownloadManager writes it here) -->
+    <external-files-path name="phone-updates" path="updates/" />
 </paths>

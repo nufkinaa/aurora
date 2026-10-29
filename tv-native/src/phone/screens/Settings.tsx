@@ -34,8 +34,9 @@ import {resetTabs} from '../tabs';
 import {OFFLINE_QUALITIES, offlinePrefs, setOfflinePrefs, useOfflineUsage} from '../offline/store';
 import {colors, GUTTER} from '../theme';
 
-import {PHONE_APP_VERSION as PHONE_VERSION} from '../../update';
-import {checkNow} from '../update/store';
+import {checkNow, running} from '../update/store';
+// the installed package's own version (the truth), the source's constant if it cannot be read
+const PHONE_VERSION = running().versionName;
 
 const Section = ({icon, title, sub, children}: {icon: React.ComponentProps<typeof Icon>['name']; title: string; sub?: string; children: React.ReactNode}) => (
   <Glass style={s.card}>
@@ -221,6 +222,8 @@ export default function Settings() {
         <Section icon="info" title="Aurora">
           <ListRow uiId="settings.downloads" icon="download" title="My downloads" detail="What you asked the server to fetch — ready, on its way, waiting. And what is saved on this phone." chevron onPress={() => navigation.push('Downloads', undefined)} />
           <ListRow uiId="phone.settings.remote" icon="remote" title="Your TVs" detail="Use this phone as the remote, or play something on a TV." chevron onPress={() => pushPhone('Remote', undefined)} />
+          <ListRow uiId="phone.settings.whatsnew" icon="sparkle" title="What's new" detail="The changes to Aurora, newest first." chevron onPress={() => pushPhone('WhatsNew', undefined)} />
+          <ListRow uiId="phone.settings.pair" icon="remote" title="Sign in a TV" detail="Type the code on a TV's sign-in screen — or scan its QR with this phone's camera." chevron onPress={() => pushPhone('PairTv', {code: null})} />
           <ListRow uiId="settings.party" icon="people" title="Join a watch party" detail="Type the code from another screen and watch in step." chevron onPress={openJoinParty} />
           <ListRow uiId="settings.report" icon="warning" title="Report a problem" detail="A few words; where you were and the last errors come along by themselves." chevron onPress={() => openReport()} />
         </Section>
@@ -329,9 +332,13 @@ export default function Settings() {
             onPress={async () => {
               if (checking) return;
               setChecking(true);
-              const r = await checkNow().catch(() => 'latest' as const);
+              const r = await checkNow().catch(() => 'server' as const);
               setChecking(false);
-              if (r === 'latest') showToast(`You're on the latest version (${PHONE_VERSION})`, '✓');
+              // what was found, said plainly — never "up to date" when the server was not reached
+              if (r === 'latest' || r === 'refused') showToast(`You're on the latest version (${PHONE_VERSION})`, '✓');
+              else if (r === 'none') showToast('No Android build is published on this server yet', 'ℹ️');
+              else if (r === 'offline') showToast("Couldn't check — this phone is offline", '📡');
+              else if (r === 'server') showToast(`Couldn't reach ${getBaseUrl().replace(/^https?:\/\//, '')} — try again in a moment`, '⚠️');
             }}
           />
         </Section>

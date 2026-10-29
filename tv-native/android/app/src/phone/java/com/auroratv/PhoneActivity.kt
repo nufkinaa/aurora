@@ -4,6 +4,7 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import com.auroratv.phone.PhoneModule
+import com.auroratv.phone.PhoneUpdaterModule
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -41,9 +42,24 @@ class PhoneActivity : ReactActivity() {
     setEdgeToEdgeFeatureFlagOn()
     super.onCreate(null)
     PhoneModule.attach(this)
+    // opened by the installer's answer (the update went through: this is the new version)
+    if (PhoneUpdaterModule.onStatusIntent(this, intent)) return
+    // A link that starts a NEW screen while the app itself is still alive — Back closed the
+    // screen, then a TV's QR was scanned (measured: the app came up on Home and the link was
+    // lost): React Native only reads a starting link once per run, so it is handed over as a
+    // link that arrived (Linking's 'url'; phone/links.ts holds it until the screens are up).
+    // On a cold start there is no React context yet, and the link is the initial one as always.
+    if (intent?.data != null) {
+      try {
+        reactHost?.let { h -> if (h.currentReactContext != null) h.onNewIntent(intent) }
+      } catch (_: Throwable) {}
+    }
   }
 
   override fun onNewIntent(intent: Intent) {
+    // the installer's answer to the in-app update (PhoneUpdaterModule.install): its question to
+    // open, or how it ended — not a link, so the screen's own intent stays what it was
+    if (PhoneUpdaterModule.onStatusIntent(this, intent)) return
     super.onNewIntent(intent)
     setIntent(intent)
   }
