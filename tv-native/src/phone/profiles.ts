@@ -32,7 +32,7 @@ export type RequestForm = {name: string; username: string; email: string; passwo
 
 export const REQUEST = {
   heading: 'Request access',
-  sub: (admin: string) => `${admin} approves every request personally. Set it up now — the moment you're approved, you're in. `,
+  sub: (admin: string) => `${admin.charAt(0).toUpperCase()}${admin.slice(1)} approves every request personally. Set it up now — the moment you're approved, you're in. `,
   subDim: "(Don't reuse a password you care about. This is a living room, not a bank.)",
   name: 'Your name',
   username: 'Pick a username',

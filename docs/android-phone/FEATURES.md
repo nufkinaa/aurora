@@ -21,8 +21,10 @@ Branch `phone-features` (on top of `phone-web-look`, phone 1.0.1). One row per f
 | Switch profile | profile menu | Settings | profile menu, Settings | ✅ | E |
 | Sign out on this phone | Settings → Sign-in | Settings | Settings → Account | ✅ | E |
 | Forced new password | resetwall.js | NewPassword.tsx | screens/NewPassword.tsx | ✅ | R (shared AppRoot rule) |
-| Add a profile / request access | profiles.js, login.js signup | — | Gate "Add profile", SignIn "Request access" | 🆕 | see the end of this file |
-| Edit profile & password, photo | preferences.js / profiles.js | — | Settings → Your profile | 🆕 | see the end of this file |
+| Add a profile / request access | profiles.js (the add tile opens login.js signup) | — | Gate "Add profile", SignIn "First time here? Request access" (POST /api/auth/signup) | 🆕 | E (request filed, seen in the admin's queue), U |
+| Edit profile & password (name, emoji, colour, email, password) | preferences.js / profiles.js | — | Settings → Your profile → screens/EditProfile.tsx | 🆕 | E (emoji saved; wrong current password refused; new password kept the sign-in across a relaunch), U |
+| Upload / change / remove a photo | preferences.js | — | Settings → Your profile (Android's photo picker, scaled to 1024 px JPEG, PhoneModule.kt) | 🆕 | E (picked, uploaded, shown; removed) |
+| Kids mode on/off, delete a profile | preferences.js | — | — | 🌐 for now — needs the household PIN flow; done on the website |
 | Signed-in devices, revoke, sign out everywhere, add email | preferences.js Sign-in | — | — | 🌐 account security, kept on the website (one place to look after your sign-ins) |
 | Connect Google / sign in with Google | google.js | TV Google QR | — | 🌐 Google's flows need the browser; the phone signs in with a password or a code |
 | Set up my sign-in (claim, transition onboarding) | claim.js | — | — | 🌐 one-time setup, done once on the website |
@@ -43,8 +45,8 @@ Branch `phone-features` (on top of `phone-web-look`, phone 1.0.1). One row per f
 | Search, recent searches, suggestions, voice | search.js, voice.js | Search.tsx, voice | screens/Search.tsx | ✅ | E (typed; mic asks for the permission) |
 | Person sheet (tap a cast name) | personSheet.js | PersonSheet | — | ◐ cast is plain text on the phone |
 | Pick for me (AI mood) | pickforme.js | Pick.tsx | — | 🌐 for now — needs the server's AI switched on; the link opens the app with "that page is on the website" |
-| Swipe your taste | taste.js | Taste.tsx | screens/Taste.tsx | 🆕 | see the end of this file |
-| Your Aurora Wrapped | wrapped.js | — | screens/Wrapped.tsx | 🆕 | see the end of this file |
+| Swipe your taste (+ Edit list) | taste.js | Taste.tsx | screens/Taste.tsx (drag the card; ✕ / ↑ / ♥; Undo) | 🆕 | E (a right drag stored Love on the server, Undo took it back), U |
+| Your Aurora Wrapped | wrapped.js | — (not on the TV yet) | screens/Wrapped.tsx | 🆕 | E (the test profile's stats and lines), U |
 | Requests (old Discover page) | requests.js | — | — | 🌐 kept only for old links on the website |
 | Home rows editor, Look (glass/classic), theme, accent | preferences.js | — | — | 🌐 the phone app has one look (the site's glass); the row order set on the website is what the phone's Home shows |
 
@@ -87,7 +89,7 @@ Branch `phone-features` (on top of `phone-web-look`, phone 1.0.1). One row per f
 | Subtitles (pick, style, timing), audio tracks, speed | player.js | Player | Player + PhoneChrome | ✅ | E |
 | Skip intro / recap / credits, Up next | player.js | Player | Player | ✅ | R (shared, TV-verified) |
 | X-Ray | xray.js | XraySheet | sheets/XraySheet.tsx | ✅ | E |
-| Picture in picture, background audio, lock-screen controls | browser PiP | — | PhoneActivity PiP + media session | ✅ | E |
+| Picture in picture, background audio, lock-screen controls | browser PiP | — | PhoneActivity PiP + media session | ✅ streaming · 🔧 a saved copy did not shrink into PiP (react-native-video reset the window's PiP rules) | E (streaming: PiP window + the media notification/session; the saved-copy fix is in the last build) |
 | Gestures (seek, brightness, volume, double-tap, pinch, lock) | phone gestures | — | player/PhoneGestures.tsx | ✅ | U, E |
 | Report a problem | report.js | Overlays | sheets/SmallSheets.tsx | ✅ | R |
 
@@ -124,3 +126,36 @@ See "The updater, case by case" below for each case. Phone-only native half: `an
 | `/install`, `/download`, `/download/phone`, `/download/<id>/latest`, `/web`, `/admin` | server | **not claimed** — they stay the browser's (the manifest claims only `/` and `/link`) | ✅ | U (manifest test) |
 
 Admin pages (`/admin`) are website-only on purpose; the website shows admins no extra links in its normal pages.
+
+## The updater, case by case (emulator, private server, the same release key)
+
+Builds: **1.0.1 / vc 2** (this branch) installed; **1.0.9 / vc 9** (the same code, version raised locally for the test only) published on the private server as `public/aurora-phone.apk` + `phone-version.json`. A small proxy in front of the server (`adb reverse tcp:4000` → proxy → server) broke the download on purpose.
+
+| Case | What happened | Result |
+|---|---|---|
+| Found on launch | "Update ready · Aurora for Android 1.0.9 · this phone has 1.0.1" with the notes, 6 s after Home | ✅ |
+| Found from Settings → Check for updates | the same sheet (a "Later" from before does not hide it here) | ✅ |
+| Found on return to the app | asks again when the app comes back, at most every 30 min (`checkOnReturn`, U) | ✅ U; R on device |
+| Later | the version waits a day: a relaunch said nothing | ✅ E |
+| "Install unknown apps", first time | "Allow in Settings" opened Aurora's own switch; turned on, Back → the update went on by itself (download, check, Android's question) — the app was not restarted by Android | ✅ E |
+| Download with progress | "Downloading… 23% of 32.9 MB" under a bar, and in the notification shade (Android's DownloadManager) | ✅ E |
+| App backgrounded mid-download | Home pressed at 7 %: the download finished with the app in the background; back in the app → checked → Android's question | ✅ E |
+| Checked before installing | SHA-256 and size against `/phone-version.json` (the server now announces the APK's SHA-256), and the APK itself: package, higher versionCode, same signing certificate | ✅ E, S |
+| Android's question → Cancel | "The update wasn't installed. It's ready whenever you are." + "Install the update" (no new download: the kept file went straight back to Android) | ✅ E |
+| Android's question → Update | Android replaced the app and **opened it again by itself as 1.0.9**; "Aurora is updated to 1.0.9 — what's new" once; not again on the next launch; the downloaded file was cleaned up | ✅ E |
+| Sign-in and saved copies kept | still in Phone QA after the update; a film saved to the phone before the update played after it, in airplane mode with the server down | ✅ E |
+| No network (Settings check) | "Couldn't check — this phone is offline" (used to say "You're on the latest version") | 🔧 ✅ E |
+| Server unreachable (Settings check) | "Couldn't reach 127.0.0.1:4000 — try again in a moment" | 🔧 ✅ E |
+| Network lost mid-download | "Waiting for a connection — it carries on by itself."; back online it resumed (HTTP Range) and finished | ✅ E |
+| Connection dropped mid-download | "The server didn't answer — trying again in a moment." then resumed from the byte it had, verified, installed | ✅ E |
+| Corrupt download (same size, bytes flipped) | refused by the SHA-256 check, fetched once more by itself, refused again → "The download arrived damaged, so it was thrown away. Try again." Nothing reached the installer | ✅ E |
+| The file gone from the server mid-way (404) | "The update is no longer on the server — it may have just been replaced. Try again." | ✅ E |
+| Low storage | ~93 MB free: "There isn't room on this phone for the update: it needs about 132 MB free, and 92.9 MB is…" before anything was downloaded | ✅ E |
+| The same version offered | 1.0.1 published, 1.0.1 installed: no sheet; Settings: "You're on the latest version (1.0.1)" | ✅ E, U |
+| A downgrade offered | 1.0.0 published, 1.0.1 installed: no sheet, nothing downloaded | ✅ E, U |
+| A newer name with a build number that did not go up | not offered (Android would refuse it: no "App not installed" loop) | ✅ U |
+| Google Play Protect | on phones with Play services Android adds its own "App scan recommended" box to a sideloaded update; "More details → Install without scanning" (or Scan app) goes on | ⚠️ outside the app — said in DEVICE-CHECKS |
+
+Server side: `/phone-version.json` is answered from the APK itself (version, versionCode, size and now SHA-256; notes only when `phone-version.json` names the same version), `/download/phone` and `/download/phone/latest` hand the file over in every sign-in mode, `/install` shows the same SHA-256. `test/phoneapp.test.js` now fails a release that commits `public/phone-version.json` for another build than `public/aurora-phone.apk` (or a TV APK in the phone's place). nufurora.com already serves `/.well-known/assetlinks.json` with the release key's fingerprint (checked with curl) — `/link` opens the app there with no new verification (App Links verify the host, not the path).
+
+Not run: updating FROM the published 1.0.0 (its updater is the old one) — the QA rules keep the published build (it talks to nufurora.com) off the emulator. The server side it uses (`/phone-version.json`, `/download/phone`) is unchanged, and the new APK is a normal update for it (same key, higher versionCode).
