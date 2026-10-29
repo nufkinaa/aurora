@@ -9,7 +9,7 @@ import {isPhone} from './formFactor';
 import {cleanExit, reportError, tmValue, updateOffered} from './telemetry'; // [analytics]
 
 // Keep in lockstep with android/app/build.gradle versionName on each release.
-export const APP_VERSION = '5.8.0';
+export const APP_VERSION = '5.8.1';
 // [android-phone] The phone app's own series (build.gradle's `auroraPhone` block:
 // versionName / versionCode), announced by the server at /phone-version.json from
 // public/aurora-phone.apk and fetched from /download/phone.

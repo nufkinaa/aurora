@@ -1,4 +1,4 @@
 {
-  "versionName": "5.8.0",
-  "notes": "Household recommendations look better, and skip intro, recap and Up next are much more accurate. Please update."
+  "versionName": "5.8.1",
+  "notes": "Starts more reliably when the network is still waking up. Please update."
 }

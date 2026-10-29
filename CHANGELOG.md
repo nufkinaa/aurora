@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.1 — 2026-10-29
+
+- **Aurora TV 5.8.1** (checked on the Mi TV, also with sign-in required): when the TV starts before its network is ready, it now keeps trying for up to 15 seconds and says "Still connecting…" instead of showing "Can't reach Aurora" after a moment — it opens Home by itself as soon as the server answers. Under the hood the TV app now shares its start-up, profile wall and player code with the new phone app; everything was re-checked on the Mi TV (start, profiles, Home, title pages, every way of playing, recovery, subtitles, audio tracks, skip intro, watch party, the phone remote, sign-in mode), with scrolling as smooth as 5.8.0.
+
 ## 1.15.0 — 2026-10-29
 
 **Aurora for Android phones 1.0.0** — the first phone app, from the same code as the TV app (it installs beside the TV app and never replaces it). Get it at /install or /download/phone.
