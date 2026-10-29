@@ -64,6 +64,13 @@ const showErr = (node, msg) => {
 };
 const clearErr = (node) => node.classList.remove("on");
 
+// "Get the apps": a quiet way to the product page (/install — the TV, phone
+// and computer apps) at the foot of the sign-in and request-access cards.
+// Same words as the profile menu's item; the reset screen has none.
+const getAppsLink = () =>
+  el("div", { class: "lapps" },
+    el("a", { href: "/install", class: "llink dim focusable", "data-ui": "signin.getapps" }, "Get the apps"));
+
 // Resolves with the full login/claim response ({user, profile, profileToken})
 // or null when skipped.
 export const showLoginScreen = (opts = {}) =>
@@ -216,6 +223,7 @@ export const showLoginScreen = (opts = {}) =>
             onclick: () => { cleanup(); resolve(null); },
           }, "Continue without signing in →")));
       }
+      nodes.push(getAppsLink());
       setView(nodes, user.input);
     };
 
@@ -305,6 +313,7 @@ export const showLoginScreen = (opts = {}) =>
           opts.view === "signup"
             ? el("button", { class: "llink focusable", onclick: () => { cleanup(); resolve(null); } }, "Cancel")
             : el("button", { class: "llink focusable", onclick: () => signinView() }, "← Back to sign in")),
+        getAppsLink(),
       );
       setView(nodes, name.input);
     };

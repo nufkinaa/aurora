@@ -1,7 +1,7 @@
 // Boot and the profile wall: who is watching, unlocking a protected profile,
 // the one-time notices, switching profile.
 const assert = require("node:assert/strict");
-const { suite, waitForScreen } = require("./helpers");
+const { suite, waitForScreen, PHONE } = require("./helpers");
 
 const ui = suite({
   setup: async (srv) => {
@@ -272,5 +272,58 @@ ui.test("a remembered open profile skips the wall", async ({ page, goto, signIn,
   assert.equal(await page.textContent("#nav-profile-name"), "Open");
   await page.waitForSelector(".hero .hero-title");
 });
+
+// ---------- "Get the apps" (/install): Add profile's request card and the profile menu ----------
+ui.test("the wall's Add profile: the request-access card ends with Get the apps (/install)", async ({ page, goto }) => {
+  await goto("#/", { wait: false });
+  await page.click(`${gate} .profile-tile.add`);
+  const a = page.locator(".login-card .lapps a");
+  await a.waitFor();
+  assert.equal((await a.textContent()).trim(), "Get the apps");
+  assert.equal(await a.getAttribute("href"), "/install");
+  assert.equal(await a.getAttribute("data-ui"), "signin.getapps");
+  assert.equal(await page.evaluate(() => document.querySelector(".login-card").lastElementChild.classList.contains("lapps")), true, "the last line of the card");
+  await page.click('.login-card button:has-text("Cancel")');
+  await page.waitForSelector(".login-card", { state: "detached" });
+  await page.waitForSelector(`${gate} .profile-tile.add`);
+});
+
+const menuApps = '.nav-menu a.nav-menu-item[href="/install"]';
+for (const [where, viewport] of [["desktop", null], ["phone", PHONE]]) {
+  for (const look of ["glass", "legacy"]) {
+    ui.test(`the profile menu (${where}, ${look} look): Get the apps after What's new, a row like the others, opens /install`, {
+      ...(viewport ? { viewport } : {}),
+    }, async ({ page, goto, signIn, freshProfile, api, srv }) => {
+      const p = await freshProfile();
+      if (look === "legacy") {
+        const r = await fetch(`${srv.url}/api/profiles/${p.id}`, {
+          method: "PUT", headers: { "Content-Type": "application/json", ...(await api.as(p)) },
+          body: JSON.stringify({ look: "legacy" }),
+        });
+        assert.equal(r.status, 200);
+      }
+      await signIn(p);
+      await goto("#/");
+      assert.equal(await page.evaluate(() => document.documentElement.dataset.look || "legacy"), look);
+      await page.click("#nav-profile");
+      await page.waitForSelector(menuApps);
+      const rows = await page.evaluate(() => [...document.querySelectorAll(".nav-menu .nav-menu-item")].map((b) => b.textContent.trim()));
+      assert.equal(rows.filter((t) => t === "Get the apps").length, 1);
+      assert.equal(rows[rows.indexOf("What's new") + 1], "Get the apps");
+      const a = page.locator(menuApps);
+      assert.equal(await a.getAttribute("data-ui"), "nav.getapps");
+      const [mine, other] = await page.evaluate((sel) => [document.querySelector(sel), document.querySelector(".nav-menu button.nav-menu-item")].map((n) => {
+        // layout sizes: the menu opens with a short scale-in, which a client rect would catch mid-way
+        const cs = getComputedStyle(n);
+        return { w: n.offsetWidth, h: n.offsetHeight, color: cs.color, size: cs.fontSize, deco: cs.textDecorationLine };
+      }), menuApps);
+      assert.deepEqual({ ...mine, deco: null }, { ...other, deco: null }, "the same row as the menu's buttons");
+      assert.equal(mine.deco, "none");
+      if (viewport) assert.ok(mine.h >= 44, `phone tap target ${mine.h}px`);
+      if (viewport) await a.tap(); else await a.click();
+      await page.waitForURL(`${srv.url}/install`);
+    });
+  }
+}
 
 ui.run({ concurrency: 2 });
