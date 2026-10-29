@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.14.5 — 2026-10-29
+
+- **Skip intro gives the same, right answer every time.** A show's remembered intro kept a few seconds of the episode around it, and a second copy of an episode (a replaced version, or the same file under another name) matched those seconds too, so its intro end crept 5–10 s into the next scene — and the remembered intro grew with it. Now a remembered intro knows exactly where it starts and ends, and a copy of an episode is never used to judge another copy. The library is re-read once in the background after this update so intros that had grown are put right.
+
 ## 1.14.4 — 2026-10-29
 
 - **A product page at /install** with every Aurora app in one place: the Android TV app (download, the Downloader address with a copy button, how to allow the install, and a QR code), iPhone and iPad (Add to Home Screen, in pictures), computers (install as an app, or just use the browser), and the Android phone app as soon as it exists. It shows each app's version, what's new in the latest releases, and a tour of the features with screenshots. It opens without signing in and shows nothing about your household or library. /download still hands a TV the app directly, as before.
