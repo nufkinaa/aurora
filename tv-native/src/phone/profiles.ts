@@ -102,7 +102,7 @@ export const newPasswordPlaceholder = (hasPw: boolean) => (hasPw ? 'New password
 export const editRow = (kids: boolean) =>
   kids
     ? {title: 'Edit profile', detail: 'Name, avatar and colour.'}
-    : {title: 'Edit profile & password', detail: 'Name, avatar, colour, your password — and kids mode.'};
+    : {title: 'Edit profile & password', detail: 'Name, avatar, colour and your password. (Kids mode is switched on the website.)'};
 
 /** "Password protected" / "No password set" / the kids line under the face in Settings. */
 export const profileLine = (p: {hasPassword?: boolean; kids?: {maxAge: number} | null} | null) =>

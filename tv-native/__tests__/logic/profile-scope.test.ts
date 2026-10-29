@@ -164,7 +164,7 @@ const DEVICE: Record<string, Record<string, string>> = {
   },
   'homeScreen.ts': {noticesOn: 'a device-level setting (this TV’s notifications)', appRun: 'the runs of the app root (a new Activity), for the launch link'},
   'navLock.ts': {lastNav: 'a debounce stamp'},
-  'navSection.ts': {newSeen: 'which release this TV has seen', newSubs: 'listeners'},
+  'navSection.ts': {newSeen: 'which release this TV has seen', newSubs: 'listeners', meSubs: 'listeners (who shows a profile record: told when it changes)'},
   'overlay.ts': {current: 'the open sheet (unmounts with the navigator)', subs: 'listeners'},
   'playback/Player.tsx': {tunedBuffers: 'buffer settings by the server’s tuning — one object per setting, the same for everybody'},
   'playback/subDelay.ts': {chain: 'the queue of writes to this box’s subtitle delays (per title and track, not per person)'},

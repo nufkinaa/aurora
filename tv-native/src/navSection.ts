@@ -180,6 +180,7 @@ export const loadMe = (profileId: string, maxAgeMs = Infinity): Promise<Profile 
       const found = list.find(x => x.id === profileId) || null;
       cache.set(profileId, found);
       cacheAt.set(profileId, Date.now());
+      meSubs.forEach(f => f(profileId));
       return found;
     })
     .catch(() => cache.get(profileId) ?? null)
@@ -191,9 +192,13 @@ export const loadMe = (profileId: string, maxAgeMs = Infinity): Promise<Profile 
 export const peekMe = (profileId: string): Profile | null => cache.get(profileId) ?? null;
 /** This device changed the profile (a follow, a remembered language): the
  *  cached record follows at once, so the next reader agrees with the server. */
+// Who shows the record (useMe): told when this device changes it, so a new
+// photo or name is in the top bar at once, not on the next visit.
+const meSubs = new Set<(profileId: string) => void>();
 export const patchMe = (profileId: string, patch: Partial<Profile>) => {
   const cur = cache.get(profileId);
   if (cur) cache.set(profileId, {...cur, ...patch});
+  meSubs.forEach(f => f(profileId));
 };
 
 // ---- what the viewer last picked in the player, on the PROFILE ----
@@ -238,6 +243,13 @@ export const useMe = (profileId: string): Profile | null => {
     });
     return () => {
       live = false;
+    };
+  }, [profileId]);
+  useEffect(() => {
+    const f = (id: string) => id === profileId && cache.has(profileId) && setMe(cache.get(profileId) ?? null);
+    meSubs.add(f);
+    return () => {
+      meSubs.delete(f);
     };
   }, [profileId]);
   return me;

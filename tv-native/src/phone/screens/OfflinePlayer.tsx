@@ -97,6 +97,10 @@ export default function OfflinePlayer() {
         selectedTextTrack={subIdx == null ? {type: SelectedTrackType.DISABLED} : {type: SelectedTrackType.TITLE, value: it.subs[subIdx]?.label || `Subtitles ${subIdx + 1}`}}
         onLoad={d => {
           setDur(d.duration || it.duration || 0);
+          // again once the video is there: react-native-video sets the window's picture-in-picture
+          // rules itself when its view comes up (auto-enter off), and Home then stopped the film
+          // instead of shrinking it (measured on the emulator; the streaming player does this too)
+          phoneNative.setPip(!paused, d.naturalSize?.width || 16, d.naturalSize?.height || 9);
           if (it.position && it.position > 10 && (!d.duration || it.position < d.duration - 20)) seek(Math.max(0, it.position - 4));
         }}
         onProgress={p => {
