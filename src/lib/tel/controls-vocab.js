@@ -8,13 +8,13 @@ module.exports = {
   // browse
   "browse.category.pick": "wtp",
   "browse.chip.pick": "w",
-  "browse.filter.clear": "w",
+  "browse.filter.clear": "wp",
   "browse.genre.open": "w",
   "browse.loadmore": "w",
   "browse.option.pick": "w",
   "browse.retry": "tp",
   "browse.sort.open": "w",
-  "browse.surprise": "wt",
+  "browse.surprise": "wtp",
   "browse.unwatched": "wtp",
   // card
   "card.open": "wtp",
@@ -212,7 +212,7 @@ module.exports = {
   "saved.play": "w",
   "saved.remove": "w",
   // search
-  "search.clear": "w",
+  "search.clear": "wp",
   "search.recent.pick": "wtp",
   "search.retry": "wtp",
   "search.suggestion.pick": "wtp",
@@ -291,9 +291,12 @@ module.exports = {
   "phone.detail.episodes": "p", // a show's page: All episodes
   "phone.detail.playon": "p", // a title's page: Play on TV
   "phone.detail.share": "p", // a title's page: Share
+  "phone.episode.more": "p", // a show's episode card: its round corner button (the choices)
   "phone.home.remove": "p", // the x on a Continue Watching card
   "phone.menu.downloads": "p", // the profile menu: Downloads
+  "phone.menu.party": "p", // the profile menu: Join a watch party
   "phone.menu.remote": "p", // the profile menu: Remote
+  "phone.menu.report": "p", // the profile menu: Report a problem
   "phone.menu.settings": "p", // the profile menu: Settings
   "phone.menu.switch": "p", // the profile menu: Switch profile
   "phone.mylist.browse": "p", // an empty My List: Browse movies

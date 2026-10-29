@@ -7,7 +7,6 @@
 // phone stays on it (storage.ts).
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, ScrollView, StyleSheet, Switch, Text, View} from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {api, getAuthMode, getBaseUrl, getSession, HouseholdSettings, setSession} from '../../api';
 import {useApp} from '../../AppContext';
 import {useMe} from '../../navSection';
@@ -24,7 +23,7 @@ import {AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES} from '../../audioFx';
 import {WORDS as HH} from '../../householdRecs';
 import {householdChanged} from '../../householdLive';
 import {pushPhone, usePNav} from '../nav';
-import {BackBar, useColumn, useSolidBar} from '../ui/PageHead';
+import {BackBar, useColumn, usePageTop, useSolidBar} from '../ui/PageHead';
 import ListRow from '../ui/Row';
 import Glass from '../ui/Glass';
 import Avatar from '../ui/Avatar';
@@ -42,7 +41,7 @@ const Section = ({icon, title, sub, children}: {icon: React.ComponentProps<typeo
   <Glass style={s.card}>
     <View style={s.head}>
       <View style={s.headIcon}>
-        <Icon name={icon} size={22} color={colors.text} />
+        <Icon name={icon} size={18} color={colors.text} />
       </View>
       <View style={{flex: 1}}>
         <Text style={s.h2}>{title}</Text>
@@ -107,11 +106,11 @@ function HouseholdPrefs({profileId, onSent}: {profileId: string; onSent: () => v
 
 export default function Settings() {
   const bar = useSolidBar();
+  const pageTop = usePageTop();
   const column = useColumn();
   const navigation = usePNav();
   const {profileId, switchProfile} = useApp();
   const me = useMe(profileId);
-  const insets = useSafeAreaInsets();
   const bottom = useTabBarSpace();
   const [prefs, setPrefs] = useState<Prefs>(PREFS_DEFAULTS);
   const [checking, setChecking] = useState(false);
@@ -190,13 +189,13 @@ export default function Settings() {
 
   return (
     <View style={s.root}>
-      <ScrollView onScroll={bar.onScroll} scrollEventThrottle={32} contentContainerStyle={[{paddingTop: insets.top + 70, paddingBottom: bottom + 24, paddingHorizontal: GUTTER}, column]}>
-        <Text style={s.h1}>Settings</Text>
+      <ScrollView onScroll={bar.onScroll} scrollEventThrottle={32} contentContainerStyle={[{paddingTop: pageTop, paddingBottom: bottom + 24, paddingHorizontal: GUTTER}, column]}>
+        <Text style={s.h1} accessibilityRole="header">Settings</Text>
         <Text style={s.sub}>for {me?.name || 'this profile'}</Text>
 
         <Section icon="person" title="Your profile">
           <View style={s.me}>
-            <Avatar p={me} size={64} />
+            <Avatar p={me} size={56} />
             <View style={{flex: 1}}>
               <Text style={s.meName}>{me?.name || ''}</Text>
               <Text style={s.meSub}>{me?.hasPassword ? 'Password set' : 'No password set'}{me?.kids ? ` · Kids, up to ${me.kids.maxAge}` : ''}</Text>
@@ -343,25 +342,28 @@ export default function Settings() {
           </Section>
         ) : null}
       </ScrollView>
-      <BackBar solid={bar.solid} title={bar.solid ? 'Settings' : undefined} />
+      <BackBar solid={bar.solid} noSettings />
     </View>
   );
 }
 
 const s = StyleSheet.create({
   root: {flex: 1},
-  h1: {color: colors.text, fontSize: 34, fontWeight: '900'},
-  sub: {color: colors.textDim, fontSize: 17, marginTop: 4, marginBottom: 16},
-  card: {marginBottom: 14, paddingVertical: 8},
-  head: {flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4},
-  headIcon: {width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center'},
-  h2: {color: colors.text, fontSize: 19, fontWeight: '800'},
-  headSub: {color: colors.textDim, fontSize: 14, marginTop: 2, lineHeight: 19},
-  note: {color: colors.textDim, fontSize: 14, paddingHorizontal: 20, marginTop: 4},
-  value: {color: colors.textDim, fontSize: 15, fontWeight: '700'},
-  chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingVertical: 10},
-  preview: {marginHorizontal: 16, marginVertical: 8},
-  me: {flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 10},
-  meName: {color: colors.text, fontSize: 18, fontWeight: '800'},
-  meSub: {color: colors.textDim, fontSize: 14, marginTop: 2},
+  // the page's head is the site's .browse-head: "Settings" 24/900, "for <name>" 16/600 faint
+  h1: {color: colors.text, fontSize: 24, fontWeight: '900', letterSpacing: -0.72, lineHeight: 36},
+  sub: {color: colors.textFaint, fontSize: 16, fontWeight: '600', lineHeight: 24, marginTop: 2, marginBottom: 14},
+  // .pref-section: a glass card 20 round, 18 / 20 inside, 16 apart
+  card: {marginBottom: 16, paddingTop: 18, paddingBottom: 8},
+  head: {flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingBottom: 4},
+  headIcon: {width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center'},
+  h2: {color: colors.text, fontSize: 17.6, fontWeight: '800', letterSpacing: -0.18, lineHeight: 26.4},
+  headSub: {color: colors.textDim, fontSize: 14.4, marginTop: 4, lineHeight: 21.6},
+  note: {color: colors.textDim, fontSize: 14.4, lineHeight: 21.6, paddingHorizontal: 20, marginTop: 4},
+  value: {color: colors.textDim, fontSize: 14.4, fontWeight: '700'},
+  chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 20, paddingVertical: 10},
+  preview: {marginHorizontal: 20, marginVertical: 8},
+  // .pref-profile: a 56 dp avatar, the name 16.8/800, "No password set" 13.44
+  me: {flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 10},
+  meName: {color: colors.text, fontSize: 16.8, fontWeight: '800', lineHeight: 25.2},
+  meSub: {color: colors.textDim, fontSize: 13.44, lineHeight: 20.2, marginTop: 2},
 });

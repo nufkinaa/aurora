@@ -78,7 +78,7 @@ const DEVICE: Record<string, Record<string, string>> = {
     waitingForSettings: 'waiting for the person back from Android’s install setting',
   },
   'phone/links.ts': {openedInitial: 'the link the app was started with, opened once (the run’s, not a profile’s)'},
-  'phone/profileMenu.ts': {switchFn: "the app's one handler (AppContext's switchProfile)", nameOf: "the app's one handler (reads the current profile's name)"},
+  'phone/profileMenu.ts': {switchFn: "the app's one handler (AppContext's switchProfile)", nameOf: "the app's one handler (reads the current profile's name)", open: 'whether the menu panel is up (the screen’s; every line closes it first)', subs: 'listeners (the menu panel)'},
   'party.ts': {deviceId: 'this TV, as a party member (person + device)', clockOffset: "the server's clock as this box sees it", samples: 'the clock pings behind it', rejoining: 'a rejoin in flight (the party itself is the profile’s and is left with it)'},
   'api.ts': {
     baseUrl: 'which server',

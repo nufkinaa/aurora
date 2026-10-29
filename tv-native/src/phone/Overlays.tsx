@@ -9,10 +9,12 @@ import {useToasts} from '../toast';
 import Sheet from './ui/Sheet';
 import ListRow from './ui/Row';
 import {colors, GUTTER, radius, TAB_H, TAB_INSET} from './theme';
+import {tabBottom} from './ui/TabBar';
 import XraySheet from './sheets/XraySheet';
 import RecommendSheet from './sheets/RecommendSheet';
 import {JoinPartySheet, ReportSheet} from './sheets/SmallSheets';
 import UpdateSheet from './sheets/UpdateSheet';
+import ProfileMenu from './ui/ProfileMenu';
 
 export default function PhoneOverlays() {
   const o = useOverlay();
@@ -63,6 +65,7 @@ export default function PhoneOverlays() {
       {o?.kind === 'join' ? <JoinPartySheet onClose={closeOverlay} /> : null}
       {o?.kind === 'report' ? <ReportSheet hint={o.hint} onClose={closeOverlay} /> : null}
       <UpdateSheet />
+      <ProfileMenu />
       <Toasts />
     </>
   );
@@ -72,7 +75,7 @@ function Toasts() {
   const list = useToasts();
   const insets = useSafeAreaInsets();
   return (
-    <View pointerEvents="none" style={[s.toasts, {bottom: insets.bottom + TAB_H + TAB_INSET * 2 + 8}]}>
+    <View pointerEvents="none" style={[s.toasts, {bottom: tabBottom(insets.bottom) + TAB_H + TAB_INSET + 8}]}>
       {list.map(t => (
         <ToastPill key={t.id} text={t.text} glyph={t.glyph} />
       ))}

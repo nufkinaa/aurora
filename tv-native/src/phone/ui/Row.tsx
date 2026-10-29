@@ -41,7 +41,7 @@ export default function ListRow({
       style={[s.row, disabled && {opacity: 0.45}]}>
       {icon ? (
         <View style={s.iconBox}>
-          <Icon name={icon} size={22} color={danger ? colors.danger : colors.text} />
+          <Icon name={icon} size={18} color={danger ? colors.danger : colors.text} />
         </View>
       ) : null}
       <View style={{flex: 1}}>
@@ -55,14 +55,16 @@ export default function ListRow({
         ) : null}
       </View>
       {right}
-      {chevron ? <Icon name="chevronRight" size={22} color={colors.textDim} /> : null}
+      {chevron ? <Text style={s.chev}>›</Text> : null}
     </Tap>
   );
 }
 
 const s = StyleSheet.create({
-  row: {flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingHorizontal: GUTTER + 4, paddingVertical: 10, gap: 14},
-  iconBox: {width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center'},
-  title: {color: colors.text, fontSize: 16, fontWeight: '700'},
-  detail: {color: colors.textDim, fontSize: 14, marginTop: 2, lineHeight: 19},
+  // .pref-item: 14 above and below, a 34 dp icon tile, 12 apart; the label 16/700, the note 13.6
+  row: {flexDirection: 'row', alignItems: 'center', minHeight: 56, paddingHorizontal: GUTTER + 4, paddingVertical: 14, gap: 12},
+  iconBox: {width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center'},
+  title: {color: colors.text, fontSize: 16, fontWeight: '700', lineHeight: 24},
+  detail: {color: colors.textDim, fontSize: 13.6, marginTop: 3, lineHeight: 19.7},
+  chev: {color: colors.textFaint, fontSize: 24, lineHeight: 24, paddingRight: 4},
 });

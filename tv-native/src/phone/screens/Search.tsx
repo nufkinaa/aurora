@@ -9,7 +9,6 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, BackHandler, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
 import {useIsFocused, useRoute, RouteProp} from '@react-navigation/native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {api, HeroItem, SearchAnswer, SearchSuggestion} from '../../api';
 import {useApp} from '../../AppContext';
 import {openItem} from '../../openItem';
@@ -21,10 +20,11 @@ import {noResultsText, runSearch, SEARCH_TEXT, SettleNote, shortText} from '../.
 import type {RootStackParamList} from '../../navigation';
 import {usePNav} from '../nav';
 import Grid from '../ui/Grid';
-import {ChipButton, GlassButton, IconCircle} from '../ui/Buttons';
-import Field from '../ui/Field';
+import {ChipButton, GlassButton} from '../ui/Buttons';
+import SearchBox from '../ui/SearchBox';
+import TopBar, {useBarTop} from '../ui/TopBar';
+import {BackBar, useSolidBar} from '../ui/PageHead';
 import Tap from '../ui/Tap';
-import Icon from '../ui/Icon';
 import {PosterCard} from '../ui/Cards';
 import {useTabBarSpace} from '../ui/TabBar';
 import {onReselect, useTab} from '../tabs';
@@ -42,7 +42,8 @@ export function SearchScreen({pushed, startVoice: startWithVoice, startQ}: {push
   const tab = useTab();
   const shownTab = pushed || tab === 'search';
   const {profileId} = useApp();
-  const insets = useSafeAreaInsets();
+  const barTop = useBarTop();
+  const bar = useSolidBar();
   const bottom = useTabBarSpace();
   const [q, setQ] = useState('');
   const [answer, setAnswer] = useState<SearchAnswer>(EMPTY);
@@ -225,31 +226,22 @@ export function SearchScreen({pushed, startVoice: startWithVoice, startQ}: {push
   const idle = !q.trim();
 
   const head = (
-    <View style={{paddingTop: insets.top + 12}}>
+    <View style={{paddingTop: barTop + 86}}>
+      {/* .search-wrap: the site's one field, 16 in, the mic inside it */}
       <View style={s.fieldRow}>
-        {pushed ? <IconCircle icon="back" label="Back" onPress={() => navigation.goBack()} /> : null}
-        <View style={s.fieldWrap}>
-          <View style={s.fieldIcon} pointerEvents="none">
-            <Icon name="search" size={22} color={colors.textDim} />
-          </View>
-          <Field
-            ref={inputRef}
-            value={q}
-            onChangeText={t => run(t)}
-            onSubmitEditing={() => run(q, true)}
-            placeholder="Films, shows, people, genres"
-            returnKeyType="search"
-            autoCorrect={false}
-            style={s.field}
-            accessibilityLabel="Search"
-          />
-          {q ? (
-            <Tap borderless hitSlop={8} onPress={() => run('')} style={s.clear} accessibilityLabel="Clear the search">
-              <Icon name="close" size={20} color={colors.textDim} />
-            </Tap>
-          ) : null}
-        </View>
-        <IconCircle uiId="search.voice" icon="mic" label={listening ? 'Stop listening' : 'Search by voice'} onPress={() => (listening ? voiceCtl.current?.stop() : startVoice())} size={54} style={listening ? s.micOn : undefined} />
+        <SearchBox
+          ref={inputRef}
+          value={q}
+          onChangeText={t => run(t)}
+          onSubmitEditing={() => run(q, true)}
+          onClear={() => run('')}
+          placeholder="Search movies and shows…"
+          accessibilityLabel="Search"
+          onMic={() => (listening ? voiceCtl.current?.stop() : startVoice())}
+          listening={listening}
+          micLabel={listening ? 'Stop listening' : 'Search by voice'}
+          style={{flex: 1}}
+        />
       </View>
       {voiceText ? (
         <View style={s.voice}>
@@ -333,7 +325,8 @@ export function SearchScreen({pushed, startVoice: startWithVoice, startQ}: {push
     ) : null;
   return (
     <View style={s.root}>
-      <Grid items={idle ? [] : answer.results} onPress={open} header={head} footer={foot} bottomPad={bottom + 16} />
+      <Grid items={idle ? [] : answer.results} onPress={open} header={head} footer={foot} bottomPad={bottom + 16} onScroll={bar.onScroll} />
+      {pushed ? <BackBar solid={bar.solid} /> : <TopBar solid={bar.solid} />}
     </View>
   );
 }
@@ -350,20 +343,16 @@ export function SearchRoute() {
 
 const s = StyleSheet.create({
   root: {flex: 1},
-  fieldRow: {flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: GUTTER, paddingBottom: 8},
-  fieldWrap: {flex: 1, justifyContent: 'center'},
-  fieldIcon: {position: 'absolute', left: 14, zIndex: 1},
-  field: {paddingLeft: 46, paddingRight: 44, borderRadius: 27, height: 54},
-  clear: {position: 'absolute', right: 8, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18},
-  micOn: {backgroundColor: colors.accentStrong, borderColor: colors.accent},
+  // .search-wrap: 16 in, 10 under the field
+  fieldRow: {flexDirection: 'row', alignItems: 'center', paddingHorizontal: GUTTER, paddingBottom: 10},
   voice: {flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: GUTTER, paddingVertical: 8},
   voiceText: {flex: 1, color: colors.text, fontSize: 16, fontWeight: '700'},
   block: {marginTop: 14},
   blockHead: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: GUTTER},
-  blockTitle: {color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: 10},
+  blockTitle: {color: colors.text, fontSize: 17.6, fontWeight: '800', letterSpacing: -0.18, lineHeight: 26.4, marginBottom: 10},
   link: {color: colors.accent, fontSize: 15, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 14},
   wrap: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: GUTTER},
-  shelf: {paddingHorizontal: GUTTER, gap: 8, paddingBottom: 6},
+  shelf: {paddingHorizontal: GUTTER, gap: 9, paddingBottom: 6},
   busy: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: GUTTER, paddingVertical: 10},
   busyText: {color: colors.textDim, fontSize: 15},
   noteBox: {marginHorizontal: GUTTER, marginVertical: 12, padding: 16, borderRadius: radius.l, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassEdge, gap: 12},

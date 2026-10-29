@@ -4,7 +4,7 @@
 // filled style (Material paths).
 import React from 'react';
 import {I18nManager, View} from 'react-native';
-import Svg, {Path} from 'react-native-svg';
+import Svg, {Circle, Path} from 'react-native-svg';
 import TvIcon, {IconName as TvIconName} from '../../components/Icon';
 
 const EXTRA = {
@@ -52,7 +52,24 @@ const EXTRA = {
     'M16.48 2.52c3.27 1.55 5.61 4.72 5.97 8.48h1.5C23.44 4.84 18.29 0 12 0l-.66.03 3.81 3.81 1.33-1.32zm-6.25-.77c-.59-.59-1.54-.59-2.12 0L1.75 8.11c-.59.59-.59 1.54 0 2.12l12.02 12.02c.59.59 1.54.59 2.12 0l6.36-6.36c.59-.59.59-1.54 0-2.12L10.23 1.75zm4.6 19.44L2.81 9.17l6.36-6.36 12.02 12.02-6.36 6.36zm-7.31.29C4.25 19.94 1.91 16.76 1.55 13H.05C.56 19.16 5.71 24 12 24l.66-.03-3.81-3.81-1.33 1.32z',
 };
 
-export type PhoneIconName = TvIconName | keyof typeof EXTRA;
+// The website's line icons (public/index.html's nav): drawn with a stroke, not filled.
+const LINE: Record<string, {w: number; circle?: [number, number, number]; d: string}> = {
+  // the top bar's settings (feather "settings", stroke 2)
+  navGear: {
+    w: 2,
+    circle: [12, 12, 3],
+    d: 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
+  },
+  // the tab bar's search (stroke 2.4)
+  navSearch: {w: 2.4, circle: [11, 11, 7], d: 'M21 21l-4.3-4.3'},
+  // the sign-in card's fields (feather user / lock / eye, stroke 2)
+  lineUser: {w: 2, circle: [12, 7, 4], d: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'},
+  lineLock: {w: 2, d: 'M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2zM7 11V7a5 5 0 0 1 10 0v4'},
+  eye: {w: 2, circle: [12, 12, 3], d: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'},
+  eyeOff: {w: 2, d: 'M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22'},
+};
+
+export type PhoneIconName = TvIconName | keyof typeof EXTRA | 'navGear' | 'navSearch' | 'lineUser' | 'lineLock' | 'eye' | 'eyeOff';
 
 // Icons that point somewhere along the line of reading: mirrored when the phone
 // reads right to left (Hebrew), as Android mirrors its own. Play, forward/back 10 s
@@ -60,6 +77,15 @@ export type PhoneIconName = TvIconName | keyof typeof EXTRA;
 const MIRRORED = new Set<string>(['back', 'chevronLeft', 'chevronRight', 'send']);
 
 export default function Icon({name, size = 24, color = '#fff'}: {name: PhoneIconName; size?: number; color?: string}) {
+  const line = LINE[name];
+  if (line) {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={line.w} strokeLinecap="round" strokeLinejoin="round">
+        {line.circle ? <Circle cx={line.circle[0]} cy={line.circle[1]} r={line.circle[2]} /> : null}
+        <Path d={line.d} />
+      </Svg>
+    );
+  }
   const d = (EXTRA as Record<string, string>)[name];
   const drawn = !d ? (
     <TvIcon name={name as TvIconName} size={size} color={color} />

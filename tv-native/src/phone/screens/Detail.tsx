@@ -80,7 +80,8 @@ import {pushPhone} from '../nav';
 import {saveOffline, useOffline} from '../offline/store';
 import {chooseQuality} from '../offline/choose';
 import {Device, playOn, useDevices} from '../remote/controller';
-import {colors, GUTTER, radius} from '../theme';
+import {colors, EP_W, G_EDGE, G_FILL, GUTTER, radius, SHELF_GAP} from '../theme';
+import {heroCover, showsPoster} from '../heroArt';
 
 const isStream = (it: HeroItem) => it.source === 'stream' || !it.id;
 
@@ -111,10 +112,13 @@ type UiEp = {
 type UiSeason = {number: number; episodes: UiEp[]};
 
 // ---------------------------------------------------------------- an episode
-const EpisodeRow = React.memo(function EpisodeRow({ep, onPress, onLong}: {ep: UiEp; onPress: (ep: UiEp) => void; onLong: (ep: UiEp) => void}) {
-  const still = ep.thumb ? artSrc(ep.thumb, 150).src : null;
-  const kicker = [`EPISODE ${ep.num}`, ep.durationMin ? `${ep.durationMin} MIN` : null].filter(Boolean).join(' · ');
+// The site's phone episode card (.episode, glass): 264 wide in a row that scrolls
+// sideways — the still on top (16:9), then EPISODE n, the name, three lines of the
+// story and the air date; a round button in the corner for the episode's choices.
+const EpisodeCard = React.memo(function EpisodeCard({ep, onPress, onLong}: {ep: UiEp; onPress: (ep: UiEp) => void; onLong: (ep: UiEp) => void}) {
+  const still = ep.thumb ? artSrc(ep.thumb, EP_W).src : null;
   const dim = ep.air !== 'aired';
+  const foot = ep.air === 'tba' ? 'Not scheduled yet' : ep.air === 'upcoming' ? `Airs ${ep.airLabel}` : ep.airLabel || (ep.owned ? 'Downloaded' : 'Stream or save');
   return (
     <Tap
       uiId="detail.episode.play"
@@ -126,7 +130,7 @@ const EpisodeRow = React.memo(function EpisodeRow({ep, onPress, onLong}: {ep: Ui
       accessibilityLabel={`${ep.label}, episode ${ep.num}${ep.watched ? ', watched' : ''}${ep.owned ? ', downloaded' : ''}`}
       style={[s.ep, ep.owned && s.epOwned, ep.upNext && s.epNext, dim && {opacity: 0.6}]}>
       <View style={s.epStill}>
-        {still ? <Image source={still} style={StyleSheet.absoluteFill} resizeMode="cover" /> : <Icon name="series" size={26} color={colors.textFaint} />}
+        {still ? <Image source={still} style={StyleSheet.absoluteFill} resizeMode="cover" fadeDuration={FADE_MS} /> : <Icon name="series" size={30} color={colors.textFaint} />}
         {ep.pct > 0 ? <Bar f={ep.pct / 100} style={s.epBar} /> : null}
         {ep.dl ? (
           <View style={s.epDl}>
@@ -136,21 +140,28 @@ const EpisodeRow = React.memo(function EpisodeRow({ep, onPress, onLong}: {ep: Ui
       </View>
       <View style={s.epBody}>
         <Text style={s.epKicker} numberOfLines={1}>
-          {kicker}
+          EPISODE {ep.num}
         </Text>
-        <Text style={s.epTitle} numberOfLines={2}>
+        <Text style={s.epTitle} numberOfLines={1}>
           {unescapeHtml(ep.label)}
         </Text>
-        <View style={s.epFoot}>
-          {ep.owned ? <Icon name="play" size={13} color={colors.owned} /> : <Icon name="download" size={14} color={colors.textDim} />}
-          <Text style={s.epFootText} numberOfLines={1}>
-            {ep.air === 'tba' ? 'Not scheduled yet' : ep.air === 'upcoming' ? `Airs ${ep.airLabel}` : ep.airLabel || (ep.owned ? 'Downloaded' : 'Stream or save')}
+        {ep.overview ? (
+          <Text style={s.epOverview} numberOfLines={3}>
+            {unescapeHtml(ep.overview)}
           </Text>
-          {ep.phone ? <Icon name="phone" size={14} color={ep.phone === 'done' ? colors.owned : colors.textDim} /> : null}
+        ) : null}
+        <View style={s.epFoot}>
+          <Icon name={ep.owned ? 'play' : 'download'} size={12} color={ep.owned ? colors.owned : 'rgba(243,244,248,0.85)'} />
+          <Text style={s.epFootText} numberOfLines={1}>
+            {foot}
+          </Text>
+          {ep.phone ? <Icon name="phone" size={13} color={ep.phone === 'done' ? colors.owned : colors.textDim} /> : null}
           {ep.hasSubs ? <Text style={s.cc}>CC</Text> : null}
-          {ep.watched ? <Icon name="check" size={16} color={colors.textDim} /> : null}
         </View>
       </View>
+      <Tap uiId="phone.episode.more" borderless hitSlop={6} onPress={() => onLong(ep)} style={s.epAction} accessibilityRole="button" accessibilityLabel={`${ep.label}: more`}>
+        <Icon name="check" size={18} color={ep.watched ? '#fff' : 'rgba(243,244,248,0.55)'} />
+      </Tap>
     </Tap>
   );
 });
@@ -420,7 +431,11 @@ export default function Detail() {
   const year = full?.year || meta?.year || item.year;
   const rating = item.rating ?? meta?.rating ?? null;
   const keyArt = imdb ? `https://images.metahub.space/background/medium/${imdb}/img` : null;
-  const art = artSrc(keyArt || item.backdrop || meta?.backdrop || item.cover || item.poster, width).src;
+  // a phone held upright shows the POSTER (large) across the top, as the site does (ui.js
+  // heroShowsPoster / heroCover); held sideways, the title's wide key art
+  const portraitArt = showsPoster(width, height);
+  const posterArt = heroCover(item.cover || item.poster || meta?.poster);
+  const art = artSrc(portraitArt ? posterArt || keyArt || item.backdrop || meta?.backdrop : keyArt || item.backdrop || meta?.backdrop || item.cover || item.poster, width).src;
 
   // a film you don't hold: is there a good copy yet? (releaseWords.ts — the site's words)
   useEffect(() => {
@@ -925,10 +940,12 @@ export default function Detail() {
   // The lockup (kicker, name, facts) is measured: the picture is always tall enough for it to sit
   // below the back button (a long name, landscape), and the bar turns solid the moment the
   // kicker's top would reach the button — so the two never overlap, at rest or scrolled.
-  const barBottom = insets.top + 8 + 46 + 10;
-  const artH = Math.max(Math.round(wide ? height * 0.5 : Math.min(height * 0.56, width * 1.25)), lockH ? lockH + 14 + barBottom : 0);
+  const barBottom = Math.max(10, insets.top) + 2 + 42 + 10;
+  // (sideways, the site's cover is the whole screen, the words low on it — the page goes on below)
+  // the site's cover: min-height 52vh (glass.css, phone), taller when the words need it
+  const artH = Math.max(Math.round(wide ? height : height * 0.52), lockH ? lockH + 20 + barBottom : 0);
   const column = wide ? {maxWidth: 820, width: '100%' as const, alignSelf: 'center' as const} : null;
-  const facts = [year, fmtDuration(full?.duration) || (meta?.runtime ? String(meta.runtime) : null), isShow && seasons.length ? `${seasons.length} season${seasons.length === 1 ? '' : 's'}` : null].filter(Boolean).join(' · ');
+  const facts = [year, isShow ? null : fmtDuration(full?.duration) || (meta?.runtime ? String(meta.runtime) : null), isShow && seasons.length ? `${seasons.length} season${seasons.length === 1 ? '' : 's'}` : null].filter(Boolean).join(' · ');
   const badges = [full?.certificate || meta?.certificate, resBadge(full?.height, full?.width), full?.subtitles?.length ? 'CC' : null].filter(Boolean) as string[];
   const cast = (meta?.cast || []).slice(0, 6);
   const trailers = meta?.trailers || [];
@@ -950,18 +967,20 @@ export default function Detail() {
         <View style={{height: artH}}>
           {art ? <Image source={art} style={StyleSheet.absoluteFill} resizeMode="cover" fadeDuration={FADE_MS} /> : null}
           <View style={s.artFade} pointerEvents="none" />
-          <View style={s.lockup} onLayout={e => {
+          <View style={[s.lockup, wide && {left: Math.max(GUTTER, (width - 820) / 2), right: Math.max(GUTTER, (width - 820) / 2)}]} onLayout={e => {
             const h = Math.ceil(e.nativeEvent.layout.height);
             if (Math.abs(h - lockH) > 1) setLockH(h);
           }}>
-            <View style={[s.kicker, {borderColor: isShow ? 'rgba(127,209,232,0.45)' : 'rgba(240,198,126,0.45)'}]}>
+            <View style={[s.kicker, isShow ? s.kickerSeries : s.kickerFilm]}>
               <Text style={[s.kickerText, {color: isShow ? colors.kindSeries : colors.kindFilm}]}>{isShow ? 'SERIES' : 'FILM'}</Text>
             </View>
             <Text style={s.title} numberOfLines={3}>
               {unescapeHtml(title)}
             </Text>
-            {typeof rating === 'number' && rating > 0 ? <Text style={s.score}>★ {rating.toFixed(1)}</Text> : null}
-            {facts ? <Text style={s.facts}>{facts}</Text> : null}
+            <View style={s.metaRow}>
+              {typeof rating === 'number' && rating > 0 ? <Text style={s.score}>★ {Math.round(rating * 10) / 10}</Text> : null}
+              {facts ? <Text style={s.facts}>{facts}</Text> : null}
+            </View>
             {badges.length ? (
               <View style={s.badges}>
                 {badges.map(b => (
@@ -997,7 +1016,7 @@ export default function Detail() {
             </View>
           ) : null}
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.actions}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.actionsStrip} contentContainerStyle={s.actions}>
             {tvs.length && (ownedMovieId || heroEp?.owned) ? <ActionCircle uiId="phone.detail.playon" icon="cast" label={tvs.length === 1 ? `Play on ${tvs[0].name}` : 'Play on TV'} onPress={playOnTv} /> : null}
             {!isShow && !ownedMovieId && imdb ? <ActionCircle uiId="detail.sources" icon="play" label="Stream instead" onPress={() => openSources()} /> : null}
             {ownedMovieId ? (
@@ -1048,7 +1067,6 @@ export default function Detail() {
               {synopsis.length > 140 ? <Text style={s.more}>{moreText ? 'Less' : 'More'}</Text> : null}
             </Tap>
           ) : null}
-          {genres.length ? <Text style={s.line}>{genres.join(' · ')}</Text> : null}
           {cast.length ? (
             <Text style={s.line}>
               <Text style={s.lineKey}>Cast </Text>
@@ -1061,33 +1079,51 @@ export default function Detail() {
               {unescapeHtml(meta.director)}
             </Text>
           ) : null}
+          {genres.length ? (
+            <View style={s.genres}>
+              {genres.slice(0, 4).map(g => (
+                <Text key={g} style={s.genre}>
+                  {g}
+                </Text>
+              ))}
+            </View>
+          ) : null}
         </View>
 
         {isShow && seasons.length ? (
           <View style={[s.episodes, column]}>
-            <Text style={s.h2}>Episodes</Text>
+            {/* .season-bar: the seasons in one glass island, the season's own actions under it */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.seasonBar}>
+              <View style={s.island}>
+                {seasons.map(se => (
+                  <Tap uiId="detail.season.pick" key={se.number} flat onPress={() => setSeasonPick(se.number)} accessibilityRole="button" accessibilityState={{selected: se.number === seasonNo}} style={[s.seasonPill, se.number === seasonNo && s.seasonPillOn]}>
+                    <Text style={[s.seasonText, se.number === seasonNo && s.seasonTextOn]}>{`Season ${se.number}`}</Text>
+                  </Tap>
+                ))}
+              </View>
+            </ScrollView>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pills}>
-              {seasons.map(se => (
-                <ChipButton uiId="detail.season.pick" key={se.number} label={`Season ${se.number}`} active={se.number === seasonNo} onPress={() => setSeasonPick(se.number)} />
-              ))}
               {season && season.episodes.some(e => e.owned && !e.phone) ? (
                 <ChipButton uiId="phone.save.season"
+                  small
                   label={`Save season offline (${season.episodes.filter(e => e.owned && !e.phone).length})`}
                   icon="downloadDevice"
                   onPress={() => saveSeasonToPhone(season.episodes.filter(e => e.owned && !e.phone))}
                 />
               ) : null}
-              {aired.length ? <ChipButton uiId="detail.season.watched" label={seasonAllWatched ? 'Mark season unwatched' : 'Mark season watched'} icon="check" onPress={markSeason} /> : null}
+              {aired.length ? <ChipButton uiId="detail.season.watched" small label={seasonAllWatched ? 'Mark season unwatched' : 'Mark season watched'} onPress={markSeason} /> : null}
             </ScrollView>
-            {(season?.episodes || []).map(ep => (
-              <EpisodeRow key={ep.key} ep={ep} onPress={onEpisode} onLong={episodeActions} />
-            ))}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.epList}>
+              {(season?.episodes || []).map(ep => (
+                <EpisodeCard key={ep.key} ep={ep} onPress={onEpisode} onLong={episodeActions} />
+              ))}
+            </ScrollView>
           </View>
         ) : null}
 
         {similar && similar.length ? (
-          <View style={{marginTop: 26}}>
-            <Text style={[s.h2, {paddingHorizontal: GUTTER}]}>More like this</Text>
+          <View style={{marginTop: 18}}>
+            <Text style={s.h2}>More like this</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.shelf}>
               {similar.map((x, i) => (
                 <PosterCard key={`${x.imdbId || x.id}-${i}`} item={x} onPress={it => navigation.push('Detail', {item: it})} />
@@ -1096,67 +1132,95 @@ export default function Detail() {
           </View>
         ) : null}
       </ScrollView>
-      {pastArt ? null : <View style={[s.topFade, {height: insets.top + 64}]} pointerEvents="none" />}
-      <BackBar solid={pastArt} title={pastArt ? unescapeHtml(title) : undefined} />
+      <BackBar solid={pastArt} />
     </View>
   );
 }
 
 const s = StyleSheet.create({
   root: {flex: 1},
+  // .detail-head::after: the page colour at 0.4 at the top, clear, then into the page at the foot
   artFade: {
     ...StyleSheet.absoluteFill,
-    experimental_backgroundImage: 'linear-gradient(180deg, rgba(8,9,16,0.45) 0%, rgba(8,9,16,0) 25%, rgba(8,9,16,0.1) 45%, rgba(8,9,16,0.85) 82%, rgba(8,9,16,1) 100%)',
+    experimental_backgroundImage: 'linear-gradient(180deg, rgba(7,8,17,0.4) 0%, rgba(7,8,17,0) 24%, rgba(7,8,17,0.18) 48%, rgba(7,8,17,0.82) 82%, rgba(7,8,17,1) 100%)',
   },
-  topFade: {position: 'absolute', top: 0, left: 0, right: 0, experimental_backgroundImage: 'linear-gradient(180deg, rgba(8,9,16,0.55), rgba(8,9,16,0))'},
-  lockup: {position: 'absolute', left: GUTTER, right: GUTTER, bottom: 14},
-  kicker: {alignSelf: 'flex-start', paddingHorizontal: 12, height: 28, borderRadius: 14, borderWidth: 1, backgroundColor: 'rgba(8,9,16,0.4)', justifyContent: 'center', marginBottom: 10},
-  kickerText: {fontSize: 12, fontWeight: '900', letterSpacing: 1.5},
-  title: {color: '#fff', fontSize: 32, fontWeight: '900', letterSpacing: -0.4, lineHeight: 36},
-  score: {color: colors.star, fontSize: 16, fontWeight: '800', marginTop: 10},
-  facts: {color: 'rgba(255,255,255,0.88)', fontSize: 16, fontWeight: '600', marginTop: 6},
+  // the words on the cover: 16 in, 20 above its foot
+  lockup: {position: 'absolute', left: GUTTER, right: GUTTER, bottom: 20},
+  // .hero-kicker on a title page: tinted in the kind's colour, a ring of it
+  kicker: {alignSelf: 'flex-start', paddingHorizontal: 12, height: 29.8, borderRadius: 15, borderWidth: 1, justifyContent: 'center'},
+  kickerFilm: {backgroundColor: 'rgba(240,198,126,0.14)', borderColor: 'rgba(240,198,126,0.35)'},
+  kickerSeries: {backgroundColor: 'rgba(127,209,232,0.14)', borderColor: 'rgba(127,209,232,0.35)'},
+  kickerText: {fontSize: 11.84, fontWeight: '800', letterSpacing: 0.95},
+  title: {color: colors.text, fontSize: 34.5, fontWeight: '900', letterSpacing: -1, lineHeight: 37, marginTop: 14, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 12},
+  metaRow: {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 10, rowGap: 8, marginTop: 14},
+  score: {color: colors.kindFilm, fontSize: 14.4, fontWeight: '600', lineHeight: 21.6},
+  facts: {color: 'rgba(243,244,248,0.88)', fontSize: 14.4, fontWeight: '600', lineHeight: 20.2, textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 10},
   badges: {flexDirection: 'row', gap: 6, marginTop: 8},
-  badge: {color: colors.text, fontSize: 12, fontWeight: '800', borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1},
-  body: {paddingHorizontal: GUTTER, paddingTop: 6},
-  primary: {height: 56, marginTop: 6},
+  badge: {color: colors.text, fontSize: 11, fontWeight: '800', borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1, opacity: 0.86},
+  body: {paddingHorizontal: GUTTER, paddingTop: 20},
+  // the one button, full width: 54.5 tall, 16 round (not a pill) on a phone
+  primary: {height: 54.5, borderRadius: 16, paddingHorizontal: 18},
   primaryStill: {width: 64, height: 36, borderRadius: 6, marginRight: 2},
   status: {marginTop: 10},
-  statusText: {color: colors.textDim, fontSize: 14, fontWeight: '600'},
-  actions: {gap: 6, paddingVertical: 18},
-  hh: {padding: 14, borderRadius: radius.l, backgroundColor: 'rgba(139,123,255,0.12)', borderWidth: 1, borderColor: 'rgba(139,123,255,0.35)', marginBottom: 12},
+  statusText: {color: colors.textDim, fontSize: 13.76, fontWeight: '600'},
+  // .detail-actions-more: one strip of 76 dp buttons, 2 apart, reaching the screen's edges
+  actionsStrip: {marginHorizontal: -GUTTER, marginTop: 18},
+  actions: {gap: 2, paddingHorizontal: GUTTER - 8, paddingVertical: 2},
+  hh: {padding: 14, borderRadius: radius.l, backgroundColor: 'rgba(139,123,255,0.12)', borderWidth: 1, borderColor: 'rgba(139,123,255,0.35)', marginTop: 18},
   hhLine: {color: colors.text, fontSize: 15, fontWeight: '800'},
   hhNote: {color: colors.textDim, fontSize: 14, marginTop: 4, fontStyle: 'italic'},
   link: {color: colors.accent, fontSize: 14, fontWeight: '700'},
-  synopsisBox: {paddingVertical: 4},
-  synopsis: {color: colors.text, fontSize: 16, lineHeight: 24},
-  more: {color: colors.text, fontSize: 15, fontWeight: '800', marginTop: 6},
-  line: {color: colors.text, fontSize: 15, lineHeight: 22, marginTop: 10},
-  lineKey: {color: colors.textDim, fontWeight: '700'},
-  episodes: {marginTop: 26},
-  h2: {color: colors.text, fontSize: 20, fontWeight: '800', paddingHorizontal: GUTTER},
-  pills: {paddingHorizontal: GUTTER, paddingVertical: 12, gap: 8},
-  ep: {
+  // .detail-synopsis 15.68 on a 24.3 line, a step dimmer than white; More 13.76/800
+  synopsisBox: {marginTop: 24},
+  synopsis: {color: 'rgba(243,244,248,0.82)', fontSize: 15.68, lineHeight: 24.3},
+  more: {color: colors.text, fontSize: 13.76, fontWeight: '800', marginTop: 4, paddingVertical: 4, opacity: 0.85},
+  // .detail-cast: "Cast" in the faint grey, the names in the dim one, 13.76 on 20.6 lines
+  line: {color: colors.textDim, fontSize: 13.76, lineHeight: 20.6, marginTop: 4},
+  lineKey: {color: colors.textFaint, fontWeight: '700'},
+  // .genre-chips: small static pills, 6 apart
+  genres: {flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 14},
+  genre: {color: 'rgba(243,244,248,0.82)', fontSize: 11.52, fontWeight: '700', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', overflow: 'hidden'},
+  episodes: {marginTop: 8},
+  h2: {color: colors.text, fontSize: 17.6, fontWeight: '800', letterSpacing: -0.18, lineHeight: 26.4, paddingHorizontal: GUTTER},
+  // .season-bar 26 16 4: .season-island (glass, 5 in) holding the season pills
+  seasonBar: {paddingHorizontal: GUTTER, paddingTop: 26, paddingBottom: 4},
+  island: {
     flexDirection: 'row',
-    gap: 12,
-    marginHorizontal: GUTTER,
-    marginBottom: 10,
-    padding: 8,
-    borderRadius: radius.l,
-    backgroundColor: colors.glass,
-    borderWidth: 1,
-    borderColor: 'rgba(226,229,238,0.18)',
+    gap: 2,
+    padding: 5,
+    borderRadius: 25,
+    backgroundColor: 'rgba(60,64,140,0.16)',
+    experimental_backgroundImage: G_FILL,
+    ...G_EDGE,
   },
-  epOwned: {backgroundColor: 'rgba(80,200,150,0.10)', borderColor: 'rgba(111,224,176,0.32)'},
-  epNext: {borderColor: 'rgba(139,123,255,0.6)'},
-  epStill: {width: 136, height: 77, borderRadius: radius.s, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center'},
-  epBar: {position: 'absolute', left: 6, right: 6, bottom: 5},
+  seasonPill: {height: 40, paddingHorizontal: 16, borderRadius: 20, justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)'},
+  seasonPillOn: {backgroundColor: 'rgba(255,255,255,0.14)', borderColor: 'rgba(255,255,255,0.08)', borderTopColor: 'rgba(255,255,255,0.35)'},
+  seasonText: {color: 'rgba(243,244,248,0.82)', fontSize: 14.72, fontWeight: '700'},
+  seasonTextOn: {color: '#fff'},
+  pills: {paddingHorizontal: GUTTER, paddingTop: 8, paddingBottom: 4, gap: 8},
+  // .episode-list: 6 16 12, cards 12 apart
+  epList: {paddingHorizontal: GUTTER, paddingTop: 6, paddingBottom: 12, gap: 12},
+  ep: {
+    width: EP_W,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    experimental_backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.055) 55%, rgba(255,255,255,0.09) 100%)',
+    ...G_EDGE,
+  },
+  epOwned: {borderColor: 'rgba(111,224,176,0.32)', borderTopColor: 'rgba(111,224,176,0.5)'},
+  epNext: {borderColor: 'rgba(139,123,255,0.6)', borderTopColor: 'rgba(170,160,255,0.8)'},
+  epStill: {width: EP_W - 2, height: Math.round(((EP_W - 2) * 9) / 16), borderTopLeftRadius: 15, borderTopRightRadius: 15, overflow: 'hidden', backgroundColor: '#141a30', alignItems: 'center', justifyContent: 'center'},
+  epBar: {position: 'absolute', left: 12, right: 12, bottom: 10},
   epDl: {position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(8,9,16,0.75)', paddingVertical: 2},
   epDlText: {color: colors.owned, fontSize: 10, fontWeight: '900', textAlign: 'center', letterSpacing: 0.5},
-  epBody: {flex: 1, justifyContent: 'center'},
-  epKicker: {color: colors.textDim, fontSize: 11, fontWeight: '900', letterSpacing: 1},
-  epTitle: {color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 2},
-  epFoot: {flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4},
-  epFootText: {color: colors.textDim, fontSize: 13, flexShrink: 1},
+  // .episode-body 10 14 11: kicker 10.24/800, the name 16/800, the story 12.8 on 17.9, the date 12.16
+  epBody: {paddingTop: 10, paddingHorizontal: 14, paddingBottom: 11},
+  epKicker: {color: 'rgba(243,244,248,0.62)', fontSize: 10.24, fontWeight: '800', letterSpacing: 0.92, lineHeight: 15.4},
+  epTitle: {color: colors.text, fontSize: 16, fontWeight: '800', letterSpacing: -0.16, lineHeight: 20, marginTop: 2},
+  epOverview: {color: 'rgba(243,244,248,0.72)', fontSize: 12.8, lineHeight: 17.9, marginTop: 5, minHeight: 17.9 * 3},
+  epFoot: {flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 8, paddingRight: 44, minHeight: 18},
+  epFootText: {color: 'rgba(243,244,248,0.7)', fontSize: 12.16, flexShrink: 1},
+  epAction: {position: 'absolute', right: 1, bottom: 0, width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center'},
   cc: {color: colors.textDim, fontSize: 10, fontWeight: '900', borderWidth: 1, borderColor: colors.textFaint, borderRadius: 3, paddingHorizontal: 3},
-  shelf: {paddingHorizontal: GUTTER, gap: 8, paddingTop: 12},
+  shelf: {paddingHorizontal: GUTTER, gap: SHELF_GAP, paddingTop: 18},
 });

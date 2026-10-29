@@ -15,7 +15,9 @@ import {emptyGridLine} from '../../browseCopy';
 import type {RootStackParamList} from '../../navigation';
 import {usePNav} from '../nav';
 import Grid from '../ui/Grid';
-import {ChipButton, GlassButton} from '../ui/Buttons';
+import {ChipButton, GlassButton, PickerChip} from '../ui/Buttons';
+import SearchBox from '../ui/SearchBox';
+import {showToast} from '../../toast';
 import PageHead, {BackBar, useSolidBar} from '../ui/PageHead';
 import TopBar from '../ui/TopBar';
 import {useTabBarSpace} from '../ui/TabBar';
@@ -58,6 +60,37 @@ export function BrowseScreen({kind, pushed}: {kind: 'movie' | 'show'; pushed?: b
   const [tryN, setTryN] = useState(0);
   const [state, setState] = useState<ProfileState | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [queryText, setQueryText] = useState('');
+  const [query, setQuery] = useState('');
+  const [found, setFound] = useState<HeroItem[]>([]);
+  const [searching, setSearching] = useState(false);
+  const qTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const qId = useRef(0);
+  const runQuery = useCallback(
+    (q: string) => {
+      if (qTimer.current) clearTimeout(qTimer.current);
+      setQuery(q);
+      setFound([]);
+      if (!q) {
+        setSearching(false);
+        return;
+      }
+      const id = ++qId.current;
+      setSearching(true);
+      api
+        .discoverSearch(q)
+        .then(d => id === qId.current && setFound((kind === 'show' ? d.shows : d.movies) || []))
+        .catch(() => {})
+        .finally(() => id === qId.current && setSearching(false));
+    },
+    [kind],
+  );
+  const onQuery = (t: string) => {
+    setQueryText(t);
+    if (qTimer.current) clearTimeout(qTimer.current);
+    if (!t.trim()) return runQuery('');
+    qTimer.current = setTimeout(() => runQuery(t.trim()), 300);
+  };
   const reqId = useRef(0);
   const cache = useRef(new Map<string, {items: HeroItem[]; page: number; hasMore: boolean}>());
   const listRef = useRef<any>(null);
@@ -150,6 +183,14 @@ export function BrowseScreen({kind, pushed}: {kind: 'movie' | 'show'; pushed?: b
   }, [me, lib]);
   const items = useMemo(() => {
     const downloaded = lib || [];
+    if (query) {
+      // the site's in-page search: what is on the server by that name at once, then the catalogue's
+      const qn = norm(query);
+      const local = downloaded.filter(i => norm(i.title).includes(qn)).sort(byTitle);
+      const libTitles = new Set(downloaded.map(i => norm(i.title)));
+      const stream = found.filter(m => m.imdbId && !libTitles.has(norm(m.title))).map(i => ({...i, source: 'stream' as const}));
+      return [...local, ...stream];
+    }
     let local: HeroItem[] = [];
     if (cat.local || cat.withLocal) {
       local = downloaded;
@@ -167,7 +208,7 @@ export function BrowseScreen({kind, pushed}: {kind: 'movie' | 'show'; pushed?: b
       tagged = [...tagged.filter(i => (i.genres || []).some(g => set.has(g))), ...tagged.filter(i => !(i.genres || []).some(g => set.has(g)))];
     }
     return [...local, ...tagged];
-  }, [cat, fetched, genre, lib, marks, unwatched, liked]);
+  }, [cat, fetched, genre, lib, marks, unwatched, liked, query, found]);
 
   useEffect(
     () =>
@@ -180,22 +221,60 @@ export function BrowseScreen({kind, pushed}: {kind: 'movie' | 'show'; pushed?: b
   );
 
   const open = useCallback((it: HeroItem) => openItem(navigation, it), [navigation]);
+  // 🎲 Surprise me (the site's surprise.js): anything on the page, something not started first
+  const surprise = () => {
+    const pool = items.length ? items : lib || [];
+    if (!pool.length) return showToast('Nothing to roll for yet', '🎲');
+    const fresh = pool.filter(i => {
+      const m = marks(i);
+      return !m.finished && !m.started;
+    });
+    const from = fresh.length ? fresh : pool;
+    open(from[Math.floor(Math.random() * from.length)]);
+  };
   const title = kind === 'show' ? 'Shows' : 'Movies';
   const owned = (lib || []).length;
   const empty = emptyGridLine({kind, category, genre, unwatched, kidsAge});
+  // the site's count line (browse.js paintCount)
+  const streamable = items.length - (cat.local || cat.withLocal ? items.filter(i => i.source === 'downloaded').length : 0);
+  const countLine = query
+    ? searching && !items.length
+      ? 'Searching…'
+      : `${items.length} result${items.length === 1 ? '' : 's'}`
+    : cat.local
+      ? `${items.length} downloaded`
+      : `${cat.withLocal && owned ? `${owned} downloaded · ` : ''}${streamable} to stream${hasMore && !err ? ' · more available' : ''}`;
   const header = (
     <View>
-      {pushed ? <View style={{height: 62}} /> : null}
-      <PageHead title={title} sub={owned ? `${owned} on the server` : null} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
-        {CATEGORIES.map(c => (
-          <ChipButton uiId="browse.category.pick" key={c.id} label={c.label} active={category === c.id} onPress={() => setCategory(c.id)} />
-        ))}
-      </ScrollView>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[s.chips, {paddingTop: 0}]}>
-        <ChipButton uiId="phone.browse.genre" label={genre || 'All genres'} icon="chevronDown" active={!!genre} onPress={() => setGenreSheet(true)} />
-        <ChipButton uiId="browse.unwatched" label="Unwatched" icon={unwatched ? 'check' : undefined} active={unwatched} onPress={() => setUnwatched(u => !u)} />
-      </ScrollView>
+      <PageHead
+        title={title}
+        sub={lib === null && !items.length ? null : countLine}
+        right={<GlassButton uiId="browse.surprise" label="Surprise me" emoji="🎲" onPress={surprise} small style={s.surprise} />}
+      />
+      <View style={s.searchWrap}>
+        <SearchBox
+          value={queryText}
+          onChangeText={onQuery}
+          onSubmitEditing={() => runQuery(queryText.trim())}
+          onClear={() => onQuery('')}
+          uiIdClear="browse.filter.clear"
+          placeholder={`Search ${title.toLowerCase()}…`}
+          accessibilityLabel={`Search ${title}`}
+        />
+      </View>
+      {query ? null : (
+        <>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.cats}>
+            {CATEGORIES.map(c => (
+              <ChipButton uiId="browse.category.pick" key={c.id} label={c.label} big active={category === c.id} onPress={() => setCategory(c.id)} />
+            ))}
+          </ScrollView>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tools}>
+            <PickerChip uiId="phone.browse.genre" label="Genre" value={genre || 'All'} onPress={() => setGenreSheet(true)} />
+            <ChipButton uiId="browse.unwatched" label="Unwatched" active={unwatched} onPress={() => setUnwatched(u => !u)} />
+          </ScrollView>
+        </>
+      )}
     </View>
   );
   return (
@@ -274,7 +353,11 @@ export default function Browse() {
 
 const s = StyleSheet.create({
   root: {flex: 1},
-  chips: {paddingHorizontal: GUTTER, paddingVertical: 10, gap: 8},
+  // .search-wrap 6 16 4 · .cat-row 8 16, 8 apart · .filter-bar.tools 6 16 8, 4 apart
+  searchWrap: {paddingHorizontal: GUTTER, paddingTop: 6, paddingBottom: 4},
+  cats: {paddingHorizontal: GUTTER, paddingVertical: 8, gap: 8},
+  tools: {paddingHorizontal: GUTTER, paddingTop: 6, paddingBottom: 0, gap: 4},
+  surprise: {marginLeft: 'auto', marginTop: 3},
   empty: {alignItems: 'center', padding: 40, gap: 12},
   emptyText: {color: colors.textDim, fontSize: 16, textAlign: 'center'},
 });

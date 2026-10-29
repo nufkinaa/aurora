@@ -55,10 +55,11 @@ import TopBar from '../ui/TopBar';
 import {useSolidBar} from '../ui/PageHead';
 import {useTabBarSpace} from '../ui/TabBar';
 import {greeting} from '../greeting';
+import {heroCover} from '../heroArt';
 import {onReselect} from '../tabs';
 import {phoneNative} from '../native';
 import {FADE_MS, LISTS} from '../lowEnd';
-import {colors, FRAME_W, GUTTER, POSTER_W, radius, SHELF_GAP} from '../theme';
+import {colors, FRAME_W, GUTTER, POSTER_H, POSTER_W, radius, SHELF_GAP} from '../theme';
 
 
 const HERO_DWELL_MS = 9000; // the site's billboard turn (home.js HERO_DWELL_MS)
@@ -71,34 +72,52 @@ function snapshotFor(profileId: string, got: Primed | undefined): HomeData | nul
   return snapshotHome<HomeData>(got.rec);
 }
 
+/** "Good evening, <name>": the name lit as the site lights it (.greet-name — a violet-to-blue
+ *  gradient through the letters; here its middle colour, a gradient cannot fill text). */
+function greetLine(line: string, name?: string) {
+  const i = name ? line.lastIndexOf(name) : -1;
+  if (!name || i < 0) return line;
+  return (
+    <>
+      {line.slice(0, i)}
+      <Text style={s.greetName}>{name}</Text>
+      {line.slice(i + name.length)}
+    </>
+  );
+}
+
 const kindOf = (it: HeroItem) => (it.type === 'show' || (it as {type?: string}).type === 'series' ? 'show' : 'movie');
 
 // ---------------------------------------------------------------- billboard
-const Slide = React.memo(function Slide({item, w, h, onPlay, onDetails, onTextH}: {item: HeroItem; w: number; h: number; onPlay: (it: HeroItem) => void; onDetails: (it: HeroItem) => void; onTextH?: (h: number) => void}) {
+const Slide = React.memo(function Slide({item, w, h, land, onPlay, onDetails, onTextH}: {item: HeroItem; w: number; h: number; land?: boolean; onPlay: (it: HeroItem) => void; onDetails: (it: HeroItem) => void; onTextH?: (h: number) => void}) {
   const show = kindOf(item) === 'show';
   const portrait = h > w;
-  // a tall phone shows more of a poster than of a 16:9 backdrop: the backdrop is the
-  // billboard's picture, cropped to the middle (the site does the same)
-  const {src} = artSrc(item.backdrop || item.poster || item.cover, portrait ? Math.round((h * 16) / 9) : w);
+  // a phone held upright: the POSTER (large) fills the billboard, as on the site (ui.js
+  // heroShowsPoster / heroCover); sideways, the wide backdrop
+  const {src} = portrait
+    ? artSrc(heroCover(item.cover || item.poster) || item.backdrop, w)
+    : artSrc(item.backdrop || item.poster || item.cover, w);
   const facts = [item.year, show ? 'Series' : 'Film', ...(item.genres || []).slice(0, 3)].filter(Boolean).join(' · ');
   const score = typeof item.rating === 'number' && item.rating > 0 ? item.rating.toFixed(1) : null;
   return (
-    <View style={{width: w, height: h, paddingHorizontal: 8}}>
-      <Tap flat onPress={() => onDetails(item)} style={[s.slide, {height: h}]} accessibilityLabel={`${item.title}, details`}>
+    <View style={{width: w, height: h + (land ? 12 : 8), paddingHorizontal: land ? 12 : 8}}>
+      <Tap flat onPress={() => onDetails(item)} style={[s.slide, {height: h}, land && s.slideLand]} accessibilityLabel={`${item.title}, details`}>
         {src ? <Image source={src} style={StyleSheet.absoluteFill} resizeMode="cover" fadeDuration={FADE_MS} /> : null}
         <View style={s.slideFade} pointerEvents="none" />
         <View style={s.slideText} onLayout={onTextH ? e => onTextH(Math.ceil(e.nativeEvent.layout.height)) : undefined}>
-          <View style={[s.kicker, {borderColor: show ? 'rgba(127,209,232,0.4)' : 'rgba(240,198,126,0.4)'}]}>
+          <View style={s.kicker}>
             <Text style={[s.kickerText, {color: show ? colors.kindSeries : colors.kindFilm}]}>{show ? 'SERIES' : 'FILM'}</Text>
           </View>
           <Text style={s.heroTitle} numberOfLines={2}>
             {item.title}
           </Text>
           {score || facts ? (
-            <Text style={s.heroMeta} numberOfLines={1}>
-              {score ? <Text style={s.star}>★ {score}   </Text> : null}
-              {facts}
-            </Text>
+            <View style={s.heroMetaRow}>
+              {score ? <Text style={s.star}>★ {score}</Text> : null}
+              <Text style={s.heroMeta} numberOfLines={1}>
+                {facts}
+              </Text>
+            </View>
           ) : null}
           <View style={s.heroBtns}>
             <PrimaryButton uiId="home.hero.play" testID="phone-hero-play" icon="play" label={item.source === 'stream' ? 'Stream' : 'Play'} onPress={() => onPlay(item)} style={s.heroBtn} />
@@ -118,7 +137,10 @@ function Billboard({items, onPlay, onDetails, active}: {items: HeroItem[]; onPla
   const [textH, setTextH] = useState(0);
   const onTextH = useCallback((t: number) => setTextH(was => (t > was ? t : was)), []);
   const floor = textH ? textH + 40 + insets.top + 8 + 46 + 12 : 0;
-  const h = Math.max(Math.round(height > width ? Math.min(height * 0.6, width * 1.45) : height * 0.6), floor);
+  // the site's phone billboard: min(60vh, 530px) (glass.css)
+  // sideways, the site's wide billboard: 12 from the edges and nearly the whole height (345 of 411)
+  const h = Math.max(Math.round(height > width ? Math.min(height * 0.6, 530) : height - 66), floor);
+  const land = width > height;
   const [idx, setIdx] = useState(0);
   const list = useRef<FlatList<HeroItem>>(null);
   const touchedAt = useRef(0);
@@ -157,7 +179,7 @@ function Billboard({items, onPlay, onDetails, active}: {items: HeroItem[]; onPla
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         keyExtractor={(it, i) => `${it.id || it.imdbId || it.title}-${i}`}
-        renderItem={({item}) => <Slide item={item} w={width} h={h} onPlay={onPlay} onDetails={onDetails} onTextH={onTextH} />}
+        renderItem={({item}) => <Slide item={item} w={width} h={h} land={land} onPlay={onPlay} onDetails={onDetails} onTextH={onTextH} />}
         getItemLayout={(_, i) => ({length: width, offset: width * i, index: i})}
         onScrollBeginDrag={() => {
           touchedAt.current = Date.now();
@@ -223,7 +245,6 @@ const Shelf = React.memo(function Shelf({
       <Text style={s.shelfTitle} accessibilityRole="header">
         {row.title}
       </Text>
-      {row.sub ? <Text style={s.shelfSub}>{row.sub}</Text> : null}
       <FlatList
         data={items}
         horizontal
@@ -473,7 +494,7 @@ export default function Home() {
     if (item.key === 'greet')
       return me ? (
         <View style={s.greet}>
-          <Text style={s.greetLine}>{g.line}</Text>
+          <Text style={s.greetLine}>{greetLine(g.line, me.name)}</Text>
           <Text style={s.greetSub}>{g.sub}</Text>
         </View>
       ) : null;
@@ -534,34 +555,43 @@ const s = StyleSheet.create({
   errTitle: {color: colors.text, fontSize: 20, fontWeight: '800'},
   errSub: {color: colors.textDim, fontSize: 15, marginTop: 6, textAlign: 'center'},
   empty: {position: 'absolute', top: 200, left: GUTTER, right: GUTTER, color: colors.textDim, fontSize: 16, textAlign: 'center'},
-  slide: {borderBottomLeftRadius: radius.xl + 4, borderBottomRightRadius: radius.xl + 4, borderTopLeftRadius: radius.xl + 4, borderTopRightRadius: radius.xl + 4, overflow: 'hidden', backgroundColor: '#11131f', marginTop: 8},
+  // .hero (glass, phone): 8 from the sides and the top, 24 round, the art under a fade from the foot
+  slide: {borderRadius: 24, overflow: 'hidden', backgroundColor: '#11131f', marginTop: 8},
+  slideLand: {borderRadius: 32, marginTop: 12},
   slideFade: {
     ...StyleSheet.absoluteFill,
-    experimental_backgroundImage: 'linear-gradient(180deg, rgba(8,9,16,0.35) 0%, rgba(8,9,16,0) 22%, rgba(8,9,16,0) 42%, rgba(8,9,16,0.72) 70%, rgba(8,9,16,0.96) 100%)',
+    experimental_backgroundImage: 'linear-gradient(0deg, rgba(7,8,17,0.95) 0%, rgba(7,8,17,0.4) 50%, rgba(7,8,17,0) 80%)',
   },
-  slideText: {position: 'absolute', left: 18, right: 18, bottom: 40},
-  kicker: {alignSelf: 'flex-start', paddingHorizontal: 12, height: 28, borderRadius: 14, borderWidth: 1, backgroundColor: 'rgba(8,9,16,0.4)', justifyContent: 'center', marginBottom: 10},
-  kickerText: {fontSize: 12, fontWeight: '900', letterSpacing: 1.5},
-  heroTitle: {color: '#fff', fontSize: 34, fontWeight: '900', letterSpacing: -0.5, lineHeight: 38},
-  heroMeta: {color: 'rgba(255,255,255,0.86)', fontSize: 15, fontWeight: '600', marginTop: 8},
-  star: {color: colors.star, fontWeight: '800'},
-  heroBtns: {flexDirection: 'row', gap: 10, marginTop: 16},
-  heroBtn: {paddingHorizontal: 22},
-  dots: {position: 'absolute', bottom: 16, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 8},
-  dot: {width: 7, height: 7, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.45)'},
-  dotOn: {width: 22, backgroundColor: '#fff'},
-  greet: {paddingHorizontal: GUTTER, paddingTop: 26, paddingBottom: 4},
-  greetLine: {color: colors.text, fontSize: 26, fontWeight: '800'},
-  greetSub: {color: colors.textDim, fontSize: 16, marginTop: 6},
+  // .hero-inner: 20 in, 44 above the foot (the dots sit under the buttons)
+  slideText: {position: 'absolute', left: 20, right: 20, bottom: 44},
+  // .hero-kicker: a white veil with a hairline ring, 11.2/800 in the kind's colour
+  kicker: {alignSelf: 'flex-start', paddingHorizontal: 12, height: 28.8, borderRadius: 14.4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center'},
+  kickerText: {fontSize: 11.2, fontWeight: '800', letterSpacing: 0.9},
+  heroTitle: {color: colors.text, fontSize: 33.6, fontWeight: '900', letterSpacing: -1, lineHeight: 36, marginTop: 13},
+  heroMetaRow: {flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 11},
+  heroMeta: {flexShrink: 1, color: colors.textDim, fontSize: 14.4, fontWeight: '600', lineHeight: 21.6},
+  star: {color: colors.star, fontSize: 14.4, fontWeight: '800', lineHeight: 21.6},
+  heroBtns: {flexDirection: 'row', gap: 12, marginTop: 12},
+  heroBtn: {paddingHorizontal: 26},
+  // .hero-dots: 7 dp dots 18 apart, the one on 22 wide and lit, 19 above the foot
+  dots: {position: 'absolute', bottom: 19, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 18},
+  dot: {width: 7, height: 7, borderRadius: 3.5, backgroundColor: 'rgba(255,255,255,0.36)'},
+  dotOn: {width: 22, backgroundColor: '#fff', boxShadow: '0 0 10px rgba(255,255,255,0.5)'},
+  // .home-greeting.big: 14 under the billboard, 22.4/900 on a 33.6 line, the day's line 15.68/600
+  greet: {paddingHorizontal: GUTTER, paddingTop: 14, marginBottom: -6},
+  greetLine: {color: colors.text, fontSize: 22.4, fontWeight: '900', letterSpacing: -0.22, lineHeight: 33.6},
+  greetName: {color: '#a68cff'},
+  greetSub: {color: colors.textDim, fontSize: 15.68, fontWeight: '600', lineHeight: 23.5, marginTop: 4},
   parties: {paddingHorizontal: GUTTER, marginTop: 14, gap: 8},
   party: {flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radius.l, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassEdge},
   partyIcon: {fontSize: 20},
   partyText: {flex: 1, color: colors.text, fontSize: 14},
   partyCta: {color: '#fff', fontWeight: '800', fontSize: 15, backgroundColor: colors.accentStrong, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14, overflow: 'hidden'},
-  shelf: {marginTop: 22},
-  shelfTitle: {color: colors.text, fontSize: 20, fontWeight: '800', paddingHorizontal: GUTTER},
-  shelfSub: {color: colors.textDim, fontSize: 14, paddingHorizontal: GUTTER, marginTop: 2},
-  shelfList: {paddingHorizontal: GUTTER, paddingTop: 12},
-  showAll: {width: POSTER_W, height: Math.round((POSTER_W * 3) / 2), borderRadius: radius.l, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassEdge, alignItems: 'center', justifyContent: 'center', gap: 6},
+  // section.row: 18 under the last row's cards (12 under the greeting), .row-title 17.6/800 on
+  // a 26.4 line, the cards 18 under it; the row's small explanation is not shown on a phone
+  shelf: {marginTop: 18},
+  shelfTitle: {color: colors.text, fontSize: 17.6, fontWeight: '800', letterSpacing: -0.18, lineHeight: 26.4, paddingHorizontal: GUTTER},
+  shelfList: {paddingHorizontal: GUTTER, paddingTop: 18},
+  showAll: {width: POSTER_W, height: POSTER_H, borderRadius: 12, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassEdge, alignItems: 'center', justifyContent: 'center', gap: 6},
   showAllText: {color: colors.text, fontSize: 15, fontWeight: '800'},
 });

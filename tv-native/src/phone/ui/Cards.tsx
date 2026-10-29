@@ -14,7 +14,7 @@ import {artSrc as sharedArtSrc, ART_LADDER, HeroItem, imgSrc} from '../../api';
 import {PixelRatio} from 'react-native';
 import Tap from './Tap';
 import Icon from './Icon';
-import {colors, FRAME_H, FRAME_W, POSTER_H, POSTER_W, radius} from '../theme';
+import {colors, FRAME_H, FRAME_W, POSTER_H, POSTER_W} from '../theme';
 import {FADE_MS} from '../lowEnd';
 
 /** artSrc (api.ts), never asking past the server's widest variant: a picture drawn wider than
@@ -41,16 +41,18 @@ const minutesLeft = (it: HeroItem): string | null => {
   return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min left` : `${m} min left`;
 };
 
-export const Bar = ({f, bead = true, style}: {f: number; bead?: boolean; style?: object}) => (
-  <View style={[s.track, style]}>
-    <View style={[s.fill, {width: `${Math.round(f * 100)}%`}]}>{bead ? <View style={s.bead} /> : null}</View>
+/** The site's watch bar (glass.css .card-progress): a 3 dp capsule (2.5 on a wide card), the
+ *  violet-to-ice fill with its glow, a 7 dp white head. */
+export const Bar = ({f, bead = true, thin, style}: {f: number; bead?: boolean; thin?: boolean; style?: object}) => (
+  <View style={[s.track, thin && s.thin, style]}>
+    <View style={[s.fill, thin && s.thin, {width: `${Math.round(f * 100)}%`}]}>{bead ? <View style={s.bead} /> : null}</View>
   </View>
 );
 
 /** The kind tag: a film strip (warm) or a screen (cool) in a dark disc. */
 const KindTag = ({show}: {show: boolean}) => (
   <View style={s.kind}>
-    <Icon name={show ? 'series' : 'film'} size={13} color={show ? colors.kindSeries : colors.kindFilm} />
+    <Icon name={show ? 'series' : 'film'} size={9} color={show ? colors.kindSeries : colors.kindFilm} />
   </View>
 );
 
@@ -138,7 +140,7 @@ export const FrameCard = memo(function FrameCard({
       onPress={() => onPress?.(item)}
       style={[s.frame, {width, height: h}]}>
       {src && !failed ? (
-        <Image source={src} style={[StyleSheet.absoluteFill, {borderRadius: radius.xl - 1}]} resizeMode="cover" onError={() => setFailed(true)} fadeDuration={FADE_MS} />
+        <Image source={src} style={[StyleSheet.absoluteFill, {borderRadius: 16}]} resizeMode="cover" onError={() => setFailed(true)} fadeDuration={FADE_MS} />
       ) : (
         <TitleTile title={title} wide />
       )}
@@ -152,19 +154,25 @@ export const FrameCard = memo(function FrameCard({
             {sub}
           </Text>
         ) : null}
-        {left ? <Text style={s.frameLeft}>▶  {left}</Text> : null}
-        {f != null ? <Bar f={f} style={{marginTop: 10}} /> : null}
+        {left ? (
+          <Text style={s.frameLeft}>
+            <Text style={s.frameLeftGlyph}>▶</Text>
+            {'  '}
+            {left}
+          </Text>
+        ) : null}
       </View>
+      {f != null ? <Bar f={f} thin style={s.frameBar} /> : null}
       {onRemove ? (
         <Tap
           uiId="phone.home.remove"
           accessibilityRole="button"
           accessibilityLabel={`Remove ${title} from Continue Watching`}
           onPress={() => onRemove(item)}
-          hitSlop={10}
+          hitSlop={14}
           borderless
           style={s.remove}>
-          <Icon name="close" size={18} color={colors.text} />
+          <Text style={s.removeX}>✕</Text>
         </Tap>
       ) : null}
     </Tap>
@@ -175,78 +183,90 @@ const s = StyleSheet.create({
   // NO overflow clipping on the cards: a rounded clip on every card of a shelf is a
   // clip-path per card per frame while it scrolls; the picture rounds itself
   // (Fresco draws it rounded) and nothing else on the card reaches its corners.
-  round: {borderRadius: radius.l - 1},
+  // .card.poster on a phone: 12 round, a faint fill under the picture, no edge
+  round: {borderRadius: 12},
   poster: {
-    borderRadius: radius.l,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    borderColor: 'rgba(255,255,255,0.22)',
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  tile: {alignItems: 'center', justifyContent: 'center', padding: 10, backgroundColor: 'rgba(110,90,220,0.28)', borderRadius: radius.l - 1},
-  tileText: {color: colors.text, fontSize: 15, fontWeight: '800', textAlign: 'center'},
+  tile: {alignItems: 'center', justifyContent: 'center', padding: 10, backgroundColor: 'rgba(110,90,220,0.28)', borderRadius: 12},
+  tileText: {color: colors.text, fontSize: 14, fontWeight: '800', textAlign: 'center'},
+  // .card-tag.kind: a 15 dp dark disc 6 in from the corner, the 9 dp icon, a hairline ring
   kind: {
     position: 'absolute',
-    top: 7,
-    right: 7,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(8,9,16,0.78)',
+    top: 6,
+    right: 6,
+    width: 15,
+    height: 15,
+    borderRadius: 7.5,
+    backgroundColor: 'rgba(6,8,16,0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // .card-new: the violet pill, 6 in
   newTag: {
     position: 'absolute',
-    top: 7,
-    left: 7,
-    paddingHorizontal: 8,
-    height: 22,
-    borderRadius: 11,
+    top: 6,
+    left: 6,
+    paddingHorizontal: 6,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: '#6c58ff',
     justifyContent: 'center',
+    elevation: 3,
+    shadowColor: '#6c58ff',
   },
-  newText: {color: '#fff', fontSize: 11, fontWeight: '900', letterSpacing: 1},
-  posterBar: {position: 'absolute', left: 10, right: 10, bottom: 10},
-  track: {height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.28)', justifyContent: 'center'},
+  newText: {color: '#fff', fontSize: 8, fontWeight: '900', letterSpacing: 0.64},
+  posterBar: {position: 'absolute', left: 12, right: 12, bottom: 10},
+  track: {height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.22)', justifyContent: 'center'},
+  thin: {height: 2.5},
   fill: {
-    height: 4,
+    height: 3,
     borderRadius: 2,
     backgroundColor: colors.accent,
-    experimental_backgroundImage: 'linear-gradient(90deg, #6c58ff, #a99bff)',
+    experimental_backgroundImage: 'linear-gradient(90deg, #8b7bff, #a6c8ff)',
+    boxShadow: '0 0 10px rgba(139,123,255,0.6)',
     justifyContent: 'center',
   },
   bead: {
     position: 'absolute',
-    right: -5,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    right: -3,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
     backgroundColor: '#fff',
+    boxShadow: '0 0 8px rgba(255,255,255,0.9)',
   },
+  // .card.wide: 16 round, the picture under a fade from the foot
   frame: {
-    borderRadius: radius.xl,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
   frameFade: {
     ...StyleSheet.absoluteFill,
-    borderRadius: radius.xl - 1,
-    experimental_backgroundImage: 'linear-gradient(180deg, rgba(5,6,12,0) 35%, rgba(5,6,12,0.55) 62%, rgba(5,6,12,0.92) 100%)',
+    borderRadius: 16,
+    experimental_backgroundImage: 'linear-gradient(0deg, rgba(5,6,12,0.95) 0%, rgba(5,6,12,0.72) 24%, rgba(5,6,12,0.18) 52%, rgba(5,6,12,0) 68%)',
   },
-  frameText: {position: 'absolute', left: 14, right: 14, bottom: 12},
-  frameTitle: {color: '#fff', fontSize: 20, fontWeight: '800'},
-  frameSub: {color: 'rgba(255,255,255,0.86)', fontSize: 14, fontWeight: '600', marginTop: 2},
-  frameLeft: {color: 'rgba(255,255,255,0.86)', fontSize: 14, fontWeight: '600', marginTop: 4},
+  // .card.wide .card-label: 14 from the sides, 21 from the foot
+  frameText: {position: 'absolute', left: 14, right: 14, bottom: 21},
+  frameTitle: {color: '#fff', fontSize: 16.32, fontWeight: '800', letterSpacing: -0.16, lineHeight: 19.6},
+  frameSub: {color: 'rgba(243,244,248,0.84)', fontSize: 11.84, fontWeight: '600', lineHeight: 14.2, marginTop: 1},
+  frameLeft: {color: 'rgba(243,244,248,0.8)', fontSize: 11.84, fontWeight: '600', lineHeight: 14.2, marginTop: 3},
+  frameLeftGlyph: {fontSize: 9.3},
+  frameBar: {position: 'absolute', left: 14, right: 14, bottom: 11},
+  // .card-remove: a 24 dp dark disc, 6 in from the corner
   remove: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(8,9,16,0.7)',
+    top: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.65)',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  removeX: {color: colors.text, fontSize: 11.2, fontWeight: '800'},
 });

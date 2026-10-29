@@ -11,7 +11,7 @@ import {openItem} from '../../openItem';
 import {Marks, watchStateFor} from '../../watchState';
 import {usePNav} from '../nav';
 import Grid from '../ui/Grid';
-import {ChipButton, GlassButton} from '../ui/Buttons';
+import {ChipButton, GlassButton, PickerChip} from '../ui/Buttons';
 import PageHead, {useSolidBar} from '../ui/PageHead';
 import TopBar from '../ui/TopBar';
 import {useTabBarSpace} from '../ui/TabBar';
@@ -89,12 +89,16 @@ export default function MyList() {
     <View>
       <PageHead title="My List" sub={items ? `${items.length} ${items.length === 1 ? 'title' : 'titles'}` : null} />
       {items && items.length ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
-          <ChipButton uiId="mylist.filter" label={sortLabel} icon="chevronDown" onPress={() => setSortSheet(true)} />
+        <>
+        <View style={s.tools}>
+          <PickerChip uiId="mylist.filter" label="Sort" value={sortLabel} onPress={() => setSortSheet(true)} />
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tools}>
           {FILTERS.map(f => (
             <ChipButton uiId="mylist.filter" key={`${f.group}-${f.id}`} label={f.label} active={picked[f.group] === f.id} onPress={() => toggle(f)} />
           ))}
         </ScrollView>
+        </>
       ) : null}
     </View>
   );
@@ -152,7 +156,8 @@ export default function MyList() {
 
 const s = StyleSheet.create({
   root: {flex: 1},
-  chips: {paddingHorizontal: GUTTER, paddingVertical: 10, gap: 8},
+  // .filter-bar.tools: 6 16 8, the chips 4 apart
+  tools: {flexDirection: 'row', paddingHorizontal: GUTTER, paddingTop: 6, paddingBottom: 8, gap: 4},
   empty: {alignItems: 'center', padding: 40, gap: 14},
   emptyText: {color: colors.textDim, fontSize: 16, textAlign: 'center', lineHeight: 22},
 });

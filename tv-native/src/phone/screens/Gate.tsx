@@ -11,9 +11,7 @@ import Tap from '../ui/Tap';
 import Field from '../ui/Field';
 import {GlassButton, PrimaryButton} from '../ui/Buttons';
 import Sky from '../ui/Sky';
-import {colors, GUTTER, radius} from '../theme';
-
-const LOGO = require('../../assets/logo-mark.png');
+import {colors, G_EDGE, GUTTER} from '../theme';
 
 function Tile({p, first, onPress, size}: {p: Profile; first: boolean; onPress: () => void; size: number}) {
   return (
@@ -22,12 +20,12 @@ function Tile({p, first, onPress, size}: {p: Profile; first: boolean; onPress: (
       accessibilityRole="button"
       accessibilityLabel={`${p.name}${p.kids ? ', kids profile' : ''}${p.hasPassword ? ', has a password' : ''}${p.locked ? ', locked' : ''}`}
       onPress={onPress}
-      style={[s.tile, first && s.tileFirst, p.locked && s.dim, {width: size + 28}]}>
-      <View style={[s.avatar, {width: size, height: size, borderRadius: size * 0.22, backgroundColor: p.color || colors.surfaceHover}]}>
+      style={[s.tile, first && s.tileFirst, p.locked && s.dim, {width: size + 20}]}>
+      <View style={[s.avatar, {width: size, height: size, borderRadius: 20, backgroundColor: p.color || colors.surfaceHover}, first && s.avatarFirst]}>
         {p.avatarImage ? (
           <Image source={imgSrc(p.avatarImage) || undefined} style={StyleSheet.absoluteFill} resizeMode="cover" />
         ) : (
-          <Text style={{fontSize: size * 0.48}} allowFontScaling={false}>
+          <Text style={{fontSize: 40}} allowFontScaling={false}>
             {p.avatar || '🍿'}
           </Text>
         )}
@@ -64,7 +62,8 @@ export default function Gate({onChosen, notice}: {onChosen: OnChosen; notice: st
   const w = useProfileWall(onChosen);
   const insets = useSafeAreaInsets();
   const {width} = useWindowDimensions();
-  const size = width < 380 ? 84 : 96;
+  // .big-avatar: 84 (the lit one a step larger)
+  const size = width < 360 ? 76 : 84;
 
   // the household PIN (leaving a kids profile, or a profile with no password)
   if (w.pinFor) {
@@ -144,8 +143,7 @@ export default function Gate({onChosen, notice}: {onChosen: OnChosen; notice: st
     <View style={s.root}>
       <Sky dim />
       <ScrollView contentContainerStyle={[s.wall, {paddingTop: insets.top + 40, paddingBottom: insets.bottom + 40}]}>
-        <Image source={LOGO} style={s.logo} resizeMode="contain" />
-        <Text style={s.heading}>Who's watching?</Text>
+        <Text style={s.heading} accessibilityRole="header">Who's watching?</Text>
         {notice ? <Text style={s.notice}>{notice}</Text> : null}
         {w.profiles === null && !w.loadError ? <ActivityIndicator color={colors.text} style={{marginTop: 24}} /> : null}
         {w.loadError ? <Text style={s.error}>{w.loadError}</Text> : null}
@@ -168,20 +166,22 @@ const s = StyleSheet.create({
   grow: {flex: 1},
   dim: {opacity: 0.45},
   wall: {flexGrow: 1, justifyContent: 'center', paddingHorizontal: GUTTER},
-  logo: {width: 56, height: 56, alignSelf: 'center', marginBottom: 18},
-  heading: {color: colors.text, fontSize: 30, fontWeight: '800', textAlign: 'center'},
+  // .profiles-head h1: 28.8/900 on a 43.2 line
+  heading: {color: colors.text, fontSize: 28.8, fontWeight: '900', letterSpacing: -0.58, lineHeight: 43.2, textAlign: 'center'},
   sub: {color: colors.textDim, fontSize: 16, textAlign: 'center', marginTop: 8, lineHeight: 22},
   notice: {color: '#ffd28a', fontSize: 15, textAlign: 'center', marginTop: 12},
   error: {color: '#ffb3b3', fontSize: 15, textAlign: 'center', marginTop: 12},
   retry: {marginTop: 16, alignSelf: 'center'},
-  grid: {flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 28, gap: 6},
-  tile: {alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8, borderRadius: radius.xl, borderWidth: 1, borderColor: 'transparent'},
-  tileFirst: {backgroundColor: 'rgba(255,255,255,0.08)', borderColor: colors.glassEdge},
-  avatar: {alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
+  // .profiles-row: tiles 14 apart, 34 under the heading; .profile-tile 10 inside, 24 round
+  grid: {flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 34, gap: 14},
+  tile: {alignItems: 'center', padding: 10, gap: 10, borderRadius: 24, borderWidth: 1, borderColor: 'transparent'},
+  tileFirst: {backgroundColor: 'rgba(255,255,255,0.07)', ...G_EDGE},
+  avatar: {alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)'},
+  avatarFirst: {transform: [{scale: 1.07}], marginVertical: 3},
   doorFace: {width: 88, height: 88, borderRadius: 20, alignSelf: 'center'},
   kids: {position: 'absolute', bottom: 6, alignSelf: 'center', backgroundColor: '#ffcf4a', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1},
   kidsText: {color: '#2a1d00', fontSize: 11, fontWeight: '900', letterSpacing: 0.5},
-  name: {color: colors.textDim, fontSize: 16, fontWeight: '700', marginTop: 10},
+  name: {color: colors.textDim, fontSize: 14.4, fontWeight: '700', lineHeight: 21.6},
   nameFirst: {color: colors.text},
   door: {flexGrow: 1, paddingHorizontal: GUTTER + 8, maxWidth: 520, width: '100%', alignSelf: 'center'},
   field: {marginTop: 24},

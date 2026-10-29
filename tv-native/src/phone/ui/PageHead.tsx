@@ -3,14 +3,16 @@
 // takes the logo's place.
 import React, {useCallback, useState} from 'react';
 import {NativeScrollEvent, NativeSyntheticEvent, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {IconCircle} from './Buttons';
 import {scrollReporter} from './tabBarShown';
 import {BarBand, StatusScrim} from './Scrims';
 import {colors, GUTTER} from '../theme';
+import {TopRight, useBarTop} from './TopBar';
 
-export const usePageTop = () => useSafeAreaInsets().top + 70;
+/** Where a page's heading starts: the site's .browse-head, 98 below the pills' row
+ *  (padding-top 110 with the pills at 12 in a browser tab). */
+export const usePageTop = () => useBarTop() + 98;
 
 /** The floating bar turns SOLID once the page has scrolled: what scrolls up then goes under
  *  the bar's dark glass instead of under (and through) its round buttons — the title page's
@@ -41,45 +43,46 @@ export function useSolidBar(at = 12) {
 }
 
 
-export default function PageHead({title, sub, children}: {title: string; sub?: string | null; children?: React.ReactNode}) {
+export default function PageHead({title, sub, children, right}: {title: string; sub?: string | null; children?: React.ReactNode; right?: React.ReactNode}) {
   const top = usePageTop();
   return (
     <View style={[s.head, {paddingTop: top}]}>
-      <Text style={s.title} accessibilityRole="header" numberOfLines={2}>
-        {title}
-      </Text>
+      <View style={s.titleRow}>
+        <Text style={s.title} accessibilityRole="header" numberOfLines={2}>
+          {title}
+        </Text>
+        {right}
+      </View>
       {sub ? <Text style={s.sub}>{sub}</Text> : null}
       {children}
     </View>
   );
 }
 
-/** A pushed screen's own top bar: Back on the left, the screen's title beside it. */
-export function BackBar({title, right, solid}: {title?: string; right?: React.ReactNode; solid?: boolean}) {
-  const insets = useSafeAreaInsets();
+/** A pushed screen's own top bar: the site's pills (settings · you) on the right, as on
+ *  every page of the site, and Back — the one thing the site leaves to the browser — a
+ *  round glass pill where the logo sits. (`title` is kept for callers; the site's bar
+ *  carries no words, so neither does this one.) */
+export function BackBar({right, solid, noSettings}: {title?: string; right?: React.ReactNode; solid?: boolean; noSettings?: boolean}) {
+  const top = useBarTop();
   const nav = useNavigation();
   return (
     <>
     {solid ? <BarBand /> : <StatusScrim />}
-    <View pointerEvents="box-none" style={[s.back, {top: insets.top + 8}]}>
+    <View pointerEvents="box-none" style={[s.back, {top}]}>
       <IconCircle icon="back" label="Back" onPress={() => nav.canGoBack() && nav.goBack()} />
-      {title ? (
-        <Text style={s.backTitle} numberOfLines={1}>
-          {title}
-        </Text>
-      ) : (
-        <View style={{flex: 1}} />
-      )}
-      {right}
+      <View style={{flex: 1}} />
+      {right === undefined ? <TopRight noSettings={noSettings} /> : right}
     </View>
     </>
   );
 }
 
 const s = StyleSheet.create({
-  head: {paddingHorizontal: GUTTER, paddingBottom: 12},
-  title: {color: colors.text, fontSize: 32, fontWeight: '900', letterSpacing: -0.3},
-  sub: {color: colors.textDim, fontSize: 16, marginTop: 4},
-  back: {position: 'absolute', left: GUTTER, right: GUTTER, flexDirection: 'row', alignItems: 'center', gap: 12, zIndex: 10},
-  backTitle: {flex: 1, color: colors.text, fontSize: 18, fontWeight: '800'},
+  // .browse-head: h1 24/900 on a 36 line, the count 16/600 in the faint grey 2 under it
+  head: {paddingHorizontal: GUTTER, paddingBottom: 8},
+  titleRow: {flexDirection: 'row', alignItems: 'flex-start', gap: 16},
+  title: {flexShrink: 1, color: colors.text, fontSize: 24, fontWeight: '900', letterSpacing: -0.72, lineHeight: 36},
+  sub: {color: colors.textFaint, fontSize: 16, fontWeight: '600', lineHeight: 24, marginTop: 2},
+  back: {position: 'absolute', left: GUTTER, right: GUTTER, height: 42, flexDirection: 'row', alignItems: 'center', zIndex: 10},
 });

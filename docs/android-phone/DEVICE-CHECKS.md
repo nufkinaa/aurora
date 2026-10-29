@@ -120,9 +120,17 @@ On the private instance: copy a newer phone build (versionName higher than the i
 
 ## 18. Hebrew phone (right to left)
 1. With the phone's language set to Hebrew the layout mirrors: back button and kicker on the right, the tab bar Home on the right, row chevrons and the back arrow point the other way; play / ±10 s keep their direction.
-2. Title pages (film, show, a long name, landscape): the kicker never sits under the back button, at rest or scrolled; once scrolled the bar turns solid with the name.
+2. Title pages (film, show, a long name, landscape): the kicker never sits under the back button, at rest or scrolled; once scrolled the scrim comes up behind the pills.
 
 ## 19. Bars while scrolling
-1. Every page: once scrolled, the top bar turns solid dark (no card or billboard under its buttons, the clock readable).
+1. Every page: once scrolled, a soft page-coloured scrim comes up behind the clock and the round pills (the website's look — no solid app bar); the clock stays readable.
 2. Scrolling down a long page slides the tab bar away; any scroll up, the top of the page or a new page brings it back.
-3. Landscape: the billboard and title pictures are shorter, the words never under the top bar; Settings / Downloads / Your TVs read in a centred column.
+3. Landscape (the website's wide layout): the tab bar sits at the top between the logo and the pills, the billboard is nearly the whole height, a title's cover the whole screen with its words low in a centred column, the words never under the top bar; Settings / Downloads / Your TVs read in a centred column.
+
+## 20. The website's look (1.0.1, docs/android-phone/WEB-PARITY.md)
+1. Side by side with nufurora.com in Chrome on the same phone (glass look, same profile): Home's billboard, row titles, poster and Continue Watching cards, the tab bar and the top pills are the same sizes and in the same places; the sky is the same dark navy night with the violet glow at the top (not green).
+2. A title page: the poster across the top (phone upright), the 16-round white Play button, the strip of round buttons with small words, the season island and the episode cards scrolling sideways.
+3. The profile button opens the glass panel under it (not a bottom sheet); Back or a tap outside closes it.
+4. Settings → Display size and Font size at their largest: no word breaks inside the title page's round buttons; the tab bar's words fit.
+5. A phone with 3-button navigation: the tab bar sits above the buttons, never on them.
+6. Scroll Home on an older phone for a minute: smooth (`dumpsys gfxinfo com.aurora.phone`: janky under 5 %).

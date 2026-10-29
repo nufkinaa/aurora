@@ -11,38 +11,63 @@ import {IconCircle} from './Buttons';
 import Avatar from './Avatar';
 import {openProfileMenu} from '../profileMenu';
 import {setTab} from '../tabs';
-import {GUTTER} from '../theme';
+import {G_EDGE, G_FILL, GUTTER} from '../theme';
+import Tap from './Tap';
 import {BarBand, StatusScrim} from './Scrims';
 
 const LOGO = require('../../assets/logo-mark.png');
 
-export default function TopBar({transparent = true, solid}: {transparent?: boolean; solid?: boolean}) {
-  const insets = useSafeAreaInsets();
+/** The right-hand pills (.nav-gear · .nav-profile): settings and you, 10 apart. */
+export function TopRight({noSettings}: {noSettings?: boolean}) {
   const {profileId} = useApp();
   const me = useMe(profileId);
   return (
+    <View style={s.right}>
+      {noSettings ? null : <IconCircle uiId="nav.settings" icon="navGear" label="Settings" onPress={() => pushScreen('Settings', undefined)} />}
+      <IconCircle uiId="nav.profile" label={`${me?.name || 'Profile'} — profile menu`} onPress={() => openProfileMenu()} size={40}>
+        <Avatar p={me} size={30} round />
+      </IconCircle>
+    </View>
+  );
+}
+
+/** Where the pills' row starts (dp from the window's top): the site's
+ *  `max(10px, env(safe-area-inset-top)) + 2px` (glass.css, phone). */
+export const useBarTop = () => Math.max(10, useSafeAreaInsets().top) + 2;
+
+export default function TopBar({solid}: {transparent?: boolean; solid?: boolean}) {
+  const top = useBarTop();
+  return (
     <>
     {solid ? <BarBand /> : <StatusScrim />}
-    <View pointerEvents="box-none" style={[s.bar, {top: insets.top + 8}, !transparent && s.solid]}>
-      <IconCircle uiId="nav.home" label="Aurora — Home" onPress={() => setTab('home')} size={46} style={s.logo}>
-        <Image source={LOGO} style={{width: 30, height: 30}} resizeMode="contain" />
-      </IconCircle>
+    <View pointerEvents="box-none" style={[s.bar, {top}]}>
+      {/* .nav-logo: the mark in a glass pill, 50 x 40, 2 lower than the round ones */}
+      <Tap uiId="nav.home" accessibilityRole="button" accessibilityLabel="Aurora — Home" onPress={() => setTab('home')} borderless style={s.logo}>
+        <Image source={LOGO} style={{width: 26, height: 26}} resizeMode="contain" />
+      </Tap>
       <View style={{flex: 1}} />
-      <IconCircle uiId="nav.settings" icon="gear" label="Settings" onPress={() => pushScreen('Settings', undefined)} />
-      <IconCircle uiId="nav.profile" label={`${me?.name || 'Profile'} — profile menu`} onPress={() => openProfileMenu()} style={{marginLeft: 10}}>
-        <Avatar p={me} size={38} round />
-      </IconCircle>
+      <TopRight />
     </View>
     </>
   );
 }
 
-
-export const TOP_BAR_H = 62;
+/** The bar's height below its top (the 42 dp gear). */
+export const TOP_BAR_H = 42;
 export {StatusScrim};
 
 const s = StyleSheet.create({
-  bar: {position: 'absolute', left: GUTTER, right: GUTTER, flexDirection: 'row', alignItems: 'center', zIndex: 10},
-  solid: {},
-  logo: {width: 58, borderRadius: 23},
+  bar: {position: 'absolute', left: GUTTER, right: GUTTER, height: 42, flexDirection: 'row', alignItems: 'center', zIndex: 10},
+  right: {flexDirection: 'row', alignItems: 'center', gap: 10},
+  logo: {
+    width: 50,
+    height: 40,
+    marginTop: 4,
+    borderRadius: 20,
+    paddingLeft: 8,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(96,84,230,0.16)',
+    experimental_backgroundImage: G_FILL,
+    ...G_EDGE,
+  },
 });
