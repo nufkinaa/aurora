@@ -3,7 +3,7 @@
 // taken away. The mode is one switch for the whole private server, so these
 // run one at a time and each sets the mode it needs.
 const assert = require("node:assert/strict");
-const { suite, waitForScreen } = require("./helpers");
+const { suite, waitForScreen, PHONE } = require("./helpers");
 
 const ui = suite({
   setup: async (srv) => {
@@ -23,6 +23,7 @@ const ui = suite({
     srv.profiles.stub = await srv.api.createProfile("Stubbed", { open: true });
     srv.profiles.mover = await claimed("Mover");
     srv.profiles.keeper = await claimed("Keeper");
+    srv.profiles.appsy = await claimed("Appsy");
   },
 });
 
@@ -197,6 +198,7 @@ ui.test("the wall: unlocking a profile that owes a new password meets the same s
   await page.click('.modal button:has-text("Unlock")');
   await page.waitForSelector(wall);
   assert.deepEqual(await wallButtons(page), ["Set new password", "Sign out"]);
+  assert.equal(await page.locator('a[href="/install"]').count(), 0, "the reset screen has no Get the apps");
   assert.equal(await page.locator(`${wall} input[type="password"]`).count(), 2, "the password just typed is not asked for again");
   assert.equal(await page.locator("#app .screen").count(), 0, "the profile was not entered");
   // the unlock this tab was handed opens nothing on the server
@@ -448,6 +450,84 @@ ui.test("the server starts to require sign-in under an open tab: the tab goes to
     await toastSays(page, "sign in again");
     await page.waitForSelector(loginCard, { timeout: 10000 });
     assert.equal(await page.locator("#app .screen").count(), 0);
+  } finally {
+    await setMode(api, "open");
+  }
+});
+
+// ---------- "Get the apps": the product page from the sign-in screen ----------
+const appsLink = `${loginCard} .lapps a`;
+const assertAppsLink = async (page, label) => {
+  const a = page.locator(appsLink);
+  assert.equal(await a.count(), 1, `${label}: one "Get the apps"`);
+  assert.equal((await a.textContent()).trim(), "Get the apps", label);
+  assert.equal(await a.getAttribute("href"), "/install", label);
+  assert.equal(await a.getAttribute("data-ui"), "signin.getapps", label);
+  assert.equal(await a.isVisible(), true, label);
+  // the last thing on the card: under the main button and its own links
+  assert.equal(await page.evaluate((sel) => {
+    const link = document.querySelector(sel);
+    const main = document.querySelector(".login-card .lbtn.primary");
+    return link.getBoundingClientRect().top >= main.getBoundingClientRect().bottom
+      && link.closest(".lapps") === document.querySelector(".login-card").lastElementChild;
+  }, appsLink), true, `${label}: at the foot of the card`);
+};
+
+ui.test("sign-in required: the sign-in and request-access cards end with Get the apps (/install), the reset screen has none, and the link opens the product page", {
+  allow: [WALL_401],
+}, async ({ page, goto, api, srv, profiles }) => {
+  const p = profiles.appsy;
+  await api.adminPost(`/api/admin/profiles/${p.id}/force-reset`, { on: true });
+  await setMode(api, "closed");
+  try {
+    await goto("#/", { wait: false });
+    await page.waitForSelector(appsLink);
+    await assertAppsLink(page, "sign in");
+    await page.click(`${loginCard} button:has-text("Request access")`);
+    await page.waitForSelector(`${loginCard} h2:has-text("Request access")`);
+    await assertAppsLink(page, "request access");
+    await page.click(`${loginCard} button:has-text("Back to sign in")`);
+    await page.waitForSelector(`${loginCard} h2:has-text("Welcome back")`);
+    await assertAppsLink(page, "back at sign in");
+
+    // the forced reset that follows a sign-in: nothing but its own two buttons
+    await signInWith(page, p.username, p.password);
+    await page.waitForSelector(wall);
+    assert.equal(await page.locator(loginCard).count(), 0);
+    assert.equal(await page.locator('a[href="/install"]').count(), 0, "the reset screen has no Get the apps");
+    assert.doesNotMatch(await page.textContent("body"), /Get the apps/);
+    await page.click(`${wall} button:has-text("Sign out")`);
+
+    // and the link goes where it says
+    await page.waitForSelector(appsLink, { timeout: 10000 });
+    await page.click(appsLink);
+    await page.waitForURL(`${srv.url}/install`);
+    await page.waitForSelector("text=Get the apps");
+  } finally {
+    await api.adminPost(`/api/admin/profiles/${p.id}/force-reset`, { on: false });
+    await setMode(api, "open");
+  }
+});
+
+ui.test("on a phone: Get the apps on the sign-in card is a full-size tap target inside the screen", {
+  viewport: PHONE, allow: [WALL_401],
+}, async ({ page, goto, api, srv }) => {
+  await setMode(api, "closed");
+  try {
+    await goto("#/", { wait: false });
+    await page.waitForSelector(appsLink);
+    await assertAppsLink(page, "phone sign in");
+    // layout sizes (the card's views slide in: a client rect could catch one mid-way)
+    const box = await page.evaluate((sel) => {
+      const n = document.querySelector(sel);
+      let y = 0;
+      for (let e = n; e; e = e.offsetParent) y += e.offsetTop;
+      return { w: n.offsetWidth, h: n.offsetHeight, bottom: y + n.offsetHeight - scrollY };
+    }, appsLink);
+    assert.ok(box.h >= 44 && box.w >= 44, `tap target ${box.w}x${box.h}`);
+    assert.ok(box.bottom <= PHONE.height, `on screen without scrolling (bottom ${box.bottom})`);
+    await page.locator(appsLink).tap();
+    await page.waitForURL(`${srv.url}/install`);
   } finally {
     await setMode(api, "open");
   }

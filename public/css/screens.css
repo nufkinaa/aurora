@@ -3853,6 +3853,13 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
 
 .lfoot { margin-top: 18px; text-align: center; color: #8b93ab; font-size: 0.9rem; }
 .lskip { margin-top: 10px; text-align: center; }
+/* "Get the apps" (/install): the quietest line on the card, last of all */
+.lapps { margin-top: 12px; text-align: center; font-size: 0.85rem; }
+.lapps .llink { display: inline-flex; align-items: center; min-height: 32px; padding: 0 10px; }
+@media (max-width: 700px), (pointer: coarse) {
+  .lapps { margin-top: 6px; }
+  .lapps .llink { min-height: 44px; }
+}
 .llink {
   background: none;
   border: 0;
@@ -3982,9 +3989,14 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
   font-size: 0.93rem;
   cursor: pointer;
 }
+a.nav-menu-item { text-decoration: none; box-sizing: border-box; }
 .nav-menu-item:hover { background: var(--surface-hover); }
 .nav-menu-item.danger { color: #ff8296; }
 .nav-menu-item.danger:hover { background: rgba(224, 64, 80, 0.12); }
+/* a finger-sized row on touch screens (the items were 42 px tall) */
+@media (pointer: coarse) {
+  .nav-menu-item { display: flex; align-items: center; min-height: 44px; }
+}
 
 /* a proper red button for destructive actions (sign out & friends) */
 .btn.danger {
