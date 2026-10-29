@@ -82,13 +82,15 @@ const verdict = (body, { profiles, mode, session, admin }) => {
 
 // ---------- the envelope ----------
 const envelope = (body) => {
-  const app = body.app === "tv" || (body.app == null && body.device === "tv" && body.look === "tv") ? "tv" : "web";
+  // "web" the site, "tv" the TV app, "phone" the Android phone app (an older
+  // TV build said nothing, only device "tv" with look "tv")
+  const app = body.app === "phone" ? "phone" : body.app === "tv" || (body.app == null && body.device === "tv" && body.look === "tv") ? "tv" : "web";
   const flags = [];
   if (Array.isArray(body.flags)) for (const f of body.flags.slice(0, 6)) if (typeof f === "string" && FLAG_RE.test(f)) flags.push(f);
   return {
     app,
     v: /^[A-Za-z0-9._-]{1,16}$/.test(String(body.v || "")) ? String(body.v) : "?",
-    device: DEVICES.has(body.device) ? body.device : app === "tv" ? "tv" : "desktop",
+    device: DEVICES.has(body.device) ? body.device : app === "tv" ? "tv" : app === "phone" ? "phone" : "desktop",
     model: scrub.label(body.model, 32),
     os: scrub.label(body.os, 24),
     net: NET_TIERS.has(body.net) ? body.net : "",

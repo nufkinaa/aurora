@@ -338,8 +338,9 @@ const checkData = () => slowly("data", async () => {
 
 // The TV app: is the APK the server hands out the version the TVs are told
 // about, and the one the source says it should be? Read from the file itself.
-const checkTvApp = () => slowly("tvapp", async () => {
-  const s = require("./tvapp").status();
+// (The phone app, the same way: checkPhoneApp.)
+const appCheck = (which) => () => slowly(which === "phone" ? "phoneapp" : "tvapp", async () => {
+  const s = require("./tvapp")[which].status();
   if (s.apk.error) {
     const none = /no APK/.test(s.apk.error);
     return { status: none ? "info" : "fail", summary: s.apk.error };
@@ -351,6 +352,8 @@ const checkTvApp = () => slowly("tvapp", async () => {
     detail: s.problems.filter((p) => p.level !== "info").map((p) => p.text).join(" ‖ ") || null,
   };
 });
+const checkTvApp = appCheck("tv");
+const checkPhoneApp = appCheck("phone");
 
 // "torrents": false in config.json — the four checks below have nothing to
 // watch, and must not "heal" an engine that is off on purpose.
@@ -580,6 +583,7 @@ const CHECKS = [
   ["delivery", "Alert delivery", "Updates & delivery", sysChecks.checkDelivery],
   ["clock", "Clock", "Updates & delivery", sysChecks.checkClock],
   ["tvapp", "TV app", "Updates & delivery", checkTvApp],
+  ["phoneapp", "Phone app", "Updates & delivery", checkPhoneApp],
 ];
 
 // A check flipping to fail (or recovering from one) goes out once, with a

@@ -1066,6 +1066,10 @@ router.get("/api/admin/update-check", async (req, res) => {
 router.get("/api/admin/tv-app", (req, res) => {
   res.json(require("../lib/tvapp").status());
 });
+// The same for the Android phone build (public/aurora-phone.apk).
+router.get("/api/admin/phone-app", (req, res) => {
+  res.json(require("../lib/tvapp").phone.status());
+});
 
 router.post("/api/admin/update/pull", async (req, res) => {
   const r = await require("../lib/updatecheck").pull();

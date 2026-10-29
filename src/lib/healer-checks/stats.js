@@ -70,7 +70,7 @@ const judgePlayback = (today, base = [], nameOf = (id) => id) => {
   return findings;
 };
 
-const PATH_ORDER = ["direct", "jit", "ladder", "transcode", "tv"];
+const PATH_ORDER = ["direct", "jit", "ladder", "transcode", "tv", "phone"];
 const pathLine = (byPath) =>
   Object.entries(byPath || {})
     .sort((a, b) => (PATH_ORDER.indexOf(a[0]) + 99) % 99 - (PATH_ORDER.indexOf(b[0]) + 99) % 99)

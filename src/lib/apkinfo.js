@@ -27,8 +27,10 @@ const readAt = (fd, pos, len) => {
   return n === len ? buf : buf.subarray(0, n);
 };
 
-const zipEntry = (fd, size, name) => {
-  // End of central directory: in the last 64 KB (a zip comment can pad it)
+// Where the central directory is: the end-of-central-directory record sits in
+// the last 64 KB (a zip comment can pad it). (lib/apksign.js reads the APK
+// Signing Block, which sits just before the central directory, from this too.)
+const zipLayout = (fd, size) => {
   const tailLen = Math.min(size, 65557);
   const tail = readAt(fd, size - tailLen, tailLen);
   let eocd = -1;
@@ -36,8 +38,11 @@ const zipEntry = (fd, size, name) => {
     if (tail.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
   }
   if (eocd < 0) throw new Error("not a zip (no end-of-central-directory)");
-  const cdSize = tail.readUInt32LE(eocd + 12);
-  const cdOffset = tail.readUInt32LE(eocd + 16);
+  return { cdSize: tail.readUInt32LE(eocd + 12), cdOffset: tail.readUInt32LE(eocd + 16) };
+};
+
+const zipEntry = (fd, size, name) => {
+  const { cdSize, cdOffset } = zipLayout(fd, size);
   const cd = readAt(fd, cdOffset, cdSize);
   let p = 0;
   while (p + 46 <= cd.length && cd.readUInt32LE(p) === 0x02014b50) {
@@ -131,13 +136,16 @@ const parseManifest = (buf) => {
 
 // ---- the public face ----
 // { versionName, versionCode, package, sizeBytes, mtimeMs, sha256 } or
-// { error } — cached by size + mtime, so a republished file is re-read once.
-let cache = { key: null, info: null };
+// { error } — cached per file by size + mtime, so a republished file is
+// re-read once. (One slot per path: the TV's and the phone's APK are read
+// turn about, and must not push each other out.)
+const cache = new Map(); // apkPath -> { key, info }
 const read = (apkPath, { hash = true } = {}) => {
   let st;
   try { st = fs.statSync(apkPath); } catch { return { error: "no APK has been published" }; }
-  const key = `${apkPath}|${st.size}|${Math.floor(st.mtimeMs)}`;
-  if (cache.key === key && (cache.info.sha256 || !hash)) return cache.info;
+  const key = `${st.size}|${Math.floor(st.mtimeMs)}`;
+  const hit = cache.get(apkPath);
+  if (hit && hit.key === key && (hit.info.sha256 || !hash)) return hit.info;
   let info;
   let fd = null;
   try {
@@ -151,8 +159,9 @@ const read = (apkPath, { hash = true } = {}) => {
   if (hash && !info.error) {
     try { info.sha256 = crypto.createHash("sha256").update(fs.readFileSync(apkPath)).digest("hex"); } catch {}
   }
-  cache = { key, info };
+  if (cache.size > 8) cache.clear();
+  cache.set(apkPath, { key, info });
   return info;
 };
 
-module.exports = { read, _internals: { parseManifest, zipEntry } };
+module.exports = { read, readAt, zipLayout, _internals: { parseManifest, zipEntry } };

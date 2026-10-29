@@ -203,8 +203,10 @@ app.use(require("./src/lib/airtoken").middleware);
   // it was missing here until 1.6.91, so one could be fetched with no session)
   // and the generic URL proxy (/proxy). Deliberately NOT
   // gated: the app shell + login screen assets, /admin + /web shells (their
-  // APIs gate themselves), and /download (the TV installer — a TV needs it
-  // before it can ever sign in; it carries no personal data).
+  // APIs gate themselves), /download and /download/phone (the TV and phone
+  // installers — a device needs one before it can ever sign in; they carry no
+  // personal data), and /.well-known/assetlinks.json (Android reads it with
+  // no session).
   const GATED = (p) =>
     /^\/(api|stream|avatars|img|offline)\//.test(p) || p === "/proxy";
   const wallSaid = new Map();
@@ -390,6 +392,35 @@ app.get("/tv-version.json", (req, res, next) => {
   res.json(a);
 });
 
+// The Android PHONE build, the same three doors as the TV's: /download/phone
+// hands over public/aurora-phone.apk (open in every sign-in mode, like
+// /download: a phone needs it before it can sign in, and it carries no
+// personal data), /aurora-phone.apk points there, and /phone-version.json is
+// answered from the APK itself with phone-version.json's notes when they were
+// written for this build (lib/tvapp.js `phone`).
+const PHONE_APK_PATH = path.join(__dirname, "public", "aurora-phone.apk");
+app.get("/download/phone", (req, res) => {
+  res.download(PHONE_APK_PATH, "aurora-phone.apk", (err) => {
+    if (err && !res.headersSent) {
+      res.status(404).type("text/plain").send("No Android phone build has been published yet.");
+    }
+  });
+});
+app.get("/aurora-phone.apk", (req, res) => res.redirect(302, "/download/phone"));
+app.get("/phone-version.json", (req, res, next) => {
+  let a = null;
+  try { a = require("./src/lib/tvapp").phone.announcement(); } catch {}
+  if (!a) return next();
+  res.setHeader("Cache-Control", "no-cache");
+  if (a.none) return res.status(404).json({ error: "no Android phone build has been published" });
+  res.json(a);
+});
+// App Links: the statement that lets Android open this server's links in the
+// phone app (lib/assetlinks.js — the fingerprint from the config, else from
+// the published APK's own signature). Open in every sign-in mode: Android
+// fetches it with no session.
+app.get("/.well-known/assetlinks.json", require("./src/lib/assetlinks").handler);
+
 // The website's modules: re-printed without comments, content-addressed and
 // pre-compressed (src/lib/jsassets.js). /js/x.js?v=<its hash> is immutable;
 // /js/x.js without one is what it always was — no-cache, an ETag, cheap 304s.
@@ -410,7 +441,7 @@ app.use(
       // cache). It must always revalidate, like code.
       if (/\.css$/i.test(filePath) && /[?&]v=/.test((res.req && res.req.originalUrl) || "")) {
         res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-      } else if (/\.(js|css|html)$/i.test(filePath) || /tv-version\.json$/i.test(filePath)) {
+      } else if (/\.(js|css|html)$/i.test(filePath) || /(tv|phone)-version\.json$/i.test(filePath)) {
         res.setHeader("Cache-Control", "no-cache");
       } else {
         res.setHeader("Cache-Control", "public, max-age=86400");

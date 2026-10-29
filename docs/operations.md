@@ -597,3 +597,31 @@ curl -sI -H "Accept-Encoding: br, gzip" https://nufurora.com/stream/transcode/<i
 
 (`/stream/` answers 401 without a session cookie when the sign-in wall is
 closed; sign in in a browser and copy its cookie into `-H "Cookie: …"`.)
+
+## The Android phone app: its file, its updates, its links
+
+The phone build lives at `public/aurora-phone.apk`, with optional notes in
+`public/phone-version.json` (`{ "versionName": "1.0.0", "notes": "…", "date": "2026-10-29" }`).
+Like the TV's, everything is read out of the APK itself:
+
+- `/download/phone` hands it over (no sign-in needed, in every sign-in mode),
+  `/aurora-phone.apk` points there, and `/install` links to it;
+- `/phone-version.json` is what the app's update check reads: the APK's own
+  `versionName`, `versionCode` and size, with the notes when they were written
+  for that build;
+- `/.well-known/assetlinks.json` is the App Links statement for
+  `com.aurora.phone` — Android checks it once after install, and from then on
+  links to this server open in the app. The certificate fingerprint comes from
+  `AURORA_PHONE_CERT_SHA256` (in `.env`) or `"phoneCertSha256"` in
+  `config.json` when set (with or without colons; several comma-separated),
+  else from the published APK's own signature. Nothing to copy by hand. The
+  statement is cached for an hour.
+
+`/admin → Server → Phone app` shows what is published and which certificate
+the links vouch for; the healer's "Phone app" check says when the APK, the
+notes and the source disagree.
+
+Check it from outside: `curl -s https://nufurora.com/.well-known/assetlinks.json`
+(it must answer 200 over HTTPS with no redirect — a reverse proxy that sends
+`/.well-known/` somewhere else, for its own certificate challenge, must pass
+`assetlinks.json` through to Aurora).

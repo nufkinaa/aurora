@@ -65,14 +65,15 @@ const maySend = (a, s, now = Date.now()) => {
   return null;
 };
 
+const appWord = (app) => (app === "tv" ? "TV" : app === "phone" ? "the phone app" : "the site");
 const top = (o) => Object.entries(o || {}).sort((x, y) => y[1] - x[1]).map(([k]) => k)[0] || "";
 const sentence = (r, s) => {
   const where = top(r.screens);
   const auth = top(r.auth);
   const status = r.ctx && r.ctx.status ? top(r.ctx.status) : "";
   const head = r.why === "new"
-    ? `NEW on ${r.app === "tv" ? "TV" : "the site"} ${top(r.versions)}: ${r.msg}`
-    : `SPIKING on ${r.app === "tv" ? "TV" : "the site"}: ${r.msg}`;
+    ? `NEW on ${appWord(r.app)} ${top(r.versions)}: ${r.msg}`
+    : `SPIKING on ${appWord(r.app)}: ${r.msg}`;
   const count = r.why === "new"
     ? `${r.recent.n}× on ${plural(r.recent.devices, "device")} in the last ${s.windowMin} min`
     : `${r.spike.cur} this hour, usually ${r.spike.base}`;

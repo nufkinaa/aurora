@@ -384,9 +384,13 @@ const handleMessage = (client, data, ws) => {
       // The TV app's socket carries no browser user-agent (it read as
       // "Desktop · Other · Other"), so the app says what it is: a TV, which
       // build, which set. Only the app's own shape is accepted, tidied.
-      if (data.app === "tv") {
+      // The phone app the same way: a phone ("Mobile", the admin's word for
+      // one), which build ("Aurora phone 1.0.0"), which handset.
+      if (data.app === "tv" || data.app === "phone") {
         const tidy = (v, n) => String(v == null ? "" : v).replace(/[^\w .·()+-]/g, "").slice(0, n);
-        client.device = { device: "TV", browser: tidy(data.build, 24) || "Aurora TV", os: tidy(data.model, 40) || "Android TV" };
+        client.device = data.app === "tv"
+          ? { device: "TV", browser: tidy(data.build, 24) || "Aurora TV", os: tidy(data.model, 40) || "Android TV" }
+          : { device: "Mobile", browser: tidy(data.build, 24) || "Aurora phone", os: tidy(data.model, 40) || "Android phone" };
       }
       broadcastAdmins({ type: "client_update", client: publicClient(client) });
       break;

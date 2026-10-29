@@ -32,7 +32,7 @@ const VIDEO_PROFILES = {
 const AUDIO_CODECS = ["aac", "ac3", "eac3", "eac3-joc", "dts", "dtshd", "truehd", "opus", "flac", "mp3", "vorbis", "pcm", "alac", "mp2"];
 const HDR_TYPES = ["hdr10", "hdr10plus", "hlg", "dv"];
 const CONTAINERS = ["mp4", "mkv", "webm", "mov", "avi", "ts"];
-const CLIENTS = ["tv", "web"];
+const CLIENTS = ["tv", "phone", "web"]; // phone: the Android phone app — ExoPlayer, judged like the TV
 
 const MAX_KEPT = 300;
 

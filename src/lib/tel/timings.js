@@ -79,7 +79,7 @@ const observe = (metric, ms, dim, who, now = Date.now()) => {
   if (def.dims) {
     d = typeof dim === "string" && (def.dims === "screen" ? DIM_RE.test(dim) : def.dims.includes(dim)) ? dim : def.dims === "screen" ? "?" : "other";
   }
-  const app = who.app === "tv" || who.app === "server" ? who.app : "web";
+  const app = who.app === "tv" || who.app === "phone" || who.app === "server" ? who.app : "web";
   const device = DEVICES.has(who.device) ? who.device : "-";
   const net = NET_TIERS.has(who.net) ? who.net : "-";
   const v = /^[A-Za-z0-9._-]{1,16}$/.test(String(who.v || "")) ? String(who.v) : "?";

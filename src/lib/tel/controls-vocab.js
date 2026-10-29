@@ -4,60 +4,60 @@
 "use strict";
 module.exports = {
   // actions
-  "actions.pick": "t",
+  "actions.pick": "tp",
   // browse
-  "browse.category.pick": "wt",
+  "browse.category.pick": "wtp",
   "browse.chip.pick": "w",
   "browse.filter.clear": "w",
   "browse.genre.open": "w",
   "browse.loadmore": "w",
   "browse.option.pick": "w",
-  "browse.retry": "t",
+  "browse.retry": "tp",
   "browse.sort.open": "w",
   "browse.surprise": "wt",
-  "browse.unwatched": "wt",
+  "browse.unwatched": "wtp",
   // card
-  "card.open": "wt",
+  "card.open": "wtp",
   "card.remove": "w",
   "card.hh.add": "w", // household recommendations: the "+" on a recommended card
   // detail
   "detail.download.device": "w",
   "detail.episode.download": "w",
   "detail.episode.offline": "w",
-  "detail.episode.play": "wt",
+  "detail.episode.play": "wtp",
   "detail.episode.replace": "wt",
   "detail.episode.playontv": "w", // [phone-remote]
   "detail.episode.watched": "w",
-  "detail.follow": "wt",
-  "detail.hh.dismiss": "wt", // "Not for me" on a recommended title
-  "detail.mylist": "wt",
+  "detail.follow": "wtp",
+  "detail.hh.dismiss": "wtp", // "Not for me" on a recommended title
+  "detail.mylist": "wtp",
   "detail.offline": "w",
   "detail.offline.season": "w",
   "detail.offline.seasonall": "w",
-  "detail.play": "wt",
+  "detail.play": "wtp",
   "detail.replace": "wt",
   "detail.playontv": "w", // [phone-remote]
-  "detail.recommend": "wt",
-  "detail.restart": "wt",
+  "detail.recommend": "wtp",
+  "detail.restart": "wtp",
   "detail.rollagain": "w",
   "detail.save": "w",
   "detail.season.open": "w",
-  "detail.season.pick": "t",
-  "detail.season.watched": "t",
+  "detail.season.pick": "tp",
+  "detail.season.watched": "tp",
   "detail.similar": "t",
-  "detail.source.download": "wt",
+  "detail.source.download": "wtp",
   "detail.source.pick": "t",
-  "detail.source.play": "wt",
-  "detail.sources": "wt",
+  "detail.source.play": "wtp",
+  "detail.sources": "wtp",
   "detail.sources.fold": "w",
   "detail.sources.more": "w",
   "detail.sources.retry": "w",
   "detail.synopsis.more": "w",
-  "detail.trailer": "wt",
+  "detail.trailer": "wtp",
   "detail.trailer.close": "w",
   "detail.trailer.pick": "w",
-  "detail.watched": "wt",
-  "detail.xray": "wt",
+  "detail.watched": "wtp",
+  "detail.xray": "wtp",
   // downloadpicker
   "downloadpicker.confirm": "w",
   // downloads
@@ -66,36 +66,36 @@ module.exports = {
   "downloads.play": "w",
   "downloads.remove": "w",
   "downloads.retry": "w",
-  "downloads.row": "t",
+  "downloads.row": "tp",
   // home
-  "home.hero.details": "wt",
+  "home.hero.details": "wtp",
   "home.hero.mute": "wt",
   "home.hero.party": "t",
   "home.hero.pick": "w",
-  "home.hero.play": "wt",
-  "home.retry": "wt",
+  "home.hero.play": "wtp",
+  "home.retry": "wtp",
   "home.hh.all": "wt", // "Show all recommended"
   "home.switchprofile": "t",
   // mylist
-  "mylist.filter": "t",
+  "mylist.filter": "tp",
   // nav
   "nav.ai": "wt",
   "nav.downloads": "w",
-  "nav.home": "wt",
-  "nav.movies": "wt",
-  "nav.mylist": "wt",
+  "nav.home": "wtp",
+  "nav.movies": "wtp",
+  "nav.mylist": "wtp",
   "nav.new": "w",
-  "nav.profile": "wt",
+  "nav.profile": "wtp",
   "nav.remote": "w", // [phone-remote]
   "nav.saved": "w",
-  "nav.search": "wt",
-  "nav.settings": "wt",
-  "nav.shows": "wt",
+  "nav.search": "wtp",
+  "nav.settings": "wtp",
+  "nav.shows": "wtp",
   // newpassword
-  "newpassword.signout": "t",
-  "newpassword.submit": "t",
+  "newpassword.signout": "tp",
+  "newpassword.submit": "tp",
   // party
-  "party.join": "t",
+  "party.join": "tp",
   // peek
   "peek.close": "w",
   "peek.hh.dismiss": "wt",
@@ -116,56 +116,56 @@ module.exports = {
   "picker.pick": "t",
   // player
   "player.airplay": "w",
-  "player.audio.dialogue": "wt",
-  "player.audio.night": "wt",
-  "player.audio.pick": "wt",
-  "player.autoplay": "t",
-  "player.back": "t",
+  "player.audio.dialogue": "wtp",
+  "player.audio.night": "wtp",
+  "player.audio.pick": "wtp",
+  "player.autoplay": "tp",
+  "player.back": "tp",
   "player.fullscreen": "w",
-  "player.mute": "wt",
-  "player.next": "wt",
-  "player.party": "wt",
-  "player.party.handover": "wt",
-  "player.party.react": "wt",
+  "player.mute": "wtp",
+  "player.next": "wtp",
+  "player.party": "wtp",
+  "player.party.handover": "wtp",
+  "player.party.react": "wtp",
   "player.party.share": "w",
-  "player.party.start": "wt",
+  "player.party.start": "wtp",
   "player.party.tapjoin": "w",
   "player.pip": "w",
-  "player.playpause": "wt",
+  "player.playpause": "wtp",
   "player.playontv": "w", // [phone-remote]
   "player.quality.pick": "w",
   "player.recommend": "w", // a film's credits card
-  "player.replace": "wt",
-  "player.retry": "wt",
-  "player.scrub": "wt",
-  "player.seek.back": "wt",
-  "player.seek.fwd": "wt",
-  "player.settings.open": "wt",
-  "player.skipintro": "wt",
-  "player.slowstart.lower": "t",
-  "player.slowstart.wait": "t",
-  "player.speed.open": "wt",
-  "player.speed.pick": "wt",
-  "player.stall.lower": "t",
-  "player.stall.retry": "t",
-  "player.startover": "wt",
-  "player.stillwatching.done": "wt",
-  "player.stillwatching.keep": "wt",
-  "player.subtitles.open": "wt",
-  "player.subtitles.pick": "wt",
-  "player.subtitles.resync": "wt",
-  "player.subtitles.style": "wt",
+  "player.replace": "wtp",
+  "player.retry": "wtp",
+  "player.scrub": "wtp",
+  "player.seek.back": "wtp",
+  "player.seek.fwd": "wtp",
+  "player.settings.open": "wtp",
+  "player.skipintro": "wtp",
+  "player.slowstart.lower": "tp",
+  "player.slowstart.wait": "tp",
+  "player.speed.open": "wtp",
+  "player.speed.pick": "wtp",
+  "player.stall.lower": "tp",
+  "player.stall.retry": "tp",
+  "player.startover": "wtp",
+  "player.stillwatching.done": "wtp",
+  "player.stillwatching.keep": "wtp",
+  "player.subtitles.open": "wtp",
+  "player.subtitles.pick": "wtp",
+  "player.subtitles.resync": "wtp",
+  "player.subtitles.style": "wtp",
   "player.subtitles.undo": "w",
-  "player.upnext.dismiss": "wt",
-  "player.upnext.play": "wt",
-  "player.xray": "wt",
+  "player.upnext.dismiss": "wtp",
+  "player.upnext.play": "wtp",
+  "player.xray": "wtp",
   // profile
   "profile.add": "w",
   "profile.gate.close": "w",
-  "profile.pick": "wt",
-  "profile.pin.submit": "t",
+  "profile.pick": "wtp",
+  "profile.pin.submit": "tp",
   "profile.save": "w",
-  "profile.unlock": "wt",
+  "profile.unlock": "wtp",
   // household (the "Show all recommended" page)
   "household.filter": "wt",
   "household.tab": "wt",
@@ -195,11 +195,11 @@ module.exports = {
   "remote.view": "w",
   "remote.volume": "w",
   // recommend (the Recommend sheet)
-  "recommend.close": "wt",
+  "recommend.close": "wtp",
   "recommend.person": "wt",
-  "recommend.send": "wt",
+  "recommend.send": "wtp",
   // report
-  "report.send": "wt",
+  "report.send": "wtp",
   // replace ("Problem with this copy? → Get another version")
   "replace.cancel": "wt",
   "replace.early": "t", // "Download it anyway" on a pre-release copy (the site asks with its shared confirm sheet)
@@ -212,36 +212,36 @@ module.exports = {
   "saved.remove": "w",
   // search
   "search.clear": "w",
-  "search.recent.pick": "wt",
-  "search.retry": "wt",
-  "search.suggestion.pick": "wt",
-  "search.voice": "wt",
-  "search.voice.lang": "wt",
+  "search.recent.pick": "wtp",
+  "search.retry": "wtp",
+  "search.suggestion.pick": "wtp",
+  "search.voice": "wtp",
+  "search.voice.lang": "wtp",
   // settings
   "settings.accent": "w",
   "settings.audio.dialogue": "t",
   "settings.audio.night": "t",
-  "settings.autoplay": "t",
+  "settings.autoplay": "tp",
   "settings.av.fps": "t", // Match frame rate (TV round 2026-10-19; the site shows it under "On the TV" with settings.toggle)
   "settings.av.surround": "t", // Surround sound
   "settings.done": "w",
-  "settings.downloads": "t",
-  "settings.genre": "t",
-  "settings.hh.mute": "wt", // Recommendations: Mute / Muted
-  "settings.hh.sent": "t", // Recommendations: What you sent (the site's is settings.link)
-  "settings.hh.toggle": "t", // Recommendations from the household (the site's is settings.toggle)
+  "settings.downloads": "tp",
+  "settings.genre": "tp",
+  "settings.hh.mute": "wtp", // Recommendations: Mute / Muted
+  "settings.hh.sent": "tp", // Recommendations: What you sent (the site's is settings.link)
+  "settings.hh.toggle": "tp", // Recommendations from the household (the site's is settings.toggle)
   "settings.link": "w",
   "settings.look": "w",
   "settings.notices": "t",
-  "settings.party": "t",
-  "settings.report": "t",
+  "settings.party": "tp",
+  "settings.report": "tp",
   "settings.rows.hide": "w",
-  "settings.signout": "t",
+  "settings.signout": "tp",
   "settings.taste": "t",
-  "settings.subs.auto": "t",
+  "settings.subs.auto": "tp",
   "settings.subs.bg": "t",
   "settings.subs.color": "t",
-  "settings.subs.lang": "t",
+  "settings.subs.lang": "tp",
   "settings.subs.opacity": "t",
   "settings.subs.pos": "t",
   "settings.subs.size": "t",
@@ -251,8 +251,8 @@ module.exports = {
   "settings.trailers": "t",
   "settings.tvname": "t", // [phone-remote]
   "settings.tvname.pick": "t", // [phone-remote]
-  "settings.update": "t",
-  "settings.usagestats": "t",
+  "settings.update": "tp",
+  "settings.usagestats": "tp",
   "settings.whatsnew": "t",
   // taste (the swipe picker, #/taste)
   "taste.back": "w",
@@ -268,15 +268,15 @@ module.exports = {
   "taste.unnope": "w",
   // signin
   "signin.mode.google": "t",
-  "signin.mode.qr": "t",
-  "signin.mode.typed": "t",
+  "signin.mode.qr": "tp",
+  "signin.mode.typed": "tp",
   "signin.request": "t",
-  "signin.submit": "t",
+  "signin.submit": "tp",
   // state
   "state.action": "t",
   // update
-  "update.install": "t",
-  "update.later": "t",
+  "update.install": "tp",
+  "update.later": "tp",
   "update.restart": "t",
   "update.retry": "t",
   // whatsnew
@@ -284,4 +284,40 @@ module.exports = {
   "whatsnew.log": "t",
   // xray
   "xray.more": "w",
+  // phone — the Android phone app's own controls (tv-native/src/phone)
+  "phone.browse.genre": "p", // Browse: the genre chip
+  "phone.detail.episodes": "p", // a show's page: All episodes
+  "phone.detail.playon": "p", // a title's page: Play on TV
+  "phone.detail.share": "p", // a title's page: Share
+  "phone.home.remove": "p", // the x on a Continue Watching card
+  "phone.menu.downloads": "p", // the profile menu: Downloads
+  "phone.menu.remote": "p", // the profile menu: Remote
+  "phone.menu.settings": "p", // the profile menu: Settings
+  "phone.menu.switch": "p", // the profile menu: Switch profile
+  "phone.mylist.browse": "p", // an empty My List: Browse movies
+  "phone.peek.details": "p", // the long-press sheet: Details
+  "phone.peek.recommend": "p", // the long-press sheet: Recommend
+  "phone.player.fit": "p", // the player: Fit the picture / Fill the screen
+  "phone.player.lock": "p", // the player: Lock the controls
+  "phone.player.pip": "p", // the player: Picture in picture
+  "phone.player.rotate": "p", // the player: Portrait / Landscape
+  "phone.player.unlock": "p", // the player: Unlock the controls
+  "phone.remote.arrow": "p", // the remote: an arrow of the pad
+  "phone.remote.audio": "p", // the remote: audio track
+  "phone.remote.back": "p", // the remote: Back
+  "phone.remote.device": "p", // the remote: which TV
+  "phone.remote.home": "p", // the remote: Home
+  "phone.remote.next": "p", // the remote: next episode
+  "phone.remote.ok": "p", // the remote: OK
+  "phone.remote.playpause": "p", // the remote: play / pause
+  "phone.remote.seek": "p", // the remote: jump back / forward
+  "phone.remote.stop": "p", // the remote: stop
+  "phone.remote.subtitles": "p", // the remote: subtitles
+  "phone.remote.volume": "p", // the remote: mute, volume down / up
+  "phone.save.film": "p", // a film's page: save on this phone
+  "phone.save.season": "p", // a show's page: save a season on this phone
+  "phone.settings.remote": "p", // Settings: Your TVs
+  "phone.settings.saved": "p", // Settings: On this phone
+  "phone.settings.switch": "p", // Settings: Switch profile / Sign out
+  "phone.update.allow": "p", // the update: Allow in Settings (install unknown apps)
 };

@@ -20,6 +20,10 @@ const NAME_RE = /^[a-z][a-z0-9_]{0,31}$/;
 const KEY_RE = /^[a-z][a-z0-9_]{0,23}$/;
 const DEVICES = new Set(["phone", "tablet", "desktop", "tv"]);
 const LOOKS = new Set(["glass", "legacy", "tv"]); // "tv": the Android TV app (it has one look of its own)
+// Which app sent it: the site, the TV app, the Android phone app. A batch
+// that does not say (the site, an older TV build) is read from its look.
+const APPS = new Set(["web", "tv", "phone"]);
+const appOf = (b) => (APPS.has(b.app) ? b.app : b.look === "tv" ? "tv" : "web");
 const NET_TIERS = new Set(["slow", "ok", "fast"]);
 // The TV app's frame monitor (tv-native/src/perfTier.ts): a `perf` event per
 // screen a few times a session, one `device` event, a `trim` event when the
@@ -46,6 +50,7 @@ const fresh = () => ({
   batches: 0,
   devices: {}, // class -> events
   looks: {},
+  apps: {}, // web|tv|phone -> events
   routes: {}, // pattern -> { n, ms: [], byDevice: {} }
   features: {}, // name -> { n, byDevice: {} }
   nav: {}, // destination -> n
@@ -82,6 +87,7 @@ const pct = (arr, p) => {
 
 const apply = (batch) => {
   const { profile, sid, device, look, events } = batch;
+  const app = appOf(batch);
   agg.batches++;
   for (const ev of events) {
     agg.events++;
@@ -89,6 +95,7 @@ const apply = (batch) => {
     if (!agg.last || ev.t > agg.last) agg.last = ev.t;
     if (room(agg.devices, device)) bump(agg.devices, device);
     if (room(agg.looks, look)) bump(agg.looks, look);
+    bump(agg.apps, app);
     const day = dayOf(ev.t);
     const pd = (agg.profilesByDay[day] = agg.profilesByDay[day] || new Set());
     if (pd.size < MAX_PER_DAY) pd.add(profile);
@@ -200,7 +207,7 @@ const validate = (body, now = Date.now()) => {
     events.push({ n: ev.n, t, p });
   }
   if (!events.length) return null;
-  return { profile, sid, device, look, events };
+  return { profile, sid, device, look, app: appOf({ app: body.app, look }), events };
 };
 
 // ---------- persistence ----------
@@ -288,6 +295,7 @@ const summary = () => {
     batches: agg.batches,
     devices: agg.devices,
     looks: agg.looks,
+    apps: agg.apps,
     routes: top(agg.routes, 20).map(([r, v]) => ({ route: r, n: v.n, p50: pct(v.ms, 50), p90: pct(v.ms, 90), byDevice: v.byDevice })),
     features: top(agg.features, 30).map(([f, v]) => ({ feature: f, n: v.n, byDevice: v.byDevice })),
     nav: top(agg.nav, 12).map(([to, n]) => ({ to, n })),
@@ -332,7 +340,7 @@ const text = () => {
   const s = summary();
   const lines = [];
   lines.push(`Aurora usage — ${s.events} events in ${s.batches} batches` + (s.since ? `, ${new Date(s.since).toISOString().slice(0, 10)} → ${new Date(s.last).toISOString().slice(0, 10)}` : ""));
-  lines.push(`Devices: ${devs(s.devices) || "–"} · Looks: ${devs(s.looks) || "–"}`);
+  lines.push(`Devices: ${devs(s.devices) || "–"} · Looks: ${devs(s.looks) || "–"} · Apps: ${devs(s.apps) || "–"}`);
   lines.push("");
   lines.push("Screens (views · p50 / p90 to painted · by device)");
   for (const r of s.routes) lines.push(`  ${r.route}  ${r.n} · ${fmtMs(r.p50)} / ${fmtMs(r.p90)} · ${devs(r.byDevice)}`);

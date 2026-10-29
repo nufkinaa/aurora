@@ -43,17 +43,29 @@ test("controls: every tag on the site is on the list, and every id the list give
 });
 
 test("controls: the same for the TV app", () => {
-  const tagged = tagsIn(walk(path.join(ROOT, "tv-native", "src"), /\.tsx?$/), /uiId|uiHit\(/);
+  // (tv-native/src/phone is the phone app's own: see the next test)
+  const phoneDir = path.join(ROOT, "tv-native", "src", "phone") + path.sep;
+  const tagged = tagsIn(walk(path.join(ROOT, "tv-native", "src"), /\.tsx?$/).filter((f) => !f.startsWith(phoneDir)), /uiId|uiHit\(/);
   const listed = Object.keys(vocab.CONTROLS).filter((id) => vocab.CONTROLS[id].includes("t"));
   for (const [id, file] of tagged) assert.ok(vocab.CONTROLS[id] && vocab.CONTROLS[id].includes("t"), `${id} (tagged in ${file}) is not in src/lib/tel/controls-vocab.js for the TV`);
   for (const id of listed) assert.ok(tagged.has(id), `${id} is on the list for the TV but tagged nowhere`);
   assert.ok(listed.length >= 60, `${listed.length} controls tagged on the TV`);
 });
 
+test("controls: the same for the phone app — its own screens, and the player it shares with the TV", () => {
+  const files = [...walk(path.join(ROOT, "tv-native", "src", "phone"), /\.tsx?$/), ...walk(path.join(ROOT, "tv-native", "src", "playback"), /\.tsx?$/)];
+  const tagged = tagsIn(files, /uiId|uiHit\(/);
+  const listed = Object.keys(vocab.CONTROLS).filter((id) => vocab.CONTROLS[id].includes("p"));
+  for (const [id, file] of tagged) assert.ok(vocab.CONTROLS[id] && vocab.CONTROLS[id].includes("p"), `${id} (tagged in ${file}) is not in src/lib/tel/controls-vocab.js for the phone`);
+  for (const id of listed) assert.ok(tagged.has(id), `${id} is on the list for the phone but tagged nowhere`);
+  assert.ok(listed.length >= 30, `${listed.length} controls tagged on the phone`);
+});
+
 test("controls: ids are lower-case dotted words, and each belongs to at least one app", () => {
   for (const [id, where] of Object.entries(vocab.CONTROLS)) {
     assert.match(id, /^[a-z]+(\.[a-z]+){1,3}$/, id);
-    assert.match(where, /^(w|t|wt)$/, `${id}: ${where}`);
+    // "w" the site, "t" the TV app, "p" the phone app: any of them, in that order
+    assert.match(where, /^(w|t|p|wt|wp|tp|wtp)$/, `${id}: ${where}`);
   }
 });
 
@@ -171,7 +183,7 @@ test("the stores hold only whitelisted keys", () => {
   for (const key of Object.keys(tel.timings._internals.hists)) {
     const [metric, app, v, device, net, dim] = key.split("|");
     assert.ok(vocab.TIMINGS[metric], metric);
-    assert.match(app, /^(web|tv|server)$/);
+    assert.match(app, /^(web|tv|phone|server)$/);
     assert.match(v, /^[A-Za-z0-9._?-]{1,16}$/);
     assert.ok(device === "-" || vocab.DEVICES.has(device));
     assert.ok(net === "-" || vocab.NET_TIERS.has(net));
@@ -180,7 +192,7 @@ test("the stores hold only whitelisted keys", () => {
   }
   for (const day of Object.values(tel.controls._internals.days)) {
     for (const [app, a] of Object.entries(day)) {
-      assert.match(app, /^(web|tv)$/);
+      assert.match(app, /^(web|tv|phone)$/);
       for (const [id, c] of Object.entries(a.c)) {
         assert.ok(vocab.CONTROLS[id], id);
         for (const s of Object.keys(c.by)) assert.ok(s === "?" || s === "other" || vocab.SCREEN_RE.test(s), `screen "${s}"`);

@@ -79,7 +79,7 @@ ${tel.text()}` });
 router.get("/api/admin/telemetry", adminOnly, (req, res) => {
   const pick = (v, re) => (typeof v === "string" && re.test(v) ? v : "");
   const q = {
-    app: pick(req.query.app, /^(web|tv)$/),
+    app: pick(req.query.app, /^(web|tv|phone)$/),
     level: pick(req.query.level, /^(error|warn)$/),
     version: pick(req.query.version, /^[A-Za-z0-9._?-]{1,16}$/),
     model: pick(req.query.model, /^[A-Za-z0-9 ._+/()?-]{1,32}$/),

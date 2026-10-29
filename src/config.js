@@ -165,6 +165,12 @@ module.exports = {
   // Who a push service may contact about this server: "mailto:you@example.com"
   // or an https URL. Apple is strict about it; see lib/push.js.
   PUSH_CONTACT: process.env.AURORA_PUSH_CONTACT || userConfig.pushContact || null,
+  // The Android phone app's signing-certificate SHA-256, for
+  // /.well-known/assetlinks.json (App Links: nufurora.com links open in the
+  // app). Unset = read from public/aurora-phone.apk's own signature
+  // (lib/apksign.js). "AB:CD:…" or plain hex; several comma-separated, or
+  // an array in config.json ("phoneCertSha256").
+  PHONE_CERT_SHA256: process.env.AURORA_PHONE_CERT_SHA256 || userConfig.phoneCertSha256 || null,
   // Join the recommended source's swarm the moment its sources list opens, so
   // pressing Play lands on a warm torrent. "prewarmStreams": false disables.
   PREWARM: userConfig.prewarmStreams !== false,

@@ -53,6 +53,7 @@ const SCHEMA = {
   preconvert: [T.bool, "true"],
   offlineCacheGb: [T.num(0.1, 100000), "8"],
   pushContact: [T.str, "none"],
+  phoneCertSha256: [(v) => (typeof v === "string" ? null : T.strList(v)), "read from public/aurora-phone.apk's signature (or AURORA_PHONE_CERT_SHA256 in .env)"],
   prewarmStreams: [T.bool, "true"],
   downloadMinFreePercent: [T.num(0, 100), "10"],
   downloadRace: [(v) => (v === false || v === true || isObj(v) ? null : "must be false or an object { … }"), "on, with its defaults"],

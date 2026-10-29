@@ -19,8 +19,12 @@ const START_GRACE_MS = 60 * 1000; // a mount with no first frame after this long
 const plays = []; // oldest first
 const latest = new Map(); // `${ip}|${id}` -> play
 
+// The apps say what they are (their requests carry okhttp's user-agent,
+// which reads as a TV below): "tv" the TV app, "phone" the phone app.
+const appOf = (app) => (app === "tv" || app === "phone" ? app : "web");
 const deviceOf = (ua, app) => {
   const s = String(ua || "");
+  if (app === "phone") return "phone";
   if (app === "tv" || /Android TV|AFT[A-Z]|BRAVIA|SmartTV|Smart-TV|Tizen|Web0S|GoogleTV|okhttp/i.test(s)) return "tv";
   if (/Mobi|iPhone|iPad|iPod|Android/i.test(s)) return "phone";
   return "desktop";
@@ -41,7 +45,7 @@ const record = ({ id, name, ms = 0, extra = {}, ip = "", ua = "", now = Date.now
   if (name === "mount" || !p || now - p.at > SAME_PLAY_MS) {
     p = {
       key, id: String(id), ip, at: now - (name === "mount" ? 0 : ms || 0), mounted: name === "mount",
-      app: extra.app === "tv" ? "tv" : "web", device: deviceOf(ua, extra.app), path: extra.app === "tv" ? "tv" : null,
+      app: appOf(extra.app), device: deviceOf(ua, extra.app), path: appOf(extra.app) !== "web" ? appOf(extra.app) : null,
       ffMs: null, stalls: 0, stallOpenAt: 0, errors: 0, errMsg: null, lastAt: now, lastName: name,
     };
     plays.push(p);
@@ -51,12 +55,14 @@ const record = ({ id, name, ms = 0, extra = {}, ip = "", ua = "", now = Date.now
   }
   p.lastAt = now;
   p.lastName = name;
-  if (extra.app === "tv") { p.app = "tv"; p.device = "tv"; p.path = "tv"; }
-  if (name === "path" && typeof extra.path === "string" && p.app !== "tv") p.path = extra.path.slice(0, 12);
+  // (the native player — TV or phone — is its own path: it plays the file
+  // itself, so the site's direct/jit/transcode split does not apply)
+  if (extra.app === "tv" || extra.app === "phone") { p.app = extra.app; p.device = extra.app; p.path = extra.app; }
+  if (name === "path" && typeof extra.path === "string" && p.app === "web") p.path = extra.path.slice(0, 12);
   else if (name === "first-frame") {
     if (p.ffMs == null) p.ffMs = Math.max(0, Number(ms) || 0);
     if (!p.path) p.path = String(extra.jit) === "true" ? "jit" : String(extra.transcode) === "true" ? "transcode" : "direct";
-    else if (p.app !== "tv" && p.path === "direct" && String(extra.transcode) === "true") p.path = "transcode";
+    else if (p.app === "web" && p.path === "direct" && String(extra.transcode) === "true") p.path = "transcode";
     p.stallOpenAt = 0;
   } else if (name === "stall") {
     // the web player reports the stages of ONE stall (nudge → rebuild → card);
@@ -170,7 +176,7 @@ const recordStart = ({ id, extra = {}, ip = "", ua = "", srvSide = null, now = D
   let prev = 0;
   for (const [n, ms] of steps) { if (ms - prev > slowMs) { slowMs = ms - prev; slow = n; } prev = ms; }
   const total = steps[steps.length - 1][1];
-  const app = extra.app === "tv" ? "tv" : "web";
+  const app = appOf(extra.app);
   const s = {
     at: now, id: String(id), ip, app, device: deviceOf(ua, extra.app),
     path: String(extra.path || "").replace(/[^a-z0-9-]/gi, "").slice(0, 12) || null,

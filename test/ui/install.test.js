@@ -155,7 +155,7 @@ ui.test("the phone slot lights up by itself once an Android phone build is publi
     await new Promise((r) => setTimeout(r, 2100)); // (the page is kept two seconds)
     await page.goto(`${srv.url}/install`, { waitUntil: "load" });
     assert.equal(await page.getAttribute("#android", "data-state"), "ready");
-    assert.ok(await page.locator('#android a[href="/aurora-phone.apk"]').isVisible());
+    assert.ok(await page.locator('#android a[href="/download/phone"]').isVisible());
     assert.equal(await page.locator("#android .soon-badge").isVisible(), false);
     assert.match(await page.textContent("#android .ver"), /Version \d+\.\d+\.\d+ · February 3, 2099/);
   } finally {

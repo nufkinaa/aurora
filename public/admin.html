@@ -782,7 +782,7 @@
     <!-- ================= APP HEALTH (lib/tel: error reports, timings, control counts) ================= -->
     <div class="pane" id="pane-telemetry">
       <div class="card">
-        <h2>Errors on people's devices <span class="note">what the site and the TV app reported going wrong — by kind, never by title or person. Only from profiles with usage stats on.</span>
+        <h2>Errors on people's devices <span class="note">what the site, the TV app and the phone app reported going wrong — by kind, never by title or person. Only from profiles with usage stats on.</span>
           <button class="mini" id="tel-copy" style="margin-left:auto" title="Copies errors, timings and most-used as text to paste elsewhere">Copy report</button></h2>
         <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:8px">
           <div class="range-chips" id="tel-views">
@@ -791,7 +791,7 @@
             <button data-view="top">Top by devices</button>
             <button data-view="ignored">Ignored</button>
           </div>
-          <select id="tel-f-app" aria-label="App"><option value="">Every app</option><option value="web">Website</option><option value="tv">TV app</option></select>
+          <select id="tel-f-app" aria-label="App"><option value="">Every app</option><option value="web">Website</option><option value="tv">TV app</option><option value="phone">Phone app</option></select>
           <select id="tel-f-version" aria-label="Version"><option value="">Every version</option></select>
           <select id="tel-f-model" aria-label="Device"><option value="">Every device</option></select>
           <select id="tel-f-level" aria-label="Level"><option value="">Errors and warnings</option><option value="error">Errors</option><option value="warn">Warnings</option></select>
@@ -847,6 +847,7 @@
           <div class="range-chips" id="tel-apps">
             <button data-app="web" class="active">Website</button>
             <button data-app="tv">TV app</button>
+            <button data-app="phone">Phone app</button>
             <button data-app="compare">Side by side</button>
           </div>
           <select id="tel-u-screen" aria-label="Screen"><option value="">Every screen</option></select>
@@ -1056,6 +1057,11 @@
         <h2>TV app <span class="note">the Android TV build this server hands out at /download — read from the file itself, so what the TVs are told is always what they get</span></h2>
         <div class="stats" id="tv-stats" style="margin:0 0 10px"></div>
         <div id="tv-problems" class="empty-note">Checking…</div>
+      </div>
+      <div class="card">
+        <h2>Phone app <span class="note">the Android phone build this server hands out at /download/phone — read from the file itself, like the TV's; its signature also vouches for the app at /.well-known/assetlinks.json</span></h2>
+        <div class="stats" id="phone-stats" style="margin:0 0 10px"></div>
+        <div id="phone-problems" class="empty-note">Checking…</div>
       </div>
       <div class="card">
         <h2>Maintenance <span class="note">safe to press — neither touches files or watch progress</span></h2>
@@ -2545,19 +2551,23 @@
     }
 
     // ---------- the TV build (Server page) ----------
-    async function loadTvApp() {
+    // (and the phone build, the same card with its own words)
+    const loadTvApp = () => { loadAppBuild("tv"); loadAppBuild("phone"); };
+    async function loadAppBuild(which) {
+      const tv = which === "tv";
       let s;
-      try { s = await json("/api/admin/tv-app"); } catch { return; }
+      try { s = await json(tv ? "/api/admin/tv-app" : "/api/admin/phone-app"); } catch { return; }
       const a = s.apk || {};
       const dash = "—";
-      $("#tv-stats").innerHTML = [
+      $(`#${which}-stats`).innerHTML = [
         [a.error ? dash : a.versionName, "on the server", a.error ? "" : `build ${a.versionCode} · ${fmtBytes(a.sizeBytes)}`],
         [a.error ? dash : fmtWhen(new Date(a.mtimeMs).toISOString()), "published", a.sha256 ? `sha256 ${a.sha256.slice(0, 12)}…` : ""],
-        [(s.announced && s.announced.versionName) || dash, "notes written for", s.announced && s.announced.versionName && !a.error && s.announced.versionName !== a.versionName ? "does not match the APK" : "tv-version.json"],
+        [(s.announced && s.announced.versionName) || dash, "notes written for", s.announced && s.announced.versionName && !a.error && s.announced.versionName !== a.versionName ? "does not match the APK" : tv ? "tv-version.json" : "phone-version.json"],
         [s.source.versionName || dash, "source says", s.source.versionCode ? `build ${s.source.versionCode} · app constant ${s.source.appVersion || "?"}` : "tv-native not on this machine"],
+        ...(s.appLinks ? [[s.appLinks.sha256 && s.appLinks.sha256.length ? `${s.appLinks.sha256[0].slice(0, 11)}…` : dash, "app links", s.appLinks.source === "config" ? "certificate from the config" : s.appLinks.source === "apk" ? "certificate read from the APK" : "no certificate known — links open in the browser"]] : []),
       ].map(([v, k, n]) => `<div class="stat"><div class="v" style="font-size:1.15rem">${esc(v)}</div><div class="k">${esc(k)}</div>${n ? `<div class="note">${esc(n)}</div>` : ""}</div>`).join("");
       const probs = s.problems || [];
-      $("#tv-problems").innerHTML = a.error && !probs.length
+      $(`#${which}-problems`).innerHTML = a.error && !probs.length
         ? esc(a.error)
         : probs.length
           ? probs.map((p) => `<div style="display:flex;gap:10px;align-items:flex-start;padding:6px 0">${hlDot(p.level === "info" ? "info" : p.level)}<span>${esc(p.text)}</span></div>`).join("")
@@ -3217,6 +3227,7 @@
         [String(s.events || 0), "events", s.since ? `since ${new Date(s.since).toLocaleDateString()}` : ""],
         [devs(s.devices) || "–", "devices", "events per device class"],
         [devs(s.looks) || "–", "looks", ""],
+        [devs(s.apps) || "–", "apps", "events per app: the site, the TV app, the phone app"],
         [String(today.profiles || 0), "profiles today", today.sessions ? `${today.sessions} tabs` : ""],
         // how good the line to this server is, as each device measured it
         ...(s.net && Object.keys(s.net.tiers || {}).length ? [[
@@ -3331,7 +3342,7 @@
              <button class="mini" data-tel-state="ignored" data-fp="${esc(r.fp)}" title="Noise: still counted, out of the lists, never alerted">Ignore</button>`;
         return `<tr data-fp="${esc(r.fp)}">
           <td><span class="pill ${r.level === "error" ? "bad" : "warn"}">${r.level === "error" ? "error" : "warning"}</span></td>
-          <td>${r.app === "tv" ? "TV" : "Website"}</td>
+          <td>${r.app === "tv" ? "TV" : r.app === "phone" ? "Phone app" : "Website"}</td>
           <td class="wide"><div><b>${esc(r.message)}</b>${r.state === "known" ? ` <span class="pill">known</span>` : ""}${r.newInLatest ? ` <span class="pill live">new in ${esc(r.firstVersion)}</span>` : ""}</div>
             <div class="muted" style="font-size:0.78rem">${esc(r.kind)}${r.where ? ` · ${esc(r.where)}` : ""}${r.note ? ` · ${esc(r.note)}` : ""}${sp}</div>
             <div class="muted" style="font-size:0.78rem">${esc(facts)}</div></td>
@@ -3380,7 +3391,7 @@
         const n = st.slow.byStep[k] || 0;
         return `<tr><td>${esc(STEP_WORDS[k] || k)}<div class="muted" style="font-size:0.74rem">${esc(k)}</div></td><td style="white-space:nowrap">${telMs(st.stepP50[k].p50)}</td><td style="white-space:nowrap">${telMs(st.stepP50[k].p90)}</td><td>${n ? `<span class="pill bad">${n}</span>` : ""}</td></tr>`;
       }).join("");
-      $("#tel-starts-recent").innerHTML = (st.recent || []).map((r) => `<tr><td style="min-width:110px">${esc(r.title || r.id)}<div class="muted" style="font-size:0.74rem">${r.app === "tv" ? "TV" : esc(r.device || "")} · ${esc(telAgo(r.at))}</div></td><td>${esc(startupLine({ ...r, srv: { seg: r.seg, playlist: r.pl } }))}</td></tr>`).join("");
+      $("#tel-starts-recent").innerHTML = (st.recent || []).map((r) => `<tr><td style="min-width:110px">${esc(r.title || r.id)}<div class="muted" style="font-size:0.74rem">${r.app === "tv" ? "TV" : r.app === "phone" ? "Phone app" : esc(r.device || "")} · ${esc(telAgo(r.at))}</div></td><td>${esc(startupLine({ ...r, srv: { seg: r.seg, playlist: r.pl } }))}</td></tr>`).join("");
     }
     function paintTelTimings() {
       const rows = tel.data.timings.rows || [];
@@ -3391,7 +3402,7 @@
         const change = ch == null ? `<span class="muted">${r.prevVersion ? "too few to compare" : "–"}</span>`
           : `<span class="pill ${ch >= 10 ? "bad" : ch <= -10 ? "live" : ""}" title="p50 ${esc(telMs(r.prev.p50))} in ${esc(r.prevVersion)} (${r.prev.n} measured) · p90 ${r.changeP90 > 0 ? "+" : ""}${r.changeP90}%">${ch > 0 ? "+" : ""}${ch}% vs ${esc(r.prevVersion)}</span>`;
         const split = [telFacetStats(r.byDevice), telFacetStats(r.byNet)].filter(Boolean).join(" · ");
-        return `<tr><td>${esc(r.label)}<div class="muted" style="font-size:0.74rem">${esc(r.metric)}</div></td><td>${r.app === "tv" ? "TV" : r.app === "server" ? "Server" : "Website"}</td><td>${esc(r.dim === "-" ? "" : r.dim)}</td>
+        return `<tr><td>${esc(r.label)}<div class="muted" style="font-size:0.74rem">${esc(r.metric)}</div></td><td>${r.app === "tv" ? "TV" : r.app === "phone" ? "Phone app" : r.app === "server" ? "Server" : "Website"}</td><td>${esc(r.dim === "-" ? "" : r.dim)}</td>
           <td>${esc(r.version)}</td><td>${r.n}</td><td title="${esc(split)}">${telMs(r.p50)}</td><td>${telMs(r.p90)}</td><td>${telMs(r.p99)}</td><td>${change}</td></tr>`;
       }).join("");
     }
@@ -3410,7 +3421,8 @@
         return;
       }
       sel.classList.remove("hidden");
-      const a = c[tel.app];
+      // (a server from before the phone app answers without `phone`)
+      const a = c[tel.app] || { sessions: 0, presses: 0, used: [], never: [], screens: {} };
       const screens = Object.keys(a.screens || {}).sort();
       const cur = sel.value;
       sel.innerHTML = `<option value="">Every screen</option>` + screens.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join("");

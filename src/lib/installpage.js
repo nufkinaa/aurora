@@ -184,7 +184,13 @@ const facts = () => {
   if (fs.existsSync(PHONE_APK)) {
     const info = apkinfo.read(PHONE_APK, { hash: false });
     const json = readJson(PHONE_JSON) || {};
-    if (!info.error) phone = { version: info.versionName, sizeBytes: info.sizeBytes, date: json.date || isoDay(info.mtimeMs) };
+    if (!info.error) {
+      phone = { version: info.versionName, sizeBytes: info.sizeBytes, date: json.date || isoDay(info.mtimeMs) };
+      // its notes, when phone-version.json was written for this build (as /phone-version.json says them)
+      const said = typeof json.notes === "string" && json.notes.trim() && (!json.versionName || json.versionName === info.versionName)
+        ? scrub([finish(tidy(json.notes))], words) : [];
+      phone.notes = said.length ? [{ version: phone.version, date: phone.date, items: said }] : [];
+    }
   }
   return { web, tv, phone, notes, complete: words.ready };
 };
@@ -226,7 +232,7 @@ const values = (f, req) => {
     host: host || "this-server",
     "notes.tv": notesHtml(f.notes.tvShown, { empty: "The TV app's notes appear here with its next release." }),
     "notes.web": notesHtml(f.notes.web),
-    "notes.phone": f.phone ? notesHtml([]) : `<p class="notes-empty">The Android phone app is on its way — its notes start here with the first release.</p>`,
+    "notes.phone": f.phone ? notesHtml(f.phone.notes || [], { empty: "The phone app's notes appear here with its next release." }) : `<p class="notes-empty">The Android phone app is on its way — its notes start here with the first release.</p>`,
     "notes.all.tv": notesHtml(f.notes.tvShown, { max: 1000 }),
     "notes.all.web": notesHtml(f.notes.web, { max: 1000 }),
     year: String(new Date().getFullYear()),

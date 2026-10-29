@@ -137,7 +137,7 @@ A control is tagged where it is built:
 - website: `"data-ui": "detail.play"` on the element (one delegated click listener reads it; nothing is ever guessed from a control's text). A control that is not a click on an element — a keyboard shortcut, a tap zone — calls `uiHit("player.seek.fwd")`.
 - TV: `uiId="detail.play"` on a `Focusable`, `Btn` or `Chip` (and the small wrappers that pass it through). Without it nothing happens.
 
-The vocabulary (`src/lib/tel/controls-vocab.js`) — 249 ids: 185 on the website, 157 on the TV, 93 on both.
+The vocabulary (`src/lib/tel/controls-vocab.js`) — 284 ids: 185 on the website, 157 on the TV, 93 on both. 134 on the phone app (letter `p`, the table after this one).
 
 | Area | Website only | TV app only | Both |
 |---|---|---|---|
@@ -173,6 +173,34 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 249 ids: 185 on the website
 | update | – | `update.install` `update.later` `update.restart` `update.retry` | – |
 | whatsnew | – | `whatsnew.log` | `whatsnew.go` |
 | xray | `xray.more` | – | – |
+
+<!-- phone-controls -->
+
+**The Android phone app** (`"p"`; `tv-native/src/phone`, plus the player it shares with the TV, `tv-native/src/playback`). Tagged like the TV (`uiId="…"`, `uiHit(id, 'touch')`), counted under its own app — `app: "phone"` in the batch. A phone control that means the same as one on the TV or the site reuses that id; the ones only the phone has start with `phone.`.
+
+| Area | Phone app only | Shared with the TV and/or the site |
+|---|---|---|
+| phone | `phone.browse.genre` `phone.detail.episodes` `phone.detail.playon` `phone.detail.share` `phone.home.remove` `phone.menu.downloads` `phone.menu.remote` `phone.menu.settings` `phone.menu.switch` `phone.mylist.browse` `phone.peek.details` `phone.peek.recommend` `phone.player.fit` `phone.player.lock` `phone.player.pip` `phone.player.rotate` `phone.player.unlock` `phone.remote.arrow` `phone.remote.audio` `phone.remote.back` `phone.remote.device` `phone.remote.home` `phone.remote.next` `phone.remote.ok` `phone.remote.playpause` `phone.remote.seek` `phone.remote.stop` `phone.remote.subtitles` `phone.remote.volume` `phone.save.film` `phone.save.season` `phone.settings.remote` `phone.settings.saved` `phone.settings.switch` `phone.update.allow` | – |
+| actions | – | `actions.pick` |
+| browse | – | `browse.category.pick` `browse.retry` `browse.unwatched` |
+| card | – | `card.open` |
+| detail | – | `detail.follow` `detail.mylist` `detail.play` `detail.recommend` `detail.restart` `detail.season.pick` `detail.season.watched` `detail.sources` `detail.trailer` `detail.watched` `detail.xray` |
+| downloads | – | `downloads.row` |
+| home | – | `home.hero.details` `home.hero.play` `home.retry` |
+| mylist | – | `mylist.filter` |
+| nav | – | `nav.home` `nav.movies` `nav.mylist` `nav.profile` `nav.search` `nav.settings` `nav.shows` |
+| newpassword | – | `newpassword.signout` `newpassword.submit` |
+| party | – | `party.join` |
+| player | – | `player.audio.dialogue` `player.audio.night` `player.audio.pick` `player.autoplay` `player.back` `player.mute` `player.next` `player.party` `player.party.handover` `player.party.react` `player.party.start` `player.playpause` `player.replace` `player.retry` `player.scrub` `player.seek.back` `player.seek.fwd` `player.settings.open` `player.skipintro` `player.slowstart.lower` `player.slowstart.wait` `player.speed.open` `player.speed.pick` `player.stall.lower` `player.stall.retry` `player.startover` `player.stillwatching.done` `player.stillwatching.keep` `player.subtitles.open` `player.subtitles.pick` `player.subtitles.resync` `player.subtitles.style` `player.upnext.dismiss` `player.upnext.play` `player.xray` |
+| profile | – | `profile.pick` `profile.pin.submit` `profile.unlock` |
+| recommend | – | `recommend.close` `recommend.send` |
+| report | – | `report.send` |
+| search | – | `search.recent.pick` `search.retry` `search.suggestion.pick` `search.voice` `search.voice.lang` |
+| settings | – | `settings.autoplay` `settings.downloads` `settings.genre` `settings.hh.mute` `settings.hh.sent` `settings.hh.toggle` `settings.party` `settings.report` `settings.signout` `settings.subs.auto` `settings.subs.lang` `settings.update` `settings.usagestats` |
+| signin | – | `signin.mode.qr` `signin.mode.typed` `signin.submit` |
+| update | – | `update.install` `update.later` |
+
+<!-- /phone-controls -->
 
 ## What the server keeps (Retention)
 
@@ -221,7 +249,7 @@ Nothing is written to storage per event on either client: the website writes one
 
 ## How to add
 
-**A control.** Tag it (`"data-ui": "area.thing"` / `uiId="area.thing"`), add the id to `src/lib/tel/controls-vocab.js` with `"w"`, `"t"` or `"wt"`, add it to the table above. `npm test` fails until all three agree. Use an existing id when the other app already has the same control.
+**A control.** Tag it (`"data-ui": "area.thing"` / `uiId="area.thing"`), add the id to `src/lib/tel/controls-vocab.js` with the letters of the apps that have it — `"w"` the site, `"t"` the TV app, `"p"` the phone app (`"wt"`, `"tp"`, `"wtp"`…), add it to the table above. `npm test` fails until all three agree. Use an existing id when the other app already has the same control.
 
 **A timing.** Add it to `TIMINGS` in `src/lib/tel/vocab.js` (label, longest value kept, the split if any) and to the table above with its exact from → to; then one line where it ends: `tmStart("x")` … `tmEnd("x", split)` for a span, `sinceNav("x", split)` for "since this screen was asked for", `tmValue("x", ms, split)` for a value measured elsewhere. Define it once and use the same definition on both apps — a timing that means two things compares nothing.
 

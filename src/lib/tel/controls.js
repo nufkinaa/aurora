@@ -23,20 +23,23 @@ const SAVE_EVERY_MS = 60 * 1000;
 
 const dayOf = (t) => new Date(t).toISOString().slice(0, 10);
 
-let days = {}; // day -> { web: { sessions, c: {} }, tv: { … } }
+let days = {}; // day -> { web: { sessions, c: {} }, tv: { … }, phone: { … } }
 let file = null;
 let saveTimer = null;
 let dirty = false;
 
+// the vocabulary's letters: "w" the site, "t" the TV app, "p" the phone app
+const LETTER = { web: "w", tv: "t", phone: "p" };
+const appOf = (app) => (app === "tv" || app === "phone" ? app : "web");
 const appliesTo = (id, app) => {
   const where = CONTROLS[id];
-  return !!where && where.includes(app === "tv" ? "t" : "w");
+  return !!where && where.includes(LETTER[appOf(app)]);
 };
 
 // One batch's counts: [[screen, control, input, presses, firstInSession?], …].
 // `newSession` is the client saying "this is my first batch of this session".
 const record = (list, app, newSession, now = Date.now()) => {
-  app = app === "tv" ? "tv" : "web";
+  app = appOf(app);
   const day = (days[dayOf(now)] = days[dayOf(now)] || {});
   const a = (day[app] = day[app] || { sessions: 0, c: {} });
   let kept = 0;
@@ -121,13 +124,14 @@ const compare = (web, tv) => {
 const summary = (now = Date.now()) => {
   const web = rank("web", KEEP_DAYS, now);
   const tv = rank("tv", KEEP_DAYS, now);
-  return { web, tv, compare: compare(web, tv), vocabulary: Object.keys(CONTROLS).length };
+  const phone = rank("phone", KEEP_DAYS, now);
+  return { web, tv, phone, compare: compare(web, tv), vocabulary: Object.keys(CONTROLS).length };
 };
 
 const text = (now = Date.now()) => {
   const s = summary(now);
   const lines = [];
-  for (const a of [s.web, s.tv]) {
+  for (const a of [s.web, s.tv, s.phone]) {
     lines.push(`Most used — ${a.app} (last ${a.days} days · ${a.sessions} sessions · ${a.presses} presses)`);
     for (const t of a.used.slice(0, 40)) {
       const top = Object.entries(t.by).sort((x, y) => y[1] - x[1])[0];

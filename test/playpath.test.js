@@ -283,7 +283,7 @@ test("reports: a closed vocabulary — unknown words dropped, numbers clamped", 
   assert.deepEqual(caps.containers, { mkv: ["h264", "hevc"], mp4: ["h264"] });
   assert.deepEqual(caps.display.modes, [[1920, 1080, 23.976]]);
   assert.equal("extra" in caps, false);
-  for (const bad of [null, "x", [], {}, { client: "phone" }]) assert.equal(avcaps.normalize(bad), null);
+  for (const bad of [null, "x", [], {}, { client: "watch" }]) assert.equal(avcaps.normalize(bad), null);
 });
 
 test("reports: the same report, the same id — whatever order it was written in", () => {
@@ -317,4 +317,10 @@ test("reports: kept, looked up by id, a few hundred at most", () => {
   } finally {
     avcaps._setStore(null);
   }
+});
+
+test("the Android phone app reports as its own client, and is judged like the TV (its own player, not the browser)", () => {
+  const phone = avcaps.normalize({ ...JSON.parse(JSON.stringify(MITV)), client: "phone", model: "Google Pixel 9" });
+  assert.equal(phone.client, "phone");
+  assert.equal(avcaps.normalize({ ...JSON.parse(JSON.stringify(MITV)), client: "watch" }), null);
 });
