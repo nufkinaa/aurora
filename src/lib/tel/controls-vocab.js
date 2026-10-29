@@ -293,12 +293,14 @@ module.exports = {
   "phone.detail.share": "p", // a title's page: Share
   "phone.episode.more": "p", // a show's episode card: its round corner button (the choices)
   "phone.home.remove": "p", // the x on a Continue Watching card
+  "phone.menu.apps": "p", // the profile menu: Get the apps (/install)
   "phone.menu.downloads": "p", // the profile menu: Downloads
   "phone.menu.party": "p", // the profile menu: Join a watch party
   "phone.menu.remote": "p", // the profile menu: Remote
   "phone.menu.report": "p", // the profile menu: Report a problem
   "phone.menu.settings": "p", // the profile menu: Settings
   "phone.menu.switch": "p", // the profile menu: Switch profile
+  "phone.menu.whatsnew": "p", // the profile menu: What's new
   "phone.mylist.browse": "p", // an empty My List: Browse movies
   "phone.pair.approve": "p", // Sign in a TV: Yes — sign it in
   "phone.pair.cancel": "p", // Sign in a TV: Cancel (the code field)

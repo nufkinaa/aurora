@@ -4,7 +4,8 @@
 import {useSyncExternalStore} from 'react';
 import {pushScreen} from '../rootNav';
 import {pushPhone} from './nav';
-import {getAuthMode} from '../api';
+import {Linking} from 'react-native';
+import {getAuthMode, getBaseUrl} from '../api';
 import {openJoinParty, openReport} from '../overlay';
 
 let switchFn: (() => void) | null = null;
@@ -17,13 +18,15 @@ export const wireProfileMenu = (o: {switchProfile: () => void; name: () => strin
 
 export type MenuItem = {label: string; uiId: string; onPress: () => void};
 
-/** The menu's lines, in the site's order and words (main.js profile menu); the site's
- *  "What's new" and "Get the apps" have no phone screen, "Your TVs" is the phone's own. */
+/** The menu's lines, in the site's order and words (main.js profile menu); "Your TVs" is the
+ *  phone's own, "Get the apps" is the website's /install page (in the browser). */
 export const menuItems = (closed: boolean): MenuItem[] => [
   {label: closed ? 'Sign out' : 'Switch profile', uiId: 'phone.menu.switch', onPress: () => switchFn?.()},
   {label: 'Settings', uiId: 'phone.menu.settings', onPress: () => pushScreen('Settings', undefined)},
   {label: 'My downloads', uiId: 'phone.menu.downloads', onPress: () => pushScreen('Downloads', undefined)},
   {label: 'Your TVs', uiId: 'phone.menu.remote', onPress: () => pushPhone('Remote')},
+  {label: "What's new", uiId: 'phone.menu.whatsnew', onPress: () => pushPhone('WhatsNew')},
+  {label: 'Get the apps', uiId: 'phone.menu.apps', onPress: () => Linking.openURL(`${getBaseUrl() || 'https://nufurora.com'}/install`).catch(() => {})},
   {label: 'Report a problem', uiId: 'phone.menu.report', onPress: () => openReport()},
   {label: 'Join a watch party', uiId: 'phone.menu.party', onPress: () => openJoinParty()},
 ];

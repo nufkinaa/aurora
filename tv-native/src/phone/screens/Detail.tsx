@@ -43,6 +43,7 @@ import {onMessage} from '../../realtime';
 import {openActions, openRecommend, openReplace, openTrailer, openXray} from '../../overlay';
 import {replaceOffered} from '../../replaceLogic';
 import StarRating from '../ui/StarRating';
+import {onDiskLines} from '../words';
 import {autoPlayStep, fallbackSources, jobSource, pickBest, runningJobFor, streamPlayItem} from '../../playBest';
 import {heroRelease, ReleaseStatus} from '../../releaseWords';
 import {pickUp, startSeason} from '../../episodeRules';
@@ -1072,6 +1073,18 @@ export default function Detail() {
             </Tap>
           ) : null}
           <StarRating profileId={profileId} rateKey={imdb || full?.id || null} />
+          {/* "On this server" (the site's serverInfoFor): what is on disk here, and its size */}
+          {onDiskLines({
+            isShow,
+            film: ownedMovieId ? {sizeBytes: full?.sizeBytes, duration: full?.duration} : null,
+            episodes: isShow ? (full?.seasons || []).flatMap(se => se.episodes) : null,
+            listed: seasons.reduce((n, se) => n + se.episodes.length, 0),
+            canSource: !torrentsOff,
+          }).map(([t, tone]) => (
+            <Text key={t} style={[s.line, tone === 'ok' && {color: colors.owned}]}>
+              {t}
+            </Text>
+          ))}
           {cast.length ? (
             <Text style={s.line}>
               <Text style={s.lineKey}>Cast </Text>
