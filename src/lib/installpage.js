@@ -318,15 +318,23 @@ const render = (name, req) => {
   return { html: out, complete: f.complete };
 };
 
-const kept = new Map(); // name|host -> { at, html }
+const kept = new Map(); // name|host -> { at, html, files }
+// What the published files are right now (each one's size and time): a page drawn for other
+// files is drawn again, even inside its two seconds — a build published or taken away shows at
+// once (and a checksum already known for a copy with the same size and time can no longer
+// keep a page that names a file that is gone).
+const filesNow = () => apps.RELEASES.filter((e) => e.kind === "file" && !e.planned).map((e) => {
+  try { const st = fs.statSync(path.join(ROOT, e.file)); return `${st.size}:${Math.floor(st.mtimeMs)}`; } catch { return "-"; }
+}).join("|");
 const send = (name) => (req, res) => {
   const { SHELL_RECHECK_MS } = require("./assetver");
   const key = `${name}|${req.headers["x-forwarded-host"] || req.headers.host || ""}`;
   let hit = kept.get(key);
-  if (!hit || Date.now() - hit.at > SHELL_RECHECK_MS) {
+  const files = filesNow();
+  if (!hit || Date.now() - hit.at > SHELL_RECHECK_MS || hit.files !== files) {
     try {
       const r = render(name, req);
-      hit = { at: r.complete ? Date.now() : 0, html: r.html };
+      hit = { at: r.complete ? Date.now() : 0, html: r.html, files };
     } catch {
       kept.delete(key);
       return res.status(404).type("text/plain").send("Not found");
