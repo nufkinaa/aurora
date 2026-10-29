@@ -36,6 +36,7 @@ import {
 import {noteFocus, noteFocusLost} from '../focus';
 import {uiHit} from '../telemetry'; // [analytics]
 import {nativeOn, tellRingClaimed} from '../render';
+import {isPhone} from '../formFactor';
 import {QA_BUILD, isFocusLogging, isTracing, logFocus, logRing, onQaChange, traceValue} from '../qa';
 import AuroraFocusable, {Commands, FocusChangeEvent} from '../specs/AuroraFocusableNativeComponent';
 import theme from '../theme';
@@ -723,7 +724,11 @@ function NativeFocusable({
 }
 
 /** The switch (render.ts). Chosen once at load: no wrapper component on either path. */
-const Focusable: (props: Props) => React.ReactElement = nativeOn.focusable ? NativeFocusable : JsFocusable;
+// [android-phone] Never the native one on a phone: it answers the remote's OK only — a finger's
+// tap on it did nothing (measured: the player's Watch together, settings and subtitle menus
+// on the phone, from the second launch on, when the render switches load). The JS body is a
+// Pressable, which a touch presses. The TV: exactly as before.
+const Focusable: (props: Props) => React.ReactElement = nativeOn.focusable && !isPhone() ? NativeFocusable : JsFocusable;
 export default Focusable;
 
 // A non-Pressable focus ring container is occasionally handy; export the style.
