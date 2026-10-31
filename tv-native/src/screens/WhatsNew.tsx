@@ -17,12 +17,11 @@ import theme, {useTvMetrics} from '../theme';
 
 const {colors, fontSize, spacing, radius} = theme;
 
-// THIS ROUND: the TV app version the household-recommendations round (2026-10-27) ships in. A
-// placeholder until the release sets it — the one place to change: its cards
-// say `since: ROUND`, and NEW_FROM = ROUND puts the New ribbon on them alone.
-// (The website has the same cards: public/js/screens/whatsnew.js, ROUND there;
-// its `webOnly` cards — AirPlay from an iPhone — have nothing to do on a TV.)
-export const ROUND = '5.7.0';
+// THIS ROUND: the TV app version the sign-in round (auth-round, 2026-10-31) ships in — the
+// one place to change: its cards say `since: ROUND`, and NEW_FROM = ROUND puts the New
+// ribbon on them alone. (The website has the same cards: public/js/screens/whatsnew.js,
+// ROUND there; its `webOnly` cards — AirPlay from an iPhone — have nothing to do on a TV.)
+export const ROUND = '5.8.2';
 const NEW_FROM = ROUND;
 const cmpVersion = (a: string, b: string) => {
   const pa = a.split('.').map(Number);
@@ -34,9 +33,32 @@ export const isNewCard = (f: {since?: string}) => !!f.since && cmpVersion(f.sinc
 
 type Feature = {since?: string; glyph: string; title: string; what: string; how: string; go?: {label: string; act: string}};
 export const FEATURES: Feature[] = [
-  // ---- the household-recommendations round (2026-10-27): the same card, the same words, on the website ----
+  // ---- the sign-in round (2026-10-31): the same cards, the same words, on the website ----
   {
     since: ROUND,
+    glyph: '🔑',
+    title: 'Forgot your password? Reset it yourself',
+    what: "Forgot password? on the sign-in screen lets you choose a new password without the old one. Confirm it's you with Google, ask the admin and carry on here as soon as they approve, or type the reset code they give you. Every other device is signed out unless you untick it.",
+    how: 'Sign-in screen → Forgot password?. Still signed in on your phone or computer? Change it there, in Settings.',
+  },
+  {
+    since: ROUND,
+    glyph: '🛡️',
+    title: 'Every profile has a password',
+    what: 'Requests made with Google now set a password as well, so you can sign in on devices without Google. A profile that only had Google is asked to set one at its next sign-in.',
+    how: 'Sign-in screen → Request access → Sign up with Google.',
+  },
+  {
+    since: ROUND,
+    glyph: '✨',
+    title: 'A clearer sign-in screen',
+    what: 'Sign in and Request access have the same look on the TV, the website and the phone app: a label on every field, the reason next to the field when something is wrong, Show to see the password you typed, and the code to scan with your phone beside it.',
+    how: 'Shown when this TV needs to sign in.',
+  },
+  // ---- end of the sign-in round ----
+  // ---- the household-recommendations round (2026-10-27): the same card, the same words, on the website ----
+  {
+    since: '5.7.0',
     glyph: '📨',
     title: 'Recommend to your household',
     what: 'Send a film or a show to someone in your household, with a short note if you like. What the others recommend to you sits on Home under Recommended for You, the titles more of them recommended first, and one press puts it on your My List.',
@@ -44,7 +66,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Go home', act: 'home'},
   },
   {
-    since: ROUND,
+    since: '5.7.0',
     glyph: '📬',
     title: 'See what became of your picks',
     what: 'Show all recommended lists everything the household recommended to you, by person, and its second tab what you sent: whether each person saw it, put it on their list or watched it. Not for me tells nobody.',

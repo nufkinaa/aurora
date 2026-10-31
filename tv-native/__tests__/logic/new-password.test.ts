@@ -1,24 +1,29 @@
-// The forced reset's own checks (screens/NewPassword.tsx), in the site's words.
-import {newPasswordProblem, saveRefusal} from '../../src/newPassword';
+// The new-password screen's rules (src/newPassword.ts): the forced reset and,
+// [auth-round], a Google-only profile's first password ("Set a password").
+import {newPasswordMode, saveRefusal} from '../../src/newPassword';
 
-test('what stops a save, in order', () => {
-  expect(newPasswordProblem({askCurrent: true, current: '', fresh: 'abcd', again: 'abcd'})).toBe('Your current password first.');
-  expect(newPasswordProblem({askCurrent: false, current: '', fresh: 'abc', again: 'abc'})).toBe('At least 4 characters.');
-  expect(newPasswordProblem({askCurrent: false, current: '', fresh: 'abcd', again: 'abce'})).toBe("They don't match.");
+test('a TV that just saw the password never asks for it again', () => {
+  expect(newPasswordMode('old-one', undefined)).toEqual({mode: 'forced', askCurrent: false});
+  expect(newPasswordMode('', {passwordSetup: true})).toEqual({mode: 'forced', askCurrent: false});
 });
 
-test('a TV that already holds the typed password does not ask for it again', () => {
-  expect(newPasswordProblem({askCurrent: false, current: '', fresh: 'abcd', again: 'abcd'})).toBeNull();
-  expect(newPasswordProblem({askCurrent: true, current: 'old', fresh: 'abcd', again: 'abcd'})).toBeNull();
+test('after QR pairing or Google: /api/me says which screen it is', () => {
+  expect(newPasswordMode(null, undefined)).toEqual({mode: 'loading', askCurrent: false});
+  // a Google-only profile has no password to ask for
+  expect(newPasswordMode(null, {passwordSetup: true})).toEqual({mode: 'setup', askCurrent: false});
+  expect(newPasswordMode(null, {})).toEqual({mode: 'forced', askCurrent: true});
+  // /api/me could not be had: the forced reset, asking (the server decides anyway)
+  expect(newPasswordMode(null, null)).toEqual({mode: 'forced', askCurrent: true});
 });
 
-test('a refused save, by what the server said (POST /api/profiles/:id/password)', () => {
-  expect(saveRefusal(401, undefined, 'wrong password')).toBe('That is not the current password.');
-  expect(saveRefusal(400, 'same', 'that is the old password — pick a different one')).toBe('That is the old password — pick a different one.');
-  // "needed" and the length rule come with words written for the viewer
-  expect(saveRefusal(400, 'needed', 'pick a new password — this profile cannot go without one right now')).toBe('pick a new password — this profile cannot go without one right now');
-  expect(saveRefusal(400, undefined, 'Passwords need at least 4 characters.')).toBe('Passwords need at least 4 characters.');
-  expect(saveRefusal(429, undefined, 'too many attempts — try again in a few minutes')).toBe('Too many attempts — try again in a few minutes.');
-  expect(saveRefusal(0, undefined, 'Cannot reach server')).toBe("Couldn't reach the server. Try again.");
-  expect(saveRefusal(500, undefined, '')).toBe("Couldn't save it. Try again.");
+test('a refused save, by what the server said, next to its field', () => {
+  expect(saveRefusal({status: 401, message: 'wrong password'})).toEqual({field: 'current', words: "That isn't your current password."});
+  expect(saveRefusal({status: 400, code: 'same', message: 'x'})).toEqual({field: 'newPassword', words: 'That is the old password. Pick a different one.'});
+  expect(saveRefusal({status: 400, code: 'short', message: 'x', field: 'newPassword'})).toEqual({field: 'newPassword', words: 'Use at least 4 characters.'});
+  expect(saveRefusal({status: 400, message: 'pick a new password — this profile cannot go without one right now'}).words).toBe(
+    'Pick a new password — this profile cannot go without one right now.',
+  );
+  expect(saveRefusal({status: 429, retryAfter: 60}).words).toBe('Too many tries. Wait 1 minute, then try again.');
+  expect(saveRefusal({status: 0, message: 'Cannot reach server'}).words).toBe("Can't reach Aurora. Check your connection and try again.");
+  expect(saveRefusal({status: 500, message: ''}).words).toBe("That didn't work. Try again.");
 });

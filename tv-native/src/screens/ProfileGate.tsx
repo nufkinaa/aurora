@@ -25,6 +25,7 @@ import theme, {useTvMetrics} from '../theme';
 // the wall's rules (shared with the phone's wall): what a tile press does, the
 // password, the household PIN, the kids lock
 import {useProfileWall} from '../profileWall';
+import {ResetScreen} from './Reset';
 
 const {colors, radius, fontSize, spacing} = theme;
 
@@ -73,6 +74,8 @@ export default function ProfileGate({
     submitPin,
     retry,
   } = useProfileWall(onChosen);
+  // [auth-round] "Forgot password?" on the password prompt: the reset, on its own screen
+  const [forgot, setForgot] = React.useState(false);
 
   const cols = Math.max(
     3,
@@ -166,6 +169,20 @@ export default function ProfileGate({
     );
   }
 
+  if (forgot) {
+    return (
+      <ResetScreen
+        onExit={() => setForgot(false)}
+        onSignedIn={r => {
+          if (!r.profile?.id || !r.profileToken) return;
+          setForgot(false);
+          setPwFor(null);
+          onChosen(r.profile.id, r.profileToken, r.session || null, r.mustReset ? {mustReset: true, typed: null} : undefined);
+        }}
+      />
+    );
+  }
+
   // Password entry sub-view for a protected profile.
   if (pwFor) {
     return (
@@ -200,6 +217,10 @@ export default function ProfileGate({
           </Focusable>
           <Focusable round onPress={() => setPwFor(null)} style={styles.btnGhost}>
             <Text style={styles.btnGhostText}>Back</Text>
+          </Focusable>
+          {/* [auth-round] reset it without the old one (ask #4) */}
+          <Focusable uiId="profile.forgot" round onPress={() => setForgot(true)} style={styles.btnGhost}>
+            <Text style={styles.btnGhostText}>Forgot password?</Text>
           </Focusable>
         </View>
         {pwError ? <Text style={styles.error}>{pwError}</Text> : null}

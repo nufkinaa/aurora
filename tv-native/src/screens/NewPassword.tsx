@@ -1,43 +1,45 @@
-// "Pick a new password" — the forced reset, on the TV.
+// A password before going on - the forced reset, and [auth-round] a
+// Google-only profile's first password, on the TV.
 //
-// THE CONTRACT (server 1.6.91, src/lib/resetgate.js — enforced there):
-// the admin's People → Reset password ends every session and unlock token of
-// the profile. The current password still signs in, and every sign-in answer
+// THE CONTRACT (server src/lib/resetgate.js - enforced there): the admin's
+// People → Reset password ends every session and unlock token of the
+// profile. The current password still signs in, and every sign-in answer
 // (/api/auth/login, device/poll, google/poll, /api/profiles/:id/unlock) says
-// `mustReset` — but what it hands out is a RESTRICTED credential: everything
+// `mustReset` - but what it hands out is a RESTRICTED credential: everything
 // made with it is refused with
 //     401 {signinRequired, passwordResetRequired, profileId}
 // except GET /api/ping, /api/me, /api/server-info and POST /api/auth/logout,
 // /api/auth/password, /api/profiles/<that id>/password. /api/me answers
-// `user: null, passwordResetRequired, resetProfile {id, name, …}`; the socket
-// says {type: "password_reset_required", profileId}.
-//   - the new password, twice, at least four characters;
-//   - the current one is needed to save. After a typed sign-in or an unlock
-//     the TV already holds it (`current`); after QR pairing or Google, or
-//     when the screen came up on a relaunch or a refusal, it asks;
-//   - the save's own answer carries this TV's fresh credentials (`token`,
-//     and `session` when the profile signs in): they are stored and the app
-//     goes on — its socket opens again with them (SessionWiring).
-//   - refused: 401 wrong current password, 400 `code: "same" | "needed"`, 429.
+// `user: null, passwordResetRequired, resetProfile {id, name, …}`.
+//
+// TWO SCREENS IN ONE (newPassword.ts newPasswordMode, from /api/me):
+//   - "Choose a new password" - {admin} asked for one. The current password is
+//     needed to save; after a typed sign-in or an unlock the TV holds it
+//     (`current`), otherwise it asks. Saved with POST /api/profiles/:id/password.
+//   - "Set a password" (`passwordSetup`) - the profile signs in with Google
+//     only and has none yet (elia's ask #2: no profile without a password).
+//     Nothing to ask; saved with POST /api/auth/password {newPassword}, which
+//     the server allows right after a fresh sign-in on this TV.
+// Either save's answer carries this TV's fresh credentials (`token`, and
+// `session` when the profile signs in): they are handed up and the app goes on.
 //
 // IT BLOCKS (owner, 2026-10-10: "it should really force a new password"):
-// the only ways off this screen are a saved new password or signing out of
-// this TV. Back does nothing; closing the app does not help either — App.tsx
-// brings the screen back at the next launch (the server says so), and
-// whenever a request is refused with {passwordResetRequired:true}.
+// the only ways off this screen are a saved password or signing out of this
+// TV. Back does nothing; closing the app does not help either - AppRoot brings
+// the screen back at the next launch, and whenever a request is refused with
+// {passwordResetRequired:true}.
 //
 // ONLY THE ALLOWED ROUTES ARE CALLED FROM HERE: anything else would be
-// refused. The name shown comes from /api/me (`resetProfile`), never from
-// the profile list.
+// refused. The name shown comes from /api/me (`resetProfile`).
 import React, {useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, BackHandler, StyleSheet, Text, TextInput, View} from 'react-native';
-import Focusable from '../components/Focusable';
+import {BackHandler, View} from 'react-native';
 import {api, ApiError} from '../api';
-import {useFocusFallback} from '../focus';
-import {MIN_PASSWORD, newPasswordProblem, saveRefusal} from '../newPassword';
-import theme from '../theme';
+import {adminWord, FieldErrors, hasProblems, newPasswordProblems, WORDS} from '../authFlow';
+import {newPasswordMode, saveRefusal} from '../newPassword';
+import {PASSWORD_HELP} from '../passRules';
+import {AuthShell, Field, FieldHandle, FormError, MainButton, PlainButton, Row, Strength, Title, Waiting} from './authKit';
 
-const {colors, radius, fontSize, spacing} = theme;
+type Me = {passwordSetup?: boolean; resetProfile?: {id: string; name: string} | null};
 
 export default function NewPassword({
   profileId,
@@ -47,24 +49,28 @@ export default function NewPassword({
 }: {
   profileId: string;
   // The password that was just typed to get in; null when the TV never saw
-  // one (QR pairing, Google) and has to ask.
+  // one (QR pairing, Google) and has to ask - or, for a Google-only profile,
+  // there is none.
   current: string | null;
-  // The profile's fresh unlock token (null when none could be had — the app
-  // carries on with the session), and a new session if the unlock minted one.
+  // The profile's fresh unlock token (null when none could be had - the app
+  // carries on with the session), and a new session if the save minted one.
   onDone: (token: string | null, session: string | null) => void;
   onSignOut: () => void;
 }) {
-  const askCurrent = typeof current !== 'string';
+  const [me, setMe] = useState<Me | null | undefined>(undefined);
+  const [admin, setAdmin] = useState('the admin');
   const [cur, setCur] = useState('');
   const [fresh, setFresh] = useState('');
   const [again, setAgain] = useState('');
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [who, setWho] = useState<{name: string; admin: string}>({name: 'this profile', admin: 'The admin'});
-  const freshRef = useRef<TextInput>(null);
-  const againRef = useRef<TextInput>(null);
-  const anchor = useRef(null);
-  useFocusFallback(anchor);
+  const curRef = useRef<FieldHandle>(null);
+  const freshRef = useRef<FieldHandle>(null);
+  const againRef = useRef<FieldHandle>(null);
+  const {mode, askCurrent} = newPasswordMode(current, me);
+  const name = me?.resetProfile && me.resetProfile.id === profileId ? me.resetProfile.name : '';
+
   // Back is not a way out of this screen.
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
@@ -75,41 +81,53 @@ export default function NewPassword({
     let live = true;
     api
       .serverInfo()
-      .then(i => live && i.adminName && setWho(w => ({...w, admin: i.adminName as string})))
+      .then(i => live && setAdmin(adminWord(i.adminName)))
       .catch(() => {});
     api
       .me()
-      .then(me => {
-        const rp = me.resetProfile;
-        if (live && rp && rp.id === profileId && rp.name) setWho(w => ({...w, name: rp.name}));
-      })
-      .catch(() => {});
+      .then(r => live && setMe(r as Me))
+      .catch(() => live && setMe(null));
     return () => {
       live = false;
     };
   }, [profileId]);
 
   const save = async () => {
-    if (busy) return;
-    const problem = newPasswordProblem({askCurrent, current: cur, fresh, again});
-    if (problem) return setError(problem);
+    if (busy || mode === 'loading') return;
+    setFormError('');
+    const p = newPasswordProblems({fresh, again, askCurrent, current: cur});
+    if (hasProblems(p)) {
+      setErrors(p);
+      (p.current ? curRef : p.newPassword ? freshRef : againRef).current?.focusQuietly();
+      return;
+    }
+    setErrors({});
     setBusy(true);
-    setError('');
     let token: string | null = null;
     let session: string | null = null;
     try {
-      const saved = await api.setPassword(profileId, fresh, askCurrent ? cur : (current as string));
-      token = saved?.token || null;
-      session = saved?.session || null;
+      if (mode === 'setup') {
+        const saved = await api.changePassword(fresh);
+        token = saved?.token || null;
+        session = saved?.session || null;
+      } else {
+        const saved = await api.setPassword(profileId, fresh, askCurrent ? cur : (current as string));
+        token = saved?.token || null;
+        session = saved?.session || null;
+      }
     } catch (e) {
       setBusy(false);
-      setError(e instanceof ApiError ? saveRefusal(e.status, e.code, e.message) : "Couldn't save it. Try again.");
+      const rw = saveRefusal(e instanceof ApiError ? e : null, admin);
+      const field = rw.field === 'current' && !askCurrent ? null : rw.field;
+      if (field === 'current' || field === 'newPassword' || field === 'confirm') {
+        setErrors({[field]: rw.words});
+        (field === 'current' ? curRef : field === 'newPassword' ? freshRef : againRef).current?.focusQuietly();
+      } else setFormError(rw.words);
       return;
     }
-    // Saved. A forced reset's answer carried this TV's fresh credentials;
-    // what follows is only for a save that was not forced (the server no
-    // longer owed one): every unlock of the profile just ended, this TV's
-    // with it.
+    // Saved. The answer carried this TV's fresh credentials; what follows is
+    // only for a save that came back without them (the server no longer owed
+    // one): every unlock of the profile just ended, this TV's with it.
     if (!token) {
       try {
         const r = await api.unlock(profileId, fresh);
@@ -125,79 +143,83 @@ export default function NewPassword({
     onDone(token, session);
   };
 
+  const title = mode === 'setup' ? WORDS.setTitle : WORDS.forcedTitle;
+  const line =
+    mode === 'setup'
+      ? WORDS.setLine
+      : `${name ? `For ${name}. ` : ''}${WORDS.forcedLine(admin)}`;
   return (
-    <View style={styles.root}>
-      <Text style={styles.kicker}>NEW PASSWORD</Text>
-      <Text style={styles.heading}>Pick a new password</Text>
-      <Text style={styles.sub}>{`${who.admin} asked you to choose a new password for “${who.name}” before going on. It is your sign-in password too.`}</Text>
-      {askCurrent ? (
-        <TextInput
-          style={styles.input}
-          value={cur}
-          onChangeText={setCur}
-          autoFocus
-          secureTextEntry
-          placeholder="Current password"
-          placeholderTextColor={colors.textFaint}
-          onSubmitEditing={() => freshRef.current?.focus()}
-        />
-      ) : null}
-      <TextInput
-        ref={freshRef}
-        style={styles.input}
-        value={fresh}
-        onChangeText={setFresh}
-        autoFocus={!askCurrent}
-        secureTextEntry
-        placeholder={`New password (${MIN_PASSWORD}+ characters)`}
-        placeholderTextColor={colors.textFaint}
-        onSubmitEditing={() => againRef.current?.focus()}
-      />
-      <TextInput
-        ref={againRef}
-        style={styles.input}
-        value={again}
-        onChangeText={setAgain}
-        secureTextEntry
-        placeholder="Once more"
-        placeholderTextColor={colors.textFaint}
-        onSubmitEditing={save}
-      />
-      <View style={styles.row}>
-        <Focusable uiId="newpassword.submit" round ref={anchor} onPress={save} style={styles.btnPrimary}>
-          {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.btnPrimaryText}>Set new password</Text>}
-        </Focusable>
-        <Focusable uiId="newpassword.signout" round onPress={() => !busy && onSignOut()} style={styles.btnGhost}>
-          <Text style={styles.btnGhostText}>Sign out</Text>
-        </Focusable>
-      </View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-    </View>
+    <AuthShell width={640}>
+      {mode === 'loading' ? (
+        <Waiting text="One moment…" />
+      ) : (
+        <View>
+          <Title line={line}>{title}</Title>
+          {askCurrent ? (
+            <Field
+              ref={curRef}
+              qaId="newpassword.current"
+              first
+              label="Current password"
+              secret
+              value={cur}
+              onChangeText={t => {
+                setCur(t);
+                if (errors.current) setErrors(x => ({...x, current: undefined}));
+              }}
+              error={errors.current}
+              textContentType="password"
+              autoComplete="current-password"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => freshRef.current?.focus()}
+            />
+          ) : null}
+          <Field
+            ref={freshRef}
+            qaId="newpassword.new"
+            first={!askCurrent}
+            label={WORDS.newPassword}
+            secret
+            value={fresh}
+            onChangeText={t => {
+              setFresh(t);
+              if (errors.newPassword) setErrors(x => ({...x, newPassword: undefined}));
+            }}
+            error={errors.newPassword}
+            help={PASSWORD_HELP}
+            below={<Strength pw={fresh} personal={[name]} />}
+            textContentType="newPassword"
+            autoComplete="new-password"
+            maxLength={128}
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => againRef.current?.focus()}
+          />
+          <Field
+            ref={againRef}
+            qaId="newpassword.confirm"
+            label={WORDS.confirm}
+            secret
+            value={again}
+            onChangeText={t => {
+              setAgain(t);
+              if (errors.confirm) setErrors(x => ({...x, confirm: undefined}));
+            }}
+            error={errors.confirm}
+            textContentType="newPassword"
+            autoComplete="new-password"
+            maxLength={128}
+            returnKeyType="go"
+            onSubmitEditing={save}
+          />
+          <FormError text={formError} />
+          <Row>
+            <MainButton uiId="newpassword.submit" claim={formError} label={WORDS.setBtn} busyLabel={WORDS.saving} busy={busy} onPress={save} />
+            <PlainButton uiId="newpassword.signout" label="Sign out" onPress={() => !busy && onSignOut()} />
+          </Row>
+        </View>
+      )}
+    </AuthShell>
   );
 }
-
-// (SignIn.tsx's own figures: the two screens are one flow)
-const styles = StyleSheet.create({
-  root: {flex: 1, backgroundColor: colors.bg, paddingHorizontal: spacing.pageX + 24, justifyContent: 'center'},
-  kicker: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 3},
-  heading: {color: colors.text, fontSize: fontSize.hero, fontWeight: '900', marginTop: 4},
-  sub: {color: colors.textDim, fontSize: fontSize.body, marginTop: 6, maxWidth: 620},
-  row: {flexDirection: 'row', gap: spacing.md, marginTop: spacing.xl},
-  input: {
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderWidth: 1,
-    borderRadius: radius.m,
-    color: colors.text,
-    fontSize: fontSize.row,
-    paddingVertical: 14,
-    paddingHorizontal: 22,
-    maxWidth: 520,
-    marginTop: spacing.md,
-  },
-  btnPrimary: {backgroundColor: colors.white, paddingVertical: 13, paddingHorizontal: 34, minWidth: 150, alignItems: 'center'},
-  btnPrimaryText: {color: colors.bg, fontSize: fontSize.body, fontWeight: '800'},
-  btnGhost: {backgroundColor: colors.surface, paddingVertical: 13, paddingHorizontal: 24, alignItems: 'center'},
-  btnGhostText: {color: colors.text, fontSize: fontSize.body, fontWeight: '700'},
-  error: {color: '#ff8080', fontSize: fontSize.body, marginTop: spacing.md, maxWidth: 560},
-});

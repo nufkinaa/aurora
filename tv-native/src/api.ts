@@ -137,7 +137,23 @@ export type SigninResult = {
   // password). A note to the client: the session works in full; the app asks
   // for a new password before going on (screens/NewPassword.tsx).
   mustReset?: boolean;
+  // [auth-round] with mustReset: the profile signs in with Google only and has
+  // no password yet. The client says "Set a password" instead of "Choose a new
+  // password", and saves it with POST /api/auth/password {newPassword}.
+  passwordSetup?: boolean;
 };
+
+// [auth-round] What a finished Google step can be (web-finish, app-finish, poll).
+export type GoogleOutcome = Partial<SigninResult> & {
+  pending?: boolean;
+  signup?: {email?: string | null; name?: string | null};
+  pollId?: string;
+  reset?: {token: string; name: string};
+  linkable?: boolean;
+};
+// [auth-round] The ways to reset a password this server offers (the same answer for everyone).
+export type ResetOptions = {google: boolean; email: boolean; admin: boolean; adminName?: string; codeLength?: number};
+export type ResetStatus = {status: 'pending' | 'approved' | 'declined' | 'expired' | 'used'; token?: string; name?: string};
 
 export type Profile = {
   id: string;
@@ -797,6 +813,11 @@ class ApiError extends Error {
   // The server's machine word for a refusal, when it has one (the password
   // route: "same" = that is the old password, "needed" = one is required).
   code?: string;
+  // [auth-round] which input the refusal belongs to ("identifier", "password",
+  // "newPassword", "name", "username", "email", "code"), so a form can put the
+  // words next to that field; and on a 429, how many seconds to wait.
+  field?: string;
+  retryAfter?: number;
   constructor(status: number, message: string) {
     super(message);
     this.status = status;
@@ -932,6 +953,9 @@ async function send(path: string, options: RequestInit = {}, allow304 = false, q
   if (token) headers['X-Profile-Token'] = token;
   if (session) headers['X-Session'] = session;
   if (activeProfile) headers['X-Profile'] = activeProfile;
+  // [auth-round] which app is asking: the server keeps it on a new session
+  // (a TV session never changes a password without the old one).
+  headers['X-Aurora-App'] = isPhone() ? 'phone' : 'tv';
   // Reads say they can take blur-up placeholders beside the answer (the
   // server's lib/blurup.js; blur.ts keeps them, Card.tsx draws them).
   if (!options.method || String(options.method).toUpperCase() === 'GET') headers['X-Blur'] = '1';
@@ -973,13 +997,15 @@ async function send(path: string, options: RequestInit = {}, allow304 = false, q
     httpFailed(options.method, path, res.status); // [analytics] "GET /api/item/:id → 404", counted
     // The server writes its error bodies for viewers ("too many attempts —
     // try again in a few minutes") — surface them instead of a status line.
-    let body: {error?: string; signinRequired?: boolean; pinRequired?: boolean; passwordResetRequired?: boolean; signedOut?: boolean; profileId?: string; code?: string} = {};
+    let body: {error?: string; signinRequired?: boolean; pinRequired?: boolean; passwordResetRequired?: boolean; signedOut?: boolean; profileId?: string; code?: string; field?: string; retryAfter?: number} = {};
     try {
       body = await res.json();
     } catch {}
     const err = new ApiError(res.status, body.error || `${res.status} ${path}`);
     if (body.pinRequired) err.pinRequired = true;
     if (typeof body.code === 'string') err.code = body.code;
+    if (typeof body.field === 'string') err.field = body.field;
+    if (typeof body.retryAfter === 'number') err.retryAfter = body.retryAfter;
     // FIRST, and instead of signinRequired: the refusal of a must-reset
     // credential carries both (401 {signinRequired, passwordResetRequired,
     // profileId}). Read as a plain "sign in again" it would clear the very
@@ -1751,6 +1777,8 @@ export const api = {
       google?: boolean;
       googleWeb?: boolean;
       googleDevice?: boolean;
+      // [auth-round] the phone app's Custom Tab flow can run (the web OAuth client is set up)
+      googleApp?: boolean;
       // `false` when the admin has switched torrents off: nothing can be
       // streamed, saved or followed (absent otherwise)
       torrents?: boolean;
@@ -1821,6 +1849,42 @@ export const api = {
         signup?: { email?: string; name?: string };
       }
     >('/api/auth/google/poll', { pollId }),
+
+  // ---- [auth-round] Google with an intent, the phone's Custom Tab, password reset ----
+  // The device-code flow with a purpose: "signin" (default), "signup" or "reset".
+  googleStartFor: (intent: 'signin' | 'signup' | 'reset') =>
+    post<{pollId: string; userCode: string; verificationUrl: string; interval?: number; expiresIn?: number}>(
+      '/api/auth/google/start',
+      {intent},
+    ),
+  googlePollFor: (pollId: string) => post<GoogleOutcome>('/api/auth/google/poll', {pollId}),
+  // The address the phone opens in a Custom Tab (GET; the server sends it on to Google).
+  googleAppStartUrl: (intent: 'signin' | 'signup' | 'reset', challenge: string) =>
+    `${baseUrl}/api/auth/google/app-start?intent=${encodeURIComponent(intent)}&challenge=${encodeURIComponent(challenge)}`,
+  // The one-time code the tab handed back (aurora-phone://auth/google?code=…) + this device's verifier.
+  googleAppFinish: (code: string, verifier: string) => post<GoogleOutcome>('/api/auth/google/app-finish', {code, verifier}),
+  resetOptions: () => request<ResetOptions>('/api/auth/reset/options'),
+  // Ask the admin: the same answer whether the account exists or not. Keep the ticket, ask its status.
+  resetRequest: (identifier: string, note?: string) =>
+    post<{ok: boolean; ticket: string; expiresIn: number}>('/api/auth/reset/request', {identifier, note}),
+  resetStatus: (ticket: string) => post<ResetStatus>('/api/auth/reset/status', {ticket}),
+  // A code the admin read out (People → "Reset code").
+  resetWithCode: (identifier: string, code: string) =>
+    post<{ok: boolean; token: string; name: string}>('/api/auth/reset/code', {identifier, code}),
+  resetEmail: (identifier: string) => post<{ok: boolean}>('/api/auth/reset/email', {identifier}),
+  resetCheck: (token: string) =>
+    post<{ok: boolean; name: string; avatar?: string; color?: string}>('/api/auth/reset/check', {token}),
+  // Save the new password with a reset token; signs this device in (the login shape).
+  resetComplete: (token: string, newPassword: string, signOutOthers = true) =>
+    post<SigninResult & {signedOutOthers?: number}>('/api/auth/reset/complete', {token, newPassword, signOutOthers}),
+  // Can this signed-in device change the password without the current one?
+  passwordOptions: () => request<{needsCurrent: boolean; why?: string; hasPassword?: boolean}>('/api/auth/password/options'),
+  // Change (or set, or forgot-on-a-trusted-device) the signed-in profile's password.
+  changePassword: (newPassword: string, currentPassword?: string, signOutOthers = false) =>
+    post<{ok: boolean; token?: string; session?: string; user?: SigninUser; passwordReset?: string; signedOutOthers?: number}>(
+      '/api/auth/password',
+      {newPassword, ...(currentPassword ? {currentPassword} : {}), signOutOthers},
+    ),
 
   // ---- what the last releases added ----
   // Skip intro: the household's hand-marked range per show ("show:<id>" or
@@ -1948,7 +2012,8 @@ export const api = {
   },
   // Request access with a verified Google account (the pollId from the device
   // flow) — the TV's one-press signup when no profile is linked yet.
-  signup: (fields: {name: string; pollId?: string; note?: string}) =>
+  // [auth-round] a password is required for every request, Google or not.
+  signup: (fields: {name: string; pollId?: string; note?: string; password?: string; username?: string; email?: string}) =>
     post<{ok?: boolean; request?: unknown; error?: string}>('/api/auth/signup', fields),
 
   watchlist: (profileId: string) =>
