@@ -297,9 +297,25 @@ router.get("/api/server-info", (req, res) => {
     // application OAuth client). googleDevice: the TV code flow
     // (GOOGLE_TV_CLIENT_ID). The legacy single GOOGLE_CLIENT_ID pair backs
     // either. `google` = any of it exists.
-    google: !!(process.env.GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_TV_CLIENT_ID || process.env.GOOGLE_CLIENT_ID),
-    googleWeb: !!(process.env.GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID),
-    googleDevice: !!(process.env.GOOGLE_TV_CLIENT_ID || process.env.GOOGLE_CLIENT_ID),
+    // (lib/googleauth.js: the same pairs — or the test stand-in on a private
+    // test instance, lib/googlemock.js.)
+    // googleApp (auth-round): the phone app's Custom Tab flow can run for a
+    // device that reached the server at THIS host — a real domain (Google
+    // allows no IP redirect, and a phone's "localhost" is not this server),
+    // or a private test instance's stand-in. The phone uses the code flow
+    // (googleDevice) otherwise.
+    ...(() => {
+      const g = require("../lib/googleauth");
+      const ids = g.ids();
+      return {
+        google: !!(ids.web || ids.tv),
+        googleWeb: !!ids.web,
+        googleDevice: !!ids.tv,
+        googleApp: require("./auth")._internals.googleAppFor({ host: req.headers.host, mock: g.mockActive(), webId: ids.web }) &&
+          // (a private test instance can say "no" to try the phone's code-flow fallback)
+          !(g.mockActive() && process.env.AURORA_TEST_GOOGLE_APP_OFF === "1"),
+      };
+    })(),
     // Present only on a server with "torrents": false in config.json — the
     // web app then offers nothing that streams or downloads from sources.
     ...(require("../lib/torrentgate").enabled() ? {} : { torrents: false }),

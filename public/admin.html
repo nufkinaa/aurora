@@ -917,6 +917,14 @@
           <tbody id="profile-requests"></tbody>
         </table></div>
       </section>
+      <section class="card hidden" id="reset-card">
+        <h2>Password resets asked for <span class="pill live" id="reset-count">0</span>
+          <span class="note">Approve: the screen where they asked lets them choose a new password, and you get a one-time code to read out if that screen was closed.</span></h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Asked</th><th>Profile</th><th>Note</th><th>From</th><th></th></tr></thead>
+          <tbody id="reset-requests"></tbody>
+        </table></div>
+      </section>
       <section class="card">
         <h2 class="people-head">People <span class="pill" id="profiles-count">0</span>
           <input type="search" id="people-search" placeholder="Find a person, email or address…" aria-label="Find a person" autocomplete="off" />
@@ -1419,7 +1427,7 @@
     // The browser's own confirm()/prompt() boxes, restyled: same yes/no answer,
     // but readable on a phone, with the destructive ones in red and the button
     // saying what it does ("Yes, delete") instead of "OK".
-    const ASK_VERBS = /^(Delete|Ban|Clear|Remove|Decline|Cancel|Reject|Restart|Kick|Close|Send|Pull|Start|Reset|Suspend)\b/;
+    const ASK_VERBS = /^(Delete|Ban|Clear|Remove|Decline|Cancel|Reject|Restart|Kick|Close|Send|Pull|Start|Reset|Suspend|Approve)\b/;
     const ASK_DANGER = /^(Delete|Ban|Clear|Remove|Decline|Cancel|Reject|Restart|Kick|Close|Suspend)\b/;
     const askBox = (message, withInput, yesLabel = null) => new Promise((resolve) => {
       const paras = String(message).split("\n\n");
@@ -2061,7 +2069,9 @@
     const gBadge = '<span class="gbadge" title="Google sign-in">G</span>';
     const pills = (p) => [
       p.locked ? '<span class="pill" style="color:#ff7a7a">suspended</span>' : "",
-      p.mustReset ? '<span class="pill warn" title="Signed out everywhere. Until they set a new password, nothing else works for them.">password reset pending</span>' : "",
+      p.mustReset ? (p.passwordSetup
+        ? '<span class="pill warn" title="Signs in with Google only: asked to set a password at their next sign-in.">first password due</span>'
+        : '<span class="pill warn" title="Signed out everywhere. Until they set a new password, nothing else works for them.">password reset pending</span>') : "",
       p.kids ? `<span class="pill kids">kids · ${p.kids.maxAge === 0 ? "all ages" : "up to " + p.kids.maxAge + "+"}</span>` : "",
       p.live && p.live.length ? '<span class="pill live">online</span>' : "",
       p.fails >= 5 ? `<span class="pill warn">${p.fails} failed unlocks</span>` : "",
@@ -2078,6 +2088,7 @@
       PEOPLE = d;
       renderRollout(d, info);
       renderRequests(d.requests || []);
+      renderResetRequests(d.resetRequests || []);
       renderPeople();
       renderLive(d.clients || []);
       renderBansFrom(d.bans || []);
@@ -2185,6 +2196,51 @@
       loadPeople();
       loadBadges();
     });
+
+    // ---------- password resets people asked for (auth-round) ----------
+    // Shown only while someone is waiting. The person asked from the sign-in
+    // screen ("Forgot password? → Ask …"); approving lets that screen go on,
+    // and hands the admin a one-time code (30 minutes) for when it was closed.
+    const showCode = (name, code) => askBox(`Reset code for ${name}: ${code}\n\nRead it to them in person. It works once, for 30 minutes: on the sign-in screen they press "Forgot password?", then "I have a reset code".`, false, "Done");
+    function renderResetRequests(reqs) {
+      $("#reset-count").textContent = reqs.length;
+      $("#reset-card").classList.toggle("hidden", reqs.length === 0);
+      $("#reset-requests").innerHTML = reqs.map((r) => `
+        <tr>
+          <td class="muted">${ago(new Date(r.requestedAt).toISOString())}</td>
+          <td><strong>${esc(r.name)}</strong></td>
+          <td class="muted">${esc(r.note || "—")}</td>
+          <td class="muted">${esc(r.ip)}${r.device ? " · " + esc(typeof r.device === "string" ? r.device : (r.device.device || "")) : ""}</td>
+          <td style="white-space:nowrap">
+            <button class="mini" data-reset-ok="${esc(r.id)}" data-reset-name="${esc(r.name)}">Approve</button>
+            <button class="mini danger" data-reset-no="${esc(r.id)}" data-reset-name="${esc(r.name)}">Decline</button>
+          </td>
+        </tr>`).join("");
+    }
+    $("#reset-requests").addEventListener("click", async (e) => {
+      const ok = e.target.closest("[data-reset-ok]");
+      const no = e.target.closest("[data-reset-no]");
+      const btn = ok || no;
+      if (!btn) return;
+      const name = btn.dataset.resetName;
+      if (ok && !await ask(`Approve the password reset for "${name}"?\n\nOnly approve it if you know it's really them asking: whoever holds that screen chooses the new password.`)) return;
+      if (no && !await ask(`Decline the password reset for "${name}"?`)) return;
+      btn.disabled = true;
+      const id = ok ? ok.dataset.resetOk : no.dataset.resetNo;
+      const r = await adminFetch(`/api/admin/reset-requests/${encodeURIComponent(id)}/${ok ? "approve" : "decline"}`, { method: "POST" });
+      const out = await r.json().catch(() => ({}));
+      if (!r.ok) { toast(out.error || "Failed"); btn.disabled = false; return loadPeople(); }
+      if (ok) await showCode(name, out.code);
+      else toast(`Declined the reset for "${name}"`);
+      loadPeople();
+    });
+    const AUTH_EVENT = {
+      "reset-asked": "asked for a password reset", "reset-approved": "reset approved by you", "reset-declined": "reset declined",
+      "reset-code-given": "you gave a reset code", "reset-code-wrong": "a wrong reset code was typed", "reset-verified": "proved who they are for a reset",
+      "reset-email-sent": "a reset link was emailed", "password-reset": "reset their password", "password-changed": "changed their password",
+      "password-set": "set a first password", "password-set-by-admin": "you set their password", "password-setup-asked": "asked to set a first password",
+      "google-signup": "requested access with Google",
+    };
 
     // ---------- everyone, in one table ----------
     function renderPeople() {
@@ -2373,6 +2429,11 @@
           ${live}
           <div><h4>${ICO.download} Recent downloads ${p.downloadsTotal ? count(`· last ${Math.min(5, p.downloads.length)} of ${p.downloadsTotal}`) : ""}</h4><div class="plist">${dl}</div></div>
           ${replaced}
+          ${(p.authLog || []).length ? `<div><h4>${ICO.key} Password &amp; sign-in events ${count(`· last ${p.authLog.length}`)}</h4><div class="plist">${p.authLog.map((ev) => `
+          <div class="pitem">
+            <span class="t">${esc(AUTH_EVENT[ev.type] || ev.type)}${ev.via ? ` <span class="pill">${esc(ev.via)}</span>` : ""}</span>
+            <span class="m">${esc(whenAgo(ev.at))}${ev.device ? ` · ${esc(ev.device)}` : ""}${ev.ip ? ` · ${esc(ev.ip)}` : ""}${typeof ev.others === "number" && ev.others ? ` · ${ev.others} other ${ev.others === 1 ? "device" : "devices"} signed out` : ""}</span>
+          </div>`).join("")}</div></div>` : ""}
           <div><h4>${ICO.pin} Devices &amp; addresses ${p.access.length ? count(`· last ${p.access.length} of ${p.ipCount} ${p.ipCount === 1 ? "address" : "addresses"}`) : ""}</h4><div class="plist">${addr}</div></div>
           <div><h4>${ICO.shield} Kids profile ${p.kids ? count("· on") : ""}</h4><div class="kids-admin">
             <div class="range-chips">${[["off", "Off"], ...((PEOPLE && PEOPLE.kidsAges) || [0, 7, 12, 16]).map((a) => [String(a), a === 0 ? "All ages" : a + "+"])]
@@ -2396,6 +2457,7 @@
                   ? "a kids profile can't change its own password — this only signs it out everywhere; Set password gives it a new one"
                   : "signs them out everywhere and requires a new password before they can use Aurora again"}</small></button>
             <button data-act="setpw">${ICO.lock}Set password<small>you choose it — tell them in person, don't text it</small></button>
+            ${p.kids ? "" : `<button data-act="resetcode">${ICO.key}Reset code<small>a one-time code (30 minutes) they type under "Forgot password?" to choose their own new password</small></button>`}
           </div>
           <div class="danger-zone"><button data-act="delete" class="danger">${ICO.trash}Delete profile<small>removes the profile with its progress, list and ratings</small></button></div></div>
         </div>`;
@@ -2488,6 +2550,12 @@
           });
           if (!r.ok) return fail(r);
           toast(`Password set for ${p.name} — tell them in person, don't text it`);
+        } else if (a === "resetcode") {
+          if (!await ask(`Make a reset code for "${p.name}"?\n\nWhoever types it can choose a new password for this profile. Give it to them in person.`)) return;
+          const r = await adminFetch(`/api/admin/profiles/${encodeURIComponent(p.id)}/reset-code`, { method: "POST" });
+          const out = await r.json().catch(() => ({}));
+          if (!r.ok) { toast(out.error || "Failed"); return; }
+          await showCode(p.name, out.code);
         } else if (a === "delete") {
           if (!await ask(`Delete profile "${p.name}"?\n\nThis permanently removes its watch progress, watchlist and ratings.`)) return;
           const r = await adminFetch(`/api/admin/profiles/${p.id}`, { method: "DELETE" });

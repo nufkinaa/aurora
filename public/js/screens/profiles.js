@@ -72,7 +72,7 @@ export const passwordPrompt = (profile, onSuccess) => {
             localStorage.setItem("aurora-profile", profile.id);
             if (res.token) sessionStorage.setItem(`aurora-token-${profile.id}`, res.token);
           } catch {}
-          const fresh = await showResetWall({ profile, currentPassword: typed, token: res.token || null });
+          const fresh = await showResetWall({ profile, currentPassword: typed, token: res.token || null, passwordSetup: !!res.passwordSetup });
           res = { ...res, mustReset: false, token: fresh.token, ...(fresh.user ? { user: fresh.user } : {}) };
         }
         onSuccess(res.token, res);
@@ -98,9 +98,18 @@ export const passwordPrompt = (profile, onSuccess) => {
       }
     };
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+    // (auth-round) the same "Forgot password?" as the sign-in screen, for this profile
+    const forgot = el("button", {
+      type: "button", class: "link-btn focusable pw-forgot", "data-ui": "profile.forgot",
+      onclick: async () => {
+        close();
+        const res = await showLoginScreen({ view: "forgot", profile });
+        if (res && (res.profileToken || res.token)) onSuccess(res.profileToken || res.token, res);
+      },
+    }, "Forgot password?");
     return [
       el("h2", {}, `${profile.avatar} ${profile.name}`),
-      el("div", { class: "field" }, el("label", {}, "Enter password"), input, err),
+      el("div", { class: "field" }, el("label", {}, "Enter password"), input, err, forgot),
       el("div", { style: { display: "flex", gap: "10px", marginTop: "22px" } },
         el("button", { "data-ui": "profile.unlock", class: "btn btn-primary focusable", onclick: submit }, "Unlock"),
         el("button", { class: "btn focusable", onclick: close }, "Cancel")
@@ -329,10 +338,31 @@ export const profileModal = (existing, onDone) => {
   // knowing it, so a typo here would need an admin to delete the profile.
   const confirmPw = el("input", { type: "password", class: "focusable", placeholder: "Repeat password", autocomplete: "new-password" });
   const pwErr = el("div", { class: "pw-error hidden" });
+  // (auth-round) "Forgot your current password?": a session the server trusts
+  // (this browser, signed in by the person within 30 days — never a TV) may set
+  // a new one without it; every other device is signed out then.
+  let forgotMode = false;
+  const forgotNote = el("p", { class: "field-hint", hidden: true },
+    "You're signed in on this device, so you can set a new password without the old one. Your other devices will be signed out.");
+  const forgotLink = el("button", {
+    type: "button", class: "pw-forgot focusable", hidden: true, "data-ui": "profile.forgotcurrent",
+    onclick: () => {
+      forgotMode = true;
+      curPw.hidden = true;
+      forgotLink.hidden = true;
+      forgotNote.hidden = false;
+      newPw.focus();
+    },
+  }, "Forgot your current password?");
+  if (hasPw && existing && state.user && state.user.profileId === existing.id) {
+    api.passwordOptions().then((o) => { if (o && !o.needsCurrent) forgotLink.hidden = false; }).catch(() => {});
+  }
 
   const pwSection = wasKids ? null : el("div", {},
     el("label", {}, isNew || hasPw ? "Password" : "Password (optional)"),
     hasPw ? curPw : "",
+    hasPw ? forgotLink : "",
+    hasPw ? forgotNote : "",
     newPw,
     isNew ? confirmPw : "",
     isNew ? el("div", { class: "field-hint" }, "Every profile gets a password — so nobody else can blame you for your watch history.") : "",
@@ -455,7 +485,12 @@ export const profileModal = (existing, onDone) => {
               return showPwErr(e.message || "Couldn't save that email.");
             }
           }
-          if (newPw.value && !wasKids) {
+          if (newPw.value && !wasKids && forgotMode) {
+            // no current password: the signed-in device's own change (all other devices signed out)
+            const r = await api.changePassword(newPw.value, undefined, true);
+            if (state.profile?.id === existing.id && r && r.token) await setProfile(state.profile, r.token);
+            toast(`New password saved${r && r.signedOutOthers ? ". Your other devices were signed out" : ""}`, "🔒");
+          } else if (newPw.value && !wasKids) {
             await api.setPassword(existing.id, newPw.value, hasPw ? curPw.value : "");
             // Changing the password invalidates old tokens — re-unlock and
             // persist the fresh one (via setProfile) so this session, AND the

@@ -1,92 +1,57 @@
-// The sign-in screen (prompt 10): a night sky with the real aurora painter
-// running full-viewport, the wordmark shining over it, and one floating glass
-// card that carries every flow — sign in (username OR email), request access
-// (password or Google — the requester picks), and Google's device-code dance.
-// ACCOUNT = PROFILE: a successful login resolves with the profile and an
+// The sign-in screens (prompt 10; redesigned in the sign-in round, 2026-10-31,
+// docs/auth-round.md). The night sky with the real aurora painter is the
+// ground; one glass panel carries every step:
+//
+//   Sign in · Request access     (a switch at the top of the panel)
+//   Request access with Google   (Google verifies, the request still needs a password)
+//   Reset your password          (Google · ask the admin · a reset code · email when on)
+//   Choose a new password        (a reset token from any of those, or an emailed link)
+//   Google's code flow           (where the popup can't run: a server reached by IP)
+//
+// ACCOUNT = PROFILE: a successful sign-in resolves with the profile and an
 // unlock token, so boot walks straight in with no second password prompt.
 // Shown at boot only when the wall is CLOSED; in transition mode it can be
-// summoned voluntarily (opts.skippable adds a way out).
+// summoned voluntarily (opts.skippable adds a way out). opts.view:
+// "signup" (the wall's Add profile), "forgot" (with opts.profile: the wall's
+// "Forgot password?"), "reset" (opts.token: an emailed link).
 import { el, toast } from "../ui.js";
 import { api } from "../api.js";
 import { state } from "../state.js";
 import { pushScope, popScope } from "../focus.js";
 import { initAuroraSky } from "../aurora-sky.js";
 import { googleFlavor, googleWebFlow } from "../google.js";
+import { passwordProblem } from "../passrules.js";
+import {
+  GOOGLE_G, cap, field, passwordField, primaryButton, googleButton, formError, placeError, brand,
+} from "../authui.js";
 
-// Small inline icon set (stroke = currentColor so the theme owns the color).
-const icon = (d) =>
-  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
-const I = {
-  user: icon(`<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>`),
-  lock: icon(`<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`),
-  mail: icon(`<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>`),
-  note: icon(`<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>`),
-  eye: icon(`<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>`),
-  eyeOff: icon(`<path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c6.5 0 10 8 10 8a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3.5 8 10 8a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/>`),
-};
-// Google's four-color G (official geometry, inlined — no external assets).
-export const GOOGLE_G = `<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>`;
-
-// One labeled input row: icon + input (+ eye toggle on passwords).
-const field = ({ type = "text", placeholder, autocomplete, ic, maxlength, value = "" }) => {
-  const input = el("input", {
-    type, placeholder, autocomplete, value,
-    class: "focusable",
-    ...(maxlength ? { maxlength } : {}),
-    autocapitalize: "none", spellcheck: "false",
-  });
-  const wrap = el("div", { class: "lfield" },
-    el("span", { class: "lfield-ic", html: ic }),
-    input);
-  if (type === "password") {
-    let shown = false;
-    const eye = el("button", {
-      type: "button", class: "lfield-eye focusable", "aria-label": "Show password", html: I.eye,
-      onclick: () => {
-        shown = !shown;
-        input.type = shown ? "text" : "password";
-        eye.innerHTML = shown ? I.eyeOff : I.eye;
-        input.focus();
-      },
-    });
-    wrap.append(eye);
-  }
-  return { wrap, input };
-};
-
-const errLine = () => el("div", { class: "lerr", role: "alert", "aria-live": "polite" });
-const showErr = (node, msg) => {
-  node.textContent = msg;
-  node.classList.add("on");
-  node.classList.remove("shake");
-  void node.offsetWidth; // restart the animation
-  node.classList.add("shake");
-};
-const clearErr = (node) => node.classList.remove("on");
+export { GOOGLE_G };
 
 // "Get the apps": a quiet way to the product page (/install — the TV, phone
-// and computer apps) at the foot of the sign-in and request-access cards.
-// Same words as the profile menu's item; the reset screen has none.
+// and computer apps) at the foot of the panel. Same words as the profile
+// menu's item.
 const getAppsLink = () =>
-  el("div", { class: "lapps" },
-    el("a", { href: "/install", class: "llink dim focusable", "data-ui": "signin.getapps" }, "Get the apps"));
+  el("p", { class: "auth-apps" },
+    el("a", { href: "/install", class: "auth-link dim focusable", "data-ui": "signin.getapps" }, "Get the apps"));
+
+// the admin's name: at the start of a sentence, and inside one
+const admin = () => cap(state.adminName || "the admin");
+const adminIn = () => state.adminName || "the admin";
 
 // Resolves with the full login/claim response ({user, profile, profileToken})
 // or null when skipped.
 export const showLoginScreen = (opts = {}) =>
   new Promise((resolve) => {
     const sky = el("canvas", { class: "login-sky", "aria-hidden": "true" });
-    const card = el("div", { class: "login-card" });
-    const gate = el("div", { class: "login-gate" },
-      el("div", { class: "login-brand" },
-        el("div", { class: "login-logo" }, "aurora"),
-        el("div", { class: "login-tag" }, "your living-room cinema")),
-      card,
-    );
-    const wrap = el("div", { class: "ui-overlay login-wrap" }, sky, gate);
+    const panel = el("main", { class: "auth-panel login-card", "aria-labelledby": "auth-title" });
+    const shell = el("div", { class: "auth-shell login-gate" }, panel);
+    const wrap = el("div", { class: "ui-overlay login-wrap" }, sky, shell);
 
     let stopSky = () => {};
+    let polling = null; // the ask-the-admin waiting screen's timer
+    const stopPolling = () => { if (polling) { clearTimeout(polling); polling = null; } };
     const cleanup = () => {
+      stopPolling();
       stopSky();
       popScope(wrap);
       wrap.remove();
@@ -94,19 +59,19 @@ export const showLoginScreen = (opts = {}) =>
     // `typed`: the password this sign-in just verified (none for Google).
     const done = async (res, typed = null) => {
       cleanup();
-      // The admin asked this profile for a new password (People → Reset
-      // password): what this sign-in yielded opens nothing else on the
-      // server, so nothing else is shown — the blocking "pick a new password"
-      // screen (resetwall.js), for every way of signing in. The sign-in only
-      // counts once it is saved, with the fresh credentials that came back.
-      // (A reload meanwhile lands on the same screen: boot asks /api/me.)
+      // A new password is due on this profile (the admin's Reset password,
+      // or a first one for a Google-only profile): what this sign-in yielded
+      // opens nothing else on the server, so nothing else is shown — the
+      // blocking screen (resetwall.js), for every way of signing in.
       if (res && res.mustReset && res.profile) {
         try {
           localStorage.setItem("aurora-profile", res.profile.id);
           if (res.profileToken) sessionStorage.setItem(`aurora-token-${res.profile.id}`, res.profileToken);
         } catch {}
         const { showResetWall } = await import("../resetwall.js");
-        const fresh = await showResetWall({ profile: res.profile, currentPassword: typed, token: res.profileToken || null });
+        const fresh = await showResetWall({
+          profile: res.profile, currentPassword: typed, token: res.profileToken || null, passwordSetup: !!res.passwordSetup,
+        });
         res = {
           ...res,
           mustReset: false,
@@ -120,280 +85,484 @@ export const showLoginScreen = (opts = {}) =>
     };
 
     let serverInfo = null; // {googleWeb, googleDevice, ...} once fetched
-    const infoReady = api.serverInfo().then((i) => {
-      // with the wall closed this screen comes before anything else has
-      // asked: its own copy (and the reset sheet) name the admin
-      if (i && i.adminName) state.adminName = i.adminName;
-      return (serverInfo = i);
-    }).catch(() => null);
+    let resetInfo = null; // {google, email, admin}
+    const infoReady = Promise.all([
+      api.serverInfo().then((i) => {
+        // with the wall closed this screen comes before anything else has
+        // asked: its own copy (and the reset sheet) name the admin
+        if (i && i.adminName) state.adminName = i.adminName;
+        return (serverInfo = i);
+      }).catch(() => null),
+      api.resetOptions().then((o) => (resetInfo = o)).catch(() => null),
+    ]);
+
+    const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // One step on screen at a time. `focusEl`: where the keyboard starts.
+    const setView = (nodes, focusEl) => {
+      stopPolling();
+      panel.innerHTML = "";
+      panel.append(brand(), ...nodes.filter(Boolean));
+      if (!calm) {
+        panel.classList.remove("view-in");
+        void panel.offsetWidth;
+        panel.classList.add("view-in");
+      }
+      // (only if nothing in the panel has the focus by then: a person — or a
+      // password manager — that is already typing keeps their field)
+      setTimeout(() => {
+        const a = document.activeElement;
+        if (a && a !== document.body && panel.contains(a)) return;
+        focusEl?.focus({ preventScroll: true });
+      }, calm ? 30 : 120);
+    };
+    const title = (text) => el("h1", { class: "auth-title", id: "auth-title" }, text);
+    const lede = (...kids) => el("p", { class: "auth-lede" }, ...kids);
+    const form = (onSubmit, ...kids) => {
+      const f = el("form", { class: "auth-form", novalidate: true }, ...kids);
+      f.addEventListener("submit", (e) => { e.preventDefault(); onSubmit(); });
+      return f;
+    };
+    const back = (label, fn) => el("button", { type: "button", class: "auth-link focusable", onclick: fn }, label);
+
+    // The switch between the two front doors.
+    const tabs = (current) => {
+      const mk = (key, label, go) => el("button", {
+        type: "button", role: "tab", class: `auth-tab focusable${current === key ? " on" : ""}`,
+        "aria-selected": current === key ? "true" : "false", tabindex: current === key ? "0" : "-1",
+        "data-ui": `signin.tab.${key}`,
+        onclick: () => { if (current !== key) go(); },
+      }, label);
+      const t = el("div", { class: "auth-tabs", role: "tablist", "aria-label": "Sign in or request access" },
+        mk("signin", "Sign in", () => signinView()),
+        mk("request", "Request access", () => signupView()));
+      // arrow keys move along the tabs (the tablist pattern)
+      t.addEventListener("keydown", (e) => {
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        e.preventDefault();
+        e.stopPropagation();
+        current === "signin" ? signupView() : signinView();
+      });
+      return t;
+    };
 
     // One entry point for every Google button: the web popup where the
     // browser can use it (localhost/domain), the code flow otherwise.
-    // purpose: "login" (signin view) or "signup" (request-access view).
-    const doGoogle = async (purpose) => {
+    // purpose: "login", "signup" or "reset".
+    const doGoogle = async (purpose, formErr) => {
       const flavor = googleFlavor(serverInfo);
       if (flavor === "web") {
         try {
           const r = await googleWebFlow(purpose);
+          if (r.reset) return newPasswordView({ token: r.reset.token, name: r.reset.name, via: "google" });
           if (r.user && r.profile) return done(r);
           if (r.signup) return signupView({ pollId: r.pollId, email: r.signup.email, name: r.signup.name });
-          toast("Unexpected Google result — try again.", "🙃");
+          formErr.show("Google sign-in didn't finish. Try again.");
         } catch (e) {
-          toast(e.message || "Google sign-in failed.", "🙃");
+          formErr.show(cap(e.message || "Google sign-in didn't work. Try again."));
         }
         return;
       }
       if (flavor === "device") return googleView({ purpose });
-      toast("Google sign-in isn't available here.", "🙃");
+      formErr.show("Google sign-in isn't available here.");
     };
-
-    const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const setView = (nodes, focusEl) => {
-      card.innerHTML = "";
-      card.append(...nodes);
-      if (!calm) {
-        card.classList.remove("view-in");
-        void card.offsetWidth;
-        card.classList.add("view-in");
-      }
-      setTimeout(() => focusEl?.focus({ preventScroll: true }), calm ? 30 : 220);
+    const googleBlock = (label, purpose, formErr) => {
+      const area = el("div", { class: "auth-google" });
+      // painted when server-info lands (a synchronous check raced the fetch)
+      infoReady.then(() => {
+        if (!googleFlavor(serverInfo) || area.childElementCount || !area.isConnected) return;
+        area.append(
+          el("div", { class: "auth-or", role: "separator" }, el("span", {}, "or")),
+          googleButton(label, () => doGoogle(purpose, formErr)));
+      });
+      return area;
     };
 
     // ---------------- sign in ----------------
     const signinView = () => {
-      const user = field({ placeholder: "Username or email", autocomplete: "username", ic: I.user, maxlength: "80" });
-      const pass = field({ type: "password", placeholder: "Password", autocomplete: "current-password", ic: I.lock });
-      const err = errLine();
-      const submitBtn = el("button", { class: "lbtn primary focusable" }, el("span", {}, "Sign in"));
+      const formErr = formError();
+      const forgot = el("button", { type: "button", class: "auth-link small focusable", "data-ui": "signin.forgot", onclick: () => forgotView({ identifier: user.value().trim() }) }, "Forgot password?");
+      const user = field({ key: "identifier", label: "Username or email", autocomplete: "username", maxlength: "80", enterkeyhint: "next", required: true });
+      const pass = passwordField({ key: "password", label: "Password", autocomplete: "current-password", enterkeyhint: "go", aside: forgot, required: true });
+      const submitBtn = primaryButton("Sign in", "Signing in…");
+      user.input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); pass.focus(); } });
 
       const submit = async () => {
-        clearErr(err);
-        if (!user.input.value.trim() || !pass.input.value) {
-          return showErr(err, "Both fields, please.");
-        }
-        submitBtn.disabled = true;
-        submitBtn.classList.add("busy");
+        formErr.clear();
+        if (!user.value().trim()) { user.setError("Enter your username or email."); return user.focus(); }
+        if (!pass.value()) { pass.setError("Enter your password."); return pass.focus(); }
+        submitBtn.busy(true);
         try {
-          const typed = pass.input.value;
-          const res = await api.login(user.input.value.trim(), typed);
+          const typed = pass.value();
+          const res = await api.login(user.value().trim(), typed);
           done(res, typed);
         } catch (e) {
-          showErr(err, e.message || "Sign-in failed.");
-          pass.input.value = "";
-          pass.input.focus();
+          placeError(e, [user, pass], formErr);
         } finally {
-          submitBtn.disabled = false;
-          submitBtn.classList.remove("busy");
+          submitBtn.busy(false);
         }
       };
-      submitBtn.addEventListener("click", submit);
-      for (const f of [user, pass]) {
-        f.input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
-      }
-
-      const google = el("div", { class: "lgoogle" });
-      const paintGoogle = () => {
-        if (!googleFlavor(serverInfo) || google.childElementCount) return;
-        google.append(
-          el("div", { class: "ldivider" }, el("span", {}, "or")),
-          el("button", {
-            class: "lbtn google focusable",
-            onclick: () => doGoogle("login"),
-          }, el("span", { class: "gmark", html: GOOGLE_G }), el("span", {}, "Continue with Google")),
-        );
-      };
-      infoReady.then(paintGoogle);
 
       const nodes = [
-        el("h2", { class: "lhead" }, "Welcome back"),
-        el("p", { class: "lsub" }, "Sign in to pick up where you left off."),
-        user.wrap,
-        pass.wrap,
-        err,
-        submitBtn,
-        google,
-        el("div", { class: "lfoot" },
-          "First time here? ",
-          el("button", { class: "llink focusable", onclick: () => signupView() }, "Request access")),
+        tabs("signin"),
+        title("Sign in"),
+        lede("Use your Aurora username or email."),
+        form(submit, user.wrap, pass.wrap, formErr, submitBtn),
+        googleBlock("Continue with Google", "login", formErr),
       ];
       if (opts.skippable) {
-        nodes.push(el("div", { class: "lskip" },
+        nodes.push(el("p", { class: "auth-skip" },
           el("button", {
-            class: "llink dim focusable",
+            type: "button", class: "auth-link dim focusable",
             onclick: () => { cleanup(); resolve(null); },
-          }, "Continue without signing in →")));
+          }, "Continue without signing in")));
       }
       nodes.push(getAppsLink());
       setView(nodes, user.input);
     };
 
     // ---------------- request access ----------------
-    // The requester picks how they'll sign in: a password (username and/or
-    // email) or their Google account (`googleCtx` arrives verified from the
-    // device flow). Either way it lands in the admin's approval queue.
+    // A password is required either way — with Google too (elia, auth-round:
+    // signing up with Google and no password "is not good at all"). `googleCtx`
+    // arrives verified from a Google step ({pollId, email, name}).
     const signupView = (googleCtx = null) => {
-      const name = field({ placeholder: "Your name", autocomplete: "name", ic: I.note, maxlength: "24", value: googleCtx?.name || "" });
-      const uname = field({ placeholder: googleCtx ? "Username (optional)" : "Pick a username", autocomplete: "off", ic: I.user, maxlength: "24" });
-      const email = field({ placeholder: "Email (optional — sign in with it too)", autocomplete: "email", ic: I.mail, maxlength: "80" });
-      const pw = field({ type: "password", placeholder: "Pick a password (4+ characters)", autocomplete: "new-password", ic: I.lock });
-      const pw2 = field({ type: "password", placeholder: "Repeat the password", autocomplete: "new-password", ic: I.lock });
-      const note = field({ placeholder: "A bribe, an explanation, or a fun fact", autocomplete: "off", ic: I.note, maxlength: "200" });
-      const err = errLine();
-      const sendBtn = el("button", { class: "lbtn primary focusable" }, el("span", {}, "Send my request"));
+      const formErr = formError();
+      const personal = () => [name.value(), uname.value(), email.value(), googleCtx && googleCtx.email];
+      const name = field({ key: "name", label: "Your name", autocomplete: "name", maxlength: "24", value: (googleCtx && googleCtx.name) || "", autocapitalize: "words", help: "Shown on your profile.", required: true, enterkeyhint: "next" });
+      const uname = field({ key: "username", label: googleCtx ? "Username (optional)" : "Username", autocomplete: "username", maxlength: "24", help: "Letters and numbers. You'll sign in with it.", required: !googleCtx, enterkeyhint: "next" });
+      const email = field({ key: "email", label: "Email (optional)", type: "email", autocomplete: "email", inputmode: "email", maxlength: "80", help: "You can sign in with it too.", enterkeyhint: "next" });
+      const pw = passwordField({ key: "password", label: "Password", autocomplete: "new-password", isNew: true, personal, required: true, enterkeyhint: "next" });
+      const pw2 = passwordField({ key: "confirm", label: "Confirm password", autocomplete: "new-password", required: true, enterkeyhint: "next" });
+      const note = field({ key: "note", label: `Note for ${adminIn()} (optional)`, maxlength: "200", autocapitalize: "sentences", enterkeyhint: "send" });
+      const sendBtn = primaryButton("Send request", "Sending…");
+      const chain = [name, uname, ...(googleCtx ? [] : [email]), pw, pw2];
+      chain.forEach((f, i) => f.input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && chain[i + 1]) { e.preventDefault(); chain[i + 1].focus(); }
+      }));
 
       const send = async () => {
-        clearErr(err);
-        if (!name.input.value.trim()) return showErr(err, "Your name, at least.");
-        if (!googleCtx) {
-          if (!uname.input.value.trim() && !email.input.value.trim()) {
-            return showErr(err, "Pick a username or an email to sign in with.");
-          }
-          if (pw.input.value !== pw2.input.value) return showErr(err, "The passwords don't match.");
+        formErr.clear();
+        if (!name.value().trim()) { name.setError("Enter your name."); return name.focus(); }
+        if (!googleCtx && !uname.value().trim() && !email.value().trim()) {
+          uname.setError("Choose a username, or give an email to sign in with."); return uname.focus();
         }
-        sendBtn.disabled = true;
-        sendBtn.classList.add("busy");
+        const bad = passwordProblem(pw.value());
+        if (bad) { pw.setError(bad); return pw.focus(); }
+        if (pw.value() !== pw2.value()) { pw2.setError("The passwords don't match."); return pw2.focus(); }
+        sendBtn.busy(true);
         try {
           await api.signupRequest({
-            name: name.input.value.trim(),
-            username: uname.input.value.trim(),
-            email: email.input.value.trim(),
-            password: googleCtx ? "" : pw.input.value,
-            note: note.input.value.trim(),
+            name: name.value().trim(),
+            username: uname.value().trim(),
+            email: googleCtx ? "" : email.value().trim(),
+            password: pw.value(),
+            note: note.value().trim(),
             pollId: googleCtx ? googleCtx.pollId : undefined,
           });
-          sentView(name.input.value.trim());
+          sentView(name.value().trim());
         } catch (e) {
-          showErr(err, e.message || "That didn't work.");
+          placeError(e, [name, uname, email, pw, pw2, note], formErr);
         } finally {
-          sendBtn.disabled = false;
-          sendBtn.classList.remove("busy");
+          sendBtn.busy(false);
         }
       };
-      sendBtn.addEventListener("click", send);
 
+      const standalone = opts.view === "signup";
       const nodes = [
-        el("h2", { class: "lhead" }, "Request access"),
-        el("p", { class: "lsub" },
-          `${state.adminName} approves every request personally. Set it up now — the moment you're approved, you're in. `,
-          googleCtx ? "" : el("span", { class: "ldim" }, "(Don't reuse a password you care about. This is a living room, not a bank.)")),
-        name.wrap,
-      ];
-      if (googleCtx) {
-        nodes.push(
-          el("div", { class: "lgoogle-verified" },
-            el("span", { class: "gmark", html: GOOGLE_G }),
-            el("span", {}, `Signing in with Google`,
-              googleCtx.email ? el("span", { class: "ldim" }, ` — ${googleCtx.email}`) : "")),
-          uname.wrap,
-        );
-      } else {
-        nodes.push(uname.wrap, email.wrap, pw.wrap, pw2.wrap);
-        // painted when server-info lands — a synchronous check raced the fetch
-        // and silently hid Google on the standalone signup (the wall's
-        // "Add profile" opens this view before serverInfo resolves)
-        const gArea = el("div", { class: "lgoogle" });
-        nodes.push(gArea);
-        infoReady.then(() => {
-          if (!googleFlavor(serverInfo) || gArea.childElementCount || !gArea.isConnected) return;
-          gArea.append(
-            el("div", { class: "ldivider" }, el("span", {}, "or")),
-            el("button", {
-              class: "lbtn google focusable",
-              onclick: () => doGoogle("signup"),
-            }, el("span", { class: "gmark", html: GOOGLE_G }), el("span", {}, "Request access with Google")));
-        });
-      }
-      nodes.push(
-        note.wrap,
-        err,
-        sendBtn,
-        el("div", { class: "lfoot" },
-          // standalone signup (opened from the wall's "Add profile"): there is
-          // no sign-in view behind it — the way out is simply out
-          opts.view === "signup"
-            ? el("button", { class: "llink focusable", onclick: () => { cleanup(); resolve(null); } }, "Cancel")
-            : el("button", { class: "llink focusable", onclick: () => signinView() }, "← Back to sign in")),
+        standalone || googleCtx ? null : tabs("request"),
+        title(googleCtx ? "Finish your request" : "Request access"),
+        googleCtx
+          ? lede("Set a password as well, so you can sign in on devices without Google.")
+          : lede(`${admin()} approves new people. Once you're approved, sign in with the details you set here.`),
+        googleCtx ? el("p", { class: "auth-verified" },
+          el("span", { class: "af-g", html: GOOGLE_G }),
+          el("span", {}, "Google: ", el("strong", {}, googleCtx.email || "verified"))) : null,
+        form(send, name.wrap, uname.wrap, googleCtx ? null : email.wrap, pw.wrap, pw2.wrap, note.wrap, formErr, sendBtn),
+        googleCtx ? null : googleBlock("Sign up with Google", "signup", formErr),
+        el("p", { class: "auth-foot" },
+          standalone
+            ? back("Cancel", () => { cleanup(); resolve(null); })
+            : googleCtx ? back("Back to sign in", () => signinView()) : null),
         getAppsLink(),
-      );
+      ];
       setView(nodes, name.input);
     };
 
     const sentView = (who) => {
       const standalone = opts.view === "signup";
+      const ok = el("button", {
+        type: "button", class: "af-btn primary focusable",
+        onclick: () => (standalone ? (cleanup(), resolve(null)) : signinView()),
+      }, el("span", { class: "af-btn-text" }, standalone ? "Done" : "Back to sign in"));
       setView([
-        el("div", { class: "lsent" },
-          el("div", { class: "lsent-glyph" }, "🍿"),
-          el("h2", { class: "lhead" }, "Request sent"),
-          el("p", { class: "lsub" },
-            `“${who}” is now on the pile of things ${state.adminName} has to deal with. `,
-            el("strong", {}, "Want it faster? Go ask in person."),
-            " Once you're approved, come right back here and sign in."),
-        ),
-        el("button", {
-          class: "lbtn primary focusable",
-          onclick: () => (standalone ? (cleanup(), resolve(null)) : signinView()),
-        }, el("span", {}, standalone ? "Done" : "Back to sign in")),
-      ]);
+        title("Request sent"),
+        lede(`${admin()} will look at “${who}” soon. Once you're approved, sign in with your username and password.`),
+        ok,
+      ], ok);
+    };
+
+    // ---------------- reset your password ----------------
+    // Every way ends in the same place: a one-time reset token, then
+    // newPasswordView. `ctx.profile`: the wall's "Forgot password?" (the
+    // profile is known, no name to type).
+    const forgotView = (ctx = {}) => {
+      const formErr = formError();
+      const opt = (key, label, sub, fn) => el("button", {
+        type: "button", class: "auth-option focusable", "data-ui": `signin.reset.${key}`, onclick: fn,
+      }, el("span", { class: "auth-option-title" }, label), sub ? el("span", { class: "auth-option-sub" }, sub) : null);
+      const list = el("div", { class: "auth-options", role: "list" });
+      const paint = () => {
+        list.innerHTML = "";
+        const o = resetInfo || { google: false, email: false };
+        if (o.google && googleFlavor(serverInfo)) {
+          list.append(opt("google", "Use Google", "For profiles linked to a Google account.", () => doGoogle("reset", formErr)));
+        }
+        list.append(opt("admin", `Ask ${adminIn()}`, `${admin()} approves it, then you choose a new password here.`, () => askAdminView(ctx)));
+        list.append(opt("code", "I have a reset code", `A code ${adminIn()} gave you.`, () => codeView(ctx)));
+        if (o.email && !ctx.profile) list.append(opt("email", "Email me a link", "To the email on your profile.", () => emailView(ctx)));
+      };
+      paint();
+      infoReady.then(() => { if (list.isConnected) paint(); });
+      setView([
+        title("Reset your password"),
+        lede(ctx.profile ? `For “${ctx.profile.name}”. Pick how you want to confirm it's you.` : "Pick how you want to confirm it's you."),
+        list,
+        formErr,
+        el("p", { class: "auth-hint" }, "Still signed in on your phone or computer? Change it in Settings there."),
+        el("p", { class: "auth-foot" }, ctx.profile
+          ? back("Cancel", () => { cleanup(); resolve(null); })
+          : back("Back to sign in", () => signinView())),
+      ], list.querySelector("button"));
+    };
+
+    const askAdminView = (ctx = {}) => {
+      const formErr = formError();
+      const who = ctx.profile ? null : field({ key: "identifier", label: "Username or email", autocomplete: "username", maxlength: "80", value: ctx.identifier || "", required: true, enterkeyhint: "next" });
+      const note = field({ key: "note", label: `Note for ${adminIn()} (optional)`, maxlength: "200", autocapitalize: "sentences", enterkeyhint: "send" });
+      const btn = primaryButton("Send request", "Sending…");
+      const send = async () => {
+        formErr.clear();
+        if (who && !who.value().trim()) { who.setError("Enter your username or email."); return who.focus(); }
+        btn.busy(true);
+        try {
+          const r = ctx.profile
+            ? await api.resetRequestFor(ctx.profile.id, note.value().trim())
+            : await api.resetRequest(who.value().trim(), note.value().trim());
+          waitView({ ...ctx, identifier: who ? who.value().trim() : "", ticket: r.ticket });
+        } catch (e) {
+          placeError(e, [who, note], formErr);
+        } finally {
+          btn.busy(false);
+        }
+      };
+      setView([
+        title(`Ask ${adminIn()}`),
+        lede(`${admin()} gets your request. When it's approved, you choose a new password on this screen.`),
+        form(send, who && who.wrap, note.wrap, formErr, btn),
+        el("p", { class: "auth-foot" }, back("Other ways to reset", () => forgotView(ctx))),
+      ], who ? who.input : note.input);
+    };
+
+    const waitView = (ctx) => {
+      const status = el("p", { class: "auth-wait", role: "status" }, el("span", { class: "auth-wait-dot", "aria-hidden": "true" }), "Waiting for approval");
+      setView([
+        title("Request sent"),
+        lede(`Keep this screen open. When ${adminIn()} approves, you can choose a new password here. You can also ask ${adminIn()} for a reset code.`),
+        status,
+        el("p", { class: "auth-foot" },
+          back("I have a reset code", () => codeView(ctx)),
+          el("span", { class: "auth-dot", "aria-hidden": "true" }, "·"),
+          back("Back to sign in", () => (ctx.profile ? (cleanup(), resolve(null)) : signinView()))),
+      ], null);
+      const tick = async () => {
+        polling = null;
+        if (!wrap.isConnected) return;
+        try {
+          const s = await api.resetStatus(ctx.ticket);
+          if (s.status === "approved" && s.token) return newPasswordView({ token: s.token, name: s.name, via: "admin" });
+          if (s.status === "declined") {
+            status.textContent = `${admin()} didn't approve this request. Ask ${adminIn()} in person, or try another way.`;
+            status.classList.add("bad");
+            return;
+          }
+          if (s.status === "expired" || s.status === "used") {
+            status.textContent = "This request has ended. Send a new one if you still need it.";
+            status.classList.add("bad");
+            return;
+          }
+        } catch {}
+        // (hidden tab: ask less often)
+        polling = setTimeout(tick, document.hidden ? 15000 : 4000);
+      };
+      polling = setTimeout(tick, 4000);
+    };
+
+    const codeView = (ctx = {}) => {
+      const formErr = formError();
+      const who = ctx.profile ? null : field({ key: "identifier", label: "Username or email", autocomplete: "username", maxlength: "80", value: ctx.identifier || "", required: true, enterkeyhint: "next" });
+      const code = field({ key: "code", label: "Reset code", autocomplete: "one-time-code", maxlength: "12", help: "8 letters and numbers, like K7M4-Q2PX.", autocapitalize: "characters", required: true, enterkeyhint: "go" });
+      code.input.classList.add("af-code");
+      if (who) who.input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); code.focus(); } });
+      const btn = primaryButton("Continue", "Checking…");
+      const send = async () => {
+        formErr.clear();
+        if (who && !who.value().trim()) { who.setError("Enter your username or email."); return who.focus(); }
+        if (!code.value().trim()) { code.setError("Enter the reset code."); return code.focus(); }
+        btn.busy(true);
+        try {
+          const r = ctx.profile
+            ? await api.resetWithCodeFor(ctx.profile.id, code.value())
+            : await api.resetWithCode(who.value().trim(), code.value());
+          newPasswordView({ token: r.token, name: r.name, via: "code" });
+        } catch (e) {
+          placeError(e, [who, code], formErr);
+        } finally {
+          btn.busy(false);
+        }
+      };
+      setView([
+        title("Enter your reset code"),
+        lede(`${admin()} can give you a code from the admin page. It works once, for 30 minutes.`),
+        form(send, who && who.wrap, code.wrap, formErr, btn),
+        el("p", { class: "auth-foot" }, back("Other ways to reset", () => forgotView(ctx))),
+      ], who && !who.value() ? who.input : code.input);
+    };
+
+    const emailView = (ctx = {}) => {
+      const formErr = formError();
+      const who = field({ key: "identifier", label: "Username or email", autocomplete: "username", maxlength: "80", value: ctx.identifier || "", required: true, enterkeyhint: "send" });
+      const btn = primaryButton("Email me a link", "Sending…");
+      const send = async () => {
+        formErr.clear();
+        if (!who.value().trim()) { who.setError("Enter your username or email."); return who.focus(); }
+        btn.busy(true);
+        try {
+          await api.resetEmail(who.value().trim());
+          setView([
+            title("Check your email"),
+            lede("If that name has an email on its profile, a link to reset the password is on its way. It works for 30 minutes."),
+            el("p", { class: "auth-foot" }, back("Back to sign in", () => signinView())),
+          ], null);
+        } catch (e) {
+          placeError(e, [who], formErr);
+        } finally {
+          btn.busy(false);
+        }
+      };
+      setView([
+        title("Email me a link"),
+        lede("We'll send a link to the email on your profile."),
+        form(send, who.wrap, formErr, btn),
+        el("p", { class: "auth-foot" }, back("Other ways to reset", () => forgotView(ctx))),
+      ], who.input);
+    };
+
+    // The last step of every reset: the new password, then signed in.
+    const newPasswordView = ({ token, name, via }) => {
+      const formErr = formError();
+      const pw = passwordField({ key: "newPassword", label: "New password", autocomplete: "new-password", isNew: true, personal: () => [name], required: true, enterkeyhint: "next" });
+      const pw2 = passwordField({ key: "confirm", label: "Confirm password", autocomplete: "new-password", required: true, enterkeyhint: "go" });
+      // (a hidden username field: password managers save the new password against it)
+      const hiddenUser = el("input", { type: "text", name: "username", autocomplete: "username", value: name || "", hidden: true, "aria-hidden": "true", tabindex: "-1" });
+      const others = el("input", { type: "checkbox", id: "af-signout-others", class: "focusable", checked: true });
+      const othersRow = el("label", { class: "auth-check", for: "af-signout-others" }, others, el("span", {}, "Sign out of all other devices"));
+      const btn = primaryButton("Save and sign in", "Saving…");
+      pw.input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); pw2.focus(); } });
+      const send = async () => {
+        formErr.clear();
+        const bad = passwordProblem(pw.value());
+        if (bad) { pw.setError(bad); return pw.focus(); }
+        if (pw.value() !== pw2.value()) { pw2.setError("The passwords don't match."); return pw2.focus(); }
+        btn.busy(true);
+        try {
+          const res = await api.resetComplete(token, pw.value(), others.checked);
+          toast("New password saved. You're signed in.", "✅");
+          done(res, pw.value());
+        } catch (e) {
+          if (e && e.status === 410) {
+            formErr.show(cap(e.message || "This reset has expired. Start again."));
+          } else {
+            placeError(e, [pw, pw2], formErr);
+          }
+        } finally {
+          btn.busy(false);
+        }
+      };
+      setView([
+        title("Choose a new password"),
+        lede(name ? `For “${name}”.${via === "google" ? " Google confirmed it's you." : ""}` : ""),
+        form(send, hiddenUser, pw.wrap, pw2.wrap, othersRow, formErr, btn),
+        el("p", { class: "auth-foot" }, back("Cancel", () => (opts.view === "reset" || opts.view === "forgot" ? (cleanup(), resolve(null)) : signinView()))),
+      ], pw.input);
+    };
+
+    // An emailed link (#/reset/<token>): check it, then the new password.
+    const linkView = async (token) => {
+      setView([title("Reset your password"), lede("Checking the link…")], null);
+      try {
+        const r = await api.resetCheck(token);
+        newPasswordView({ token, name: r.name, via: "email" });
+      } catch (e) {
+        setView([
+          title("This link has expired"),
+          lede(cap((e && e.message) || "This reset link has expired or was already used. Ask for a new one.")),
+          el("p", { class: "auth-foot" }, back("Other ways to reset", () => forgotView())),
+        ], null);
+      }
     };
 
     // ---------------- Google device flow ----------------
     // purpose "login": a known Google identity signs its profile straight in;
-    // an unknown one rolls into a prefilled access request. purpose "signup":
-    // verify the identity for the request form.
+    // an unknown one rolls into a prefilled access request. "signup": verify
+    // the identity for the request form. "reset": a reset token.
     const googleView = async ({ purpose }) => {
-      setView([
-        el("h2", { class: "lhead" }, "Google sign-in"),
-        el("p", { class: "lsub" }, "Getting a code from Google…"),
-      ]);
+      const backTo = () => (purpose === "signup" ? signupView() : purpose === "reset" ? forgotView() : signinView());
+      setView([title("Continue with Google"), lede("Getting a code from Google…")], null);
       let start;
       try {
-        start = await api.googleStart();
+        start = await api.googleStartFor(purpose === "login" ? "signin" : purpose);
       } catch (e) {
-        toast(e.message || "Couldn't reach Google.", "🙃");
-        return purpose === "signup" ? signupView() : signinView();
+        toast(cap(e.message || "Couldn't reach Google."), "!");
+        return backTo();
       }
       let cancelled = false;
       const poll = async () => {
         if (cancelled || !wrap.isConnected) return;
         try {
           const r = await api.googlePoll(start.pollId);
+          if (r.ok && r.reset) return newPasswordView({ token: r.reset.token, name: r.reset.name, via: "google" });
           if (r.ok && r.user) return done(r); // known identity → signed in
           if (r.ok && r.signup) {
             // verified but unknown → a prefilled access request
             return signupView({ pollId: start.pollId, email: r.signup.email, name: r.signup.name });
           }
           if (r.ok) {
-            toast("You're already signed in in another tab — reload.", "🙃");
+            toast("You're already signed in in another tab. Reload this one.", "!");
             return signinView();
           }
         } catch (e) {
-          toast(e.message || "Google sign-in failed.", "🙃");
-          return purpose === "signup" ? signupView() : signinView();
+          toast(cap(e.message || "Google sign-in didn't work."), "!");
+          return backTo();
         }
         setTimeout(poll, 3000);
       };
       setTimeout(poll, 3000);
 
+      const nevermind = back("Cancel", () => { cancelled = true; backTo(); });
       setView([
-        el("h2", { class: "lhead" }, "Google sign-in"),
-        el("p", { class: "lsub" }, "On your phone (or any device), open",
-          el("a", {
-            class: "llink", style: { margin: "0 5px" },
-            href: start.verificationUrl, target: "_blank", rel: "noopener",
-          }, start.verificationUrl.replace(/^https?:\/\//, "")),
-          "and enter this code:"),
-        el("div", { class: "lcode" },
-          [...String(start.userCode)].map((ch) => el("span", { class: ch === "-" ? "sep" : "" }, ch))),
-        el("div", { class: "lwait" }, el("span", { class: "lwait-dot" }), "Waiting for Google — this screen finishes by itself."),
-        el("div", { class: "lfoot" },
-          el("button", {
-            class: "llink focusable",
-            onclick: () => { cancelled = true; purpose === "signup" ? signupView() : signinView(); },
-          }, "← Never mind")),
-      ]);
+        title("Continue with Google"),
+        lede("On your phone or any device, open ",
+          el("a", { class: "auth-link", href: start.verificationUrl, target: "_blank", rel: "noopener" }, start.verificationUrl.replace(/^https?:\/\//, "")),
+          " and enter this code:"),
+        el("div", { class: "auth-code", "aria-label": `Code ${start.userCode}` },
+          [...String(start.userCode)].map((ch) => el("span", { class: ch === "-" ? "sep" : "", "aria-hidden": "true" }, ch))),
+        el("p", { class: "auth-wait", role: "status" }, el("span", { class: "auth-wait-dot", "aria-hidden": "true" }), "Waiting for Google. This screen continues by itself."),
+        el("p", { class: "auth-foot" }, nevermind),
+      ], nevermind);
     };
 
     if (opts.view === "signup") signupView();
+    else if (opts.view === "forgot") forgotView({ profile: opts.profile || null });
+    else if (opts.view === "reset" && opts.token) linkView(opts.token);
     else signinView();
     document.body.append(wrap);
     // the painter checks canvas.isConnected — start it only once it's real

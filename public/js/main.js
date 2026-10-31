@@ -771,7 +771,7 @@ const raiseResetWall = async () => {
   try {
     const me = await api.me(state.token || undefined);
     if (!me.passwordResetRequired || !me.resetProfile) return;
-    await showResetWall({ profile: me.resetProfile, token: state.token });
+    await showResetWall({ profile: me.resetProfile, token: state.token, passwordSetup: !!me.passwordSetup });
     location.reload();
   } catch {
     // no answer: nothing is known — the next refusal asks again
@@ -813,11 +813,22 @@ const boot = async () => {
       // Saved: this tab holds fresh credentials (the token is kept where an
       // unlock keeps it, the profile is the remembered one) and boot goes on
       // as for any returning tab. "Sign out" reloads instead.
-      const fresh = await showResetWall({ profile: me.resetProfile, token: remembered });
+      const fresh = await showResetWall({ profile: me.resetProfile, token: remembered, passwordSetup: !!me.passwordSetup });
       state.user = fresh.user || null;
       setAuthToken(null); // boot attaches it again when it enters the profile
     }
     booted = true;
+    // An emailed reset link (#/reset/<token>, auth-round): the new-password
+    // step first, in every sign-in mode; once saved, this tab is signed in.
+    const link = /^#\/reset\/([A-Za-z0-9_-]{20,200})$/.exec(location.hash || "");
+    if (link) {
+      try { history.replaceState(history.state, "", "#/"); } catch {}
+      const res = await showLoginScreen({ view: "reset", token: link[1] });
+      if (res && res.profile) {
+        state.user = res.user || null;
+        loginEntry = res;
+      }
+    }
     if (state.authMode === "closed" && !state.user) {
       // No sign-in on a server that requires one: until somebody is in again
       // the next load asks nothing early as the remembered profile (it would

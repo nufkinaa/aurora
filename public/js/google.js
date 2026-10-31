@@ -10,7 +10,9 @@ import { api } from "./api.js";
 export const googleFlavor = (info) => {
   if (!info) return null;
   const ipHost = /^(\d{1,3}\.){3}\d{1,3}$/.test(location.hostname);
-  if (info.googleWeb && !ipHost) return "web";
+  // (googleApp: the server says its web sign-in can come back to this
+  // address — a real domain, or a private test instance's stand-in)
+  if (info.googleWeb && (!ipHost || info.googleApp)) return "web";
   if (info.googleDevice) return "device";
   return null;
 };

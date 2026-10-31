@@ -194,13 +194,19 @@ test("approval refuses a username claimed while the request waited", async () =>
   profiles.rejectRequest(r.request.id);
 });
 
-test("google-only signup request needs no password; sub uniqueness enforced", async () => {
-  const r = await profiles.requestProfile({
+test("a Google signup request needs a password too (auth-round); sub uniqueness enforced", async () => {
+  const none = await profiles.requestProfile({
     name: "Googler", googleSub: "sub-123", googleEmail: "g@example.com",
   });
-  assert.equal(r.ok, true, "no password needed with a verified Google identity");
+  assert.deepEqual([none.error, none.field, none.code], ["Use at least 4 characters.", "password", "short"], "no password, no request — Google or not");
+  const short = await profiles.requestProfile({ name: "Googler", googleSub: "sub-123", password: "abc" });
+  assert.equal(short.code, "short");
+  const r = await profiles.requestProfile({
+    name: "Googler", googleSub: "sub-123", googleEmail: "g@example.com", password: "goog-pass",
+  });
+  assert.equal(r.ok, true);
   const p = profiles.approveRequest(r.request.id);
-  assert.equal(p.hasPassword, false);
+  assert.equal(p.hasPassword, true, "the approved Google profile has its own password");
   assert.equal(profiles.byGoogleSub("sub-123").name, "Googler");
   assert.equal(profiles.isClaimed(profiles.byGoogleSub("sub-123")), true);
   const again = await profiles.requestProfile({ name: "Googler2", googleSub: "sub-123" });

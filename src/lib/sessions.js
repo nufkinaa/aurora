@@ -18,7 +18,12 @@ const TOUCH_EVERY_MS = 5 * 60 * 1000;
 
 const hash = (sid) => crypto.createHash("sha256").update(sid).digest("hex");
 
-const create = (profileId, { device = null, ip = null } = {}) => {
+// `kind` (auth-round): "web" | "phone" | "tv" — what asked for it (authz.appKind).
+// `via`: how the person proved who they are — "password", "google", "claim",
+// "reset", "pair" (a TV handed a phone's sign-in), "unlock". Both decide whether
+// this session may later change the password WITHOUT the old one
+// (authz.trustedForReset); neither is ever shown as a secret.
+const create = (profileId, { device = null, ip = null, kind = null, via = null } = {}) => {
   const sid = crypto.randomBytes(32).toString("hex");
   const now = Date.now();
   store.data[hash(sid)] = {
@@ -28,6 +33,8 @@ const create = (profileId, { device = null, ip = null } = {}) => {
     expiresAt: now + TTL_MS,
     device,
     ip,
+    ...(kind ? { kind } : {}),
+    ...(via ? { via } : {}),
   };
   prune();
   store.save();
@@ -95,6 +102,18 @@ const revokeAllFor = (profileId, { remember = false } = {}) => {
   return n;
 };
 
+// Every session of a profile but one (the device that just changed the
+// password keeps its own). -> how many ended.
+const revokeAllExcept = (profileId, keepSid) => {
+  const keep = keepSid ? (keepSid.length === 64 && store.data[keepSid] ? keepSid : hash(keepSid)) : null;
+  let n = 0;
+  for (const [key, row] of Object.entries(store.data)) {
+    if (row.profileId === profileId && key !== keep) { delete store.data[key]; ended.set(key, Date.now()); n++; }
+  }
+  if (n) store.save();
+  return n;
+};
+
 // "Sessions on my account": safe rows only — the key is exposed as the
 // revocation handle (it's the sha256, not the usable sid).
 const listFor = (profileId) =>
@@ -116,4 +135,4 @@ const prune = () => {
   }
 };
 
-module.exports = { create, get, revoke, revokeAllFor, wasEnded, listFor, _internals: { hash, store, TTL_MS, prune, ended } };
+module.exports = { create, get, revoke, revokeAllFor, revokeAllExcept, wasEnded, listFor, _internals: { hash, store, TTL_MS, prune, ended } };

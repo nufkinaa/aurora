@@ -126,7 +126,7 @@ const dropAll = (req, res = null, { end = false } = {}) => {
 // request (and end its session): call it before reading the session.
 const restrictedProfile = (req, res = null) => {
   // (a household with no reset pending pays one array scan and no more)
-  if (!profiles.list().some((p) => p.mustReset)) return null;
+  if (!profiles.list().some((p) => p.mustReset || p.mustSetPassword)) return null;
   const c = read(req);
   for (const id of c.header) if (profiles.resetDue(id)) return id;
   const cookieDue = !!c.cookie && profiles.resetDue(c.cookie);
@@ -140,7 +140,7 @@ const restrictedProfile = (req, res = null) => {
 // As that profile: the way to a new password, and out.
 const allowedWhileRestricted = (req, id) => {
   const p = req.path;
-  if (req.method === "GET") return /^\/api\/(ping|me|server-info)$/.test(p);
+  if (req.method === "GET") return /^\/api\/(ping|me|server-info|auth\/password\/options)$/.test(p);
   if (req.method !== "POST") return false;
   if (p === "/api/auth/logout" || p === "/api/auth/password") return true;
   const m = /^\/api\/profiles\/([^/]+)\/password$/.exec(p);
@@ -153,8 +153,8 @@ const allowedWhileRestricted = (req, id) => {
 // acts with a session), ask for a profile, the wall's list and its unlock
 // with the faces on it, and the kids lock.
 const SIGN_IN_AGAIN = [
-  ["POST", /^\/api\/auth\/(login|signup|google\/(start|poll|web-finish)|device\/(start|poll))$/],
-  ["GET", /^\/api\/auth\/(google\/(web-start|web-callback)|device\/describe\/[^/]+)$/],
+  ["POST", /^\/api\/auth\/(login|signup|google\/(start|poll|web-finish|app-finish)|device\/(start|poll)|reset\/(request|status|code|email|check|complete))$/],
+  ["GET", /^\/api\/auth\/(google\/(web-start|web-callback|app-start)|device\/describe\/[^/]+|reset\/options)$/],
   ["GET", /^\/api\/(profiles|kids\/status)$/],
   ["POST", /^\/api\/(profiles\/[^/]+\/unlock|kids\/(enter|exit))$/],
   ["GET", /^\/avatars\//],

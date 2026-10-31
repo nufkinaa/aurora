@@ -62,7 +62,47 @@ const sessionFor = (req) => {
   if (!row) return null;
   const p = profiles.list().find((x) => x.id === row.profileId);
   if (!p || p.locked) return null; // a locked profile's sessions are dead air
-  return { profile: p, user: profiles.signinPub(p), sessionKey: row.key };
+  return {
+    profile: p, user: profiles.signinPub(p), sessionKey: row.key,
+    // (auth-round) how and where this session began — trustedForReset reads them
+    kind: row.kind || null, via: row.via || null, createdAt: row.createdAt || 0, device: row.device || null,
+  };
+};
+
+// What asked (auth-round): the apps say so in X-Aurora-App; a browser is a
+// browser by its user agent; anything else (an app build from before this
+// round, a script) counts as a TV — the most careful answer.
+const appKind = (req) => {
+  const h = String((req.headers && req.headers["x-aurora-app"]) || "").toLowerCase();
+  if (h === "phone" || h === "tv") return h;
+  return /mozilla\//i.test(String((req.headers && req.headers["user-agent"]) || "")) ? "web" : "tv";
+};
+
+// May this signed-in session set a new password WITHOUT the current one?
+// (elia's "reset from a device where you're still signed in"). Yes when:
+//   - the person proved who they are on THIS device a moment ago (a sign-in
+//     with a password, Google, a claim or a reset, under RECENT_PROOF_MS) —
+//     any device, the TV included: they are standing at it; or
+//   - it is their own phone app or browser (never a TV: a shared screen in a
+//     living room), signed in by them (not a TV pairing) within the last
+//     TRUSTED_DAYS days.
+// Never a kids profile (a child may not change the profile's password).
+// -> { ok, why } — `why` names the reason it is refused, for the client's words.
+const RECENT_PROOF_MS = 10 * 60 * 1000;
+const TRUSTED_DAYS = 30;
+const PROOFS = new Set(["password", "google", "claim", "reset", "unlock"]);
+const trustedForReset = (s, now = Date.now()) => {
+  if (!s) return { ok: false, why: "signed-out" };
+  if (profiles.kidsOf && profiles.kidsOf(s.profile.id)) return { ok: false, why: "kids" };
+  const age = now - (s.createdAt || 0);
+  if (PROOFS.has(s.via) && age < RECENT_PROOF_MS) return { ok: true, why: "recent" };
+  // sessions from before this round carry no kind: a real browser's user
+  // agent (device.browser) is the one sign they were a browser's
+  const kind = s.kind || (s.device && s.device.browser && s.device.browser !== "Other" ? "web" : "tv");
+  if (kind === "tv") return { ok: false, why: "tv" };
+  if (s.via === "pair") return { ok: false, why: "paired" };
+  if (age > TRUSTED_DAYS * 24 * 3600 * 1000) return { ok: false, why: "old" };
+  return { ok: true, why: "trusted" };
 };
 
 // May this request touch this profile's data? Only "closed" mode adds the
@@ -75,6 +115,7 @@ const profileAllowed = (req, profileId) => {
 };
 
 module.exports = {
+  appKind, trustedForReset, RECENT_PROOF_MS, TRUSTED_DAYS,
   COOKIE,
   isHttps,
   readCookie,

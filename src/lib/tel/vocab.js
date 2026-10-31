@@ -111,7 +111,8 @@ const SEGMENTS = new Set((
   "latest " + // a release's file by name (/download/:id/latest — lib/releases.js)
   "phone phone-app .well-known " + // the phone app (/download/phone, /api/admin/phone-app, /.well-known/assetlinks.json)
   "caps play " + // what a device can play (/api/caps, /api/caps/:id/play/:itemId — routes/avcaps.js)
-  "uploads chunk retry " + // admin "Add your own file" (/api/admin/uploads, …/link, …/:id/chunk, …/cancel, …/retry, …/dismiss)
+  "uploads chunk retry " +
+  "reset request code check complete reset-requests reset-code app-start app-finish " + // sign-in round: password reset, the phone's Google (routes/auth.js) // admin "Add your own file" (/api/admin/uploads, …/link, …/:id/chunk, …/cancel, …/retry, …/dismiss)
   ".m3u8 .ts .m4s .mp4 .mkv .webm .vtt .srt .jpg .jpeg .png .webp .avif .svg .gif .ico .js .css .json .html .txt .apk .woff2 .webmanifest " +
   "?a ?blur ?caps ?from ?key ?category ?code ?days ?duration ?episode ?error ?fmt ?force ?genre ?head ?hevc ?imdbid ?intent ?itemid ?k ?kb ?keys ?limit ?page ?profile ?pw " +
   "?n ?part ?offset ?queued ?q ?season ?seek ?seg ?slim ?state ?t ?title ?tmdbid ?type ?u ?url ?v ?vtag ?w ?h ?y ?year ?r"

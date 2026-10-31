@@ -144,6 +144,11 @@ app.use(require("./src/lib/nobuffer").middleware);
   app.use((req, res, next) => (req.path.startsWith("/api/auth/") ? jsonSmall : jsonDefault)(req, res, next));
 }
 
+// A stand-in for Google's sign-in pages, on PRIVATE TEST INSTANCES ONLY
+// (auth-round): lib/googlemock.js lists the six conditions, every one of
+// which a real server fails. Nothing is mounted otherwise.
+if (require("./src/lib/googlemock").active()) app.use(require("./src/lib/googlemock").router());
+
 // Gzip/deflate for text payloads. Measured on this library (35 titles):
 // /api/home 1,060,613 B -> 174,613 B, /api/library 249,107 -> 39,875, the five
 // stylesheets 92 KB -> ~18 KB, the eager module graph 260 KB -> ~70 KB. Nothing

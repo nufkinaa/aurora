@@ -77,7 +77,7 @@ test("every entry is well formed: a unique id, a family, a glyph, and what its k
 test("states: a file is 'soon' until it exists, then 'available' with its version, size, date and name", { skip: !haveApk && "no APK in public/" }, async () => {
   const root = tmpRoot();
   try {
-    const entry = { id: "tv", name: "Android TV", family: "tv", icon: "android-tv", for: ["tv"], kind: "file", file: "public/aurora-tv.apk", read: "apk", filename: "Aurora-TV-{version}.apk", action: "Download" };
+    const entry = { id: "tv", name: "Android TV", family: "tv", icon: "android-tv", for: ["tv"], kind: "file", file: "public/aurora-tv.apk", read: "apk", dated: "changelog", filename: "Aurora-TV-{version}.apk", action: "Download" };
     let r = releases.resolve(entry, { root });
     assert.equal(r.state, "soon");
     assert.equal(r.href, null);

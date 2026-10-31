@@ -34,15 +34,16 @@ const WALL_401 = /Failed to load resource.*401/;
 
 const loginCard = ".login-card";
 const signInWith = async (page, username, password) => {
-  await page.waitForSelector(`${loginCard} input[placeholder="Username or email"]`);
-  await page.fill(`${loginCard} input[placeholder="Username or email"]`, username);
-  await page.fill(`${loginCard} input[placeholder="Password"]`, password);
-  await page.click(`${loginCard} .lbtn.primary`);
+  await page.waitForSelector(`${loginCard} input[name="identifier"]`);
+  await page.fill(`${loginCard} input[name="identifier"]`, username);
+  await page.fill(`${loginCard} input[name="password"]`, password);
+  await page.click(`${loginCard} .af-btn.primary`);
 };
 
 // ---------- the forced password reset: a screen that cannot be got round ----------
 const wall = ".reset-wall";
-const wallButtons = (page) => page.evaluate(() => [...document.querySelectorAll(".reset-wall button")].map((b) => b.textContent.trim()));
+// (the Show / Hide buttons on the password fields are not the screen's actions)
+const wallButtons = (page) => page.evaluate(() => [...document.querySelectorAll(".reset-wall button:not(.af-reveal)")].map((b) => b.textContent.trim()));
 // Everything a person can try to make the screen go away. None of it may.
 const tryToDismiss = async (page) => {
   await page.keyboard.press("Escape");            // in a field: leaves the field
@@ -54,7 +55,7 @@ const tryToDismiss = async (page) => {
   await page.evaluate(() => history.back());      // the browser's Back button
   await page.waitForTimeout(400);
   assert.equal(await page.locator(wall).count(), 1, "the screen is still there");
-  assert.equal(await page.locator(`${wall} .modal`).isVisible(), true);
+  assert.equal(await page.locator(`${wall} .auth-panel`).isVisible(), true);
   // nothing of the app can be reached behind it
   assert.equal(await page.evaluate(() => {
     const top = document.elementFromPoint(640, 30);
@@ -69,7 +70,7 @@ const refusedInPage = (page, url, token = null) => page.evaluate(async ({ url, t
 const RESET_401 = /Failed to load resource.*401/;
 
 ui.test("sign-in required: a forced reset blocks everything after signing in — no way round it, a reload and a deep link come back to it, and saving it lets the tab in", {
-  allow: [WALL_401],
+  allow: [WALL_401, /status of 400.*\/api\/auth\/password/],
 }, async ({ page, goto, api, srv, profiles }) => {
   const p = profiles.reset;
   const forced = await api.adminPost(`/api/admin/profiles/${p.id}/force-reset`, { on: true });
@@ -80,10 +81,10 @@ ui.test("sign-in required: a forced reset blocks everything after signing in —
     await signInWith(page, p.username, p.password);
 
     await page.waitForSelector(wall);
-    assert.match(await page.textContent(`${wall} h2`), /Pick a new password/);
+    assert.match(await page.textContent(`${wall} h1`), /Choose a new password/);
     assert.match(await page.textContent(`${wall} .reset-wall-why`), /signed out everywhere/);
     // two things on offer, and no way to close it
-    assert.deepEqual(await wallButtons(page), ["Set new password", "Sign out"]);
+    assert.deepEqual(await wallButtons(page), ["Save new password", "Sign out"]);
     // the password was typed a moment ago: it is not asked for again
     assert.equal(await page.locator(`${wall} input[type="password"]`).count(), 2);
     // the app is not up behind it: nothing was entered
@@ -94,13 +95,16 @@ ui.test("sign-in required: a forced reset blocks everything after signing in —
     }
     await tryToDismiss(page);
 
-    // a reload: the same screen (now it has to ask for the current password), not the sign-in screen, not the app
+    // a reload: the same screen, not the sign-in screen, not the app. This
+    // browser signed in with the password moments ago, so the server lets it
+    // save without the current one (auth-round: /api/auth/password/options) —
+    // a sign-in that is NOT that fresh is asked for it (the wall tests below).
     await page.reload();
     await page.waitForSelector(wall);
     assert.equal(await page.locator(loginCard).count(), 0);
     assert.equal(await page.locator("#app .screen").count(), 0);
-    assert.equal(await page.locator(`${wall} input[placeholder="Current password"]`).count(), 1);
-    assert.deepEqual(await wallButtons(page), ["Set new password", "Sign out"]);
+    await page.waitForFunction(() => !document.querySelector('.reset-wall input[name="currentPassword"]'));
+    assert.deepEqual(await wallButtons(page), ["Save new password", "Sign out"]);
     // a deep link, opened cold
     await page.goto(`${srv.url}/#/movie/${srv.lib.film1.id}`);
     await page.waitForSelector(wall);
@@ -108,17 +112,14 @@ ui.test("sign-in required: a forced reset blocks everything after signing in —
     await tryToDismiss(page);
 
     // what it refuses to save
-    const cur = page.locator(`${wall} input[placeholder="Current password"]`);
-    const fresh = page.locator(`${wall} input[placeholder^="New password"]`);
-    const again = page.locator(`${wall} input[placeholder="Once more"]`);
-    const save = page.locator(`${wall} button:has-text("Set new password")`);
-    const says = (text) => page.locator(`${wall} .pw-error`, { hasText: text }).waitFor();
-    await save.click();
-    await says("current password first");
-    await cur.fill(p.password);
+    await page.waitForFunction(() => !document.querySelector('.reset-wall input[name="currentPassword"]'));
+    const fresh = page.locator(`${wall} input[name="newPassword"]`);
+    const again = page.locator(`${wall} input[name="confirm"]`);
+    const save = page.locator(`${wall} button:has-text("Save new password")`);
+    const says = (text) => page.locator(`${wall} .af-field.invalid .af-msg, ${wall} .af-formerr`, { hasText: text }).waitFor();
     await fresh.fill("abc");
     await save.click();
-    await says("At least 4");
+    await says("at least 4");
     await fresh.fill("fresh-pass-1");
     await again.fill("fresh-pass-2");
     await save.click();
@@ -127,15 +128,12 @@ ui.test("sign-in required: a forced reset blocks everything after signing in —
     await again.fill(p.password);
     await save.click();
     await says("old password");
-    await cur.fill("not-my-password");
-    await fresh.fill("fresh-pass-1");
-    await again.fill("fresh-pass-1");
-    await save.click();
-    await says("not the current password");
+    assert.equal(await fresh.inputValue(), p.password, "a refusal never clears what was typed");
     assert.equal((await api.adminGet("/api/admin/people")).people.find((x) => x.id === p.id).mustReset, true, "still pending");
 
     // and what it saves: straight into the app, no sign-in screen, no wall
-    await cur.fill(p.password);
+    await fresh.fill("fresh-pass-1");
+    await again.fill("fresh-pass-1");
     await save.click();
     await page.waitForSelector(wall, { state: "detached" });
     await page.waitForFunction(() => document.getElementById("toasts").innerText.includes("New password saved"));
@@ -197,7 +195,7 @@ ui.test("the wall: unlocking a profile that owes a new password meets the same s
   await page.fill('.modal input[type="password"]', p.password);
   await page.click('.modal button:has-text("Unlock")');
   await page.waitForSelector(wall);
-  assert.deepEqual(await wallButtons(page), ["Set new password", "Sign out"]);
+  assert.deepEqual(await wallButtons(page), ["Save new password", "Sign out"]);
   assert.equal(await page.locator('a[href="/install"]').count(), 0, "the reset screen has no Get the apps");
   assert.equal(await page.locator(`${wall} input[type="password"]`).count(), 2, "the password just typed is not asked for again");
   assert.equal(await page.locator("#app .screen").count(), 0, "the profile was not entered");
@@ -214,12 +212,12 @@ ui.test("the wall: unlocking a profile that owes a new password meets the same s
   await page.waitForSelector(wall);
   assert.equal(await page.locator(".profiles-gate").count(), 0);
   assert.equal(await page.locator("#app .screen").count(), 0);
-  assert.equal(await page.locator(`${wall} input[placeholder="Current password"]`).count(), 1);
+  assert.equal(await page.locator(`${wall} input[name="currentPassword"]`).count(), 1);
 
-  await page.fill(`${wall} input[placeholder="Current password"]`, p.password);
-  await page.fill(`${wall} input[placeholder^="New password"]`, "walled-new-1");
-  await page.fill(`${wall} input[placeholder="Once more"]`, "walled-new-1");
-  await page.click(`${wall} button:has-text("Set new password")`);
+  await page.fill(`${wall} input[name="currentPassword"]`, p.password);
+  await page.fill(`${wall} input[name="newPassword"]`, "walled-new-1");
+  await page.fill(`${wall} input[name="confirm"]`, "walled-new-1");
+  await page.click(`${wall} button:has-text("Save new password")`);
   await page.waitForSelector(wall, { state: "detached" });
   await page.waitForFunction(() => document.getElementById("toasts").innerText.includes("New password saved"));
   p.password = "walled-new-1";
@@ -317,9 +315,9 @@ ui.test("a refusal that says a new password is due raises the screen over a runn
   }));
   await goto("#/list", { wait: false });
   await page.waitForSelector(wall);
-  assert.deepEqual(await wallButtons(page), ["Set new password", "Sign out"]);
+  assert.deepEqual(await wallButtons(page), ["Save new password", "Sign out"]);
   assert.match(await page.textContent(`${wall} .reset-wall-why`), new RegExp(p.name));
-  assert.equal(await page.locator(`${wall} input[placeholder="Current password"]`).count(), 1);
+  assert.equal(await page.locator(`${wall} input[name="currentPassword"]`).count(), 1);
   await tryToDismiss(page);
   // one screen, however many requests were refused
   await page.evaluate(() => { for (let i = 0; i < 4; i++) window.dispatchEvent(new CustomEvent("aurora-password-reset", { detail: {} })); });
@@ -456,7 +454,7 @@ ui.test("the server starts to require sign-in under an open tab: the tab goes to
 });
 
 // ---------- "Get the apps": the product page from the sign-in screen ----------
-const appsLink = `${loginCard} .lapps a`;
+const appsLink = `${loginCard} .auth-apps a`;
 const assertAppsLink = async (page, label) => {
   const a = page.locator(appsLink);
   assert.equal(await a.count(), 1, `${label}: one "Get the apps"`);
@@ -467,9 +465,9 @@ const assertAppsLink = async (page, label) => {
   // the last thing on the card: under the main button and its own links
   assert.equal(await page.evaluate((sel) => {
     const link = document.querySelector(sel);
-    const main = document.querySelector(".login-card .lbtn.primary");
+    const main = document.querySelector(".login-card .af-btn.primary");
     return link.getBoundingClientRect().top >= main.getBoundingClientRect().bottom
-      && link.closest(".lapps") === document.querySelector(".login-card").lastElementChild;
+      && link.closest(".auth-apps") === document.querySelector(".login-card").lastElementChild;
   }, appsLink), true, `${label}: at the foot of the card`);
 };
 
@@ -483,11 +481,11 @@ ui.test("sign-in required: the sign-in and request-access cards end with Get the
     await goto("#/", { wait: false });
     await page.waitForSelector(appsLink);
     await assertAppsLink(page, "sign in");
-    await page.click(`${loginCard} button:has-text("Request access")`);
-    await page.waitForSelector(`${loginCard} h2:has-text("Request access")`);
+    await page.click(`${loginCard} [role="tab"]:has-text("Request access")`);
+    await page.waitForSelector(`${loginCard} h1:has-text("Request access")`);
     await assertAppsLink(page, "request access");
-    await page.click(`${loginCard} button:has-text("Back to sign in")`);
-    await page.waitForSelector(`${loginCard} h2:has-text("Welcome back")`);
+    await page.click(`${loginCard} [role="tab"]:has-text("Sign in")`);
+    await page.waitForSelector(`${loginCard} h1:has-text("Sign in")`);
     await assertAppsLink(page, "back at sign in");
 
     // the forced reset that follows a sign-in: nothing but its own two buttons

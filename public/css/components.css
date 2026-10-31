@@ -1033,6 +1033,23 @@ html:not([data-look="glass"]) body:has(.player) #toasts {
 .pw-error.hidden {
   display: none;
 }
+/* "Forgot password?" under the wall's password (auth-round) */
+.pw-forgot {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #a9c6ff;
+  font: inherit;
+  font-size: 0.86rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+@media (pointer: coarse) { .pw-forgot { min-height: 44px; } }
 /* Explanatory line under a field (e.g. why a new profile needs a password) */
 .field-hint {
   color: var(--text-faint);
@@ -1629,28 +1646,8 @@ html[data-look="glass"] .peek-close { background: rgba(6, 8, 16, 0.6); box-shado
 /* ---------- "Pick a new password": the forced reset (resetwall.js) ----------
    Over everything but the toasts — sheets, the profile wall, the sign-in
    screen — and opaque: nothing of the app shows, or can be reached, behind it. */
-.reset-wall {
-  position: fixed;
-  inset: 0;
-  z-index: 390;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow-y: auto;
-  background: var(--bg);
-}
-.reset-wall-why {
-  margin: -8px 0 16px;
-}
-.reset-wall-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 22px;
-}
-.reset-wall-forgot {
-  margin-top: 16px;
-}
+/* (auth-round) it wears the sign-in screens' look: screens.css .login-wrap */
+.login-wrap.reset-wall { z-index: 390; }
 
 /* A card that took a newer answer's place on a shelf that is on screen
    (components.js patchShelf, via homeMerge.js): the same slot, the new card

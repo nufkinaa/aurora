@@ -144,10 +144,10 @@ ui.test("sign-in required: a start from the title page — the requests sent ahe
 
     // somebody: sign in (the cookie is all the page's media requests carry)
     await goto("#/", { wait: false });
-    await page.waitForSelector('.login-card input[placeholder="Username or email"]');
-    await page.fill('.login-card input[placeholder="Username or email"]', profiles.member.username);
-    await page.fill('.login-card input[placeholder="Password"]', profiles.member.password);
-    await page.click(".login-card .lbtn.primary");
+    await page.waitForSelector('.login-card input[name="identifier"]');
+    await page.fill('.login-card input[name="identifier"]', profiles.member.username);
+    await page.fill('.login-card input[name="password"]', profiles.member.password);
+    await page.click(".login-card .af-btn.primary");
     await page.waitForSelector("#app .screen");
     const seen = streams(page);
     const marks = player.marks(page);

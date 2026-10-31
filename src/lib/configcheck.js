@@ -64,6 +64,20 @@ const SCHEMA = {
     if (v.telegram != null && !(isObj(v.telegram) && typeof v.telegram.botToken === "string" && (typeof v.telegram.chatId === "string" || typeof v.telegram.chatId === "number"))) return 'telegram must be { "botToken": "…", "chatId": "…" }';
     return null;
   }, "no alerts are sent anywhere", true],
+  // ---- auth-round: password reset by email (lib/mailer.js), off unless set ----
+  publicUrl: [(v) => (typeof v === "string" && /^https?:\/\/[^/\s]+\/?$/.test(v) ? null : 'must be the address of the site in quotes: "https://example.com"'), "none: no emailed links"],
+  passwordReset: [(v) => {
+    if (!isObj(v)) return "must be an object { … }";
+    for (const k of Object.keys(v)) if (k !== "email") return `has "${k}": only "email" is read`;
+    const e = v.email;
+    if (e == null) return null;
+    if (!isObj(e)) return 'email must be { "enabled", "from", "provider", "smtp" }';
+    if (e.enabled != null && typeof e.enabled !== "boolean") return "email.enabled must be true or false";
+    if (e.provider != null && !["smtp", "resend"].includes(e.provider)) return 'email.provider must be "smtp" or "resend"';
+    if (e.smtp != null && !(isObj(e.smtp) && (e.smtp.port == null || Number.isInteger(numeric(e.smtp.port))))) return 'email.smtp must be { "host", "port", "user" } (the password goes in .env: AURORA_SMTP_PASSWORD)';
+    if (e.smtp && (e.smtp.pass != null || e.smtp.password != null)) return "the mail password goes in .env (AURORA_SMTP_PASSWORD), never in config.json";
+    return null;
+  }, "email reset off"],
   backupDir: [T.str, "data/backups"],
   backupMirrorDir: [T.str, "no second copy"],
   backups: [T.bool, "true"],

@@ -190,7 +190,7 @@ test("the places that count are wired: providers, refused sign-ins, connections,
     ["src/media/vibe.js", 'lib/upstream")'],
     ["src/media/similar.js", 'lib/upstream")'],
     ["src/media/ai.js", 'lib/upstream")'],
-    ["src/routes/auth.js", 'signals").hit("auth-fail"'],
+    ["src/lib/authlimit.js", 'signals").hit("auth-fail"'], // (routes/auth.js counts through it)
     ["src/routes/admin.js", 'signals").hit("auth-fail"'],
     ["src/realtime.js", 'signals").hit("ws", ip)'],
     ["src/media/jit.js", 'signals").hit("no-encoder"'],

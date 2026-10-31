@@ -808,6 +808,8 @@ router.get("/api/admin/people", (req, res) => {
       hasPassword: !!p.passwordHash,
       locked: !!p.locked,
       mustReset: profiles.resetDue(p.id), // a new password is due: nothing else works for them until it is saved
+      passwordSetup: profiles.setupDue(p.id), // ...a FIRST one (signs in with Google only) — auth-round
+      authLog: require("../lib/authlog").forProfile(p.id, 8), // resets, password changes (no secrets) — auth-round
       kids: profiles.kidsOf(p.id), // { maxAge } for a kids profile, else null
       lastSeen: rows.reduce((m, r) => Math.max(m, r.last || 0), 0) || null,
       ipCount: new Set(rows.map((r) => r.ip)).size,
@@ -837,6 +839,11 @@ router.get("/api/admin/people", (req, res) => {
     // what the PIN does and doesn't promise in this sign-in mode, in a sentence
     kidsScope: require("../lib/kids").scopeNote(require("../lib/authmode").get() === "closed"),
     requests: profiles.pendingList(),
+    // password resets people asked for (auth-round, lib/pwreset.js): only real profiles
+    resetRequests: require("../lib/pwreset").pendingForAdmin().map((r) => {
+      const p = profiles.list().find((x) => x.id === r.profileId);
+      return { id: r.id, profileId: r.profileId, name: p ? p.name : "?", note: r.note, requestedAt: r.requestedAt, ip: r.ip, device: r.device };
+    }),
     bans: Object.entries(bans).map(([ip, b]) => ({ ip, reason: (b && b.reason) || "", at: b && b.at })),
     clients: clients.map((c) => ({ ...c, names: [...(ipNames.get(c.ip) || [])] })),
     people,
@@ -877,6 +884,36 @@ router.post("/api/admin/profiles/:id/kick", (req, res) => {
   if (!p) return res.status(404).json({ error: "Not found" });
   const r = kickProfile(p, "Signed out by the admin");
   res.json({ ok: true, kicked: r.kicked, sessions: r.sessions });
+});
+
+// ---------- password resets people asked for (auth-round, lib/pwreset.js) ----------
+// Approve: the device that asked continues by itself (its ticket turns into a
+// reset token), and the admin is shown a one-time code to read out as well,
+// for when that screen was closed. Decline: the waiting screen says so.
+router.post("/api/admin/reset-requests/:id/approve", (req, res) => {
+  const pwreset = require("../lib/pwreset");
+  const r = pwreset.decide(req.params.id, true);
+  if (!r) return res.status(404).json({ error: "That request is gone (answered, expired or asked again)." });
+  const c = pwreset.issueCode(r.profileId);
+  require("../lib/authlog").add("reset-approved", { profileId: r.profileId, by: "admin" });
+  res.json({ ok: true, code: c.code, expiresAt: c.expiresAt });
+});
+router.post("/api/admin/reset-requests/:id/decline", (req, res) => {
+  const r = require("../lib/pwreset").decide(req.params.id, false);
+  if (!r) return res.status(404).json({ error: "That request is gone (answered, expired or asked again)." });
+  require("../lib/authlog").add("reset-declined", { profileId: r.profileId, by: "admin" });
+  res.json({ ok: true });
+});
+// A reset code without being asked (someone phoned the admin): 8 characters,
+// 30 minutes, single use; the person types it under "I have a reset code".
+router.post("/api/admin/profiles/:id/reset-code", (req, res) => {
+  const p = profiles.list().find((x) => x.id === req.params.id);
+  if (!p) return res.status(404).json({ error: "Not found" });
+  if (profiles.kidsOf(p.id)) return res.status(400).json({ error: "A kids profile: use Set password instead.", kidsProfile: true });
+  if (p.locked) return res.status(400).json({ error: "The profile is locked. Unlock it first." });
+  const c = require("../lib/pwreset").issueCode(p.id);
+  require("../lib/authlog").add("reset-code-given", { profileId: p.id, by: "admin" });
+  res.json({ ok: true, code: c.code, expiresAt: c.expiresAt });
 });
 
 // Force a new password. The profile is signed out everywhere at once

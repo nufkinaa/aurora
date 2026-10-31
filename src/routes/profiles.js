@@ -129,7 +129,7 @@ router.post("/api/profiles/:id/unlock", async (req, res) => {
       // wall unlock leaves a zombie row in the Preferences device list
       const old = require("../lib/authz").readCookie(req);
       if (old) sessions.revoke(old);
-      const sid = sessions.create(raw.id, whoIs(req));
+      const sid = sessions.create(raw.id, { ...whoIs(req), kind: require("../lib/authz").appKind(req), via: "unlock" });
       require("../lib/authz").setSessionCookie(req, res, sid);
       signin = { session: sid, user: profiles.signinPub(raw) };
     }

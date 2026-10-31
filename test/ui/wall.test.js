@@ -277,12 +277,12 @@ ui.test("a remembered open profile skips the wall", async ({ page, goto, signIn,
 ui.test("the wall's Add profile: the request-access card ends with Get the apps (/install)", async ({ page, goto }) => {
   await goto("#/", { wait: false });
   await page.click(`${gate} .profile-tile.add`);
-  const a = page.locator(".login-card .lapps a");
+  const a = page.locator(".login-card .auth-apps a");
   await a.waitFor();
   assert.equal((await a.textContent()).trim(), "Get the apps");
   assert.equal(await a.getAttribute("href"), "/install");
   assert.equal(await a.getAttribute("data-ui"), "signin.getapps");
-  assert.equal(await page.evaluate(() => document.querySelector(".login-card").lastElementChild.classList.contains("lapps")), true, "the last line of the card");
+  assert.equal(await page.evaluate(() => document.querySelector(".login-card").lastElementChild.classList.contains("auth-apps")), true, "the last line of the card");
   await page.click('.login-card button:has-text("Cancel")');
   await page.waitForSelector(".login-card", { state: "detached" });
   await page.waitForSelector(`${gate} .profile-tile.add`);

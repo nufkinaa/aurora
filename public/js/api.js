@@ -205,6 +205,10 @@ const json = async (url, options = {}, attempt = 0) => {
     err.status = res.status;
     if (body && body.pinRequired) err.pinRequired = true;
     if (body && body.code) err.code = body.code;
+    // (auth-round) which input the refusal belongs to, and a 429's wait in seconds
+    if (body && typeof body.field === "string") err.field = body.field;
+    if (body && typeof body.retryAfter === "number") err.retryAfter = body.retryAfter;
+    if (body && typeof body.why === "string") err.why = body.why;
     // A new password is due on the profile this tab is using (the admin's
     // "Reset password"): the server refuses everything until one is saved.
     // Read BEFORE `signinRequired` — the refusal carries both, the second for
@@ -451,6 +455,20 @@ export const api = {
   googleStart: () => post("/api/auth/google/start", {}),
   googlePoll: (pollId) => post("/api/auth/google/poll", { pollId }),
   googleLink: (pollId) => post("/api/auth/google/link", { pollId }),
+  // ---- auth-round: Google with a purpose, password reset (docs/auth-round.md) ----
+  googleStartFor: (intent) => post("/api/auth/google/start", { intent }),
+  resetOptions: () => json("/api/auth/reset/options"),
+  resetRequest: (identifier, note) => post("/api/auth/reset/request", { identifier, note }),
+  resetRequestFor: (profileId, note) => post("/api/auth/reset/request", { profileId, note }),
+  resetStatus: (ticket) => post("/api/auth/reset/status", { ticket }),
+  resetWithCode: (identifier, code) => post("/api/auth/reset/code", { identifier, code }),
+  resetWithCodeFor: (profileId, code) => post("/api/auth/reset/code", { profileId, code }),
+  resetEmail: (identifier) => post("/api/auth/reset/email", { identifier }),
+  resetCheck: (token) => post("/api/auth/reset/check", { token }),
+  resetComplete: (token, newPassword, signOutOthers = true) => post("/api/auth/reset/complete", { token, newPassword, signOutOthers }),
+  passwordOptions: () => json("/api/auth/password/options"),
+  changePassword: (newPassword, currentPassword, signOutOthers = false, clientId) =>
+    post("/api/auth/password", { newPassword, ...(currentPassword ? { currentPassword } : {}), signOutOthers, ...(clientId ? { clientId } : {}) }),
   suggest: (q, type, limit, { profileId = "", signal } = {}) =>
     json(
       `/api/search/suggest?v=2&q=${encodeURIComponent(q)}${type ? `&type=${type}` : ""}${limit ? `&limit=${limit}` : ""}` +

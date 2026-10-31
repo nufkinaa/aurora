@@ -198,7 +198,7 @@ const login = async (identifier, password) => {
     p && isClaimed(p) && p.passwordHash
       ? await verifyHash(password, p.passwordSalt, p.passwordHash)
       : (await hashPassword(String(password || "x")), false);
-  if (!ok) return { error: "wrong username or password" };
+  if (!ok) return { error: "That username and password don't match. Check them, or reset your password.", code: "wrong" };
   if (p.locked) return { error: `that profile is locked — talk to ${config.ADMIN_NAME}` };
   return { ok: true, profileId: p.id, user: signinPub(p), profile: pub(p), mustReset: resetDue(p.id) };
 };
@@ -231,13 +231,13 @@ const claimSignin = async ({ profileId, username, email, password }) => {
   if (e && !validEmail(e)) return { error: "that email doesn't look right" };
   if (e && emailTaken(e)) return { error: "that email is already in use" };
   if (!p.passwordHash) {
-    if (!password || String(password).length < 4) {
-      return { error: "password too short (4+ chars)" };
-    }
+    const bad = require("./lib/passrules").check(password);
+    if (bad) return bad;
     const { salt, hash } = await hashPassword(String(password));
     p.passwordHash = hash;
     p.passwordSalt = salt;
     delete p.mustReset; // a password picked just now is what a reset asks for (as in setPassword)
+    delete p.mustSetPassword;
   }
   p.username = uname;
   if (e) p.email = e;
@@ -277,9 +277,31 @@ const adminSetPassword = async (profileId, newPassword) => {
   p.passwordHash = hash;
   p.passwordSalt = salt;
   delete p.mustReset;
+  delete p.mustSetPassword;
   for (const [t, pid] of tokens) if (pid === profileId) tokens.delete(t);
   store.save();
   return { ok: true };
+};
+// (auth-round) A password set without the current one, after the person
+// proved who they are another way (a reset token, a trusted signed-in device:
+// routes/auth.js decides that, never this). The same as the admin's knob.
+const resetPassword = (profileId, newPassword) => adminSetPassword(profileId, newPassword);
+
+// (auth-round) A profile that signs in with Google ONLY owes a password: the
+// next Google sign-in sets this, and from then on its credentials are
+// restricted ones until a password is saved (resetDue below, lib/resetgate.js)
+// — elia: signing up with Google without a password "is not good at all".
+// Not for a kids profile (it could not meet it) or one that has a password.
+const requirePasswordSetup = (id) => {
+  const p = getRaw(id);
+  if (!p || p.passwordHash || (p.kids && typeof p.kids.maxAge === "number")) return false;
+  if (!p.mustSetPassword) { p.mustSetPassword = true; store.save(); }
+  return true;
+};
+// Is the password that is due a FIRST one (no password yet)?
+const setupDue = (id) => {
+  const p = getRaw(id);
+  return !!(p && p.mustSetPassword && !p.passwordHash && !(p.kids && typeof p.kids.maxAge === "number"));
 };
 
 // The admin panel's per-profile sign-in roster.
@@ -291,6 +313,7 @@ const signinList = () =>
     hasPassword: !!p.passwordHash,
     locked: !!p.locked,
     mustReset: resetDue(p.id),
+    passwordSetup: setupDue(p.id),
     claimedAt: p.claimedAt || null,
   }));
 
@@ -447,11 +470,18 @@ const verifyKidsPin = async (pin) => {
 // Verify a password and, on success, hand back an access token. Profiles with
 // no password unlock freely. An admin-locked profile never unlocks — not even
 // with the right password.
+// (auth-round) Is this the profile's current password? No token, no side effect.
+const checkPassword = async (id, password) => {
+  const p = getRaw(id);
+  return !!(p && p.passwordHash && (await verifyHash(password, p.passwordSalt, p.passwordHash)));
+};
+
 const unlock = async (id, password) => {
   const p = getRaw(id);
   if (!p) return { error: "not found" };
   if (p.locked) return { error: "locked by admin" };
-  if (!p.passwordHash) return { ok: true, token: issueToken(id), mustReset: false };
+  // (auth-round: a Google-only profile asked for a first password stays asked here too)
+  if (!p.passwordHash) return { ok: true, token: issueToken(id), mustReset: resetDue(id), ...(setupDue(id) ? { passwordSetup: true } : {}) };
   if (!(await verifyHash(password, p.passwordSalt, p.passwordHash))) {
     return { error: "wrong password" };
   }
@@ -518,7 +548,9 @@ const setMustReset = (id, on) => {
 // that is made a kids profile while a reset is pending stops owing it.
 const resetDue = (id) => {
   const p = getRaw(id);
-  return !!(p && p.mustReset && p.passwordHash && !(p.kids && typeof p.kids.maxAge === "number"));
+  if (!p || (p.kids && typeof p.kids.maxAge === "number")) return false;
+  // (auth-round) or a first password, owed by a Google-only profile
+  return !!((p.mustReset && p.passwordHash) || (p.mustSetPassword && !p.passwordHash));
 };
 // Admin "kick": every unlock token of this profile, gone. (Sign-in sessions
 // are lib/sessions' business; routes/admin.js revokes both.) `remember`:
@@ -599,9 +631,9 @@ const setPassword = async (id, newPassword, currentPassword) => {
   // A forced reset asks for a NEW password: not none, and not the old one
   // typed again (the old one may be the very thing that leaked).
   if (resetDue(id)) {
-    if (!newPassword) return { error: "pick a new password — this profile cannot go without one right now", code: "needed" };
+    if (!newPassword) return { error: "Choose a password. This profile can't be used without one now.", code: "needed", field: "newPassword" };
     if (await verifyHash(String(newPassword), p.passwordSalt, p.passwordHash)) {
-      return { error: "that is the old password — pick a different one", code: "same" };
+      return { error: "That's the old password. Choose a different one.", code: "same", field: "newPassword" };
     }
   }
   if (!newPassword) {
@@ -618,6 +650,7 @@ const setPassword = async (id, newPassword, currentPassword) => {
     p.passwordHash = hash;
     p.passwordSalt = salt;
     delete p.mustReset; // a fresh password is what the reset asked for
+    delete p.mustSetPassword;
     for (const [t, pid] of tokens) if (pid === id) tokens.delete(t); // invalidate old sessions
   }
   store.save();
@@ -661,25 +694,26 @@ const nameTaken = (name) => {
 // identity). Either way it's a REQUEST until the admin approves it.
 const requestProfile = async ({ name, color, avatar, password, realName, note, ip, device, username, email, googleSub, googleEmail }) => {
   const clean = String(name || "").trim().slice(0, 24);
-  if (!clean) return { error: "You left the name blank. A nameless profile. Inspired. Try again with letters this time." };
-  if (nameTaken(clean)) return { error: "That name is taken. Add a number, or get creative." };
+  if (!clean) return { error: "Enter your name.", field: "name" };
+  if (nameTaken(clean)) return { error: "That name is taken. Add a letter or a number to it.", field: "name", code: "taken" };
   // Sign-in identity (optional — the wall's flow sends none of these).
   const uname = normUsername(username);
-  if (username && uname.length < 2) return { error: "pick a username (letters/numbers, 2+ chars)" };
-  if (uname && usernameTaken(uname)) return { error: "that username is taken" };
+  if (username && uname.length < 2) return { error: "Use at least 2 letters or numbers.", field: "username" };
+  if (uname && usernameTaken(uname)) return { error: "That username is taken. Try another.", field: "username", code: "taken" };
   const e = normEmail(email);
-  if (e && !validEmail(e)) return { error: "that email doesn't look right" };
-  if (e && emailTaken(e)) return { error: "that email is already in use" };
-  if (googleSub && byGoogleSub(googleSub)) return { error: "that Google account is already linked to a profile" };
-  // A password is what makes the profile private — required UNLESS the
-  // request signs in with Google only.
-  if (!googleSub && (!password || String(password).length < 4)) {
-    return { error: "password too short (4+ chars)" };
-  }
+  if (e && !validEmail(e)) return { error: "That email doesn't look right.", field: "email" };
+  if (e && emailTaken(e)) return { error: "That email is already used by a profile.", field: "email", code: "taken" };
+  if (googleSub && byGoogleSub(googleSub)) return { error: "That Google account is already linked to a profile. Sign in with it instead." };
+  // A password is what makes the profile private, and it is REQUIRED — for a
+  // Google request too (auth-round: elia, "you can sign up without putting in
+  // a password if you sign in with google that's not good at all"). The
+  // rule is lib/passrules.js, the same as every new password.
+  const bad = require("./lib/passrules").check(password);
+  if (bad) return bad;
   // Without a cap, anyone who can reach the gate could fill the store with
   // requests. Rejecting rather than rotating keeps the admin's queue honest.
   if (store.data.pending.length >= MAX_PENDING) {
-    return { error: `Queue's full. Forty other people had this idea before you. Come back when ${config.ADMIN_NAME} digs out from under it.` };
+    return { error: `The list of requests is full. Ask ${config.ADMIN_NAME} to go through it, then try again.` };
   }
   const hashed = password ? await hashPassword(String(password)) : null;
   const req = {
@@ -1761,6 +1795,10 @@ module.exports = {
   setLocked,
   setMustReset,
   resetDue,
+  checkPassword,
+  setupDue,
+  requirePasswordSetup,
+  resetPassword,
   revokeTokensFor,
   revokeToken,
   tokenEnded,

@@ -185,6 +185,10 @@ module.exports = {
   // resolveConfig() is what reads it.
   DOWNLOAD_RACE: userConfig.downloadRace,
   NOTIFICATIONS: userConfig.notifications || {},
+  // ---- password reset by email (auth-round; lib/mailer.js) — off unless set ----
+  // `publicUrl`: where links sent by email point (never a request's Host).
+  PUBLIC_URL: typeof userConfig.publicUrl === "string" ? userConfig.publicUrl : null,
+  PASSWORD_RESET: userConfig.passwordReset && typeof userConfig.passwordReset === "object" ? userConfig.passwordReset : {},
   // ---- backups (lib/backup.js) ----
   // Where the daily snapshot of the household's state is written. The default
   // sits beside the data it protects, which guards against a corrupt file or

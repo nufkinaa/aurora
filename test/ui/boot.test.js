@@ -41,10 +41,10 @@ const WALL_401 = /Failed to load resource.*401/;
 const loginCard = ".login-card";
 const wall = ".reset-wall";
 const signInWith = async (page, username, password) => {
-  await page.waitForSelector(`${loginCard} input[placeholder="Username or email"]`);
-  await page.fill(`${loginCard} input[placeholder="Username or email"]`, username);
-  await page.fill(`${loginCard} input[placeholder="Password"]`, password);
-  await page.click(`${loginCard} .lbtn.primary`);
+  await page.waitForSelector(`${loginCard} input[name="identifier"]`);
+  await page.fill(`${loginCard} input[name="identifier"]`, username);
+  await page.fill(`${loginCard} input[name="password"]`, password);
+  await page.click(`${loginCard} .af-btn.primary`);
 };
 
 // Everything a load asked the server's API, and everything that ever showed:
@@ -235,10 +235,11 @@ ui.test("a new password is due: the page's early questions do not end the sign-i
     assert.equal(await page.locator("#app .screen").count(), 0);
     assert.deepEqual(await reportedAboutBoot(page), []);
 
-    await page.fill(`${wall} input[placeholder="Current password"]`, p.password);
-    await page.fill(`${wall} input[placeholder^="New password"]`, "boot-fresh-1");
-    await page.fill(`${wall} input[placeholder="Once more"]`, "boot-fresh-1");
-    await page.click(`${wall} button:has-text("Set new password")`);
+    // (signed in with the password moments ago: the server does not ask for it again — auth-round)
+    await page.waitForFunction(() => !document.querySelector('.reset-wall input[name="currentPassword"]'));
+    await page.fill(`${wall} input[name="newPassword"]`, "boot-fresh-1");
+    await page.fill(`${wall} input[name="confirm"]`, "boot-fresh-1");
+    await page.click(`${wall} button:has-text("Save new password")`);
     await page.waitForSelector(wall, { state: "detached" });
     await waitForScreen(page);
     assert.equal(await page.textContent("#nav-profile-name"), "Owing");

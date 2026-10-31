@@ -523,24 +523,50 @@ for (const mode of ["open", "transition"]) {
 
 // ---------- the account types ----------
 
-test("Google-only sign-in (no password): nothing to reset — signed out everywhere, no flag, and the next Google sign-in is an ordinary one", async () => {
+test("Google-only profile (no password): the admin's reset has nothing to reset — but its next Google sign-in asks for a FIRST password (auth-round), and nothing else opens until it is set", async () => {
   await withServer("closed", async (srv) => {
     await addProfile("p-goo", { username: "goo", googleSub: "g-1" });
+    // the admin's "Reset password" on a profile with no password: nothing to reset, as before
+    const r = await force(srv, "p-goo");
+    assert.deepEqual(r.body, { ok: true, mustReset: false, noPassword: true, hasGoogle: true, kicked: 0, sessions: 0 });
+    assert.equal("mustReset" in profiles.list().find((p) => p.id === "p-goo"), false);
+
+    // the next Google sign-in: a session, but a restricted one, and the client is told why
     const req = { headers: {}, socket: { remoteAddress: "127.0.0.1" } };
     const first = googleOutcomeFor({ sub: "g-1" }, req);
-    assert.equal((await srv.call("GET", "/api/library", null, { "X-Session": first.session })).status, 200);
-    const sock = fakeClient("c-goo", { session: "p-goo" });
-
-    const r = await force(srv, "p-goo");
-    assert.deepEqual(r.body, { ok: true, mustReset: false, noPassword: true, hasGoogle: true, kicked: 1, sessions: 1 });
-    assert.equal("mustReset" in profiles.list().find((p) => p.id === "p-goo"), false);
-    assert.deepEqual(sock.got.map((m) => [m.type, "reset" in m]), [["kicked", false]]);
-    assert.equal((await srv.call("GET", "/api/me", null, { "X-Session": first.session })).body.user, null);
-
+    assert.strictEqual(first.mustReset, true);
+    assert.strictEqual(first.passwordSetup, true);
+    const S = { "X-Session": first.session };
+    isResetRefusal(await srv.call("GET", "/api/library", null, S), "p-goo", "Google-only session before a password");
+    const me = await srv.call("GET", "/api/me", null, S);
+    assert.deepEqual([me.body.user, me.body.passwordResetRequired, me.body.passwordSetup], [null, true, true]);
+    assert.equal((await srv.call("GET", "/api/auth/password/options", null, S)).body.hasPassword, false);
+    // the same rule as every new password
+    const short = await srv.call("POST", "/api/auth/password", { newPassword: "abc" }, S);
+    assert.deepEqual([short.status, short.body.field, short.body.code], [400, "newPassword", "short"]);
+    // set it: no current password exists to ask for; the device carries on with fresh credentials
+    const saved = await srv.call("POST", "/api/auth/password", { newPassword: "goog-pass-1" }, S);
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.ok(saved.body.session && saved.body.token);
+    assert.equal((await srv.call("GET", "/api/library", null, { "X-Session": saved.body.session })).status, 200);
+    assert.equal(profiles.setupDue("p-goo"), false);
+    assert.equal((await profiles.login("goo", "goog-pass-1")).ok, true, "the new password signs in");
+    // and the next Google sign-in is an ordinary one
     const next = googleOutcomeFor({ sub: "g-1" }, req);
     assert.strictEqual(next.mustReset, false);
-    assert.equal((await srv.call("GET", "/api/library", null, { "X-Session": next.session })).status, 200);
-    assert.strictEqual((await srv.call("GET", "/api/admin/people", null, ADMIN)).body.people.find((p) => p.id === "p-goo").mustReset, false);
+    assert.equal("passwordSetup" in next, false);
+    // now that it has a password, the admin's reset is a real one
+    assert.equal((await force(srv, "p-goo")).body.mustReset, true);
+  });
+});
+
+test("a Google-only KIDS profile is not asked for a first password (a child may not set one)", async () => {
+  await withServer("closed", async (srv) => {
+    await addProfile("p-gkid", { username: "gkid", googleSub: "g-kid", kids: { maxAge: 7 } });
+    const o = googleOutcomeFor({ sub: "g-kid" }, { headers: {}, socket: { remoteAddress: "127.0.0.1" } });
+    assert.strictEqual(o.mustReset, false);
+    assert.equal("passwordSetup" in o, false);
+    assert.equal((await srv.call("GET", "/api/library", null, { "X-Session": o.session })).status, 200);
   });
 });
 
