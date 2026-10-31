@@ -17,6 +17,8 @@
 //   https://nufurora.com/#/downloads, #/list, #/movies, #/shows, #/preferences
 //   https://nufurora.com/link?code=<CODE>         a TV's sign-in QR: "Sign in this TV?"
 //   https://nufurora.com/link, #/pair[/<CODE>]    the same, or its type-the-code field
+//   https://nufurora.com/#/reset/<token>          an emailed reset link: choose a new password
+//   aurora-phone://auth/google?code=…|error=…     Google's way back (the sign-in screens')
 //   (aurora-phone://<same hash path> works too: aurora-phone://movie/<id>, aurora-phone://pair/<CODE>)
 export type LinkItem = {id: string; title: string; type?: 'movie' | 'show'; imdbId?: string; source?: 'stream' | 'downloaded'} & Record<string, unknown>;
 export type PhoneLink =
@@ -27,7 +29,31 @@ export type PhoneLink =
   | {kind: 'play'; id: string}
   | {kind: 'screen'; name: 'Remote' | 'Downloads' | 'Settings' | 'WhatsNew' | 'Household' | 'Wrapped' | 'Taste' | 'TasteList'; params?: Record<string, unknown>}
   | {kind: 'web'; path: string}
-  | {kind: 'tab'; tab: 'home' | 'movies' | 'shows' | 'list' | 'search'};
+  | {kind: 'tab'; tab: 'home' | 'movies' | 'shows' | 'list' | 'search'}
+  // [auth-round] the Custom Tab's way back after Google (aurora-phone://auth/google?code=… or
+  // ?error=…): handled by the sign-in screens (phone/auth), never by the app's navigator
+  | {kind: 'googleAuth'; code: string | null; error: string | null}
+  // [auth-round] an emailed reset link ({site}/#/reset/<token>): the sign-in screens' too
+  | {kind: 'resetLink'; token: string};
+
+/** A reset token as the server makes it (random, base64url). */
+const RESET_TOKEN = /^[A-Za-z0-9_-]{20,200}$/;
+
+/** The hand-off code's shape (the server's 32 random bytes, base64url): anything else is dropped. */
+const HANDOFF_CODE = /^[A-Za-z0-9_-]{16,200}$/;
+
+/** aurora-phone://auth/google?… → its code or its error (said by the server in words). */
+export function parseGoogleAuth(url: string | null | undefined): {kind: 'googleAuth'; code: string | null; error: string | null} | null {
+  if (!url || typeof url !== 'string') return null;
+  const m = /^aurora-phone:\/\/auth\/google\/?(?:\?([^#]*))?(?:#.*)?$/i.exec(url.trim());
+  if (!m) return null;
+  const q = m[1] || '';
+  const raw = get(q, 'code');
+  const code = raw && HANDOFF_CODE.test(raw) ? raw : null;
+  const err = (get(q, 'error') || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 200) || null;
+  if (!code && !err) return {kind: 'googleAuth', code: null, error: 'Google sign-in did not finish. Try again.'};
+  return {kind: 'googleAuth', code: err ? null : code, error: err};
+}
 
 const get = (query: string, k: string): string | null => {
   const m = query.split('&').find(p => p.startsWith(`${k}=`));
@@ -53,6 +79,8 @@ export const typedPairCode = (raw: string) => String(raw || '').toUpperCase().re
 export function parsePhoneLink(url: string | null | undefined, hosts: string[] = ['nufurora.com']): PhoneLink | null {
   if (!url || typeof url !== 'string') return null;
   const u = url.trim();
+  const auth = parseGoogleAuth(u);
+  if (auth) return auth;
   // the TV's (and the notifications') item links
   const open = /^(aurora|aurora-phone):\/\/open\?(.*)$/i.exec(u);
   if (open) {
@@ -135,6 +163,8 @@ export function parsePhoneLink(url: string | null | undefined, hosts: string[] =
       return {kind: 'screen', name: 'Wrapped'};
     case 'taste':
       return {kind: 'screen', name: parts[1] === 'list' ? 'TasteList' : 'Taste'};
+    case 'reset':
+      return parts[1] && RESET_TOKEN.test(parts[1]) ? {kind: 'resetLink', token: parts[1]} : null;
     case 'pick':
     case 'requests':
       return {kind: 'web', path: parts[0]};
@@ -157,3 +187,7 @@ export function shareLink(base: string, it: {id?: string | null; imdbId?: string
   if (it.imdbId) return `${root}/#/discover/${show ? 'series' : 'movie'}/${it.imdbId}`;
   return null;
 }
+
+/** The links that belong to the sign-in screens, not to the app's pages. */
+export const isAuthLink = (l: PhoneLink | null): l is Extract<PhoneLink, {kind: 'googleAuth' | 'resetLink'}> =>
+  !!l && (l.kind === 'googleAuth' || l.kind === 'resetLink');

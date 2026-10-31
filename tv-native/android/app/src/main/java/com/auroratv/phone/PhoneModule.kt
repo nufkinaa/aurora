@@ -378,6 +378,81 @@ class PhoneModule(private val ctx: ReactApplicationContext) : ReactContextBaseJa
     }
   }
 
+  // ---------------- [auth-round] Google sign-in in a Custom Tab ----------------
+  //
+  // src/phone/auth/google.ts. The app never sees Google's code or tokens: it opens
+  // {server}/api/auth/google/app-start?intent=…&challenge=… in a Custom Tab, Google
+  // sends the tab back to the server, the server sends it to
+  // aurora-phone://auth/google?code=<one-time code>, and the app trades that code
+  // AND the verifier only it holds (POST /api/auth/google/app-finish). The verifier
+  // is made here: 32 bytes of SecureRandom, base64url without padding (43
+  // characters); the challenge is base64url(SHA-256(verifier)) — RFC 7636's S256.
+
+  @ReactMethod
+  fun googlePkce(promise: Promise) {
+    try {
+      val bytes = ByteArray(32)
+      java.security.SecureRandom().nextBytes(bytes)
+      val flags = android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP
+      val verifier = android.util.Base64.encodeToString(bytes, flags)
+      val digest = java.security.MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray(Charsets.US_ASCII))
+      val m = Arguments.createMap()
+      m.putString("verifier", verifier)
+      m.putString("challenge", android.util.Base64.encodeToString(digest, flags))
+      promise.resolve(m)
+    } catch (t: Throwable) {
+      promise.reject("pkce", t.message ?: "no secure random source", t)
+    }
+  }
+
+  /**
+   * Opens `url` in a Custom Tab (no androidx.browser: the same intent it builds, an
+   * ACTION_VIEW with the session extra, which every Custom Tabs browser reads; a browser
+   * without Custom Tabs simply opens the page). Resolves false when nothing on the phone
+   * can open a web page — the caller then uses the code-on-screen way.
+   */
+  @ReactMethod
+  fun openAuthTab(url: String, promise: Promise) {
+    val act = ctx.currentActivity ?: activity?.get()
+    main.post {
+      try {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        val extras = android.os.Bundle()
+        // EXTRA_SESSION (null = no session): "this is a Custom Tab"
+        extras.putBinder("android.support.customtabs.extra.SESSION", null)
+        intent.putExtras(extras)
+        // the app's own night ground behind the tab's toolbar, and its title shown
+        intent.putExtra("android.support.customtabs.extra.TOOLBAR_COLOR", 0xFF070811.toInt())
+        intent.putExtra("android.support.customtabs.extra.TITLE_VISIBILITY", 1)
+        intent.putExtra("androidx.browser.customtabs.extra.COLOR_SCHEME", 2) // dark
+        intent.addCategory(Intent.CATEGORY_BROWSABLE)
+        // a browser that does Custom Tabs, by name when the default one does not
+        val pm = ctx.packageManager
+        val view = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")).addCategory(Intent.CATEGORY_BROWSABLE)
+        val browsers = pm.queryIntentActivities(view, 0).map { it.activityInfo.packageName }.distinct()
+        if (browsers.isEmpty()) {
+          promise.resolve(false)
+          return@post
+        }
+        val tabs = pm.queryIntentServices(Intent("android.support.customtabs.action.CustomTabsService"), 0)
+            .map { it.serviceInfo.packageName }.toSet()
+        val default = pm.resolveActivity(view, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
+        val pick = when {
+          default != null && tabs.contains(default) -> default
+          else -> browsers.firstOrNull { tabs.contains(it) }
+        }
+        if (pick != null) intent.setPackage(pick)
+        if (act != null) act.startActivity(intent)
+        else ctx.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        promise.resolve(true)
+      } catch (e: android.content.ActivityNotFoundException) {
+        promise.resolve(false)
+      } catch (t: Throwable) {
+        promise.resolve(false)
+      }
+    }
+  }
+
   // RN's NativeEventEmitter wants these two on Android
   @ReactMethod fun addListener(@Suppress("UNUSED_PARAMETER") name: String) {}
   @ReactMethod fun removeListeners(@Suppress("UNUSED_PARAMETER") count: Double) {}

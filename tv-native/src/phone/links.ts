@@ -15,7 +15,7 @@ import {navRef} from '../rootNav';
 import {getBaseUrl} from '../api';
 import {resolvePartyRoute} from '../party';
 import {showToast} from '../toast';
-import {parsePhoneLink, PhoneLink} from './linkParse';
+import {isAuthLink, parsePhoneLink, PhoneLink} from './linkParse';
 import {setTab} from './tabs';
 
 /** The hosts whose web addresses the app answers: nufurora.com, and the server this phone is on. */
@@ -71,7 +71,53 @@ export async function openLink(l: PhoneLink) {
       if (navRef.canGoBack()) navRef.dispatch(StackActions.popToTop());
       setTab(l.tab);
       return;
+    case 'googleAuth':
+      // (never here: arrived() hands these to the sign-in screens)
+      return;
+    case 'resetLink':
+      // a reset link opened while signed in: the password is changed in Settings here
+      showToast("You're signed in on this phone. Change your password in Settings → Edit profile & password.", '🔑', 6000);
+      return;
   }
+}
+
+// ---- [auth-round] Google's way back (aurora-phone://auth/google?code=…) ----
+// It belongs to the sign-in screens (phone/auth), which are up BEFORE a profile
+// is: so it is never held for the navigator. A screen that can finish it
+// listens (onAuthLink); one that arrives with nobody listening (a cold start:
+// the app was closed while the tab was open) waits here until one does.
+let authPending: string | null = null;
+let authPendingAt = 0;
+let authListener: ((url: string) => void) | null = null;
+// The same address again within two minutes is the same arrival: Android hands the
+// activity's intent over again when the screen is rebuilt (a display size or density
+// change, PhoneActivity.onCreate) — a used Google code or reset link must not be tried
+// twice and say "already used" over a sign-in that worked.
+const authRecent = new Map<string, number>();
+const AUTH_REPEAT_MS = 2 * 60 * 1000;
+const authArrived = (url: string) => {
+  const now = Date.now();
+  const seen = authRecent.get(url);
+  if (seen && now - seen < AUTH_REPEAT_MS) return;
+  authRecent.set(url, now);
+  if (authListener) authListener(url);
+  else {
+    authPending = url;
+    authPendingAt = now;
+  }
+};
+/** Is a Google hand-off waiting for a sign-in screen? */
+export const pendingAuthLink = () => authPending;
+/** The sign-in screens listen while they are up; a waiting hand-off is delivered at once. */
+export function onAuthLink(fn: (url: string) => void): () => void {
+  authListener = fn;
+  // (one held longer than Google's hand-off lives is of no use: the app went on without it)
+  const held = authPending && Date.now() - authPendingAt < 10 * 60 * 1000 ? authPending : null;
+  authPending = null;
+  if (held) setTimeout(() => authListener === fn && fn(held), 0);
+  return () => {
+    if (authListener === fn) authListener = null;
+  };
 }
 
 // ---- held until the screens are up ----
@@ -81,6 +127,11 @@ let deliver: ((url: string) => void) | null = null;
 let initialAsked = false;
 const arrived = (url: string | null | undefined) => {
   if (!url) return;
+  // Google's answer, an emailed reset link: the sign-in screens' (held for them when none is
+  // up and no profile is open either — a cold start)
+  // (with a profile open, Google's answer is dropped — nothing here was waiting for it — and a
+  // reset link says where the password is changed)
+  if (isAuthLink(parsePhoneLink(url, linkHosts())) && (authListener || !deliver)) return authArrived(url);
   if (deliver) deliver(url);
   else pending = url;
 };
@@ -94,6 +145,11 @@ const askInitial = () => {
   initialAsked = true;
   Linking.getInitialURL()
     .then(u => {
+      if (u && isAuthLink(parsePhoneLink(u, linkHosts())) && !mounted) {
+        // (once per run, like every starting link: a profile switch must not finish it again)
+        authArrived(u);
+        return;
+      }
       // the link that started this run — once per run, not again after a profile switch
       if (u && !mounted) pending = pending || u;
       else if (u && deliver) deliver(u);

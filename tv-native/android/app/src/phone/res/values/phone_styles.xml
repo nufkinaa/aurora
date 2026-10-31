@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- The phone app's theme (src/phone/AndroidManifest.xml). Aurora is always dark: the
          page colour behind everything (it is what shows in the cold-start moment before
          React draws), light status / navigation bar icons, and the bars drawn over by the
@@ -16,5 +16,10 @@
         <item name="android:windowLayoutInDisplayCutoutMode">default</item>
         <item name="colorAccent">#8b7bff</item>
         <item name="android:forceDarkAllowed">false</item>
+        <!-- [auth-round] no grey veil over a whole page: with a hardware keyboard (or keys sent
+             to the emulator) Android draws its default focus highlight over a focused scroll
+             view, which covered the sign-in panel and the profile wall. Buttons, rows and
+             fields keep their own focus look (the ripple's focused state, the lit field). -->
+        <item name="android:defaultFocusHighlightEnabled" tools:targetApi="o">false</item>
     </style>
 </resources>

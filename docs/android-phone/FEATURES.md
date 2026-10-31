@@ -20,14 +20,44 @@ Branch `phone-features` (on top of `phone-web-look`, phone 1.0.1). One row per f
 | Kids profiles, household PIN to leave | profiles.js, kids | ProfileGate + kids lock | Gate.tsx (shared AppRoot rules) | ✅ | R (shared AppRoot code, TV-verified; no kids profile on the test server) |
 | Switch profile | profile menu | Settings | profile menu, Settings | ✅ | E |
 | Sign out on this phone | Settings → Sign-in | Settings | Settings → Account | ✅ | E |
-| Forced new password | resetwall.js | NewPassword.tsx | screens/NewPassword.tsx | ✅ | R (shared AppRoot rule) |
-| Add a profile / request access | profiles.js (the add tile opens login.js signup) | — | Gate "Add profile", SignIn "First time here? Request access" (POST /api/auth/signup) | 🆕 | E (request filed, seen in the admin's queue), U |
+| Forced new password (admin's Reset password) | resetwall.js | NewPassword.tsx | screens/NewPassword.tsx ("Choose a new password", the panel look) | ✅ | E (admin force-reset while signed in: signed out, password sign-in, new password, in) |
+| Add a profile / request access | profiles.js (the add tile opens login.js signup) | — | Gate "Add profile" and the sign-in panel's "Request access" switch (phone/auth/AuthDoor.tsx; POST /api/auth/signup, a password always) | ✅ 1.0.2: labels above fields, help under them, errors in place of the help, strength hint | E (both modes), U |
 | Edit profile & password (name, emoji, colour, email, password) | preferences.js / profiles.js | — | Settings → Your profile → screens/EditProfile.tsx | 🆕 | E (emoji saved; wrong current password refused; new password kept the sign-in across a relaunch), U |
 | Upload / change / remove a photo | preferences.js | — | Settings → Your profile (Android's photo picker, scaled to 1024 px JPEG, PhoneModule.kt) | 🆕 | E (picked, uploaded, shown; removed) |
 | Kids mode on/off, delete a profile | preferences.js | — | — | 🌐 for now — needs the household PIN flow; done on the website |
 | Signed-in devices, revoke, sign out everywhere, add email | preferences.js Sign-in | — | — | 🌐 account security, kept on the website (one place to look after your sign-ins) |
-| Connect Google / sign in with Google | google.js | TV Google QR | — | 🌐 Google's flows need the browser; the phone signs in with a password or a code |
+| Connect Google (link an existing profile) | google.js | — | — | 🌐 linking is done once on the website (Settings → Sign-in); signing in with Google is on the phone, below |
 | Set up my sign-in (claim, transition onboarding) | claim.js | — | — | 🌐 one-time setup, done once on the website |
+
+### Sign-in round, phone 1.0.2 (elia, 2026-10-31: Google on the phone, a password for every Google sign-up, sign-in pages that look like Aurora, reset it yourself)
+
+Contract: `docs/auth-round.md`. Code: `src/phone/auth/` (AuthDoor.tsx every view, ui.tsx the pieces, rules.ts words and decisions, google.ts the hand-off, state.ts), `screens/SignIn.tsx`, `screens/Gate.tsx` (password door, Add profile), `screens/NewPassword.tsx`, `screens/EditProfile.tsx`, `linkParse.ts` / `links.ts` (the links), `PhoneModule.kt` (PKCE + Custom Tab).
+
+**How the Google checks were done (E\*)**: the app on the emulator really opens Google in a Chrome Custom Tab (Chrome's own log shows the Custom Tabs launch of `…/api/auth/google/app-start?intent=…&challenge=…`). Chrome on this test emulator has never been set up, and its first-run screen asks to accept Google's terms; that was **not** accepted (elia's call is pending), so the tab's part, the mock Google pages on the private server, was played by a script on the PC (`app-start` → mock account chooser → `web-callback` → `302 aurora-phone://auth/google?code=…`), and that link was handed to the app with `adb shell am start`. Everything on the phone's side is real: the verifier made with SecureRandom and kept before the tab opened, the link arriving through Android, `app-finish`, the screens. **Still to check once on a real phone with Chrome set up: the tab itself returning to the app (Chrome → 302 → aurora-phone://).**
+
+Scripted runs: `e2e.py` (closed server, 12 scenarios) and `e2e_open.py` (open server, 5 scenarios) in the agent's scratch folder, each run green at least twice on the final build.
+
+| Feature | Website | TV | Phone app | Status | How verified |
+|---|---|---|---|---|---|
+| **Continue with Google** (sign in, closed and open servers) | login.js, google.js | SignIn.tsx Google QR | sign-in panel; Custom Tab at `app-start?intent=signin` (no Google SDK, no new library: an ACTION_VIEW with the Custom Tabs session extra, PhoneModule.openAuthTab) | 🆕 | E\* closed (linked profile → Home), E\* open (Add profile → Sign in → Google → in) |
+| PKCE: verifier/challenge | — | — | PhoneModule.googlePkce: 32 bytes SecureRandom, base64url (43 chars); challenge = base64url(SHA-256) | 🆕 | U (shape, RFC 7636 vector), E\* (the server accepted it, and refused another verifier) |
+| Cold start: the app closed while Google is open | — | — | `{verifier, intent, startedAt}` kept in AsyncStorage before the tab opens; links.ts holds the answer until a sign-in screen listens | 🆕 | E\* (app force-stopped, link delivered: signed in), U |
+| A used / expired / other-device hand-off | — | — | "That Google sign-in was already used.", "…took too long.", the server's "This sign-in was started on another device." | 🆕 | E\* (each one); direct POST with a wrong verifier → 400 wrong-device, then 410 used |
+| The same link delivered twice (Android re-delivers the intent when the screen is rebuilt) | — | — | ignored within 2 minutes (links.ts) | 🆕 | E (wm density change re-delivered a used reset link; fixed) |
+| Google with a code on this screen (no browser, or googleApp false) | — | the TV's flow | the device-code view (`googleStartFor` + poll), "Code KVGH-JGNL" | 🆕 | E (server with `AURORA_TEST_GOOGLE_APP_OFF=1`, approved by the mock: Set a password → in) |
+| **Sign up with Google asks for a password** | login.js | — | "Finish your request · Google: {email}" + Password + Confirm, required | 🆕 | E\* (empty password: "Use at least 4 characters.", then sent; admin sees viaGoogle), U |
+| **Set a password** (a Google-only profile) | resetwall.js | NewPassword.tsx | NewPassword.tsx "Set a password", saved with POST /api/auth/password | 🆕 | E\* (closed and open: Back does nothing, set, in, the password then signs in) |
+| **Forgot password?** by the Password label | login.js | SignIn.tsx | sign-in panel and the wall's password door | 🆕 | E |
+| Reset: Use Google | login.js | SignIn.tsx | Custom Tab `intent=reset` → new password | 🆕 | E\* |
+| Reset: Ask the admin (waiting screen carries on by itself, polls every 4 s while the app is in front) | login.js | SignIn.tsx | AuthDoor ask / askSent | 🆕 | E (closed and open: approved in the admin API, the screen moved on by itself) |
+| Reset: I have a reset code | login.js | SignIn.tsx | AuthDoor code (spaces/dashes/lower case cleaned) | 🆕 | E (wrong code: the server's words; right code in lower case with a dash: in) |
+| Reset: Email me a link (off on the server) | login.js | — | shown only when `resetOptions().email` | 🆕 | R (off on every test server); U for the options |
+| Reset link `nufurora.com/#/reset/<token>` | resetwall.js | — | opens the new-password step; used/expired: "This reset link has expired or was already used. Ask for a new one."; signed in: a note to use Settings | 🆕 | E (worked once, then refused), U |
+| New password: Confirm, strength hint, "Sign out of all other devices" (ticked) | login.js | NewPassword.tsx | AuthDoor newPw | 🆕 | E (unticked → authLog others:0; default → others:1), U |
+| Settings → Edit profile & password: "Forgot your current password?" | preferences.js | — | when `passwordOptions().needsCurrent` is false: no current field, the sign-out-others choice, POST /api/auth/password | 🆕 | E (changed, stayed signed in, new password signs in) |
+| Errors next to the field, never clearing what was typed; too many tries with the wait; no connection | login.js | SignIn.tsx | rules.ts refusalProblem | 🆕 | E (empty fields, wrong password, 429 "Wait 15 minutes"), U |
+| Autofill, keyboard, accessibility | — | — | autoComplete username / current-password / new-password, importantForAutofill; Next / Go / Send; labels as accessibility labels, help/error as hints, live regions, header roles, checkbox / tab roles, 44 dp targets, reduced motion (no press scale), titles announced | 🆕 | R + E (keyboard Next/Go walked every form in the scripted runs) |
+| Sizes | — | — | 360×640, Pixel 9, landscape (scrolls), 800×1280 tablet: one panel at most 440 wide | 🆕 | E (pictures in docs/qa/auth-round/after) |
 
 ## Browsing
 

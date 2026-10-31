@@ -88,7 +88,13 @@ const DEVICE: Record<string, Record<string, string>> = {
     mounted: 'the screens have been up once this run',
     deliver: 'the mounted navigator’s handler',
     initialAsked: 'the link the app was started with was asked for (once per run)',
+    authPending: "Google's answer that came back before a sign-in screen listened (a cold start); it signs a person in, it belongs to no profile",
+    authPendingAt: 'when that answer arrived',
+    authListener: 'the sign-in screen that is up (one at a time)',
+    authRecent: 'the sign-in links that just arrived (the same one again within two minutes is a repeat delivery)',
   },
+  'phone/auth/state.ts': {setupFor: 'which profile a sign-in just said has no password yet (keyed by that profile id; read by the set-a-password screen)'},
+  'passRules.ts': {COMMON: 'a constant (the common passwords the strength hint calls weak)'},
   'phone/profileMenu.ts': {switchFn: "the app's one handler (AppContext's switchProfile)", nameOf: "the app's one handler (reads the current profile's name)", open: 'whether the menu panel is up (the screen’s; every line closes it first)', subs: 'listeners (the menu panel)'},
   'party.ts': {deviceId: 'this TV, as a party member (person + device)', clockOffset: "the server's clock as this box sees it", samples: 'the clock pings behind it', rejoining: 'a rejoin in flight (the party itself is the profile’s and is left with it)'},
   'api.ts': {

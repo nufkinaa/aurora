@@ -203,8 +203,8 @@ android {
         // after the real adaptive icon was added and verified inside the APK.
         // (Confirmed by extracting the icon layers from the installed APK: they
         // were correct; the launcher was simply showing its cache.)
-        versionCode 192
-        versionName "5.8.1"
+        versionCode 193
+        versionName "5.8.2"
         // QA builds: Fresco's RequestLoggingListener + verbose FLog (MainApplication.kt), for
         // `adb logcat -s RequestLoggingListener`. On in debug, or `assembleRelease -PfrescoLog`.
         buildConfigField "boolean", "FRESCO_LOGGING", project.hasProperty('frescoLog') ? 'true' : 'false'
@@ -227,8 +227,8 @@ android {
         buildConfigField "boolean", "PHONE", auroraPhone ? 'true' : 'false'
         if (auroraPhone) {
             applicationId "com.aurora.phone"
-            versionCode 2
-            versionName "1.0.1"
+            versionCode 3
+            versionName "1.0.2"
         }
     }
     if (auroraPhone) {

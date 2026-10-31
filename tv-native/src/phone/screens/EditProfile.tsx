@@ -30,6 +30,8 @@ import ListRow from '../ui/Row';
 import Tap from '../ui/Tap';
 import {GlassButton, PrimaryButton} from '../ui/Buttons';
 import {useTabBarSpace} from '../ui/TabBar';
+import {Check, TextLink} from '../auth/ui';
+import {W} from '../auth/rules';
 import {colors, GUTTER} from '../theme';
 
 const msgOf = (e: unknown) => (e instanceof Error ? e.message : '');
@@ -135,6 +137,12 @@ export default function EditProfile() {
   const [fresh, setFresh] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // [auth-round] forgot the current password: a phone signed in lately may change it
+  // without it (GET /api/auth/password/options says so), choosing whether to sign out
+  // every other device
+  const [noCurrent, setNoCurrent] = useState<{ok: boolean; why?: string} | null>(null);
+  const [forgotCur, setForgotCur] = useState(false);
+  const [signOutOthers, setSignOutOthers] = useState(true);
   const nameRef = useRef<TextInput>(null);
   const filled = useRef(!!cached);
 
@@ -167,6 +175,17 @@ export default function EditProfile() {
 
   const kid = !!me?.kids;
   const hasPw = !!me?.hasPassword;
+  useEffect(() => {
+    if (!hasPw || kid) return;
+    let live = true;
+    api
+      .passwordOptions()
+      .then(o => live && setNoCurrent({ok: o?.needsCurrent === false, why: o?.why}))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [hasPw, kid]);
 
   // A new password ends every unlock token of the profile (this phone's too): open it
   // again with the new one and keep what comes back, so this phone stays in.
@@ -215,7 +234,10 @@ export default function EditProfile() {
         }
       }
       if (plan.newPassword) {
-        const r = await api.setPassword(id, plan.newPassword, hasPw ? cur : '');
+        const r =
+          hasPw && forgotCur
+            ? await api.changePassword(plan.newPassword, undefined, signOutOthers)
+            : await api.setPassword(id, plan.newPassword, hasPw ? cur : '');
         patchMe(id, {hasPassword: true});
         await keepSignedIn(r, plan.newPassword);
         showToast(EDIT.saved, '🔒');
@@ -299,11 +321,17 @@ export default function EditProfile() {
           ) : (
             <View style={s.field}>
               <Text style={s.label}>{passwordLabel(hasPw)}</Text>
-              {hasPw ? (
+              {hasPw && !forgotCur ? (
                 <Field value={cur} onChangeText={setCur} placeholder={EDIT.current} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="current-password" textContentType="password" style={s.gap} />
               ) : null}
+              {hasPw && !forgotCur && noCurrent?.ok ? (
+                <TextLink uiId="phone.edit.forgotcurrent" label="Forgot your current password?" onPress={() => setForgotCur(true)} style={s.forgotCur} />
+              ) : null}
+              {hasPw && !forgotCur && noCurrent && !noCurrent.ok && noCurrent.why ? <Text style={s.hint}>{noCurrent.why}</Text> : null}
+              {hasPw && forgotCur ? <Text style={[s.hint, s.gap]}>This phone is signed in, so you can choose a new password without the current one.</Text> : null}
               <Field value={fresh} onChangeText={setFresh} placeholder={newPasswordPlaceholder(hasPw)} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="new-password" textContentType="newPassword" style={s.gap} />
-              {hasPw ? (
+              {hasPw && forgotCur ? <Check uiId="phone.edit.signoutothers" label={W.signOutOthers} help={W.signOutOthersHelp} value={signOutOthers} onChange={setSignOutOthers} /> : null}
+              {hasPw && !forgotCur ? (
                 <Tap uiId="phone.edit.removepw" accessibilityRole="button" onPress={removePassword} style={s.removePw}>
                   <Text style={s.removePwText}>{EDIT.removePw}</Text>
                 </Tap>
@@ -351,6 +379,7 @@ const s = StyleSheet.create({
   kidsBadge: {backgroundColor: '#ffcf4a', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2},
   kidsBadgeText: {color: '#2a1d00', fontSize: 12, fontWeight: '900'},
   kidsText: {color: colors.textDim, fontSize: 14.4},
+  forgotCur: {alignSelf: 'flex-start', marginBottom: 4},
   removePw: {alignSelf: 'flex-start', minHeight: 40, justifyContent: 'center', paddingHorizontal: 4},
   removePwText: {color: '#ff7a7a', fontSize: 14.4, fontWeight: '700'},
   error: {color: '#ff7a7a', fontSize: 14, lineHeight: 20, marginTop: 14},

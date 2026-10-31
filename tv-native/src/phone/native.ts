@@ -16,6 +16,8 @@ type Native = {
   setVolume(v: number): void;
   haptic(kind: 'tick' | 'long' | 'confirm'): void;
   pickAndUploadPhoto?(url: string, headers: Record<string, string>): Promise<string | null>;
+  googlePkce?(): Promise<{verifier: string; challenge: string}>;
+  openAuthTab?(url: string): Promise<boolean>;
   getConstants?: () => {sdk: number; pipSupported: boolean};
   sdk?: number;
   pipSupported?: boolean;
@@ -50,6 +52,12 @@ export const phoneNative = {
    *  with a sentence (the server's refusal, or why it could not be read or sent). */
   pickAndUploadPhoto: (url: string, headers: Record<string, string>): Promise<string | null> =>
     N?.pickAndUploadPhoto ? N.pickAndUploadPhoto(url, headers) : Promise.reject(new Error("This phone can't pick a photo here.")),
+  /** [auth-round] A fresh PKCE pair for Google in a Custom Tab: 32 bytes of SecureRandom
+   *  (base64url, 43 characters) and base64url(SHA-256) of it. Rejects without the module. */
+  googlePkce: (): Promise<{verifier: string; challenge: string}> =>
+    N?.googlePkce ? N.googlePkce() : Promise.reject(new Error('no secure random source here')),
+  /** [auth-round] Opens a web page in a Custom Tab; false = nothing on this phone can. */
+  openAuthTab: async (url: string): Promise<boolean> => (N?.openAuthTab ? N.openAuthTab(url).catch(() => false) : false),
 };
 
 /** Picture-in-picture came or went (the player hides its chrome inside the window). */

@@ -1,5 +1,4 @@
-// The profile's own pages on the phone — asking for a profile ("Request
-// access", from the sign-in card or the wall's "Add profile"), editing your
+// The profile's own pages on the phone — editing your
 // profile (name, emoji, colour, email, password) and its photo. The rules and
 // the words are the WEBSITE's (public/js/screens/login.js signupView,
 // profiles.js profileModal, preferences.js "Your profile"); this file is pure
@@ -27,51 +26,13 @@ export const kidsLabel = (kids: {maxAge: number} | null | undefined) =>
 /** What the site calls whoever runs the server until /api/server-info says (state.js). */
 export const adminOr = (name: string | null | undefined) => (name && name.trim()) || 'the admin';
 
-// ---------------- request access (login.js signupView) ----------------
-export type RequestForm = {name: string; username: string; email: string; password: string; again: string; note: string};
-
+// ---------------- request access ----------------
+// [auth-round] The request-access form and its words moved to phone/auth (rules.ts W,
+// requestProblems, requestBody: the contract's words, a password always). The wall's
+// last tile keeps its name here.
 export const REQUEST = {
-  heading: 'Request access',
-  sub: (admin: string) => `${admin.charAt(0).toUpperCase()}${admin.slice(1)} approves every request personally. Set it up now — the moment you're approved, you're in. `,
-  subDim: "(Don't reuse a password you care about. This is a living room, not a bank.)",
-  name: 'Your name',
-  username: 'Pick a username',
-  email: 'Email (optional — sign in with it too)',
-  password: `Pick a password (${MIN_PW}+ characters)`,
-  again: 'Repeat the password',
-  note: 'A bribe, an explanation, or a fun fact',
-  send: 'Send my request',
-  cancel: 'Cancel',
-  back: '← Back to sign in',
-  failed: "That didn't work.",
-  sentHeading: 'Request sent',
-  // “who” is now on the pile… <strong>Want it faster? Go ask in person.</strong> Once…
-  sentLead: (who: string, admin: string) => `“${who}” is now on the pile of things ${admin} has to deal with. `,
-  sentStrong: 'Want it faster? Go ask in person.',
-  sentTail: " Once you're approved, come right back here and sign in.",
-  done: 'Done',
-  backToSignIn: 'Back to sign in',
-  firstTime: 'First time here? ',
-  link: 'Request access',
   addProfile: 'Add profile',
 } as const;
-
-/** The site's checks before it sends (signupView send), in its order; null = send it. */
-export function requestProblem(f: RequestForm): string | null {
-  if (!f.name.trim()) return 'Your name, at least.';
-  if (!f.username.trim() && !f.email.trim()) return 'Pick a username or an email to sign in with.';
-  if (f.password !== f.again) return "The passwords don't match.";
-  return null;
-}
-
-/** POST /api/auth/signup's body, as the site builds it (no Google on the phone). */
-export const requestBody = (f: RequestForm) => ({
-  name: f.name.trim(),
-  username: f.username.trim(),
-  email: f.email.trim(),
-  password: f.password,
-  note: f.note.trim(),
-});
 
 // ---------------- edit your profile (profiles.js profileModal, edit mode) ----------------
 export const EDIT = {

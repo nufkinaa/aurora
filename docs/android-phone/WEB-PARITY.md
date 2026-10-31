@@ -141,6 +141,24 @@ All sizes in css px = dp. "—" = not there.
 | Tiles | 104 wide, 10 inside, radius 24, 14 apart; avatar 84 radius 20 (the lit one a step larger), name 14.4 / 700 | 112–124 wide, radius 22, avatar 84–96 radius 22 % | the site's |
 | Sign-in | the gradient "aurora" wordmark + "YOUR LIVING-ROOM CINEMA"; a glass card (radius 30, 28 inside) — "Welcome back", 50 tall fields (radius 13) with icons and the eye, the mint→violet "Sign in" | logo, "Sign in to Aurora", bare fields, a white pill, a glass "Use a code instead" | the site's card; "Use a code instead" as the card's foot link |
 
+**Phone 1.0.2 (sign-in round, docs/auth-round.md section 3).** The sign-in, request-access, Google sign-up, set / new password and reset screens, and the wall's password door, are one panel in the website's new sign-in look:
+
+| Thing | Website (auth-round) | App 1.0.2 |
+|---|---|---|
+| Ground | the night sky with the aurora, calmer | the sky picture (`sky-dim.png`), a status-bar scrim when the form scrolls under the clock |
+| Panel | one glass panel, the app's radius | glass (`rgba(16,18,36,0.72)` + the site's sheen and edge light), radius 24, 24 inside (18 under 360 dp), at most 440 wide, centred |
+| Head | the Beam mark + "Aurora", small | Beam 22 dp + "Aurora" 17 / 800 |
+| Switch | Sign in · Request access | a segmented control, 40 tall, radius 12 / 9 |
+| Title / line | 24 / 800, left-aligned, one short line | 24 / 800 on 31, the line 15 on 22 |
+| Labels / help / errors | above / under / in place of the help | label 14 / 600, field 50 tall radius 12, help 13.5 on 19, error `#ffb4ab` in place of the help, the field's edge in the same colour; focus: a 2 dp `#8fa8ff` edge |
+| Password | Show / Hide, strength hint | "Show" / "Hide" with the eye; four bars + Too short · Weak · Okay · Good · Strong |
+| Primary button | mint→violet, one per view | 50 tall, radius 12, the site's 115° sweep, dark words; busy: spinner + "Signing in…" |
+| Google button | `#131314`, `#8E918F` 1 px, `#E3E3E3`, four-colour G | the same, 50 tall, radius 12, G 18 dp |
+| Links | text buttons | `#a9c4ff` 14.5 / 600, 44 dp targets ("Forgot password?" on the label's line, its target made by hitSlop) |
+| Reset ways | rows with a line each | rows 64 tall, radius 12, title 16 / 700 + line 13.5, chevron |
+
+Differences kept on purpose: the site's form can sit beside the sky's glow on wide screens; the app keeps one column at every size (a tablet shows the same 440 dp panel in the middle). No blur behind the panel (the low-end budget, as everywhere in the app).
+
 ## Not matched, and why
 
 - **The glass blur.** The site frosts its pills, tab bar and menus with `backdrop-filter: blur(7px) saturate(1.9) brightness(1.08)`. A live blur under every floating piece costs a weak phone every frame (the low-end budget is the rule), so the app paints the colour that glass shows over this sky (sampled) with the same edge light. Over a scrolling poster the site's bar is blurred colour; the app's is a darker, steadier glass.

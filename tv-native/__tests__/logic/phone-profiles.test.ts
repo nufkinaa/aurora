@@ -16,39 +16,10 @@ import {
   photoRow,
   profileLine,
   refusal,
-  REQUEST,
-  RequestForm,
-  requestBody,
-  requestProblem,
 } from '../../src/phone/profiles';
 
-const form = (o: Partial<RequestForm> = {}): RequestForm => ({name: 'Dana', username: 'dana', email: '', password: 'abcd', again: 'abcd', note: '', ...o});
-
-describe('request access (login.js signupView)', () => {
-  test('the checks, in the site order and words', () => {
-    expect(requestProblem(form({name: '  '}))).toBe('Your name, at least.');
-    expect(requestProblem(form({username: ' ', email: ''}))).toBe('Pick a username or an email to sign in with.');
-    expect(requestProblem(form({username: '', email: 'd@x.io'}))).toBeNull();
-    expect(requestProblem(form({again: 'abce'}))).toBe("The passwords don't match.");
-    expect(requestProblem(form())).toBeNull();
-  });
-  test('a name check comes before the rest', () => {
-    expect(requestProblem(form({name: '', username: '', again: 'x'}))).toBe('Your name, at least.');
-  });
-  test('the body POST /api/auth/signup takes: trimmed, the password as typed', () => {
-    expect(requestBody(form({name: ' Dana ', username: ' dana ', email: ' d@x.io ', password: ' pw1 ', note: ' hi '}))).toEqual({
-      name: 'Dana',
-      username: 'dana',
-      email: 'd@x.io',
-      password: ' pw1 ',
-      note: 'hi',
-    });
-  });
-  test('the words', () => {
-    expect(REQUEST.sub('Elia')).toBe("Elia approves every request personally. Set it up now — the moment you're approved, you're in. ");
-    expect(REQUEST.sentLead('Dana', 'Elia')).toBe('“Dana” is now on the pile of things Elia has to deal with. ');
-    expect(REQUEST.sentStrong).toBe('Want it faster? Go ask in person.');
-    expect(REQUEST.password).toBe('Pick a password (4+ characters)');
+describe('who runs the server', () => {
+  test('"the admin" until the server says', () => {
     expect(adminOr('')).toBe('the admin');
     expect(adminOr(' Elia ')).toBe('Elia');
   });

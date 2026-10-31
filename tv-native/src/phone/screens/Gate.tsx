@@ -2,10 +2,13 @@
 // the faces in a grid, a lit tile for the one this phone used last). Every
 // rule — a password, the household PIN, the kids lock, a locked profile — is
 // the TV's wall's, shared (profileWall.ts); this file only draws it. The last
-// tile, "Add profile", opens the site's request-access card (profiles.js
-// addTile → login.js signupView, standalone): a request the admin approves.
-import React, {useCallback, useState} from 'react';
-import {ActivityIndicator, Image, KeyboardAvoidingView, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+// tile, "Add profile", opens the sign-in panel on "Request access" (phone/auth
+// AuthDoor: a request the admin approves; "Sign in" beside it signs in with a
+// password or Google). A protected profile's password asks "Forgot password?".
+// Google's answer (aurora-phone://auth/google?…) that arrives while the wall is up —
+// the app was closed while Google's page was open — opens the panel to finish it.
+import React, {useCallback, useEffect, useState} from 'react';
+import {ActivityIndicator, BackHandler, Image, KeyboardAvoidingView, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {imgSrc, Profile} from '../../api';
 import {OnChosen, useProfileWall} from '../../profileWall';
@@ -14,7 +17,10 @@ import Field from '../ui/Field';
 import {GlassButton, PrimaryButton} from '../ui/Buttons';
 import Sky from '../ui/Sky';
 import {REQUEST} from '../profiles';
-import RequestAccess, {LoginShell} from './RequestProfile';
+import AuthDoor from '../auth/AuthDoor';
+import {onAuthLink} from '../links';
+import {AuthField, AuthShell, Foot, MainButton, TextLink} from '../auth/ui';
+import {readable, W} from '../auth/rules';
 import {colors, G_EDGE, GUTTER} from '../theme';
 
 function Tile({p, first, onPress, size}: {p: Profile; first: boolean; onPress: () => void; size: number}) {
@@ -78,21 +84,83 @@ function Door({insets, children}: {insets: {top: number; bottom: number}; childr
   );
 }
 
+function PasswordDoor({p, password, setPassword, error, busy, onUnlock, onBack, onForgot}: {
+  p: Profile;
+  password: string;
+  setPassword: (s: string) => void;
+  error: string;
+  busy: boolean;
+  onUnlock: () => void;
+  onBack: () => void;
+  onForgot: () => void;
+}) {
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [onBack]);
+  return (
+    <AuthShell>
+      <View style={s.who}>
+        <View style={[s.avatar, s.whoFace, {backgroundColor: p.color || colors.surfaceHover}]}>
+          {p.avatarImage ? (
+            <Image source={imgSrc(p.avatarImage) || undefined} style={StyleSheet.absoluteFill} />
+          ) : (
+            <Text style={{fontSize: 30}} allowFontScaling={false}>
+              {p.avatar || '🍿'}
+            </Text>
+          )}
+        </View>
+        <Text style={s.whoName} accessibilityRole="header" numberOfLines={2}>
+          {p.name}
+        </Text>
+      </View>
+      <AuthField
+        label={W.password}
+        aside={<TextLink uiId="phone.auth.forgot" compact label={W.forgot} onPress={onForgot} />}
+        secret
+        value={password}
+        onChangeText={setPassword}
+        error={readable(error) || null}
+        autoFocus
+        autoComplete="current-password"
+        textContentType="password"
+        importantForAutofill="yes"
+        returnKeyType="go"
+        onSubmitEditing={onUnlock}
+      />
+      <MainButton uiId="profile.unlock" label="Unlock" busy={busy} onPress={onUnlock} />
+      <Foot>
+        <TextLink uiId="phone.auth.wall" label={W.backToProfiles} onPress={onBack} />
+      </Foot>
+    </AuthShell>
+  );
+}
+
 export default function Gate({onChosen, notice}: {onChosen: OnChosen; notice: string}) {
   const w = useProfileWall(onChosen);
   const insets = useSafeAreaInsets();
   const {width} = useWindowDimensions();
   // .big-avatar: 84 (the lit one a step larger)
   const size = width < 360 ? 76 : 84;
-  const [adding, setAdding] = useState(false);
-  const leaveAdding = useCallback(() => setAdding(false), []);
+  // the sign-in panel over the wall: from "Add profile", "Forgot password?" or Google's answer
+  const [door, setDoor] = useState<{start: 'request' | 'forgot' | 'signin'; link?: string} | null>(null);
+  const leaveDoor = useCallback(() => setDoor(null), []);
+  useEffect(() => {
+    if (door) return;
+    return onAuthLink(url => setDoor({start: 'signin', link: url}));
+  }, [door]);
 
-  // "Add profile": the request-access card, standalone (its way out is Cancel / Done)
-  if (adding) {
+  if (door) {
     return (
-      <LoginShell>
-        <RequestAccess standalone onLeave={leaveAdding} />
-      </LoginShell>
+      <AuthDoor
+        start={door.start}
+        initialLink={door.link}
+        onLeave={leaveDoor}
+        onSignedIn={(id, token, sid, extra) => onChosen(id, token, sid, extra)}
+      />
     );
   }
 
@@ -134,39 +202,21 @@ export default function Gate({onChosen, notice}: {onChosen: OnChosen; notice: st
     );
   }
 
-  // a protected profile's password
+  // a protected profile's password — the sign-in panel's look (phone/auth/ui.tsx):
+  // the face and name, a labelled field with "Forgot password?" by its label
   if (w.pwFor) {
     const p = w.pwFor;
     return (
-      <Door insets={insets}>
-        <View style={[s.avatar, s.doorFace, {backgroundColor: p.color || colors.surfaceHover}]}>
-          {p.avatarImage ? (
-            <Image source={imgSrc(p.avatarImage) || undefined} style={StyleSheet.absoluteFill} />
-          ) : (
-            <Text style={{fontSize: 42}}>{p.avatar || '🍿'}</Text>
-          )}
-        </View>
-        <Text style={[s.heading, {marginTop: 16}]}>{p.name}</Text>
-        <Text style={s.sub}>Enter password</Text>
-        <Field
-          value={w.password}
-          onChangeText={w.setPassword}
-          secureTextEntry
-          autoFocus
-          placeholder="Password"
-          autoCapitalize="none"
-          autoCorrect={false}
-          textContentType="password"
-          autoComplete="current-password"
-          onSubmitEditing={() => w.choose(p, w.password)}
-          style={s.field}
-        />
-        {w.pwError ? <Text style={s.error}>{w.pwError}</Text> : null}
-        <View style={s.row}>
-          <PrimaryButton uiId="profile.unlock" label="Unlock" onPress={() => w.choose(p, w.password)} busy={w.busy} style={s.grow} />
-          <GlassButton label="Back" onPress={() => w.setPwFor(null)} />
-        </View>
-      </Door>
+      <PasswordDoor
+        p={p}
+        password={w.password}
+        setPassword={w.setPassword}
+        error={w.pwError}
+        busy={w.busy}
+        onUnlock={() => w.choose(p, w.password)}
+        onBack={() => w.setPwFor(null)}
+        onForgot={() => setDoor({start: 'forgot'})}
+      />
     );
   }
 
@@ -185,7 +235,7 @@ export default function Gate({onChosen, notice}: {onChosen: OnChosen; notice: st
           {w.ordered.map((p, i) => (
             <Tile key={p.id} p={p} first={i === 0} size={size} onPress={() => w.onTile(p)} />
           ))}
-          {w.profiles !== null ? <AddTile size={size} onPress={() => setAdding(true)} /> : null}
+          {w.profiles !== null ? <AddTile size={size} onPress={() => setDoor({start: 'request'})} /> : null}
         </View>
         {w.busy ? <ActivityIndicator color={colors.text} style={{marginTop: 20}} /> : null}
       </ScrollView>
@@ -221,4 +271,7 @@ const s = StyleSheet.create({
   door: {flexGrow: 1, paddingHorizontal: GUTTER + 8, maxWidth: 520, width: '100%', alignSelf: 'center'},
   field: {marginTop: 24},
   row: {flexDirection: 'row', gap: 10, marginTop: 20},
+  who: {flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 18},
+  whoFace: {width: 56, height: 56, borderRadius: 16},
+  whoName: {flex: 1, color: colors.text, fontSize: 22, fontWeight: '800', letterSpacing: -0.3},
 });
