@@ -50,12 +50,18 @@ const modal = (contentNodes, onClose = null) => {
 
 // Ask for a profile's password; calls onSuccess(token) when it unlocks.
 export const passwordPrompt = (profile, onSuccess) => {
-  const input = el("input", { type: "password", class: "focusable", placeholder: "Password", autocomplete: "off" });
-  const err = el("div", { class: "pw-error hidden" }, "Not quite. Try again.");
+  // (the label is tied to the field and the error is read with it: auth-round)
+  const input = el("input", {
+    type: "password", class: "focusable", placeholder: "Password", autocomplete: "off",
+    id: "wall-pw", enterkeyhint: "go",
+  });
+  const err = el("div", { class: "pw-error hidden", id: "wall-pw-err", role: "alert" }, "Not quite. Try again.");
 
   const { close } = modal((close) => {
     const submit = async () => {
       err.classList.add("hidden");
+      input.removeAttribute("aria-invalid");
+      input.removeAttribute("aria-describedby");
       try {
         const typed = input.value;
         let res = await api.unlockProfile(profile.id, typed);
@@ -90,6 +96,9 @@ export const passwordPrompt = (profile, onSuccess) => {
           : status === 403 ? `This profile has been locked. Take it up with ${state.adminName}.`
           : "Couldn't reach Aurora. Try again in a moment.";
         err.classList.remove("hidden");
+        input.setAttribute("aria-invalid", "true");
+        // (only while it shows: a hidden line named here would still be read)
+        input.setAttribute("aria-describedby", "wall-pw-err");
         if (wrong) {
           input.value = "";
           narrator.call("onWrongPassword");
@@ -109,7 +118,7 @@ export const passwordPrompt = (profile, onSuccess) => {
     }, "Forgot password?");
     return [
       el("h2", {}, `${profile.avatar} ${profile.name}`),
-      el("div", { class: "field" }, el("label", {}, "Enter password"), input, err, forgot),
+      el("div", { class: "field" }, el("label", { for: "wall-pw" }, "Enter password"), input, err, forgot),
       el("div", { style: { display: "flex", gap: "10px", marginTop: "22px" } },
         el("button", { "data-ui": "profile.unlock", class: "btn btn-primary focusable", onclick: submit }, "Unlock"),
         el("button", { class: "btn focusable", onclick: close }, "Cancel")

@@ -104,23 +104,33 @@ export const showLoginScreen = (opts = {}) =>
     // One step on screen at a time. `focusEl`: where the keyboard starts.
     // (The app's focus scope lands on the panel's first control, the Sign in
     // tab, and a re-drawn panel gets a focus put back by position; neither is
-    // a choice anybody made. Only someone already typing in a field of this
-    // panel keeps it: a person, or a password manager.)
-    const typingHere = () => {
+    // a choice anybody made, so the step's own field wins over them. A field
+    // someone is already in, or anything a person pressed or clicked since
+    // the step appeared, is left alone.)
+    let actedAt = 0;
+    const acted = () => { actedAt = performance.now(); };
+    wrap.addEventListener("pointerdown", acted, true);
+    wrap.addEventListener("keydown", acted, true);
+    const leaveFocus = (since) => {
+      if (actedAt > since) return true;
       const a = document.activeElement;
-      return !!a && panel.contains(a) && (a.tagName === "INPUT" || a.tagName === "TEXTAREA") && !!a.value;
+      return !!a && panel.contains(a) && (a.tagName === "INPUT" || a.tagName === "TEXTAREA");
     };
     const setView = (nodes, focusEl) => {
+      const shownAt = performance.now();
       stopPolling();
       panel.innerHTML = "";
       panel.append(brand(), ...nodes.filter(Boolean));
+      // a new step starts at its top (the last one may have been scrolled to
+      // its Google button, far down a phone or a short window)
+      wrap.scrollTop = 0;
       if (!calm) {
         panel.classList.remove("view-in");
         void panel.offsetWidth;
         panel.classList.add("view-in");
       }
       setTimeout(() => {
-        if (typingHere() || !focusEl || !focusEl.isConnected) return;
+        if (!focusEl || !focusEl.isConnected || leaveFocus(shownAt)) return;
         focusEl.focus({ preventScroll: true });
       }, calm ? 30 : 120);
     };

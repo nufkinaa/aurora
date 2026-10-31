@@ -40,6 +40,7 @@ export const FEATURES: Feature[] = [
     title: 'Forgot your password? Reset it yourself',
     what: "Forgot password? on the sign-in screen lets you choose a new password without the old one. Confirm it's you with Google, ask the admin and carry on here as soon as they approve, or type the reset code they give you. Every other device is signed out unless you untick it.",
     how: 'Sign-in screen → Forgot password?. Still signed in on your phone or computer? Change it there, in Settings.',
+    go: {label: 'Open Settings', act: 'settings'},
   },
   {
     since: ROUND,
@@ -47,6 +48,7 @@ export const FEATURES: Feature[] = [
     title: 'Every profile has a password',
     what: 'Requests made with Google now set a password as well, so you can sign in on devices without Google. A profile that only had Google is asked to set one at its next sign-in.',
     how: 'Sign-in screen → Request access → Sign up with Google.',
+    go: {label: 'Open Settings', act: 'settings'},
   },
   {
     since: ROUND,
@@ -54,6 +56,7 @@ export const FEATURES: Feature[] = [
     title: 'A clearer sign-in screen',
     what: 'Sign in and Request access have the same look on the TV, the website and the phone app: a label on every field, the reason next to the field when something is wrong, Show to see the password you typed, and the code to scan with your phone beside it.',
     how: 'Shown when this TV needs to sign in.',
+    go: {label: 'Go home', act: 'home'},
   },
   // ---- end of the sign-in round ----
   // ---- the household-recommendations round (2026-10-27): the same card, the same words, on the website ----

@@ -25,7 +25,7 @@ import { pushScope, popScope } from "./focus.js";
 import { reconnect } from "./ws.js";
 import { initAuroraSky } from "./aurora-sky.js";
 import { passwordProblem } from "./passrules.js";
-import { cap, passwordField, primaryButton, formError, placeError, brand } from "./authui.js";
+import { cap, passwordField, primaryButton, formError, placeError, brand, holdPage } from "./authui.js";
 
 let up = null; // the one wall on screen — a second ask gets the same promise
 export const resetWallUp = () => !!up;
@@ -51,7 +51,9 @@ export const showResetWall = (opts = {}) => {
       : passwordField({ key: "currentPassword", label: "Current password", autocomplete: "current-password", required: true, enterkeyhint: "next" });
     const fresh = passwordField({ key: "newPassword", label: setup ? "Password" : "New password", autocomplete: "new-password", isNew: true, personal: () => [profile.name], required: true, enterkeyhint: "next" });
     const again = passwordField({ key: "confirm", label: "Confirm password", autocomplete: "new-password", required: true, enterkeyhint: "go" });
-    const hiddenUser = el("input", { type: "text", name: "username", autocomplete: "username", value: profile.name || "", hidden: true, "aria-hidden": "true", tabindex: "-1" });
+    // (for password managers: the name this person signs in with, when known)
+    const signInName = profile.username || (state.user && state.user.profileId === profile.id && (state.user.username || state.user.email)) || profile.name || "";
+    const hiddenUser = el("input", { type: "text", name: "username", autocomplete: "username", value: signInName, hidden: true, "aria-hidden": "true", tabindex: "-1" });
     const save = primaryButton(setup ? "Save password" : "Save new password", "Saving…");
     const out = el("button", { type: "button", class: "auth-link focusable" }, "Sign out");
     const forgotNote = el("p", { class: "auth-hint", hidden: !current },
@@ -72,9 +74,11 @@ export const showResetWall = (opts = {}) => {
     const onBack = (e) => { e.preventDefault(); e.stopImmediatePropagation(); };
     let wrap = null;
     let stopSky = () => {};
+    let releasePage = () => {};
     const close = () => {
       window.removeEventListener("ui-back", onBack, true);
       stopSky();
+      releasePage();
       popScope(wrap);
       wrap.remove();
       up = null;
@@ -181,6 +185,7 @@ export const showResetWall = (opts = {}) => {
     wrap = el("div", { class: "ui-overlay login-wrap reset-wall" }, sky, el("div", { class: "auth-shell" }, panel));
     window.addEventListener("ui-back", onBack, true);
     document.body.append(wrap);
+    releasePage = holdPage(wrap);
     stopSky = initAuroraSky(sky);
     pushScope(wrap);
     setTimeout(() => {

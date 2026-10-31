@@ -21,19 +21,41 @@ import { showReportSheet } from "../report.js";
 // (The TV has the same cards: tv-native/src/screens/WhatsNew.tsx, ROUND there.
 // A card about something only a browser has says `webOnly: true` first —
 // test/whatsnew-parity.test.js leaves it out of the comparison.)
-export const ROUND = "1.13.0";
+export const ROUND = "1.15.6";
 const NEW_FROM = ROUND;
 const FEATURES = [
+  // ---- the sign-in round (auth-round, 2026-10-31): the same cards, the same words, on the TV ----
+  {
+    since: ROUND, cue: "tap", glyph: "🔑",
+    title: "Forgot your password? Reset it yourself",
+    what: "Forgot password? on the sign-in screen lets you choose a new password without the old one. Confirm it's you with Google, ask the admin and carry on here as soon as they approve, or type the reset code they give you. Every other device is signed out unless you untick it.",
+    how: "Sign-in screen → Forgot password?. Still signed in on this browser or your phone? Edit profile & password → Forgot your current password?",
+    go: { label: "Open Preferences", to: "#/preferences" },
+  },
+  {
+    since: ROUND, cue: "tap", glyph: "🛡️",
+    title: "Every profile has a password",
+    what: "Requests made with Google now set a password as well, so you can sign in on devices without Google. A profile that only had Google is asked to set one at its next sign-in.",
+    how: "Sign-in screen → Request access → Sign up with Google.",
+    go: { label: "Open Preferences", to: "#/preferences" },
+  },
+  {
+    since: ROUND, cue: "tap", glyph: "✨",
+    title: "A clearer sign-in screen",
+    what: "Sign in and Request access have the same look on the TV, the website and the phone app: a label on every field, the reason next to the field when something is wrong, Show to see the password you typed, and the code to scan with your phone beside it.",
+    how: "Shown when this browser needs to sign in, and on the profile wall's password.",
+    go: { label: "Go home", to: "#/" },
+  },
   // ---- the household-recommendations round (2026-10-27): the same card, the same words, on the TV ----
   {
-    since: ROUND, cue: "tap", glyph: "📨",
+    since: "1.13.0", cue: "tap", glyph: "📨",
     title: "Recommend to your household",
     what: "Send a film or a show to someone in your household, with a short note if you like. What the others recommend to you sits on Home under Recommended for You, the titles more of them recommended first, and one press puts it on your My List.",
     how: "On any title press Recommend, pick the faces and press Send. On Home, press + on a recommended card, or hold it for Not for me. To mute someone: Settings → More settings → Recommendations.",
     go: { label: "Go home", to: "#/" },
   },
   {
-    since: ROUND, cue: "smart", glyph: "📬",
+    since: "1.13.0", cue: "smart", glyph: "📬",
     title: "See what became of your picks",
     what: "Show all recommended lists everything the household recommended to you, by person, and its second tab what you sent: whether each person saw it, put it on their list or watched it. Not for me tells nobody.",
     how: "Settings → More settings → Recommendations → What you sent. Show all recommended also sits under the row on Home once there are more than 15.",

@@ -77,14 +77,21 @@ ui.test("sign in: labels, autofill, Show/Hide, Caps Lock, the switch, and an err
     ]);
     // the switch is a tablist, the first door selected
     assert.deepEqual(await page.$$eval(`${card} [role="tab"]`, (t) => t.map((x) => [x.textContent, x.getAttribute("aria-selected")])), [["Sign in", "true"], ["Request access", "false"]]);
-    // "Forgot password?" sits on the password's label line
-    assert.equal(await page.locator(inCard('.af-labelrow button:has-text("Forgot password?")')).isVisible(), true);
+    // "Forgot password?" is drawn on the password's label line, but comes
+    // after the password in the tab order (Tab from the username lands in it)
+    const forgotBox = await page.locator(inCard('.af-field:has(input[name="password"]) .af-aside button:has-text("Forgot password?")')).boundingBox();
+    const labelBox = await page.locator(inCard('.af-field:has(input[name="password"]) .af-label')).boundingBox();
+    assert.ok(forgotBox && labelBox && forgotBox.y < labelBox.y + labelBox.height && forgotBox.y + forgotBox.height > labelBox.y, "on the label's line");
+    await page.focus(inCard('input[name="identifier"]'));
+    await page.keyboard.press("Tab");
+    assert.equal(await page.evaluate(() => document.activeElement.name), "password", "Tab goes from the username to the password");
     // Show / Hide
     const pw = page.locator(inCard('input[name="password"]'));
     await pw.fill("secret-1");
     await page.click(inCard(".af-reveal"));
     assert.equal(await pw.getAttribute("type"), "text");
-    assert.equal(await page.getAttribute(inCard(".af-reveal"), "aria-pressed"), "true");
+    // (the name says what a press does next, and holds the visible word)
+    assert.equal(await page.getAttribute(inCard(".af-reveal"), "aria-label"), "Hide password");
     await page.click(inCard(".af-reveal"));
     assert.equal(await pw.getAttribute("type"), "password");
     // Caps Lock is said out loud

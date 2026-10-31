@@ -87,7 +87,7 @@ The same answer for everyone: nothing about any account.
 | way | how | routes |
 | --- | --- | --- |
 | **Google** | Verify with Google; a profile linked to that Google account gets a reset token. | web: `web-start?intent=reset` → `web-finish` → `{reset:{token,name}}`; TV: `google/start {intent:"reset"}` + `poll`; phone: `app-start?intent=reset` + `app-finish` |
-| **Signed-in device** | Settings → Change password without the old one, on a phone app or browser session signed in within the last 30 days (never a TV session, never a kids profile). | `GET /api/auth/password/options` → `{ needsCurrent, why? }`; `POST /api/auth/password { newPassword, signOutOthers }` |
+| **Signed-in device** | Settings → Change password without the old one, on a phone app or browser session the person signed in on within the last 30 days (not a TV, not a TV pairing, never a kids profile) — or on any device, the TV included, within 10 minutes of typing the password or verifying with Google there. Every other device is signed out. | `GET /api/auth/password/options` → `{ needsCurrent, why? }`; `POST /api/auth/password { newPassword, signOutOthers }` |
 | **Ask the admin** | The person asks; the admin approves in People; the waiting screen continues by itself, and the admin also gets a one-time code to read out. | `POST /api/auth/reset/request { identifier, note? }` → `{ ok, ticket, expiresIn }` (always the same answer); `POST /api/auth/reset/status { ticket }` → `{ status: pending\|approved\|declined\|expired, token?, name? }` |
 | **Reset code** | A code from the admin (8 characters, 30 minutes, single use). | `POST /api/auth/reset/code { identifier, code }` → `{ ok, token, name }` |
 | **Email** (off) | A link `{publicUrl}/#/reset/<token>` by email, 30 minutes. Built, switched off; see section 5. | `POST /api/auth/reset/email { identifier }` → `{ ok }` always (501 when off) |
@@ -162,8 +162,83 @@ Plain, warm, short. No emoji, no jokes in the way of getting in.
 
 ## 4. Practices checklist
 
-(Filled in at the end of the round: done / not applicable / decision for elia, per client.)
+Web: checked in real Chrome (playwright-core, channel "chrome") on a private instance in closed mode
+with the Google stand-in, at 320, 360, 390, 430 wide, a 740x360 landscape phone, 1280, 1920 and
+200 % zoom (640x360 CSS px), plus `test/ui/signin-round.test.js`. Screenshots in
+`docs/qa/auth-round/after/web-*.png`. Phone and TV: see the helpers' reports.
+
+| practice | web | phone | TV | how it was checked (web) |
+| --- | --- | --- | --- | --- |
+| `autocomplete` on every field (`username`, `current-password`, `new-password`, `email`, `name`, `one-time-code`) | done | see helper report | see helper report | every input's attributes read from the page on each screen; the test asserts the sign-in pair |
+| a username next to every new password, for the password manager | done | see helper report | see helper report | request access has the Username field; reset / set-password / forced reset carry a hidden `autocomplete="username"` field, now filled with what the person typed to get there (username or email), the profile's name only when nothing better is known |
+| Show / Hide on passwords | done | see helper report | see helper report | clicked; the accessible name is "Show password" / "Hide password" so it contains the visible word (no `aria-pressed` on top, it read backwards) |
+| the rule shown before typing, plus a strength hint | done | see helper report | see helper report | "At least 4 characters. Longer is stronger." under the field from the start; the strength line is read with the field (`aria-describedby`), not announced per key |
+| Caps Lock warning | done | see helper report | see helper report | Caps Lock pressed in the test; the line is a polite live region, so it is also heard once |
+| errors next to the field, specific, `aria-invalid` + `aria-describedby`, announced | done | see helper report | see helper report | empty, short, mismatch and a wrong reset code; Chrome's accessibility tree read over CDP: the code field is `invalid`, its description is the error, focus stays on it; the line is a polite live region (going back to the help text is silent) |
+| fields never cleared on error | done (sign-in screens); the profile wall's unlock sheet still clears a wrong password on purpose (its own test says so) | see helper report | see helper report | wrong password and rate limit: both fields keep what was typed |
+| Enter submits / moves to the next field | done | see helper report | see helper report | Enter in username goes to password, in password sends; the request form walks field to field and sends from the last |
+| right keyboard on phones (`type`, `inputmode`, `enterkeyhint`, `autocapitalize`, no autocorrect) | done | see helper report | see helper report | attributes read per field: email `type=email inputmode=email`, name `autocapitalize=words`, code `characters`, usernames `none`, `enterkeyhint` next / go / send |
+| paste allowed | done | see helper report | see helper report | a synthetic paste into the password is not prevented; nothing listens for paste |
+| busy state, button held, no double submit | done | see helper report | see helper report | login slowed by 800 ms: button disabled, "Signing in…", `aria-busy`; Enter twice + a click sent ONE request |
+| clear sign in / request access switch (tablist, keyboard) | done | see helper report | see helper report | `role=tablist/tab/tabpanel`, `aria-selected`, `aria-controls`, roving `tabindex`; Left / Right / Home / End switch and keep the keyboard on the tab (mirrored in RTL); a click puts it in the first field |
+| "Continue with Google" per Google's branding guidelines | partly | see helper report | see helper report | dark theme `#131314` / `#8E918F` 1 px / `#E3E3E3`, the standard four-colour G unchanged, 14/20 text, 12 px + 10 px + 12 px spacing, approved wording. Not exact: the guidelines' face is Google Sans Medium, which is not shipped (falls back to Roboto / the system face), and the corners follow the panel's 10 px radius rather than Google's stock rectangle or pill |
+| labels, headings, landmarks | done | see helper report | see helper report | a visible `<label for>` on every field; one `h1` per step (on the two tabbed doors it is read, not drawn, because the switch already says it); the panel is `<main>` and everything behind it is now `inert`, so there is one reachable landmark |
+| focus order and a visible focus ring | done | see helper report | see helper report | Tab walk: username, password, Show, Forgot password?, Sign in, Google, Get the apps, then back round (no longer into the app behind); 2 px mint ring on every control, mint glow on fields (`web-desktop-focus-ring.png`); the first field has the keyboard when the screen opens (it used to be the Sign in tab) |
+| hover does not steal the focus | done | not applicable | not applicable | the app's hover-to-focus (for TV pointer remotes) used to move the focus to "Show" or a link under a resting mouse while typing; now kept out of the sign-in screens |
+| WCAG AA contrast | done | see helper report | see helper report | measured against the panel over the sky, nominal / bright aurora band (99th percentile) / brightest pixel: label 13.5 / 12.6 / 11.3, help and lede 8.7 / 8.1 / 7.3, error 9.6 / 8.9 / 8.0, link 11.2 / 10.0 / 7.1, faint ("or", Get the apps) 7.1 / 6.6 / 5.9, Google text 14.5. The faint ink was 3.3 at worst and carried the help text; it is lighter now and help uses the dim ink. No placeholders are used |
+| prefers-reduced-motion | done | see helper report | see helper report | with `reducedMotion: reduce` no CSS animation runs; the view change and the waiting dot stop, the sky paints one still frame |
+| RTL | done | see helper report | see helper report | 320 and 360 wide right to left: no sideways scroll, Show and Forgot password? flip sides, arrow keys on the switch follow the reading direction |
+| every phone size + desktop | done | see helper report | see helper report | 320, 360, 390, 430, 740x360 landscape, 1280, 1920: no sideways scroll, the panel inside the screen, controls 44 px tall on touch screens |
+| zoom to 200 % | done | see helper report | see helper report | 640x360 CSS px: one column, scrolls vertically only, nothing clipped (`web-zoom200-request-error.png`) |
+| rate-limit message | done | see helper report | see helper report | 11 wrong tries: "Too many tries. Wait 15 minutes, then try again.", fields kept |
+| no account enumeration in the words | done | see helper report | see helper report | sign-in: "That username and password don't match"; ask the admin, email link and reset options answer the same for anyone; a wrong reset code says the same for an unknown name. (Request access must say a username is taken, as every sign-up does) |
+| screen-reader name of the code tiles | done | see helper report | see helper report | the tiles are hidden from screen readers and a line reads "Code: W X Y Z K 7 M 4" (it used to have no name at all: an `aria-label` on a plain div); the tiles stay on one line down to 320 wide (`web-phone360-google-code.png`) |
+
+Decisions for elia:
+
+- **Minimum length 4.** Kept, because it is the household's existing rule and the server enforces
+  it for every client. The common minimum today is 8 (NIST SP 800-63B asks for at least 8 for a
+  password chosen by the person). Raising it would only apply to new passwords; existing ones
+  keep working.
+- **Google's face.** The button uses Roboto / the system face instead of Google Sans Medium,
+  which Aurora does not ship. Shipping it means adding the font files to the site.
+- **The profile wall's unlock sheet** clears a wrong password (like a lock screen) and has
+  `autocomplete="off"`, so a shared household browser does not save every profile's password.
+  Both on purpose; say if the sheet should behave like the sign-in screen instead.
 
 ## 5. Email reset: what elia would need to provide
 
-(Filled in at the end of the round.)
+Email reset is built (src/lib/mailer.js, POST /api/auth/reset/email, the "Email me a link"
+option and the #/reset/<token> link page) and switched OFF. No mail account was set up and no
+mail was sent; the sender was only tested against a fake mail server inside the test run.
+"Email me a link" appears on every client only once all of this is in place:
+
+1. **A sending account.** One of:
+   - **SMTP** (any mailbox provider): host, port (465 for TLS, or 587 with STARTTLS), the
+     username, and its password. With Gmail this is `smtp.gmail.com`, 465, the Gmail address,
+     and an **app password** (Google Account → Security → 2-Step Verification → App passwords),
+     never the account password. The server refuses a mail server without encryption.
+   - **Resend** (resend.com, an HTTP API, no SMTP): an API key, and nufurora.com added as a
+     sending domain there (it gives DNS records to add).
+2. **A from address**, e.g. `Aurora <no-reply@nufurora.com>`. For mail from @nufurora.com to
+   land in inboxes rather than spam, the domain needs SPF and DKIM records (the provider lists
+   them) and ideally a DMARC record. With Gmail SMTP the from address is the Gmail address.
+3. **config.json** on the nufurora.com host:
+   ```json
+   "publicUrl": "https://nufurora.com",
+   "passwordReset": { "email": {
+     "enabled": true,
+     "from": "Aurora <no-reply@nufurora.com>",
+     "provider": "smtp",
+     "smtp": { "host": "smtp.gmail.com", "port": 465, "user": "you@gmail.com" }
+   } }
+   ```
+   (`"provider": "resend"` needs no `smtp` block.)
+4. **.env** (secrets never go in config.json; configcheck refuses a password there):
+   `AURORA_SMTP_PASSWORD=…` for SMTP, or `AURORA_MAIL_API_KEY=…` for Resend.
+5. A server restart. Then: Forgot password? → "Email me a link" shows on web, phone and TV.
+
+How it behaves: the link goes only to the email already on the profile (never one typed on
+the reset screen), works once for 30 minutes, the answer on screen is the same whether the
+name exists or not, it is rate-limited (5 per hour per name, 12 per hour per address), and the
+link points at `publicUrl`, never at whatever Host a request claimed.

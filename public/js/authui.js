@@ -46,24 +46,34 @@ export const field = (opts) => {
   });
   if (opts.value) input.value = opts.value;
   const help = opts.help || "";
+  // (polite live region: an error that lands while the field already has the
+  // focus — a wrong code after Enter — is still said; going back to the help
+  // text is not, see clearError)
   const msg = el("p", { class: "af-msg", id: msgId, "aria-live": "polite" }, help);
   const labelRow = el("div", { class: "af-labelrow" },
-    el("label", { class: "af-label", for: id }, opts.label),
-    opts.aside || null);
+    el("label", { class: "af-label", for: id }, opts.label));
   const box = el("div", { class: "af-box" }, input);
-  const wrap = el("div", { class: "af-field" }, labelRow, box, msg);
+  // `aside` (the password's "Forgot password?") is DRAWN on the label's line
+  // but comes AFTER the input in the tab order (CSS grid places it): Tab
+  // from the username lands in the password, as people and password
+  // managers expect, not on the link.
+  const aside = opts.aside ? el("div", { class: "af-aside" }, opts.aside) : null;
+  const wrap = el("div", { class: `af-field${aside ? " has-aside" : ""}` }, labelRow, box, aside, msg);
   const f = {
     key: opts.key, wrap, input, box, msg,
     value: () => input.value,
     setError: (text) => {
       wrap.classList.add("invalid");
       input.setAttribute("aria-invalid", "true");
+      msg.setAttribute("aria-live", "polite");
       msg.textContent = text;
     },
     clearError: () => {
       if (!wrap.classList.contains("invalid")) return;
       wrap.classList.remove("invalid");
       input.removeAttribute("aria-invalid");
+      // the help comes back quietly (it is read with the field anyway)
+      msg.setAttribute("aria-live", "off");
       msg.textContent = f.help;
     },
     help,
@@ -77,38 +87,47 @@ export const field = (opts) => {
 // up front and a strength line. `personal`: () => [name, username, email].
 export const passwordField = (opts) => {
   const f = field({ ...opts, type: "password", help: opts.isNew ? PASSWORD_HELP : opts.help || "" });
+  // Show / Hide: the visible word is part of the name ("Show password" /
+  // "Hide password"), so a voice user can say what they see; no
+  // aria-pressed on top (a pressed "Hide password" reads backwards).
   const toggle = el("button", {
     type: "button", class: "af-reveal focusable",
-    "aria-controls": f.input.id, "aria-pressed": "false",
+    "aria-controls": f.input.id, "aria-label": "Show password",
   }, "Show");
   toggle.addEventListener("click", () => {
     const shown = f.input.type === "password";
     f.input.type = shown ? "text" : "password";
     toggle.textContent = shown ? "Hide" : "Show";
-    toggle.setAttribute("aria-pressed", String(shown));
     toggle.setAttribute("aria-label", shown ? "Hide password" : "Show password");
     f.input.focus();
   });
-  toggle.setAttribute("aria-label", "Show password");
   f.box.append(toggle);
-  const caps = el("p", { class: "af-caps", hidden: true }, "Caps Lock is on.");
+  // Caps Lock: a live line that is empty until it is on, so a screen reader
+  // hears it once when it turns on (and it is read with the field).
+  const caps = el("p", { class: "af-caps", id: `${f.input.id}-caps`, "aria-live": "polite" });
   f.wrap.insertBefore(caps, f.msg);
+  const setCaps = (on) => {
+    const text = on ? "Caps Lock is on." : "";
+    if (caps.textContent !== text) caps.textContent = text;
+  };
   const capsCheck = (e) => {
     if (!e || typeof e.getModifierState !== "function") return;
-    caps.hidden = !e.getModifierState("CapsLock");
+    setCaps(e.getModifierState("CapsLock"));
   };
   f.input.addEventListener("keydown", capsCheck);
   f.input.addEventListener("keyup", capsCheck);
-  f.input.addEventListener("blur", () => { caps.hidden = true; });
+  f.input.addEventListener("blur", () => setCaps(false));
+  const describedBy = [f.msg.id, caps.id];
   if (opts.isNew) {
     const bars = el("span", { class: "af-bars", "aria-hidden": "true" }, el("i"), el("i"), el("i"), el("i"));
-    const word = el("span", { class: "af-strength-word" }, "");
+    const word = el("span", { class: "af-strength-word", id: `${f.input.id}-strength` }, "");
     const meter = el("div", { class: "af-strength", "data-score": "0", hidden: true }, bars, word);
     f.wrap.insertBefore(meter, caps);
-    f.input.setAttribute("aria-describedby", `${f.msg.id}`);
+    // (read with the field, never announced per keystroke)
+    describedBy.push(word.id);
     const paint = () => {
       const v = f.input.value;
-      if (!v) { meter.hidden = true; return; }
+      if (!v) { meter.hidden = true; word.textContent = ""; return; }
       const s = passwordStrength(v, opts.personal ? opts.personal() : []);
       meter.hidden = false;
       meter.dataset.score = String(s.score);
@@ -117,6 +136,7 @@ export const passwordField = (opts) => {
     f.input.addEventListener("input", paint);
     f.paintStrength = paint;
   }
+  f.input.setAttribute("aria-describedby", describedBy.join(" "));
   f.reveal = toggle;
   return f;
 };
@@ -171,6 +191,28 @@ export const placeError = (e, fields, formErr) => {
     formErr.show(text);
   }
   return text;
+};
+
+// While a sign-in screen is up it is the whole page: everything else in
+// <body> (the app's nav and <main> behind it) is made inert, so Tab, a screen
+// reader's landmarks and a stray click can't wander behind the panel. The
+// toasts stay reachable. And the app's hover-to-focus (focus.js, for TV
+// pointer remotes) is kept out of the panel: a mouse resting on "Show" or a
+// link must not take the focus out of the field someone is typing in.
+// Returns the undo.
+export const holdPage = (wrap) => {
+  const held = [];
+  for (const n of document.body.children) {
+    if (n === wrap || n.id === "toasts" || n.inert || n.tagName === "SCRIPT") continue;
+    n.inert = true;
+    held.push(n);
+  }
+  const noHoverFocus = (e) => e.stopPropagation();
+  wrap.addEventListener("mouseover", noHoverFocus);
+  return () => {
+    for (const n of held) n.inert = false;
+    wrap.removeEventListener("mouseover", noHoverFocus);
+  };
 };
 
 // The screen's frame: the Beam mark and the word. The mark is the nav's own
