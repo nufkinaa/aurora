@@ -1,4 +1,4 @@
 {
-  "versionName": "5.8.1",
-  "notes": "Starts more reliably when the network is still waking up. Please update."
+  "versionName": "5.8.2",
+  "notes": "New sign-in screens. Forgot your password? Reset it yourself. Signing up with Google now asks for a password. Please update."
 }

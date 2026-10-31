@@ -3,6 +3,16 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.6 — 2026-10-31
+
+**Sign-in, sign-up and passwords** — on the website, Aurora TV 5.8.2 and Aurora for Android phones 1.0.2.
+- **New sign-in screens.** Calmer and clearer in Aurora's own look, on every screen size: visible labels, Show/Hide password, a Caps Lock warning, the password rules and a strength hint up front, errors next to the field without wiping what you typed, and password managers fill everything in correctly. On the TV the same look at 10 feet, easy with the remote.
+- **Continue with Google on the phone app.** It opens Google's own sign-in and comes straight back into the app, signed in.
+- **Google sign-up asks for a password.** A new account always gets its own password, on every app. Profiles made with Google before are asked to set one at their next Google sign-in.
+- **Forgot password? Reset it yourself.** On every sign-in screen: confirm with Google if your profile uses it, change it from a phone or browser you're still signed in on, or ask the household admin (they approve it in People, or read you a one-time code). Other devices are signed out after a reset unless you keep them.
+- For the admin: People shows password-reset requests (Approve / Decline), a Reset code button and each person's password events.
+- Older apps that can't ask for a password are told to update.
+
 ## 1.15.5 — 2026-10-29
 
 **Aurora for Android phones 1.0.1** — phones with 1.0.0 offer the update by themselves.
