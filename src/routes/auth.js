@@ -198,6 +198,12 @@ router.post("/api/auth/signup", async (req, res) => {
     }
     goog = p.signupSub;
   }
+  // An app from before this rule (TV 5.8.1, phone 1.0.1) asks with Google and
+  // NO password field at all: its screen can only show this sentence, so the
+  // sentence says what to do.
+  if (goog && (password == null || password === "")) {
+    return res.status(400).json({ error: "Choose a password to finish. If there's no password field here, update the Aurora app.", field: "password", code: "short" });
+  }
   if (!goog && !String(username || "").trim() && !String(email || "").trim()) {
     return res.status(400).json({ error: "Choose a username, or give an email to sign in with.", field: "username" });
   }

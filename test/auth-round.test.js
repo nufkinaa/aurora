@@ -295,6 +295,7 @@ test("sign-up with Google (phone): an unknown account becomes a request, and the
     const pollId = r.body.pollId;
     const none = await srv.call("POST", "/api/auth/signup", { name: "Ana", pollId });
     assert.deepEqual([none.status, none.body.field, none.body.code], [400, "password", "short"]);
+    assert.match(none.body.error, /update the Aurora app/, "an app from before the rule has no password field: the words say what to do");
     const ok = await srv.call("POST", "/api/auth/signup", { name: "Ana", pollId, password: "ana-pass-1", username: "ana" });
     assert.equal(ok.status, 200, JSON.stringify(ok.body));
     const people = (await srv.call("GET", "/api/admin/people", null, ADMIN)).body;

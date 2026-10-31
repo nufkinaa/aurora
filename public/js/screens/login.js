@@ -22,7 +22,7 @@ import { initAuroraSky } from "../aurora-sky.js";
 import { googleFlavor, googleWebFlow } from "../google.js";
 import { passwordProblem } from "../passrules.js";
 import {
-  GOOGLE_G, cap, field, passwordField, primaryButton, googleButton, formError, placeError, brand,
+  GOOGLE_G, cap, field, passwordField, primaryButton, googleButton, formError, placeError, brand, holdPage,
 } from "../authui.js";
 
 export { GOOGLE_G };
@@ -36,6 +36,8 @@ const getAppsLink = () =>
 
 // the admin's name: at the start of a sentence, and inside one
 const admin = () => cap(state.adminName || "the admin");
+// the reset options' control ids (docs/analytics.md)
+const RESET_UI = /* data-ui */ { google: "signin.reset.google", admin: "signin.reset.admin", code: "signin.reset.code", email: "signin.reset.email" };
 const adminIn = () => state.adminName || "the admin";
 
 // Resolves with the full login/claim response ({user, profile, profileToken})
@@ -48,11 +50,13 @@ export const showLoginScreen = (opts = {}) =>
     const wrap = el("div", { class: "ui-overlay login-wrap" }, sky, shell);
 
     let stopSky = () => {};
+    let releasePage = () => {};
     let polling = null; // the ask-the-admin waiting screen's timer
     const stopPolling = () => { if (polling) { clearTimeout(polling); polling = null; } };
     const cleanup = () => {
       stopPolling();
       stopSky();
+      releasePage();
       popScope(wrap);
       wrap.remove();
     };
@@ -98,6 +102,14 @@ export const showLoginScreen = (opts = {}) =>
 
     const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
     // One step on screen at a time. `focusEl`: where the keyboard starts.
+    // (The app's focus scope lands on the panel's first control, the Sign in
+    // tab, and a re-drawn panel gets a focus put back by position; neither is
+    // a choice anybody made. Only someone already typing in a field of this
+    // panel keeps it: a person, or a password manager.)
+    const typingHere = () => {
+      const a = document.activeElement;
+      return !!a && panel.contains(a) && (a.tagName === "INPUT" || a.tagName === "TEXTAREA") && !!a.value;
+    };
     const setView = (nodes, focusEl) => {
       stopPolling();
       panel.innerHTML = "";
@@ -107,15 +119,15 @@ export const showLoginScreen = (opts = {}) =>
         void panel.offsetWidth;
         panel.classList.add("view-in");
       }
-      // (only if nothing in the panel has the focus by then: a person — or a
-      // password manager — that is already typing keeps their field)
       setTimeout(() => {
-        const a = document.activeElement;
-        if (a && a !== document.body && panel.contains(a)) return;
-        focusEl?.focus({ preventScroll: true });
+        if (typingHere() || !focusEl || !focusEl.isConnected) return;
+        focusEl.focus({ preventScroll: true });
       }, calm ? 30 : 120);
     };
-    const title = (text) => el("h1", { class: "auth-title", id: "auth-title" }, text);
+    // `hidden`: the two front doors' titles are said, not shown. The switch
+    // right above already reads "Sign in" / "Request access"; three "Sign in"s
+    // in a row (tab, title, button) was the look of a template.
+    const title = (text, hidden = false) => el("h1", { class: `auth-title${hidden ? " auth-vh" : ""}`, id: "auth-title" }, text);
     const lede = (...kids) => el("p", { class: "auth-lede" }, ...kids);
     const form = (onSubmit, ...kids) => {
       const f = el("form", { class: "auth-form", novalidate: true }, ...kids);
@@ -124,26 +136,47 @@ export const showLoginScreen = (opts = {}) =>
     };
     const back = (label, fn) => el("button", { type: "button", class: "auth-link focusable", onclick: fn }, label);
 
-    // The switch between the two front doors.
+    // The switch between the two front doors: a tablist, the form below is
+    // its tabpanel. Arrow keys, Home and End move along it and switch at
+    // once, and the keyboard stays on the tab it chose (the tabs pattern); a
+    // click puts the keyboard in the first field.
+    const PANEL_ID = "auth-tabpanel";
     const tabs = (current) => {
-      const mk = (key, label, go) => el("button", {
-        type: "button", role: "tab", class: `auth-tab focusable${current === key ? " on" : ""}`,
+      const go = (key, byKeys) => (key === "signin" ? signinView({ byKeys }) : signupView(null, { byKeys }));
+      const mk = (key, label) => el("button", {
+        type: "button", role: "tab", id: `auth-tab-${key}`, class: `auth-tab focusable${current === key ? " on" : ""}`,
         "aria-selected": current === key ? "true" : "false", tabindex: current === key ? "0" : "-1",
-        "data-ui": `signin.tab.${key}`,
-        onclick: () => { if (current !== key) go(); },
+        "aria-controls": current === key ? PANEL_ID : null,
+        // (written out: the analytics contract reads the ids as they stand in the code)
+        "data-ui": key === "signin" ? "signin.tab.signin" : "signin.tab.request",
+        onclick: () => { if (current !== key) go(key, false); },
       }, label);
       const t = el("div", { class: "auth-tabs", role: "tablist", "aria-label": "Sign in or request access" },
-        mk("signin", "Sign in", () => signinView()),
-        mk("request", "Request access", () => signupView()));
-      // arrow keys move along the tabs (the tablist pattern)
+        mk("signin", "Sign in"),
+        mk("request", "Request access"));
       t.addEventListener("keydown", (e) => {
-        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        const rtl = getComputedStyle(t).direction === "rtl";
+        const next = { ArrowLeft: rtl ? "request" : "signin", ArrowRight: rtl ? "signin" : "request", Home: "signin", End: "request" }[e.key];
+        if (!next) return;
         e.preventDefault();
         e.stopPropagation();
-        current === "signin" ? signupView() : signinView();
+        if (next !== current) go(next, true);
+        else t.querySelector(`#auth-tab-${next}`).focus();
       });
       return t;
     };
+    // the form of a tabbed view is the tabpanel of the selected tab
+    const asTabPanel = (f, key) => {
+      f.id = PANEL_ID;
+      f.setAttribute("role", "tabpanel");
+      f.setAttribute("aria-labelledby", `auth-tab-${key}`);
+      return f;
+    };
+    // after a switch by keys the keyboard goes back to the chosen tab
+    const focusTab = (key) => setTimeout(() => {
+      const t = panel.querySelector(`#auth-tab-${key}`);
+      if (t) t.focus({ preventScroll: true });
+    }, calm ? 40 : 130);
 
     // One entry point for every Google button: the web popup where the
     // browser can use it (localhost/domain), the code flow otherwise.
@@ -178,7 +211,7 @@ export const showLoginScreen = (opts = {}) =>
     };
 
     // ---------------- sign in ----------------
-    const signinView = () => {
+    const signinView = ({ byKeys = false } = {}) => {
       const formErr = formError();
       const forgot = el("button", { type: "button", class: "auth-link small focusable", "data-ui": "signin.forgot", onclick: () => forgotView({ identifier: user.value().trim() }) }, "Forgot password?");
       const user = field({ key: "identifier", label: "Username or email", autocomplete: "username", maxlength: "80", enterkeyhint: "next", required: true });
@@ -204,9 +237,9 @@ export const showLoginScreen = (opts = {}) =>
 
       const nodes = [
         tabs("signin"),
-        title("Sign in"),
+        title("Sign in", true),
         lede("Use your Aurora username or email."),
-        form(submit, user.wrap, pass.wrap, formErr, submitBtn),
+        asTabPanel(form(submit, user.wrap, pass.wrap, formErr, submitBtn), "signin"),
         googleBlock("Continue with Google", "login", formErr),
       ];
       if (opts.skippable) {
@@ -217,14 +250,15 @@ export const showLoginScreen = (opts = {}) =>
           }, "Continue without signing in")));
       }
       nodes.push(getAppsLink());
-      setView(nodes, user.input);
+      setView(nodes, byKeys ? null : user.input);
+      if (byKeys) focusTab("signin");
     };
 
     // ---------------- request access ----------------
     // A password is required either way — with Google too (elia, auth-round:
     // signing up with Google and no password "is not good at all"). `googleCtx`
     // arrives verified from a Google step ({pollId, email, name}).
-    const signupView = (googleCtx = null) => {
+    const signupView = (googleCtx = null, { byKeys = false } = {}) => {
       const formErr = formError();
       const personal = () => [name.value(), uname.value(), email.value(), googleCtx && googleCtx.email];
       const name = field({ key: "name", label: "Your name", autocomplete: "name", maxlength: "24", value: (googleCtx && googleCtx.name) || "", autocapitalize: "words", help: "Shown on your profile.", required: true, enterkeyhint: "next" });
@@ -267,16 +301,18 @@ export const showLoginScreen = (opts = {}) =>
       };
 
       const standalone = opts.view === "signup";
+      const tabbed = !standalone && !googleCtx;
+      const theForm = form(send, name.wrap, uname.wrap, googleCtx ? null : email.wrap, pw.wrap, pw2.wrap, note.wrap, formErr, sendBtn);
       const nodes = [
-        standalone || googleCtx ? null : tabs("request"),
-        title(googleCtx ? "Finish your request" : "Request access"),
+        tabbed ? tabs("request") : null,
+        title(googleCtx ? "Finish your request" : "Request access", tabbed),
         googleCtx
           ? lede("Set a password as well, so you can sign in on devices without Google.")
           : lede(`${admin()} approves new people. Once you're approved, sign in with the details you set here.`),
         googleCtx ? el("p", { class: "auth-verified" },
           el("span", { class: "af-g", html: GOOGLE_G }),
           el("span", {}, "Google: ", el("strong", {}, googleCtx.email || "verified"))) : null,
-        form(send, name.wrap, uname.wrap, googleCtx ? null : email.wrap, pw.wrap, pw2.wrap, note.wrap, formErr, sendBtn),
+        tabbed ? asTabPanel(theForm, "request") : theForm,
         googleCtx ? null : googleBlock("Sign up with Google", "signup", formErr),
         el("p", { class: "auth-foot" },
           standalone
@@ -284,7 +320,8 @@ export const showLoginScreen = (opts = {}) =>
             : googleCtx ? back("Back to sign in", () => signinView()) : null),
         getAppsLink(),
       ];
-      setView(nodes, name.input);
+      setView(nodes, byKeys && tabbed ? null : name.input);
+      if (byKeys && tabbed) focusTab("request");
     };
 
     const sentView = (who) => {
@@ -295,7 +332,7 @@ export const showLoginScreen = (opts = {}) =>
       }, el("span", { class: "af-btn-text" }, standalone ? "Done" : "Back to sign in"));
       setView([
         title("Request sent"),
-        lede(`${admin()} will look at “${who}” soon. Once you're approved, sign in with your username and password.`),
+        lede(`${admin()} will look at it soon. Once you're approved, sign in with your username and password.`),
         ok,
       ], ok);
     };
@@ -307,7 +344,7 @@ export const showLoginScreen = (opts = {}) =>
     const forgotView = (ctx = {}) => {
       const formErr = formError();
       const opt = (key, label, sub, fn) => el("button", {
-        type: "button", class: "auth-option focusable", "data-ui": `signin.reset.${key}`, onclick: fn,
+        type: "button", class: "auth-option focusable", "data-ui": RESET_UI[key], onclick: fn,
       }, el("span", { class: "auth-option-title" }, label), sub ? el("span", { class: "auth-option-sub" }, sub) : null);
       const list = el("div", { class: "auth-options", role: "list" });
       const paint = () => {
@@ -378,7 +415,7 @@ export const showLoginScreen = (opts = {}) =>
         if (!wrap.isConnected) return;
         try {
           const s = await api.resetStatus(ctx.ticket);
-          if (s.status === "approved" && s.token) return newPasswordView({ token: s.token, name: s.name, via: "admin" });
+          if (s.status === "approved" && s.token) return newPasswordView({ token: s.token, name: s.name, via: "admin", identifier: ctx.identifier || (ctx.profile && ctx.profile.username) });
           if (s.status === "declined") {
             status.textContent = `${admin()} didn't approve this request. Ask ${adminIn()} in person, or try another way.`;
             status.classList.add("bad");
@@ -412,7 +449,7 @@ export const showLoginScreen = (opts = {}) =>
           const r = ctx.profile
             ? await api.resetWithCodeFor(ctx.profile.id, code.value())
             : await api.resetWithCode(who.value().trim(), code.value());
-          newPasswordView({ token: r.token, name: r.name, via: "code" });
+          newPasswordView({ token: r.token, name: r.name, via: "code", identifier: who ? who.value().trim() : ctx.profile && ctx.profile.username });
         } catch (e) {
           placeError(e, [who, code], formErr);
         } finally {
@@ -457,12 +494,15 @@ export const showLoginScreen = (opts = {}) =>
     };
 
     // The last step of every reset: the new password, then signed in.
-    const newPasswordView = ({ token, name, via }) => {
+    // `identifier`: what this person signs in with, when it is known (typed
+    // on the way here), so a password manager saves the new password under
+    // it rather than under the profile's display name.
+    const newPasswordView = ({ token, name, via, identifier = "" }) => {
       const formErr = formError();
       const pw = passwordField({ key: "newPassword", label: "New password", autocomplete: "new-password", isNew: true, personal: () => [name], required: true, enterkeyhint: "next" });
       const pw2 = passwordField({ key: "confirm", label: "Confirm password", autocomplete: "new-password", required: true, enterkeyhint: "go" });
       // (a hidden username field: password managers save the new password against it)
-      const hiddenUser = el("input", { type: "text", name: "username", autocomplete: "username", value: name || "", hidden: true, "aria-hidden": "true", tabindex: "-1" });
+      const hiddenUser = el("input", { type: "text", name: "username", autocomplete: "username", value: identifier || name || "", hidden: true, "aria-hidden": "true", tabindex: "-1" });
       const others = el("input", { type: "checkbox", id: "af-signout-others", class: "focusable", checked: true });
       const othersRow = el("label", { class: "auth-check", for: "af-signout-others" }, others, el("span", {}, "Sign out of all other devices"));
       const btn = primaryButton("Save and sign in", "Saving…");
@@ -553,8 +593,11 @@ export const showLoginScreen = (opts = {}) =>
         lede("On your phone or any device, open ",
           el("a", { class: "auth-link", href: start.verificationUrl, target: "_blank", rel: "noopener" }, start.verificationUrl.replace(/^https?:\/\//, "")),
           " and enter this code:"),
-        el("div", { class: "auth-code", "aria-label": `Code ${start.userCode}` },
-          [...String(start.userCode)].map((ch) => el("span", { class: ch === "-" ? "sep" : "", "aria-hidden": "true" }, ch))),
+        // (the tiles are drawn for the eye; a screen reader is given the code
+        // spelled out, one character at a time)
+        el("div", { class: "auth-code" },
+          el("span", { class: "auth-vh" }, `Code: ${[...String(start.userCode).replace(/-/g, "")].join(" ")}`),
+          [...String(start.userCode)].map((ch) => el("span", { class: ch === "-" ? "sep" : "tile", "aria-hidden": "true" }, ch))),
         el("p", { class: "auth-wait", role: "status" }, el("span", { class: "auth-wait-dot", "aria-hidden": "true" }), "Waiting for Google. This screen continues by itself."),
         el("p", { class: "auth-foot" }, nevermind),
       ], nevermind);
@@ -565,6 +608,7 @@ export const showLoginScreen = (opts = {}) =>
     else if (opts.view === "reset" && opts.token) linkView(opts.token);
     else signinView();
     document.body.append(wrap);
+    releasePage = holdPage(wrap);
     // the painter checks canvas.isConnected — start it only once it's real
     stopSky = initAuroraSky(sky);
     pushScope(wrap);
