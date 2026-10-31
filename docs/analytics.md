@@ -168,7 +168,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 286 ids: 187 on the website
 | search | `search.clear` | – | `search.recent.pick` `search.suggestion.pick` `search.voice` `search.voice.lang` `search.retry` |
 | settings | `settings.accent` `settings.done` `settings.link` `settings.look` `settings.rows.hide` `settings.theme` `settings.toggle` | `settings.audio.dialogue` `settings.audio.night` `settings.autoplay` `settings.av.fps` `settings.av.surround` `settings.downloads` `settings.genre` `settings.notices` `settings.party` `settings.report` `settings.signout` `settings.taste` `settings.subs.auto` `settings.subs.bg` `settings.subs.color` `settings.subs.lang` `settings.subs.opacity` `settings.subs.pos` `settings.subs.size` `settings.subs.weight` `settings.trailers` `settings.tvname` `settings.tvname.pick` `settings.update` `settings.usagestats` `settings.whatsnew` `settings.hh.sent` `settings.hh.toggle` | `settings.hh.mute` |
 | taste | `taste.back` `taste.edit` `taste.key` `taste.swipe` `taste.unnope` | – | `taste.done` `taste.love` `taste.more` `taste.nope` `taste.skip` `taste.undo` |
-| signin | `signin.getapps` | `signin.mode.google` `signin.mode.qr` `signin.mode.typed` `signin.request` `signin.submit` | – |
+| signin | `signin.getapps` | `signin.mode.google` `signin.submit` | – |
 | state | – | `state.action` | – |
 | update | – | `update.install` `update.later` `update.restart` `update.retry` | – |
 | whatsnew | – | `whatsnew.log` | `whatsnew.go` |
@@ -180,7 +180,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 286 ids: 187 on the website
 
 | Area | Phone app only | Shared with the TV and/or the site |
 |---|---|---|
-| phone | `phone.browse.genre` `phone.detail.episodes` `phone.detail.playon` `phone.detail.share` `phone.episode.more` `phone.home.remove` `phone.menu.downloads` `phone.menu.party` `phone.menu.remote` `phone.menu.report` `phone.menu.settings` `phone.menu.switch` `phone.mylist.browse` `phone.peek.details` `phone.peek.recommend` `phone.player.fit` `phone.player.lock` `phone.player.pip` `phone.player.rotate` `phone.player.unlock` `phone.remote.arrow` `phone.remote.audio` `phone.remote.back` `phone.remote.device` `phone.remote.home` `phone.remote.next` `phone.remote.ok` `phone.remote.playpause` `phone.remote.seek` `phone.remote.stop` `phone.remote.subtitles` `phone.remote.volume` `phone.save.film` `phone.save.season` `phone.settings.remote` `phone.settings.saved` `phone.settings.switch` `phone.settings.wrapped` `phone.taste.retry` `phone.wrapped.browse` `phone.wrapped.retry` `phone.edit.avatar` `phone.edit.color` `phone.edit.removepw` `phone.request.done` `phone.request.leave` `phone.request.send` `phone.settings.editprofile` `phone.settings.photo` `phone.settings.photoremove` `phone.update.allow` `phone.menu.apps` `phone.menu.whatsnew` `phone.pair.approve` `phone.pair.cancel` `phone.pair.continue` `phone.pair.done` `phone.pair.ignore` `phone.pair.retry` `phone.pair.signin` `phone.pair.type` `phone.remote.pair` `phone.settings.pair` `phone.settings.whatsnew` `phone.update.done` `phone.whatsnew.apps` `phone.whatsnew.older` `phone.whatsnew.retry` | – |
+| phone | `phone.browse.genre` `phone.detail.episodes` `phone.detail.playon` `phone.detail.share` `phone.episode.more` `phone.home.remove` `phone.menu.downloads` `phone.menu.party` `phone.menu.remote` `phone.menu.report` `phone.menu.settings` `phone.menu.switch` `phone.mylist.browse` `phone.peek.details` `phone.peek.recommend` `phone.player.fit` `phone.player.lock` `phone.player.pip` `phone.player.rotate` `phone.player.unlock` `phone.remote.arrow` `phone.remote.audio` `phone.remote.back` `phone.remote.device` `phone.remote.home` `phone.remote.next` `phone.remote.ok` `phone.remote.playpause` `phone.remote.seek` `phone.remote.stop` `phone.remote.subtitles` `phone.remote.volume` `phone.save.film` `phone.save.season` `phone.settings.remote` `phone.settings.saved` `phone.settings.switch` `phone.settings.wrapped` `phone.taste.retry` `phone.wrapped.browse` `phone.wrapped.retry` `phone.edit.avatar` `phone.edit.color` `phone.edit.removepw` `phone.request.leave` `phone.request.send` `phone.settings.editprofile` `phone.settings.photo` `phone.settings.photoremove` `phone.update.allow` `phone.menu.apps` `phone.menu.whatsnew` `phone.pair.approve` `phone.pair.cancel` `phone.pair.continue` `phone.pair.done` `phone.pair.ignore` `phone.pair.retry` `phone.pair.signin` `phone.pair.type` `phone.remote.pair` `phone.settings.pair` `phone.settings.whatsnew` `phone.update.done` `phone.whatsnew.apps` `phone.whatsnew.older` `phone.whatsnew.retry` | – |
 | actions | – | `actions.pick` |
 | browse | – | `browse.category.pick` `browse.retry` `browse.unwatched` |
 | card | – | `card.open` |
@@ -197,10 +197,19 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 286 ids: 187 on the website
 | report | – | `report.send` |
 | search | – | `search.recent.pick` `search.retry` `search.suggestion.pick` `search.voice` `search.voice.lang` |
 | settings | – | `settings.autoplay` `settings.downloads` `settings.genre` `settings.hh.mute` `settings.hh.sent` `settings.hh.toggle` `settings.party` `settings.report` `settings.signout` `settings.subs.auto` `settings.subs.lang` `settings.update` `settings.usagestats` |
-| signin | – | `signin.mode.qr` `signin.mode.typed` `signin.submit` |
+| signin | `signin.mode.qr` `signin.mode.typed` | `signin.submit` |
 | update | – | `update.install` `update.later` |
 
 <!-- /phone-controls -->
+
+**The sign-in round (auth-round, 2026-10-31).** The sign-in, request-access, reset and new-password screens on every app (docs/auth-round.md). `signin.request` and `phone.request.done` are gone (the Sign in · Request access switch replaced them); `signin.mode.qr` and `signin.mode.typed` are the phone's only now.
+
+| App | Controls |
+|---|---|
+| Website | `profile.forgot` `profile.forgotcurrent` `signin.forgot` `signin.reset.admin` `signin.reset.code` `signin.reset.email` `signin.reset.google` `signin.tab.request` `signin.tab.signin` |
+| TV app | `gsignup.submit` `profile.forgot` `request.google` `request.submit` `reset.admin.again` `reset.admin.back` `reset.admin.code` `reset.admin.send` `reset.admin.waitback` `reset.back` `reset.code.back` `reset.code.send` `reset.email.back` `reset.email.done` `reset.email.send` `reset.new.back` `reset.new.others` `reset.new.restart` `reset.new.save` `signin.forgot` `signin.google.back` `signin.google.retry` `signin.reveal` `signin.sent.back` `signin.tab.request` `signin.tab.signin` |
+| Phone app | `phone.auth.device.back` `phone.auth.device.retry` `phone.auth.forgot` `phone.auth.google` `phone.auth.google.signup` `phone.auth.reveal` `phone.auth.sent.done` `phone.auth.tab.request` `phone.auth.tab.signin` `phone.auth.wall` `phone.edit.forgotcurrent` `phone.edit.signoutothers` `phone.reset.admin` `phone.reset.admin.send` `phone.reset.back` `phone.reset.code` `phone.reset.code.send` `phone.reset.email` `phone.reset.email.done` `phone.reset.email.send` `phone.reset.google` `phone.reset.other` `phone.reset.restart` `phone.reset.save` `phone.reset.signoutothers` |
+
 
 ## What the server keeps (Retention)
 

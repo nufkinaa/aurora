@@ -270,9 +270,8 @@ module.exports = {
   // signin
   "signin.getapps": "w", // "Get the apps" at the foot of the sign-in / request-access card
   "signin.mode.google": "t",
-  "signin.mode.qr": "tp",
-  "signin.mode.typed": "tp",
-  "signin.request": "tp",
+  "signin.mode.qr": "p",
+  "signin.mode.typed": "p",
   "signin.submit": "tp",
   // state
   "state.action": "t",
@@ -333,7 +332,6 @@ module.exports = {
   "phone.remote.stop": "p", // the remote: stop
   "phone.remote.subtitles": "p", // the remote: subtitles
   "phone.remote.volume": "p", // the remote: mute, volume down / up
-  "phone.request.done": "p", // Request access: Done / Back to sign in (after "Request sent")
   "phone.request.leave": "p", // Request access: Cancel / Back to sign in
   "phone.request.send": "p", // Request access: Send my request
   "phone.save.film": "p", // a film's page: save on this phone
@@ -355,4 +353,61 @@ module.exports = {
   "phone.whatsnew.retry": "p", // What's new: Try again
   "phone.wrapped.browse": "p", // Wrapped: Back to browsing / Find something to watch
   "phone.wrapped.retry": "p", // Wrapped: Try again (stats did not load)
+  // ---- the sign-in round (auth-round, 2026-10-31): sign in / request access / reset / new password ----
+  "gsignup.submit": "t",
+  "phone.auth.device.back": "p",
+  "phone.auth.device.retry": "p",
+  "phone.auth.forgot": "p",
+  "phone.auth.google": "p",
+  "phone.auth.google.signup": "p",
+  "phone.auth.reveal": "p",
+  "phone.auth.sent.done": "p",
+  "phone.auth.tab.request": "p",
+  "phone.auth.tab.signin": "p",
+  "phone.auth.wall": "p",
+  "phone.edit.forgotcurrent": "p",
+  "phone.edit.signoutothers": "p",
+  "phone.reset.admin": "p",
+  "phone.reset.admin.send": "p",
+  "phone.reset.back": "p",
+  "phone.reset.code": "p",
+  "phone.reset.code.send": "p",
+  "phone.reset.email": "p",
+  "phone.reset.email.done": "p",
+  "phone.reset.email.send": "p",
+  "phone.reset.google": "p",
+  "phone.reset.other": "p",
+  "phone.reset.restart": "p",
+  "phone.reset.save": "p",
+  "phone.reset.signoutothers": "p",
+  "profile.forgot": "wt",
+  "profile.forgotcurrent": "w",
+  "request.google": "t",
+  "request.submit": "t",
+  "reset.admin.again": "t",
+  "reset.admin.back": "t",
+  "reset.admin.code": "t",
+  "reset.admin.send": "t",
+  "reset.admin.waitback": "t",
+  "reset.back": "t",
+  "reset.code.back": "t",
+  "reset.code.send": "t",
+  "reset.email.back": "t",
+  "reset.email.done": "t",
+  "reset.email.send": "t",
+  "reset.new.back": "t",
+  "reset.new.others": "t",
+  "reset.new.restart": "t",
+  "reset.new.save": "t",
+  "signin.forgot": "wt",
+  "signin.google.back": "t",
+  "signin.google.retry": "t",
+  "signin.reset.admin": "w",
+  "signin.reset.code": "w",
+  "signin.reset.email": "w",
+  "signin.reset.google": "w",
+  "signin.reveal": "t",
+  "signin.sent.back": "t",
+  "signin.tab.request": "wt",
+  "signin.tab.signin": "wt",
 };
