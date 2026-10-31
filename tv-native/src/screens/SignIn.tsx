@@ -179,6 +179,7 @@ export default function SignIn({
   const tabs = view === 'signin' || view === 'request' ? (
     <Switch
       value={view}
+      overFields
       onChange={v => {
         setReturnTo(null);
         setView(v);
@@ -529,7 +530,7 @@ function RequestForm({
       <Title line={WORDS.requestLine(admin)}>{WORDS.requestTitle}</Title>
       <View style={as.cols}>
         <View style={as.col}>
-          <Field ref={refs.name} qaId="request.name" label={WORDS.name} value={f.name} onChangeText={set('name')} error={errors.name}
+          <Field ref={refs.name} qaId="request.name" label={WORDS.name} value={f.name} onChangeText={set('name')} error={errors.name} help={WORDS.nameHelp}
             autoCapitalize="words" textContentType="name" autoComplete="name" maxLength={24}
             returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => refs.username.current?.focus()} />
           <Field ref={refs.username} qaId="request.username" label={WORDS.username} value={f.username} onChangeText={set('username')}
@@ -541,7 +542,7 @@ function RequestForm({
         </View>
         <View style={as.col}>
           <Field ref={refs.password} qaId="request.password" label={WORDS.password} secret value={f.password} onChangeText={set('password')}
-            error={errors.password} help={PASSWORD_HELP} below={<Strength pw={f.password} personal={[f.name, f.username, f.email]} />}
+            error={errors.password} help={PASSWORD_HELP} aside={<Strength pw={f.password} personal={[f.name, f.username, f.email]} />}
             textContentType="newPassword" autoComplete="new-password" maxLength={128}
             returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => refs.confirm.current?.focus()} />
           <Field ref={refs.confirm} qaId="request.confirm" label={WORDS.confirm} secret value={f.confirm} onChangeText={set('confirm')}
@@ -615,7 +616,7 @@ function GoogleSignupForm({admin, signup, onBack, onSent}: {admin: string; signu
               setName(t);
               if (errors.name) setErrors(x => ({...x, name: undefined}));
             }}
-            error={errors.name} autoCapitalize="words" maxLength={24}
+            error={errors.name} help={WORDS.nameHelp} autoCapitalize="words" maxLength={24}
             returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => pwRef.current?.focus()} />
         </View>
         <View style={as.col}>
@@ -624,7 +625,7 @@ function GoogleSignupForm({admin, signup, onBack, onSent}: {admin: string; signu
               setPassword(t);
               if (errors.password) setErrors(x => ({...x, password: undefined}));
             }}
-            error={errors.password} help={PASSWORD_HELP} below={<Strength pw={password} personal={[name, signup.email]} />}
+            error={errors.password} help={PASSWORD_HELP} aside={<Strength pw={password} personal={[name, signup.email]} />}
             textContentType="newPassword" autoComplete="new-password" maxLength={128}
             returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => cfRef.current?.focus()} />
           <Field ref={cfRef} qaId="gsignup.confirm" label={WORDS.confirm} secret value={confirm}

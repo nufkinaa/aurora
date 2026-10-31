@@ -36,6 +36,7 @@ export const WORDS = {
   requestTitle: 'Request access',
   requestLine: (admin: string) => `${cap(admin)} approves new people. Once you're approved, sign in with the details you set here.`,
   name: 'Your name',
+  nameHelp: 'Shown on your profile.',
   username: 'Username',
   email: 'Email (optional)',
   confirm: 'Confirm password',

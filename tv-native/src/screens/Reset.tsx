@@ -143,20 +143,19 @@ export default function Reset({
         {!options ? (
           <Waiting text="One moment…" />
         ) : (
-          <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 12}}>
+          // one column, every option the same height: UP / DOWN walks them in order
+          <View style={{gap: 8}}>
             {ways.map((w, i) => (
-              <View key={w} style={{width: '48.5%'}}>
-                <Choice uiId={`reset.way.${w}`} title={title(w)} line={line(w)} first={lastWay ? lastWay === w : i === 0} onPress={() => choose(w)} />
-              </View>
+              <Choice key={w} uiId={`reset.way.${w}`} title={title(w)} line={line(w)} first={lastWay ? lastWay === w : i === 0} onPress={() => choose(w)} />
             ))}
           </View>
         )}
-        <View style={{marginTop: 6, marginBottom: 14, maxWidth: 620}}>
-          <Body>{WORDS.elsewhere}</Body>
-        </View>
-        <Row>
+        <View style={{flexDirection: 'row', alignItems: 'center', gap: 18, marginTop: 14}}>
           <PlainButton uiId="reset.back" label={WORDS.back} onPress={onExit} />
-        </Row>
+          <View style={{flex: 1, minWidth: 0}}>
+            <Body>{WORDS.elsewhere}</Body>
+          </View>
+        </View>
       </View>
     );
   }
@@ -590,7 +589,7 @@ function NewPasswordStep({
         }}
         error={errors.newPassword}
         help={PASSWORD_HELP}
-        below={<Strength pw={fresh} personal={[token.name]} />}
+        aside={<Strength pw={fresh} personal={[token.name]} />}
         textContentType="newPassword"
         autoComplete="new-password"
         maxLength={128}

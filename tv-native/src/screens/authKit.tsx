@@ -26,6 +26,7 @@ import {
   Text,
   TextInput,
   TextInputProps,
+  TVFocusGuideView,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -212,7 +213,9 @@ export function AuthShell({children, top, width = 840}: {children: React.ReactNo
 }
 
 /** "Sign in · Request access": two tabs; the lit one is the page you are on. */
-export function Switch({value, onChange}: {value: 'signin' | 'request'; onChange: (v: 'signin' | 'request') => void}) {
+/** `overFields`: the switch ends where the fields' boxes end (not over the
+ *  Show buttons), so DOWN from a tab lands on a field, not on Show (Mi TV). */
+export function Switch({value, onChange, overFields}: {value: 'signin' | 'request'; onChange: (v: 'signin' | 'request') => void; overFields?: boolean}) {
   const reduced = useReducedMotion();
   const tab = (k: 'signin' | 'request', label: string) => {
     const on = value === k;
@@ -231,7 +234,7 @@ export function Switch({value, onChange}: {value: 'signin' | 'request'; onChange
     );
   };
   return (
-    <View style={s.tabs} accessibilityRole="tablist">
+    <View style={[s.tabs, overFields && s.tabsOverFields]} accessibilityRole="tablist">
       {tab('signin', 'Sign in')}
       {tab('request', 'Request access')}
     </View>
@@ -264,8 +267,10 @@ type FieldProps = Omit<TextInputProps, 'ref'> & {
   help?: string | null;
   error?: string | null;
   secret?: boolean;
-  /** under the field, before the help (the strength hint) */
+  /** under the field, before the help */
   below?: React.ReactNode;
+  /** at the end of the label's row, over the box (the strength hint): costs no height */
+  aside?: React.ReactNode;
   /** the field this screen opens on: focused quietly once it is drawn */
   first?: boolean;
   /** the field's nativeID, for QA tools (fields are not counted controls) */
@@ -275,10 +280,16 @@ type FieldProps = Omit<TextInputProps, 'ref'> & {
 /** A labelled field. Password fields carry Show / Hide, a button of its own
  *  (RIGHT from the field). What was typed is never cleared by an error. */
 export const Field = forwardRef<FieldHandle, FieldProps>(function Field(
-  {label, help, error, secret, below, first, qaId, onFocus, onBlur, style, ...rest},
+  {label, help, error, secret, below, aside, first, qaId, onFocus, onBlur, style, ...rest},
   ref,
 ) {
-  const input = useRef<TextInput>(null);
+  const input = useRef<TextInput | null>(null);
+  // the field's input as a focus-guide destination (below)
+  const [inputNode, setInputNode] = useState<TextInput | null>(null);
+  const setInput = useCallback((v: TextInput | null) => {
+    input.current = v;
+    setInputNode(v);
+  }, []);
   const [on, setOn] = useState(false);
   const [shown, setShown] = useState(false);
   // false only for a moment: while a quiet focus lands (react-native-tvos
@@ -326,15 +337,22 @@ export const Field = forwardRef<FieldHandle, FieldProps>(function Field(
   const lift = useContext(LiftContext);
   const row = useRef<View>(null);
   return (
-    <View style={s.field}>
-      <Text style={s.label}>{label}</Text>
+    // A password field's row has two stops (the box, then Show). Coming from
+    // above or below, focus goes to the BOX: the guide hands it there, so DOWN
+    // from the tabs or the field above never lands on Show (Mi TV). LEFT /
+    // RIGHT inside the row move between the two as before.
+    <TVFocusGuideView style={s.field} destinations={secret && inputNode ? [inputNode] : undefined}>
+      <View style={[s.labelRow, secret && s.labelRowSecret]}>
+        <Text style={s.label}>{label}</Text>
+        {aside}
+      </View>
       <View style={s.boxRow} ref={row} collapsable={false}>
         <View style={[s.box, on && s.boxOn]}>
           {/* the focus ring (and the error edge) drawn OVER the box's own 1dp edge,
               so gaining focus never moves anything */}
           {on || error ? <View pointerEvents="none" style={[s.ringOver, !on && s.ringErr]} /> : null}
           <TextInput
-            ref={input}
+            ref={setInput}
             placeholderTextColor="rgba(154,161,181,0.75)"
             selectionColor="#8b7bff"
             cursorColor="#ffffff"
@@ -377,7 +395,7 @@ export const Field = forwardRef<FieldHandle, FieldProps>(function Field(
       <Text style={[s.help, !!error && s.err]} accessibilityLiveRegion={error ? 'polite' : 'none'} numberOfLines={2}>
         {note}
       </Text>
-    </View>
+    </TVFocusGuideView>
   );
 });
 
@@ -393,7 +411,7 @@ export function Strength({pw, personal}: {pw: string; personal?: Array<string | 
           <View key={i} style={[s.bar, i <= st.score && {backgroundColor: STRENGTH_COLORS[st.score]}]} />
         ))}
       </View>
-      <Text style={[s.meterText, {color: st.score <= 1 ? A.error : A.dim}]}>{st.label}</Text>
+      <Text style={[s.meterText, {color: st.score <= 1 ? A.error : A.dim}]}>{`Strength: ${st.label}`}</Text>
     </View>
   );
 }
@@ -442,7 +460,7 @@ export const MainButton = forwardRef<View, BtnProps & {claim?: string | null}>(f
       hasTVPreferredFocus={useMountValue(!!first)}
       accessibilityLabel={busy && busyLabel ? busyLabel : label}
       onPress={() => !busy && onPress()}
-      style={[s.main, grow && s.grow, busy && s.busy]}>
+      style={[s.btn, s.mainW, grow && s.grow, busy && s.busy]}>
       {/* the sweep on its own layer, inside the reserved ring border: drawn on the
           button itself it repeats into that border (a stripe at each end, Mi TV) */}
       <View style={s.mainFill} pointerEvents="none" />
@@ -468,7 +486,8 @@ export const PlainButton = forwardRef<View, BtnProps>(function PlainButton({labe
       hasTVPreferredFocus={useMountValue(!!first)}
       accessibilityLabel={label}
       onPress={() => !busy && onPress()}
-      style={[s.plain, grow && s.grow, busy && s.busy]}>
+      style={[s.btn, s.plainW, grow && s.grow, busy && s.busy]}>
+      <View style={[s.fill, s.plainFill]} pointerEvents="none" />
       <View style={s.btnInner}>
         {busy ? <ActivityIndicator color={A.text} size="small" /> : null}
         <Text style={s.plainText} numberOfLines={1}>
@@ -502,7 +521,11 @@ export const GoogleButton = forwardRef<View, BtnProps>(function GoogleButton({la
       hasTVPreferredFocus={useMountValue(!!first)}
       accessibilityLabel={label}
       onPress={() => !busy && onPress()}
-      style={[s.google, grow && s.grow, busy && s.busy]}>
+      style={[s.btn, s.googleW, grow && s.grow, busy && s.busy]}>
+      {/* Google's fill and 1dp edge on their own layer, inside the reserved ring
+          border: set on the button they replaced that border, and the button
+          came out 4dp shorter than Sign in beside it */}
+      <View style={[s.fill, s.googleFill]} pointerEvents="none" />
       <View style={s.btnInner}>
         {busy ? <ActivityIndicator color="#E3E3E3" size="small" /> : <GoogleG />}
         <Text style={s.googleText} numberOfLines={1}>
@@ -625,13 +648,13 @@ const s = StyleSheet.create({
   // calmer and lower: the sky dimmed a little, so the panel is what you see
   calm: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(8,9,16,0.12)'},
   scroll: {flex: 1},
-  scrollBody: {flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 48, paddingVertical: 16},
+  scrollBody: {flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 48, paddingVertical: 28}, // 5% title-safe top and bottom (27dp of 540)
   panel: {
     width: '100%',
     borderRadius: R.panel,
     paddingHorizontal: 30,
-    paddingTop: 20,
-    paddingBottom: 22,
+    paddingTop: 16,
+    paddingBottom: 18,
     backgroundColor: A.panel,
     experimental_backgroundImage: G_FILL,
     borderWidth: 1,
@@ -640,12 +663,13 @@ const s = StyleSheet.create({
     borderRightColor: 'rgba(255,255,255,0.07)',
     borderBottomColor: 'rgba(255,255,255,0.06)',
   },
-  head: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, minHeight: 40},
+  head: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, minHeight: 36},
   brand: {flexDirection: 'row', alignItems: 'center', gap: 8},
   beam: {width: 22, height: 22},
   brandText: {color: A.text, fontSize: 17, fontWeight: '800', letterSpacing: 0.35},
-  tabs: {flexDirection: 'row', gap: 6, padding: 4, borderRadius: R.control, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)'},
-  tab: {minHeight: 36, minWidth: 120, borderRadius: R.control - 4, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16},
+  tabs: {flexDirection: 'row', gap: 6, padding: 3, borderRadius: R.control, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)'},
+  tab: {minHeight: 32, minWidth: 120, borderRadius: R.control - 4, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16},
+  tabsOverFields: {marginRight: 84},
   tabOn: {backgroundColor: 'rgba(255,255,255,0.14)'},
   tabText: {color: A.dim, fontSize: 15, fontWeight: '600'},
   tabTextOn: {color: A.text, fontWeight: '700'},
@@ -653,8 +677,8 @@ const s = StyleSheet.create({
   title: {color: A.text, fontSize: 26, fontWeight: '800', letterSpacing: -0.2, lineHeight: 32},
   line: {color: A.dim, fontSize: 15, lineHeight: 21, marginTop: 4, maxWidth: 640},
   notice: {color: A.notice, fontSize: 15, fontWeight: '700', lineHeight: 21, marginTop: 4},
-  field: {marginBottom: 4},
-  label: {color: A.label, fontSize: 15, fontWeight: '600', marginBottom: 6},
+  field: {marginBottom: 2},
+  label: {color: A.label, fontSize: 15, fontWeight: '600'},
   boxRow: {flexDirection: 'row', alignItems: 'center', gap: 10},
   box: {flex: 1, minHeight: 44, borderRadius: R.control, backgroundColor: A.fieldBg, borderWidth: 1, borderColor: A.fieldEdge, justifyContent: 'center'},
   boxOn: {backgroundColor: 'rgba(255,255,255,0.11)'},
@@ -663,23 +687,31 @@ const s = StyleSheet.create({
   input: {minHeight: 40, paddingHorizontal: 14, paddingVertical: 0, color: A.text, fontSize: 18, textAlign: 'left'},
   reveal: {minHeight: 44, minWidth: 74, borderRadius: R.control, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.06)'},
   revealText: {color: A.dim, fontSize: 15, fontWeight: '700'},
-  help: {color: A.faint, fontSize: 14, lineHeight: 19, marginTop: 4, minHeight: 19},
+  help: {color: A.faint, fontSize: 14, lineHeight: 19, marginTop: 3, minHeight: 19},
   err: {color: A.error, fontWeight: '600'},
-  meter: {flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 7},
-  bars: {flex: 1, flexDirection: 'row', gap: 4},
+  labelRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 4, minHeight: 20},
+  labelRowSecret: {paddingRight: 84}, // the Show button's width + gap: the hint stays over the box
+  meter: {flexDirection: 'row', alignItems: 'center', gap: 10},
+  bars: {width: 88, flexDirection: 'row', gap: 4},
   bar: {flex: 1, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.14)'},
-  meterText: {fontSize: 14, fontWeight: '600', minWidth: 72, textAlign: 'right'},
+  meterText: {fontSize: 14, fontWeight: '600'},
   row: {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap'},
   grow: {flexGrow: 1},
   btnInner: {flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10},
-  main: {minHeight: 46, minWidth: 170, borderRadius: R.control, justifyContent: 'center', paddingHorizontal: 26},
+  // every button: the same height and corners (the Focusable's 3dp ring border is
+  // reserved around each; what you see is the fill layer inside it)
+  btn: {minHeight: 50, borderRadius: R.control, justifyContent: 'center', paddingHorizontal: 24},
+  mainW: {minWidth: 240},
+  plainW: {minWidth: 120},
+  googleW: {minWidth: 240},
+  fill: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: R.control - 3},
   mainFill: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: R.control - 3, experimental_backgroundImage: MAIN_FILL},
+  plainFill: {backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)'},
+  googleFill: {backgroundColor: '#131314', borderWidth: 1, borderColor: '#8E918F'},
   busy: {opacity: 0.7},
   mainText: {color: '#061310', fontSize: 17, fontWeight: '800'},
-  plain: {minHeight: 46, minWidth: 120, borderRadius: R.control, justifyContent: 'center', paddingHorizontal: 22, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)'},
   plainText: {color: A.text, fontSize: 16, fontWeight: '700'},
-  google: {minHeight: 46, borderRadius: R.control, justifyContent: 'center', paddingHorizontal: 22, backgroundColor: '#131314', borderWidth: 1, borderColor: '#8E918F'},
-  googleText: {color: '#E3E3E3', fontSize: 16, fontWeight: '600'},
+  googleText: {color: '#E3E3E3', fontSize: 17, fontWeight: '600'},
   linkTap: {minHeight: 40, borderRadius: 8, justifyContent: 'center', paddingHorizontal: 8},
   link: {color: A.link, fontSize: 15, fontWeight: '700'},
   check: {borderRadius: R.control, paddingVertical: 8, paddingHorizontal: 8, marginLeft: -11, alignSelf: 'flex-start'},
@@ -687,7 +719,7 @@ const s = StyleSheet.create({
   tick: {width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: 'rgba(255,255,255,0.45)', alignItems: 'center', justifyContent: 'center'},
   tickOn: {backgroundColor: A.mint, borderColor: A.mint},
   checkLabel: {color: A.text, fontSize: 16, fontWeight: '600'},
-  choice: {minHeight: 84, justifyContent: 'center', borderRadius: R.control, paddingVertical: 12, paddingHorizontal: 16, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', marginBottom: 10},
+  choice: {minHeight: 66, justifyContent: 'center', borderRadius: R.control, paddingVertical: 10, paddingHorizontal: 16, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)'},
   choiceRow: {flexDirection: 'row', alignItems: 'center', gap: 14},
   choiceWords: {flex: 1, minWidth: 0},
   choiceTitle: {color: A.text, fontSize: 17, fontWeight: '700'},

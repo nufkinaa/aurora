@@ -179,7 +179,8 @@ export default function NewPassword({
             ref={freshRef}
             qaId="newpassword.new"
             first={!askCurrent}
-            label={WORDS.newPassword}
+            // a first password is "Password"; replacing one is "New password" (as on the website and phone)
+            label={mode === 'setup' ? WORDS.password : WORDS.newPassword}
             secret
             value={fresh}
             onChangeText={t => {
@@ -188,7 +189,7 @@ export default function NewPassword({
             }}
             error={errors.newPassword}
             help={PASSWORD_HELP}
-            below={<Strength pw={fresh} personal={[name]} />}
+            aside={<Strength pw={fresh} personal={[name]} />}
             textContentType="newPassword"
             autoComplete="new-password"
             maxLength={128}
