@@ -751,7 +751,7 @@ export default function Detail() {
         sub: `${title} · S${ep.season} E${ep.episode}`,
         body: ep.overview ? unescapeHtml(ep.overview) : undefined,
         items: [
-          ...(running?.mine ? [{label: 'Cancel the download', tag: 'it asks first', onPress: () => askCancelRef.current(running, `S${ep.season} E${ep.episode}`)}] : []),
+          ...(running?.mine ? [{label: 'Cancel the download', tag: 'it asks first', onPress: () => askCancelRef.current(running, `${title} · S${ep.season} E${ep.episode}`)}] : []),
           ...(ep.owned ? [{label: 'Play', onPress: () => playEpisode(ep)}] : [{label: 'Save and play', tag: 'the best source, played while it downloads', onPress: () => saveBest(ep.season, ep.episode, true, ep.air)}]),
           ...(ep.owned ? [{label: ep.phone === 'done' ? 'Play the copy on this phone' : ep.phone ? 'Saving to this phone…' : 'Save to this phone', tag: ep.phone ? undefined : 'watch it with no connection', onPress: () => saveEpisodeToPhone(ep)}] : []),
           ...(!ep.owned ? [{label: 'Sources', tag: 'streams and downloads', onPress: () => openSources(ep.season, ep.episode)}] : []),
@@ -1070,7 +1070,7 @@ export default function Detail() {
             ) : null}
             {ownedMovieId && movieResume ? <ActionCircle uiId="detail.restart" icon="refresh" label="Start over" onPress={() => navigation.push('Player', {id: ownedMovieId, title, restart: true})} /> : null}
             {isShow ? <ActionCircle uiId="phone.detail.episodes" icon="series" label="All episodes" onPress={() => scrollRef.current?.scrollTo({y: artH + 160, animated: true})} /> : null}
-            {heroJob?.mine ? <ActionCircle uiId="detail.download.cancel" icon="close" label="Cancel download" onPress={() => askCancelJob(heroJob, isShow && heroEp ? `S${heroEp.season} E${heroEp.episode}` : title)} /> : null}
+            {heroJob?.mine ? <ActionCircle uiId="detail.download.cancel" icon="close" label="Cancel download" onPress={() => askCancelJob(heroJob, isShow && heroEp ? `${title} · S${heroEp.season} E${heroEp.episode}` : title)} /> : null}
             <ActionCircle uiId="detail.mylist" icon={inList ? 'check' : 'plus'} label="My List" on={inList} onPress={toggleList} />
             <ActionCircle uiId="detail.recommend" icon="send" label="Recommend" onPress={() => openRecommend(item, imdb)} />
             {isShow && followImdb ? <ActionCircle uiId="detail.follow" icon={following ? 'check' : 'bell'} label={following ? 'Following' : 'Follow'} on={following} onPress={toggleFollow} /> : null}

@@ -2229,7 +2229,7 @@ export default function Detail({
         title: unescapeHtml(ep.label),
         sub: `${item.title} · S${ep.season} E${ep.episode}`,
         items: [
-          ...(running?.mine ? [{label: 'Cancel the download', tag: 'it asks first', onPress: () => askCancelJob(running, `S${ep.season} E${ep.episode}`)}] : []),
+          ...(running?.mine ? [{label: 'Cancel the download', tag: 'it asks first', onPress: () => askCancelJob(running, `${item.title} · S${ep.season} E${ep.episode}`)}] : []),
           ...(!ep.owned ? [{label: 'Sources', tag: 'streams and downloads', onPress: () => openEpisodeSources(ep.season, ep.episode)}] : []),
           {
             label: ep.watched ? 'Mark unwatched' : 'Mark watched',
@@ -2713,7 +2713,7 @@ export default function Detail({
           secondary={
             <>
               <IconBtn uiId="detail.mylist" ref={listBtnRef} edgeLeft icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
-              {heroJob?.mine ? <IconBtn uiId="detail.download.cancel" wide icon="close" label="Cancel download" onPress={() => askCancelJob(heroJob, heroName)} /> : null}
+              {heroJob?.mine ? <IconBtn uiId="detail.download.cancel" wide icon="close" label="Cancel download" onPress={() => askCancelJob(heroJob, `${item.title} · ${heroName}`)} /> : null}
               {hhKey ? <IconBtn uiId="detail.recommend" icon="send" label={HH.recommend} onPress={recommend} /> : null}
               {/* Follow: only once the show's IMDb id is known — that is what the server follows by */}
               {followImdb && !torrentsOff ? (

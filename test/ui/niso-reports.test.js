@@ -79,6 +79,18 @@ for (const [vp, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
   });
 }
 
+ui.test("My downloads opened by its address: the list is read for this profile, not as someone else's", async ({ page, goto, signIn, freshProfile }) => {
+  // the server's rule: with no session, `mine` depends on the profile named
+  await page.route((url) => url.pathname === "/api/downloads", (route) => {
+    const named = new URL(route.request().url()).searchParams.get("profile");
+    route.fulfill({ json: [job({ mine: !!named }), job({ id: "b", status: "done", libraryId: "lib1", mine: !!named })] });
+  });
+  await signIn(await freshProfile());
+  await goto("#/downloads");
+  await page.waitForFunction(() => /1 downloading · 1 ready/.test(document.querySelector(".dl-summary")?.textContent || ""));
+  assert.equal(await page.locator(".dl-others .dl-row").count(), 0);
+});
+
 ui.test("the profile menu says the same count under My downloads", async ({ page, goto, signIn, freshProfile }) => {
   await stubQueue(page, [job(), job({ id: "b", status: "done", libraryId: "lib1" }), job({ id: "c", mine: false })]);
   await signIn(await freshProfile());

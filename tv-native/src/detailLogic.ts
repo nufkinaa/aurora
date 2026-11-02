@@ -163,7 +163,9 @@ export const isReplacement = (j: DownloadJob) => !!(j as MyDownload).replaces;
 export const endedText = (name: string, status: string) =>
   status === 'declined'
     ? `${name} was declined  ·  hold Play for other sources`
-    : status === 'removed' || status === 'canceled' || status === 'cancelled' || status === 'dismissed'
+    : status === 'canceled' || status === 'cancelled'
+      ? `${name}'s download was cancelled  ·  press Play to ask for it again`
+      : status === 'removed' || status === 'dismissed'
       ? `${name}'s download was removed  ·  press Play to try again`
       : `Couldn't get ${name}  ·  hold Play for other sources`;
 // Everything the Play button and the line under it say, from the job, the

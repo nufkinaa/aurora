@@ -1,7 +1,7 @@
 // What a signed-in session switches on, in one place: the socket (with who we
 // are), usage stats, prefetch, the overlays' idea of the profile, and the
 // app-wide toasts for things the server says while browsing.
-import {useEffect} from 'react';
+import {useEffect, useRef} from 'react';
 import {AppState} from 'react-native';
 import {useApp} from './AppContext';
 import {MyDownload} from './api';
@@ -92,6 +92,7 @@ export default function SessionWiring() {
   // fresh Home row (householdLive.ts)
   useEffect(() => startHouseholdLive(profileId), [profileId]);
 
+  const saidEnded = useRef(new Set<string>());
   useEffect(() => {
     // this person's settings changed on another device (server: PUT
     // /api/profiles/:id): read the profile again
@@ -105,7 +106,11 @@ export default function SessionWiring() {
       // Another version that ended without you: said wherever you are (a
       // replacement is not on any screen once its sheet is closed).
       const ended = job ? replaceEndedToast(job) : null;
-      if (ended) showToast(ended, '↩️');
+      // (once: a job's last update can reach this app twice)
+      if (job && ended && !saidEnded.current.has(job.id)) {
+        saidEnded.current.add(job.id);
+        showToast(ended, '↩️');
+      }
       if (!job || job.status !== 'done') return;
       if (job.mine && job.libraryId && !job.seenAt) {
         showToast(`“${job.label || job.title}” is ready to play — Settings → My downloads`, '✅');

@@ -363,6 +363,9 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
         }
         for (const j of list) downloads.set(j.id, j);
         paint();
+        // a page already open reads it too (My downloads, opened by address, was
+        // painted from the first read, made before the profile was known)
+        emit({ type: "downloads_read", ok: true });
       })
       .catch(() => {
         // (undefined: nothing fetched for anyone, so the next load() asks whoever is in by then)
@@ -375,6 +378,10 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
       });
   };
   load();
+  // The read above runs before the profile is known. With no session (an open
+  // server) `mine` depends on the profile named: every job read as someone else's,
+  // and My downloads opened by its address said "Nothing downloading yet".
+  window.addEventListener("aurora-profile", load);
   // The socket came back (every welcome after the first). Whatever happened
   // to a download in between never reached this tab: a download that finished
   // during the outage stayed "downloading" on the pill, My downloads and the
