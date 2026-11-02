@@ -21,7 +21,7 @@ const {colors, fontSize, spacing, radius} = theme;
 // one place to change: its cards say `since: ROUND`, and NEW_FROM = ROUND puts the New
 // ribbon on them alone. (The website has the same cards: public/js/screens/whatsnew.js,
 // ROUND there; its `webOnly` cards — AirPlay from an iPhone — have nothing to do on a TV.)
-export const ROUND = '5.8.2';
+export const ROUND = '5.8.3';
 const NEW_FROM = ROUND;
 const cmpVersion = (a: string, b: string) => {
   const pa = a.split('.').map(Number);
@@ -33,9 +33,34 @@ export const isNewCard = (f: {since?: string}) => !!f.since && cmpVersion(f.sinc
 
 type Feature = {since?: string; glyph: string; title: string; what: string; how: string; go?: {label: string; act: string}};
 export const FEATURES: Feature[] = [
-  // ---- the sign-in round (2026-10-31): the same cards, the same words, on the website ----
+  // ---- Niso's reports (2026-11-02): the same cards, the same words, on the website ----
   {
     since: ROUND,
+    glyph: '⏹️',
+    title: "Cancel a download, anywhere",
+    what: "Cancel is on My downloads, on the title page and on the versions list, and it always asks first, so a stray press changes nothing. What is on its way now sits at the top of My downloads.",
+    how: "My downloads or the title page → Cancel download → Yes, cancel.",
+    go: {label: 'My downloads', act: 'downloads'},
+  },
+  {
+    since: ROUND,
+    glyph: '🔢',
+    title: "See how many downloads you have",
+    what: "One line shows yours: how many are downloading, how many are waiting and how many are ready. It only counts them; there is no limit.",
+    how: "Settings, and the top of My downloads.",
+    go: {label: 'My downloads', act: 'downloads'},
+  },
+  {
+    since: ROUND,
+    glyph: '🗣️',
+    title: "Wrong language? It looks for the right one",
+    what: "Report a copy as Wrong language and the list leaves out copies naming that language, with the language you want first. If a try is cancelled or fails, Aurora says who or why and offers the next version.",
+    how: "In the player: Report a problem → Problem with this copy → Wrong language.",
+    go: {label: 'My downloads', act: 'downloads'},
+  },
+  // ---- the sign-in round (2026-10-31): the same cards, the same words, on the website ----
+  {
+    since: '5.8.2',
     glyph: '🔑',
     title: 'Forgot your password? Reset it yourself',
     what: "Forgot password? on the sign-in screen lets you choose a new password without the old one. Confirm it's you with Google, ask the admin and carry on here as soon as they approve, or type the reset code they give you. Every other device is signed out unless you untick it.",
@@ -43,7 +68,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Open Settings', act: 'settings'},
   },
   {
-    since: ROUND,
+    since: '5.8.2',
     glyph: '🛡️',
     title: 'Every profile has a password',
     what: 'Requests made with Google now set a password as well, so you can sign in on devices without Google. A profile that only had Google is asked to set one at its next sign-in.',
@@ -51,7 +76,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Open Settings', act: 'settings'},
   },
   {
-    since: ROUND,
+    since: '5.8.2',
     glyph: '✨',
     title: 'A clearer sign-in screen',
     what: 'Sign in and Request access have the same look on the TV, the website and the phone app: a label on every field, the reason next to the field when something is wrong, Show to see the password you typed, and the code to scan with your phone beside it.',

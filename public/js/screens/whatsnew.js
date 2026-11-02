@@ -21,26 +21,48 @@ import { showReportSheet } from "../report.js";
 // (The TV has the same cards: tv-native/src/screens/WhatsNew.tsx, ROUND there.
 // A card about something only a browser has says `webOnly: true` first —
 // test/whatsnew-parity.test.js leaves it out of the comparison.)
-export const ROUND = "1.15.6";
+export const ROUND = "1.15.7";
 const NEW_FROM = ROUND;
 const FEATURES = [
+  // ---- Niso's reports (2026-11-02): the same cards, the same words, on the TV ----
+  {
+    since: ROUND, cue: "tap", glyph: "⏹️",
+    title: "Cancel a download, anywhere",
+    what: "Cancel is on My downloads, on the title page and on the versions list, and it always asks first, so a stray press changes nothing. What is on its way now sits at the top of My downloads.",
+    how: "Title page or My downloads → Cancel download → Yes, cancel.",
+    go: { label: "My downloads", to: "#/downloads" },
+  },
+  {
+    since: ROUND, cue: "tap", glyph: "🔢",
+    title: "See how many downloads you have",
+    what: "One line shows yours: how many are downloading, how many are waiting and how many are ready. It only counts them; there is no limit.",
+    how: "My downloads, at the top, and your profile menu.",
+    go: { label: "My downloads", to: "#/downloads" },
+  },
+  {
+    since: ROUND, cue: "tap", glyph: "🗣️",
+    title: "Wrong language? It looks for the right one",
+    what: "Report a copy as Wrong language and the list leaves out copies naming that language, with the language you want first. If a try is cancelled or fails, Aurora says who or why and offers the next version.",
+    how: "In the player: Report a problem → Problem with this copy → Wrong language.",
+    go: { label: "My downloads", to: "#/downloads" },
+  },
   // ---- the sign-in round (auth-round, 2026-10-31): the same cards, the same words, on the TV ----
   {
-    since: ROUND, cue: "tap", glyph: "🔑",
+    since: "1.15.6", cue: "tap", glyph: "🔑",
     title: "Forgot your password? Reset it yourself",
     what: "Forgot password? on the sign-in screen lets you choose a new password without the old one. Confirm it's you with Google, ask the admin and carry on here as soon as they approve, or type the reset code they give you. Every other device is signed out unless you untick it.",
     how: "Sign-in screen → Forgot password?. Still signed in on this browser or your phone? Edit profile & password → Forgot your current password?",
     go: { label: "Open Preferences", to: "#/preferences" },
   },
   {
-    since: ROUND, cue: "tap", glyph: "🛡️",
+    since: "1.15.6", cue: "tap", glyph: "🛡️",
     title: "Every profile has a password",
     what: "Requests made with Google now set a password as well, so you can sign in on devices without Google. A profile that only had Google is asked to set one at its next sign-in.",
     how: "Sign-in screen → Request access → Sign up with Google.",
     go: { label: "Open Preferences", to: "#/preferences" },
   },
   {
-    since: ROUND, cue: "tap", glyph: "✨",
+    since: "1.15.6", cue: "tap", glyph: "✨",
     title: "A clearer sign-in screen",
     what: "Sign in and Request access have the same look on the TV, the website and the phone app: a label on every field, the reason next to the field when something is wrong, Show to see the password you typed, and the code to scan with your phone beside it.",
     how: "Shown when this browser needs to sign in, and on the profile wall's password.",
