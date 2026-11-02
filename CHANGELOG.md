@@ -3,6 +3,15 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.7 — 2026-11-02
+
+From the household's reports — on the website, Aurora TV 5.8.3 and Aurora for Android phones 1.0.3.
+- **Cancel a download, anywhere.** Cancel is now on title pages and on the versions list as well as My downloads, and on the TV and phone also when you hold an episode. It always asks first, so a stray press changes nothing. What's on its way now sits at the top of My downloads on the TV and phone.
+- **How many downloads you have.** One line, like "3 downloading · 1 queued · 13 ready", in Settings and My downloads on the TV and phone, and in My downloads and the profile menu on the website. It only counts them; there is no limit.
+- **Wrong language.** Reporting a copy as Wrong language now leaves out copies that name that language and puts the one you want first. If a try is cancelled or fails, Aurora says who or why, and Pick another version lists the next ones. Copies that don't name a language in their title can still turn out wrong.
+- The admin panel and My downloads now say who cancelled a replacement, and reports from the player carry the app's version.
+- On the website's My downloads, opened directly on an open server, every job showed as someone else's. Fixed.
+
 ## 1.15.6 — 2026-10-31
 
 **Sign-in, sign-up and passwords** — on the website, Aurora TV 5.8.2 and Aurora for Android phones 1.0.2.
