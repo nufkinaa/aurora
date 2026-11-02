@@ -1457,7 +1457,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     // yours: Cancel beside it, asked first (js/dlcancel.js)
     cancelFor = job.id && job.mine ? job : null;
     if (cancelFor && !cancelBtn && saveBtn.parentNode) {
-      cancelBtn = el("button", { "data-ui": "detail.download.cancel", class: "btn focusable", onclick: () => cancelFor && askCancelDownload(cancelFor) }, "Cancel download");
+      cancelBtn = el("button", { "data-ui": "detail.download.cancel", class: "btn focusable detail-cancel-dl", onclick: () => cancelFor && askCancelDownload(cancelFor) }, "Cancel download");
       saveBtn.after(cancelBtn);
     } else if (!cancelFor && cancelBtn) { cancelBtn.remove(); cancelBtn = null; }
   };

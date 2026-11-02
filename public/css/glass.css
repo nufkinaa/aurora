@@ -2724,6 +2724,16 @@ html[data-look="glass"] .pbtn.big svg {
   html:root .detail-hero .detail-actions .btn-primary + .btn-primary {
     margin-top: 8px;
   }
+  /* Cancel download, right under the button that shows the download */
+  html:root .detail-hero .detail-actions .detail-cancel-dl {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+    margin-top: 8px;
+    padding: 13px 18px;
+    border-radius: 16px;
+    font-size: 0.95rem;
+  }
   html:root .detail-hero .detail-actions-more {
     display: flex;
     gap: 2px;

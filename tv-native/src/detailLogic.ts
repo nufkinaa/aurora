@@ -164,7 +164,7 @@ export const endedText = (name: string, status: string) =>
   status === 'declined'
     ? `${name} was declined  ·  hold Play for other sources`
     : status === 'canceled' || status === 'cancelled'
-      ? `${name}'s download was cancelled  ·  press Play to ask for it again`
+      ? `${name}'s download was cancelled  ·  press Play to try again`
       : status === 'removed' || status === 'dismissed'
       ? `${name}'s download was removed  ·  press Play to try again`
       : `Couldn't get ${name}  ·  hold Play for other sources`;
