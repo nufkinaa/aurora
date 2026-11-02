@@ -15,6 +15,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {View, Text, ScrollView, StyleSheet, ActivityIndicator, TVFocusGuideView} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {useIsFocused} from '@react-navigation/native';
 import Chip from '../components/Chip';
 import Focusable from '../components/Focusable';
 import NavRail from '../components/NavRail';
@@ -23,6 +24,7 @@ import {useApp} from '../AppContext';
 import {useRouteShown} from '../useRouteShown';
 import {useMe, useNewUnseen} from '../navSection';
 import {openJoinParty, openReport, openUpdate} from '../overlay';
+import {useDownloadLine} from '../useDownloadLine';
 import {loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS, saveAuthSession} from '../storage';
 import {PERSON_KEYS, PersonKey, SUB_LANGS, SUB_LANG_LABEL} from '../personPrefs';
 import {onPersonPrefs, refreshPerson, setPersonPref} from '../personSync';
@@ -180,6 +182,7 @@ export default function Settings({
   }, []);
   const {safeBottom} = useTvMetrics();
   const me = useMe(profileId);
+  const downloadsLine = useDownloadLine(profileId, useIsFocused());
   // The developer's rendering switches (RenderDevPanel.tsx): hidden until OK is HELD
   // on the version row, for this visit of the screen only.
   const [devRender, setDevRender] = useState(false);
@@ -376,7 +379,8 @@ export default function Settings({
           />
           <Row uiId="settings.downloads"
             label="My downloads"
-            note="What you asked the server to fetch — ready, on its way, waiting."
+            // how many this profile has, and where (a count: there is no limit)
+            note={downloadsLine ? `${downloadsLine}. See them, or cancel one.` : 'What you asked the server to fetch — ready, on its way, waiting.'}
             value="›"
             onPress={() => navigation.push('Downloads')}
           />

@@ -557,6 +557,9 @@ export type PersonData = {
 export type XrayQuery = {itemId?: string; type?: 'movie' | 'series'; imdbId?: string | null; season?: number | null; episode?: number | null};
 
 export type DownloadJob = {
+  // this viewer's own request (the list asked for with ?profile=, or their session)
+  mine?: boolean;
+  release?: string | null;
   id: string;
   infoHash: string;
   fileIdx: number;
@@ -661,6 +664,8 @@ export type MyDownload = DownloadJob & {
   // finished, waiting for nobody to be playing the old copy.
   replaces?: {id: string; libraryId: string; reason: string; reasonLabel: string | null} | null;
   replaceWait?: boolean;
+  // who cancelled it: the person who asked, or the admin (null on older jobs)
+  canceledBy?: 'self' | 'admin' | null;
 };
 
 // "Problem with this copy? → Get another version" (src/routes/replace.js).
@@ -693,14 +698,32 @@ export type ReplaceView = {
   item: {id: string; type: 'movie' | 'episode'; title: string; display: string; season: number | null; episode: number | null; showId: string | null; imdbId: string | null};
   current: ReplaceCopy;
   active: Replacement | null;
+  // the last try, when it ended without replacing anything (`line`: the server's words)
+  last?: {
+    status: string;
+    reason: string;
+    reasonLabel: string;
+    canceledBy: 'self' | 'admin' | null;
+    why: string | null;
+    release: string | null;
+    quality: string | null;
+    line: string;
+  } | null;
   can: boolean;
   why: string | null;
   code: string | null;
   reasons: {id: string; label: string}[];
 };
 // A source of the same title, ranked by the server (the copy being replaced
-// left out); `badHere`: somebody here already replaced that release.
-export type ReplaceStream = Stream & {pack?: boolean; badHere?: {reason: string; label: string} | null};
+// left out); `badHere`: somebody here already replaced that release; `langFit` /
+// `langLabel`: how it fits a "Wrong language" request; `tried`: the last try's source.
+export type ReplaceStream = Stream & {
+  pack?: boolean;
+  badHere?: {reason: string; label: string} | null;
+  langFit?: 'right' | 'unknown' | 'other' | null;
+  langLabel?: string | null;
+  tried?: {status: string; label: string} | null;
+};
 
 // A watch party as the server describes it (src/lib/party.js publicParty).
 export type PartyMember = {
@@ -1934,9 +1957,9 @@ export const api = {
   // server's words and its `code` (kids, busy, provider, …) — ApiError.
   replaceView: (libraryId: string, profileId: string) =>
     request<ReplaceView>(`/api/replace/${encodeURIComponent(libraryId)}?profile=${encodeURIComponent(profileId)}`),
-  replaceSources: (libraryId: string, profileId: string) =>
-    request<{streams: ReplaceStream[]; current: ReplaceCopy}>(
-      `/api/replace/${encodeURIComponent(libraryId)}/sources?profile=${encodeURIComponent(profileId)}`,
+  replaceSources: (libraryId: string, profileId: string, reason?: string) =>
+    request<{streams: ReplaceStream[]; current: ReplaceCopy; note?: string | null}>(
+      `/api/replace/${encodeURIComponent(libraryId)}/sources?profile=${encodeURIComponent(profileId)}${reason ? `&reason=${encodeURIComponent(reason)}` : ''}`,
     ),
   replaceRequest: (
     libraryId: string,

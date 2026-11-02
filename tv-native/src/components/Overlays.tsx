@@ -2,7 +2,7 @@
 // be up (overlay.ts says which) — peek, report a problem, join a party, the
 // update offer, a trailer, get another version (ReplaceSheet.tsx). Screens never draw these themselves.
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Animated, AppState, BackHandler, Easing, FlatList, Image, Linking, Platform, ScrollView, StyleSheet, TVFocusGuideView, Text, TextInput, View} from 'react-native';
+import {ActivityIndicator, Animated, AppState, BackHandler, Easing, FlatList, Image, Linking, ScrollView, StyleSheet, TVFocusGuideView, Text, TextInput, View} from 'react-native';
 import Focusable from './Focusable';
 import PersonSheet from './PersonSheet';
 import ReplaceSheet from './ReplaceSheet';
@@ -12,7 +12,8 @@ import TrailerFrame, {TrailerState} from './Trailer';
 import {prepareTrailer, ResolvedTrailer} from '../trailers';
 import type {ActionItem} from '../overlay';
 import {api, artSrc, HeroItem, imgSrc, ImgSource, LIST_ADDED, StreamRef, XrayData, XrayPerson, XrayQuery} from '../api';
-import {playingContext, recentErrors} from '../errors';
+import {playingContext} from '../errors';
+import {clientContext} from '../clientContext';
 import {afterFocusLeaves, noteFocus, noteFocusLost, useKeyTrap} from '../focus';
 import {closeOverlay, openRecommend, useOverlay} from '../overlay';
 import {cardLinesShown, fromLine, ltr, noteLineShown, titleKey, WORDS as HH} from '../householdRecs'; // [household]
@@ -22,7 +23,6 @@ import {resolvePartyRoute} from '../party';
 import {currentRouteName, pushScreen, rootNav} from '../rootNav';
 import {dismissUpdate} from '../storage';
 import {showToast, useToasts} from '../toast';
-import {isOpen as socketOpen} from '../realtime';
 import {
   APP_VERSION,
   canInstall,
@@ -283,21 +283,14 @@ function ReportSheet({hint}: {hint?: string}) {
     setBusy(true);
     setErr('');
     const playing = playingContext();
-    const c = Platform.constants as {Model?: string; Release?: string};
     try {
       await api.report(
         `${text.trim()}${hint ? `\n\n(${hint})` : ''}`,
         {
+          ...clientContext(),
           route: `tv:${currentRouteName()}`,
           title: playing ? playing.title : null,
           itemId: playing ? playing.id : null,
-          look: 'tv',
-          ua: `Aurora TV ${APP_VERSION} · Android ${c.Release || ''} · ${c.Model || 'TV'}`,
-          viewport: 'tv',
-          // (was always `true`: whether the app's socket to the server is up)
-          online: socketOpen(),
-          version: APP_VERSION,
-          errors: recentErrors(),
           // what is playing, how it started: step by step from the press (src/startline.ts)
           startup: playing && playing.startup ? playing.startup() : null,
         },

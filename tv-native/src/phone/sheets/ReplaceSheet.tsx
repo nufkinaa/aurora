@@ -6,7 +6,9 @@
 //   step 2  Get another version            the title's other sources, BEST first, each
 //                                          marked as the title page marks it
 //   asked   This is not the real release   a pre-release copy picked: asked first
-//   on its way                             status, reason, Cancel (the one who asked)
+//   on its way                             status, reason, Cancel (the one who asked), asked first
+//   ended                                  the last try was cancelled or failed: what happened,
+//                                          Pick another version, Something else is wrong, Keep this copy
 //   refused                                the server's why (a kids profile…)
 //
 // Opened from anywhere through overlay.ts openReplace (the player's "Audio and settings",
@@ -18,6 +20,7 @@ import ListRow from '../ui/Row';
 import {GlassButton, PrimaryButton} from '../ui/Buttons';
 import {Bar} from '../ui/Cards';
 import {api, ReplaceStream, ReplaceView} from '../../api';
+import {clientContext} from '../../clientContext';
 import {currentRouteName, rootNav} from '../../rootNav';
 import {showToast} from '../../toast';
 import {track} from '../../usage';
@@ -26,7 +29,7 @@ import {EARLY_CONFIRM} from '../../releaseWords';
 import {colors, GUTTER} from '../theme';
 
 const POLL_MS = 4000;
-type Step2 = {reason: string; streams: ReplaceStream[] | null; error: string | null};
+type Step2 = {reason: string; streams: ReplaceStream[] | null; error: string | null; note?: string | null};
 
 export default function ReplaceSheet({libraryId, title, context, onClose}: {libraryId: string; title: string; context?: Record<string, unknown>; onClose: () => void}) {
   const profileId = rootNav().profileId || '';
@@ -39,6 +42,8 @@ export default function ReplaceSheet({libraryId, title, context, onClose}: {libr
   const [asked, setAsked] = useState<ReplaceStream | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelErr, setCancelErr] = useState<string | null>(null);
+  const [askCancel, setAskCancel] = useState(false);
+  const [skipEnded, setSkipEnded] = useState(false);
   const live = useRef(true);
   useEffect(
     () => () => {
@@ -62,7 +67,7 @@ export default function ReplaceSheet({libraryId, title, context, onClose}: {libr
     load();
   }, [load]);
 
-  const face = viewErr ? 'error' : replaceFace(view);
+  const face = viewErr ? 'error' : replaceFace(view, skipEnded || !!step2);
   const active = view?.active || null;
   useEffect(() => {
     if (face !== 'active') return;
@@ -72,10 +77,12 @@ export default function ReplaceSheet({libraryId, title, context, onClose}: {libr
 
   // Back / a tap outside: the list back to the reasons, the question back to the list, else close
   const back = () => {
+    if (askCancel) return setAskCancel(false);
     if (asked) return setAsked(null);
     if (step2) {
       setStep2(null);
       setPickErr(null);
+      setSkipEnded(true);
       return;
     }
     onClose();
@@ -86,8 +93,8 @@ export default function ReplaceSheet({libraryId, title, context, onClose}: {libr
     setAsking(reason);
     setPickErr(null);
     api
-      .replaceSources(libraryId, profileId)
-      .then(r => live.current && setStep2({reason, streams: r.streams || [], error: null}))
+      .replaceSources(libraryId, profileId, reason)
+      .then(r => live.current && setStep2({reason, streams: r.streams || [], error: null, note: r.note || null}))
       .catch(e => live.current && setStep2({reason, streams: null, error: sourcesError(e)}))
       .finally(() => live.current && setAsking(null));
   };
@@ -104,7 +111,7 @@ export default function ReplaceSheet({libraryId, title, context, onClose}: {libr
         profile: profileId,
         reason: step2.reason,
         source: {infoHash: s.infoHash, fileIdx: s.fileIdx || 0},
-        context: {route: `phone:${currentRouteName()}`, look: 'phone', ...(context || {})},
+        context: {...clientContext(), route: `phone:${currentRouteName()}`, ...(context || {})},
       })
       .then(() => {
         track('feat', {f: 'replace_pick', reason: step2.reason});
@@ -147,6 +154,30 @@ export default function ReplaceSheet({libraryId, title, context, onClose}: {libr
         <GlassButton label="Close" onPress={onClose} style={s.btn} />
       </>
     );
+  } else if (face === 'active' && active && askCancel) {
+    heading = WORDS.cancelAsk;
+    body = (
+      <>
+        <Text style={s.body}>{WORDS.cancelAskBody}</Text>
+        {cancelErr ? <Text style={s.error}>{cancelErr}</Text> : null}
+        <GlassButton label={WORDS.keepGoing} onPress={back} style={s.btn} />
+        <PrimaryButton uiId="replace.cancel" label={WORDS.cancel} onPress={cancel} busy={cancelBusy} style={s.btn} />
+      </>
+    );
+  } else if (face === 'ended' && view?.last) {
+    const last = view.last;
+    heading = WORDS.endedHeading;
+    body = (
+      <>
+        <Text style={s.status}>{last.line}</Text>
+        {last.release ? <Text style={s.faint}>{`That was: ${last.release}${last.quality ? ` (${last.quality})` : ''}`}</Text> : null}
+        <Text style={s.faint}>{`Reason: ${last.reasonLabel}`}</Text>
+        <Text style={s.body}>{WORDS.endedNext}</Text>
+        <PrimaryButton uiId="replace.next" label={WORDS.pickNext} onPress={() => pickReason(last.reason)} busy={asking === last.reason} style={s.btn} />
+        <GlassButton uiId="replace.other" label={WORDS.otherReason} onPress={() => setSkipEnded(true)} style={s.btn} />
+        <GlassButton label={WORDS.keepCopy} onPress={onClose} style={s.btn} />
+      </>
+    );
   } else if (face === 'active' && active) {
     heading = WORDS.activeHeading;
     const who = replaceWho(active);
@@ -158,9 +189,8 @@ export default function ReplaceSheet({libraryId, title, context, onClose}: {libr
         ) : null}
         {replaceReasonText(active) ? <Text style={s.faint}>{replaceReasonText(active)}</Text> : null}
         {who.line ? <Text style={s.faint}>{who.line}</Text> : null}
-        {cancelErr ? <Text style={s.error}>{cancelErr}</Text> : null}
-        {who.cancel ? <PrimaryButton uiId="replace.cancel" label={WORDS.cancel} onPress={cancel} busy={cancelBusy} style={s.btn} /> : null}
         <GlassButton label="Close" onPress={onClose} style={s.btn} />
+        {who.cancel ? <GlassButton uiId="replace.cancel.ask" label={WORDS.cancel} onPress={() => setAskCancel(true)} style={s.btn} /> : null}
       </>
     );
   } else if (step2 && asked) {
@@ -178,6 +208,7 @@ export default function ReplaceSheet({libraryId, title, context, onClose}: {libr
     body = (
       <>
         <Text style={s.body}>{WORDS.step2Body}</Text>
+        {step2.note ? <Text style={s.faint}>{step2.note}</Text> : null}
         {pickErr ? <Text style={s.error}>{pickErr}</Text> : null}
         {step2.error || !streams || !streams.length ? (
           <Text style={s.faint}>{step2.error || WORDS.none}</Text>

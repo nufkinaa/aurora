@@ -148,7 +148,7 @@ const publicJob = (j) => ({
   id: j.id, infoHash: j.infoHash, fileIdx: j.fileIdx, imdbId: j.imdbId || null,
   title: j.title, label: j.label, type: j.type,
   season: j.season, episode: j.episode, quality: j.quality,
-  sizeBytes: j.sizeBytes, poster: j.poster, provider: j.provider,
+  sizeBytes: j.sizeBytes, poster: j.poster, provider: j.provider, release: j.release || null,
   status: j.status, phase: j.phase || null, copyProgress: j.copyProgress ?? null,
   progress: j.progress || 0, downloadSpeed: j.downloadSpeed || 0,
   peers: j.peers || 0, error: j.error || null, at: j.at,
@@ -186,6 +186,10 @@ const publicJob = (j) => ({
   // is complete, and waits for nobody to be playing the old copy.
   replaces: j.replaces ? { id: j.replaces.id, libraryId: j.replaces.libraryId, reason: j.replaces.reason, reasonLabel: j.replaces.reasonLabel || null } : null,
   replaceWait: !!j.replaceWait,
+  // Who cancelled it: "self" (the person who asked) or "admin". A cancelled row
+  // read just "Canceled", which left a person (and the admin reading a report)
+  // guessing who did it (Niso's report, 2026-10-31). Null on older jobs.
+  canceledBy: j.status === "canceled" ? j.canceledBy || null : null,
 });
 
 // The requester opened the finished file: the "ready to play" nudge for it
@@ -570,6 +574,7 @@ const approve = (id) => {
   }
   job.status = "approved";
   job.error = null;
+  delete job.canceledBy;
   job.approvedAt = now();
   job.holdReason = null;
   // An explicit admin approval overrides the disk gate: pump() must never send
@@ -596,11 +601,16 @@ const decline = (id) => {
   return { job: publicJob(job) };
 };
 
-const cancel = (id) => {
+// `by`: who took it back, "self" (the person who asked) or "admin". This is the
+// ONLY place a job becomes "canceled": nothing automatic does (a timeout, a stall
+// or a failed copy is `fail()`, status "error"; the disk gate holds a job "pending").
+const cancel = (id, by = null) => {
   const job = findJob(id);
   if (!job) return { error: "not found" };
   stopActive(id, "canceled");
   job.status = "canceled";
+  if (by === "self" || by === "admin") job.canceledBy = by;
+  else delete job.canceledBy;
   delete job.replaceWait;
   job.resolvedAt = now();
   store.save();
@@ -620,7 +630,7 @@ const cancelOwn = (id, viewer) => {
   if (!job) return { error: "not found" };
   if (!isRequester(job, viewer)) return { error: "not your download" };
   if (!["pending", "approved", "downloading", "error"].includes(job.status)) return { error: "already finished" };
-  return cancel(id);
+  return cancel(id, "self");
 };
 
 // A viewer clearing a DEAD request of their own off the page (failed,
@@ -634,7 +644,7 @@ const removeOwn = (id, viewer) => {
   return remove(id);
 };
 
-const remove = (id) => {
+const remove = (id, { by = null } = {}) => {
   const i = store.data.findIndex((j) => j.id === id);
   if (i === -1) return { error: "not found" };
   const { infoHash } = store.data[i];
@@ -642,7 +652,7 @@ const remove = (id) => {
   stopActive(id, "removed");
   store.data.splice(i, 1);
   // a replacement taken off the queue before it landed: cancelled
-  if (gone.replaces && LIVE_STATUSES.includes(gone.status)) tellReplace({ ...gone, status: "canceled" });
+  if (gone.replaces && LIVE_STATUSES.includes(gone.status)) tellReplace({ ...gone, status: "canceled", canceledBy: by });
   store.save();
   // Every open "My downloads" page drops the row now, not on its next reload.
   realtime.broadcastAll({ type: "download_removed", id });

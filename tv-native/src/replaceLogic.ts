@@ -33,6 +33,16 @@ export const WORDS = {
   activeHeading: 'Another version is on its way',
   cancel: 'Cancel — keep this copy',
   cancelled: 'Cancelled — your copy stays as it was.',
+  // the question before Cancel: a stray OK on a TV remote must not end it
+  cancelAsk: 'Cancel this version?',
+  cancelAskBody: 'Your copy stays as it was. What has come down so far is thrown away.',
+  keepGoing: 'Keep going',
+  // the last try ended without replacing anything: what now
+  endedHeading: "That version didn't come through",
+  endedNext: 'Pick the next one, or keep this copy.',
+  pickNext: 'Pick another version',
+  otherReason: 'Something else is wrong',
+  keepCopy: 'Keep this copy',
   waitingJob: 'Ready — waiting for nobody to be playing the old copy',
 } as const;
 
@@ -77,22 +87,56 @@ export const replaceWho = (r: ReplacementLike | null | undefined): {cancel: bool
   return {cancel: false, line: by ? `Asked for by ${by}` : null};
 };
 
+/** How the last try for this copy ended (src/media/replace.js lastOf): `line` is
+ *  the server's sentence, printed as it is on all three clients. */
+export type LastTry = {
+  status: string;
+  reason?: string | null;
+  reasonLabel?: string | null;
+  release?: string | null;
+  quality?: string | null;
+  line: string;
+};
+
 export type ReplaceView = {
   can?: boolean;
   why?: string | null;
   code?: string | null;
   active?: ReplacementLike | null;
+  last?: LastTry | null;
   reasons?: ReplaceReason[] | null;
 };
 
 /** Which face the sheet shows for what GET /api/replace/:id answered:
  *  'active' (a replacement on its way), 'refused' (the server says no, and why),
- *  'reasons' (step 1). Before the answer arrives: 'reasons' (it opens on them). */
-export const replaceFace = (v: ReplaceView | null | undefined): 'active' | 'refused' | 'reasons' => {
+ *  'ended' (the last try was cancelled or failed: what happened and what next),
+ *  'reasons' (step 1). Before the answer arrives: 'reasons' (it opens on them).
+ *  `skipEnded`: the person has moved on from that face. */
+export const replaceFace = (v: ReplaceView | null | undefined, skipEnded = false): 'active' | 'refused' | 'ended' | 'reasons' => {
   if (!v) return 'reasons';
   if (v.active) return 'active';
   if (v.can === false) return 'refused';
+  if (v.last && !skipEnded) return 'ended';
   return 'reasons';
+};
+
+/** What the person is told when a replacement of theirs ended without them: a
+ *  failure, or the admin taking it back. Null when there is nothing to say (it
+ *  landed, it is not theirs, or they cancelled it themselves and were told). */
+export const replaceEndedToast = (j: {
+  mine?: boolean;
+  status?: string;
+  title?: string | null;
+  error?: string | null;
+  canceledBy?: string | null;
+  replaces?: unknown;
+}): string | null => {
+  if (!j.replaces || !j.mine) return null;
+  const name = `“${j.title || 'that title'}”`;
+  if (j.status === 'error') return `The other version of ${name} failed — your copy stays. Open “${WORDS.entry}” to pick the next one.`;
+  if (j.status === 'declined') return `The admin said no to the other version of ${name} — your copy stays.`;
+  if (j.status === 'canceled' && j.canceledBy === 'admin') return `The admin cancelled the other version of ${name} — your copy stays.`;
+  return null;
 };
 
 /** The server's reasons when it sent a usable list, else the five above. */
@@ -123,6 +167,11 @@ export type ReplaceStreamLike = {
   warning?: string | null;
   dubbed?: boolean | null;
   badHere?: {reason?: string; label?: string | null} | null;
+  // "Wrong language" (src/media/copylang.js): how this source fits, and its language
+  langFit?: string | null;
+  langLabel?: string | null;
+  // the source the last try was for
+  tried?: {status?: string; label?: string | null} | null;
 };
 
 /** One source row: quality, size, seeders, the release name; ★ BEST; the
@@ -140,14 +189,14 @@ export const replaceRowText = (
   const quality = s.quality || s.qualityLabel || 'SD';
   const size = s.sizeString || fmtSize(s.sizeBytes);
   const seeds = typeof s.seeders === 'number' ? `${s.seeders} seeder${s.seeders === 1 ? '' : 's'}` : null;
-  const tags = [sourceBadge(s), s.dubbed ? 'Dub' : null].filter(Boolean) as string[];
+  const tags = [s.langLabel || null, sourceBadge(s), s.dubbed ? 'Dub' : null].filter(Boolean) as string[];
   const best = !!s.recommended && pickable(s) && !(reason === 'burned' && s.hardsub);
   return {
     quality,
     name: s.release || s.filename || '',
     meta: [quality, size, seeds].filter(Boolean).join(' · '),
     best: best ? WORDS.best : null,
-    warn: s.badHere ? `Reported here: ${s.badHere.label || 'a problem'}` : null,
+    warn: s.badHere ? `Reported here: ${s.badHere.label || 'a problem'}` : s.tried ? s.tried.label || null : null,
     early: isEarly(s) || s.hardsub ? s.warning || null : null,
     tags,
   };

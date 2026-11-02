@@ -3228,7 +3228,7 @@
           <tr class="${r.status === "closed" ? "muted" : ""}">
             <td class="muted" style="white-space:nowrap">${ago(new Date(r.at).toISOString())}</td>
             <td>${esc(r.profile || "—")}</td>
-            <td style="max-width:460px;min-width:240px"><div style="white-space:pre-wrap">${esc(r.text)}</div>${r.replace && r.replace.status ? `<div style="margin-top:4px"><span class="pill">another version: ${esc(r.replace.status)}</span></div>` : ""}
+            <td style="max-width:460px;min-width:240px"><div style="white-space:pre-wrap">${esc(r.text)}</div>${r.replace && r.replace.status ? `<div style="margin-top:4px"><span class="pill">another version: ${esc(replaceEnd(r.replace))}</span></div>` : ""}
               <details style="margin-top:6px"><summary class="muted" style="cursor:pointer;font-size:0.8rem">context${r.context.errors && r.context.errors.length ? ` · ${r.context.errors.length} error${r.context.errors.length > 1 ? "s" : ""}` : ""}</summary>
                 <div class="muted" style="font-size:0.78rem;margin-top:4px;line-height:1.5">
                   ${esc(r.context.look || "")} · ${esc(r.context.viewport || "")} · v${esc(r.context.version || "?")}${r.context.online === false ? " · offline" : ""}${r.context.net ? ` · connection: ${esc(r.context.net)}` : ""}<br>
@@ -3250,7 +3250,9 @@
     }
     // ---------- replaced copies (media/replace.js) ----------
     const REPLACE_PILL = { done: "", canceled: "", declined: "warn", failed: "warn", waiting: "warn" };
-    const replaceStatus = (e) => e.status === "downloading" ? `downloading ${Math.round((e.progress || 0) * 100)}%` : e.status === "waiting" ? "ready · old copy in use" : e.status;
+    // canceled by whom: only the person who asked or the admin can cancel (nothing automatic does)
+    const replaceEnd = (e) => e.status !== "canceled" ? e.status : e.canceledBy === "admin" ? "canceled by the admin" : e.canceledBy === "self" ? `canceled by ${e.byName || "the person who asked"}` : "canceled";
+    const replaceStatus = (e) => e.status === "downloading" ? `downloading ${Math.round((e.progress || 0) * 100)}%` : e.status === "waiting" ? "ready · old copy in use" : replaceEnd(e);
     async function loadReplacements() {
       let data;
       try { data = await json("/api/admin/replacements"); } catch { return; }

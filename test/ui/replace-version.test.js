@@ -140,8 +140,13 @@ for (const look of ["glass", "legacy"]) {
       assert.match(await page.locator(".toast").last().innerText(), /Getting another version — your copy stays playable until it's in\./);
       await shot(page, `${vp}-${look}-4-on-its-way`);
 
-      // Cancel — keep this copy
+      // Cancel — keep this copy: asked first, nothing is sent until the answer
       await page.click(`${sheet} [data-ui="replace.cancel"]`);
+      const ask = page.locator(".look-notice-wrap:not(.replace-wrap) .look-notice.sheet");
+      await ask.waitFor();
+      assert.match(await ask.innerText(), /Cancel this version\?/);
+      assert.equal(calls.cancels.length, 0);
+      await ask.locator("button", { hasText: "Cancel — keep this copy" }).click();
       await page.waitForSelector(".replace-wrap", { state: "detached" });
       assert.equal(calls.cancels.length, 1);
       assert.equal(calls.cancels[0].profile, me.id);

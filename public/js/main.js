@@ -10,7 +10,8 @@ try {
 } catch {}
 import { $, el, toast, icons } from "./ui.js";
 import { route, startRouter, navigate } from "./router.js";
-import { state, loadProfiles, setProfile, savedToken, downloads, readyDownloads, refreshPersonPrefs } from "./state.js";
+import { state, loadProfiles, setProfile, savedToken, downloads, myDownloads, readyDownloads, refreshPersonPrefs } from "./state.js";
+import { downloadCountLine } from "./dlcancel.js";
 import { api, setAuthToken, forgetWarm } from "./api.js";
 import { connect, reconnect, onMessage, emit } from "./ws.js";
 import { appRunning, onSigninRequired, onSignedOut } from "./session.js";
@@ -21,6 +22,7 @@ import { showLoginScreen } from "./screens/login.js";
 import { showClaimModal } from "./claim.js";
 import { showShortcutsOverlay } from "./screens/shortcuts.js";
 import { showReportSheet } from "./report.js";
+import { replaceEndedLine } from "./replaceCopy.js";
 import { pushScope, popScope } from "./focus.js";
 import { initAurora } from "./aurora.js";
 import { initScreensaver } from "./screensaver.js";
@@ -460,6 +462,11 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     // system notification is added when the tab is in the background and
     // you turned those on under Settings. Smart downloads stay silent.
     const prev = downloads.get(job.id);
+    // Another version that ended without you: said wherever you are.
+    if (!caughtUp && prev && prev.status !== job.status) {
+      const ended = replaceEndedLine(job);
+      if (ended) toast(ended, "↩️");
+    }
     const landed = job.status === "done" && job.libraryId && job.mine && !job.smart && !job.seenAt &&
       !(prev && prev.status === "done" && prev.libraryId);
     downloads.set(job.id, job);
@@ -713,7 +720,10 @@ const showProfileMenu = () => {
     state.authMode !== "closed" &&
       item("Switch profile", () => { close(); openGate(); }),
     item("Settings", () => { close(); navigate("#/preferences"); }),
-    item("My downloads", () => { close(); navigate("#/downloads"); }),
+    // how many are where, under the name (a count: there is no limit)
+    el("button", { class: "nav-menu-item focusable nav-menu-dl", onclick: () => { close(); navigate("#/downloads"); } },
+      "My downloads",
+      downloadCountLine(myDownloads()) ? el("span", { class: "nav-menu-count" }, downloadCountLine(myDownloads())) : null),
     // saved titles, saves under way, a video from this device (screens/saved.js)
     item("On this device", () => { close(); navigate("#/saved"); }),
     item("What's new", () => { close(); navigate("#/new"); }),

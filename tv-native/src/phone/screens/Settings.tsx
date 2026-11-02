@@ -8,7 +8,9 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, ScrollView, StyleSheet, Switch, Text, View} from 'react-native';
 import {api, getAuthMode, getBaseUrl, getSession, HouseholdSettings, setSession} from '../../api';
+import {useIsFocused} from '@react-navigation/native';
 import {useApp} from '../../AppContext';
+import {useDownloadLine} from '../../useDownloadLine';
 import {useMe} from '../../navSection';
 import {openJoinParty, openReport} from '../../overlay';
 import {loadPrefs, Prefs, PREFS_DEFAULTS, saveAuthSession, savePrefs} from '../../storage';
@@ -112,6 +114,7 @@ export default function Settings() {
   const navigation = usePNav();
   const {profileId, switchProfile} = useApp();
   const me = useMe(profileId);
+  const downloadsLine = useDownloadLine(profileId, useIsFocused());
   const bottom = useTabBarSpace();
   const [prefs, setPrefs] = useState<Prefs>(PREFS_DEFAULTS);
   const [checking, setChecking] = useState(false);
@@ -217,7 +220,7 @@ export default function Settings() {
         </Section>
 
         <Section icon="info" title="Aurora">
-          <ListRow uiId="settings.downloads" icon="download" title="My downloads" detail="What you asked the server to fetch — ready, on its way, waiting. And what is saved on this phone." chevron onPress={() => navigation.push('Downloads', undefined)} />
+          <ListRow uiId="settings.downloads" icon="download" title="My downloads" detail={downloadsLine ? `${downloadsLine}. See them, or cancel one.` : 'What you asked the server to fetch — ready, on its way, waiting. And what is saved on this phone.'} chevron onPress={() => navigation.push('Downloads', undefined)} />
           <ListRow uiId="phone.settings.remote" icon="remote" title="Your TVs" detail="Use this phone as the remote, or play something on a TV." chevron onPress={() => pushPhone('Remote', undefined)} />
           <ListRow uiId="phone.settings.whatsnew" icon="sparkle" title="What's new" detail="The changes to Aurora, newest first." chevron onPress={() => pushPhone('WhatsNew', undefined)} />
           <ListRow uiId="phone.settings.pair" icon="remote" title="Sign in a TV" detail="Type the code on a TV's sign-in screen — or scan its QR with this phone's camera." chevron onPress={() => pushPhone('PairTv', {code: null})} />

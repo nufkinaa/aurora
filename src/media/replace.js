@@ -37,6 +37,12 @@
 // Burned-in subtitles"), and a line in "Problem reports" with the reason.
 // The reason is also remembered against the old release (media/badreleases.js),
 // so nothing automatic picks it again.
+//
+// "Wrong language" asks a different list (media/copylang.js): a copy naming the
+// same wrong language is not offered, one naming the language this person
+// wants comes first. And a try that ended (cancelled, failed, declined) is said
+// in plain words the next time the sheet opens (`last`, with who cancelled it),
+// and the source it tried goes to the foot of the list, never the star.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -45,6 +51,7 @@ const config = require("../config");
 const { JsonStore } = require("../lib/jsonstore");
 const scanner = require("./scanner");
 const badreleases = require("./badreleases");
+const copylang = require("./copylang");
 const idpins = require("./idpins");
 const lazy = require("../lib/lazy");
 const downloadsLib = lazy(require, "./downloads");
@@ -60,6 +67,16 @@ const LIVE = ["pending", "approved", "downloading"];
 const seams = {
   inUse: (p) => require("../lib/fileinuse").fileInUse(p),
   sources: (s) => torrentLib().getSources(s.type === "show" ? "series" : "movie", s.imdbId, s.year, s.season, s.episode),
+  // The title's original language (TMDB): cached, else asked once, briefly (a
+  // slow answer only means the list is not led by it).
+  originalLanguage: async (s) => {
+    const discover = require("./discover");
+    const kind = s.type === "show" ? "series" : "movie";
+    const known = discover.metaCached(kind, s.imdbId);
+    if (known) return known.originalLanguage || null;
+    const meta = await Promise.race([discover.meta(kind, s.imdbId).catch(() => null), sleep(2500).then(() => null)]);
+    return (meta && meta.originalLanguage) || null;
+  },
   waitMs: 15 * 1000,     // while somebody plays the old copy: look again this often
   busyMs: 250,           // Windows: a file the server's own readers hold — tried again this soon…
   busyTries: 40,         // …this many times, then it counts as "in use" and waits its turn
@@ -108,7 +125,9 @@ const titleKeyOf = (s) => {
 };
 
 // The copy in the library now: the download that wrote this file, when one
-// did (its source and release name), and what the file itself says.
+// did (its source and release name), and what the file itself says. A file no
+// download wrote still has a name, and one put here by hand often IS the
+// release's name.
 const currentOf = (s) => {
   let job = null;
   try {
@@ -126,11 +145,23 @@ const currentOf = (s) => {
     jobId: job ? job.id : null,
   };
 };
+const stemOf = (name) => String(name || "").replace(/\.[a-z0-9]{2,5}$/i, "");
 const isCurrent = (cur, src) => {
   if (!cur || !src) return false;
   if (cur.infoHash && String(src.infoHash || "").toLowerCase() === cur.infoHash) return true;
   const rk = badreleases._internals.relKey;
-  return !!(cur.release && src.release && rk(cur.release) === rk(src.release));
+  if (cur.release && src.release && rk(cur.release) === rk(src.release)) return true;
+  const file = rk(stemOf(cur.fileName));
+  return !!file && [src.release, stemOf(src.filename)].some((n) => n && rk(n) === file);
+};
+
+// The languages this "Wrong language" request is judged by (media/copylang.js).
+const languageFit = async (s, viewer) => {
+  const tracks = Array.isArray(s.item.audioTracks) ? s.item.audioTracks : s.item.audio ? [s.item.audio] : [];
+  const p = viewer && viewer.id ? require("../profiles").list().find((x) => x.id === viewer.id) : null;
+  let original = null;
+  try { original = await seams.originalLanguage(s); } catch {}
+  return copylang.fitFor({ copy: tracks.map((t) => t && t.language), wish: p && p.prefs ? p.prefs.audioLang : null, original });
 };
 
 const liveJobFor = (libraryId) => {
@@ -138,6 +169,37 @@ const liveJobFor = (libraryId) => {
     return downloadsLib().rawJobs().find((j) => j.replaces && j.replaces.libraryId === libraryId && LIVE.includes(j.status)) || null;
   } catch { return null; }
 };
+
+// ---------- how the last try ended ----------
+const ENDED = ["canceled", "failed", "declined"];
+const LAST_MS = 14 * 24 * 3600 * 1000; // after this it is old news: the sheet opens as usual
+const adminWord = () => String(config.ADMIN_NAME || "the admin").replace(/^the /, "The ");
+// Who took it back, in words (`canceledBy` is "self" or "admin"; a record from
+// before this field has neither).
+const whoCancelled = (e, viewer) => {
+  if (e.canceledBy === "admin") return `${adminWord()} cancelled it`;
+  if (e.canceledBy !== "self") return "It was cancelled";
+  return viewer && viewer.id && e.by === viewer.id ? "You cancelled it" : `${e.byName || "Whoever asked"} cancelled it`;
+};
+const endedLine = (e, viewer) => {
+  const stays = "your copy stays as it was.";
+  if (e.status === "canceled") return `${whoCancelled(e, viewer)} — ${stays}`;
+  if (e.status === "declined") return `${adminWord()} said no to it — ${stays}`;
+  return `The download failed${e.error ? ` (${e.error})` : ""} — ${stays}`;
+};
+// The newest request for this copy, if it ended without replacing anything.
+const lastOf = (libraryId, viewer) => {
+  const e = entries().find((x) => x.libraryId === libraryId);
+  if (!e || !ENDED.includes(e.status) || seams.clock() - (e.endedAt || e.at || 0) > LAST_MS) return null;
+  return {
+    id: e.id, status: e.status, reason: e.reason, reasonLabel: badreleases.reasonLabel(e.reason),
+    canceledBy: e.canceledBy || null, why: e.error || null, at: e.endedAt || e.at || null,
+    release: (e.new && e.new.release) || null, quality: (e.new && e.new.quality) || null,
+    line: endedLine(e, viewer),
+  };
+};
+// The source that try was for: its mark on the list.
+const TRIED = { failed: "Tried here: it failed", declined: "Tried here: declined", canceled: "Tried here: cancelled" };
 
 // The replacement as the apps see it (who asked stays a name; "mine" per viewer).
 const publicOf = (e, job, viewer) => {
@@ -194,6 +256,8 @@ const view = (libraryId, viewer, opts = {}) => {
       item: { id: s.libraryId, type: s.type === "show" ? "episode" : "movie", title: s.title, display: s.display, season: s.season, episode: s.episode, showId: s.showId || null, imdbId: s.imdbId },
       current: (({ jobId, ...c }) => c)(currentOf(s)),
       active: job ? publicOf(e, job, viewer) : null,
+      // the last try, when it ended without replacing anything
+      last: job ? null : lastOf(s.libraryId, viewer),
       can: !no && !job,
       why: no ? no.error : job ? "Another version of this is already on its way." : null,
       code: no ? no.code : job ? "busy" : null,
@@ -204,7 +268,9 @@ const view = (libraryId, viewer, opts = {}) => {
 
 // GET …/sources: the title's sources in the usual order (★ BEST and all —
 // torrent.getSources ranks them, the history and the bad releases nudge
-// them), the copy being replaced left out.
+// them), the copy being replaced left out. `reason` "language" asks for the list
+// that reason needs (media/copylang.js); the source the last try was for goes to
+// the foot, marked, never the star.
 const sources = async (libraryId, viewer, opts = {}) => {
   const s = subjectOf(libraryId);
   const no = refusal(viewer, s, opts);
@@ -217,17 +283,31 @@ const sources = async (libraryId, viewer, opts = {}) => {
   let streams = ((found && found.streams) || []).filter((x) => x && x.infoHash && !isCurrent(cur, x));
   // dead torrents out, but only when the provider reports seeders at all
   if (streams.some((x) => x.seeders > 0)) streams = streams.filter((x) => x.seeders > 0);
+  let note = null;
+  if (opts.reason === "language") {
+    const out = copylang.arrange(streams, await languageFit(s, viewer));
+    streams = out.streams;
+    note = out.note;
+  }
+  const last = lastOf(s.libraryId, viewer);
+  const lastEntry = last ? entryById(last.id) : null;
+  const triedHash = lastEntry && lastEntry.new ? lastEntry.new.infoHash : null;
+  const isTried = (x) => !!triedHash && String(x.infoHash || "").toLowerCase() === triedHash;
+  if (streams.some(isTried)) {
+    const mark = { status: last.status, label: TRIED[last.status] };
+    streams = [...streams.filter((x) => !isTried(x)), ...streams.filter(isTried).map(({ recommended, ...x }) => ({ ...x, tried: mark }))];
+  }
   // (the ★ pick may have been the copy being replaced: it moves to the next
   // good one — the same rule as torrent.js markBest: never a pre-release copy
   // or a dub (media/releasekind.js), never a release reported bad here, a
   // clean copy before one with burned-in subtitles; none at all when every
   // copy left is a cinema recording)
   if (!streams.some((x) => x.recommended)) {
-    const ok = (x) => require("./releasekind").pickable(x) && !x.badHere;
+    const ok = (x) => require("./releasekind").pickable(x) && !x.badHere && !x.tried && x.langFit !== "other";
     const best = streams.find((x) => ok(x) && !x.hardsub) || streams.find(ok);
     if (best) streams = streams.map((x) => (x === best ? { ...x, recommended: true } : x));
   }
-  return { status: 200, body: { streams, current: (({ jobId, ...c }) => c)(cur) } };
+  return { status: 200, body: { streams, note, current: (({ jobId, ...c }) => c)(cur) } };
 };
 
 // POST: ask for it. body { reason, note, source: { infoHash, fileIdx } }.
@@ -249,6 +329,10 @@ const request = async (libraryId, viewer, { reason, note, source, context, ip, k
   const src = ((found && found.streams) || []).find((x) => String(x.infoHash || "").toLowerCase() === hash && (x.fileIdx || 0) === fileIdx);
   if (!src) return { status: 400, body: { error: "That version isn't one of this title's sources any more — pick again.", code: "source" } };
   if (isCurrent(cur, src)) return { status: 400, body: { error: "That is the copy you have now — pick another one.", code: "same" } };
+  // (a sheet that did not ask for the language list: an app from before it)
+  if (reason === "language" && copylang.judge(src, await languageFit(s, viewer)) === "same") {
+    return { status: 400, body: { error: "That version is in the same language as this copy — pick another one.", code: "same-language" } };
+  }
   // (re-checked after the lookup: two presses in a row, two devices)
   if (liveJobFor(s.libraryId)) return { status: 409, body: { error: "Another version of this is already on its way.", code: "busy" } };
 
@@ -283,8 +367,9 @@ const request = async (libraryId, viewer, { reason, note, source, context, ip, k
   entries().unshift(e);
   if (entries().length > MAX_LOG) entries().length = MAX_LOG;
   // nothing automatic picks the old release again
-  if (key && (cur.infoHash || cur.release)) {
-    badreleases.record(key, { infoHash: cur.infoHash, release: cur.release, reason, by: viewer.id, byName: viewer.name, rid: id }, seams.clock());
+  const oldName = cur.release || stemOf(cur.fileName) || null;
+  if (key && (cur.infoHash || oldName)) {
+    badreleases.record(key, { infoHash: cur.infoHash, release: oldName, reason, by: viewer.id, byName: viewer.name, rid: id }, seams.clock());
   }
   // …and it lands in "Problem reports", with the reason
   try {
@@ -292,7 +377,7 @@ const request = async (libraryId, viewer, { reason, note, source, context, ip, k
     const report = require("../routes/reports").add({
       text: `Problem with this copy: ${label}${cleanNote ? ` — ${cleanNote}` : ""}\n` +
         `Getting another version: ${src.release || src.provider || hash.slice(0, 8)}${src.quality ? ` (${src.quality}${gb(src.sizeBytes)})` : ""}` +
-        `${cur.release ? `\nReplacing: ${cur.release}` : ""}`,
+        `\nReplacing: ${cur.release || cur.fileName}`,
       profile: viewer.name || viewer.id,
       context: { ...(context && typeof context === "object" ? context : {}), title: s.display, itemId: s.libraryId },
       ip,
@@ -316,7 +401,8 @@ const cancel = (libraryId, viewer, { admin = false } = {}) => {
   if (!admin && !(viewer && viewer.id && job.replaces.by === viewer.id)) {
     return { status: 403, body: { error: `Only ${job.replaces.byName || "the person who asked"} can cancel this.`, code: "not-yours" } };
   }
-  downloadsLib().cancel(job.id);
+  const own = !!(viewer && viewer.id && job.replaces.by === viewer.id);
+  downloadsLib().cancel(job.id, own ? "self" : "admin");
   return { status: 200, body: { ok: true } };
 };
 
@@ -329,7 +415,7 @@ const onJob = (job) => {
   const was = e.status;
   const now = seams.clock();
   if (job.status === "done") e.status = "done";
-  else if (job.status === "canceled" || job.status === "removed") e.status = "canceled";
+  else if (job.status === "canceled" || job.status === "removed") { e.status = "canceled"; e.canceledBy = job.canceledBy || null; }
   else if (job.status === "declined") e.status = "declined";
   else if (job.status === "error") { e.status = "failed"; e.error = job.error || null; }
   else if (job.status === "downloading") e.status = job.replaceWait ? "waiting" : "downloading";
@@ -339,7 +425,8 @@ const onJob = (job) => {
   // a cancelled replacement takes its "bad release" mark back
   if (e.status === "canceled" && r.titleKey) badreleases.unrecord(r.titleKey, r.id);
   log.save();
-  const how = { done: "replaced", canceled: "cancelled — the old copy stays", declined: "declined — the old copy stays", failed: `failed (${e.error || "download failed"}) — the old copy stays` }[e.status];
+  const by = e.canceledBy === "admin" ? " by the admin" : e.canceledBy === "self" ? ` by ${e.byName || e.by}` : "";
+  const how = { done: "replaced", canceled: `cancelled${by} — the old copy stays`, declined: "declined — the old copy stays", failed: `failed (${e.error || "download failed"}) — the old copy stays` }[e.status];
   if (how) console.log(`[replace] "${e.display || e.title}": ${how}`);
 };
 
@@ -421,7 +508,7 @@ const land = async (job, ctx) => {
 };
 
 // ---------- for the admin ----------
-const statusById = () => new Map(entries().map((e) => [e.id, { status: e.status, endedAt: e.endedAt || null, error: e.error || null }]));
+const statusById = () => new Map(entries().map((e) => [e.id, { status: e.status, endedAt: e.endedAt || null, error: e.error || null, canceledBy: e.canceledBy || null, byName: e.byName || null }]));
 const adminList = () => {
   let jobs = [];
   try { jobs = downloadsLib().rawJobs(); } catch {}

@@ -26,6 +26,8 @@ export const eta = (j: MyDownload) => {
   if (s < 3600) return `${Math.round(s / 60)} min left`;
   return `${(s / 3600).toFixed(1)} h left`;
 };
+// A row that was to replace a copy says the copy is safe.
+const stays = (j: MyDownload) => (j.replaces ? ' — your copy stays as it was' : '');
 export const statusLine = (j: MyDownload) => {
   // "Get another version": finished, held back while somebody plays the old copy
   const waiting = replaceJobLine(j);
@@ -47,11 +49,12 @@ export const statusLine = (j: MyDownload) => {
     case 'pending':
       return j.holdReason ? `Waiting for approval — ${j.holdReason}` : 'Waiting for approval';
     case 'declined':
-      return 'Declined by the admin';
+      return `Declined by the admin${stays(j)}`;
     case 'canceled':
-      return 'Canceled';
+      // (who did it: only the person who asked or the admin can)
+      return `${j.canceledBy === 'admin' ? 'Cancelled by the admin' : j.canceledBy === 'self' ? 'Cancelled by you' : 'Canceled'}${stays(j)}`;
     case 'error':
-      return `Failed — ${j.error || 'unknown error'}`;
+      return j.replaces ? `Failed, your copy stays as it was — ${j.error || 'unknown error'}` : `Failed — ${j.error || 'unknown error'}`;
     default:
       return j.status;
   }

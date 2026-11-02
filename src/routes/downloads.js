@@ -96,13 +96,13 @@ router.post("/api/admin/downloads/:id/decline", adminOnly, (req, res) => {
 });
 
 router.post("/api/admin/downloads/:id/cancel", adminOnly, (req, res) => {
-  const r = downloads.cancel(req.params.id);
+  const r = downloads.cancel(req.params.id, "admin");
   if (r.error) return res.status(404).json(r);
   res.json(r);
 });
 
 router.delete("/api/admin/downloads/:id", adminOnly, (req, res) => {
-  const r = downloads.remove(req.params.id);
+  const r = downloads.remove(req.params.id, { by: "admin" });
   if (r.error) return res.status(404).json(r);
   res.json(r);
 });

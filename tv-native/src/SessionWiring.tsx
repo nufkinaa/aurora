@@ -12,6 +12,7 @@ import {patchMe, useMe} from './navSection';
 import {enterPerson, leavePerson, onPersonPrefs, refreshPerson, setProfileReadSink} from './personSync';
 import {setPrefetchProfile, stopPrefetch} from './prefetch';
 import {connect, disconnect, onMessage, setIdentity} from './realtime';
+import {replaceEndedToast} from './replaceLogic';
 import {setRootIdentity} from './rootNav';
 import {loadPrefs} from './storage';
 import {showToast} from './toast';
@@ -101,6 +102,10 @@ export default function SessionWiring() {
     const b = onMessage('server_notice', d => d.message && showToast(String(d.message), '🛠️'));
     const c = onMessage('download_update', d => {
       const job = d.job as MyDownload | undefined;
+      // Another version that ended without you: said wherever you are (a
+      // replacement is not on any screen once its sheet is closed).
+      const ended = job ? replaceEndedToast(job) : null;
+      if (ended) showToast(ended, '↩️');
       if (!job || job.status !== 'done') return;
       if (job.mine && job.libraryId && !job.seenAt) {
         showToast(`“${job.label || job.title}” is ready to play — Settings → My downloads`, '✅');

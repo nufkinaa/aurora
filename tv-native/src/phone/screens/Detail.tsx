@@ -42,6 +42,7 @@ import {showToast} from '../../toast';
 import {onMessage} from '../../realtime';
 import {openActions, openRecommend, openReplace, openTrailer, openXray} from '../../overlay';
 import {replaceOffered} from '../../replaceLogic';
+import {cancelQuestion} from '../../downloadsLogic';
 import StarRating from '../ui/StarRating';
 import {onDiskLines} from '../words';
 import {autoPlayStep, fallbackSources, jobSource, pickBest, runningJobFor, streamPlayItem} from '../../playBest';
@@ -53,6 +54,7 @@ import {loadMe, patchMe, peekMe} from '../../navSection';
 import {track} from '../../usage';
 import {
   ACTIVE_JOB,
+  JobMark,
   Air,
   dlText,
   fmtAirDate,
@@ -196,7 +198,7 @@ export default function Detail() {
   const [torrentsOff, setTorrentsOff] = useState(false);
   const [torrentsKnown, setTorrentsKnown] = useState(false);
   const [libraryTick, setLibraryTick] = useState(0);
-  const [jobs, setJobs] = useState<Record<string, {status: string; progress: number}>>({});
+  const [jobs, setJobs] = useState<Record<string, JobMark>>({});
   const [jobsRead, setJobsRead] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [heroRel, setHeroRel] = useState<ReleaseStatus | null>(null);
@@ -370,12 +372,12 @@ export default function Detail() {
       return false;
     }
     try {
-      const list = await api.downloads();
-      const next: Record<string, {status: string; progress: number}> = {};
+      const list = await api.myDownloads(profileId);
+      const next: Record<string, JobMark> = {};
       for (const j of list) {
         if (j.imdbId !== imdb || isReplacement(j) || !ACTIVE_JOB.includes(j.status)) continue;
         const k = j.season && j.episode ? `${j.season}x${j.episode}` : 'film';
-        if (!next[k]) next[k] = {status: j.status, progress: j.progress || 0};
+        if (!next[k] || j.mine) next[k] = {status: j.status, progress: j.progress || 0, id: j.id, mine: !!j.mine};
       }
       setJobs(prev => {
         const ended = Object.keys(prev).some(k => !next[k]);
@@ -411,7 +413,7 @@ export default function Detail() {
         if (j.status === 'done') setTimeout(() => setLibraryTick(t => t + 1), 1200);
         return;
       }
-      setJobs(prev => ({...prev, [k]: {status: j.status, progress: j.progress || 0}}));
+      setJobs(prev => ({...prev, [k]: {status: j.status, progress: j.progress || 0, id: j.id, mine: !!j.mine}}));
       if (!timer) timer = setTimeout(tick, 4000);
     });
     const offLib = onMessage('library_updated', () => setLibraryTick(t => t + 1));
@@ -624,6 +626,7 @@ export default function Detail() {
           sizeBytes: pick.sizeBytes,
           provider: pick.provider,
           seeders: pick.seeders,
+          release: pick.release || pick.filename || null,
           ...(s && e ? {season: s, episode: e} : {}),
           profile: profileId,
         });
@@ -735,14 +738,20 @@ export default function Detail() {
     },
     [markEntry, progress, epProgress, imdb, title, item.cover, item.poster, profileId, reloadState],
   );
+  // (read when the sheet opens, not when the callback was made)
+  const jobsRef = useRef(jobs);
+  jobsRef.current = jobs;
+  const askCancelRef = useRef<(job: JobMark, name: string) => void>(() => {});
   const episodeActions = useCallback(
     (ep: UiEp) => {
       phoneNative.haptic('long');
+      const running = jobsRef.current[ep.key];
       openActions({
         title: unescapeHtml(ep.label),
         sub: `${title} · S${ep.season} E${ep.episode}`,
         body: ep.overview ? unescapeHtml(ep.overview) : undefined,
         items: [
+          ...(running?.mine ? [{label: 'Cancel the download', tag: 'it asks first', onPress: () => askCancelRef.current(running, `S${ep.season} E${ep.episode}`)}] : []),
           ...(ep.owned ? [{label: 'Play', onPress: () => playEpisode(ep)}] : [{label: 'Save and play', tag: 'the best source, played while it downloads', onPress: () => saveBest(ep.season, ep.episode, true, ep.air)}]),
           ...(ep.owned ? [{label: ep.phone === 'done' ? 'Play the copy on this phone' : ep.phone ? 'Saving to this phone…' : 'Save to this phone', tag: ep.phone ? undefined : 'watch it with no connection', onPress: () => saveEpisodeToPhone(ep)}] : []),
           ...(!ep.owned ? [{label: 'Sources', tag: 'streams and downloads', onPress: () => openSources(ep.season, ep.episode)}] : []),
@@ -863,6 +872,34 @@ export default function Detail() {
 
   // ---- the one button ----
   const filmJob = jobs.film;
+  // Cancel your own download from here: asked first, as on My downloads (the
+  // server checks it is yours).
+  askCancelRef.current = (job, name) => askCancelJob(job, name);
+  const askCancelJob = (job: JobMark, name: string) => {
+    if (!job.id) return;
+    const id = job.id;
+    const q = cancelQuestion({label: name, status: job.status, progress: job.progress});
+    openActions({
+      title: q.title,
+      body: q.body,
+      items: [
+        {label: q.keep, onPress: () => {}},
+        {
+          label: q.yes,
+          danger: true,
+          onPress: () => {
+            api
+              .downloadCancel(id, profileId)
+              .then(() => {
+                showToast(`Cancelled “${name}”`, '🗑');
+                loadJobs();
+              })
+              .catch(e => showToast((e as Error).message || "Couldn't cancel", '⚠️'));
+          },
+        },
+      ],
+    });
+  };
   const primary = () => {
     phoneNative.haptic('tick');
     if (isShow) {
@@ -891,9 +928,9 @@ export default function Detail() {
     return 'Save & watch';
   })();
   const primaryIcon = isShow ? (heroEp && !heroEp.owned ? 'download' : 'play') : ownedMovieId || filmJob ? 'play' : heroRel ? 'search' : 'download';
+  const heroJob = (isShow ? heroEp?.key : 'film') ? jobs[(isShow ? heroEp?.key : 'film') as string] || null : null;
   const statusLine = (() => {
-    const key = isShow ? heroEp?.key : 'film';
-    const job = key ? jobs[key] : null;
+    const job = heroJob;
     if (job) return {text: job.status === 'pending' ? 'Requested · waiting for approval' : `Downloading · best source · ${Math.round((job.progress || 0) * 100)}%`, tone: 'live' as const, pct: job.progress || 0};
     if (note) return {...note, pct: null};
     if (!isShow && heroRel?.line) return {text: heroRel.line, tone: 'warn' as const, pct: null};
@@ -1033,6 +1070,7 @@ export default function Detail() {
             ) : null}
             {ownedMovieId && movieResume ? <ActionCircle uiId="detail.restart" icon="refresh" label="Start over" onPress={() => navigation.push('Player', {id: ownedMovieId, title, restart: true})} /> : null}
             {isShow ? <ActionCircle uiId="phone.detail.episodes" icon="series" label="All episodes" onPress={() => scrollRef.current?.scrollTo({y: artH + 160, animated: true})} /> : null}
+            {heroJob?.mine ? <ActionCircle uiId="detail.download.cancel" icon="close" label="Cancel download" onPress={() => askCancelJob(heroJob, isShow && heroEp ? `S${heroEp.season} E${heroEp.episode}` : title)} /> : null}
             <ActionCircle uiId="detail.mylist" icon={inList ? 'check' : 'plus'} label="My List" on={inList} onPress={toggleList} />
             <ActionCircle uiId="detail.recommend" icon="send" label="Recommend" onPress={() => openRecommend(item, imdb)} />
             {isShow && followImdb ? <ActionCircle uiId="detail.follow" icon={following ? 'check' : 'bell'} label={following ? 'Following' : 'Follow'} on={following} onPress={toggleFollow} /> : null}

@@ -8,14 +8,17 @@
 // A finished download plays straight from here (the job knows the library
 // id its file was indexed under), and playing it — or pressing Open — clears
 // the nav's "✓ ready" nudge for it everywhere you're signed in. A dead
-// request can be retried (same source, one press) or cleared off the page.
-import { el, icons, posterImg, fmtBytes, toast, confirmSheet } from "../ui.js";
+// request can be retried (same source, one press) or cleared off the page;
+// a dead "Get another version" offers the next candidates instead.
+import { el, icons, posterImg, fmtBytes, toast } from "../ui.js";
 import { navigate, untilLeave } from "../router.js";
 import { api } from "../api.js";
 import { state, downloads, myDownloads } from "../state.js";
 import { onMessage } from "../ws.js";
 import * as offline from "../offline.js";
 import { deviceJobsSection } from "../devicejobs.js";
+import { askCancelDownload, downloadCountLine } from "../dlcancel.js";
+import { openReplaceSheet } from "../replaceCopy.js";
 
 const ACTIVE = ["approved", "downloading"];
 const DEAD = ["error", "declined", "canceled"];
@@ -60,6 +63,8 @@ const describe = (job) => {
   if (note) d.line = [d.line, note].filter(Boolean).join(" · ");
   return d;
 };
+// A row that was to replace a copy says the copy is safe.
+const stays = (job) => (job.replaces ? "Your copy stays as it was" : null);
 const describeBase = (job) => {
   switch (job.status) {
     case "done":
@@ -93,11 +98,12 @@ const describeBase = (job) => {
         line: job.holdReason ? `${state.adminName} has to okay this one — ${job.holdReason}` : `${state.adminName} has to okay this one`,
       };
     case "declined":
-      return { tone: "bad", head: "Declined", line: `${state.adminName} said no to this one` };
+      return { tone: "bad", head: "Declined", line: [`${state.adminName} said no to this one`, stays(job)].filter(Boolean).join(" · ") };
     case "canceled":
-      return { tone: "bad", head: "Canceled", line: when(job.resolvedAt || job.at) };
+      // (who did it: only the person who asked or the admin can)
+      return { tone: "bad", head: job.canceledBy === "admin" ? `Cancelled by ${state.adminName}` : job.canceledBy === "self" ? "Cancelled by you" : "Canceled", line: [stays(job), when(job.resolvedAt || job.at)].filter(Boolean).join(" · ") };
     case "error":
-      return { tone: "bad", head: "Failed", line: job.error || "The download stopped and couldn't recover" };
+      return { tone: "bad", head: "Failed", line: [stays(job), job.error || "The download stopped and couldn't recover"].filter(Boolean).join(" · ") };
     default:
       return { tone: "wait", head: job.status, line: "" };
   }
@@ -131,6 +137,7 @@ const retry = async (job, btn) => {
       season: job.season || null,
       episode: job.episode || null,
       provider: job.provider || null,
+      release: job.release || null,
       profile: state.profile.id,
     });
     if (res.error) throw new Error(res.error);
@@ -174,9 +181,8 @@ const row = (job, { others = false } = {}) => {
         }),
       );
     }
-    // Yours, and not landed yet: one press takes it back (a mis-tap on a 60 GB
-    // pack shouldn't be an admin's problem). A pack that is already moving
-    // asks first — cancelling throws the bytes away.
+    // Yours, and not landed yet: you can take it back (a mis-tap on a 60 GB pack
+    // shouldn't be an admin's problem). It asks first, every time.
     if (job.mine && ["pending", "approved", "downloading"].includes(job.status)) {
       actions.push(
         el("button", { "data-ui": "downloads.cancel",
@@ -185,24 +191,10 @@ const row = (job, { others = false } = {}) => {
           disabled: busy.has(job.id) || undefined,
           onclick: async (e) => {
             const b = e.currentTarget; // gone from the event once the await returns
-            if (job.status === "downloading" && (job.progress || 0) > 0.05) {
-              const ok = await confirmSheet({
-                title: `Cancel “${job.label || job.title}”?`,
-                text: `It's ${Math.round((job.progress || 0) * 100)}% down. Cancelling throws that away; you can always ask for it again.`,
-                ok: "Cancel the download",
-                cancel: "Keep going",
-                icon: "🗑",
-              });
-              if (!ok) return;
-            }
             b.disabled = true;
             busy.add(job.id);
             try {
-              await api.downloadCancel(job.id, state.profile.id);
-              toast(`Cancelled “${job.label || job.title}”`, "🗑");
-            } catch (err) {
-              b.disabled = false;
-              toast(err.message || "Couldn't cancel", "⚠️");
+              if (!(await askCancelDownload(job))) b.disabled = false;
             } finally {
               busy.delete(job.id);
             }
@@ -211,7 +203,18 @@ const row = (job, { others = false } = {}) => {
       );
     }
     if (job.mine && DEAD.includes(job.status)) {
-      if (job.infoHash && job.status !== "declined") {
+      // Another version that did not make it: the sheet says what happened and
+      // offers the next candidates. The same request again would only be
+      // refused as "already yours": the copy it was to replace is still there.
+      if (job.replaces && job.replaces.libraryId) {
+        actions.push(
+          el("button", { "data-ui": "downloads.another",
+            class: "btn focusable",
+            html: "<span>Pick another version</span>",
+            onclick: () => openReplaceSheet({ libraryId: job.replaces.libraryId, title: job.title || job.label || "" }),
+          }),
+        );
+      } else if (job.infoHash && job.status !== "declined") {
         actions.push(
           el("button", { "data-ui": "downloads.retry",
             class: "btn focusable",
@@ -308,8 +311,6 @@ const section = (key, title, jobs, { others = false, note = null } = {}) => {
   );
 };
 
-const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
-
 export const renderDownloads = async (root) => {
   const screen = el("div", { class: "screen downloads" });
   root.append(screen);
@@ -374,15 +375,9 @@ export const renderDownloads = async (root) => {
       .sort((a, b) => (a.seenAt ? 1 : 0) - (b.seenAt ? 1 : 0) || Date.parse(b.doneAt || 0) - Date.parse(a.doneAt || 0));
     const dead = mine.filter((j) => DEAD.includes(j.status));
     const others = othersDownloads().sort(byNewest);
-    const pendingApproval = queued.filter((j) => j.status === "pending").length;
 
-    // The one line that answers "so where are we?"
-    const bits = [];
-    if (moving.length) bits.push(`${moving.length} downloading`);
-    if (queued.length) bits.push(pendingApproval ? `${plural(queued.length, "request")} waiting (${pendingApproval} on ${state.adminName})` : `${queued.length} queued`);
-    if (ready.length) bits.push(`${ready.length} ready to play`);
-    if (dead.length) bits.push(`${dead.length} didn't make it`);
-    summary.textContent = mine.length ? bits.join(" · ") : "";
+    // The one line that answers "so where are we?" (the TV and the phone say the same)
+    summary.textContent = mine.length ? downloadCountLine(mine) : "";
     summary.classList.toggle("hidden", !mine.length);
 
     if (!mine.length && state.downloadsFailed) {
@@ -464,7 +459,7 @@ export const renderDownloads = async (root) => {
     const sameShape =
       prev && prev.status === job.status && (prev.phase || null) === (job.phase || null) &&
       (prev.libraryId || null) === (job.libraryId || null) && !!prev.seenAt === !!job.seenAt &&
-      !!prev.replaceWait === !!job.replaceWait;
+      !!prev.replaceWait === !!job.replaceWait && (prev.canceledBy || null) === (job.canceledBy || null);
     if (!(sameShape && patchRow(job))) paint();
   });
   return () => {

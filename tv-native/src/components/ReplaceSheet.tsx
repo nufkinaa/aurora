@@ -10,6 +10,12 @@
 //                                          sheet at a time); Back / Cancel →
 //                                          the list, focus on that row
 //   on its way                             status, reason, Cancel (the one who asked)
+//     …Cancel                                asked first; focus on Keep going. Focus
+//                                            used to land ON Cancel, which ended the
+//                                            replacement at one press with no question
+//   ended                                  the last try was cancelled or failed: what
+//                                          happened, Pick another version (the next
+//                                          candidates), Something else is wrong, Keep this copy
 //   refused                                the server's why (a kids profile…)
 //
 // It opens ON the reasons — the five are known before the server answers, so
@@ -23,6 +29,7 @@ import {ActivityIndicator, LayoutChangeEvent, ScrollView, StyleSheet, Text, View
 import Focusable from './Focusable';
 import Sheet from './Sheet';
 import {api, ReplaceStream, ReplaceView} from '../api';
+import {clientContext} from '../clientContext';
 import {closeOverlay} from '../overlay';
 import {currentRouteName, rootNav} from '../rootNav';
 import {showToast} from '../toast';
@@ -64,7 +71,7 @@ const Ghost = ({label, onPress, focus, uiId}: {label: string; onPress: () => voi
   </Focusable>
 );
 
-type Step2 = {reason: string; streams: ReplaceStream[] | null; error: string | null};
+type Step2 = {reason: string; streams: ReplaceStream[] | null; error: string | null; note?: string | null};
 
 export default function ReplaceSheet({
   libraryId,
@@ -105,6 +112,10 @@ export default function ReplaceSheet({
   }, []);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelErr, setCancelErr] = useState<string | null>(null);
+  // Cancel pressed: the question is up (Keep going / Cancel)
+  const [askCancel, setAskCancel] = useState(false);
+  // the "that version didn't come through" face was answered
+  const [skipEnded, setSkipEnded] = useState(false);
   const live = useRef(true);
   useEffect(
     () => () => {
@@ -122,7 +133,13 @@ export default function ReplaceSheet({
   step2Ref.current = step2;
   const askedRef = useRef(asked);
   askedRef.current = asked;
+  const askCancelRef = useRef(askCancel);
+  askCancelRef.current = askCancel;
   const back = useCallback(() => {
+    if (askCancelRef.current) {
+      setAskCancel(false);
+      return;
+    }
     if (askedRef.current) {
       setAsked(null);
       return;
@@ -131,6 +148,7 @@ export default function ReplaceSheet({
       setStep2(null);
       setFocusKey(null);
       setPickErr(null);
+      setSkipEnded(true);
       return;
     }
     close();
@@ -151,7 +169,7 @@ export default function ReplaceSheet({
     load();
   }, [load]);
 
-  const face = viewErr ? 'error' : replaceFace(view);
+  const face = viewErr ? 'error' : replaceFace(view, skipEnded || !!step2);
   const active = view?.active || null;
   // a replacement on its way: its progress moves while the sheet is up
   useEffect(() => {
@@ -166,8 +184,8 @@ export default function ReplaceSheet({
       setAsking(reason);
       setPickErr(null);
       api
-        .replaceSources(libraryId, profileId)
-        .then(r => live.current && setStep2({reason, streams: r.streams || [], error: null}))
+        .replaceSources(libraryId, profileId, reason)
+        .then(r => live.current && setStep2({reason, streams: r.streams || [], error: null, note: r.note || null}))
         .catch(e => live.current && setStep2({reason, streams: null, error: sourcesError(e)}))
         .finally(() => live.current && setAsking(null));
     },
@@ -192,7 +210,7 @@ export default function ReplaceSheet({
           profile: profileId,
           reason: step2.reason,
           source: {infoHash: s.infoHash, fileIdx: s.fileIdx || 0},
-          context: {route: `tv:${currentRouteName()}`, look: 'tv', ...(context || {})},
+          context: {...clientContext(), route: `tv:${currentRouteName()}`, ...(context || {})},
         })
         .then(() => {
           track('feat', {f: 'replace_pick', reason: step2.reason});
@@ -240,6 +258,19 @@ export default function ReplaceSheet({
     );
   }
 
+  if (face === 'active' && active && askCancel) {
+    return (
+      <Sheet kicker={kicker} title={WORDS.cancelAsk} width={600} onClose={back}>
+        <Text style={styles.body}>{WORDS.cancelAskBody}</Text>
+        {cancelErr ? <Text style={styles.error}>{cancelErr}</Text> : null}
+        <View style={[styles.actions, styles.actionsSpread]}>
+          <Ghost label={WORDS.keepGoing} onPress={back} focus />
+          <Primary uiId="replace.cancel" label={WORDS.cancel} onPress={cancel} busy={cancelBusy} />
+        </View>
+      </Sheet>
+    );
+  }
+
   if (face === 'active' && active) {
     const who = replaceWho(active);
     return (
@@ -252,10 +283,28 @@ export default function ReplaceSheet({
         ) : null}
         {replaceReasonText(active) ? <Text style={styles.faint}>{replaceReasonText(active)}</Text> : null}
         {who.line ? <Text style={styles.faint}>{who.line}</Text> : null}
-        {cancelErr ? <Text style={styles.error}>{cancelErr}</Text> : null}
         <View style={[styles.actions, styles.actionsSpread]}>
-          {who.cancel ? <Primary uiId="replace.cancel" label={WORDS.cancel} onPress={cancel} busy={cancelBusy} focus /> : null}
-          <Ghost label="Close" onPress={close} focus={!who.cancel} />
+          <Ghost label="Close" onPress={close} focus />
+          {who.cancel ? <Ghost uiId="replace.cancel.ask" label={WORDS.cancel} onPress={() => setAskCancel(true)} /> : null}
+        </View>
+      </Sheet>
+    );
+  }
+
+  // The last try ended without replacing anything: say what happened and offer the
+  // next candidates (the same reason again, its list with that try's source last).
+  if (face === 'ended' && view?.last) {
+    const last = view.last;
+    return (
+      <Sheet kicker={kicker} title={WORDS.endedHeading} width={640} onClose={close}>
+        <Text style={styles.status}>{last.line}</Text>
+        {last.release ? <Text style={styles.faint}>{`That was: ${last.release}${last.quality ? ` (${last.quality})` : ''}`}</Text> : null}
+        <Text style={styles.faint}>{`Reason: ${last.reasonLabel}`}</Text>
+        <Text style={styles.body}>{WORDS.endedNext}</Text>
+        <View style={styles.actions}>
+          <Primary uiId="replace.next" label={WORDS.pickNext} onPress={() => pickReason(last.reason)} busy={asking === last.reason} focus />
+          <Ghost uiId="replace.other" label={WORDS.otherReason} onPress={() => setSkipEnded(true)} />
+          <Ghost label={WORDS.keepCopy} onPress={close} />
         </View>
       </Sheet>
     );
@@ -278,6 +327,7 @@ export default function ReplaceSheet({
     return (
       <Sheet kicker={kicker} title={WORDS.step2} width={720} onClose={back} scrollRef={listScroll}>
         <Text style={styles.body}>{WORDS.step2Body}</Text>
+        {step2.note ? <Text style={styles.faint}>{step2.note}</Text> : null}
         {pickErr ? <Text style={styles.error}>{pickErr}</Text> : null}
         {step2.error || !streams || !streams.length ? (
           <>

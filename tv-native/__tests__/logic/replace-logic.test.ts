@@ -87,6 +87,12 @@ test('the reason line, and who may cancel', () => {
 test('which face the sheet shows', () => {
   // before the server answers: the reasons (focus lands on the first at once)
   expect(replaceFace(null)).toBe('reasons');
+  // how the last try ended comes before the reasons, until it was answered
+  const last = {status: 'canceled', line: 'You cancelled it — your copy stays as it was.'};
+  expect(replaceFace({can: true, active: null, last})).toBe('ended');
+  expect(replaceFace({can: true, active: null, last}, true)).toBe('reasons');
+  expect(replaceFace({can: false, active: null, last})).toBe('refused');
+  expect(replaceFace({can: false, active: {status: 'downloading'}, last})).toBe('active');
   expect(replaceFace({can: true, active: null})).toBe('reasons');
   expect(replaceFace({can: false, why: "A kids profile can't replace a copy.", code: 'kids', active: null})).toBe('refused');
   // one on its way wins over "can't" (the server says can:false, code busy, then)

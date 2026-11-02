@@ -1,5 +1,6 @@
 // What one press, and holding, does on a row of My downloads (downloadsLogic.ts).
-import {downloadActions, isReady, rowStatus, startedBy} from '../../src/downloadsLogic';
+import {cancelQuestion, countLine, downloadActions, downloadCounts, isReady, rowStatus, startedBy} from '../../src/downloadsLogic';
+import {statusLine} from '../../src/downloadsWords';
 
 const job = (o: Record<string, unknown>) => ({status: 'downloading', mine: true, imdbId: 'tt1', infoHash: 'abc', ...o} as never);
 
@@ -14,11 +15,26 @@ test('finished but not in the library yet is not "ready", and its press does not
   expect(downloadActions(j, true).press).toBeNull();
 });
 
-test('on its way: one press cancels - but past 5% it asks first', () => {
-  expect(downloadActions(job({status: 'approved'}), true).press).toBe('cancel');
-  expect(downloadActions(job({status: 'pending'}), true).press).toBe('cancel');
-  expect(downloadActions(job({status: 'downloading', progress: 0.04}), true).press).toBe('cancel');
+test('on its way: a press always asks first - a stray OK on the remote must not cancel it', () => {
+  expect(downloadActions(job({status: 'approved'}), true).press).toBe('confirmCancel');
+  expect(downloadActions(job({status: 'approved', progress: 0.42}), true).press).toBe('confirmCancel');
+  expect(downloadActions(job({status: 'pending'}), true).press).toBe('confirmCancel');
+  expect(downloadActions(job({status: 'downloading', progress: 0}), true).press).toBe('confirmCancel');
+  expect(downloadActions(job({status: 'downloading', progress: 0.01}), true).press).toBe('confirmCancel');
   expect(downloadActions(job({status: 'downloading', progress: 0.4}), true).press).toBe('confirmCancel');
+  expect(downloadActions(job({status: 'downloading', progress: 0.4}), true).label).toBe('Cancel');
+  expect(downloadActions(job({status: 'downloading', progress: 0.4}), true).all).toEqual(['title', 'confirmCancel']);
+});
+
+test('the question says what is lost, and that a copy being replaced is safe', () => {
+  const q = cancelQuestion({label: 'Film', status: 'downloading', progress: 0.42});
+  expect(q.title).toBe('Cancel “Film”?');
+  expect(q.body).toBe("It's 42% down. Cancelling throws that away; you can always ask for it again.");
+  expect(q.keep).toBe('Keep going');
+  expect(q.yes).toBe('Cancel the download');
+  expect(cancelQuestion({label: 'Film', status: 'approved', progress: 0.42}).body).toBe('You can always ask for it again.');
+  expect(cancelQuestion({label: 'Film', status: 'downloading', progress: 0}).body).toBe('You can always ask for it again.');
+  expect(cancelQuestion({label: 'Film', status: 'pending', replaces: {libraryId: 'x'}}).body).toBe('You can always ask for it again. Your copy stays as it was.');
 });
 
 test('a failed download: Try again, the title page, and Remove - never "cancel" (which left a Canceled row for good)', () => {
@@ -38,10 +54,43 @@ test("someone else's download has no action", () => {
   expect(downloadActions(job({status: 'downloading', mine: false}), false)).toEqual({press: null, all: [], label: ''});
 });
 
-test('a queued download cancels without asking; a running one past 5% asks first', () => {
-  expect(downloadActions(job({status: 'approved', progress: 0.42}), true).press).toBe('cancel');
-  expect(downloadActions(job({status: 'downloading', progress: 0.42}), true).press).toBe('confirmCancel');
-  expect(downloadActions(job({status: 'downloading', progress: 0.01}), true).press).toBe('cancel');
+test('another version that did not make it: pick another, never the same request again', () => {
+  const dead = {replaces: {libraryId: 'lib1'}};
+  expect(downloadActions(job({status: 'canceled', ...dead}), true).all).toEqual(['another', 'title', 'remove']);
+  expect(downloadActions(job({status: 'error', ...dead}), true).all).toEqual(['another', 'title', 'remove']);
+  // a declined one too: the admin said no to that source, not to the copy being replaced
+  expect(downloadActions(job({status: 'declined', ...dead}), true).all).toEqual(['another', 'title', 'remove']);
+});
+
+test('the amount of downloads: this profile, by where they are - a count, no limit in it', () => {
+  const list = [
+    job({status: 'downloading'}),
+    job({status: 'downloading'}),
+    job({status: 'done', libraryId: null}), // still being indexed
+    job({status: 'approved'}),
+    job({status: 'pending'}),
+    job({status: 'done', libraryId: 'a'}),
+    job({status: 'done', libraryId: 'b'}),
+    job({status: 'error'}),
+    job({status: 'canceled'}),
+  ];
+  const c = downloadCounts(list);
+  expect(c).toEqual({downloading: 3, queued: 1, waiting: 1, ready: 2, failed: 2});
+  expect(countLine(c)).toBe("3 downloading · 1 queued · 1 waiting for approval · 2 ready · 2 didn't make it");
+  expect(countLine(downloadCounts([job({status: 'downloading'}), job({status: 'done', libraryId: 'a'})]))).toBe('1 downloading · 1 ready');
+  expect(countLine(downloadCounts([]))).toBe('');
+});
+
+test('a cancelled row says who did it; a replacement says the copy is safe', () => {
+  const line = (o: Record<string, unknown>) => statusLine(job(o));
+  expect(line({status: 'canceled', canceledBy: 'self'})).toBe('Cancelled by you');
+  expect(line({status: 'canceled', canceledBy: 'admin'})).toBe('Cancelled by the admin');
+  expect(line({status: 'canceled'})).toBe('Canceled');
+  const r = {replaces: {libraryId: 'x'}};
+  expect(line({status: 'canceled', canceledBy: 'admin', ...r})).toBe('Cancelled by the admin — your copy stays as it was');
+  expect(line({status: 'declined', ...r})).toBe('Declined by the admin — your copy stays as it was');
+  expect(line({status: 'error', error: 'no peers', ...r})).toBe('Failed, your copy stays as it was — no peers');
+  expect(line({status: 'error', error: 'no peers'})).toBe('Failed — no peers');
 });
 
 test("someone else's download says who started it, by name - the website's words; your own rows say nothing", () => {

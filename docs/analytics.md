@@ -144,9 +144,9 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 286 ids: 187 on the website
 | actions | – | `actions.pick` | – |
 | browse | `browse.chip.pick` `browse.filter.clear` `browse.genre.open` `browse.loadmore` `browse.option.pick` `browse.sort.open` | `browse.retry` | `browse.category.pick` `browse.surprise` `browse.unwatched` |
 | card | `card.remove` `card.hh.add` | – | `card.open` |
-| detail | `detail.download.device` `detail.episode.download` `detail.episode.offline` `detail.episode.playontv` `detail.episode.watched` `detail.offline.season` `detail.offline.seasonall` `detail.offline` `detail.playontv` `detail.rollagain` `detail.save` `detail.season.open` `detail.sources.fold` `detail.sources.more` `detail.sources.retry` `detail.synopsis.more` `detail.trailer.close` `detail.trailer.pick` | `detail.season.pick` `detail.season.watched` `detail.similar` `detail.source.pick` | `detail.episode.play` `detail.episode.replace` `detail.follow` `detail.mylist` `detail.play` `detail.replace` `detail.restart` `detail.source.download` `detail.source.play` `detail.sources` `detail.trailer` `detail.watched` `detail.xray` `detail.hh.dismiss` `detail.recommend` |
+| detail | `detail.download.device` `detail.episode.download` `detail.episode.offline` `detail.episode.playontv` `detail.episode.watched` `detail.offline.season` `detail.offline.seasonall` `detail.offline` `detail.playontv` `detail.rollagain` `detail.save` `detail.season.open` `detail.sources.fold` `detail.sources.more` `detail.sources.retry` `detail.synopsis.more` `detail.trailer.close` `detail.trailer.pick` | `detail.season.pick` `detail.season.watched` `detail.similar` `detail.source.pick` | `detail.download.cancel` `detail.episode.play` `detail.episode.replace` `detail.follow` `detail.mylist` `detail.play` `detail.replace` `detail.restart` `detail.source.download` `detail.source.play` `detail.sources` `detail.trailer` `detail.watched` `detail.xray` `detail.hh.dismiss` `detail.recommend` |
 | downloadpicker | `downloadpicker.confirm` | – | – |
-| downloads | `downloads.cancel` `downloads.open` `downloads.play` `downloads.remove` `downloads.retry` | `downloads.row` | – |
+| downloads | `downloads.another` `downloads.cancel` `downloads.open` `downloads.play` `downloads.remove` `downloads.retry` | `downloads.row` | – |
 | home | `home.hero.pick` | `home.hero.party` `home.switchprofile` | `home.hero.details` `home.hero.mute` `home.hero.play` `home.retry` `home.hh.all` |
 | mylist | – | `mylist.filter` | – |
 | nav | `nav.downloads` `nav.getapps` `nav.new` `nav.remote` `nav.saved` | – | `nav.ai` `nav.home` `nav.movies` `nav.mylist` `nav.profile` `nav.search` `nav.settings` `nav.shows` |
@@ -161,7 +161,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 286 ids: 187 on the website
 | rating | `rating.star` | – | – |
 | remote | `remote.audio` `remote.back` `remote.close` `remote.device.open` `remote.device.pick` `remote.dpad` `remote.home` `remote.more` `remote.mute` `remote.next` `remote.padmode` `remote.play` `remote.playpause` `remote.rename` `remote.seek` `remote.sheet.pick` `remote.skip` `remote.stop` `remote.subdelay` `remote.subtitles` `remote.view` `remote.volume` | – | – |
 | recommend | – | – | `recommend.close` `recommend.person` `recommend.send` |
-| replace | – | `replace.early` | `replace.cancel` `replace.pick` `replace.reason` |
+| replace | – | `replace.cancel.ask` `replace.early` | `replace.cancel` `replace.next` `replace.other` `replace.pick` `replace.reason` |
 | report | – | – | `report.send` |
 | row | `row.arrow` | – | – |
 | saved | `saved.play` `saved.remove` | – | – |

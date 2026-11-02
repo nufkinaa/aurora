@@ -119,10 +119,17 @@ export function dropKey<T>(o: Record<string, T>, key: string): Record<string, T>
   delete next[key];
   return next;
 }
-export type JobMark = {status: string; progress: number};
-// "The same" as far as a card can show: its status and a whole percent.
+// `id` and `mine`: a person can cancel their own from the title's page.
+export type JobMark = {status: string; progress: number; id?: string; mine?: boolean};
+// "The same" as far as a card can show: its status and a whole percent (and the job).
 export const sameJob = (a: JobMark | null | undefined, b: JobMark | null | undefined) =>
-  a === b || (!!a && !!b && a.status === b.status && Math.round((a.progress || 0) * 100) === Math.round((b.progress || 0) * 100));
+  a === b ||
+  (!!a &&
+    !!b &&
+    a.id === b.id &&
+    !!a.mine === !!b.mine &&
+    a.status === b.status &&
+    Math.round((a.progress || 0) * 100) === Math.round((b.progress || 0) * 100));
 export const sameJobs = (a: Record<string, JobMark>, b: Record<string, JobMark>) => {
   const ka = Object.keys(a);
   if (ka.length !== Object.keys(b).length) return false;

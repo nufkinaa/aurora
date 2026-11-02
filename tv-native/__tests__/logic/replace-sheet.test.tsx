@@ -106,7 +106,7 @@ test('a reason → the versions (★ BEST, Reported here), the first one focused
   await open();
   await act(async () => byUi(r, 'replace.reason')[0].props.onPress());
   await flush();
-  expect(mockApi.replaceSources).toHaveBeenCalledWith('lib1', 'p1');
+  expect(mockApi.replaceSources).toHaveBeenCalledWith('lib1', 'p1', 'burned');
   expect(sheet(r).props.title).toBe('Get another version');
   expect(texts(r)).toContain('Your copy stays playable until the new one is in.');
   const rows = byUi(r, 'replace.pick');
@@ -163,20 +163,98 @@ test("a refused pick shows the server's words and stays on the versions", async 
   expect(byUi(r, 'replace.pick')).toHaveLength(2);
 });
 
-test('on its way, asked by me: status, reason, a focused Cancel that cancels and toasts', async () => {
+test('on its way, asked by me: status, reason; focus is on Close and Cancel asks first', async () => {
   mockApi.replaceView.mockResolvedValue({...VIEW, can: false, code: 'busy', active: {status: 'downloading', progress: 0.45, waiting: false, reasonLabel: 'Burned-in subtitles', mine: true, by: 'Claude QA'}});
   await open();
   expect(sheet(r).props.title).toBe('Another version is on its way');
   expect(texts(r)).toEqual(expect.arrayContaining(['Downloading · 45%', 'Reason: Burned-in subtitles']));
+  // A stray OK must not end it: focus landed ON Cancel, and one press cancelled.
+  const ask = byUi(r, 'replace.cancel.ask');
+  expect(ask).toHaveLength(1);
+  expect(ask[0].props.hasTVPreferredFocus).toBeFalsy();
+  const focused = r.root.findAll(n => (n.type as unknown) === 'Focusable' && n.props.hasTVPreferredFocus);
+  expect(focused).toHaveLength(1);
+  expect(byUi(r, 'replace.reason')).toHaveLength(0);
+  await act(async () => ask[0].props.onPress());
+  await flush();
+  expect(mockApi.replaceCancel).not.toHaveBeenCalled();
+  expect(sheet(r).props.title).toBe('Cancel this version?');
+  // BACK, and "Keep going" (which has the focus): nothing happened
+  await act(async () => (sheet(r).props.onClose as () => void)());
+  await flush();
+  expect(sheet(r).props.title).toBe('Another version is on its way');
+  await act(async () => byUi(r, 'replace.cancel.ask')[0].props.onPress());
+  await flush();
+  const keep = r.root.findAll(n => (n.type as unknown) === 'Focusable' && n.props.hasTVPreferredFocus);
+  expect(keep).toHaveLength(1);
+  await act(async () => keep[0].props.onPress());
+  await flush();
+  expect(mockApi.replaceCancel).not.toHaveBeenCalled();
+  await act(async () => byUi(r, 'replace.cancel.ask')[0].props.onPress());
+  await flush();
   const cancel = byUi(r, 'replace.cancel');
   expect(cancel).toHaveLength(1);
-  expect(cancel[0].props.hasTVPreferredFocus).toBe(true);
-  expect(byUi(r, 'replace.reason')).toHaveLength(0);
+  expect(cancel[0].props.hasTVPreferredFocus).toBeFalsy();
   await act(async () => cancel[0].props.onPress());
   await flush();
   expect(mockApi.replaceCancel).toHaveBeenCalledWith('lib1', 'p1');
   expect(mockClose).toHaveBeenCalled();
   expect(mockToast).toHaveBeenCalledWith('Cancelled — your copy stays as it was.');
+});
+
+test('the last try was cancelled: says who, offers the next candidates, and can move on', async () => {
+  const last = {status: 'canceled', reason: 'language', reasonLabel: 'Wrong language', canceledBy: 'admin', why: null, release: 'Film.BONE', quality: '1080p', line: 'The admin cancelled it — your copy stays as it was.'};
+  mockApi.replaceView.mockResolvedValue({...VIEW, last});
+  await open();
+  expect(sheet(r).props.title).toBe("That version didn't come through");
+  expect(texts(r)).toEqual(expect.arrayContaining([last.line, 'That was: Film.BONE (1080p)', 'Reason: Wrong language', 'Pick the next one, or keep this copy.']));
+  const next = byUi(r, 'replace.next');
+  expect(next[0].props.hasTVPreferredFocus).toBe(true);
+  await act(async () => next[0].props.onPress());
+  await flush();
+  expect(mockApi.replaceSources).toHaveBeenCalledWith('lib1', 'p1', 'language');
+  expect(sheet(r).props.title).toBe('Get another version');
+  // BACK from the list goes to the reasons, not round again
+  await act(async () => (sheet(r).props.onClose as () => void)());
+  await flush();
+  expect(sheet(r).props.title).toBe("What's wrong with this copy?");
+});
+
+test('the last try: "Something else is wrong" goes to the reasons', async () => {
+  mockApi.replaceView.mockResolvedValue({...VIEW, last: {status: 'failed', reason: 'language', reasonLabel: 'Wrong language', canceledBy: null, why: 'no peers', release: null, quality: null, line: 'The download failed (no peers) — your copy stays as it was.'}});
+  await open();
+  await act(async () => byUi(r, 'replace.other')[0].props.onPress());
+  await flush();
+  expect(sheet(r).props.title).toBe("What's wrong with this copy?");
+  expect(byUi(r, 'replace.reason')).toHaveLength(5);
+});
+
+test('Wrong language: the reason goes to the server, its sentence and the language are on the list', async () => {
+  mockApi.replaceSources.mockResolvedValue({
+    streams: [{infoHash: 'b'.repeat(40), fileIdx: 0, quality: '1080p', seeders: 40, release: 'Film.ENGLISH', recommended: true, langFit: 'right', langLabel: 'English'}],
+    current: VIEW.current,
+    note: 'Versions in English first. 2 in Russian left out.',
+  });
+  await open();
+  await act(async () => byUi(r, 'replace.reason')[3].props.onPress());
+  await flush();
+  expect(mockApi.replaceSources).toHaveBeenCalledWith('lib1', 'p1', 'language');
+  expect(texts(r)).toEqual(expect.arrayContaining(['Versions in English first. 2 in Russian left out.', 'English']));
+});
+
+test('a request from the player carries the client kind and version, like every other report', async () => {
+  await open();
+  await act(async () => byUi(r, 'replace.reason')[0].props.onPress());
+  await flush();
+  await act(async () => byUi(r, 'replace.pick')[0].props.onPress());
+  await flush();
+  const ctx = mockApi.replaceRequest.mock.calls[mockApi.replaceRequest.mock.calls.length - 1][1].context;
+  expect(ctx.route).toBe('tv:Player');
+  expect(ctx.look).toBe('tv');
+  expect(ctx.viewport).toBe('tv');
+  expect(ctx.version).toMatch(/^\d+\.\d+\.\d+$/);
+  expect(ctx.ua).toMatch(/^Aurora TV \d+\.\d+\.\d+ · Android /);
+  expect(Array.isArray(ctx.errors)).toBe(true);
 });
 
 test("on its way, asked by someone else: who asked, no Cancel; the waiting state's words", async () => {

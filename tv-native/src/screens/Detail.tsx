@@ -42,6 +42,7 @@ import {heroRelease, ReleaseStatus} from '../releaseWords';
 import {isOpen, onMessage} from '../realtime';
 import {canNavigate} from '../navLock';
 import {openTrailer, openActions, openRecommend, openReplace, openXray} from '../overlay';
+import {cancelQuestion} from '../downloadsLogic';
 import {bannerLine, ltr, notesShown, titleKey, WORDS as HH} from '../householdRecs'; // [household]
 import {householdChanged} from '../householdLive'; // [household]
 import {track} from '../usage';
@@ -903,7 +904,7 @@ export default function Detail({
   // carries the same). Read once when the page arrives; after that the
   // socket's download_update / download_removed carry every change. The 4 s
   // poll survives only as the fallback for a socket that is not open.
-  const [epJobs, setEpJobs] = useState<Record<string, {status: string; progress: number}>>({});
+  const [epJobs, setEpJobs] = useState<Record<string, JobMark>>({});
   const epJobsRef = useRef(epJobs);
   epJobsRef.current = epJobs;
   // job id → the card it belongs to ("SxE", or "film"): download_removed
@@ -932,8 +933,8 @@ export default function Detail({
   // A FILM's own download (elia, 2026-10-07: "the same flow like the
   // episodes" — press Play saves the best source, hold Play for the list).
   // The Play button and a strip under it carry the job while it runs.
-  const [movieJob, setMovieJob] = useState<{status: string; progress: number} | null>(null);
-  const movieJobRef = useRef<{status: string; progress: number} | null>(null);
+  const [movieJob, setMovieJob] = useState<JobMark | null>(null);
+  const movieJobRef = useRef<JobMark | null>(null);
   movieJobRef.current = movieJob;
   // WHAT THE PLAY BUTTON SAYS ABOUT A DOWNLOAD (Mi Box reports, 2026-10-09:
   // "I press Play on Chapter One and nothing happens — it is downloading, but
@@ -994,7 +995,7 @@ export default function Detail({
     const imdb = jobImdb;
     if (!imdb) return false;
     try {
-      const jobs = await api.downloads();
+      const jobs = await api.myDownloads(profileId);
       if (!mountCheck.current) {
         mountCheck.current = true;
         const recent = jobs.some(j => {
@@ -1004,10 +1005,10 @@ export default function Detail({
         });
         if (recent) bumpLibrarySoon();
       }
-      const next: Record<string, {status: string; progress: number}> = {};
+      const next: Record<string, JobMark> = {};
       const keys = new Map<string, string>();
       let live = false;
-      let film: {status: string; progress: number} | null = null;
+      let film: JobMark | null = null;
       // the newest ENDED job per key: how a job that just vanished ended
       const endedJobs = new Map<string, {status: string; at: number}>();
       for (const j of jobs) {
@@ -1025,13 +1026,13 @@ export default function Detail({
         noteLive(jk, j);
         if (!j.season || !j.episode) {
           keys.set(j.id, 'film');
-          if (!film) film = {status: j.status, progress: j.progress || 0};
+          if (!film || j.mine) film = {status: j.status, progress: j.progress || 0, id: j.id, mine: !!j.mine};
           live = true;
           continue;
         }
         const k = jk;
         keys.set(j.id, k);
-        if (!next[k]) next[k] = {status: j.status, progress: j.progress || 0};
+        if (!next[k] || j.mine) next[k] = {status: j.status, progress: j.progress || 0, id: j.id, mine: !!j.mine};
         live = true;
       }
       // a running job that is gone now: remember how it ended, unless the
@@ -1060,7 +1061,7 @@ export default function Detail({
       setJobsRead(true);
       return null;
     }
-  }, [jobImdb, bumpLibrarySoon, noteLive]);
+  }, [jobImdb, profileId, bumpLibrarySoon, noteLive]);
   const loadEpJobsRef = useRef(loadEpJobs);
   loadEpJobsRef.current = loadEpJobs;
   const jobImdbRef = useRef<string | null>(null);
@@ -1628,7 +1629,7 @@ export default function Detail({
         return;
       }
       const key = j.season && j.episode ? `${j.season}x${j.episode}` : 'film';
-      const val = {status: j.status, progress: j.progress || 0};
+      const val: JobMark = {status: j.status, progress: j.progress || 0, id: j.id, mine: !!j.mine};
       const fresh = !jobKeys.current.has(j.id);
       if (fresh) console.log('[live] detail: job', j.status, key);
       noteLive(key, j);
@@ -2062,6 +2063,7 @@ export default function Detail({
           sizeBytes: pick.sizeBytes,
           provider: pick.provider,
           seeders: pick.seeders,
+          release: pick.release || pick.filename || null,
           season: s,
           episode: e,
           profile: profileId,
@@ -2165,6 +2167,7 @@ export default function Detail({
         sizeBytes: pick.sizeBytes,
         provider: pick.provider,
         seeders: pick.seeders,
+        release: pick.release || pick.filename || null,
         profile: profileId,
       });
       if (res.alreadyAvailable) {
@@ -2189,12 +2192,44 @@ export default function Detail({
       inflight.current.delete(key);
     }
   }, [ensureImdb, item.title, item.year, profileId, streamNow, streamRunning]);
+  // Cancel your own download from the title's page: asked first, "Keep going" has
+  // the focus (the My downloads rule). The server checks it is yours.
+  const askCancelJob = useCallback(
+    (job: JobMark, name: string) => {
+      if (!job.id) return;
+      const id = job.id;
+      const q = cancelQuestion({label: name, status: job.status, progress: job.progress});
+      openActions({
+        title: q.title,
+        body: q.body,
+        items: [
+          {label: q.keep, onPress: () => {}},
+          {
+            label: q.yes,
+            danger: true,
+            onPress: () => {
+              api
+                .downloadCancel(id, profileId)
+                .then(() => {
+                  showToast(`Cancelled “${name}”`, '🗑');
+                  loadEpJobsRef.current();
+                })
+                .catch(e => showToast((e as Error).message || "Couldn't cancel", '⚠️'));
+            },
+          },
+        ],
+      });
+    },
+    [profileId],
+  );
   const episodeActions = useCallback(
     (ep: UiEp) => {
+      const running = epJobsRef.current[`${ep.season}x${ep.episode}`];
       openActions({
         title: unescapeHtml(ep.label),
         sub: `${item.title} · S${ep.season} E${ep.episode}`,
         items: [
+          ...(running?.mine ? [{label: 'Cancel the download', tag: 'it asks first', onPress: () => askCancelJob(running, `S${ep.season} E${ep.episode}`)}] : []),
           ...(!ep.owned ? [{label: 'Sources', tag: 'streams and downloads', onPress: () => openEpisodeSources(ep.season, ep.episode)}] : []),
           {
             label: ep.watched ? 'Mark unwatched' : 'Mark watched',
@@ -2678,6 +2713,7 @@ export default function Detail({
           secondary={
             <>
               <IconBtn uiId="detail.mylist" ref={listBtnRef} edgeLeft icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
+              {heroJob?.mine ? <IconBtn uiId="detail.download.cancel" wide icon="close" label="Cancel download" onPress={() => askCancelJob(heroJob, heroName)} /> : null}
               {hhKey ? <IconBtn uiId="detail.recommend" icon="send" label={HH.recommend} onPress={recommend} /> : null}
               {/* Follow: only once the show's IMDb id is known — that is what the server follows by */}
               {followImdb && !torrentsOff ? (
@@ -2838,6 +2874,7 @@ export default function Detail({
         secondary={
           <>
             <IconBtn uiId="detail.mylist" ref={listBtnRef} edgeLeft icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
+            {heroJob?.mine ? <IconBtn uiId="detail.download.cancel" wide icon="close" label="Cancel download" onPress={() => askCancelJob(heroJob, heroName)} /> : null}
             {hhKey ? <IconBtn uiId="detail.recommend" icon="send" label={HH.recommend} onPress={recommend} /> : null}
             {/* Start over — the site's button, under the site's condition: only
                 beside a Resume (a film you hold and are part-way through). The

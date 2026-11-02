@@ -387,6 +387,182 @@ test("cancel while it downloads: everything is as it was — the file, the bad-r
   assert.ok(!fs.readdirSync(f.dir).some((x) => x.startsWith(".aurora-dl-")));
 });
 
+test("who cancelled it is kept: the person, or the admin, on the job, the record, the report and the sheet", async () => {
+  await reset();
+  // the person who asked
+  const f = seedFilm();
+  engine.define(B);
+  const r = await ask(f.id, GROWN, B, "language");
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(replace.cancel(f.id, GROWN).status, 200);
+  await flush();
+  assert.equal(jobOf(r.body.job.id).canceledBy, "self");
+  assert.equal(downloads.publicJob(jobOf(r.body.job.id)).canceledBy, "self");
+  assert.equal(entryOf(r.body.replacement.id).canceledBy, "self");
+  const v = replace.view(f.id, GROWN).body;
+  assert.equal(v.last.status, "canceled");
+  assert.equal(v.last.line, "You cancelled it — your copy stays as it was.");
+  assert.equal(v.last.reason, "language");
+  assert.equal(v.can, true, "another one can be asked for");
+  // the report's pill reads this
+  const st = replace.statusById().get(r.body.replacement.id);
+  assert.equal(st.status, "canceled");
+  assert.equal(st.canceledBy, "self");
+
+  // the admin, through either of the admin's doors
+  await reset();
+  const g = seedFilm();
+  engine.define(B);
+  const r2 = await ask(g.id, GROWN, B, "picture");
+  assert.equal(replace.cancel(g.id, null, { admin: true }).status, 200);
+  await flush();
+  assert.equal(entryOf(r2.body.replacement.id).canceledBy, "admin");
+  assert.match(replace.view(g.id, GROWN).body.last.line, /cancelled it — your copy stays as it was\.$/);
+  assert.doesNotMatch(replace.view(g.id, GROWN).body.last.line, /^You/);
+
+  await reset();
+  const h = seedFilm();
+  engine.define(B);
+  const r3 = await ask(h.id, GROWN, B, "picture");
+  downloads.remove(r3.body.job.id, { by: "admin" });
+  await flush();
+  assert.equal(entryOf(r3.body.replacement.id).status, "canceled");
+  assert.equal(entryOf(r3.body.replacement.id).canceledBy, "admin");
+
+  // cancelOwn (My downloads) is the person
+  await reset();
+  const i = seedFilm();
+  engine.define(B);
+  const r4 = await ask(i.id, GROWN, B, "picture");
+  assert.ok(!downloads.cancelOwn(r4.body.job.id, GROWN).error);
+  await flush();
+  assert.equal(entryOf(r4.body.replacement.id).canceledBy, "self");
+});
+
+test("how the last try ended stays with the copy until a new one is asked for, or for two weeks", async () => {
+  await reset();
+  const f = seedFilm();
+  engine.define(B);
+  engine.fail(B, "no peers");
+  const r = await ask(f.id, GROWN, B, "language");
+  await flush();
+  await D.poll();
+  await until(() => jobOf(r.body.job.id).status === "error", "the replacement to fail");
+  const v = replace.view(f.id, GROWN).body;
+  assert.equal(v.last.status, "failed");
+  assert.match(v.last.line, /^The download failed \(.*\) — your copy stays as it was\.$/);
+  // a new request: `last` goes while it runs
+  engine.define(C);
+  const r2 = await ask(f.id, GROWN, C, "language");
+  assert.equal(r2.status, 200);
+  assert.equal(replace.view(f.id, GROWN).body.last, null);
+  replace.cancel(f.id, GROWN);
+  await flush();
+  assert.equal(replace.view(f.id, GROWN).body.last.status, "canceled");
+  // old news
+  const was = R.seams.clock;
+  R.seams.clock = () => Date.now() + 15 * 24 * 3600e3;
+  assert.equal(replace.view(f.id, GROWN).body.last, null);
+  R.seams.clock = was;
+});
+
+test("the source the last try was for goes to the foot of the list, marked, never the star", async () => {
+  await reset();
+  const f = seedFilm();
+  engine.define(B);
+  const r = await ask(f.id, GROWN, B, "picture");
+  assert.equal(r.status, 200);
+  replace.cancel(f.id, GROWN);
+  await flush();
+  const list = (await replace.sources(f.id, GROWN)).body.streams;
+  assert.deepEqual(list.map((s) => s.infoHash), [C, B], "the next candidate comes first");
+  assert.equal(list[1].tried.label, "Tried here: cancelled");
+  assert.ok(!list[1].recommended);
+  assert.ok(list[0].recommended, "the star is on the next candidate");
+});
+
+test("Wrong language: the copy's own language is not offered, the wanted one comes first and takes the star", async () => {
+  await reset();
+  const f = seedFilm();
+  // the file says Russian (a one-track file), the title is English
+  const item = scanner.findById(f.id);
+  item.audio = { language: "rus" };
+  const was = R.seams.originalLanguage;
+  R.seams.originalLanguage = async () => "en";
+  const RU = src(HASH("d"), { release: "Rep.Film.2020.1080p.RUS.WEB", seeders: 900, recommended: true });
+  const EN = src(HASH("f"), { release: "Rep.Film.2020.1080p.ENGLISH.WEB", seeders: 3 });
+  const QUIET = src(HASH("0"), { release: "Rep.Film.2020.1080p.WEB.BONE", seeders: 40 });
+  const HI = src(HASH("1"), { release: "Rep.Film.2020.1080p.HINDI.WEB", seeders: 80, dubbed: true });
+  sources[f.imdbId] = [src(A, { release: "Rep.Film.2020.1080p.HC.WEB" }), RU, HI, QUIET, EN];
+  try {
+    const r = await replace.sources(f.id, GROWN, { reason: "language" });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.streams.map((s) => s.infoHash), [EN.infoHash, QUIET.infoHash, HI.infoHash], "biggest swarm or not, Russian is out");
+    assert.deepEqual(r.body.streams.filter((s) => s.recommended).map((s) => s.infoHash), [EN.infoHash]);
+    assert.equal(r.body.note, "Versions in English first. 1 in Russian left out.");
+    // the other reasons keep the usual list
+    const usual = await replace.sources(f.id, GROWN, { reason: "picture" });
+    assert.ok(usual.body.streams.some((s) => s.infoHash === RU.infoHash));
+    assert.equal(usual.body.note, null);
+    // an app from before this list cannot slip it in either
+    const refused = await ask(f.id, GROWN, RU.infoHash, "language");
+    assert.equal(refused.status, 400);
+    assert.equal(refused.body.code, "same-language");
+    // …for another reason it is a source like any
+    engine.define(RU.infoHash);
+    const fine = await ask(f.id, GROWN, RU.infoHash, "picture");
+    assert.equal(fine.status, 200, JSON.stringify(fine.body));
+    replace.cancel(f.id, GROWN);
+    await flush();
+  } finally {
+    R.seams.originalLanguage = was;
+    delete item.audio;
+  }
+});
+
+test("Wrong language and the person's own language: the audio language they last picked leads", async () => {
+  await reset();
+  const f = seedFilm();
+  const item = scanner.findById(f.id);
+  item.audioTracks = [{ language: "fra" }];
+  const was = R.seams.originalLanguage;
+  R.seams.originalLanguage = async () => "fr";
+  const raw = profiles.list().find((p) => p.id === GROWN.id);
+  raw.prefs = { ...(raw.prefs || {}), audioLang: "eng" };
+  sources[f.imdbId] = [src(HASH("2"), { release: "Rep.Film.2020.1080p.FRENCH.WEB" }), src(HASH("3"), { release: "Rep.Film.2020.1080p.ENGLISH.WEB" })];
+  try {
+    const r = await replace.sources(f.id, GROWN, { reason: "language" });
+    assert.deepEqual(r.body.streams.map((s) => s.release), ["Rep.Film.2020.1080p.ENGLISH.WEB"]);
+  } finally {
+    R.seams.originalLanguage = was;
+    delete raw.prefs.audioLang;
+    delete item.audioTracks;
+  }
+});
+
+test("a file no download wrote: its name stands in for the release, in the report and in the list", async () => {
+  await reset();
+  const title = `Rep Hand ${++n}`;
+  const dir = path.join(moviesRoot, `${title} (2020)`);
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, "Rep.Hand.Copy.2020.1080p.WEB.mkv");
+  fs.writeFileSync(file, Buffer.alloc(2048, 1));
+  const imdbId = `tt88${String(n).padStart(5, "0")}`;
+  imdb.remember(title, "movie", 2020, imdbId);
+  scanner.scan();
+  const id = scanner.idForPath(file);
+  const same = src(HASH("4"), { release: "Rep Hand Copy 2020 1080p WEB", filename: "Rep.Hand.Copy.2020.1080p.WEB.mkv" });
+  sources[imdbId] = [same, src(B)];
+  const list = await replace.sources(id, GROWN);
+  assert.deepEqual(list.body.streams.map((s) => s.infoHash), [B], "the copy itself is not offered, under any spelling");
+  engine.define(B);
+  const r = await ask(id, GROWN, B, "language");
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.ok(badreleases.match(imdbId, { release: "Rep.Hand.Copy.2020.1080p.WEB" }), "and it is remembered by its name");
+  replace.cancel(id, GROWN);
+  await flush();
+});
+
 test("somebody is playing the old copy: the finished file waits hidden, frees its slot, and swaps in once they stop", async () => {
   await reset();
   const f = seedFilm();

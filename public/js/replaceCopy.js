@@ -10,16 +10,18 @@
 // Opened from the title page (a film you own), an episode's sources (hold an
 // episode) and the player's menu. Inside the player it is drawn in the
 // fullscreen element, like Report a problem.
-import { el, toast, fmtBytes } from "./ui.js";
+import { el, toast, fmtBytes, confirmSheet } from "./ui.js";
 import { api } from "./api.js";
 import { state } from "./state.js";
 import { pushScope, popScope } from "./focus.js";
 import { onMessage } from "./ws.js";
 import { track } from "./usage.js";
 import { earlyOk, isEarly, sourceBadge } from "./releaseWords.js";
+import { appVersion } from "./report.js";
 
 export const COPY_PROBLEM = "Problem with this copy?";
 export const GET_ANOTHER = "Get another version";
+const GET_ANOTHER_NEXT = "Pick another version";
 
 // The words for a replacement on its way — the TV says the same (tv-native).
 export const replaceStatusText = (r) => {
@@ -61,13 +63,26 @@ export const copyProblemButton = ({ libraryId, title, ui = "detail.replace", cla
     onclick: () => openReplaceSheet({ libraryId, title }),
   }, el("span", { class: "copy-problem-q" }, COPY_PROBLEM), el("span", { class: "copy-problem-a" }, GET_ANOTHER));
 
-const contextNow = () => ({
+// What a report says about the client, as "Report a problem" says it.
+const contextNow = async () => ({
   route: location.hash,
   look: document.documentElement.dataset.look || "legacy",
   ua: navigator.userAgent,
   viewport: `${innerWidth}×${innerHeight}`,
   online: navigator.onLine,
+  version: await appVersion(),
 });
+
+// Another version of yours ended without you (it failed, or the admin took it
+// back): said wherever you are. The TV's replaceEndedToast says the same.
+export const replaceEndedLine = (job) => {
+  if (!job || !job.replaces || !job.mine) return null;
+  const name = `“${job.title || "that title"}”`;
+  if (job.status === "error") return `The other version of ${name} failed — your copy stays. Open “${COPY_PROBLEM}” to pick the next one.`;
+  if (job.status === "declined") return `${state.adminName} said no to the other version of ${name} — your copy stays.`;
+  if (job.status === "canceled" && job.canceledBy === "admin") return `${state.adminName} cancelled the other version of ${name} — your copy stays.`;
+  return null;
+};
 
 export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
   if (!libraryId || document.querySelector(".replace-wrap")) return;
@@ -75,7 +90,7 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
   const body = el("div", { class: "rc-body" });
   const card = el("div", { class: "look-notice sheet replace-copy", role: "dialog", "aria-modal": "true", "aria-label": COPY_PROBLEM, tabindex: "-1" }, body);
   const wrap = el("div", { class: "look-notice-wrap ui-overlay replace-wrap", onclick: (e) => e.target === wrap && close() }, card);
-  let step = "load"; // load | reasons | sources | active | refused
+  let step = "load"; // load | reasons | sources | active | ended | refused
   let reason = null;
   let unsub = null;
   let info = null;
@@ -123,9 +138,10 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
       el("div", { class: "rc-reason" }, `Reason: ${r.reasonLabel}`),
       el("div", { class: "look-notice-actions" },
         !done && r.mine
-          ? el("button", { "data-ui": "replace.cancel", type: "button", class: "btn focusable rc-first", onclick: () => doCancel() }, "Cancel — keep this copy")
+          ? el("button", { "data-ui": "replace.cancel", type: "button", class: "btn focusable", onclick: () => doCancel() }, "Cancel — keep this copy")
           : !done && r.by ? el("div", { class: "rc-by" }, `Asked for by ${r.by}`) : null,
-        closeBtn(done ? "Close" : "Close")),
+        // the first focus: a stray Enter must not cancel it
+        el("button", { type: "button", class: "btn focusable rc-first", onclick: close }, "Close")),
     );
     if (!unsub) {
       unsub = onMessage("download_update", ({ job }) => {
@@ -136,7 +152,8 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
         if (["canceled", "declined", "error"].includes(job.status)) {
           if (unsub) unsub();
           unsub = null;
-          return paint(el("div", { class: "sheet-icon" }, "↩️"), ...head(COPY_PROBLEM, replaceStatusText(next)), el("div", { class: "look-notice-actions" }, closeBtn()));
+          // the server's own words for how it ended, and the next candidates
+          return load();
         }
         // a live repaint of the line and the bar only (focus stays put)
         info.active = next;
@@ -150,6 +167,20 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
   const doCancel = async () => {
     const b = body.querySelector("[data-ui='replace.cancel']");
     if (b) b.disabled = true;
+    // asked first, like every cancel (js/dlcancel.js)
+    asking = true;
+    const sure = await confirmSheet({
+      title: "Cancel this version?",
+      text: "Your copy stays as it was. What has come down so far is thrown away.",
+      ok: "Cancel — keep this copy",
+      cancel: "Keep going",
+      icon: "🗑",
+    });
+    asking = false;
+    if (!sure) {
+      if (b) { b.disabled = false; b.focus({ preventScroll: true }); }
+      return;
+    }
     try {
       await api.replaceCancel(libraryId, profile);
       toast("Cancelled — your copy stays as it was.", "↩️");
@@ -159,6 +190,23 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
       if (b) b.disabled = false;
       toast((e && e.message) || "Couldn't cancel it — try again", "⚠️");
     }
+  };
+
+  // ---- the last try ended without replacing anything: what happened, what next ----
+  const showEnded = (last) => {
+    step = "ended";
+    paint(
+      el("div", { class: "sheet-icon" }, "↩️"),
+      ...head("That version didn't come through", null),
+      el("div", { class: "rc-status", "aria-live": "polite" }, last.line),
+      last.release ? el("div", { class: "rc-reason" }, `That was: ${last.release}${last.quality ? ` (${last.quality})` : ""}`) : null,
+      el("div", { class: "rc-reason" }, `Reason: ${last.reasonLabel}`),
+      el("p", { class: "look-notice-text" }, "Pick the next one, or keep this copy."),
+      el("div", { class: "look-notice-actions" },
+        el("button", { "data-ui": "replace.next", type: "button", class: "btn btn-primary focusable rc-first", onclick: () => { reason = last.reason; showSources(); } }, GET_ANOTHER_NEXT),
+        el("button", { "data-ui": "replace.other", type: "button", class: "btn focusable", onclick: showReasons }, "Something else is wrong"),
+        closeBtn("Keep this copy")),
+    );
   };
 
   // ---- step 1: what is wrong ----
@@ -188,16 +236,20 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
     const listHost = el("div", { class: "rc-list" }, el("div", { class: "sources-loading" }, el("span", { class: "mini-spinner" }), "Finding other versions…"));
     const back = el("button", { type: "button", class: "btn small focusable rc-back", onclick: showReasons }, "‹ Back");
     const cur = info && info.current;
+    const noteLine = el("div", { class: "rc-now rc-lang-note", hidden: true });
     paint(
       ...head(GET_ANOTHER, "Your copy stays playable until the new one is in."),
       cur ? el("div", { class: "rc-now" }, `Now: ${[cur.quality, cur.sizeBytes ? fmtBytes(cur.sizeBytes) : null, cur.release].filter(Boolean).join(" · ")}`) : null,
+      noteLine,
       listHost,
       note,
       el("div", { class: "look-notice-actions" }, back, closeBtn("Cancel")),
     );
     let streams = [];
     try {
-      streams = (await api.replaceSources(libraryId, profile)).streams || [];
+      const got = await api.replaceSources(libraryId, profile, reason);
+      streams = got.streams || [];
+      if (got.note) { noteLine.textContent = got.note; noteLine.hidden = false; }
     } catch (e) {
       if (step !== "sources") return;
       listHost.replaceChildren(el("div", { class: "sources-empty" }, (e && e.message) || "Couldn't reach the source provider."));
@@ -223,9 +275,10 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
           el("span", { class: "rc-src-name" }, s.release || s.provider || "Unnamed release"),
           el("span", { class: "rc-src-meta" },
             replaceBestOf(s, reason) ? el("b", { class: "rc-best" }, "★ BEST") : null,
+            s.langLabel ? el("b", { class: "rc-lang" }, s.langLabel) : null,
             // what kind of copy it is — the title page's marks (CAM, TS, BURNED-IN SUBS)
             sourceBadge(s) ? el("b", { class: "rc-kind", title: s.warning || "" }, sourceBadge(s)) : null,
-            s.badHere ? el("b", { class: "rc-bad" }, `Reported here: ${s.badHere.label}`) : null,
+            s.badHere ? el("b", { class: "rc-bad" }, `Reported here: ${s.badHere.label}`) : s.tried ? el("b", { class: "rc-bad" }, s.tried.label) : null,
             factsOf(s)),
           (isEarly(s) || s.hardsub) && s.warning ? el("span", { class: "rc-warn" }, s.warning) : null))),
         shown.length < streams.length
@@ -251,7 +304,7 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
       const r = await api.replaceCopy(libraryId, {
         profile, reason, note: String(noteText || "").trim() || undefined,
         source: { infoHash: s.infoHash, fileIdx: s.fileIdx || 0 },
-        context: contextNow(),
+        context: await contextNow(),
       });
       toast("Getting another version — your copy stays playable until it's in.", "🎞️");
       track("feat", { f: "replace" });
@@ -275,6 +328,7 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
     if (!wrap.isConnected) return;
     if (info.active) return showActive(info.active);
     if (!info.can) return showRefused(info.why);
+    if (info.last) return showEnded(info.last);
     showReasons();
   };
 

@@ -10,6 +10,7 @@ import Focusable from '../components/Focusable';
 import Icon from '../components/Icon';
 import Svg, {Circle} from 'react-native-svg';
 import {api, imgSrc, DownloadJob, Stream, TorrentPlayItem} from '../api';
+import {cancelQuestion} from '../downloadsLogic';
 import {canNavigate} from '../navLock';
 import {fallbackSources, streamPlayItem} from '../playBest';
 import {openActions} from '../overlay';
@@ -260,7 +261,7 @@ export function SourcesPanel({
     };
     const pull = async () => {
       try {
-        const list = await api.downloads();
+        const list = await api.myDownloads(profileId);
         if (!live) return;
         const map = new Map<string, DownloadJob>();
         // Newest first from the server; keep the newest job per source.
@@ -400,6 +401,31 @@ export function SourcesPanel({
     toastTimer.current = setTimeout(() => mounted.current && setToast(''), 4000);
   };
 
+  // Your own download running from this row: a press asks to cancel it (the same
+  // question as My downloads). It used to ask for it again ("Already on its way").
+  const askCancelJob = (j: DownloadJob) => {
+    const q = cancelQuestion(j);
+    openActions({
+      title: q.title,
+      body: q.body,
+      items: [
+        {label: q.keep, onPress: () => {}},
+        {
+          label: q.yes,
+          danger: true,
+          onPress: () => {
+            api
+              .downloadCancel(j.id, profileId)
+              .then(() => {
+                flashToast('Cancelled');
+                pullRef.current?.();
+              })
+              .catch(e => flashToast((e as Error).message || "Couldn't cancel"));
+          },
+        },
+      ],
+    });
+  };
   const requestDownload = async (s: Stream) => {
     setToast('Requesting…');
     try {
@@ -415,6 +441,7 @@ export function SourcesPanel({
         sizeBytes: s.sizeBytes,
         provider: s.provider,
         seeders: s.seeders,
+        release: s.release || s.filename || null,
         season: season || undefined,
         episode: episode || undefined,
         profile: profileId,
@@ -474,7 +501,8 @@ export function SourcesPanel({
       // with a live job says what is happening in its own meta line instead —
       // "Downloading — 47% at 3.2 MB/s", "Queued — starts when the current
       // downloads finish". Seeders stop being the story once a job owns the row.
-      const jobLine = job && !isDone ? hint : null;
+      const cancellable = !!job && !!job.mine && ['pending', 'approved', 'downloading'].includes(job.status);
+      const jobLine = job && !isDone ? (cancellable ? `${hint} · OK to cancel` : hint) : null;
       // What the copy IS, in plain words — "BluRay · DD+ · H.265" — the way the
       // site's redrawn list reads (1.6.31). The release name is noise on a TV
       // and is gone from the row.
@@ -493,7 +521,7 @@ export function SourcesPanel({
               claimOwned.current !== true &&
               dlKey(s.infoHash, s.fileIdx) === firstClaimKey.current
             }
-            onPress={() => (playsCopy ? play(s) : !isDone && askFirst(s, 'download', () => requestDownload(s)))}
+            onPress={() => (playsCopy ? play(s) : cancellable ? askCancelJob(job!) : !isDone && askFirst(s, 'download', () => requestDownload(s)))}
             style={[styles.row, isDone && styles.rowOwned]}
             highlightColor={colors.surfaceHover}>
             {/* .source-quality.owned-chip — the quality pill turns green once the
@@ -572,7 +600,7 @@ export function SourcesPanel({
               (re)requested, including a failed one. */}
           <Focusable uiId="detail.source.download"
             scaleTo={1.03}
-            onPress={() => !isDone && requestDownload(s)}
+            onPress={() => (cancellable ? askCancelJob(job!) : !isDone && requestDownload(s))}
             style={[
               styles.dlBtn,
               // .source-dl.done / .source-dl.failed — the whole button reports

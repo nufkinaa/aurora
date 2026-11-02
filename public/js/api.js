@@ -600,7 +600,7 @@ export const api = {
 
   // "Problem with this copy? → Get another version" (src/routes/replace.js)
   replaceInfo: (libId, profile) => json(`/api/replace/${encodeURIComponent(libId)}${profile ? `?profile=${encodeURIComponent(profile)}` : ""}`),
-  replaceSources: (libId, profile) => json(`/api/replace/${encodeURIComponent(libId)}/sources${profile ? `?profile=${encodeURIComponent(profile)}` : ""}`),
+  replaceSources: (libId, profile, reason) => json(`/api/replace/${encodeURIComponent(libId)}/sources?${new URLSearchParams({ ...(profile ? { profile } : {}), ...(reason ? { reason } : {}) })}`),
   replaceCopy: (libId, fields) => post(`/api/replace/${encodeURIComponent(libId)}`, fields),
   replaceCancel: (libId, profile) => post(`/api/replace/${encodeURIComponent(libId)}/cancel`, { profile }),
 };

@@ -35,6 +35,9 @@ export const setPlayingContext = (ctx) => { playing = ctx; };
 let version = null;
 const versionP = api.version ? api.version().then((c) => { version = (c && c.version) || null; }).catch(() => {}) : Promise.resolve();
 
+// (Get another version files its report with the same version: replaceCopy.js)
+export const appVersion = () => versionP.then(() => version);
+
 export const showReportSheet = ({ hint = "" } = {}) => {
   if (document.querySelector(".report-wrap")) return;
   const box = el("textarea", { class: "report-text focusable", rows: 5, placeholder: "What went wrong? What did you expect to happen?" });

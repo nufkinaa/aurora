@@ -2,7 +2,8 @@
 // are media/replace.js; this only says who is asking.
 //
 //   GET  /api/replace/:id?profile=     what the sheet needs: the copy, the reasons, a replacement on its way
-//   GET  /api/replace/:id/sources?profile=   the title's other sources (the copy being replaced left out)
+//   GET  /api/replace/:id/sources?profile=&reason=   the title's other sources (the copy being replaced left out;
+//                                      reason "language": the same wrong language left out too)
 //   POST /api/replace/:id              { profile, reason, note, source: { infoHash, fileIdx }, context }
 //   POST /api/replace/:id/cancel       { profile }
 //   GET  /api/admin/replacements       every request, newest first (admin)
@@ -44,7 +45,7 @@ router.get("/api/replace/:id/sources", async (req, res) => {
   res.set("Cache-Control", "no-store");
   const viewer = viewerFor(req, req.query.profile);
   if (viewer.refused) return notYours(res);
-  const r = await replace.sources(req.params.id, viewer, { kids: kidsOf(req) });
+  const r = await replace.sources(req.params.id, viewer, { kids: kidsOf(req), reason: String(req.query.reason || "") });
   res.status(r.status).json(r.body);
 });
 

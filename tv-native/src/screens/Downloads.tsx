@@ -11,6 +11,13 @@
 // list. "Remove" used to send `cancel` for a failed download, which left a
 // "Canceled" row behind for good and gave declined and cancelled rows no
 // action at all (audit X3): it clears the row now (`dismiss`), as the site's.
+//
+// WHERE TO CANCEL (Niso's reports, 2026-10-31): what is on its way comes FIRST,
+// as on the site. It came after everything ready to play, so with a dozen ready
+// films the page opened on those and the running download, with its Cancel, sat
+// below the screen. A press on a running row always asks first ("Keep going" has
+// the focus); it used to cancel at once under 5%, a stray OK away from losing it.
+// The header counts this profile's downloads. A count only: there is no limit.
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {ActivityIndicator, Image, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
@@ -19,9 +26,9 @@ import Focusable from '../components/Focusable';
 import NavRail from '../components/NavRail';
 import {Empty} from '../components/States';
 import {api, ApiError, artSrc, HeroItem, ImgSource, MyDownload} from '../api';
-import {downloadActions, DownloadAction, isReady, startedBy, rowStatus} from '../downloadsLogic';
+import {cancelQuestion, countLine, downloadActions, DownloadAction, downloadCounts, isReady, startedBy, rowStatus} from '../downloadsLogic';
 import {ACTIVE, fmtBytes, statusLine} from '../downloadsWords';
-import {openActions} from '../overlay';
+import {openActions, openReplace} from '../overlay';
 import {useApp} from '../AppContext';
 import {useRouteShown} from '../useRouteShown';
 import {canNavigate} from '../navLock';
@@ -185,6 +192,7 @@ export default function Downloads({navigation}: NativeStackScreenProps<RootStack
         season: j.season || null,
         episode: j.episode || null,
         provider: j.provider || null,
+        release: j.release || null,
         profile: profileId,
       });
       if (res.error) throw new Error(res.error);
@@ -219,15 +227,19 @@ export default function Downloads({navigation}: NativeStackScreenProps<RootStack
     if (a === 'title') return openTitle(j);
     if (a === 'retry') return retry(j);
     if (a === 'remove') return remove(j);
-    if (a === 'cancel') return cancel(j);
-    // 'confirmCancel': a download that is well under way asks first —
-    // cancelling throws the bytes away (the site's rule: past 5%).
+    if (a === 'another') {
+      // the sheet: what happened to the last try, and the next candidates
+      if (j.replaces) openReplace({libraryId: j.replaces.libraryId, title: j.title || j.label || '', context: {title: j.title || j.label || '', itemId: j.replaces.libraryId}});
+      return;
+    }
+    // 'confirmCancel': every cancel asks first, focus on "Keep going"
+    const q = cancelQuestion(j);
     openActions({
-      title: `Cancel “${j.label || j.title}”?`,
-      sub: `It's ${Math.round((j.progress || 0) * 100)}% down. Cancelling throws that away; you can always ask for it again.`,
+      title: q.title,
+      body: q.body,
       items: [
-        {label: 'Keep going', onPress: () => {}},
-        {label: 'Cancel the download', danger: true, onPress: () => cancel(j)},
+        {label: q.keep, onPress: () => {}},
+        {label: q.yes, danger: true, onPress: () => cancel(j)},
       ],
     });
   };
@@ -235,15 +247,15 @@ export default function Downloads({navigation}: NativeStackScreenProps<RootStack
     play: 'Play',
     title: 'Title page',
     retry: 'Try again',
+    another: 'Pick another version',
     remove: 'Remove from this list',
-    cancel: 'Cancel',
     confirmCancel: 'Cancel',
   };
   const menu = (j: MyDownload, list: DownloadAction[]) =>
     openActions({
       title: j.label || j.title || 'Download',
       sub: statusLine(j),
-      items: list.map(a => ({label: LABEL[a], danger: a === 'remove' || a === 'cancel' || a === 'confirmCancel', onPress: () => run(a, j)})),
+      items: list.map(a => ({label: LABEL[a], danger: a === 'remove' || a === 'confirmCancel', onPress: () => run(a, j)})),
     });
 
   let first = true;
@@ -310,7 +322,14 @@ export default function Downloads({navigation}: NativeStackScreenProps<RootStack
       <NavRail active="settings" />
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, {paddingBottom: safeBottom + spacing.xl}]}>
         <Text style={styles.h1}>My downloads</Text>
-        {mine.length ? <Text style={styles.hint}>Hold OK on a row for everything you can do with it.</Text> : null}
+        {mine.length ? <Text style={styles.summary}>{countLine(downloadCounts(mine))}</Text> : null}
+        {mine.length ? (
+          <Text style={styles.hint}>
+            {moving.some(j => j.status !== 'done') || waiting.length
+              ? 'Press OK on a download to cancel it — it asks first. Hold OK for everything else.'
+              : 'Hold OK on a row for everything you can do with it.'}
+          </Text>
+        ) : null}
         {jobs === null && !error ? <ActivityIndicator color={colors.text} style={{marginTop: spacing.xl, alignSelf: 'flex-start'}} /> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {jobs !== null && mine.length === 0 && others.length === 0 ? (
@@ -321,9 +340,9 @@ export default function Downloads({navigation}: NativeStackScreenProps<RootStack
             onAction={() => canNavigate(navigation) && navigation.goBack()}
           />
         ) : null}
-        {section('Ready to play', ready, true)}
         {section('On its way', moving, true)}
         {section('Waiting for approval', waiting, true)}
+        {section('Ready to play', ready, true)}
         {section("Didn't make it", failed, true)}
         {section('Also on the server', others, false)}
       </ScrollView>
@@ -337,6 +356,7 @@ const styles = StyleSheet.create({
   content: {paddingLeft: spacing.contentLeft, paddingRight: spacing.pageX, paddingTop: 27},
   h1: {color: colors.text, fontSize: fontSize.title, fontWeight: '900', marginTop: spacing.md},
   h2: {color: colors.text, fontSize: fontSize.row, fontWeight: '800', marginBottom: spacing.sm},
+  summary: {color: colors.text, fontSize: fontSize.body, fontWeight: '700', marginTop: 2},
   hint: {color: colors.textFaint, fontSize: fontSize.small, marginTop: 2},
   count: {color: colors.textFaint, fontSize: fontSize.small, fontWeight: '700'},
   section: {marginTop: spacing.lg, gap: spacing.sm},

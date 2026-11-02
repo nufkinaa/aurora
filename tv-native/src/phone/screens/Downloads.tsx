@@ -18,8 +18,8 @@ import {useApp} from '../../AppContext';
 import {canNavigate} from '../../navLock';
 import {isOpen, onMessage} from '../../realtime';
 import {showToast} from '../../toast';
-import {openActions} from '../../overlay';
-import {DownloadAction, downloadActions, isReady, rowStatus, startedBy} from '../../downloadsLogic';
+import {openActions, openReplace} from '../../overlay';
+import {cancelQuestion, countLine, DownloadAction, downloadActions, downloadCounts, isReady, rowStatus, startedBy} from '../../downloadsLogic';
 import {ACTIVE, fmtBytes, statusLine} from '../../downloadsWords';
 import {pushPhone, usePNav} from '../nav';
 import {BackBar, useColumn, useSolidBar} from '../ui/PageHead';
@@ -31,7 +31,7 @@ import {cancelOffline, removeOffline, Saved, useOffline, useOfflineUsage} from '
 import {ACTIVE_STATES, fmtSize, stateLine} from '../offline/rules';
 import {colors, GUTTER, radius} from '../theme';
 
-const LABEL: Record<DownloadAction, string> = {play: 'Play', title: 'Title page', retry: 'Try again', remove: 'Remove from this list', cancel: 'Cancel', confirmCancel: 'Cancel'};
+const LABEL: Record<DownloadAction, string> = {play: 'Play', title: 'Title page', retry: 'Try again', another: 'Pick another version', remove: 'Remove from this list', confirmCancel: 'Cancel'};
 
 function Row({pic, title, line, sub, pct, right, onPress, onLongPress, tone}: {pic?: string | null; title: string; line: string; sub?: string | null; pct?: number | null; right?: React.ReactNode; onPress?: () => void; onLongPress?: () => void; tone?: 'ok' | 'warn' | 'live'}) {
   const src = pic ? artSrc(pic, 60).src : null;
@@ -143,7 +143,7 @@ export default function Downloads() {
   };
   const retry = async (j: MyDownload) => {
     try {
-      const res = await api.requestDownload({infoHash: j.infoHash, fileIdx: j.fileIdx, type: j.type, imdbId: j.imdbId, title: j.title, label: j.label, poster: j.poster, quality: j.quality, sizeBytes: j.sizeBytes || 0, season: j.season || null, episode: j.episode || null, provider: j.provider || null, profile: profileId});
+      const res = await api.requestDownload({infoHash: j.infoHash, fileIdx: j.fileIdx, type: j.type, imdbId: j.imdbId, title: j.title, label: j.label, poster: j.poster, quality: j.quality, sizeBytes: j.sizeBytes || 0, season: j.season || null, episode: j.episode || null, provider: j.provider || null, release: j.release || null, profile: profileId});
       if (res.error) throw new Error(res.error);
       showToast(res.alreadyAvailable ? "Already yours — it's in the library" : res.duplicate ? 'That one is already on its way' : `Trying “${j.label || j.title}” again`, '⬇');
       api.downloadDismiss(j.id, profileId).catch(() => {});
@@ -162,18 +162,22 @@ export default function Downloads() {
     if (a === 'title') return openTitle(j);
     if (a === 'retry') return retry(j);
     if (a === 'remove') return remove(j);
-    if (a === 'cancel') return cancel(j);
+    if (a === 'another') {
+      if (j.replaces) openReplace({libraryId: j.replaces.libraryId, title: j.title || j.label || '', context: {title: j.title || j.label || '', itemId: j.replaces.libraryId}});
+      return;
+    }
+    const q = cancelQuestion(j);
     openActions({
-      title: `Cancel “${j.label || j.title}”?`,
-      sub: `It's ${Math.round((j.progress || 0) * 100)}% down. Cancelling throws that away; you can always ask for it again.`,
+      title: q.title,
+      body: q.body,
       items: [
-        {label: 'Keep going', onPress: () => {}},
-        {label: 'Cancel the download', danger: true, onPress: () => cancel(j)},
+        {label: q.keep, onPress: () => {}},
+        {label: q.yes, danger: true, onPress: () => cancel(j)},
       ],
     });
   };
   const menu = (j: MyDownload, list: DownloadAction[]) =>
-    openActions({title: j.label || j.title || 'Download', sub: statusLine(j), items: list.map(a => ({label: LABEL[a], danger: a === 'remove' || a === 'cancel' || a === 'confirmCancel', onPress: () => run(a, j)}))});
+    openActions({title: j.label || j.title || 'Download', sub: statusLine(j), items: list.map(a => ({label: LABEL[a], danger: a === 'remove' || a === 'confirmCancel', onPress: () => run(a, j)}))});
   const serverRow = (j: MyDownload, own: boolean) => {
     const acts = downloadActions(j, own);
     const pct = j.status === 'downloading' ? j.progress || 0 : null;
@@ -254,15 +258,16 @@ export default function Downloads() {
         {phone.map(phoneRow)}
 
         <Text style={s.h2}>My downloads</Text>
-        <Text style={s.hint}>What you asked the server to fetch. Tap a row; hold it for everything you can do.</Text>
+        {mine.length ? <Text style={s.summary}>{countLine(downloadCounts(mine))}</Text> : null}
+        <Text style={s.hint}>What you asked the server to fetch. Tap one on its way to cancel it (it asks first); hold a row for everything you can do.</Text>
         {error ? <Text style={s.err}>{error}</Text> : null}
         {jobs && !mine.length ? <Text style={s.empty}>Nothing yet. Tap Save next to any source on a title's page and it lands here.</Text> : null}
-        {ready.length ? <Text style={s.h3}>Ready to play</Text> : null}
-        {ready.map(j => serverRow(j, true))}
         {moving.length ? <Text style={s.h3}>On its way</Text> : null}
         {moving.map(j => serverRow(j, true))}
         {waiting.length ? <Text style={s.h3}>Waiting for approval</Text> : null}
         {waiting.map(j => serverRow(j, true))}
+        {ready.length ? <Text style={s.h3}>Ready to play</Text> : null}
+        {ready.map(j => serverRow(j, true))}
         {failed.length ? <Text style={s.h3}>Didn't make it</Text> : null}
         {failed.map(j => serverRow(j, true))}
         {others.length ? <Text style={s.h2}>Downloading for the rest of the house</Text> : null}
@@ -278,6 +283,7 @@ const s = StyleSheet.create({
   h1: {color: colors.text, fontSize: 32, fontWeight: '900', paddingHorizontal: GUTTER},
   h2: {color: colors.text, fontSize: 20, fontWeight: '800', paddingHorizontal: GUTTER, marginTop: 22},
   h3: {color: colors.textDim, fontSize: 13, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase', paddingHorizontal: GUTTER, marginTop: 14, marginBottom: 6},
+  summary: {color: colors.text, fontSize: 15, fontWeight: '800', paddingHorizontal: GUTTER, marginTop: 4},
   hint: {color: colors.textDim, fontSize: 14, paddingHorizontal: GUTTER, marginTop: 4, marginBottom: 10},
   empty: {color: colors.textDim, fontSize: 15, paddingHorizontal: GUTTER, paddingVertical: 12},
   err: {color: '#ffb3b3', fontSize: 15, paddingHorizontal: GUTTER},

@@ -4051,6 +4051,7 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
   cursor: pointer;
 }
 a.nav-menu-item { text-decoration: none; box-sizing: border-box; }
+.nav-menu-count { display: block; font-size: 0.74rem; font-weight: 500; color: var(--text-dim); margin-top: 1px; }
 .nav-menu-item:hover { background: var(--surface-hover); }
 .nav-menu-item.danger { color: #ff8296; }
 .nav-menu-item.danger:hover { background: rgba(224, 64, 80, 0.12); }

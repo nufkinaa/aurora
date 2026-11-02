@@ -49,6 +49,7 @@ import { heroBlock, watchlistButton } from "./details.js";
 import { warmPlay } from "../prefetch.js";
 import { pushScope, popScope } from "../focus.js";
 import { showDownloadPicker } from "../downloadPicker.js";
+import { askCancelDownload } from "../dlcancel.js";
 import { pickOfflineQuality } from "../offlinePicker.js";
 import { onMessage } from "../ws.js";
 import { attachHold } from "../peek.js";
@@ -358,6 +359,7 @@ export { EARLY_CONFIRM };
 // `job` is its current state; `best` is the ★ BEST pick, for the "why not
 // this one" line.
 const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
+  let jobNow = job;
   // ONE LINE PER SOURCE (redrawn 2026-10-06 — elia: "rework how the stream
   // options look… more aligned with all of our other design… tone down all
   // the unnecessary text"). A card reads left to right: the quality, what the
@@ -377,6 +379,8 @@ const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
   const save = async () => {
     if (dlBtn && dlBtn.disabled) return;
     haptic(10);
+    // your own download running from this row: a press asks to cancel it
+    if (jobNow && jobNow.mine && DL_ACTIVE.includes(jobNow.status)) return askCancelDownload(jobNow);
     // a cinema recording (or any pre-release copy): asked first
     if (!(await earlyOk(stream, "download"))) return;
     // Optimistic feedback until the first live update lands (a second or two).
@@ -478,7 +482,7 @@ const sourceRow = (stream, onPlay, onDownload, job, best = null) => {
 
   const wrap = el("div", { class: "src-card" + (stream.recommended ? " best" : "") + (owned ? " owned" : "") + (stream.cam ? " early" : ""), "data-early": stream.cam ? stream.prerelease || "cam" : null }, main, streamBtn, dlBtn);
   // Let the live WebSocket updates repaint this row's button in place.
-  wrap._paintDl = (j) => paintDl(dlBtn, j);
+  wrap._paintDl = (j) => { jobNow = j; paintDl(dlBtn, j); };
   return wrap;
 };
 
@@ -750,7 +754,8 @@ const requestDownload = async (stream, base, label, season, episode, { onStream 
 const dlKey = (j) => `${j.infoHash}:${j.fileIdx}`;
 const fetchDownloadStates = async () => {
   try {
-    const jobs = await api.downloads();
+    // (with the profile: each job then says whether it is this person's own)
+    const jobs = await api.downloads(state.profile && state.profile.id);
     const map = new Map();
     // Newest first from the server; keep the newest job per source.
     for (const j of jobs) if (!map.has(dlKey(j))) map.set(dlKey(j), j);
@@ -1431,6 +1436,8 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
   // says what happens next; the page follows the download and turns into
   // Play when it lands. Streaming is beside it, plain, for right now.
   let saveBtn = null;
+  let cancelBtn = null;
+  let cancelFor = null;
   let sourcesP = null; // set by the movie branch (loadSources' answer)
   const saveState = (job) => {
     if (!saveBtn) return;
@@ -1447,6 +1454,16 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     saveBtn.disabled = true;
     saveBtn.classList.add("busy", "dl-live");
     saveBtn.style.setProperty("--p", String(Math.max(0, Math.min(1, job.progress || 0))));
+    // yours: Cancel beside it, asked first (js/dlcancel.js)
+    cancelFor = job.id && job.mine ? job : null;
+    if (cancelFor && !cancelBtn && saveBtn.parentNode) {
+      cancelBtn = el("button", { "data-ui": "detail.download.cancel", class: "btn focusable", onclick: () => cancelFor && askCancelDownload(cancelFor) }, "Cancel download");
+      saveBtn.after(cancelBtn);
+    } else if (!cancelFor && cancelBtn) { cancelBtn.remove(); cancelBtn = null; }
+  };
+  const saveReset = () => {
+    cancelFor = null;
+    if (cancelBtn) { cancelBtn.remove(); cancelBtn = null; }
   };
   if (imdbId && !isShow && !lib && canSource) {
     saveBtn = el("button", { "data-ui": "detail.save",
@@ -2119,6 +2136,7 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       if (job.status !== "done") {
         if (DL_ACTIVE.includes(job.status)) saveState(job);
         else if (saveBtn && (job.status === "error" || job.status === "canceled" || job.status === "declined")) {
+          saveReset();
           saveBtn.disabled = false;
           saveBtn.classList.remove("busy", "dl-live");
           saveBtn.innerHTML = icons.download + "<span>Save &amp; watch</span>";

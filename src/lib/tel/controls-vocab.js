@@ -21,6 +21,7 @@ module.exports = {
   "card.remove": "w",
   "card.hh.add": "w", // household recommendations: the "+" on a recommended card
   // detail
+  "detail.download.cancel": "wtp",
   "detail.download.device": "w",
   "detail.episode.download": "w",
   "detail.episode.offline": "w",
@@ -61,6 +62,7 @@ module.exports = {
   // downloadpicker
   "downloadpicker.confirm": "w",
   // downloads
+  "downloads.another": "w",
   "downloads.cancel": "w",
   "downloads.open": "w",
   "downloads.play": "w",
@@ -203,7 +205,10 @@ module.exports = {
   "report.send": "wtp",
   // replace ("Problem with this copy? → Get another version")
   "replace.cancel": "wtp",
+  "replace.cancel.ask": "tp", // Cancel on "on its way": the next sheet asks (the site asks with its shared confirm sheet)
   "replace.early": "tp", // "Download it anyway" on a pre-release copy (the site asks with its shared confirm sheet)
+  "replace.next": "wtp", // the last try ended: Pick another version
+  "replace.other": "wtp", // the last try ended: Something else is wrong
   "replace.pick": "wtp",
   "replace.reason": "wtp",
   // row

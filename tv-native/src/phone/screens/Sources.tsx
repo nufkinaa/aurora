@@ -11,6 +11,7 @@ import {useRoute, RouteProp} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {api, DownloadJob, Stream, TorrentPlayItem} from '../../api';
 import {useApp} from '../../AppContext';
+import {cancelQuestion} from '../../downloadsLogic';
 import {fallbackSources, streamPlayItem} from '../../playBest';
 import {EARLY_CONFIRM, heroRelease, isEarly, ReleaseStatus, sourceBadge} from '../../releaseWords';
 import {openActions} from '../../overlay';
@@ -68,7 +69,7 @@ export default function Sources() {
 
   const pull = useCallback(async () => {
     try {
-      const list = await api.downloads();
+      const list = await api.myDownloads(profileId);
       const map = new Map<string, DownloadJob>();
       for (const j of list) if (!map.has(dlKey(j.infoHash, j.fileIdx))) map.set(dlKey(j.infoHash, j.fileIdx), j);
       for (const [k, j] of map) {
@@ -82,7 +83,7 @@ export default function Sources() {
     } catch {
       return false;
     }
-  }, []);
+  }, [profileId]);
   useEffect(() => {
     let live = true;
     let t: ReturnType<typeof setTimeout> | null = null;
@@ -130,6 +131,30 @@ export default function Sources() {
     item.alts = fallbackSources(streams, s).map(a => streamPlayItem(a, ctx));
     navigation.push('Player', {id: item.id, title, stream: item});
   };
+  // Your own download running from this row: the button cancels it, asked first.
+  const askCancelJob = (j: DownloadJob) => {
+    const q = cancelQuestion(j);
+    openActions({
+      title: q.title,
+      body: q.body,
+      items: [
+        {label: q.keep, onPress: () => {}},
+        {
+          label: q.yes,
+          danger: true,
+          onPress: () => {
+            api
+              .downloadCancel(j.id, profileId)
+              .then(() => {
+                showToast(`Cancelled “${j.label || j.title}”`, '🗑');
+                pull();
+              })
+              .catch(e => showToast((e as Error).message || "Couldn't cancel", '⚠️'));
+          },
+        },
+      ],
+    });
+  };
   const save = async (s: Stream) => {
     try {
       const res = await api.requestDownload({
@@ -144,6 +169,7 @@ export default function Sources() {
         sizeBytes: s.sizeBytes,
         provider: s.provider,
         seeders: s.seeders,
+        release: s.release || s.filename || null,
         season: season || undefined,
         episode: episode || undefined,
         profile: profileId,
@@ -194,9 +220,9 @@ export default function Sources() {
         ) : null}
         {s.badHere ? <Text style={st.bad}>{`Reported here: ${s.badHere.label}`}</Text> : null}
         <View style={st.btns}>
-          <Tap uiId="detail.source.download" onPress={() => askFirst(s, 'download', () => save(s))} style={st.save} accessibilityRole="button" accessibilityLabel={`Save ${s.qualityLabel || s.quality}`}>
+          <Tap uiId="detail.source.download" onPress={() => (job && job.mine && DL_ACTIVE.includes(job.status) ? askCancelJob(job) : askFirst(s, 'download', () => save(s)))} style={st.save} accessibilityRole="button" accessibilityLabel={`Save ${s.qualityLabel || s.quality}`}>
             <Icon name="download" size={18} color={colors.bg} />
-            <Text style={st.saveText}>{job?.status === 'done' ? 'Saved' : job && DL_ACTIVE.includes(job.status) ? 'Saving…' : 'Save'}</Text>
+            <Text style={st.saveText}>{job?.status === 'done' ? 'Saved' : job && job.mine && DL_ACTIVE.includes(job.status) ? 'Cancel' : job && DL_ACTIVE.includes(job.status) ? 'Saving…' : 'Save'}</Text>
           </Tap>
           <Tap uiId="detail.source.play" onPress={() => askFirst(s, 'play', () => play(s))} style={st.stream} accessibilityRole="button" accessibilityLabel={`Stream ${s.qualityLabel || s.quality}`}>
             <Icon name="play" size={16} color={colors.text} />

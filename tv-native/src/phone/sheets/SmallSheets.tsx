@@ -3,20 +3,19 @@
 //   Report a problem     a few words; where you are, what is playing and the last
 //                        errors this phone saw come along by themselves
 import React, {useState} from 'react';
-import {Platform, StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, Text, View} from 'react-native';
 import {api} from '../../api';
 import {resolvePartyRoute} from '../../party';
 import {track} from '../../usage';
 import {showToast} from '../../toast';
-import {playingContext, recentErrors} from '../../errors';
+import {playingContext} from '../../errors';
+import {clientContext} from '../../clientContext';
 import {currentRouteName, pushScreen, rootNav} from '../../rootNav';
-import {isOpen as socketOpen} from '../../realtime';
 import Sheet from '../ui/Sheet';
 import Field from '../ui/Field';
 import {GlassButton, PrimaryButton} from '../ui/Buttons';
 import {GUTTER} from '../theme';
 
-import {PHONE_APP_VERSION as PHONE_VERSION} from '../../update';
 
 export function JoinPartySheet({onClose}: {onClose: () => void}) {
   const [code, setCode] = useState('');
@@ -60,20 +59,14 @@ export function ReportSheet({hint, onClose}: {hint?: string; onClose: () => void
     setBusy(true);
     setErr('');
     const playing = playingContext();
-    const c = Platform.constants as {Model?: string; Release?: string};
     try {
       await api.report(
         `${text.trim()}${hint ? `\n\n(${hint})` : ''}`,
         {
+          ...clientContext(),
           route: `phone:${currentRouteName()}`,
           title: playing ? playing.title : null,
           itemId: playing ? playing.id : null,
-          look: 'phone',
-          ua: `Aurora for Android ${PHONE_VERSION} · Android ${c.Release || ''} · ${c.Model || 'phone'}`,
-          viewport: 'phone',
-          online: socketOpen(),
-          version: PHONE_VERSION,
-          errors: recentErrors(),
           startup: playing && playing.startup ? playing.startup() : null,
         },
         rootNav().profileName,
