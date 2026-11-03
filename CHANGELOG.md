@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.10 — 2026-11-03
+
+- **iPhone, opened from the Home Screen:** the search box, page headings and the profile menu no longer run under the buttons at the top. Search, Movies, Shows, My List, Settings, What's new, My downloads, Wrapped, Swipe your taste, the recommendation lists and the rest now sit the same distance below the buttons as they do in Safari.
+- **Readable over bright posters:** the small messages at the bottom and the phone's tab bar have a darker glass under them, so their words stay clear over any picture instead of smearing into colour. Messages wrap onto a second line when they need to.
+
 ## 1.15.9 — 2026-11-03
 
 **Downloads, rebuilt where it mattered.**
