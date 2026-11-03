@@ -671,6 +671,7 @@ export type MyDownload = DownloadJob & {
   // when a waiting job tries again, and the time left at its recent speed
   note?: string | null;
   retryAt?: string | null;
+  heldBack?: {since: string; for: string} | null;
   etaSec?: number | null;
 };
 

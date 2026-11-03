@@ -124,7 +124,9 @@ const episodeMatch = (f, season, episode) => {
   const s = Number(season);
   const e = Number(episode);
   if (!(s > 0) || !(e > 0)) return null;
-  const all = [...name.matchAll(/s(\d{1,2})[\s._-]*e(\d{1,3})(?:[\s._-]*e?(\d{1,3}))?/gi)];
+  // (a double episode is "E03E04", "E03-E04" or "E03-04" — never the
+  // ".1080" of "S01E02.1080p", which once read as episodes 2 to 108)
+  const all = [...name.matchAll(/s(\d{1,2})[\s._-]*e(\d{1,3})(?:(?:-?e|-)(\d{1,3})(?![\dp]))?/gi)];
   const x = [...name.matchAll(/(?:^|[^0-9a-z])(\d{1,2})x(\d{2,3})(?:[^0-9]|$)/gi)];
   if (!all.length && !x.length) return null;
   for (const m of all) {

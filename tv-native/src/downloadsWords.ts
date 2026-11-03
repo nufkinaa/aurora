@@ -42,6 +42,8 @@ export const statusLine = (j: MyDownload) => {
       const base =
         j.phase === 'finding' || j.phase === 'starting'
           ? 'Finding peers…'
+          : j.heldBack
+          ? `${Math.round((j.progress || 0) * 100)}%` // held back a moment: no trickle speed, no "23 h left"
           : [`${Math.round((j.progress || 0) * 100)}%`, j.downloadSpeed ? `${(j.downloadSpeed / 1e6).toFixed(1)} MB/s` : '', eta(j)]
               .filter(Boolean)
               .join(' · ');

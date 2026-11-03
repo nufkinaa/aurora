@@ -42,6 +42,7 @@ tools/ttff/.media/
 tools/ttff/.runs/
 .aurora-owner.json
 tools/stall-rig/.runs/
+tools/dl-rig/.runs/
 
 # /install page screenshots (tools/install-page): painted art, the made library, raw shots
 tools/install-page/.cache/

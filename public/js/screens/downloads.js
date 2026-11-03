@@ -88,7 +88,8 @@ const describeBase = (job) => {
       return {
         tone: "busy",
         head: `Downloading · ${pct}%`,
-        line: [fmtSpeed(job.downloadSpeed), eta(job), job.sizeBytes && fmtBytes(job.sizeBytes)].filter(Boolean).join(" · "),
+        // (held back for a moment: its trickle of a speed and "23 h left" would only mislead)
+        line: [!job.heldBack && fmtSpeed(job.downloadSpeed), !job.heldBack && eta(job), job.sizeBytes && fmtBytes(job.sizeBytes)].filter(Boolean).join(" · "),
       };
     }
     case "approved":

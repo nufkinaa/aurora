@@ -317,7 +317,7 @@ const findByInfoHash = async (infoHash) => {
   const wanted = String(infoHash).toLowerCase();
   const lists = await Promise.all([
     rpc("aria2.tellActive", [["gid", "infoHash", "files"]]).catch(() => []),
-    rpc("aria2.tellWaiting", [0, 50, ["gid", "infoHash", "files"]]).catch(() => []),
+    rpc("aria2.tellWaiting", [0, 1000, ["gid", "infoHash", "files"]]).catch(() => []),
   ]);
   for (const d of lists.flat()) {
     if (!d.infoHash || String(d.infoHash).toLowerCase() !== wanted) continue;
@@ -421,7 +421,7 @@ const removeByInfoHash = async (infoHash) => {
   const wanted = String(infoHash).toLowerCase();
   const lists = await Promise.all([
     rpc("aria2.tellActive", [["gid", "infoHash"]]).catch(() => []),
-    rpc("aria2.tellWaiting", [0, 50, ["gid", "infoHash"]]).catch(() => []),
+    rpc("aria2.tellWaiting", [0, 1000, ["gid", "infoHash"]]).catch(() => []),
   ]);
   let n = 0;
   for (const d of lists.flat()) {
@@ -460,6 +460,24 @@ const shutdown = () => {
 };
 // --stop-with-process covers a hard kill; this is the tidy path.
 process.on("exit", shutdown);
+
+// A server that is asked to stop (a restart, a deploy) lets aria2 stop
+// itself first: aria2.forceShutdown writes every unfinished download's
+// resume file (.aria2) on the way out, where a kill loses whatever came in
+// since the last periodic save (up to 30 s of each download — measured on
+// the rig: a clean restart at 30% carried on from 23%). lib/shutdown.js
+// gives the hooks a few seconds; the kill in shutdown() still follows.
+const stopTidy = async () => {
+  const child = proc;
+  if (!child) return;
+  try { await call("aria2.forceShutdown"); } catch { return shutdown(); }
+  await new Promise((r) => {
+    const t = setTimeout(r, 3000);
+    child.once("exit", () => { clearTimeout(t); r(); });
+  });
+  shutdown();
+};
+try { require("../lib/shutdown").register("download engine", stopTidy); } catch {}
 
 // ---------- global options (admin speed caps) ----------
 // The RPC methods are aria2.getGlobalOption / aria2.changeGlobalOption

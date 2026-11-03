@@ -84,6 +84,18 @@ test("files: a season pack — the episode by its SxxEyy, never the extras; doub
   assert.equal(F.checkFiles(f, { type: "show", season: 1, episode: 9, fileIndex: 1, sizeBytes: 1e9 }).verdict, "fake", "the episode is not in it at all");
 });
 
+test("files: episode numbers are read exactly — the 1080 of '1080p' is not an episode range (found on the rig)", () => {
+  const f = files(["Rig.Pack.S01E01.1080p.WEB.mkv", 50e6], ["Rig.Pack.S01E02.1080p.WEB.mkv", 50e6], ["Sample/rig.pack.s01e02.sample.mkv", 3e6]);
+  const v = F.checkFiles(f, { type: "show", season: 1, episode: 2, fileIndex: 3, sizeBytes: 50e6 });
+  assert.equal(v.verdict, "switch");
+  assert.equal(v.fileIndex, 2, "episode 2, not episode 1");
+  const E = F._internals.episodeMatch;
+  assert.equal(E({ path: "Show.S01E02.1080p.mkv" }, 1, 5), false);
+  assert.equal(E({ path: "Show.S01E03-04.720p.mkv" }, 1, 4), true);
+  assert.equal(E({ path: "Show.S01E03E04.mkv" }, 1, 4), true);
+  assert.equal(E({ path: "Show.1x05.HDTV.mkv" }, 1, 5), true);
+});
+
 test("files: a pack listed with the WHOLE pack's size is not called too small", () => {
   const f = files(["Show.S02E01.mkv", 1e9], ["Show.S02E02.mkv", 1e9], ["Show.S02E03.mkv", 1e9]);
   assert.equal(F.checkFiles(f, { type: "show", season: 2, episode: 2, fileIndex: 2, sizeBytes: 3e9 }).verdict, "ok");

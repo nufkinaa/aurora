@@ -622,3 +622,19 @@ test("a restart after a switch: the copies tried, the bytes set aside and the wa
   assert.equal(D.active.size, 1);
   assert.equal(engine.log.added.length, 1, "one download in the engine, not two");
 });
+
+test("aria2 reports a finished download as COMPLETE with 0 bytes per file (seed-time 0): it still lands", async () => {
+  await reset();
+  const A = HASH("a");
+  engine.define(A);
+  const j = downloads.create(movie(A)).job;
+  await flush();
+  engine.set(A, 1, 40000, { speed: 2e6, seeders: 3, connections: 3 });
+  await run(10);
+  assert.ok(jobOf(j.id).progress > 0.3);
+  // between two polls it finished — and the engine now says 0 of the file
+  engine.set(A, 1, 0, { state: "complete", speed: 0 });
+  await run(10);
+  await until(() => jobOf(j.id).status === "done", "the finished download to land");
+  assert.equal(libraryFiles(jobOf(j.id)).length, 1);
+});

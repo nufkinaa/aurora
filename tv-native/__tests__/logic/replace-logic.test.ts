@@ -22,7 +22,9 @@ const path = require('path');
 
 test('the five reasons are the server\'s, ids and labels letter for letter', () => {
   const src: string = fs.readFileSync(path.join(__dirname, '../../../src/media/badreleases.js'), 'utf8');
-  const server = [...src.matchAll(/\{ id: "([a-z]+)", label: "([^"]+)" \}/g)].map(m => ({id: m[1], label: m[2]}));
+  // (only the REASONS a person picks from — the server's own AUTO_REASONS, "dead" and "fake", follow it)
+  const block = src.slice(src.indexOf('const REASONS = ['), src.indexOf('];', src.indexOf('const REASONS = [')));
+  const server = [...block.matchAll(/\{ id: "([a-z]+)", label: "([^"]+)" \}/g)].map(m => ({id: m[1], label: m[2]}));
   expect(server.length).toBe(5);
   expect(REASONS).toEqual(server);
   expect(REASONS.map(r => r.label)).toEqual(['Burned-in subtitles', 'Bad picture', 'Bad sound', 'Wrong language', 'Other']);

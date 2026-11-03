@@ -1347,7 +1347,7 @@ const attemptFailed = (job, rec, att, message, code = null) => {
   // (three times at most: an engine that keeps saying "already there" while
   // nothing of ours is there is treated like any other failure)
   if (kind === "dup" && (job.dupTries = (job.dupTries || 0) + 1) <= 3) { requeue(job.id, message); return; }
-  switchSource(job, rec, {
+  switchNow(job, rec, {
     kind: kind === "broken" ? "fake" : "failed",
     why: kind === "broken" ? `the copy's data was damaged (${message})` : message,
   });
@@ -1521,6 +1521,21 @@ const poll = async () => {
         if (checkTorrentFiles(job, rec, att, st)) continue;
       }
 
+      // aria2 says the download is COMPLETE: every selected file is in and
+      // verified. With --seed-time=0 it then reports completedLength 0 for
+      // the files (measured on the rig, aria2 1.37: 28.6 MiB done while
+      // active, "0 of 28.6 MiB" once complete) — so a download that finished
+      // between two polls used to read as 0% and sit there for good.
+      if (st.state === "complete") {
+        const done = (st.files || []).find((x) => x.index === att.fileIndex && x.selected && x.length > 0);
+        if (done) {
+          const f = { ...done, completed: done.length, fraction: 1 };
+          sample(att, f, { ...st, downloadSpeed: 0 }, users.length, t, cfg);
+          claimWin(job, rec, att, f, st);
+          continue;
+        }
+      }
+
       const f = aria2.fileProgress(st, att.fileIndex);
       if (!f) continue;                       // torrent details not in yet
       sample(att, f, st, users.length, t, cfg);
@@ -1598,7 +1613,7 @@ const claimWin = (job, rec, att, file, engineStatus) => {
     rec.copying = false;
     if (e && e.quiet) return;
     // the bytes are all there and they are not the film: the next copy
-    if (e && e.fakeFile && active.get(job.id) === rec) return switchSource(job, rec, { kind: "fake", why: e.message });
+    if (e && e.fakeFile && active.get(job.id) === rec) return switchNow(job, rec, { kind: "fake", why: e.message });
     fail(job, errText(e));
   });
   return true;
@@ -2036,7 +2051,7 @@ const checkTorrentFiles = (job, rec, att, st) => {
       .catch((e) => console.warn(`[download] ${job.id.slice(0, 6)} could not change the file: ${errText(e)}`));
     return false;
   }
-  switchSource(job, rec, { kind: "fake", why: v.why });
+  switchNow(job, rec, { kind: "fake", why: v.why });
   return true;
 };
 
@@ -2104,7 +2119,7 @@ const healthTick = (t) => {
     if (v.state !== "stalled") att.availLowSince = 0;
     // dead: the next copy (unless a second source is already being raced —
     // that IS the next copy, media/dlrace.js)
-    if (v.state === "dead" && !rec.ch && !rec.raceBusy) switchSource(job, rec, { kind: "dead", why: v.why, code: v.code });
+    if (v.state === "dead" && !rec.ch && !rec.raceBusy) switchNow(job, rec, { kind: "dead", why: v.why, code: v.code });
   }
   shelveExcess(t);
   if (t - diskCheckedAt >= DISK_RECHECK_MS) { diskCheckedAt = t; diskRecheck(); }
@@ -2142,7 +2157,7 @@ const shelveExcess = (t) => {
     const job = findJob(id);
     if (!job) continue;
     if (t - rec.health.since >= Math.min(cfg.bytesDeadMs, cfg.metaDeadMs) / 2) {
-      switchSource(job, rec, { kind: "dead", why: rec.health.why || "nothing arrived" });
+      switchNow(job, rec, { kind: "dead", why: rec.health.why || "nothing arrived" });
       continue;
     }
     stopActive(id, "stalled, and the engine already carries enough stalled downloads — trying again in a few minutes");
@@ -2294,6 +2309,9 @@ const switchSource = async (job, rec, { kind, why }) => {
     rec.switching = false;
   }
 };
+// (fire and forget, never an unhandled rejection)
+const switchNow = (job, rec, opts) =>
+  switchSource(job, rec, opts).catch((e) => console.error(`[download] ${job.id.slice(0, 6)} could not move to another copy:`, errText(e)));
 // The copy given up on is not the job's own any more: its bytes go (unless a
 // sibling still wants them).
 const purgeAfterSwitch = (job, infoHash) => {
