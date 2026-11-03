@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.8 — 2026-11-03
+
+- **A simpler admin.** Every admin screen now opens with one answer: "Everything works", "Needs you" or "Down", with the reason and the fix, and five short lines (site, playback, streaming, disk, downloads). Minor warnings never turn it red; they wait behind "minor notes". Restart is at the top of every screen and asks first. People, password resets and held downloads waiting for you sit right under it. Everything else (stats, tables, logs, timings) is behind a closed Details, each with Copy for Claude, plus one Copy everything for Claude. The server page on a phone went from about 9,800 px tall to 1,100.
+- The downloads in flight no longer make the page jump: rows update in place.
+
 ## 1.15.7 — 2026-11-02
 
 From the household's reports — on the website, Aurora TV 5.8.3 and Aurora for Android phones 1.0.3.
