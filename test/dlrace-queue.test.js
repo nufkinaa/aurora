@@ -162,6 +162,7 @@ before(() => {
   engine = makeEngine(path.join(root, "staging"), S("media/aria2").fileProgress);
   D.setEngine(engine);
   D.seams.auto = false;
+  D.seams.probe = async () => null; // (the fake files are not films: ffprobe would call them fakes — test/dlv2-queue.test.js covers that)
   D.seams.clock = () => T;
   D.seams.load = () => load;
   D.seams.findSources = async (job) => { lookups++; const s = sources[job.imdbId]; if (!s) throw new Error("no such title"); return { imdbId: job.imdbId, streams: s }; };

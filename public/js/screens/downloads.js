@@ -41,9 +41,10 @@ const when = (iso) => {
 const fmtSpeed = (bps) => (bps > 0 ? `${(bps / 1e6).toFixed(1)} MB/s` : "");
 
 const eta = (job) => {
-  if (!job.sizeBytes || !job.downloadSpeed) return "";
-  const left = job.sizeBytes * (1 - (job.progress || 0));
-  const s = Math.round(left / job.downloadSpeed);
+  // the server's own figure first (its speed is smoothed and this file's share)
+  const known = Number.isFinite(job.etaSec) ? job.etaSec : null;
+  if (known == null && (!job.sizeBytes || !job.downloadSpeed)) return "";
+  const s = known != null ? Math.round(known) : Math.round((job.sizeBytes * (1 - (job.progress || 0))) / job.downloadSpeed);
   if (s < 60) return "under a minute left";
   if (s < 3600) return `${Math.round(s / 60)} min left`;
   return `${(s / 3600).toFixed(1)} h left`;
@@ -52,8 +53,11 @@ const eta = (job) => {
 // A second source is being tried beside the first (the server races the two
 // and keeps whichever finishes first). The card stays one card; it only says
 // so, quietly. `raceNote` is what is left when that could not help.
+// `note` is the server's plain sentence for what is going on (downloads v2:
+// "No one is sharing this copy right now — still looking", "Paused for a
+// moment — an episode someone is watching goes first").
 const raceNote = (job) =>
-  job.status !== "downloading" || job.phase === "copying" ? "" : job.race ? "trying a second source" : job.raceNote || "";
+  job.status !== "downloading" || job.phase === "copying" ? "" : job.note || (job.race ? "trying a second source" : job.raceNote || "");
 
 // One word for the state, and the line under the title. `tone` colours the
 // row's edge and the status dot: ok / busy / wait / bad.
@@ -88,6 +92,8 @@ const describeBase = (job) => {
       };
     }
     case "approved":
+      // waiting to try again: no copy could be found a moment ago
+      if (job.note && job.retryAt) return { tone: "wait", head: "Waiting for a copy", line: job.note };
       // one waiting because its account already has its share running
       if (job.accountLimit) return { tone: "wait", head: "Queued", line: `Starts when one of ${job.mine ? "your" : "their"} ${job.accountLimit} running downloads finishes` };
       return { tone: "wait", head: "Queued", line: "Starts when a download slot frees up" };
@@ -290,7 +296,7 @@ const row = (job, { others = false } = {}) => {
 // it, and only rows whose state actually changed are rebuilt.
 const rowCache = new Map(); // id -> { sig, node }
 const rowSig = (j, others) =>
-  [j.status, j.phase || "", j.libraryId || "", !!j.seenAt, j.error || "", j.holdReason || "", j.label || j.title, others, busy.has(j.id), j.by || "", !!j.replaceWait].join("|");
+  [j.status, j.phase || "", j.libraryId || "", !!j.seenAt, j.error || "", j.holdReason || "", j.label || j.title, others, busy.has(j.id), j.by || "", !!j.replaceWait, j.note || "", j.retryAt || ""].join("|");
 const rowFor = (j, others) => {
   const sig = rowSig(j, others);
   const hit = rowCache.get(j.id);

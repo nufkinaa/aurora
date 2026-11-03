@@ -73,12 +73,27 @@ const pickSource = (streams, quality) => {
   return (quality && pool.find((s) => s.quality === quality)) || pool.find((s) => s.recommended) || pool[0];
 };
 
+// While an episode plays, its next episode — if it is already in the
+// download queue (smart downloads, or the person asked for the season) —
+// goes first: "watching now" (media/dlprio.js) until a while after this
+// episode would end. Every progress report renews it, from the first minute;
+// no catalogue lookup, the queue itself is asked.
+const URGENT_TAIL_MS = 20 * 60 * 1000;
+const urgentUntil = (position, duration) => Date.now() + Math.max(0, duration - position) * 1000 + URGENT_TAIL_MS;
+
 const onProgress = async (profileId, itemId, position, duration, meta) => {
   if (!torrentgateLib().enabled()) return; // "torrents": false
-  if (!(duration > 0) || position / duration < THRESHOLD) return;
+  if (!(duration > 0)) return;
+  const early = position / duration < THRESHOLD;
+  // (an episode, being watched: the next one in the queue goes first)
+  const playing = position > 0 && position / duration < 0.98 ? episodeOf(itemId, meta) : null;
+  if (playing) {
+    try { downloads.urgentAfter(playing, urgentUntil(position, duration)); } catch (e) { console.warn("[smart] could not mark the next episode:", e && e.message); }
+  }
+  if (early) return;
   const profile = profiles.list().find((p) => p.id === profileId);
   if (!profile || (profile.prefs && profile.prefs.smartDownloads === false)) return;
-  const ep = episodeOf(itemId, meta);
+  const ep = playing || episodeOf(itemId, meta);
   if (!ep) return;
   const key = `${profileId}|${ep.imdbId}|${ep.season}|${ep.episode}`;
   const last = tried.get(key) || 0;
@@ -121,9 +136,14 @@ const onProgress = async (profileId, itemId, position, duration, meta) => {
     profile: profileId,
     profileName: profile.name,
     smart: true,
+    auto: "next",
   });
   if (r && r.error) return console.warn(`[smart] could not queue ${m.title} S${next.season}E${next.episode}: ${r.error}`);
   if (r && r.alreadyAvailable) return;
+  // …and it is wanted NOW: this person is watching the episode before it
+  if (r && r.job && position / duration < 0.98) {
+    try { downloads.markUrgent({ imdbId: ep.imdbId, season: next.season, episode: next.episode }, urgentUntil(position, duration), "the episode before it is playing"); } catch {}
+  }
   console.log(`[smart] queued ${m.title} S${next.season}E${next.episode} for ${profileId} (${pick.quality}, ${pick.seeders} seeders)`);
 };
 

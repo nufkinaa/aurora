@@ -26,6 +26,16 @@ router.get("/api/next-episode", async (req, res) => {
       year: q.year,
     });
     res.json(r);
+    // The player asks this while an episode plays: a next episode that is
+    // not on disk yet but IS in the download queue goes first now
+    // ("watching now", media/dlprio.js).
+    if (r && r.next && r.next.kind === "stream" && r.next.imdbId) {
+      try {
+        require("../media/downloads").markUrgent(
+          { imdbId: r.next.imdbId, season: r.next.season, episode: r.next.episode },
+          Date.now() + 45 * 60 * 1000, "the player's Up next is waiting for it");
+      } catch {}
+    }
   } catch {
     res.json({ next: null, why: "error" });
   }

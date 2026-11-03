@@ -666,6 +666,12 @@ export type MyDownload = DownloadJob & {
   replaceWait?: boolean;
   // who cancelled it: the person who asked, or the admin (null on older jobs)
   canceledBy?: 'self' | 'admin' | null;
+  // downloads v2 (server docs/downloads-v2.md): the plain sentence about what
+  // is happening ("No one is sharing this copy right now — trying another"),
+  // when a waiting job tries again, and the time left at its recent speed
+  note?: string | null;
+  retryAt?: string | null;
+  etaSec?: number | null;
 };
 
 // "Problem with this copy? → Get another version" (src/routes/replace.js).

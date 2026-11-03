@@ -127,7 +127,10 @@ before(() => {
   engine = makeEngine(path.join(root, "staging"), S("media/aria2").fileProgress);
   D.setEngine(engine);
   D.seams.auto = false;
+  D.seams.probe = async () => null; // (the fake files are not films: ffprobe would call them fakes — test/dlv2-queue.test.js covers that)
+  D.seams.findSources = async () => { throw new Error("no source lookups in this test"); };
   D.seams.clock = () => T;
+  D.seams.wall = () => Date.now() + wallShift;
   D.seams.load = () => ({ watching: 0, streams: 0 });
   R.seams.sources = async (s) => {
     const key = s.type === "show" ? `${s.imdbId}:${s.season}:${s.episode}` : s.imdbId;
@@ -152,6 +155,25 @@ after(async () => {
   }
   setTimeout(() => process.exit(process.exitCode || 0), 50).unref();
 });
+
+// Downloads v2: a copy that fails moves to the next copy, and with none left
+// it waits and tries again (media/downloads.js waitAndRetry) — played out
+// here to the end, where the job fails for good.
+let wallShift = 0;
+const failForGood = async (jobId, hash, why) => {
+  for (let i = 0; i < 20 && jobOf(jobId).status !== "error"; i++) {
+    const j = jobOf(jobId);
+    if (j.status === "approved" && j.retryAt) {
+      wallShift = Date.parse(j.retryAt) - Date.now() + 1000;
+      downloads.pumpNow();
+      await flush();
+    }
+    engine.fail(hash, why);
+    await D.poll();
+    await flush();
+  }
+  wallShift = 0;
+};
 
 // ---------- a library to replace things in ----------
 const A = HASH("a"), B = HASH("b"), C = HASH("c"), X = HASH("e");
@@ -447,6 +469,7 @@ test("how the last try ended stays with the copy until a new one is asked for, o
   const r = await ask(f.id, GROWN, B, "language");
   await flush();
   await D.poll();
+  await failForGood(r.body.job.id, B, "no peers");
   await until(() => jobOf(r.body.job.id).status === "error", "the replacement to fail");
   const v = replace.view(f.id, GROWN).body;
   assert.equal(v.last.status, "failed");
@@ -612,6 +635,7 @@ test("a failed replacement keeps the old copy (and the bad-release mark)", async
   engine.fail(B, "no peers at all");
   await D.poll();
   await flush();
+  await failForGood(r.body.job.id, B, "no peers at all");
   const job = jobOf(r.body.job.id);
   assert.equal(job.status, "error");
   assert.ok(fs.existsSync(f.file), "the old copy is where it was");
