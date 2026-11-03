@@ -3128,7 +3128,7 @@
     {
       const proto = Object.getOwnPropertyDescriptor(Element.prototype, "innerHTML");
       for (const id of ["#ov-now", "#ov-stats", "#ov-facts", "#clients", "#sv-stats", "#sv-torrents", "#sv-health", "#sv-health-events", "#mx-stats", "#mx-checks", "#mx-up", "#mx-slow", "#mx-limits",
-        "#en-stats", "#en-running", "#people-live", "#up-jobs", "#cp-groups", "#ml-rows", "#reports", "#requests", "#replacements", "#hl-checks", "#hl-repairs", "#hl-history", "#hl-events", "#ac-runs"]) {
+        "#en-stats", "#en-running", "#people-live", "#up-jobs", "#ml-rows", "#reports", "#requests", "#replacements", "#hl-checks", "#hl-repairs", "#hl-history", "#hl-events", "#ac-runs"]) {
         const el = $(id);
         if (!el) continue;
         Object.defineProperty(el, "innerHTML", {

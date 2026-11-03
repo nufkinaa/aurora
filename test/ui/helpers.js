@@ -313,6 +313,9 @@ const suite = (opts = {}) => {
           failure.message += `\n  artifacts: ${base}.png / .log`;
         } catch {}
       }
+      // (a page.route handler still waiting on route.fetch() when the page
+      // goes would reject after the test: let those go quietly)
+      await page.unrouteAll({ behavior: "ignoreErrors" }).catch(() => {});
       await context.close().catch(() => {});
       if (failure) throw failure;
     }]);

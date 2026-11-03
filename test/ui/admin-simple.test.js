@@ -204,6 +204,11 @@ ui.test("Copy for Claude: the state, one section, and everything — plain markd
   // (Windows hands the clipboard back with CRLF line ends)
   const clip = async () => (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
   const toasted = (re) => page.waitForFunction((src) => new RegExp(src).test(document.getElementById("toasts").innerText), re.source);
+  // the clipboard once it holds a text that starts with this heading
+  const clipStarting = async (head) => {
+    await page.waitForFunction(async (h) => (await navigator.clipboard.readText()).replace(/\r\n/g, "\n").startsWith(h), head, { timeout: 30000 });
+    return clip();
+  };
 
   await page.click('#sum [data-copy-for="summary"]');
   await toasted(/Copied for Claude/);
@@ -217,8 +222,7 @@ ui.test("Copy for Claude: the state, one section, and everything — plain markd
 
   await open(page, "downloads");
   await page.click('[data-copy-for="d-flight"]');
-  await toasted(/Copied for Claude/);
-  const d = await clip();
+  const d = await clipStarting("## Downloads in flight");
   assert.match(d, /^## Downloads in flight\n_Aurora admin · .+_\n\n\| title \| by \| state \| done \| size \| speed \| left \| note \|\n\|---\|/);
   assert.match(d, /\| The Long Film \(2021\) \| Anna \| downloading \| 31% \| 7\.6 GB \| 4\.1 MB\/s \| ~\d+m left \|  \|/);
   assert.match(d, /Waiting for approval:\n\| title \| by \| size \| why held \|[\s\S]*Big Film \(2024\) \| Anna \| 7\.6 GB \| Held back: under 10% free/);
