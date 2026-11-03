@@ -130,10 +130,12 @@ for (const look of ["glass", "legacy"]) {
       // the other guard: the logo mark is drawn without a filter, its glow is a layer under it
       assert.equal(m.markFilter, "none", `the logo mark itself is filtered (${m.markFilter})`);
       assert.match(m.glowFilter, /drop-shadow/, "the logo's glow is gone");
-      // the page heading moves with the controls (and, classic, below the status bar)
+      // the page heading moves with the controls: classic, the bar pads itself
+      // under the status bar; glass, the pills come down by (inset - 10) from
+      // the Home Screen, and the heading with them (iphone-content-clear.test.js)
       assert.ok(m.heading !== null, "no page heading");
       if (name === REF) headings[look] = m.heading;
-      else if (headings[look] != null) near(m.heading, headings[look] + wantGap + (look === "legacy" ? inset : 0), "the page heading's top");
+      else if (headings[look] != null) near(m.heading, headings[look] + wantGap + (look === "legacy" ? inset : Math.max(0, inset - 10)), "the page heading's top");
     });
   }
 }
