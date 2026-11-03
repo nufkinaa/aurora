@@ -328,7 +328,7 @@ The content is random bytes after a real one-frame-per-second MKV header, so ffp
 - All seven were one person's, so the 3-per-account limit applied. Titles 4–7 started the moment earlier ones stalled (at 3:01, 4:04, 4:12, 4:20). Before, they would have waited for good.
 
 **Slow but alive.** "Downloads at once" = 1: a copy at 30 KiB/s, with a fast one queued behind it.
-- With the first rule (slow after 3 + 5 min) the fast one started **8:00** later. The rule is now 2 + 3 min; the re-run number is below.
+- With the first rule (slow after 3 + 5 min) the fast one started **8:00** later. With the rule now in the code (2 + 3 min) it started **5:00** later and landed 4 s after that.
 - The slow one kept downloading ("Slow copy (about 30 KB/s) — other downloads go ahead meanwhile"), was never called dead, and kept its bytes.
 
 **The next episode while others download.** A 4 MB/s cap, two 1 GB films, and a 100 MB episode, three at once.
