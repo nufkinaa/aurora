@@ -2060,8 +2060,27 @@ html[data-look="glass"] .menu-item .tag {
 html[data-look="glass"] .toast.quiet {
   box-shadow: none;
   color: var(--text-dim);
-  background: rgba(14, 16, 28, 0.7);
+  background: rgba(14, 16, 28, 0.78);
   border-color: rgba(255, 255, 255, 0.06);
+}
+/* A toast keeps a dark floor under its sheen (elia's photo, 2026-11-03):
+   "Saving — the episode shows its progress" over a row of bright posters was
+   white words on a white-and-colour smear — the thin glass let the posters
+   through, and the blur saturated them. The floor is what this glass shows
+   over the night sky, strong enough for AA contrast over a white poster;
+   the blur keeps its radius and stops saturating. Its words wrap onto a
+   second line rather than run out of it. */
+html[data-look="glass"] .toast {
+  background: var(--g-fill), rgba(18, 20, 38, 0.8);
+  -webkit-backdrop-filter: blur(7px) saturate(1.2);
+  backdrop-filter: blur(7px) saturate(1.2);
+}
+html[data-look="glass"] .toast > span:first-child {
+  flex: none;
+}
+html[data-look="glass"] .toast > span {
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 /* ---------- glass that reads what is behind it (2026-10-04) ----------
@@ -3311,11 +3330,24 @@ html[data-look="glass"]:root .card.wide .card-progress {
      The top pills sit just under the island when the page runs full screen
      (and where they always were in a browser tab); the tab bar rides low,
      over the home-indicator strip rather than a whole inset above it. */
+  /* --nav-h is where the top controls end, and every screen places its
+     first content from it (headings, the Search field, What's new, Wrapped,
+     Taste, the title page, the profile menu …). The pills start at
+     max(10px, inset): from the Home Screen the page runs under the status
+     bar and they come down by (inset − 10px), so --nav-h comes down with
+     them. It carried only the island gap before, and on an island iPhone
+     opened from the Home Screen the Search field ran under the pills (elia's
+     photo, 2026-11-03). In a Safari tab and on Android the inset is 0 and
+     nothing moves. */
+  html[data-look="glass"]:root {
+    --nav-drop: max(0px, env(safe-area-inset-top, 0px) - 10px);
+    --nav-h: calc(68px + var(--top-gap, 0px) + var(--nav-drop)); /* (56px on a phone: below) */
+  }
   html[data-look="glass"]:root .nav {
     /* (--nav-h carries the island gap on a phone — tokens.css, responsive.css —
        and the pills come down by the same amount) */
     padding-top: calc(max(10px, env(safe-area-inset-top, 0px)) + var(--top-gap, 0px));
-    height: calc(var(--nav-h) + max(0px, env(safe-area-inset-top, 0px) - 10px));
+    height: var(--nav-h);
     /* Not a scroll box (responsive.css makes the classic strip one below
        860 px): this one is as wide as its three pills. As a scroller it
        clipped the pills' soft shadows into a hard dark rectangle behind them,
@@ -3358,6 +3390,29 @@ html[data-look="glass"]:root .card.wide .card-progress {
     left: max(12px, env(safe-area-inset-left, 0px));
     right: max(12px, env(safe-area-inset-right, 0px));
     bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) - 14px));
+  }
+  /* The tab bar keeps a dark floor under its sheen (elia's photo,
+     2026-11-03): over a row of bright posters the thin glass — a blur that
+     also saturates and brightens — turned into colourful smears, and the
+     labels (light or, where navTone.js flipped them, dark) were lost on
+     them. Now it is the colour this glass shows over the sky, blue at the
+     left and navy to the right, as the phone app paints its bar
+     (docs/android-phone/WEB-PARITY.md), strong enough for AA contrast over
+     a white poster, and the blur no longer saturates. Same blur radius, same
+     one layer: nothing new to draw. */
+  html[data-look="glass"]:root .nav-items {
+    background: var(--g-fill),
+      linear-gradient(90deg, rgba(14, 36, 90, 0.86), rgba(24, 30, 64, 0.85) 45%, rgba(16, 19, 42, 0.86));
+    -webkit-backdrop-filter: blur(7px) saturate(1.2);
+    backdrop-filter: blur(7px) saturate(1.2);
+  }
+  /* on that floor the words stay light, whatever is behind the bar */
+  html[data-look="glass"]:root .nav-items .nav-item[data-tone="light"]:not(:focus-visible) {
+    color: rgba(243, 244, 248, 0.82);
+  }
+  html[data-look="glass"]:root .nav-items .nav-item.active[data-tone="light"]:not(:focus-visible) {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.14);
   }
   html[data-look="glass"]:root #app {
     padding-bottom: 84px;
@@ -3612,6 +3667,13 @@ html[data-look="glass"]:root .card.wide .card-progress {
   /* X-Ray's portraits come down a size with everything else */
   .xr-person { flex-basis: 88px; }
   .xr-face { width: 68px; height: 68px; font-size: 1rem; }
+}
+@media (max-width: 600px) {
+  /* the phone's --nav-h (responsive.css: 56px + the island gap), plus how
+     far the pills come down under the status bar (above) */
+  html[data-look="glass"]:root {
+    --nav-h: calc(56px + var(--top-gap, 0px) + var(--nav-drop));
+  }
 }
 
 /* ---------- every card has an edge (2026-10-06) ----------
@@ -4972,4 +5034,17 @@ button.xr-person:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .person-sheet, .person-wrap, .person-viewer { animation: none; }
   .person-grid .card.pt-card:hover, .person-grid .card.pt-card:focus { transform: none; }
+}
+
+/* Reduced transparency (and a TV's browser): the toast and the phone tab bar
+   take the flat tint every other glass surface takes there (top of this
+   file); their own floors above come later in the file and would otherwise
+   win. */
+@media (prefers-reduced-transparency: reduce), (hover: none) and (pointer: coarse) and (min-width: 1200px) {
+  html[data-look="glass"]:root .toast,
+  html[data-look="glass"]:root .nav-items {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgba(18, 20, 34, 0.9);
+  }
 }
