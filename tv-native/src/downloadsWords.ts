@@ -20,8 +20,10 @@ export const when = (iso?: string | null) => {
   return new Date(t).toLocaleDateString();
 };
 export const eta = (j: MyDownload) => {
-  if (!j.sizeBytes || !j.downloadSpeed) return '';
-  const s = Math.round((j.sizeBytes * (1 - (j.progress || 0))) / j.downloadSpeed);
+  // the server's own figure first (its speed is smoothed and this file's share)
+  const known = typeof j.etaSec === 'number' && Number.isFinite(j.etaSec) ? j.etaSec : null;
+  if (known == null && (!j.sizeBytes || !j.downloadSpeed)) return '';
+  const s = known != null ? Math.round(known) : Math.round(((j.sizeBytes || 0) * (1 - (j.progress || 0))) / (j.downloadSpeed || 1));
   if (s < 60) return 'under a minute';
   if (s < 3600) return `${Math.round(s / 60)} min left`;
   return `${(s / 3600).toFixed(1)} h left`;
@@ -35,15 +37,22 @@ export const statusLine = (j: MyDownload) => {
   switch (j.status) {
     case 'done':
       return j.libraryId ? `Ready · ${when(j.doneAt)}` : 'Finished — indexing…';
-    case 'downloading':
-      return j.phase === 'copying'
-        ? `Copying into the library · ${Math.round((j.copyProgress || 0) * 100)}%`
-        : j.phase === 'finding' || j.phase === 'starting'
-        ? 'Finding peers…'
-        : [`${Math.round((j.progress || 0) * 100)}%`, j.downloadSpeed ? `${(j.downloadSpeed / 1e6).toFixed(1)} MB/s` : '', eta(j)]
-            .filter(Boolean)
-            .join(' · ');
+    case 'downloading': {
+      if (j.phase === 'copying') return `Copying into the library · ${Math.round((j.copyProgress || 0) * 100)}%`;
+      const base =
+        j.phase === 'finding' || j.phase === 'starting'
+          ? 'Finding peers…'
+          : j.heldBack
+          ? `${Math.round((j.progress || 0) * 100)}%` // held back a moment: no trickle speed, no "23 h left"
+          : [`${Math.round((j.progress || 0) * 100)}%`, j.downloadSpeed ? `${(j.downloadSpeed / 1e6).toFixed(1)} MB/s` : '', eta(j)]
+              .filter(Boolean)
+              .join(' · ');
+      // what the server says is going on ("No one is sharing this copy right now — trying another")
+      return j.note ? `${base} · ${j.note}` : base;
+    }
     case 'approved':
+      // waiting to try again: no copy could be found a moment ago
+      if (j.note && j.retryAt) return j.note;
       if (j.accountLimit) return `Queued — starts when one of ${j.mine ? 'your' : 'their'} ${j.accountLimit} running downloads finishes`;
       return 'Queued — starts when a slot frees up';
     case 'pending':

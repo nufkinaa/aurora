@@ -37,10 +37,10 @@ test("hold while people watch: never more than two started, and only when the se
 });
 
 test("the engine plan: room for the setting plus a race plus metadata, fewer peers per torrent as more run", () => {
-  assert.deepEqual(slots.enginePlan(2, 1), { maxConcurrent: 5, btMaxPeers: 100 });
-  assert.deepEqual(slots.enginePlan(4, 1), { maxConcurrent: 7, btMaxPeers: 90 });
-  assert.deepEqual(slots.enginePlan(6, 1), { maxConcurrent: 9, btMaxPeers: 60 }, "about 60 at six");
-  assert.deepEqual(slots.enginePlan(6, 0), { maxConcurrent: 8, btMaxPeers: 60 });
+  assert.deepEqual(slots.enginePlan(2, 1), { maxConcurrent: 11, btMaxPeers: 100 });
+  assert.deepEqual(slots.enginePlan(4, 1), { maxConcurrent: 13, btMaxPeers: 90 });
+  assert.deepEqual(slots.enginePlan(6, 1), { maxConcurrent: 15, btMaxPeers: 60 }, "about 60 at six");
+  assert.deepEqual(slots.enginePlan(6, 0), { maxConcurrent: 14, btMaxPeers: 60 });
   for (let n = 1; n <= 6; n++) {
     const p = slots.enginePlan(n, 1);
     assert.ok(p.maxConcurrent > n + 1, "the setting and a challenger always fit");

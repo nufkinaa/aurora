@@ -72,6 +72,7 @@ const checkOne = async (profile, follow) => {
       profile: profile.id,
       profileName: profile.name,
       smart: true,
+      auto: "follow", // background: nobody is waiting for it this minute (media/dlprio.js)
     });
     if (r && r.error) {
       console.warn(`[follow] could not queue ${m.title} S${ep.season}E${ep.episode}: ${r.error}`);

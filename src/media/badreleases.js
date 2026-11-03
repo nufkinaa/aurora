@@ -12,8 +12,10 @@
 // Written by "Get another version" (media/replace.js) when the request is
 // made; a CANCELLED replacement takes its entry back out (cancel leaves
 // everything as it was), a failed one keeps it (the copy was still bad).
-// Entries do not expire: a release with subtitles burned into the picture
-// does not get better.
+// A person's entries do not expire: a release with subtitles burned into the
+// picture does not get better. The download queue files copies too, by
+// itself (`auto: true`, AUTO_REASONS): a fake or broken file for good, a copy
+// nobody was sharing ("dead") for DEAD_DAYS (`exp`) — swarms come back.
 "use strict";
 const path = require("path");
 const config = require("../config");
@@ -31,8 +33,18 @@ const REASONS = [
   { id: "language", label: "Wrong language" },
   { id: "other", label: "Other" },
 ];
-const reasonLabel = (id) => (REASONS.find((r) => r.id === id) || REASONS[REASONS.length - 1]).label;
+// What the SERVER files by itself when a copy will not download
+// (media/downloads.js, media/dlfallback.js) — never offered to a person as a
+// reason to pick. A dead swarm can come back, so "dead" expires (DEAD_DAYS);
+// a fake or broken file does not get better.
+const AUTO_REASONS = [
+  { id: "dead", label: "No one was sharing it" },
+  { id: "fake", label: "Fake or broken file" },
+];
+const DEAD_DAYS = 3;
+const reasonLabel = (id) => ([...REASONS, ...AUTO_REASONS].find((r) => r.id === id) || REASONS[REASONS.length - 1]).label;
 const validReason = (id) => REASONS.some((r) => r.id === id);
+const validAutoReason = (id) => AUTO_REASONS.some((r) => r.id === id);
 
 const lc = (s) => String(s || "").toLowerCase();
 // Release names compare without case, dots, dashes or spaces — the same
@@ -41,7 +53,9 @@ const lc = (s) => String(s || "").toLowerCase();
 const relKey = (s) => lc(s).replace(/[^a-z0-9]+/g, "");
 const data = () => (store.data && typeof store.data === "object" && !Array.isArray(store.data) ? store.data : (store.data = {}));
 
-const forTitle = (key) => (key && Array.isArray(data()[lc(key)]) ? data()[lc(key)] : []);
+// (an entry with `exp` in the past is as good as gone)
+const live = (e, now = Date.now()) => !!e && !(e.exp && e.exp <= now);
+const forTitle = (key, now = Date.now()) => (key && Array.isArray(data()[lc(key)]) ? data()[lc(key)].filter((e) => live(e, now)) : []);
 
 // The entry that marks this source bad for the title, or null.
 const match = (key, src) => {
@@ -52,15 +66,26 @@ const match = (key, src) => {
   return list.find((e) => (e.h && h && e.h === h) || (e.r && r && e.r === r)) || null;
 };
 
-const record = (key, { infoHash, release, reason, by, byName, rid } = {}, now = Date.now()) => {
+// `auto`: the server filing a copy that would not download ("dead", "fake");
+// a person's report never passes it.
+const record = (key, { infoHash, release, reason, by, byName, rid, auto = false } = {}, now = Date.now()) => {
   if (!key || (!infoHash && !release)) return false;
+  const why = auto && validAutoReason(reason) ? reason : validReason(reason) ? reason : "other";
   const k = lc(key);
   const d = data();
   const list = Array.isArray(d[k]) ? d[k] : [];
   const h = infoHash ? lc(infoHash) : null;
   const r = release ? relKey(release) : null;
-  const rest = list.filter((e) => !((h && e.h === h) || (r && e.r === r)));
-  rest.unshift({ h, r, rel: release ? String(release).slice(0, 200) : null, why: validReason(reason) ? reason : "other", at: now, by: by || null, byName: byName || null, rid: rid || null });
+  // A person's report is never overwritten by the server's own "dead" mark
+  // (theirs says more, and does not expire).
+  const prev = list.find((e) => (h && e.h === h) || (r && e.r === r));
+  if (auto && prev && live(prev, now) && !prev.auto) return false;
+  const rest = list.filter((e) => !((h && e.h === h) || (r && e.r === r)) && live(e, now));
+  rest.unshift({
+    h, r, rel: release ? String(release).slice(0, 200) : null, why, at: now, by: by || null, byName: byName || null, rid: rid || null,
+    ...(auto ? { auto: true } : {}),
+    ...(auto && why === "dead" ? { exp: now + DEAD_DAYS * 86400e3 } : {}),
+  });
   d[k] = rest.slice(0, PER_TITLE);
   const keys = Object.keys(d);
   if (keys.length > MAX_TITLES) {
@@ -116,4 +141,4 @@ const apply = (key, streams) => {
   return out;
 };
 
-module.exports = { REASONS, reasonLabel, validReason, forTitle, match, record, unrecord, apply, _internals: { store, relKey } };
+module.exports = { REASONS, AUTO_REASONS, DEAD_DAYS, reasonLabel, validReason, forTitle, match, record, unrecord, apply, _internals: { store, relKey } };

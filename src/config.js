@@ -184,6 +184,16 @@ module.exports = {
   // (the names are dlrace.DEFAULTS'). Passed through as written; dlrace's
   // resolveConfig() is what reads it.
   DOWNLOAD_RACE: userConfig.downloadRace,
+  // Downloads v2 (docs/downloads-v2.md). Each is an object of overrides by
+  // name, read by its module's resolveConfig(); unset = the defaults.
+  //   downloadHealth    when a download is stalled / dead (media/dlhealth.js)
+  //   downloadPriority  classes, ageing, pre-empting (media/dlprio.js)
+  //   downloadEngine    aria2's own options (media/aria2.js engineArgs):
+  //                     { listenPort, dhtListenPort, dht, peerExchange, trackers,
+  //                       excludeTrackers, fileAllocation, diskCache, peerSpeedTarget }
+  DOWNLOAD_HEALTH: userConfig.downloadHealth,
+  DOWNLOAD_PRIORITY: userConfig.downloadPriority,
+  DOWNLOAD_ENGINE: userConfig.downloadEngine && typeof userConfig.downloadEngine === "object" ? userConfig.downloadEngine : {},
   NOTIFICATIONS: userConfig.notifications || {},
   // ---- password reset by email (auth-round; lib/mailer.js) — off unless set ----
   // `publicUrl`: where links sent by email point (never a request's Host).

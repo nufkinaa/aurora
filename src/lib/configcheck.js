@@ -57,6 +57,9 @@ const SCHEMA = {
   prewarmStreams: [T.bool, "true"],
   downloadMinFreePercent: [T.num(0, 100), "10"],
   downloadRace: [(v) => (v === false || v === true || isObj(v) ? null : "must be false or an object { … }"), "on, with its defaults"],
+  downloadHealth: [T.objOrNull, "the built-in stall rules (docs/downloads-v2.md)"],
+  downloadPriority: [T.objOrNull, "the built-in priority and pre-empting rules (docs/downloads-v2.md)"],
+  downloadEngine: [T.objOrNull, "aria2's options as Aurora sets them (docs/downloads-v2.md)"],
   notifications: [(v) => {
     if (!isObj(v)) return "must be an object { … }";
     for (const k of Object.keys(v)) if (!["ntfy", "telegram"].includes(k)) return `has "${k}": only "ntfy" and "telegram" are read`;

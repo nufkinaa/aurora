@@ -29,6 +29,12 @@ const PEERS_MIN = 55;
 // aria2 counts a magnet's metadata fetch as a download of its own for a few
 // seconds; without headroom a fresh add would sit "waiting" behind real ones.
 const METADATA_HEADROOM = 2;
+// Downloads v2 (docs/downloads-v2.md): a stalled download keeps looking for
+// peers inside the engine without holding a slot — up to PARKED_LIVE of them
+// at once (beyond that one is taken out and tried again later) — and a
+// "watching now" download may run NOW_EXTRA past the setting (media/dlprio.js).
+const PARKED_LIVE = 4;
+const NOW_EXTRA = 2;
 
 // What an admin typed → a whole number in range, or null (refused).
 const parseMaxActive = (v) => {
@@ -55,7 +61,7 @@ const enginePlan = (maxActive, maxRaces = 1) => {
   const max = effectiveMaxActive(maxActive);
   const races = Math.max(0, Math.min(4, Math.floor(Number(maxRaces) || 0)));
   return {
-    maxConcurrent: max + races + METADATA_HEADROOM,
+    maxConcurrent: max + races + METADATA_HEADROOM + PARKED_LIVE + NOW_EXTRA,
     btMaxPeers: Math.max(PEERS_MIN, Math.min(PEERS_MAX, Math.floor(PEER_BUDGET / max))),
   };
 };
@@ -109,7 +115,7 @@ const plan = ({ cap, running = [], waiting = [], perOwner = PER_OWNER }) => {
 };
 
 module.exports = {
-  MIN_ACTIVE, MAX_ACTIVE, DEFAULT_ACTIVE, WATCH_HOLD,
+  MIN_ACTIVE, MAX_ACTIVE, DEFAULT_ACTIVE, WATCH_HOLD, PARKED_LIVE, NOW_EXTRA,
   parseMaxActive, effectiveMaxActive, startCap, enginePlan,
   TIER_PERSON, TIER_AUTO, tierOf, plan, PER_OWNER,
 };

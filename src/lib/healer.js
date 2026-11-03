@@ -394,6 +394,15 @@ const checkDownloads = async () => {
   for (const a of q.active) {
     const why = stallReason(a.job, a.rec, now);
     if (!why) continue;
+    // Downloads v2: the queue judges its own stalls (media/dlhealth.js) — a
+    // stalled copy stops holding a slot, a dead one moves to the next copy.
+    // Restarting it here with the SAME copy is what kept dead downloads
+    // looping for hours; the healer only says what it sees.
+    if (q.healthManaged && a.rec && a.rec.health) {
+      notes.push(`“${a.job.label || a.job.title}” ${why} — the queue is handling it (${a.rec.health.state}${a.rec.health.holdsSlot === false ? ", not holding a slot" : ""})`);
+      status = "warn";
+      continue;
+    }
     if (downloads.restartJob(a.job.id, why)) {
       healed.push(`restarted “${a.job.label || a.job.title}” (${why})`);
       note("download restarted", `“${a.job.label || a.job.title}” — ${why}`);

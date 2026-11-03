@@ -135,4 +135,46 @@ ui.test("the list is read again by itself after a failed read, and fills My down
   assert.equal(await page.locator(".dl-empty").count(), 0, "not the empty page");
 });
 
+// Downloads v2 (docs/downloads-v2.md): the server's plain sentence (`note`)
+// on the card, "Waiting for a copy" between rounds, the server's own
+// time left (`etaSec`) — at desktop and phone width.
+ui.test("downloads v2: a stalled copy, another copy, held back, waiting for a copy — said in words on the card", async ({ page, goto, signIn, freshProfile }) => {
+  const shots = require("path").join(require("os").tmpdir(), "aurora-agents", "downloads-v2", "shots");
+  require("fs").mkdirSync(shots, { recursive: true });
+  const jobs = [
+    job({ id: "a1a1a1a1a1a1", title: "Stalled Film", label: "Stalled Film", phase: "starting", progress: 0, downloadSpeed: 0, peers: 0, note: "No one is sharing this copy right now — still looking", health: { state: "stalled", code: "no-peers", countsAsRunning: false } }),
+    job({ id: "b2b2b2b2b2b2", title: "Switched Film", label: "Switched Film", progress: 0.31, note: "No one was sharing that copy — now trying another (1080p · 1.4 GB)", etaSec: 125 }),
+    job({ id: "c3c3c3c3c3c3", title: "Held Film", label: "Held Film", progress: 0.5, downloadSpeed: 24000, note: "Paused for a moment — an episode someone is watching goes first", heldBack: { since: new Date().toISOString(), for: "Show · S1 E3" } }),
+    job({ id: "d4d4d4d4d4d4", title: "Waiting Film", label: "Waiting Film", status: "approved", phase: null, progress: 0, note: "No one is sharing any copy of this right now (3 copies tried) — trying again in about 30 min", retryAt: new Date(Date.now() + 30 * 60e3).toISOString() }),
+  ];
+  await page.route((url) => url.pathname === "/api/downloads", (route) => route.fulfill({ json: jobs }));
+  await signIn(await freshProfile());
+  await goto("#/downloads");
+  await page.waitForSelector('.dl-row[data-id="d4d4d4d4d4d4"]');
+  const text = (id) => page.locator(`.dl-row[data-id="${id}"]`).innerText();
+  assert.match(await text("a1a1a1a1a1a1"), /No one is sharing this copy right now — still looking/);
+  const sw = await text("b2b2b2b2b2b2");
+  assert.match(sw, /Downloading · 31%/);
+  assert.match(sw, /2 min left/, "the server's own time left");
+  assert.match(sw, /No one was sharing that copy — now trying another \(1080p · 1\.4 GB\)/);
+  const held = await text("c3c3c3c3c3c3");
+  assert.match(held, /Paused for a moment — an episode someone is watching goes first/);
+  assert.doesNotMatch(held, /MB\/s|left/, "no trickle speed or time left while held back");
+  const w = await text("d4d4d4d4d4d4");
+  assert.match(w, /Waiting for a copy/);
+  assert.match(w, /3 copies tried\) — trying again in about 30 min/);
+  await page.waitForTimeout(1500); // (the page's entry animation)
+  const list = page.locator('.dl-row[data-id="a1a1a1a1a1a1"]').locator("xpath=..");
+  await list.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: require("path").join(shots, "downloads-v2-desktop.png") });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(1200);
+  await list.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: require("path").join(shots, "downloads-v2-phone.png") });
+  // nothing wider than the phone
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "no sideways scroll on a phone");
+});
+
 ui.run({ concurrency: 1 });

@@ -102,6 +102,7 @@ before(() => {
   engine = makeEngine(S("media/aria2").fileProgress);
   D.setEngine(engine);
   D.seams.auto = false;
+  D.seams.probe = async () => null; // (the fake files are not films: ffprobe would call them fakes — test/dlv2-queue.test.js covers that)
   D.seams.clock = () => T;
   D.seams.load = () => ({ watching: 0, streams: 0 });
   D.seams.findSources = async () => { throw new Error("no second sources in this test"); };

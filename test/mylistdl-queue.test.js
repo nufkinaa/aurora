@@ -93,6 +93,7 @@ before(async () => {
     applyEnginePlan: async () => ({ applied: true }),
   });
   D.seams.auto = false;
+  D.seams.probe = async () => null; // (the fake files are not films: ffprobe would call them fakes — test/dlv2-queue.test.js covers that)
   D.seams.load = () => ({ watching: 0, streams: 0 });
   D.seams.findSources = async (...a) => { lookups.push(a); return { streams: [] }; };
   mylist._internals.use({ now: () => T });

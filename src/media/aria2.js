@@ -52,29 +52,71 @@ const enginePlan = () => {
 let proc = null;
 let startup = null;
 
-const spawnDaemon = () => {
-  const plan = enginePlan();
-  const args = [
+// The engine's options, as one list. Pure (tested): `plan` is enginePlan(),
+// `eng` config.json's "downloadEngine" (docs/downloads-v2.md), `dataDir` and
+// `platform` where it runs.
+//
+// What was chosen, and why (measured on the local rig, tools/dl-rig/):
+//   * --seed-time=0: Aurora is not a seedbox. It still uploads while it
+//     downloads (that is how a swarm trades); it stops the moment the file
+//     is complete. --bt-detach-seed-only keeps a torrent that is only
+//     seeding from ever holding one of the engine's download places.
+//   * --disk-cache=64M: fewer, larger writes (aria2's default is 16M); the
+//     server has 16 GB of memory and this is shared by every download.
+//   * --auto-save-interval=10: the resume file (.aria2) every 10 s instead of
+//     60. A kill — the engine dying, the server crashing, a restart that could
+//     not stop it tidily — loses what came in since the last save: measured on
+//     the rig at 3 MB/s, a download killed at 30% came back at 10-18% with 30 s.
+//   * --file-allocation: "none" unless downloadEngine.fileAllocation says
+//     otherwise. "falloc" is instant on ext4/NVMe and catches a full disk
+//     at the start instead of in the middle; it is left to the admin because
+//     it has not been measured on the production file system with a season
+//     pack of which only one episode is wanted.
+//   * --bt-request-peer-speed-limit: aria2 keeps asking for more peers while
+//     a torrent is slower than this. 10M (the old value) suits a household
+//     line; downloadEngine.peerSpeedTarget raises it on a 2.5 Gbit server.
+//   * the listening port: fixed when downloadEngine.listenPort is set — a
+//     port the firewall lets in makes this server reachable to peers that
+//     cannot be called, which is often half a public swarm.
+const engineArgs = ({ plan, eng = {}, dataDir, port = PORT, secret = SECRET, stagingRoot = STAGING_ROOT, pid = process.pid }) => {
+  const list = (v) => (Array.isArray(v) ? v : String(v || "").split(/[\s,]+/)).map((x) => String(x).trim()).filter(Boolean);
+  const alloc = ["none", "prealloc", "trunc", "falloc"].includes(eng.fileAllocation) ? eng.fileAllocation : "none";
+  const speed = /^\d+[KM]?$/i.test(String(eng.peerSpeedTarget || "")) ? String(eng.peerSpeedTarget) : "10M";
+  const cache = /^\d+[KM]?$/i.test(String(eng.diskCache || "")) ? String(eng.diskCache) : "64M";
+  const lport = Number(eng.listenPort);
+  const dport = Number(eng.dhtListenPort || eng.listenPort);
+  const dht = eng.dht !== false;
+  const trackers = list(eng.trackers);
+  return [
     "--enable-rpc",
     "--rpc-listen-all=false",              // localhost only
-    `--rpc-listen-port=${PORT}`,
-    `--rpc-secret=${SECRET}`,
-    `--dir=${STAGING_ROOT}`,
-    `--stop-with-process=${process.pid}`,  // no orphan if the server dies (Windows has no process groups; works on Linux too)
+    `--rpc-listen-port=${port}`,
+    `--rpc-secret=${secret}`,
+    `--dir=${stagingRoot}`,
+    `--stop-with-process=${pid}`,          // no orphan if the server dies (Windows has no process groups; works on Linux too)
     "--continue=true",                     // resume from the staging bytes after a restart
     "--seed-time=0",                       // we are not a seedbox
+    "--bt-detach-seed-only=true",          // …and a seeding torrent never holds a download place
     "--bt-save-metadata=true",             // cache the .torrent…
     "--bt-load-saved-metadata=true",       // …so a second episode of a pack skips the metadata hunt
-    "--file-allocation=none",              // preallocating a 4 GB pack stalls the add on Windows
+    `--file-allocation=${alloc}`,          // "none": preallocating a 4 GB pack stalls the add on Windows
+    `--disk-cache=${cache}`,
+    "--auto-save-interval=10",            // the resume file every 10 s: a crash or a kill loses at most 10 s of each download
     // Keep the DHT routing table between runs. Without a path aria2 looks for
     // one in ~/.cache and logs "Failed to load DHT routing table" on every
     // start, beginning each boot with an empty table; persisting it lets peer
     // discovery warm up instead of starting cold every time.
-    `--dht-file-path=${path.join(config.DATA_DIR, "aria2", "dht.dat")}`,
-    `--dht-file-path6=${path.join(config.DATA_DIR, "aria2", "dht6.dat")}`,
-    "--enable-dht=true",
-    "--dht-entry-point=router.bittorrent.com:6881",
-    "--summary-interval=0",                // no periodic console noise
+    `--dht-file-path=${path.join(dataDir, "aria2", "dht.dat")}`,
+    `--dht-file-path6=${path.join(dataDir, "aria2", "dht6.dat")}`,
+    `--enable-dht=${dht}`,
+    ...(dht ? ["--dht-entry-point=router.bittorrent.com:6881"] : ["--enable-dht6=false"]),
+    ...(eng.peerExchange === false ? ["--enable-peer-exchange=false"] : []),
+    ...(lport > 0 && lport < 65536 ? [`--listen-port=${lport}`] : []),
+    ...(dport > 0 && dport < 65536 ? [`--dht-listen-port=${dport}`] : []),
+    ...(trackers.length ? [`--bt-tracker=${trackers.join(",")}`] : []),
+    ...(eng.excludeTrackers ? [`--bt-exclude-tracker=${list(eng.excludeTrackers).join(",")}`] : []),
+    "--summary-interval=0",                // no periodic console noise…
+    "--show-console-readout=false",        // …and no progress line every second per download in the server's log
     "--console-log-level=warn",
     `--max-concurrent-downloads=${plan.maxConcurrent}`,
     `--bt-max-peers=${plan.btMaxPeers}`,
@@ -88,9 +130,14 @@ const spawnDaemon = () => {
     // so without this the job sits at 0% while aria2 fills pieces elsewhere —
     // 62 seconds of apparent nothing in the same measurement, versus 2 with it.
     "--bt-prioritize-piece=head,tail",
-    "--bt-request-peer-speed-limit=10M",   // keep asking for peers until it's genuinely fast
+    `--bt-request-peer-speed-limit=${speed}`, // keep asking for peers until it's genuinely fast
     "--follow-torrent=true",
   ];
+};
+
+const spawnDaemon = () => {
+  const plan = enginePlan();
+  const args = engineArgs({ plan, eng: config.DOWNLOAD_ENGINE || {}, dataDir: config.DATA_DIR });
   const child = spawn(config.ARIA2, args, { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
   child.stdout.on("data", (d) => {
     const line = String(d).trim();
@@ -214,7 +261,11 @@ const adding = new Map();
 // if the first `await` happens before the map is written, the second caller
 // still sees nothing in flight and adds the torrent a second time — which aria2
 // rejects with "InfoHash … is already registered" and the episode never starts.
-const add = (magnet, infoHash, fileIndex) => {
+//   opts.metaTimeoutMs  how long to wait for the details (default 5 min). The
+//                       queue passes a longer one: its own stall rules
+//                       (media/dlhealth.js) decide when a copy is dead, and
+//                       take it away (removeByInfoHash) — which ends this wait.
+const add = (magnet, infoHash, fileIndex, opts = {}) => {
   const joined = adding.get(infoHash);
   if (joined) return joined.then((gid) => select(gid, fileIndex, true).then(() => gid));
 
@@ -226,6 +277,7 @@ const add = (magnet, infoHash, fileIndex) => {
 
     const dir = stagingDir(infoHash);
     fs.mkdirSync(dir, { recursive: true });
+    const started = Date.now();
     const gid = await rpc("aria2.addUri", [[magnet], {
       dir,
       "select-file": String(fileIndex),
@@ -233,7 +285,7 @@ const add = (magnet, infoHash, fileIndex) => {
     }]);
 
     // Wait out the metadata phase and return the GID that actually has files.
-    const deadline = Date.now() + 5 * 60 * 1000;
+    const deadline = Date.now() + (opts.metaTimeoutMs > 0 ? opts.metaTimeoutMs : 5 * 60 * 1000);
     for (;;) {
       const st = await rpc("aria2.tellStatus", [gid, ["status", "followedBy", "errorMessage", "files"]]);
       if (st.followedBy && st.followedBy.length) return st.followedBy[0];
@@ -247,7 +299,7 @@ const add = (magnet, infoHash, fileIndex) => {
       // A cached .torrent (bt-load-saved-metadata) means there was never a
       // placeholder to follow — this GID is already the real download.
       if (st.files && st.files.length && !isMetadataPlaceholder(st.files)) return gid;
-      if (Date.now() > deadline) throw new Error("no peers had the torrent details after 5 minutes");
+      if (Date.now() > deadline) throw new Error(`no peers had the torrent details after ${Math.round((deadline - started) / 60000)} minutes`);
       await new Promise((r) => setTimeout(r, 1000));
     }
   })();
@@ -268,7 +320,7 @@ const findByInfoHash = async (infoHash) => {
   const wanted = String(infoHash).toLowerCase();
   const lists = await Promise.all([
     rpc("aria2.tellActive", [["gid", "infoHash", "files"]]).catch(() => []),
-    rpc("aria2.tellWaiting", [0, 50, ["gid", "infoHash", "files"]]).catch(() => []),
+    rpc("aria2.tellWaiting", [0, 1000, ["gid", "infoHash", "files"]]).catch(() => []),
   ]);
   for (const d of lists.flat()) {
     if (!d.infoHash || String(d.infoHash).toLowerCase() !== wanted) continue;
@@ -280,7 +332,20 @@ const findByInfoHash = async (infoHash) => {
 
 // Add (or drop) a file from what this download is fetching. aria2 takes the
 // complete list every time, so read the current selection and adjust it.
-const select = async (gid, fileIndex, wanted) => {
+//
+// One change at a time PER DOWNLOAD: two episodes of a pack joining at once
+// used to read the same selection ({1}), each add its own file and write it
+// back — the second write dropped the first episode, which then sat at 0%
+// for good. The changes for one GID now queue behind each other.
+const selecting = new Map(); // gid -> the last change's promise
+const select = (gid, fileIndex, wanted) => {
+  const prev = selecting.get(gid) || Promise.resolve();
+  const next = prev.catch(() => {}).then(() => selectNow(gid, fileIndex, wanted));
+  selecting.set(gid, next);
+  next.finally(() => { if (selecting.get(gid) === next) selecting.delete(gid); }).catch(() => {});
+  return next;
+};
+const selectNow = async (gid, fileIndex, wanted) => {
   const files = await rpc("aria2.getFiles", [gid]);
   const chosen = new Set(
     files.filter((f) => f.selected === "true").map((f) => Number(f.index))
@@ -296,11 +361,18 @@ const select = async (gid, fileIndex, wanted) => {
 // numbers already turned into the shapes it uses.
 const status = async (gid) => {
   const st = await rpc("aria2.tellStatus", [gid, [
-    "status", "errorMessage", "downloadSpeed", "connections", "numSeeders", "files", "infoHash",
+    "status", "errorCode", "errorMessage", "downloadSpeed", "connections", "numSeeders", "files", "infoHash",
+    "pieceLength", "numPieces", "bitfield",
   ]]);
   return {
     state: st.status,                                   // active | waiting | paused | complete | error | removed
     error: st.errorMessage || null,
+    // aria2's exit-status number once it stopped ("9": not enough disk
+    // space…) — media/dlfallback.js classifyError reads it
+    errorCode: st.errorCode != null && st.errorCode !== "" ? Number(st.errorCode) : null,
+    pieceLength: Number(st.pieceLength || 0),
+    numPieces: Number(st.numPieces || 0),
+    bitfield: st.bitfield || null,
     downloadSpeed: Number(st.downloadSpeed || 0),
     peers: Number(st.numSeeders || st.connections || 0),
     // The two numbers `peers` is made of, kept apart: "connected to someone"
@@ -326,6 +398,17 @@ const fileProgress = (st, fileIndex) => {
   return { ...f, fraction: Math.min(1, f.completed / f.length) };
 };
 
+// Hold a download back (pre-empting, media/dlprio.js) or let it go again:
+// aria2's per-download speed limit, which it changes on a RUNNING download
+// without restarting it — the download keeps its peers and its place, where
+// a pause would drop them and have to find them again. 0 = no limit.
+const limit = (gid, bps) => rpc("aria2.changeOption", [gid, { "max-download-limit": String(Math.max(0, Math.floor(Number(bps) || 0))) }]);
+
+// Who a download is connected to, with what each of them has (bitfields):
+// media/dlhealth.js availability() works out from this whether the people
+// connected even have the pieces still missing.
+const peers = (gid) => rpc("aria2.getPeers", [gid]);
+
 // Stop a download and forget it. The bytes on disk are left alone — deciding
 // whether they're still wanted belongs to the queue (see purge).
 const remove = async (gid) => {
@@ -341,7 +424,7 @@ const removeByInfoHash = async (infoHash) => {
   const wanted = String(infoHash).toLowerCase();
   const lists = await Promise.all([
     rpc("aria2.tellActive", [["gid", "infoHash"]]).catch(() => []),
-    rpc("aria2.tellWaiting", [0, 50, ["gid", "infoHash"]]).catch(() => []),
+    rpc("aria2.tellWaiting", [0, 1000, ["gid", "infoHash"]]).catch(() => []),
   ]);
   let n = 0;
   for (const d of lists.flat()) {
@@ -381,6 +464,42 @@ const shutdown = () => {
 // --stop-with-process covers a hard kill; this is the tidy path.
 process.on("exit", shutdown);
 
+// A server that is asked to stop (a restart, a deploy) lets aria2 stop
+// itself first: aria2.forceShutdown writes every unfinished download's
+// resume file (.aria2) on the way out, where a kill loses whatever came in
+// since the last periodic save (see --auto-save-interval above). lib/shutdown.js
+// gives the hooks a few seconds; the kill in shutdown() still follows.
+const rawCall = (method) => new Promise((resolve, reject) => {
+  const body = JSON.stringify({ jsonrpc: "2.0", id: "stop", method, params: [`token:${SECRET}`] });
+  const req = require("http").request({ host: "127.0.0.1", port: PORT, path: "/jsonrpc", method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) }, timeout: 2000 }, (res) => {
+    let data = "";
+    res.on("data", (d) => { data += d; });
+    res.on("end", () => { try { const j = JSON.parse(data); j.error ? reject(new Error(j.error.message)) : resolve(j.result); } catch (e) { reject(e); } });
+  });
+  req.on("timeout", () => req.destroy(new Error("timed out")));
+  req.on("error", reject);
+  req.end(body);
+});
+const stopTidy = async () => {
+  const child = proc;
+  if (!child) return;
+  const t0 = Date.now();
+  // (plain http, not fetch: while the server stops, fetch's shared pool
+  // answered "fetch failed" on the rig)
+  try { await rawCall("aria2.forceShutdown"); } catch (e) {
+    console.warn(`[aria2] could not ask the engine to stop by itself (${e && (e.cause && e.cause.code || e.message)}) — ending it`);
+    return shutdown();
+  }
+  const exited = await new Promise((r) => {
+    if (child.exitCode !== null) return r(true);
+    const t = setTimeout(() => r(false), 3000);
+    child.once("exit", () => { clearTimeout(t); r(true); });
+  });
+  console.log(`[aria2] engine stopped by itself in ${Date.now() - t0} ms${exited ? " (resume files written)" : " — still there after 3 s, ended"}`);
+  shutdown();
+};
+try { require("../lib/shutdown").register("download engine", stopTidy); } catch {}
+
 // ---------- global options (admin speed caps) ----------
 // The RPC methods are aria2.getGlobalOption / aria2.changeGlobalOption
 // (there is no setGlobalOption). Values are aria2 strings: "0" = unlimited,
@@ -416,7 +535,7 @@ const applyEnginePlan = async () => {
 };
 
 module.exports = {
-  available, ensure, add, status, fileProgress, select, remove, removeByInfoHash, purge,
+  available, ensure, add, status, fileProgress, select, remove, removeByInfoHash, purge, limit, peers, engineArgs,
   activeDownloads, shutdown, stagingDir, STAGING_ROOT,
   getGlobalOptions, setGlobalLimits, running, ping, enginePlan, applyEnginePlan,
   // Test-only: the rule that tells the real download apart from the metadata
