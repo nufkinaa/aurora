@@ -131,6 +131,15 @@ ui.test("Down: two unanswered checks in a row say so, with Try again; when it an
   assert.equal(await page.getAttribute("#hstate", "data-state"), "works");
 });
 
+ui.test("a server older than the page (no summary route yet) is not called down: it asks for the restart", { allow: [/404/] }, async ({ page, srv }) => {
+  await stubSummary(page, (route) => route.fulfill({ status: 404, json: { error: "not found" } }));
+  await enter(page, srv);
+  await page.waitForFunction(() => document.getElementById("sum").dataset.state === "needs-you");
+  assert.equal(await page.textContent("#sum-headline"), "Restart to finish the update");
+  assert.equal(await page.textContent("#sum-fix"), "Restart Aurora");
+  assert.notEqual(await page.getAttribute("#hstate", "data-state"), "down");
+});
+
 for (const [name, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
   ui.test(`Restart is on screen without scrolling on every screen, and asks before it does anything (${name})`, { viewport }, async ({ page, srv }) => {
     await stubSummary(page, works());
