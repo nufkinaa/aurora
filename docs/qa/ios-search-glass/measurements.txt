@@ -21,7 +21,7 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   You sent             controls    113  first    122  gap      9  h1 "Recommended by your household"
   AI pick              controls    113  first    113  gap      0  h1 "AI"
   Requests             controls    113  first    122  gap      9  h1 "Discover"
-  the profile menu     controls    112  first     68  gap    -44  .nav-menu
+  the profile menu     controls    112  first     74  gap    -38  .nav-menu
 == glass | 16 Pro, Home Screen (inset 62)
   Home                 controls    116  first  321.6  gap  205.6  div.hero-kicker "Film"
   Movies               controls    116  first    122  gap      6  h1 "Movies"
@@ -42,7 +42,7 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   You sent             controls    116  first    122  gap      6  h1 "Recommended by your household"
   AI pick              controls    116  first    113  gap     -3  h1 "AI"
   Requests             controls    116  first    122  gap      6  h1 "Discover"
-  the profile menu     controls    115  first     68  gap    -47  .nav-menu
+  the profile menu     controls    115  first     74  gap    -41  .nav-menu
 == glass | notch, Home Screen (inset 47)
   Home                 controls     91  first  303.6  gap  212.6  div.hero-kicker "Film"
   Movies               controls     91  first    112  gap     21  h1 "Movies"
@@ -63,7 +63,7 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   You sent             controls     91  first    112  gap     21  h1 "Recommended by your household"
   AI pick              controls     91  first    103  gap     12  h1 "AI"
   Requests             controls     91  first    112  gap     21  h1 "Discover"
-  the profile menu     controls     90  first     58  gap    -32  .nav-menu
+  the profile menu     controls     90  first     64  gap    -26  .nav-menu
 == glass | old, Home Screen (inset 20)
   Home                 controls     64  first  197.4  gap  133.4  div.hero-kicker "Film"
   Movies               controls     64  first    112  gap     48  h1 "Movies"
@@ -84,7 +84,7 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   You sent             controls     64  first    112  gap     48  h1 "Recommended by your household"
   AI pick              controls     64  first    103  gap     39  h1 "AI"
   Requests             controls     64  first    112  gap     48  h1 "Discover"
-  the profile menu     controls     63  first     58  gap     -5  .nav-menu
+  the profile menu     controls     63  first     64  gap      1  .nav-menu
 == glass | island, Safari tab (inset 0)
   Home                 controls     64  first  308.4  gap  244.4  div.hero-kicker "Film"
   Movies               controls     64  first    122  gap     58  h1 "Movies"
@@ -105,7 +105,7 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   You sent             controls     64  first    122  gap     58  h1 "Recommended by your household"
   AI pick              controls     64  first    113  gap     49  h1 "AI"
   Requests             controls     64  first    122  gap     58  h1 "Discover"
-  the profile menu     controls     63  first     68  gap      5  .nav-menu
+  the profile menu     controls     63  first     74  gap     11  .nav-menu
 == glass | notch, Safari tab (inset 0)
   Home                 controls     54  first  303.6  gap  249.6  div.hero-kicker "Film"
   Movies               controls     54  first    112  gap     58  h1 "Movies"
@@ -126,7 +126,7 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   You sent             controls     54  first    112  gap     58  h1 "Recommended by your household"
   AI pick              controls     54  first    103  gap     49  h1 "AI"
   Requests             controls     54  first    112  gap     58  h1 "Discover"
-  the profile menu     controls     53  first     58  gap      5  .nav-menu
+  the profile menu     controls     53  first     64  gap     11  .nav-menu
 == glass | Android (inset 0)
   Home                 controls     54  first  327.2  gap  273.2  div.hero-kicker "Film"
   Movies               controls     54  first    112  gap     58  h1 "Movies"
@@ -147,9 +147,9 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   You sent             controls     54  first    112  gap     58  h1 "Recommended by your household"
   AI pick              controls     54  first    103  gap     49  h1 "AI"
   Requests             controls     54  first    112  gap     58  h1 "Discover"
-  the profile menu     controls     53  first     58  gap      5  .nav-menu
+  the profile menu     controls     53  first     64  gap     11  .nav-menu
 == legacy | island, Home Screen (inset 59)
-  Home                 controls    117  first  272.2  gap  155.2  div.hero-kicker "Series"
+  Home                 controls    117  first  272.2  gap  155.2  div.hero-kicker "Film"
   Movies               controls    117  first    169  gap     52  h1 "Movies"
   Shows                controls    117  first    169  gap     52  h1 "Shows"
   My List              controls    117  first    169  gap     52  h1 "My List"
@@ -170,7 +170,7 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   Requests             controls    117  first    169  gap     52  h1 "Discover"
   the profile menu     controls    117  first    133  gap     16  .nav-menu
 == legacy | 16 Pro, Home Screen (inset 62)
-  Home                 controls    120  first  284.6  gap  164.6  div.hero-kicker "Series"
+  Home                 controls    120  first  284.6  gap  164.6  div.hero-kicker "Film"
   Movies               controls    120  first    172  gap     52  h1 "Movies"
   Shows                controls    120  first    172  gap     52  h1 "Shows"
   My List              controls    120  first    172  gap     52  h1 "My List"
@@ -191,7 +191,7 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   Requests             controls    120  first    172  gap     52  h1 "Discover"
   the profile menu     controls    120  first    136  gap     16  .nav-menu
 == legacy | notch, Home Screen (inset 47)
-  Home                 controls     95  first  267.7  gap  172.7  div.hero-kicker "Series"
+  Home                 controls     95  first  267.7  gap  172.7  div.hero-kicker "Film"
   Movies               controls     95  first    147  gap     52  h1 "Movies"
   Shows                controls     95  first    147  gap     52  h1 "Shows"
   My List              controls     95  first    147  gap     52  h1 "My List"
@@ -212,7 +212,7 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   Requests             controls     95  first    147  gap     52  h1 "Discover"
   the profile menu     controls     95  first    111  gap     16  .nav-menu
 == legacy | old, Home Screen (inset 20)
-  Home                 controls     68  first  162.9  gap   94.9  div.hero-kicker "Series"
+  Home                 controls     68  first  162.9  gap   94.9  div.hero-kicker "Film"
   Movies               controls     68  first    120  gap     52  h1 "Movies"
   Shows                controls     68  first    120  gap     52  h1 "Shows"
   My List              controls     68  first    120  gap     52  h1 "My List"
@@ -233,7 +233,7 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   Requests             controls     68  first    120  gap     52  h1 "Discover"
   the profile menu     controls     68  first     84  gap     16  .nav-menu
 == legacy | island, Safari tab (inset 0)
-  Home                 controls     58  first  272.2  gap  214.2  div.hero-kicker "Series"
+  Home                 controls     58  first  272.2  gap  214.2  div.hero-kicker "Film"
   Movies               controls     58  first    110  gap     52  h1 "Movies"
   Shows                controls     58  first    110  gap     52  h1 "Shows"
   My List              controls     58  first    110  gap     52  h1 "My List"
@@ -254,7 +254,7 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   Requests             controls     58  first    110  gap     52  h1 "Discover"
   the profile menu     controls     58  first     74  gap     16  .nav-menu
 == legacy | notch, Safari tab (inset 0)
-  Home                 controls     48  first  267.7  gap  219.7  div.hero-kicker "Series"
+  Home                 controls     48  first  267.7  gap  219.7  div.hero-kicker "Film"
   Movies               controls     48  first    100  gap     52  h1 "Movies"
   Shows                controls     48  first    100  gap     52  h1 "Shows"
   My List              controls     48  first    100  gap     52  h1 "My List"
@@ -275,7 +275,7 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   Requests             controls     48  first    100  gap     52  h1 "Discover"
   the profile menu     controls     48  first     64  gap     16  .nav-menu
 == legacy | Android (inset 0)
-  Home                 controls     48  first  308.3  gap  260.3  div.hero-kicker "Series"
+  Home                 controls     48  first  308.3  gap  260.3  div.hero-kicker "Film"
   Movies               controls     48  first    100  gap     52  h1 "Movies"
   Shows                controls     48  first    100  gap     52  h1 "Shows"
   My List              controls     48  first    100  gap     52  h1 "My List"
@@ -298,7 +298,7 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
 
 ===== AFTER =====
 == glass | island, Home Screen (inset 59)
-  Home                 controls    113  first  309.2  gap  196.2  div.hero-kicker "Series"
+  Home                 controls    113  first  308.4  gap  195.4  div.hero-kicker "Film"
   Movies               controls    113  first    171  gap     58  h1 "Movies"
   Shows                controls    113  first    171  gap     58  h1 "Shows"
   My List              controls    113  first    171  gap     58  h1 "My List"
@@ -317,9 +317,9 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   You sent             controls    113  first    171  gap     58  h1 "Recommended by your household"
   AI pick              controls    113  first    162  gap     49  h1 "AI"
   Requests             controls    113  first    171  gap     58  h1 "Discover"
-  the profile menu     controls    112  first    117  gap      5  .nav-menu
+  the profile menu     controls    112  first    123  gap     11  .nav-menu
 == glass | 16 Pro, Home Screen (inset 62)
-  Home                 controls    116  first  322.4  gap  206.4  div.hero-kicker "Series"
+  Home                 controls    116  first  321.6  gap  205.6  div.hero-kicker "Film"
   Movies               controls    116  first    174  gap     58  h1 "Movies"
   Shows                controls    116  first    174  gap     58  h1 "Shows"
   My List              controls    116  first    174  gap     58  h1 "My List"
@@ -338,9 +338,9 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   You sent             controls    116  first    174  gap     58  h1 "Recommended by your household"
   AI pick              controls    116  first    165  gap     49  h1 "AI"
   Requests             controls    116  first    174  gap     58  h1 "Discover"
-  the profile menu     controls    115  first    120  gap      5  .nav-menu
+  the profile menu     controls    115  first    126  gap     11  .nav-menu
 == glass | notch, Home Screen (inset 47)
-  Home                 controls     91  first  304.4  gap  213.4  div.hero-kicker "Series"
+  Home                 controls     91  first  303.6  gap  212.6  div.hero-kicker "Film"
   Movies               controls     91  first    149  gap     58  h1 "Movies"
   Shows                controls     91  first    149  gap     58  h1 "Shows"
   My List              controls     91  first    149  gap     58  h1 "My List"
@@ -359,9 +359,9 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   You sent             controls     91  first    149  gap     58  h1 "Recommended by your household"
   AI pick              controls     91  first    140  gap     49  h1 "AI"
   Requests             controls     91  first    149  gap     58  h1 "Discover"
-  the profile menu     controls     90  first     95  gap      5  .nav-menu
+  the profile menu     controls     90  first    101  gap     11  .nav-menu
 == glass | old, Home Screen (inset 20)
-  Home                 controls     64  first  198.2  gap  134.2  div.hero-kicker "Series"
+  Home                 controls     64  first  197.4  gap  133.4  div.hero-kicker "Film"
   Movies               controls     64  first    122  gap     58  h1 "Movies"
   Shows                controls     64  first    122  gap     58  h1 "Shows"
   My List              controls     64  first    122  gap     58  h1 "My List"
@@ -380,9 +380,9 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   You sent             controls     64  first    122  gap     58  h1 "Recommended by your household"
   AI pick              controls     64  first    113  gap     49  h1 "AI"
   Requests             controls     64  first    122  gap     58  h1 "Discover"
-  the profile menu     controls     63  first     68  gap      5  .nav-menu
+  the profile menu     controls     63  first     74  gap     11  .nav-menu
 == glass | island, Safari tab (inset 0)
-  Home                 controls     64  first  309.2  gap  245.2  div.hero-kicker "Series"
+  Home                 controls     64  first  308.4  gap  244.4  div.hero-kicker "Film"
   Movies               controls     64  first    122  gap     58  h1 "Movies"
   Shows                controls     64  first    122  gap     58  h1 "Shows"
   My List              controls     64  first    122  gap     58  h1 "My List"
@@ -401,9 +401,9 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   You sent             controls     64  first    122  gap     58  h1 "Recommended by your household"
   AI pick              controls     64  first    113  gap     49  h1 "AI"
   Requests             controls     64  first    122  gap     58  h1 "Discover"
-  the profile menu     controls     63  first     68  gap      5  .nav-menu
+  the profile menu     controls     63  first     74  gap     11  .nav-menu
 == glass | notch, Safari tab (inset 0)
-  Home                 controls     54  first  304.4  gap  250.4  div.hero-kicker "Series"
+  Home                 controls     54  first  303.6  gap  249.6  div.hero-kicker "Film"
   Movies               controls     54  first    112  gap     58  h1 "Movies"
   Shows                controls     54  first    112  gap     58  h1 "Shows"
   My List              controls     54  first    112  gap     58  h1 "My List"
@@ -422,9 +422,9 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   You sent             controls     54  first    112  gap     58  h1 "Recommended by your household"
   AI pick              controls     54  first    103  gap     49  h1 "AI"
   Requests             controls     54  first    112  gap     58  h1 "Discover"
-  the profile menu     controls     53  first     58  gap      5  .nav-menu
+  the profile menu     controls     53  first     64  gap     11  .nav-menu
 == glass | Android (inset 0)
-  Home                 controls     54  first    328  gap    274  div.hero-kicker "Series"
+  Home                 controls     54  first  327.2  gap  273.2  div.hero-kicker "Film"
   Movies               controls     54  first    112  gap     58  h1 "Movies"
   Shows                controls     54  first    112  gap     58  h1 "Shows"
   My List              controls     54  first    112  gap     58  h1 "My List"
@@ -443,7 +443,7 @@ test/ui/iphone-content-clear.test.js, REPORT=1. css px. controls = bottom of the
   You sent             controls     54  first    112  gap     58  h1 "Recommended by your household"
   AI pick              controls     54  first    103  gap     49  h1 "AI"
   Requests             controls     54  first    112  gap     58  h1 "Discover"
-  the profile menu     controls     53  first     58  gap      5  .nav-menu
+  the profile menu     controls     53  first     64  gap     11  .nav-menu
 == legacy | island, Home Screen (inset 59)
   Home                 controls    117  first  272.2  gap  155.2  div.hero-kicker "Series"
   Movies               controls    117  first    169  gap     52  h1 "Movies"

@@ -186,10 +186,16 @@ for (const look of ["glass", "legacy"]) {
       }
       // the profile menu opens under the avatar, not over it
       await page.click("#nav-profile");
-      const menu = await page.waitForSelector(".nav-menu", { state: "visible" }).then(() => page.evaluate(() => ({
+      await page.waitForSelector(".nav-menu", { state: "visible" });
+      // (it drops in: measured once its animation is over)
+      await page.waitForFunction(() => document.querySelector(".nav-menu-wrap, .nav-menu").parentElement
+        .getAnimations({ subtree: true })
+        .every((a) => a.playState !== "running" || !a.effect || a.effect.getComputedTiming().iterations === Infinity));
+      await page.waitForTimeout(100);
+      const menu = await page.evaluate(() => ({
         top: document.querySelector(".nav-menu").getBoundingClientRect().top,
         avatar: document.querySelector(".nav-profile").getBoundingClientRect().bottom,
-      })));
+      }));
       await page.keyboard.press("Escape").catch(() => {});
       rows.push({ screen: "the profile menu", controls: Math.round(menu.avatar * 10) / 10, first: { top: Math.round(menu.top * 10) / 10, what: ".nav-menu" }, gap: Math.round((menu.top - menu.avatar) * 10) / 10 });
       report[`${look} | ${name}`] = rows;
