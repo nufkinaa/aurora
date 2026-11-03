@@ -289,7 +289,11 @@ test("an episode already on disk — by hand, in another container, being played
   assert.equal(sha(original), before.hash);
 });
 
-test("a reader never sees half a file: the bytes go to a hidden temp file, the library name appears only when it is whole", async () => {
+test("a reader never sees half a file: the bytes go to a hidden temp file, the library name appears only when it is whole", async (t) => {
+  // the copy path (Windows, or another volume): on Linux the same volume is a hard link and never copies
+  const linkWas = D.seams.link;
+  D.seams.link = false;
+  t.after(() => { D.seams.link = linkWas; });
   await reset();
   const H = HASH("e");
   const staged = engine.define(H, { fill: 0xe5, length: 300000 });
@@ -338,7 +342,11 @@ test("a reader never sees half a file: the bytes go to a hidden temp file, the l
   assert.equal(fs.statSync(job.destPath).size, 300000);
 });
 
-test("canceled while copying: nothing lands, the temp file goes; a temp left by a crash is swept on the next landing", async () => {
+test("canceled while copying: nothing lands, the temp file goes; a temp left by a crash is swept on the next landing", async (t) => {
+  // the copy path (Windows, or another volume): on Linux the same volume is a hard link and never copies
+  const linkWas = D.seams.link;
+  D.seams.link = false;
+  t.after(() => { D.seams.link = linkWas; });
   await reset();
   const H = HASH("f");
   const staged = engine.define(H, { fill: 0xf6, length: 300000 });
@@ -411,4 +419,24 @@ test("an episode asked for as type \"series\" (or \"episode\", \"tv\") lands in 
   const bad = downloads.create(episode(HASH("b"), { type: "anime" }));
   assert.match(bad.error || "", /Unknown download type "anime"/);
   assert.equal(downloads.rawJobs().length, 3, "no job for the unknown type");
+});
+
+test("on the same volume (not Windows) a finished file is a hard link into the library, not a second copy", async (t) => {
+  const linkWas = D.seams.link;
+  D.seams.link = true;
+  t.after(() => { D.seams.link = linkWas; });
+  await reset();
+  const H = HASH("a");
+  const staged = engine.define(H, { fill: 0xa1, length: 200000 });
+  const req = film(H);
+  const id = await start(req);
+  engine.finish(H);
+  T += 1000;
+  await D.poll();
+  await until(() => jobOf(id).status === "done", "the landing");
+  await flush();
+  const job = jobOf(id);
+  assert.equal(fs.statSync(job.destPath).size, 200000);
+  assert.deepEqual(fs.readFileSync(job.destPath), fs.readFileSync(staged), "the same bytes");
+  if (process.platform !== "win32") assert.ok(fs.statSync(job.destPath).nlink >= 2 || !fs.existsSync(staged), "a link, not a copy");
 });
