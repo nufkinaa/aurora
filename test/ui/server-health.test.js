@@ -4,7 +4,7 @@
 // or not JSON (413 / 400, one quiet log line), the rate limits wired in log
 // mode (counted, nothing refused), and the boot's config check.
 const assert = require("node:assert/strict");
-const { suite, PHONE, DESKTOP, ARTIFACTS } = require("./helpers");
+const { suite, PHONE, DESKTOP, ARTIFACTS, openDetails } = require("./helpers");
 const path = require("path");
 
 const ui = suite({
@@ -21,6 +21,7 @@ const enter = async (page, srv) => {
   await page.click(".gate button");
   await page.waitForSelector(".gate", { state: "detached" });
   await page.click('.tab[data-tab="server"]');
+  await openDetails(page, "sv-metrics");
   await page.waitForFunction(() => document.querySelectorAll("#mx-stats .stat").length >= 6);
 };
 

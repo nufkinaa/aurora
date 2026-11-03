@@ -12,7 +12,7 @@
 const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
-const { suite } = require("./helpers");
+const { suite, openDetails } = require("./helpers");
 const { IDS } = require("../../scripts/ui-test-server");
 
 const FILM1 = "Test Film One (2020)";
@@ -61,6 +61,9 @@ const enter = async (page, srv) => {
 };
 const downloadsTab = async (page) => {
   await page.click('.tab[data-tab="downloads"]');
+  await page.waitForSelector("#cp-card:not(.hidden)", { state: "attached" });
+  await openDetails(page, "d-copies");
+  await openDetails(page, "d-disk");
   await page.waitForSelector("#cp-card:not(.hidden) #cp-groups .cp-group");
 };
 const group = (page, key) => page.locator(`#cp-groups .cp-group[data-cp-group="${key}"]`);

@@ -1350,6 +1350,17 @@ router.post("/api/admin/stores/:name/accept", (req, res) => {
 // alerted and recovered, where alerts are delivered (and a warning when they
 // go nowhere), and the dead-man's-switch ping. (/api/admin/health above is
 // the watchdog's memory graph, which the Health card already reads.)
+// The one-glance state for the top of every admin screen (lib/adminsummary.js):
+// "works" or "needs-you" with the reason and the fix, five lines on whether
+// people can watch, the minor notes, and the work waiting on a person.
+router.get("/api/admin/summary", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    res.json(await require("../lib/adminsummary").gather());
+  } catch (e) {
+    res.status(500).json({ error: String((e && e.message) || e) });
+  }
+});
 router.get("/api/admin/alerts", (req, res) => {
   res.json(require("../lib/health").status());
 });

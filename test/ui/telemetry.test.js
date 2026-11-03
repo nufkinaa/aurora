@@ -4,7 +4,7 @@
 // is refused by the server anyway — and the admin's App health page, drawn
 // from stubbed data.
 const assert = require("node:assert/strict");
-const { suite } = require("./helpers");
+const { suite, openDetails } = require("./helpers");
 
 const ui = suite();
 
@@ -206,6 +206,8 @@ const openAppHealth = async (page, srv, { posts = [] } = {}) => {
   await page.waitForSelector(".gate", { state: "detached" });
   await page.click('.tab[data-tab="analytics"]');
   await page.click('#subtabs [data-sub="telemetry"]');
+  // (each section is a Details, closed until it is opened)
+  for (const key of ["tel-errors-sec", "tel-timings-sec", "tel-starts-sec", "tel-used-sec"]) await openDetails(page, key);
   await page.waitForSelector("#tel-errors tr");
 };
 
@@ -288,10 +290,10 @@ ui.test("admin › App health › Timings, Most used, the alert rules and Copy",
   assert.equal(posts[0].url, "/api/admin/telemetry/alert-rules");
   assert.deepEqual(posts[0].body, { alert: true, newDevices: 3, newCount: 20, windowMin: 30, spikeFactor: 5, spikeMin: 20, cooldownMin: 30, maxPerDay: 6 });
 
-  // Copy
-  await page.click("#tel-copy");
-  await page.waitForFunction(() => /Report copied/.test(document.body.innerText));
-  assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^Errors and warnings from devices — 3 kinds known/);
+  // Copy for Claude: the server's own report, under the section's heading
+  await page.click('[data-copy-for="tel-errors-sec"]');
+  await page.waitForFunction(() => /Copied for Claude/.test(document.body.innerText));
+  assert.match((await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n"), /^## Errors on people's devices\n_Aurora admin · .+_\n\nErrors and warnings from devices — 3 kinds known/);
 });
 
 ui.test("admin: the real endpoints — marking a kind known, the rules, and that only the admin may", async ({ api, srv }) => {

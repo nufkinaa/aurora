@@ -6,7 +6,7 @@
 const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
-const { suite, PHONE, ARTIFACTS } = require("./helpers");
+const { suite, PHONE, ARTIFACTS, openDetails } = require("./helpers");
 
 const OLD = "server-stdout.log.1";
 const ui = suite({
@@ -30,6 +30,7 @@ for (const [name, viewport] of [["desktop", null], ["phone", PHONE]]) {
   ui.test(`${name}: an old log is named on the Server tab with how to delete it, and left alone`, viewport ? { viewport } : {}, async ({ page, srv }) => {
     await enter(page, srv);
     await page.click('.tab[data-tab="server"]');
+    await openDetails(page, "sv-healer"); // (the healer's finding, inside its Details)
     await page.waitForFunction(() => /An old log of 60(\.0)? MB in data\/ — you can delete it/.test(document.body.innerText), null, { timeout: 30000 });
     const text = await page.evaluate(() => document.body.innerText);
     assert.match(text, /server-stdout\.log\.1 \(60(\.0)? MB\) is an old log/);

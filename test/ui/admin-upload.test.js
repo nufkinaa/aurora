@@ -14,7 +14,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const http = require("http");
-const { suite, PHONE } = require("./helpers");
+const { suite, PHONE, openDetails } = require("./helpers");
 
 const SHOTS = path.join(__dirname, "..", "..", "docs", "qa", "admin-upload");
 const WORK = fs.mkdtempSync(path.join(os.tmpdir(), "aurora-ui-upload-"));
@@ -50,6 +50,7 @@ const enter = async (page, srv) => {
   await page.fill('.gate input[aria-label="Admin password"]', srv.adminPassword);
   await page.click(".gate button");
   await page.waitForSelector(".gate", { state: "detached" });
+  await openDetails(page, "d-upload");
   await page.waitForSelector("#up-card[open] .up-drop");
 };
 const job = (page, title) => page.locator("#up-jobs .up-job", { hasText: title });

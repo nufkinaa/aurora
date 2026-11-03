@@ -5,7 +5,7 @@
 // one up for every boot and writes it into that instance's config.json. The
 // real server's password is never read or used.
 const assert = require("node:assert/strict");
-const { suite } = require("./helpers");
+const { suite, openDetails: more } = require("./helpers");
 
 let kidsAvailable = true;
 const ui = suite({
@@ -244,6 +244,7 @@ ui.test("Back up now makes a snapshot that shows in the Backups table as intact,
   const made = await runAction(page, "backup-now");
   assert.match(made.state, /done/, made.output);
   assert.match(made.output, /Made aurora-backup-\d{8}-\d{6}\.tar\.gz/);
+  await more(page, "ac-backups");
   await page.waitForSelector("#ac-bk-rows tr");
   assert.match(await page.textContent("#ac-bk-rows tr"), /aurora-backup-.*intact/s);
   const verify = await runAction(page, "backup-verify");
@@ -257,6 +258,7 @@ ui.test("the health checks run from the page and the Alerts card fills in", asyn
   const r = await runAction(page, "health-run");
   assert.match(r.state, /done/, r.output);
   assert.match(r.output, /Disk/);
+  await more(page, "ac-alerts");
   await page.waitForFunction(() => document.querySelectorAll("#ac-al-checks > div").length > 0);
   assert.match(await page.textContent("#ac-al-delivery"), /server log/);
 });
@@ -273,6 +275,7 @@ ui.test("the actions API refuses an id that is not on the list, and anyone witho
 // ---------- Downloads tab: "Downloads at once" and the second-source line ----------
 const downloadsTab = async (page) => {
   await page.click('.tab[data-tab="downloads"]');
+  await more(page, "d-limits");
   await page.waitForFunction(() => document.querySelector("#lim-slots") && document.querySelector("#lim-slots").value !== "");
 };
 
@@ -342,16 +345,19 @@ ui.test("In flight: a job trying a second source gets one line under it; holding
   });
   await enter(page, srv);
   await downloadsTab(page);
-  await page.waitForSelector("#dl-jobs tr.race-row");
-  assert.equal(await page.locator("#dl-jobs tr.race-row").count(), 2, "the racing job and the one with a note — not the ordinary one");
-  const line = await page.locator("#dl-jobs tr.race-row").first().innerText();
+  const notes = page.locator("#dl-jobs .fl-row .fl-note:not(:empty)");
+  await notes.first().waitFor();
+  assert.equal(await notes.count(), 2, "the racing job and the one with a note — not the ordinary one");
+  const line = await notes.first().innerText();
   assert.match(line, /trying a second source/);
   assert.match(line, /both running/);
   assert.match(line, /the first was slow: projected to take 6\.8 h more/);
   assert.match(line, /first FirstProvider · 12% · 146 KB\/s · ~6\.8h left/);
   assert.match(line, /second SecondProvider · 3% · 4\.0 MB\/s · ~16m left/);
-  assert.match(await page.locator("#dl-jobs tr.race-row").nth(1).innerText(), /No healthy source was found at 1080p/);
-  assert.equal(await page.locator("#dl-jobs > tr:not(.race-row)").count(), 3, "still one row per download");
+  assert.match(await notes.nth(1).innerText(), /No healthy source was found at 1080p/);
+  assert.equal(await page.locator("#dl-jobs > .fl-row").count(), 3, "still one row per download");
+  // the holding line sits over the list as well
+  assert.match(await page.textContent("#dl-hold"), /Holding at 2 at once while someone is watching · 3 queued/);
   assert.match(await page.textContent("#lim-holding"), /holding at 2 while someone is watching/);
   assert.match(await page.textContent("#lim-status"), /3 queued — they start when viewing stops/);
 });
@@ -468,10 +474,10 @@ ui.test("Left from My List downloads: a leftover job is an ordinary one in the q
   await enter(page, srv);
   await downloadsTab(page);
   // the queue: no My List tag, no "on hold", no "Start now" — every row is an ordinary one with its Cancel
-  await page.waitForSelector("#dl-jobs tr");
+  await page.waitForSelector("#dl-jobs .fl-row");
   assert.doesNotMatch(await page.locator("#dl-jobs").innerText(), /My List|on hold|starts after the other downloads/i);
   assert.equal(await page.locator("#dl-jobs [data-dl-start]").count(), 0);
-  assert.equal(await page.locator("#dl-jobs tr.hold-row").count(), 0);
+  assert.equal(await page.locator("#dl-jobs .hold-row").count(), 0);
   assert.equal(await page.locator("#dl-jobs button.danger").count(), 2);
 
   // the card: one row per copy, with its state and its clock
@@ -485,6 +491,7 @@ ui.test("Left from My List downloads: a leftover job is an ordinary one in the q
   assert.equal(await page.locator("#ml-rows [data-ml-keep]").count(), 2, "Keep is offered for the copies still on disk, nothing else");
 
   // on disk: the two copies carry their mark, the others none
+  await more(page, "d-disk");
   await page.waitForSelector("#lib-tree .lib-row");
   const lib = (name) => page.locator("#lib-tree .lib-row", { hasText: name }).innerText();
   assert.match(await lib("Stale Film"), /My List · stale/);
@@ -573,6 +580,7 @@ const healerCard = async (page, srv, fixture = healerFixture()) => {
   await page.route("**/api/admin/healer", (route) => (route.request().method() === "GET" ? route.fulfill({ json: fixture }) : route.continue()));
   await enter(page, srv);
   await page.click('.tab[data-tab="server"]');
+  await more(page, "sv-healer");
   await page.waitForSelector("#hl-checks .hl-group");
   return fixture;
 };
@@ -718,6 +726,7 @@ ui.test("the Healer card on a phone: nothing runs off the side, and the button i
 ui.test("a real round on the private instance: every check lands in one of the seven groups, and the round is quick", async ({ page, srv, api }) => {
   await enter(page, srv);
   await page.click('.tab[data-tab="server"]');
+  await more(page, "sv-healer");
   await page.click("#healer-run-btn");
   await page.waitForFunction(() => document.querySelectorAll("#hl-checks .hl-group").length >= 5 && document.querySelector("#healer-run-btn").textContent === "Run all checks now");
   const h = await api.adminGet("/api/admin/healer");
@@ -749,6 +758,7 @@ ui.test("Insights shows the TV frames and TV boxes tables from a stubbed usage s
   await page.route("**/api/admin/usage", (route) => route.fulfill({ json: { summary: { events: 9, batches: 2, devices: { tv: 9 }, looks: { tv: 9 }, routes: [], features: [], nav: [], plays: [], errors: [], activeByDay: [], perf: withPerf ? perf : { screens: [], devices: [], trims: {} } }, text: "stub" } }));
   await enter(page, srv);
   await page.click('.tab[data-tab="analytics"]');
+  await more(page, "an-usage");
   await page.waitForFunction(() => !document.getElementById("usage-tv").classList.contains("hidden"));
   const rows = await page.evaluate(() => [...document.querySelectorAll("#usage-tv-screens tr")].map((tr) => [...tr.cells].map((c) => c.textContent)));
   assert.deepEqual(rows[0], ["home", "92", "-", "412", "180000", "29ms", "41ms", "58ms", "3.4%", "18%", "4%"]);
@@ -768,6 +778,8 @@ ui.test("Insights shows the TV frames and TV boxes tables from a stubbed usage s
 ui.test("Server → Health says who restarts the server; an unsupervised one says so and the Restart button is refused in a sentence", { allow: [/Failed to load resource.*409/] }, async ({ page, srv }) => {
   await enter(page, srv);
   await page.click('.tab[data-tab="server"]');
+  await more(page, "sv-watchdog");
+  await more(page, "sv-healer");
   await page.waitForFunction(() => /supervis/.test(document.getElementById("sv-health").textContent));
   assert.match(await page.textContent("#sv-health"), /not supervised.*a crash or a hang lasts until somebody starts it again/s);
   // the healer lists it as a finding (the private instance runs bare)
@@ -805,6 +817,7 @@ ui.test("Server → Updates: Install dependencies runs the npm-install action, s
 ui.test("Server → Encoding: 'Automatic: N now, because …' with the numbers; a fixed number sticks; Automatic comes back", async ({ page, srv }) => {
   await enter(page, srv);
   await page.click('.tab[data-tab="server"]');
+  await more(page, "sv-encoding");
   await page.waitForFunction(() => /Automatic: \d+ now, because \d+ CPU threads/.test(document.getElementById("en-sentence").textContent));
   const stats = await page.textContent("#en-stats");
   assert.match(stats, /at once/);
@@ -822,6 +835,7 @@ ui.test("Server → Encoding: 'Automatic: N now, because …' with the numbers; 
   await page.click(".gate button");
   await page.waitForSelector(".gate", { state: "detached" });
   await page.click('.tab[data-tab="server"]');
+  await more(page, "sv-encoding");
   await page.waitForFunction(() => /Fixed at 3 at once/.test(document.getElementById("en-sentence").textContent));
   assert.equal(await page.inputValue("#en-limit"), "3");
   // and back
@@ -833,6 +847,7 @@ ui.test("Server → Encoding: 'Automatic: N now, because …' with the numbers; 
 ui.test("Server → Encoding: the graphics card is said, and its switch is kept (automatic by default)", async ({ page, srv }) => {
   await enter(page, srv);
   await page.click('.tab[data-tab="server"]');
+  await more(page, "sv-encoding");
   await page.waitForFunction(() => /^Hardware encoding: /.test(document.getElementById("en-hw").textContent));
   assert.equal(await page.inputValue("#en-hwmode"), "auto");
   await page.selectOption("#en-hwmode", "off");
@@ -844,6 +859,7 @@ ui.test("Server → Encoding: the graphics card is said, and its switch is kept 
   await page.click(".gate button");
   await page.waitForSelector(".gate", { state: "detached" });
   await page.click('.tab[data-tab="server"]');
+  await more(page, "sv-encoding");
   await page.waitForFunction(() => /^Hardware encoding: /.test(document.getElementById("en-hw").textContent));
   assert.equal(await page.inputValue("#en-hwmode"), "off");
   await page.selectOption("#en-hwmode", "auto");
@@ -854,6 +870,8 @@ ui.test("Server → Encoding: the graphics card is said, and its switch is kept 
 ui.test("Actions → Data safety and Backups: all saved; the second location and the restore test are shown; 'Test a restore now' passes", async ({ page, srv }) => {
   await enter(page, srv);
   await actionsTab(page);
+  await more(page, "ac-data");
+  await more(page, "ac-backups");
   await page.waitForFunction(() => /all saved/.test(document.getElementById("ds-state").textContent));
   assert.match(await page.textContent("#ds-state"), /each written atomically with a last-good copy beside it/);
   assert.match(await page.textContent("#ds-recoveries"), /No file has ever needed recovering/);
@@ -881,6 +899,7 @@ for (const [label, viewport] of [["desktop", require("./helpers").DESKTOP], ["ph
   ui.test(`Server → Health shows what is kept in memory and the power profile with its reasons (${label})`, { viewport }, async ({ page, srv }) => {
     await enter(page, srv);
     await page.click('.tab[data-tab="server"]');
+    await more(page, "sv-watchdog");
     await page.waitForFunction(() => /kept in memory/.test(document.getElementById("sv-health").textContent));
     const text = await page.textContent("#sv-health");
     assert.match(text, /kept in memory/);

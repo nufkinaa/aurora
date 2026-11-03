@@ -12,7 +12,7 @@
 const fs = require("fs");
 const path = require("path");
 const assert = require("node:assert/strict");
-const { suite, PHONE, DESKTOP, player, assertNoHorizontalOverflow, certificatesSeed } = require("./helpers");
+const { suite, PHONE, DESKTOP, player, assertNoHorizontalOverflow, certificatesSeed, openDetails } = require("./helpers");
 
 const SHOTS = path.join(__dirname, "..", "..", "docs", "qa", "replace-version");
 const shot = async (page, name) => {
@@ -351,6 +351,7 @@ ui.test("admin: Inbox lists the replaced copies — who, what, why, old → new,
   await page.click(".gate button");
   await page.waitForSelector(".gate", { state: "detached" });
   await page.click('.tab[data-tab="moderation"]');
+  await openDetails(page, "in-replaced");
   await page.waitForFunction(() => /Grown Up/.test((document.querySelector("#replacements") || {}).innerText || ""));
   const text = await page.locator("#replacements").innerText();
   assert.match(text, /Grown Up/);

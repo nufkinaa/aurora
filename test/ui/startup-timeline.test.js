@@ -3,7 +3,7 @@
 // mark, a problem report sent from the player carries it, and the admin's
 // App health → Slow starts shows the starts by step.
 const assert = require("node:assert/strict");
-const { suite, player, warmJit } = require("./helpers");
+const { suite, player, warmJit, openDetails } = require("./helpers");
 
 const ui = suite({ setup: async (srv) => { await warmJit(srv, srv.lib.film2.id); } });
 const PRIMARY = ".detail-actions > .btn-primary";
@@ -55,6 +55,7 @@ ui.test("the admin's App health shows the starts, step by step, and names the sl
   await page.waitForSelector(".gate", { state: "detached" });
   await page.click('.tab[data-tab="analytics"]');
   await page.locator(".subtabs button", { hasText: "App health" }).click();
+  await openDetails(page, "tel-starts-sec");
   await page.waitForFunction(() => /starts/.test(document.querySelector("#tel-starts-line").textContent));
   const line = await page.textContent("#tel-starts-line");
   assert.match(line, /slow \(6 s or more\)/);

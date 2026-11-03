@@ -14,7 +14,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const assert = require("node:assert/strict");
-const { suite, PHONE } = require("./helpers");
+const { suite, PHONE, openDetails } = require("./helpers");
 
 const ui = suite({
   setup: async (srv) => {
@@ -37,6 +37,7 @@ const enter = async (page, srv) => {
 };
 const onDisk = async (page) => {
   await page.click('.tab[data-tab="downloads"]');
+  await openDetails(page, "d-disk");
   await page.waitForSelector("#lib-tree .lib-row");
 };
 const toastSays = (page, re) => page.waitForFunction((src) => [...document.querySelectorAll("#toasts .toast")].some((t) => new RegExp(src).test(t.textContent)), re.source);

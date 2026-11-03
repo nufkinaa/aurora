@@ -560,9 +560,18 @@ const player = {
 };
 let wakeX = 500;
 
+// The admin's "Details" sections are closed by default (the calm admin,
+// 2026-11-03): open one the way a person does, by pressing its row (not its
+// Copy for Claude button), and wait for it to be open.
+const openDetails = async (page, key) => {
+  const d = page.locator(`details.more[data-more="${key}"]`);
+  if (!(await d.evaluate((el) => el.open))) await d.locator(":scope > summary .more-t").click();
+  await page.waitForFunction((k) => document.querySelector(`details.more[data-more="${k}"]`).open, key);
+};
+
 module.exports = {
   suite, signIn, goto, waitForScreen, assertNoHorizontalOverflow, quietFor, player,
-  launchBrowser, makeApi, describeLibrary, warmJit,
+  launchBrowser, makeApi, describeLibrary, warmJit, openDetails,
   DESKTOP, PHONE, ARTIFACTS,
   FILM_SECONDS: server.FILM_SECONDS, EPISODE_SECONDS: server.EPISODE_SECONDS, IDS: server.IDS, certificatesSeed: server.certificatesSeed,
 };

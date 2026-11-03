@@ -54,22 +54,6 @@
     .pane { display: none; }
     .pane.active { display: block; }
 
-    /* ---------- "needs you" list on Home ---------- */
-    .attn { display: grid; gap: 8px; margin-bottom: 22px; }
-    .attn-row { display: flex; align-items: center; gap: 13px; padding: 13px 16px; border-radius: var(--radius);
-      background: rgba(240, 177, 50, 0.07); border: 1px solid rgba(240, 177, 50, 0.28); text-align: left; width: 100%;
-      cursor: pointer; color: inherit; font: inherit; }
-    .attn-row:hover { background: rgba(240, 177, 50, 0.12); }
-    .attn-row .dot { width: 10px; height: 10px; border-radius: 50%; background: #f0b132; box-shadow: 0 0 8px rgba(240, 177, 50, 0.7); flex: none; }
-    .attn-row.bad { color: inherit; font-weight: inherit; background: rgba(255, 122, 122, 0.07); border-color: rgba(255, 122, 122, 0.32); }
-    .attn-row.bad .dot { background: #ff7a7a; box-shadow: 0 0 8px rgba(255, 122, 122, 0.7); }
-    .attn-row.calm { background: rgba(74, 222, 128, 0.05); border-color: rgba(74, 222, 128, 0.2); cursor: default; }
-    .attn-row.calm .dot { background: #4ade80; box-shadow: 0 0 8px rgba(74, 222, 128, 0.6); }
-    .attn-row .what { min-width: 0; }
-    .attn-row .what b { font-weight: 800; display: block; }
-    .attn-row .what span { color: var(--text-dim); font-size: 0.84rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
-    .attn-row .go { margin-left: auto; color: var(--text-dim); font-weight: 700; font-size: 0.84rem; white-space: nowrap; }
-
     /* the secondary facts under the headline tiles: one quiet line, not six more boxes */
     .facts { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: -12px 0 24px; padding: 0 4px; color: var(--text-dim); font-size: 0.86rem; }
     .facts b { color: var(--text); font-weight: 800; margin-right: 5px; font-variant-numeric: tabular-nums; }
@@ -138,28 +122,9 @@
     section { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; margin-bottom: 22px; }
     /* A heading's explanation sits UNDER the title as a subtitle, not beside
        it — the long ones used to wrap around the title mid-sentence. */
-    .card > h2 .note, section > h2 .note, details.acard > summary h2 .note { flex-basis: 100%; order: 3; line-height: 1.45; }
+    .card > h2 .note, section > h2 .note{ flex-basis: 100%; order: 3; line-height: 1.45; }
     .card > h2 > button, section > h2 > button { order: 2; }
 
-    /* ---------- collapsible cards (elia 2026-08-28) ----------
-       The busy panes (Downloads, Users) fold: every block is a card whose
-       header always shows and whose CONTENT scrolls inside the card, so
-       the page itself stays short on any screen. Fold state persists per
-       device (localStorage, see the acard script). */
-    details.acard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 14px; }
-    details.acard > summary { list-style: none; cursor: pointer; padding: 13px 16px; display: flex; align-items: flex-start; gap: 10px; user-select: none; }
-    details.acard > summary::-webkit-details-marker { display: none; }
-    details.acard > summary:hover { background: rgba(255, 255, 255, 0.03); }
-    details.acard > summary h2 { font-size: 1rem; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1; }
-    details.acard > summary h2 .note { font-size: 0.78rem; font-weight: 600; color: var(--text-faint); }
-    details.acard > summary .chev { color: var(--text-faint); flex: none; font-size: 0.8rem; margin-top: 4px; transition: transform 0.15s; }
-    details.acard[open] > summary .chev { transform: rotate(90deg); }
-    details.acard > .acard-body { padding: 2px 16px 14px; max-height: min(56vh, 540px); overflow-y: auto; overscroll-behavior: contain; }
-    details.acard > .acard-body.tall { max-height: none; overflow: visible; }
-    @media (max-width: 640px) {
-      details.acard > summary { padding: 11px 12px; }
-      details.acard > .acard-body { padding: 2px 12px 12px; max-height: 62vh; }
-    }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
     @media (max-width: 980px) { .grid-2 { grid-template-columns: 1fr; } }
 
@@ -370,7 +335,6 @@
       .card, section { padding: 13px; }
       .bar-row input, .bar-row select { min-height: 44px; }
       .hbars .hrow { grid-template-columns: minmax(80px, 1fr) 1fr 64px; gap: 8px; font-size: 0.82rem; }
-      .attn-row { padding: 12px 13px; }
       .ask .ask-row button { flex: 1; }
       #lim-down, #lim-up, #lim-slots { max-width: none !important; flex: 1 !important; min-width: 0; width: 100%; }
       .heatmap { font-size: 0.56rem; }
@@ -410,7 +374,7 @@
        fits, and the page clips at its edge as a backstop (clip, not hidden:
        hidden would make body a scroll box and end every position: sticky). */
     html, .wrap { overflow-x: clip; }
-    .wrap, .pane, .card, section, details.acard, .acard-body, .now-card, .stat { min-width: 0; max-width: 100%; }
+    .wrap, .pane, .card, section, .now-card, .stat { min-width: 0; max-width: 100%; }
     .grid-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
     .grid-2 > *, .stats > *, .now-grid > *, .kv > * { min-width: 0; }
     .kv { grid-template-columns: auto minmax(0, 1fr); }
@@ -541,6 +505,188 @@
       .pfilters button { flex: 1 1 auto; justify-content: center; }
       .person-row .chev { display: none; }
     }
+
+    /* ================= the calm admin (2026-11-03) =================
+       elia: "I only care to see if everything works … all other stats I only
+       need the option to copy them to you". Every screen: the state on top,
+       the few things he presses, and the rest folded under "Details", each
+       with a Copy for Claude. Semantic colours are separate from the accent:
+       mint = works (the logo's own green), amber = needs you, red = down. */
+    :root {
+      --ok: #5fe0a8; --ok-rgb: 95, 224, 168;
+      --warn: #f0b132; --warn-rgb: 240, 177, 50;
+      --bad: #ff7a7a; --bad-rgb: 255, 122, 122;
+    }
+    .page-head .actions { flex-wrap: nowrap; }
+    /* the title row stays on top while a long screen scrolls: the state and
+       Restart are always one press away (no blur: it stutters on phones) */
+    .page-head { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30;
+      margin-top: -28px; padding-top: 18px; padding-bottom: 12px;
+      background: linear-gradient(rgba(var(--bg-rgb), 0.97) 82%, rgba(var(--bg-rgb), 0)); }
+    @media (max-width: 700px) { .page-head { margin-top: -16px; padding-top: 10px; padding-bottom: 10px; } }
+    .hpill { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px 0 12px; border-radius: 999px;
+      background: var(--surface); border: 1px solid var(--line); color: var(--text); font-weight: 700; font-size: 0.86rem;
+      cursor: pointer; white-space: nowrap; }
+    .hpill:hover { background: var(--surface-hover); }
+    .hpill i { width: 9px; height: 9px; border-radius: 50%; background: var(--text-faint); flex: none; }
+    .hpill .short { display: none; }
+    .hpill[data-state="works"] i { background: var(--ok); box-shadow: 0 0 8px rgba(var(--ok-rgb), 0.7); }
+    .hpill[data-state="needs-you"] { border-color: rgba(var(--warn-rgb), 0.5); }
+    .hpill[data-state="needs-you"] i { background: var(--warn); box-shadow: 0 0 8px rgba(var(--warn-rgb), 0.7); }
+    .hpill[data-state="down"], .hpill[data-state="restarting"] { border-color: rgba(var(--bad-rgb), 0.5); }
+    .hpill[data-state="down"] i { background: var(--bad); box-shadow: 0 0 8px rgba(var(--bad-rgb), 0.7); }
+    .hpill[data-state="restarting"] i { background: var(--warn); animation: adm-blink 1s ease-in-out infinite; }
+    @keyframes adm-blink { 50% { opacity: 0.25; } }
+    .restart-btn { display: inline-flex; align-items: center; gap: 7px; }
+    .restart-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; }
+
+    /* the state */
+    .sum { position: relative; overflow: hidden; padding: 20px 20px 16px; margin-bottom: 18px; border-radius: var(--radius-l);
+      border: 1px solid var(--line); background: var(--bg-raised); }
+    .sum::before { content: ""; position: absolute; inset: -40% auto auto -10%; width: 70%; height: 160%; pointer-events: none;
+      background: radial-gradient(closest-side, rgba(var(--ok-rgb), 0.13), transparent 70%); }
+    .sum[data-state="needs-you"]::before { background: radial-gradient(closest-side, rgba(var(--warn-rgb), 0.14), transparent 70%); }
+    .sum[data-state="down"]::before { background: radial-gradient(closest-side, rgba(var(--bad-rgb), 0.16), transparent 70%); }
+    .sum[data-state="checking"]::before { background: none; }
+    .sum > * { position: relative; }
+    .sum-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 16px; align-items: center; }
+    .sum-orb { width: 44px; height: 44px; border-radius: 50%; flex: none; background: rgba(255, 255, 255, 0.08); }
+    .sum[data-state="works"] .sum-orb { background: radial-gradient(circle at 34% 30%, #c9ffe2, var(--ok) 45%, #2f9b72); box-shadow: 0 0 26px rgba(var(--ok-rgb), 0.45); }
+    .sum[data-state="needs-you"] .sum-orb { background: radial-gradient(circle at 34% 30%, #ffe7b0, var(--warn) 45%, #a86f0e); box-shadow: 0 0 26px rgba(var(--warn-rgb), 0.45); }
+    .sum[data-state="down"] .sum-orb { background: radial-gradient(circle at 34% 30%, #ffd2d2, var(--bad) 45%, #a13a3a); box-shadow: 0 0 26px rgba(var(--bad-rgb), 0.45); }
+    .sum h2 { font-size: 1.45rem; font-weight: 900; letter-spacing: -0.015em; line-height: 1.15; text-wrap: balance; }
+    .sum-reason { color: var(--text-dim); font-size: 0.92rem; margin-top: 4px; line-height: 1.45; overflow-wrap: anywhere; }
+    .sum-fix { white-space: nowrap; }
+    .sum-areas { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; margin-top: 18px; border-radius: 12px;
+      overflow: hidden; background: var(--line); border: 1px solid var(--line); }
+    .sum-area { background: var(--bg-raised); padding: 11px 13px; min-width: 0; }
+    .sum-area .k { display: flex; align-items: center; gap: 7px; font-size: 0.66rem; font-weight: 800; letter-spacing: 0.11em;
+      text-transform: uppercase; color: var(--text-faint); }
+    .sum-area .k i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
+    .sum-area[data-level="bad"] .k i { background: var(--warn); box-shadow: 0 0 6px rgba(var(--warn-rgb), 0.8); }
+    .sum-area[data-level="bad"] .k { color: var(--warn); }
+    .sum[data-state="down"] .sum-area .k i, .sum[data-state="checking"] .sum-area .k i { background: var(--text-faint); box-shadow: none; }
+    .sum-area .v { margin-top: 4px; font-size: 0.85rem; line-height: 1.4; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .sum-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 14px; }
+    .sum-foot .when { color: var(--text-faint); font-size: 0.78rem; margin-right: auto; font-variant-numeric: tabular-nums; }
+    .sum-list { display: grid; gap: 8px; margin-top: 14px; }
+    .sum-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 14px; align-items: center; padding: 11px 13px;
+      border-radius: 12px; background: rgba(0, 0, 0, 0.22); border: 1px solid var(--line); }
+    .sum-item b { font-weight: 800; font-size: 0.9rem; }
+    .sum-item span { color: var(--text-dim); font-size: 0.84rem; line-height: 1.45; overflow-wrap: anywhere; }
+    .sum-item.minor b { font-weight: 700; color: var(--text-dim); }
+    .sum-item .area { color: var(--text-faint); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-right: 8px; }
+    .linkish { background: none; color: var(--text-dim); font-weight: 700; font-size: 0.84rem; padding: 6px 2px; cursor: pointer;
+      text-decoration: underline dotted; text-underline-offset: 3px; }
+    .linkish:hover { color: var(--text); }
+    .copy4c { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: var(--surface);
+      border: 1px solid var(--line); color: var(--text-dim); font-size: 0.78rem; font-weight: 700; cursor: pointer; white-space: nowrap; flex: none; }
+    .copy4c:hover { color: var(--text); background: var(--surface-hover); }
+    .copy4c svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .copy4c.all { color: var(--text); border-color: rgba(var(--accent-rgb), 0.4); }
+
+    /* waiting on a person (not health) */
+    .wait-list { display: grid; gap: 6px; }
+    .wait-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 4px;
+      border-top: 1px solid var(--line); }
+    .wait-row:first-child { border-top: 0; padding-top: 2px; }
+    .wait-row .ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-hover); font-size: 1.05rem; }
+    .wait-row .ic svg { width: 18px; height: 18px; stroke: var(--text-dim); fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+    .wait-row b { display: block; font-weight: 800; font-size: 0.92rem; overflow-wrap: anywhere; }
+    .wait-row small { color: var(--text-faint); font-size: 0.8rem; overflow-wrap: anywhere; }
+    .wait-row .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+    /* Details: everything elia looks at only sometimes, closed by default */
+    .mores-h { display: flex; align-items: center; gap: 10px; margin: 26px 4px 10px; font-size: 0.7rem; font-weight: 800;
+      letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-faint); }
+    .mores-h::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+    details.more { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 8px; min-width: 0; max-width: 100%; }
+    details.more > summary { list-style: none; display: flex; align-items: center; gap: 12px; min-height: 54px; padding: 10px 12px 10px 16px;
+      cursor: pointer; user-select: none; border-radius: var(--radius); }
+    details.more > summary::-webkit-details-marker { display: none; }
+    details.more > summary:hover { background: rgba(255, 255, 255, 0.03); }
+    details.more > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    details.more[open] > summary { border-bottom: 1px solid var(--line); border-radius: var(--radius) var(--radius) 0 0; }
+    .more-chev { width: 8px; height: 8px; flex: none; border-right: 2px solid var(--text-faint); border-bottom: 2px solid var(--text-faint);
+      transform: rotate(-45deg); transition: transform 0.15s; margin-right: 2px; }
+    details.more[open] > summary .more-chev { transform: rotate(45deg); }
+    .more-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .more-t b { font-size: 0.95rem; font-weight: 800; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .more-sub { font-size: 0.8rem; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .more-body { padding: 14px 16px 16px; min-width: 0; }
+    .more-body > section, .more-body > .card, .more-body > .grid-2 > .card, .more-body > div > .card {
+      background: none; border: 0; border-radius: 0; padding: 0; margin: 0 0 22px; }
+    .more-body > :last-child { margin-bottom: 0; }
+    .more-body > section > h2, .more-body > .card > h2, .more-body > .grid-2 > .card > h2 { font-size: 0.92rem; }
+    @media (prefers-reduced-motion: reduce) { .more-chev { transition: none; } .hpill[data-state="restarting"] i { animation: none; } }
+
+    /* In flight: rows made once and updated in place — fixed tracks, tabular
+       numbers, single lines, the bar drawn with a transform — so nothing on
+       the page moves when the numbers tick (it jumped on every update). */
+    .flight { display: grid; }
+    .fl-row { display: grid; grid-template-columns: minmax(0, 1fr) 11rem 5.4rem; grid-template-areas: "main state act" "note note note";
+      column-gap: 14px; align-items: center; padding: 11px 0; border-top: 1px solid var(--line); }
+    .fl-row:first-child { border-top: 0; padding-top: 2px; }
+    .fl-main { grid-area: main; min-width: 0; display: grid; gap: 6px; }
+    .fl-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; white-space: nowrap; overflow: hidden; height: 1.35em; line-height: 1.35; }
+    .fl-title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+    .fl-by { color: var(--text-faint); font-size: 0.8rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1000 auto; }
+    .fl-by .pill { font-size: 0.7rem; padding: 1px 8px; }
+    .fl-track { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+    .fl-track i { display: block; height: 100%; width: 100%; background: var(--progress); border-radius: 999px; transform-origin: left center; transform: scaleX(0); transition: transform 0.6s ease; }
+    .fl-row[data-tone="warn"] .fl-track i { background: var(--warn); }
+    .fl-nums { display: flex; gap: 14px; font-size: 0.8rem; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; height: 1.3em; line-height: 1.3; }
+    .fl-nums span { flex: none; }
+    .fl-nums .fl-pct { min-width: 4ch; color: var(--text); font-weight: 700; }
+    .fl-nums .fl-size { min-width: 7.5ch; }
+    .fl-nums .fl-speed { min-width: 9ch; }
+    .fl-nums .fl-eta { min-width: 9ch; }
+    .fl-state { grid-area: state; justify-self: start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fl-act { grid-area: act; justify-self: end; }
+    .fl-note { grid-area: note; display: grid; gap: 2px; margin-top: 6px; font-size: 0.8rem; color: var(--text-faint); min-width: 0; }
+    .fl-note:empty { display: none; }
+    .fl-note .one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+    .fl-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; color: var(--text-dim); font-size: 0.86rem; margin: -4px 0 10px; font-variant-numeric: tabular-nums; }
+    @media (prefers-reduced-motion: reduce) { .fl-track i { transition: none; } }
+
+    @media (max-width: 1100px) { .sum-areas { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (max-width: 700px) {
+      .page-head { flex-wrap: nowrap; gap: 8px; }
+      .page-head > div:first-child { min-width: 0; flex: 1; }
+      .page-head h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .page-head .actions { gap: 6px; }
+      .page-head .open-app, #refresh-btn { display: none; }
+      .hpill { padding: 0 11px 0 10px; height: 36px; }
+      .hpill .long { display: none; }
+      .hpill .short { display: inline; }
+      .restart-btn { padding: 8px 12px; }
+      .sum { padding: 16px 14px 14px; }
+      .sum-head { grid-template-columns: auto minmax(0, 1fr); gap: 12px; }
+      .sum-orb { width: 34px; height: 34px; }
+      .sum h2 { font-size: 1.2rem; }
+      .sum-fix { grid-column: 1 / -1; width: 100%; min-height: 44px; }
+      .sum-areas { grid-template-columns: minmax(0, 1fr); }
+      .sum-area { display: grid; grid-template-columns: 6.6rem minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 9px 12px; }
+      .sum-area .v { margin-top: 0; }
+      .sum-item { grid-template-columns: minmax(0, 1fr); }
+      .sum-foot { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+      .sum-foot .when, .sum-foot .copy4c.all, #sum-minor-btn { grid-column: 1 / -1; }
+      .sum-foot .when { margin: 0; }
+      #sum-minor-btn { justify-self: start; }
+      .sum-foot .copy4c { justify-content: center; min-height: 40px; }
+      .sum-item .mini, .sum-item .btn { width: 100%; min-height: 42px; }
+      .copy4c { min-height: 36px; }
+      .wait-row { grid-template-columns: 34px minmax(0, 1fr); }
+      .wait-row .acts { grid-column: 1 / -1; justify-content: stretch; }
+      .wait-row .acts > * { flex: 1; }
+      details.more > summary { padding: 9px 10px 9px 13px; }
+      details.more > summary .copy4c span { display: none; }
+      .more-body { padding: 12px 12px 14px; }
+      .fl-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main main" "state act" "note note"; row-gap: 8px; }
+      .fl-state { max-width: 62vw; }
+      .fl-nums { gap: 10px; }
+      .fl-nums .fl-eta { min-width: 7ch; }
+    }
   </style>
 </head>
 <body>
@@ -561,8 +707,10 @@
     <header class="page-head">
       <div><h1 id="page-title">Home</h1><p id="page-sub"></p></div>
       <div class="actions">
+        <button class="hpill" id="hstate" data-state="checking" title="Is everything working? Press for the details on Home"><i></i><span class="long" id="hstate-long">Checking…</span><span class="short" id="hstate-short">…</span></button>
         <button class="icon-btn" id="refresh-btn" title="Refresh this page's numbers" aria-label="Refresh"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 10-2.300 6.300"/><path d="M20 4v7h-7"/></svg></button>
-        <a class="btn small" href="/">Open app</a>
+        <button class="btn small restart-btn" id="restart-btn" title="Restart the server — asks first"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1011.4 0"/></svg><span>Restart</span></button>
+        <a class="btn small open-app" href="/">Open app</a>
       </div>
     </header>
     <div class="subtabs" id="subtabs"></div>
@@ -576,6 +724,13 @@
       </div>
       <div id="ac-groups"><div class="empty-note">Loading…</div></div>
       <div class="card">
+        <h2>Recent runs <span class="note">since the server last started</span></h2>
+        <div id="ac-runs" class="empty-note">Nothing has been run yet.</div>
+      </div>
+      <div class="mores-h">Details</div>
+      <details class="more" data-more="ac-data" data-title="Data safety" data-sub="are the household's files saved, and was anything ever recovered">
+        <div class="more-body">
+      <div class="card">
         <h2>Data safety <span class="note">the files that hold the household — profiles, progress, sign-ins, settings: are they saved, and what happened if one was ever damaged</span></h2>
         <div id="ds-state" class="empty-note">Checking…</div>
         <div id="ds-safe" style="margin-top:10px;display:grid;gap:8px"></div>
@@ -584,6 +739,10 @@
           <button class="mini hidden" id="ds-ack-btn">Acknowledge — I have read these</button>
         </div>
       </div>
+        </div>
+      </details>
+      <details class="more" data-more="ac-backups" data-title="Backups" data-sub="the daily snapshots, the second location, the restore test">
+        <div class="more-body">
       <div class="card">
         <h2>Backups <span class="note" id="ac-bk-note"></span></h2>
         <div id="ac-bk-advice" class="empty-note hidden" style="margin-bottom:10px"></div>
@@ -598,15 +757,17 @@
         </table></div>
         <div class="empty-note hidden" id="ac-bk-empty">No backups yet — press “Back up now” above.</div>
       </div>
+        </div>
+      </details>
+      <details class="more" data-more="ac-alerts" data-title="Alerts" data-sub="what the server tells you about by itself, and where it sends it">
+        <div class="more-body">
       <div class="card">
         <h2>Alerts <span class="note">what the server tells you about by itself, and where it sends it</span></h2>
         <div id="ac-al-delivery" class="empty-note">Checking…</div>
         <div id="ac-al-checks" style="margin-top:10px;display:grid;gap:6px"></div>
       </div>
-      <div class="card">
-        <h2>Recent runs <span class="note">since the server last started</span></h2>
-        <div id="ac-runs" class="empty-note">Nothing has been run yet.</div>
-      </div>
+        </div>
+      </details>
     </div>
 
     <div class="pane" id="pane-logs">
@@ -640,7 +801,30 @@
 
     <!-- ================= OVERVIEW ================= -->
     <div class="pane active" id="pane-overview">
-      <div class="attn" id="attention"></div>
+      <section class="sum" id="sum" data-state="checking" aria-live="polite">
+        <div class="sum-head">
+          <span class="sum-orb" aria-hidden="true"></span>
+          <div style="min-width:0"><h2 id="sum-headline">Checking…</h2><div class="sum-reason" id="sum-reason">Asking the server how it is.</div></div>
+          <button class="btn small btn-primary sum-fix hidden" id="sum-fix"></button>
+        </div>
+        <div class="sum-list hidden" id="sum-needs"></div>
+        <div class="sum-areas" id="sum-areas"></div>
+        <div class="sum-list hidden" id="sum-minor"></div>
+        <div class="sum-foot">
+          <span class="when" id="sum-when"></span>
+          <button type="button" class="linkish hidden" id="sum-minor-btn" aria-expanded="false" aria-controls="sum-minor"></button>
+          <button type="button" class="copy4c" id="broadcast-btn" title="A message that pops up on every open screen, like: restarting in 5 minutes">Tell everyone…</button>
+          <button type="button" class="copy4c" data-copy-for="summary" aria-label="Copy the state for Claude"><span>Copy for Claude</span></button>
+          <button type="button" class="copy4c all" id="copy-all" title="Every section of the admin as one text — paste it to Claude"><span>Copy everything for Claude</span></button>
+        </div>
+      </section>
+      <section class="hidden" id="waiting">
+        <h2>Waiting for you <span class="pill warn" id="wait-count">0</span></h2>
+        <div class="wait-list" id="wait-list"></div>
+      </section>
+      <div class="mores-h">Details</div>
+      <details class="more" data-more="ov-activity" data-title="Activity" data-sub="who is watching, connected devices, viewers over 24 h, top titles">
+        <div class="more-body">
       <div class="stats" id="ov-stats"></div>
       <div class="facts" id="ov-facts"></div>
       <section>
@@ -657,13 +841,6 @@
         </table></div>
         <div class="empty-note hidden" id="clients-empty">Nobody is connected.</div>
       </section>
-      <section>
-        <h2>Tell everyone <span class="note">a message that pops up on every open screen — "restarting in 5 minutes"</span></h2>
-        <div class="bar-row" style="margin:0">
-          <input type="text" id="broadcast-input" placeholder="Message shown to every connected viewer…" />
-          <button class="btn small btn-primary" id="broadcast-btn">Send</button>
-        </div>
-      </section>
       <div class="card">
         <h2>Viewers — last 24 hours <span class="note">30-second samples</span></h2>
         <div class="chart" id="ov-viewers"></div>
@@ -672,6 +849,8 @@
         <h2>Top titles — last 7 days <span class="note">by watch time</span></h2>
         <div class="hbars" id="ov-top"></div>
       </div>
+        </div>
+      </details>
     </div>
 
     <!-- ================= ANALYTICS ================= -->
@@ -684,10 +863,49 @@
           <button data-days="90">90 days</button>
         </div>
       </div>
+      <details class="more" data-more="an-watch" data-title="Watching" data-sub="watch time, when people watch, by profile and device, top titles, viewers">
+        <div class="more-body">
       <div class="stats" id="an-stats"></div>
       <div class="card">
-        <h2>How Aurora is used <span class="note">screens, features and play paths, from the app's own usage stats (each profile can turn them off under Settings → More settings → Privacy)</span>
-          <button class="mini" id="usage-copy" style="margin-left:auto" title="Copies a text summary to paste elsewhere">Copy stats</button></h2>
+        <h2>Watch time per day</h2>
+        <div class="chart" id="an-daily"></div>
+      </div>
+      <div class="card">
+        <h2>When people watch <span class="note">watch time by weekday × hour</span></h2>
+        <div id="an-heatmap"></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h2>Watch time by profile</h2>
+          <div class="hbars" id="an-profiles"></div>
+        </div>
+        <div class="card">
+          <h2>Watch time by device</h2>
+          <div class="hbars" id="an-devices"></div>
+          <div style="height:14px"></div>
+          <div class="hbars" id="an-os"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Top titles <span class="note">plays · unique viewers · average completion</span></h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>#</th><th>Title</th><th>Watch time</th><th>Plays</th><th>Viewers</th><th>Avg completion</th><th>Last played</th></tr></thead>
+          <tbody id="an-titles"></tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <h2>Viewers <span class="note">by IP address</span></h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>IP</th><th>Profiles</th><th>Devices</th><th>Watch time</th><th>Plays</th><th>Last seen</th></tr></thead>
+          <tbody id="an-viewers"></tbody>
+        </table></div>
+      </div>
+        </div>
+      </details>
+      <details class="more" data-more="an-usage" data-title="How Aurora is used" data-sub="screens, features and play paths from the app's own usage stats">
+        <div class="more-body">
+      <div class="card">
+        <h2>How Aurora is used <span class="note">screens, features and play paths, from the app's own usage stats (each profile can turn them off under Settings → More settings → Privacy)</span></h2>
         <div class="stats" id="usage-stats" style="margin:0 0 12px"></div>
         <div class="empty-note hidden" id="usage-empty">Nothing yet — the app sends a small batch every 20 seconds while someone is using it.</div>
         <div class="grid-2">
@@ -739,51 +957,24 @@
           </div>
         </div>
       </div>
+        </div>
+      </details>
+      <details class="more" data-more="an-intros" data-title="Skip intro" data-sub="what the audio detector found across the library">
+        <div class="more-body">
       <div class="card">
         <h2>Skip intro <span class="note">what the audio detector has found across the library</span></h2>
         <div class="stats" id="an-intros" style="margin:0"></div>
       </div>
-      <div class="card">
-        <h2>Watch time per day</h2>
-        <div class="chart" id="an-daily"></div>
-      </div>
-      <div class="card">
-        <h2>When people watch <span class="note">watch time by weekday × hour</span></h2>
-        <div id="an-heatmap"></div>
-      </div>
-      <div class="grid-2">
-        <div class="card">
-          <h2>Watch time by profile</h2>
-          <div class="hbars" id="an-profiles"></div>
         </div>
-        <div class="card">
-          <h2>Watch time by device</h2>
-          <div class="hbars" id="an-devices"></div>
-          <div style="height:14px"></div>
-          <div class="hbars" id="an-os"></div>
-        </div>
-      </div>
-      <div class="card">
-        <h2>Top titles <span class="note">plays · unique viewers · average completion</span></h2>
-        <div class="table-scroll"><table>
-          <thead><tr><th>#</th><th>Title</th><th>Watch time</th><th>Plays</th><th>Viewers</th><th>Avg completion</th><th>Last played</th></tr></thead>
-          <tbody id="an-titles"></tbody>
-        </table></div>
-      </div>
-      <div class="card">
-        <h2>Viewers <span class="note">by IP address</span></h2>
-        <div class="table-scroll"><table>
-          <thead><tr><th>IP</th><th>Profiles</th><th>Devices</th><th>Watch time</th><th>Plays</th><th>Last seen</th></tr></thead>
-          <tbody id="an-viewers"></tbody>
-        </table></div>
-      </div>
+      </details>
     </div>
 
     <!-- ================= APP HEALTH (lib/tel: error reports, timings, control counts) ================= -->
     <div class="pane" id="pane-telemetry">
+      <details class="more" data-more="tel-errors-sec" data-title="Errors on people's devices" data-sub="what the site, the TV and the phone app reported going wrong">
+        <div class="more-body">
       <div class="card">
-        <h2>Errors on people's devices <span class="note">what the site, the TV app and the phone app reported going wrong — by kind, never by title or person. Only from profiles with usage stats on.</span>
-          <button class="mini" id="tel-copy" style="margin-left:auto" title="Copies errors, timings and most-used as text to paste elsewhere">Copy report</button></h2>
+        <h2>Errors on people's devices <span class="note">what the site, the TV app and the phone app reported going wrong — by kind, never by title or person. Only from profiles with usage stats on.</span></h2>
         <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:8px">
           <div class="range-chips" id="tel-views">
             <button data-view="fresh" class="active">New <span class="tbadge" id="tel-n-fresh"></span></button>
@@ -816,6 +1007,10 @@
           </div>
         </details>
       </div>
+        </div>
+      </details>
+      <details class="more" data-more="tel-timings-sec" data-title="Timings" data-sub="p50 / p90 / p99 of the moments people feel, against the version before">
+        <div class="more-body">
       <div class="card">
         <h2>Timings <span class="note">the moments people feel, with the same definitions on the site and the TV · p50 / p90 / p99 for the newest version, and the change against the one before</span></h2>
         <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:8px">
@@ -828,6 +1023,10 @@
           <tbody id="tel-timings"></tbody>
         </table></div>
       </div>
+        </div>
+      </details>
+      <details class="more" data-more="tel-starts-sec" data-title="Slow starts" data-sub="every play from the press on Play to its first frame, step by step">
+        <div class="more-body">
       <div class="card">
         <h2>Slow starts <span class="note">every play from the press on Play to its first frame, step by step (the players' own start-up marks, the last 24 h — not the usage stats); a start of 6 s or more is slow, and its slowest step is named</span></h2>
         <div class="muted" id="tel-starts-line"></div>
@@ -841,6 +1040,10 @@
           <tbody id="tel-starts-recent"></tbody>
         </table></div>
       </div>
+        </div>
+      </details>
+      <details class="more" data-more="tel-used-sec" data-title="Most used" data-sub="presses per control over the last 30 days">
+        <div class="more-body">
       <div class="card">
         <h2>Most used <span class="note">presses per control over the last 30 days, and the share of sessions that used each — counted on the device, sent as totals</span></h2>
         <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:8px">
@@ -860,10 +1063,14 @@
           <div id="tel-never" class="muted" style="line-height:1.9"></div>
         </div>
       </div>
+        </div>
+      </details>
     </div>
 
     <!-- ================= HISTORY ================= -->
     <div class="pane" id="pane-history">
+      <details class="more" data-more="h-sessions" data-title="Watch sessions" data-sub="every play: who, what, when, how long, how far">
+        <div class="more-body">
       <section>
         <h2>Watch sessions
           <span class="note">every play: who, what, when, how long, how far</span>
@@ -878,9 +1085,10 @@
           <tbody id="sessions"></tbody>
         </table></div>
       </section>
-      <details class="acard" data-key="h-legacy">
-        <summary><span class="chev">▶</span><h2>Legacy watch history <span class="note">the older per-title play counter, kept for reference</span></h2></summary>
-        <div class="acard-body">
+        </div>
+      </details>
+      <details class="more" data-more="h-legacy" data-title="Legacy watch history" data-sub="the older per-title play counter, kept for reference">
+        <div class="more-body">
         <div style="display:flex;justify-content:flex-end;margin-bottom:6px"><button class="mini danger" id="clear-history">Clear</button></div>
         <div class="table-scroll"><table>
           <thead><tr><th>When</th><th>Profile</th><th>IP</th><th>Content</th><th>Plays</th></tr></thead>
@@ -888,9 +1096,8 @@
         </table></div>
         </div>
       </details>
-      <details class="acard" data-key="h-conn">
-        <summary><span class="chev">▶</span><h2>Connection log <span class="note">devices arriving and leaving</span></h2></summary>
-        <div class="acard-body">
+      <details class="more" data-more="h-conn" data-title="Connection log" data-sub="devices arriving and leaving">
+        <div class="more-body">
         <div class="table-scroll"><table>
           <thead><tr><th>When</th><th>Event</th><th>IP</th><th>Device</th><th>Profile</th></tr></thead>
           <tbody id="log"></tbody>
@@ -905,11 +1112,6 @@
            tab so it's easier to use and shows what's really relevant"). The
            sign-in switch sits on top and stays there; everyone is ONE table;
            everything about one person is that person's sheet (the dialog). -->
-      <div class="rollout" id="rollout">
-        <div class="ro-title">Sign-in</div>
-        <div class="ro-seg" id="auth-modes"></div>
-      </div>
-      <div class="ro-note" id="ro-note"></div>
       <section class="card hidden" id="req-card">
         <h2>Waiting for approval <span class="pill live" id="req-count">0</span></h2>
         <div class="table-scroll"><table>
@@ -929,8 +1131,8 @@
         <h2 class="people-head">People <span class="pill" id="profiles-count">0</span>
           <input type="search" id="people-search" placeholder="Find a person, email or address…" aria-label="Find a person" autocomplete="off" />
           <span class="note">Press a person for their sign-in, devices, downloads and every action.</span>
+          <button type="button" class="copy4c" data-copy-for="p-people" aria-label="Copy the people for Claude"><span>Copy for Claude</span></button>
         </h2>
-        <div class="stats compact" id="people-stats"></div>
         <div class="range-chips pfilters" id="people-filters"></div>
         <div class="table-scroll"><table>
           <thead><tr><th>Person</th><th>Sign-in</th><th>Last seen</th><th>Devices</th><th>Downloads</th><th>Status</th><th></th></tr></thead>
@@ -938,6 +1140,18 @@
         </table></div>
         <div class="empty-note hidden" id="people-empty">Nobody matches.</div>
       </section>
+      <div class="mores-h">Details</div>
+      <details class="more" data-more="p-signin" data-title="Sign-in" data-sub="Open, Transition or Closed — and whether Google sign-in works">
+        <div class="more-body">
+      <div class="rollout" id="rollout">
+        <div class="ro-title">Sign-in</div>
+        <div class="ro-seg" id="auth-modes"></div>
+      </div>
+      <div class="ro-note" id="ro-note"></div>
+        </div>
+      </details>
+      <details class="more" data-more="p-live" data-title="Connected now" data-sub="every open app or browser tab — kick or ban">
+        <div class="more-body">
       <section class="card">
         <h2>Connected now <span class="pill" id="live-count">0</span> <span class="note">every open app or browser tab — and, for a device that hasn't opened a profile, who has used that address before</span></h2>
         <div class="table-scroll"><table>
@@ -946,10 +1160,11 @@
         </table></div>
         <div class="empty-note hidden" id="live-empty">Nothing is connected right now.</div>
       </section>
+        </div>
+      </details>
       <!-- [phone-remote] who may control which TV (src/lib/devices.js) -->
-      <details class="acard" data-key="p-remote" id="rm-card">
-        <summary><span class="chev">▶</span><h2>Phone as a remote <span class="note">a phone controls the TVs and computers signed in to its own profile; kids profiles only ever their own</span></h2></summary>
-        <div class="acard-body">
+      <details class="more" data-more="p-remote" id="rm-card" data-title="Phone as a remote" data-sub="a phone controls the TVs signed in to its own profile; kids only their own">
+        <div class="more-body">
           <div class="bar-row" style="align-items:center;margin-top:10px;flex-wrap:wrap;gap:10px 16px">
             <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)"><input type="checkbox" id="rm-household" /> Grown-ups may also control the household's other TVs</label>
             <span class="muted" style="font-size:0.8rem" id="rm-status"></span>
@@ -957,9 +1172,8 @@
         </div>
       </details>
       <!-- [/phone-remote] -->
-      <details class="acard" data-key="p-bans">
-        <summary><span class="chev">▶</span><h2>Banned addresses <span class="pill" id="bans-count">0</span> <span class="note">an address here can't reach the server at all</span></h2></summary>
-        <div class="acard-body">
+      <details class="more" data-more="p-bans" data-title="Banned addresses" data-sub="an address here can't reach the server at all" data-pill-id="bans-count">
+        <div class="more-body">
           <div class="bar-row" style="margin-top:8px">
             <input type="text" id="ban-ip" placeholder="IP address" style="max-width:220px" />
             <input type="text" id="ban-reason" placeholder="Reason (optional)" />
@@ -976,6 +1190,91 @@
 
     <!-- ================= SERVER ================= -->
     <div class="pane" id="pane-server">
+      <div class="card">
+        <h2>Updates <span class="note">nothing happens without a button press</span></h2>
+        <div id="sv-update" class="empty-note">Checking…</div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="mini" id="update-check-btn">Check now</button>
+          <button class="mini" id="update-pull-btn" disabled>Pull from GitHub</button>
+          <button class="mini" id="update-npm-btn" title="Runs npm install (developer-only packages skipped) — needed after an update that changed package.json; then Restart">Install dependencies</button>
+          <button class="mini" id="update-restart-btn">Restart Aurora</button>
+        </div>
+        <div id="sv-update-log" class="empty-note hidden" style="margin-top:8px;white-space:pre-wrap;font-size:0.8rem"></div>
+      </div>
+      <div class="mores-h">Details</div>
+      <details class="more" data-more="sv-healer" data-title="Healer" data-sub="about thirty checks every minute, and what it fixed by itself">
+        <div class="more-body">
+      <div class="card">
+        <h2>Healer <span class="note">every minute, about thirty checks: what the log really says, how playback, downloads and transcoding are going by the numbers, the library folders, backups, updates, alerts — it fixes what it safely can, and for the rest names the button to press</span></h2>
+        <div id="hl-overall" class="empty-note">Waiting for the first round…</div>
+        <div id="hl-checks" style="margin-top:10px;display:grid;gap:8px"></div>
+        <div id="hl-history" style="margin-top:10px;display:flex;gap:2px;align-items:flex-end;height:22px" title="the last four hours, one bar per round"></div>
+        <div id="hl-repairs" style="margin-top:12px"></div>
+        <div id="hl-events" class="empty-note" style="margin-top:10px">No actions taken yet.</div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="mini" id="healer-run-btn">Run all checks now</button>
+        </div>
+      </div>
+        </div>
+      </details>
+      <details class="more" data-more="sv-metrics" data-title="Health" data-sub="why it is slow, if it is: first byte, event loop, outside services, limits">
+        <div class="more-body">
+      <div class="card" id="mx-card">
+        <h2>Health <span class="note">why it is slow, if it is: how long requests wait for their first byte, the event loop, the work in hand, the outside services and their breakers, the limits — since the server started</span></h2>
+        <div class="stats" id="mx-stats" style="margin:0 0 10px"></div>
+        <div id="mx-checks" style="display:grid;gap:4px;margin-bottom:10px"></div>
+        <div class="muted" style="font-weight:800;margin:6px 0">Outside services</div>
+        <div class="empty-note hidden" id="mx-up-empty">No outside service asked yet.</div>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Service</th><th>State</th><th>Calls</th><th>Failed</th><th>Typical</th><th>Cache</th><th>Last problem</th></tr></thead>
+          <tbody id="mx-up"></tbody>
+        </table></div>
+        <div class="muted" style="font-weight:800;margin:12px 0 6px">Slowest requests <span class="note">by time to the first byte, p95</span></div>
+        <div class="empty-note hidden" id="mx-slow-empty">Nothing measured yet.</div>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Route</th><th>Count</th><th>p50</th><th>p95</th><th>Max</th><th>Over 1 s</th><th>Errors</th></tr></thead>
+          <tbody id="mx-slow"></tbody>
+        </table></div>
+        <div id="mx-limits" class="empty-note" style="margin-top:10px"></div>
+      </div>
+        </div>
+      </details>
+      <details class="more" data-more="sv-encoding" data-title="Encoding" data-sub="how many viewers this machine converts video for at once">
+        <div class="more-body">
+      <div class="card">
+        <h2>Encoding <span class="note">how many viewers this machine converts video for at once — worked out from its CPU and its measured speed, or set by you</span></h2>
+        <div id="en-sentence" class="empty-note">Checking…</div>
+        <div class="stats" id="en-stats" style="margin:10px 0"></div>
+        <div id="en-running" class="empty-note"></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <label style="display:flex;gap:6px;align-items:center;font-size:0.88rem">At once
+            <select id="en-limit" aria-label="Encodes at once" style="max-width:150px"></select></label>
+          <button class="mini" id="en-apply">Apply</button>
+          <button class="mini" id="en-measure">Measure this machine again</button>
+        </div>
+        <div id="en-hw" class="muted" style="font-size:0.85rem;margin-top:10px"></div>
+        <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <label style="display:flex;gap:6px;align-items:center;font-size:0.88rem">Graphics card
+            <select id="en-hwmode" aria-label="Hardware encoding" style="max-width:150px" title="Automatic: where it was measured as good as the CPU. Always: whenever the card's check passed."><option value="auto">Automatic</option><option value="on">Always</option><option value="off">Off</option></select></label>
+          <button class="mini" id="en-hwapply">Apply</button>
+        </div>
+      </div>
+        </div>
+      </details>
+      <details class="more" data-more="sv-watchdog" data-title="Watchdog" data-sub="memory, event-loop lag, ffmpeg children — and what it did">
+        <div class="more-body">
+      <div class="card">
+        <h2>Watchdog <span class="note">memory, event-loop lag, ffmpeg children — and what it did about them</span></h2>
+        <div class="stats" id="sv-health" style="margin:0 0 10px"></div>
+        <div id="sv-health-events" class="empty-note">No watchdog events yet.</div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="mini" id="heal-btn">Heal now (drop caches, stop idle ffmpeg)</button>
+        </div>
+      </div>
+        </div>
+      </details>
+      <details class="more" data-more="sv-machine" data-title="Memory and torrents" data-sub="memory and torrent traffic over 24 h, the active torrents">
+        <div class="more-body">
       <div class="stats" id="sv-stats"></div>
       <div class="grid-2">
         <div class="card">
@@ -995,72 +1294,10 @@
         </table></div>
         <div class="empty-note hidden" id="sv-torrents-empty">No active torrents.</div>
       </div>
-      <div class="card" id="mx-card">
-        <h2>Health <span class="note">why it is slow, if it is: how long requests wait for their first byte, the event loop, the work in hand, the outside services and their breakers, the limits — since the server started</span></h2>
-        <div class="stats" id="mx-stats" style="margin:0 0 10px"></div>
-        <div id="mx-checks" style="display:grid;gap:4px;margin-bottom:10px"></div>
-        <div class="muted" style="font-weight:800;margin:6px 0">Outside services</div>
-        <div class="empty-note hidden" id="mx-up-empty">No outside service asked yet.</div>
-        <div class="table-scroll"><table>
-          <thead><tr><th>Service</th><th>State</th><th>Calls</th><th>Failed</th><th>Typical</th><th>Cache</th><th>Last problem</th></tr></thead>
-          <tbody id="mx-up"></tbody>
-        </table></div>
-        <div class="muted" style="font-weight:800;margin:12px 0 6px">Slowest requests <span class="note">by time to the first byte, p95</span></div>
-        <div class="empty-note hidden" id="mx-slow-empty">Nothing measured yet.</div>
-        <div class="table-scroll"><table>
-          <thead><tr><th>Route</th><th>Count</th><th>p50</th><th>p95</th><th>Max</th><th>Over 1 s</th><th>Errors</th></tr></thead>
-          <tbody id="mx-slow"></tbody>
-        </table></div>
-        <div id="mx-limits" class="empty-note" style="margin-top:10px"></div>
-      </div>
-      <div class="card">
-        <h2>Watchdog <span class="note">memory, event-loop lag, ffmpeg children — and what it did about them</span></h2>
-        <div class="stats" id="sv-health" style="margin:0 0 10px"></div>
-        <div id="sv-health-events" class="empty-note">No watchdog events yet.</div>
-        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="mini" id="heal-btn">Heal now (drop caches, stop idle ffmpeg)</button>
         </div>
-      </div>
-      <div class="card">
-        <h2>Encoding <span class="note">how many viewers this machine converts video for at once — worked out from its CPU and its measured speed, or set by you</span></h2>
-        <div id="en-sentence" class="empty-note">Checking…</div>
-        <div class="stats" id="en-stats" style="margin:10px 0"></div>
-        <div id="en-running" class="empty-note"></div>
-        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <label style="display:flex;gap:6px;align-items:center;font-size:0.88rem">At once
-            <select id="en-limit" aria-label="Encodes at once" style="max-width:150px"></select></label>
-          <button class="mini" id="en-apply">Apply</button>
-          <button class="mini" id="en-measure">Measure this machine again</button>
-        </div>
-        <div id="en-hw" class="muted" style="font-size:0.85rem;margin-top:10px"></div>
-        <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <label style="display:flex;gap:6px;align-items:center;font-size:0.88rem">Graphics card
-            <select id="en-hwmode" aria-label="Hardware encoding" style="max-width:150px" title="Automatic: where it was measured as good as the CPU. Always: whenever the card's check passed."><option value="auto">Automatic</option><option value="on">Always</option><option value="off">Off</option></select></label>
-          <button class="mini" id="en-hwapply">Apply</button>
-        </div>
-      </div>
-      <div class="card">
-        <h2>Healer <span class="note">every minute, about thirty checks: what the log really says, how playback, downloads and transcoding are going by the numbers, the library folders, backups, updates, alerts — it fixes what it safely can, and for the rest names the button to press</span></h2>
-        <div id="hl-overall" class="empty-note">Waiting for the first round…</div>
-        <div id="hl-checks" style="margin-top:10px;display:grid;gap:8px"></div>
-        <div id="hl-history" style="margin-top:10px;display:flex;gap:2px;align-items:flex-end;height:22px" title="the last four hours, one bar per round"></div>
-        <div id="hl-repairs" style="margin-top:12px"></div>
-        <div id="hl-events" class="empty-note" style="margin-top:10px">No actions taken yet.</div>
-        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="mini" id="healer-run-btn">Run all checks now</button>
-        </div>
-      </div>
-      <div class="card">
-        <h2>Updates <span class="note">nothing happens without a button press</span></h2>
-        <div id="sv-update" class="empty-note">Checking…</div>
-        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="mini" id="update-check-btn">Check now</button>
-          <button class="mini" id="update-pull-btn" disabled>Pull from GitHub</button>
-          <button class="mini" id="update-npm-btn" title="Runs npm install (developer-only packages skipped) — needed after an update that changed package.json; then Restart">Install dependencies</button>
-          <button class="mini" id="update-restart-btn">Restart Aurora</button>
-        </div>
-        <div id="sv-update-log" class="empty-note hidden" style="margin-top:8px;white-space:pre-wrap;font-size:0.8rem"></div>
-      </div>
+      </details>
+      <details class="more" data-more="sv-apps" data-title="TV app and phone app" data-sub="the Android builds this server hands out">
+        <div class="more-body">
       <div class="card">
         <h2>TV app <span class="note">the Android TV build this server hands out at /download — read from the file itself, so what the TVs are told is always what they get</span></h2>
         <div class="stats" id="tv-stats" style="margin:0 0 10px"></div>
@@ -1071,6 +1308,10 @@
         <div class="stats" id="phone-stats" style="margin:0 0 10px"></div>
         <div id="phone-problems" class="empty-note">Checking…</div>
       </div>
+        </div>
+      </details>
+      <details class="more" data-more="sv-maint" data-nocopy data-title="Maintenance" data-sub="rescan the library, clear caches">
+        <div class="more-body">
       <div class="card">
         <h2>Maintenance <span class="note">safe to press — neither touches files or watch progress</span></h2>
         <div style="display:grid;gap:10px">
@@ -1078,23 +1319,36 @@
           <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button class="mini" id="clear-caches">Clear caches</button><span class="muted" style="font-size:0.86rem">Forget stored metadata and subtitles; they rebuild on demand (first loads are slower).</span></div>
         </div>
       </div>
+        </div>
+      </details>
+      <details class="more" data-more="sv-env" data-title="Environment" data-sub="Node, the machine, ffmpeg, aria2, torrents">
+        <div class="more-body">
       <div class="card">
         <h2>Environment</h2>
         <dl class="kv" id="sv-env"></dl>
       </div>
+        </div>
+      </details>
     </div>
 
     <!-- ================= DOWNLOADS (three zones: needs you / in flight / on disk) ================= -->
     <div class="pane" id="pane-downloads">
-      <div class="card">
-        <h2>Storage <span id="disk-headline" style="font-weight:600;font-size:0.95rem;color:var(--text-dim)"></span></h2>
-        <div class="now-grid" id="disk-bars"></div>
-      </div>
+      <div class="fl-head" id="dl-headline"><span id="disk-headline">Measuring the disks…</span><span class="muted" id="dl-hold"></span></div>
+      <section class="hidden" id="dl-needs">
+        <h2>Needs you <span class="pill warn" id="dl-pending-count">0</span>
+          <span class="note">held back because disk space is low — everything else runs by itself</span></h2>
+        <div class="now-grid" id="dl-pending"></div>
+        <div class="empty-note hidden" id="dl-pending-empty">Nothing is waiting for approval.</div>
+      </section>
+      <section id="dl-flight">
+        <h2>In flight <span class="pill" id="dl-flight-count">0</span><button type="button" class="copy4c" data-copy-for="d-flight" style="margin-left:auto" aria-label="Copy the downloads for Claude"><span>Copy for Claude</span></button></h2>
+        <div class="flight" id="dl-jobs" role="list"></div>
+        <div class="empty-note hidden" id="dl-jobs-empty">Nothing is downloading right now.</div>
+      </section>
+      <div class="mores-h">Details</div>
       <!-- ================= ADD YOUR OWN FILE (media/uploads.js) ================= -->
-      <details class="acard" data-key="d-upload" id="up-card" open>
-        <summary><span class="chev">▶</span><h2>Add your own file <span class="pill" id="up-count">0</span>
-          <span class="note">a video of your own, or a film you keep in Google Drive or Dropbox — it lands in the library like any other title, ready to play and to watch together</span></h2></summary>
-        <div class="acard-body tall">
+      <details class="more" data-more="d-upload" id="up-card" data-title="Add your own file" data-sub="a video of your own, or a film from Google Drive or Dropbox" data-pill-id="up-count">
+        <div class="more-body">
           <div class="up-modes range-chips" role="tablist" aria-label="Where the file comes from">
             <button type="button" class="active" data-up-mode="device" role="tab" aria-selected="true">From this device</button>
             <button type="button" data-up-mode="link" role="tab" aria-selected="false">From a link</button>
@@ -1123,22 +1377,8 @@
           <input type="file" id="up-resume-files" multiple class="hidden" aria-hidden="true" tabindex="-1" />
         </div>
       </details>
-      <details class="acard" data-key="d-needs" open>
-        <summary><span class="chev">▶</span><h2>Needs you <span class="pill warn" id="dl-pending-count">0</span>
-          <span class="note">approvals waiting on you — everything else runs by itself</span></h2></summary>
-        <div class="acard-body">
-          <div class="now-grid" id="dl-pending" style="margin-top:10px"></div>
-          <div class="empty-note hidden" id="dl-pending-empty">Nothing is waiting for approval.</div>
-        </div>
-      </details>
-      <details class="acard" data-key="d-flight" open>
-        <summary><span class="chev">▶</span><h2>In flight <span class="note">live downloads — progress, speed and how long is left</span></h2></summary>
-        <div class="acard-body">
-          <div class="table-scroll"><table>
-            <thead><tr><th>Title</th><th>Size</th><th>Progress</th><th>Speed</th><th>ETA</th><th>Status</th><th></th></tr></thead>
-            <tbody id="dl-jobs"></tbody>
-          </table></div>
-          <div class="empty-note hidden" id="dl-jobs-empty">Nothing is downloading right now.</div>
+      <details class="more" data-more="d-limits" data-title="Speed and downloads at once" data-sub="speed caps for the download engine, how many run together">
+        <div class="more-body">
           <div class="bar-row" style="align-items:center;margin-top:10px;flex-wrap:wrap">
             <span class="muted" style="font-size:0.8rem">Speed limits:</span>
             <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">↓
@@ -1154,9 +1394,8 @@
           <div class="empty-note" id="lim-status" style="padding:4px"></div>
         </div>
       </details>
-      <details class="acard" data-key="d-done">
-        <summary><span class="chev">▶</span><h2>Finished <span class="note">done, declined or failed — remove rows you're done with</span></h2></summary>
-        <div class="acard-body">
+      <details class="more" data-more="d-done" data-title="Finished" data-sub="done, declined or failed — remove rows you're done with" data-pill-id="dl-done-count">
+        <div class="more-body">
           <div class="table-scroll"><table>
             <thead><tr><th>Title</th><th>Quality</th><th>Size</th><th>Status</th><th></th></tr></thead>
             <tbody id="dl-done"></tbody>
@@ -1164,9 +1403,8 @@
           <div class="empty-note hidden" id="dl-done-empty">Nothing finished yet.</div>
         </div>
       </details>
-      <details class="acard hidden" data-key="d-mylist" id="ml-card">
-        <summary><span class="chev">▶</span><h2>Left from My List downloads <span class="note">copies fetched back when adding a title to My List downloaded it — that is gone; these are still tidied up if nobody watches them</span></h2></summary>
-        <div class="acard-body">
+      <details class="more hidden" data-more="d-mylist" id="ml-card" data-title="Left from My List downloads" data-sub="copies the old My List downloads fetched — still tidied up if nobody watches them">
+        <div class="more-body">
           <div class="bar-row" style="align-items:center;margin-top:10px;flex-wrap:wrap;gap:10px 16px">
             <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)"><input type="checkbox" id="ml-autodelete" /> Delete unwatched copies automatically</label>
             <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">Stale after
@@ -1177,8 +1415,6 @@
           </div>
           <div class="muted" style="font-size:0.8rem;padding:4px">Adding a title to My List no longer downloads anything. The days count from when one of these copies finished downloading. Watching it — even partly — stops both clocks for good, and so does anyone downloading it by hand or Keep below. A stale copy is offered first by “Suggest what to delete” below. Only copies that old feature fetched are ever touched; this card goes away once the last of them is settled.</div>
           <div class="table-scroll"><table>
-            <thead><tr><th>Title</th><th>For</th><th>Added</th><th>Status</th><th></th></tr></thead>
-            <tbody id="ml-rows"></tbody>          <div class="table-scroll"><table>
             <thead><tr><th>Title</th><th>For</th><th>Added</th><th>Status</th><th></th></tr></thead>
             <tbody id="ml-rows"></tbody>
           </table></div>
@@ -1251,17 +1487,15 @@
           .fp-foot .fp-del { width: 100%; min-height: 44px; }
         }
       </style>
-      <details class="acard hidden" data-key="d-copies" id="cp-card" open>
-        <summary><span class="chev">▶</span><h2>More than one copy <span class="pill warn" id="cp-count">0</span>
-          <span class="note">the same film or episode on disk — or downloading — more than once; keep the copy you want and delete the others</span></h2></summary>
-        <div class="acard-body">
+      <details class="more hidden" data-more="d-copies" id="cp-card" data-title="More than one copy" data-sub="the same film or episode on disk more than once — keep one, delete the others" data-pill-id="cp-count" data-pill-class="warn">
+        <div class="more-body">
           <div class="empty-note" id="cp-summary" style="font-size:0.88rem;padding:6px 4px 0"></div>
           <div id="cp-groups"></div>
         </div>
       </details>
-      <details class="acard" data-key="d-disk" open>
-        <summary><span class="chev">▶</span><h2>On disk <span class="note">find it, see who watched it, delete it — files are removed permanently</span></h2></summary>
-        <div class="acard-body tall">
+      <details class="more" data-more="d-disk" data-title="On disk" data-sub="the drives and the whole library — find it, see who watched it, free up space">
+        <div class="more-body">
+          <div class="now-grid" id="disk-bars" style="margin-bottom:14px"></div>
           <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:8px;margin:8px 0 6px">
             <input type="text" id="lib-search" placeholder="Search titles &amp; episodes…" style="max-width:230px;flex:1;min-width:150px" />
             <select id="lib-sort" style="padding:7px 10px;background:var(--bg-input,#1c1c24);color:inherit;border:1px solid rgba(255,255,255,0.12);border-radius:8px">
@@ -1315,17 +1549,10 @@
     <!-- ================= MODERATION ================= -->
     <div class="pane" id="pane-moderation">
       <section>
-        <h2>Problem reports <span class="note">what people sent from "Report a problem" — with where they were and the errors their page saw</span></h2>
+        <h2>Problem reports <span class="note">what people sent from "Report a problem" — with where they were and the errors their page saw</span><button type="button" class="copy4c" data-copy-for="in-reports" style="margin-left:auto" aria-label="Copy the open reports for Claude"><span>Copy for Claude</span></button></h2>
         <div class="table-scroll"><table>
           <thead><tr><th>When</th><th>From</th><th>Report</th><th>Where</th><th>Status</th><th></th></tr></thead>
           <tbody id="reports"></tbody>
-        </table></div>
-      </section>
-      <section>
-        <h2>Replaced copies <span class="note">"Problem with this copy? → Get another version": who replaced what, why, and how it went (the old copy stays until the new one lands; a cancel leaves it as it was)</span></h2>
-        <div class="table-scroll"><table>
-          <thead><tr><th>When</th><th>Who</th><th>Title</th><th>Why</th><th>Old → new</th><th>Status</th></tr></thead>
-          <tbody id="replacements"></tbody>
         </table></div>
       </section>
       <section>
@@ -1335,6 +1562,20 @@
           <tbody id="requests"></tbody>
         </table></div>
       </section>
+      <div class="mores-h">Details</div>
+      <details class="more" data-more="in-replaced" data-title="Replaced copies" data-sub="Get another version: who replaced what, why, and how it went">
+        <div class="more-body">
+      <section>
+        <h2>Replaced copies <span class="note">"Problem with this copy? → Get another version": who replaced what, why, and how it went (the old copy stays until the new one lands; a cancel leaves it as it was)</span></h2>
+        <div class="table-scroll"><table>
+          <thead><tr><th>When</th><th>Who</th><th>Title</th><th>Why</th><th>Old → new</th><th>Status</th></tr></thead>
+          <tbody id="replacements"></tbody>
+        </table></div>
+      </section>
+        </div>
+      </details>
+      <details class="more" data-more="in-intros" data-title="Skip-intro marks" data-sub="what the household marked from the player">
+        <div class="more-body">
       <section>
         <h2>Skip-intro marks <span class="note">what the household marked from the player — delete a bad one and it can be re-marked</span></h2>
         <div class="table-scroll"><table>
@@ -1343,6 +1584,8 @@
         </table></div>
         <div class="empty-note hidden" id="intro-empty">No intro marks yet — they appear when someone marks one from the player.</div>
       </section>
+        </div>
+      </details>
     </div>
     </main>
   </div>
@@ -1932,13 +2175,30 @@
       // esc() on the message: a log line can contain anything (a torrent name, a
       // filesystem path, an error from a remote peer) and must never be parsed
       // as markup by this page.
-      $("#log-list").innerHTML = entries.map((e) => `
-        <div class="log-row log-${e.level}">
+      // The live tail adds the new lines on top and drops the oldest, and
+      // leaves every other line where it is: rebuilding the whole list every
+      // two seconds made the page jump while you read (on a phone the list is
+      // the page). A changed filter draws it afresh.
+      const list = $("#log-list");
+      const rowHtml = (e) => `
+        <div class="log-row log-${e.level}" data-id="${e.id}">
           <span class="log-time">${fmtLogTime(e.t)}</span>
           <span class="log-lvl">${e.level.toUpperCase()}</span>
           <span class="log-msg">${esc(e.msg)}</span>
-        </div>`).join("");
+        </div>`;
+      const key = params.toString();
+      const top = list.firstElementChild ? Number(list.firstElementChild.dataset.id) : null;
+      if (key === logView && top != null && entries.some((e) => e.id === top)) {
+        const fresh = entries.filter((e) => e.id > top);
+        if (fresh.length) list.insertAdjacentHTML("afterbegin", fresh.map(rowHtml).join(""));
+        const keep = new Set(entries.map((e) => String(e.id)));
+        for (const n of [...list.children]) if (!keep.has(n.dataset.id)) n.remove();
+      } else {
+        list.innerHTML = entries.map(rowHtml).join("");
+      }
+      logView = key;
     }
+    let logView = "";
 
     // Subsystem chips are rebuilt from what the buffer actually holds (the
     // busiest first); the active one survives a repaint. Capped at ten so a
@@ -2105,6 +2365,7 @@
       const howTo = `<details><summary>how to set it up</summary><div>To enable the normal browser popup (free): Google Cloud Console → OAuth consent screen → Credentials → Create credentials → OAuth client ID → type <strong>“Web application”</strong>, add the redirect URIs <code>http://localhost:4000/api/auth/google/web-callback</code> and <code>https://nufurora.com/api/auth/google/web-callback</code>, then put <code>GOOGLE_WEB_CLIENT_ID=…</code> and <code>GOOGLE_WEB_CLIENT_SECRET=…</code> in the server's <code>.env</code> and restart. The TV code flow (only the TV app and raw-IP devices use it) needs a second client of type “TVs and Limited Input devices” as <code>GOOGLE_TV_CLIENT_ID=…</code> + <code>GOOGLE_TV_CLIENT_SECRET=…</code>.</div></details>`;
       // the current mode in one line, then the Google setup as chips
       const modeLine = `<span class="ro-mode"><b>${esc(cur.name)}</b> · ${esc(cur.short)}</span>`;
+      setText($("#sub-p-signin"), `now ${cur.name}: ${cur.short}`);
       const chip = (cls, ico, txt) => `<span class="chip ${cls}">${ico}${esc(txt)}</span>`;
       if (!info.google) {
         $("#ro-note").innerHTML = `${modeLine}${chip("", ICO.lock, "Google sign-in not configured")}${howTo}`;
@@ -2175,7 +2436,7 @@
         </tr>`).join("");
     }
 
-    $("#profile-requests").addEventListener("click", async (e) => {
+    const onProfileRequest = async (e) => {
       const ok = e.target.closest("[data-req-ok]");
       const no = e.target.closest("[data-req-no]");
       const btn = ok || no;
@@ -2195,7 +2456,10 @@
       toast(ok ? `Approved "${name}" — they can sign in now` : `Rejected "${name}"`);
       loadPeople();
       loadBadges();
-    });
+    };
+    // (the same buttons on People and in Home's "Waiting for you")
+    $("#profile-requests").addEventListener("click", onProfileRequest);
+    $("#wait-list").addEventListener("click", onProfileRequest);
 
     // ---------- password resets people asked for (auth-round) ----------
     // Shown only while someone is waiting. The person asked from the sign-in
@@ -2217,7 +2481,7 @@
           </td>
         </tr>`).join("");
     }
-    $("#reset-requests").addEventListener("click", async (e) => {
+    const onResetRequest = async (e) => {
       const ok = e.target.closest("[data-reset-ok]");
       const no = e.target.closest("[data-reset-no]");
       const btn = ok || no;
@@ -2229,11 +2493,14 @@
       const id = ok ? ok.dataset.resetOk : no.dataset.resetNo;
       const r = await adminFetch(`/api/admin/reset-requests/${encodeURIComponent(id)}/${ok ? "approve" : "decline"}`, { method: "POST" });
       const out = await r.json().catch(() => ({}));
-      if (!r.ok) { toast(out.error || "Failed"); btn.disabled = false; return loadPeople(); }
+      if (!r.ok) { toast(out.error || "Failed"); btn.disabled = false; loadBadges(); return loadPeople(); }
       if (ok) await showCode(name, out.code);
       else toast(`Declined the reset for "${name}"`);
       loadPeople();
-    });
+      loadBadges();
+    };
+    $("#reset-requests").addEventListener("click", onResetRequest);
+    $("#wait-list").addEventListener("click", onResetRequest);
     const AUTH_EVENT = {
       "reset-asked": "asked for a password reset", "reset-approved": "reset approved by you", "reset-declined": "reset declined",
       "reset-code-given": "you gave a reset code", "reset-code-wrong": "a wrong reset code was typed", "reset-verified": "proved who they are for a reset",
@@ -2246,13 +2513,8 @@
     function renderPeople() {
       const all = (PEOPLE && PEOPLE.people) || [];
       $("#profiles-count").textContent = all.length;
-      $("#people-stats").innerHTML = [
-        [all.length, "people"],
-        [all.filter((p) => p.claimed).length, "claimed sign-in"],
-        [all.filter((p) => p.live.length).length, "online now"],
-        [((PEOPLE && PEOPLE.clients) || []).length, "devices connected"],
-        [((PEOPLE && PEOPLE.bans) || []).length, "banned addresses"],
-      ].map(([v, k]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join("");
+      // (the five count tiles that sat here said what the filter chips below
+      // say again — the chips carry the counts now, once)
       // quick filters, with counts — the questions you actually come here with
       const attention = (p) => p.locked || p.mustReset || p.fails >= 5;
       const FILTERS = [
@@ -2642,54 +2904,353 @@
           : `<div style="display:flex;gap:10px;align-items:flex-start">${hlDot("ok")}<span>In step: the APK, the release notes and the source all say ${esc(a.versionName)}. A new build replaces this file in place — there is only ever one.</span></div>`;
     }
 
-    // ---------- pending-work badges on the tab labels ----------
-    // ...and the same facts as sentences on Home: what is waiting for a
-    // decision, and where to make it. Nothing waiting says so, in green.
-    const ATT = { profiles: 0, downloads: 0, reports: 0, requests: 0, update: null, healer: null };
-    function paintAttention() {
-      const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-      const rows = [];
-      if (ATT.healer && ATT.healer.overall === "fail") rows.push(["bad", "server", "Something is wrong on the server", ATT.healer.what || "A health check is failing.", "Server"]);
-      if (ATT.profiles) rows.push(["", "profiles", `${plural(ATT.profiles, "person is", "people are")} waiting to be let in`, "Approve or reject the new profile.", "People"]);
-      if (ATT.downloads) rows.push(["", "downloads", `${plural(ATT.downloads, "download needs", "downloads need")} your approval`, "Held back because disk space is low.", "Downloads"]);
-      if (ATT.reports) rows.push(["", "moderation", `${plural(ATT.reports, "problem report", "problem reports")} open`, "Someone hit a problem and told you.", "Inbox"]);
-      if (ATT.requests) rows.push(["", "moderation", `${plural(ATT.requests, "title request", "title requests")} pending`, "Someone asked for something to be added.", "Inbox"]);
-      if (ATT.update && ATT.update.available) rows.push(["", "server", "An update is available", "Pull it from GitHub, then restart.", "Server"]);
-      else if (ATT.update && ATT.update.restartNeeded) rows.push(["", "server", "Restart to finish the update", "New code is on disk but not running yet.", "Server"]);
-      if (ATT.healer && ATT.healer.overall === "warn") rows.push(["", "server", "The healer has a warning", ATT.healer.what || "Worth a look, nothing is broken.", "Server"]);
-      $("#attention").innerHTML = rows.length
-        ? rows.map(([cls, tab, what, why, where]) =>
-            `<button class="attn-row ${cls}" data-go="${tab}"><i class="dot"></i><span class="what"><b>${esc(what)}</b><span>${esc(why)}</span></span><span class="go">${esc(where)} →</span></button>`).join("")
-        : `<div class="attn-row calm"><i class="dot"></i><span class="what"><b>Nothing needs you</b><span>No approvals, reports or server problems waiting.</span></span></div>`;
-      const sv = (ATT.update && (ATT.update.available || ATT.update.restartNeeded) ? 1 : 0) + (ATT.healer && ATT.healer.overall === "fail" ? 1 : 0);
-      $("#badge-server").textContent = sv ? String(sv) : "";
-    }
-    $("#attention").addEventListener("click", (e) => {
-      const b = e.target.closest("[data-go]");
-      if (b) showTab(b.dataset.go);
-    });
-    const noteHealer = (h) => {
-      const last = h && h.last;
-      if (!last) return;
-      const worst = last.checks.find((c) => c.status === "fail") || last.checks.find((c) => c.status === "warn");
-      ATT.healer = { overall: last.overall, what: worst ? `${worst.name} — ${worst.summary}` : "" };
-      paintAttention();
-    };
-    async function loadBadges() {
+    // ================= the state on top (GET /api/admin/summary) =================
+    // elia 2026-11-03: "I only care to see if everything works". One state —
+    // Everything works / N things need you / Down — with the one-line reason
+    // and the fix, five lines on whether people can watch, the minor notes
+    // only on request, and what waits on a person (people, resets, reports,
+    // downloads to approve) with its buttons. The rules are in
+    // src/lib/adminsummary.js; "down" is decided here, when it does not answer.
+    let SUM = null;          // the last answer
+    let SUM_FAILS = 0;       // answers missed in a row
+    let SUM_DOWN_SINCE = null;
+    let SUM_MINOR_OPEN = false;
+    let RESTARTING = false;
+    let sumRetry = null;
+    const AREA_WORD = { site: "Site", playback: "Playback", streaming: "Streaming", disk: "Disk", downloads: "Downloads", data: "Data" };
+    const hhmm = (t) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    // only touch the DOM when the markup really changed (a repaint with the
+    // same numbers must not move anything)
+    const setHTML = (el, html) => { if (el && el.__html !== html) { el.innerHTML = html; el.__html = html; } };
+    const setText = (el, text) => { text = String(text ?? ""); if (el && el.textContent !== text) el.textContent = text; };
+    const fixBtn = (fix, cls = "mini") => fix
+      ? `<button class="${cls}" data-fix='${esc(JSON.stringify(fix))}'>${esc(fix.label)}</button>` : "";
+
+    async function loadSummary() {
+      clearTimeout(sumRetry);
+      if (!ADMIN_PW) return null;
+      let d = null, why = "No answer";
       try {
-        const [counts, profReqs] = await Promise.all([
-          json("/api/admin/pending-counts"),
-          json("/api/admin/profile-requests"),
-        ]);
-        const put = (id, n) => { $(id).textContent = n > 0 ? String(n) : ""; };
-        put("#badge-moderation", (counts.requests || 0) + (counts.reports || 0));
-        put("#badge-downloads", counts.downloads);
-        put("#badge-profiles", profReqs.length);
-        Object.assign(ATT, { profiles: profReqs.length, downloads: counts.downloads || 0, reports: counts.reports || 0, requests: counts.requests || 0 });
-        paintAttention();
+        const r = await adminFetch("/api/admin/summary", { cache: "no-store" });
+        if (r.ok) d = await r.json().catch(() => null);
+        else why = r.status === 503 ? "It is stopping" : `It answered ${r.status}`;
       } catch {}
-      try { noteHealer(await adminFetch("/api/admin/healer").then((r) => r.json())); } catch {}
+      if (d && d.state) {
+        SUM = d; SUM_FAILS = 0; SUM_DOWN_SINCE = null;
+        if (!RESTARTING) paintSummary(d);
+        return d;
+      }
+      // one miss can be a blip: ask again shortly; two in a row is "down"
+      SUM_FAILS++;
+      if (!SUM_DOWN_SINCE) SUM_DOWN_SINCE = Date.now();
+      if (SUM_FAILS >= 2) { if (!RESTARTING) paintDown(why); }
+      else sumRetry = setTimeout(loadSummary, 2500);
+      return null;
     }
+
+    function paintHeadPill(state, long, short) {
+      const p = $("#hstate");
+      p.dataset.state = state;
+      setText($("#hstate-long"), long);
+      setText($("#hstate-short"), short);
+      p.setAttribute("aria-label", long);
+    }
+
+    function paintAreas(areas, down) {
+      setHTML($("#sum-areas"), (areas || []).map((a) =>
+        `<div class="sum-area" data-area="${esc(a.id)}" data-level="${down ? "unknown" : esc(a.level)}"><div class="k"><i></i>${esc(a.label)}</div><div class="v">${esc(a.line || "—")}</div></div>`).join(""));
+    }
+
+    function paintSummary(d) {
+      const box = $("#sum");
+      box.dataset.state = d.state;
+      setText($("#sum-headline"), d.headline);
+      setText($("#sum-reason"), d.reason);
+      const fix = $("#sum-fix");
+      fix.classList.toggle("hidden", !d.fix);
+      if (d.fix) { setText(fix, d.fix.label); fix.dataset.fix = JSON.stringify(d.fix); }
+      // more than one thing broken: each with its own button
+      const needs = d.needs || [];
+      $("#sum-needs").classList.toggle("hidden", needs.length < 2);
+      setHTML($("#sum-needs"), needs.length < 2 ? "" : needs.map((n) =>
+        `<div class="sum-item"><div><b><span class="area">${esc(AREA_WORD[n.area] || n.area)}</span>${esc(n.title)}</b><br><span>${esc(n.why)}</span></div>${fixBtn(n.fix)}</div>`).join(""));
+      paintAreas(d.areas, false);
+      // minor notes: counted, shown only when asked for
+      const minor = d.minor || [];
+      const mb = $("#sum-minor-btn");
+      mb.classList.toggle("hidden", !minor.length);
+      setText(mb, SUM_MINOR_OPEN ? "Hide the minor notes" : `${minor.length} minor note${minor.length === 1 ? "" : "s"}`);
+      mb.setAttribute("aria-expanded", SUM_MINOR_OPEN ? "true" : "false");
+      $("#sum-minor").classList.toggle("hidden", !SUM_MINOR_OPEN || !minor.length);
+      setHTML($("#sum-minor"), minor.map((m) =>
+        `<div class="sum-item minor"><div><b><span class="area">${esc(AREA_WORD[m.area] || m.area)}</span>${esc(m.title)}</b><br><span>${esc(m.why)}</span></div>${fixBtn(m.fix)}</div>`).join(""));
+      setText($("#sum-when"), `Checked ${hhmm(d.at || Date.now())}`);
+      paintHeadPill(d.state, d.state === "works" ? "Everything works" : d.headline, d.state === "works" ? "Works" : `${needs.length} need${needs.length === 1 ? "s" : ""} you`);
+      paintWaiting(d.waiting || {});
+      paintBadges();
+    }
+
+    function paintDown(why) {
+      const box = $("#sum");
+      box.dataset.state = "down";
+      setText($("#sum-headline"), "Aurora is not answering");
+      setText($("#sum-reason"), `${why} since ${hhmm(SUM_DOWN_SINCE || Date.now())}. The keeper starts it again by itself within a minute; if it stays down, start Aurora on the PC.`);
+      const fix = $("#sum-fix");
+      fix.classList.remove("hidden");
+      setText(fix, "Try again");
+      fix.dataset.fix = JSON.stringify({ label: "Try again", kind: "retry" });
+      $("#sum-needs").classList.add("hidden");
+      if (SUM) paintAreas(SUM.areas, true);
+      setText($("#sum-when"), `Last answer ${SUM ? hhmm(SUM.at) : "never"}`);
+      paintHeadPill("down", "Down", "Down");
+    }
+
+    function paintRestarting() {
+      $("#sum").dataset.state = "checking";
+      setText($("#sum-headline"), "Restarting…");
+      setText($("#sum-reason"), "Waiting for the server to come back. This page reloads by itself when it does.");
+      $("#sum-fix").classList.add("hidden");
+      paintHeadPill("restarting", "Restarting…", "Restarting");
+    }
+
+    // what waits on a person — not health: people to let in, password
+    // resets, downloads held for approval, reports, title requests, an update
+    const WAIT_ICO = {
+      reset: '<svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M15 7l2 2M18 4l2 2"/></svg>',
+      dl: '<svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 20h16"/></svg>',
+      inbox: '<svg viewBox="0 0 24 24"><path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 3h6l1-3h5"/></svg>',
+      update: '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 10-2.3 6.3"/><path d="M20 4v7h-7"/></svg>',
+    };
+    function paintWaiting(w) {
+      const rows = [];
+      const when = (t) => (t ? ago(new Date(t).toISOString()) : "");
+      for (const r of w.people || []) rows.push(`<div class="wait-row"><span class="ic">${esc(r.avatar || "🙂")}</span>
+        <div><b>${esc(r.name)} wants to join</b><small>${esc([r.realName, r.requestedAt ? "asked " + when(r.requestedAt) : ""].filter(Boolean).join(" · "))}</small></div>
+        <div class="acts"><button class="mini" data-req-ok="${esc(r.id)}" data-req-name="${esc(r.name)}">Approve</button><button class="mini danger" data-req-no="${esc(r.id)}" data-req-name="${esc(r.name)}">Reject</button></div></div>`);
+      for (const r of w.resets || []) rows.push(`<div class="wait-row"><span class="ic">${WAIT_ICO.reset}</span>
+        <div><b>${esc(r.name)} asked for a new password</b><small>${esc(r.requestedAt ? "asked " + when(r.requestedAt) : "")}</small></div>
+        <div class="acts"><button class="mini" data-reset-ok="${esc(r.id)}" data-reset-name="${esc(r.name)}">Approve</button><button class="mini danger" data-reset-no="${esc(r.id)}" data-reset-name="${esc(r.name)}">Decline</button></div></div>`);
+      for (const j of w.downloads || []) rows.push(`<div class="wait-row"><span class="ic">${WAIT_ICO.dl}</span>
+        <div><b>${esc(j.label)} waits for your approval</b><small>${esc([j.by, j.sizeBytes ? fmtBytes(j.sizeBytes) : "", j.holdReason].filter(Boolean).join(" · "))}</small></div>
+        <div class="acts"><button class="mini" data-dl-approve="${esc(j.id)}">Approve anyway</button><button class="mini danger" data-dl-decline="${esc(j.id)}">Decline</button></div></div>`);
+      const inbox = [w.reports ? `${w.reports} problem report${w.reports === 1 ? "" : "s"} open` : "", w.requests ? `${w.requests} title request${w.requests === 1 ? "" : "s"}` : ""].filter(Boolean);
+      if (inbox.length) rows.push(`<div class="wait-row"><span class="ic">${WAIT_ICO.inbox}</span>
+        <div><b>${esc(inbox.join(" · "))}</b><small>what people sent you from the app</small></div>
+        <div class="acts"><button class="mini" data-go="moderation">Open Inbox</button></div></div>`);
+      if (w.update && w.update.available) rows.push(`<div class="wait-row"><span class="ic">${WAIT_ICO.update}</span>
+        <div><b>An update is ready</b><small>pull it from GitHub on the Server screen, then restart</small></div>
+        <div class="acts"><button class="mini" data-go="server">Open Server</button></div></div>`);
+      else if (w.update && w.update.restartNeeded) rows.push(`<div class="wait-row"><span class="ic">${WAIT_ICO.update}</span>
+        <div><b>Restart to finish the update</b><small>the new code is on disk but not running yet</small></div>
+        <div class="acts"><button class="mini" data-restart>Restart Aurora</button></div></div>`);
+      const n = (w.people || []).length + (w.resets || []).length + (w.downloads || []).length + (w.reports || 0) + (w.requests || 0) + (w.update && (w.update.available || w.update.restartNeeded) ? 1 : 0);
+      $("#waiting").classList.toggle("hidden", !rows.length);
+      setText($("#wait-count"), n);
+      setHTML($("#wait-list"), rows.join(""));
+    }
+
+    // ---------- pending-work badges on the tab labels (from the same answer) ----------
+    const ATT = { update: null, healer: null };
+    function paintBadges() {
+      const w = (SUM && SUM.waiting) || {};
+      const put = (id, n) => setText($(id), n > 0 ? String(n) : "");
+      put("#badge-moderation", (w.reports || 0) + (w.requests || 0));
+      put("#badge-downloads", (w.downloads || []).length);
+      put("#badge-profiles", (w.people || []).length + (w.resets || []).length);
+      const up = ATT.update || w.update;
+      put("#badge-server", up && (up.available || up.restartNeeded) ? 1 : 0);
+    }
+    const paintAttention = paintBadges; // (older callers)
+    const noteHealer = () => { clearTimeout(noteHealer.t); noteHealer.t = setTimeout(loadSummary, 400); };
+    const loadBadges = () => loadSummary();
+
+    const runFix = (fix) => {
+      if (!fix) return;
+      if (fix.kind === "restart") return restartAurora();
+      if (fix.kind === "retry") { SUM_FAILS = 1; return loadSummary(); }
+      if (fix.kind === "action") return pressAction(fix.action);
+      if (fix.kind === "tab") { showTab(fix.tab); if (fix.more) openMore(fix.more, true); }
+    };
+    document.addEventListener("click", (e) => {
+      const f = e.target.closest("[data-fix]");
+      if (f) { e.preventDefault(); try { runFix(JSON.parse(f.dataset.fix)); } catch {} return; }
+      const g = e.target.closest("#wait-list [data-go], #sum [data-go]");
+      if (g) { showTab(g.dataset.go); return; }
+      if (e.target.closest("#wait-list [data-restart]")) { restartAurora(); return; }
+      const ap = e.target.closest("#wait-list [data-dl-approve]");
+      if (ap) { approveDownload(ap.dataset.dlApprove).then(loadSummary); return; }
+      const de = e.target.closest("#wait-list [data-dl-decline]");
+      if (de) { declineDownload(de.dataset.dlDecline).then(loadSummary); }
+    });
+    $("#sum-minor-btn").addEventListener("click", () => { SUM_MINOR_OPEN = !SUM_MINOR_OPEN; if (SUM) paintSummary(SUM); });
+    $("#hstate").addEventListener("click", () => { showTab("overview"); });
+
+    // ---------- Restart: the header's button, the Updates card's, a fix's ----------
+    // Asks first. A server nothing supervises refuses (409) and stays up — the
+    // sentence is shown. Otherwise the page waits for the new process and
+    // reloads itself, so the admin page is the new code too.
+    async function restartAurora({ host = null } = {}) {
+      if (RESTARTING) return;
+      if (!await ask("Restart Aurora now? Anyone watching stops for a few seconds, then carries on.")) return;
+      let r = null;
+      try { r = await adminFetch("/api/admin/update/restart", { method: "POST" }); } catch {}
+      if (r && r.status === 409) {
+        const d = await r.json().catch(() => ({}));
+        const msg = d.error || "Nothing supervises the server, so it was not stopped.";
+        if (host) host.innerHTML = `<span class="pill warn">not restarted</span> <span class="muted">${esc(msg)}</span>`;
+        toast("Not restarted — " + msg);
+        return;
+      }
+      RESTARTING = true;
+      paintRestarting();
+      if (host) host.innerHTML = `<span class="pill warn">restarting…</span> <span class="muted">waiting for the server to come back</span>`;
+      const t0 = Date.now();
+      const poll = async () => {
+        try {
+          const p = await fetch("/api/ping?t=" + Date.now(), { cache: "no-store" });
+          // (the old process answers for a moment before it goes)
+          if (p.ok && Date.now() - t0 > 2500) { location.reload(); return; }
+        } catch {}
+        if (Date.now() - t0 < 120000) setTimeout(poll, 1000);
+        else {
+          RESTARTING = false;
+          SUM_DOWN_SINCE = t0;
+          paintDown("No answer after the restart");
+          if (host) host.innerHTML = `<span class="pill warn">still down</span> <span class="muted">the server didn't come back within two minutes — look at its supervisor on the box (docs/operations.md)</span>`;
+        }
+      };
+      setTimeout(poll, 1500);
+    }
+    $("#restart-btn").addEventListener("click", () => restartAurora());
+
+    // The panels the timers and live updates repaint: assigning the same markup
+    // again leaves them alone (it used to rebuild them every tick).
+    {
+      const proto = Object.getOwnPropertyDescriptor(Element.prototype, "innerHTML");
+      for (const id of ["#ov-now", "#ov-stats", "#ov-facts", "#clients", "#sv-stats", "#sv-torrents", "#sv-health", "#sv-health-events", "#mx-stats", "#mx-checks", "#mx-up", "#mx-slow", "#mx-limits",
+        "#en-stats", "#en-running", "#people-live", "#up-jobs", "#cp-groups", "#ml-rows", "#reports", "#requests", "#replacements", "#hl-checks", "#hl-repairs", "#hl-history", "#hl-events", "#ac-runs"]) {
+        const el = $(id);
+        if (!el) continue;
+        Object.defineProperty(el, "innerHTML", {
+          configurable: true,
+          get() { return proto.get.call(this); },
+          set(v) { v = String(v); if (this.__html === v) return; this.__html = v; proto.set.call(this, v); },
+        });
+      }
+    }
+
+    // ================= Details: closed by default, loaded when opened =================
+    // Each <details class="more" data-more="key" data-title data-sub> gets its
+    // summary row here (title, one line of what is inside, Copy for Claude).
+    // Its data loads when it is opened and refreshes only while it is open.
+    const COPY_ICO = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 00-2-2H6a2 2 0 00-2 2v11a2 2 0 002 2h2"/></svg>';
+    for (const d of document.querySelectorAll("details.more[data-more]")) {
+      const key = d.dataset.more;
+      const sum = document.createElement("summary");
+      const pill = d.dataset.pillId ? ` <span class="pill${d.dataset.pillClass ? " " + d.dataset.pillClass : ""}" id="${esc(d.dataset.pillId)}">0</span>` : "";
+      sum.innerHTML = `<span class="more-chev" aria-hidden="true"></span><span class="more-t"><b>${esc(d.dataset.title)}${pill}</b><span class="more-sub" id="sub-${esc(key)}">${esc(d.dataset.sub || "")}</span></span>` +
+        (d.hasAttribute("data-nocopy") ? "" : `<button type="button" class="copy4c" data-copy-for="${esc(key)}" aria-label="Copy ${esc(d.dataset.title)} for Claude" title="Copies this section as text to paste to Claude">${COPY_ICO}<span>Copy for Claude</span></button>`);
+      d.prepend(sum);
+      d.addEventListener("toggle", () => { if (d.open) loadMore(key); });
+    }
+    for (const b of document.querySelectorAll(".copy4c[data-copy-for]:not(:has(svg))")) b.insertAdjacentHTML("afterbegin", COPY_ICO);
+    const loadMore = (key) => { const m = MORE[key]; if (m && m.load) { try { m.load(); } catch {} } };
+    const openKeys = (pane) => [...document.querySelectorAll(`#pane-${pane} details.more[open]`)].map((d) => d.dataset.more);
+    const loadOpen = (pane) => { for (const k of openKeys(pane)) loadMore(k); };
+    const openMore = (key, scroll = false) => {
+      const d = document.querySelector(`details.more[data-more="${key}"]`);
+      if (!d) return;
+      d.classList.remove("hidden");
+      if (!d.open) d.open = true; else loadMore(key);
+      if (scroll) setTimeout(() => d.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+    };
+
+    // ---------- Copy for Claude ----------
+    // Plain markdown: a heading, when and which version, then short lists and
+    // small tables (at most 25 rows each). Made from the same answers the
+    // sections paint from, fetched fresh at the press.
+    const MD = {
+      cell: (v) => String(v ?? "").replace(/\|/g, "/").replace(/\s+/g, " ").trim(),
+      table(heads, rows, max = 25) {
+        if (!rows.length) return "(none)";
+        const out = [`| ${heads.join(" | ")} |`, `|${heads.map(() => "---").join("|")}|`, ...rows.slice(0, max).map((r) => `| ${r.map(MD.cell).join(" | ")} |`)];
+        if (rows.length > max) out.push(`…and ${rows.length - max} more`);
+        return out.join("\n");
+      },
+      list: (pairs) => pairs.filter(([, v]) => v != null && v !== "").map(([k, v]) => `- ${k}: ${MD.cell(v)}`).join("\n"),
+    };
+    const stamp = () => `_Aurora admin · ${new Date().toLocaleString()}${SUM && SUM.version ? ` · v${SUM.version}` : ""}_`;
+    const sectionTitle = (key) => { const d = document.querySelector(`details.more[data-more="${key}"]`); return d ? d.dataset.title : key; };
+    function summaryText(d) {
+      if (!d) return "## Aurora — state\nThe server did not answer.";
+      const w = d.waiting || {};
+      return [
+        `## Aurora — ${$("#sum").dataset.state === "down" ? "Down (not answering)" : d.headline}`,
+        stamp(),
+        d.state === "works" ? d.reason : "",
+        ...(d.needs || []).map((n) => `- NEEDS YOU · ${AREA_WORD[n.area] || n.area} · ${n.title}: ${n.why}${n.fix ? ` (fix: ${n.fix.label})` : ""}`),
+        "",
+        ...(d.areas || []).map((a) => `- ${a.label}: ${a.line}${a.level === "bad" ? " (broken)" : ""}`),
+        "",
+        (d.minor || []).length ? `Minor notes (${d.minor.length}):\n` + d.minor.map((m) => `- ${AREA_WORD[m.area] || m.area} · ${m.title}: ${m.why}`).join("\n") : "Minor notes: none",
+        "",
+        `Waiting for a person: ${(w.people || []).length} to let in, ${(w.resets || []).length} password resets, ${(w.downloads || []).length} downloads to approve, ${w.reports || 0} open reports, ${w.requests || 0} title requests${w.update && w.update.available ? ", an update" : ""}${w.update && w.update.restartNeeded ? ", a restart to finish the update" : ""}`,
+      ].filter((x, i, a) => !(x === "" && a[i - 1] === "")).join("\n").trim();
+    }
+    async function copyText(text, what = "Copied for Claude — paste it in the chat") {
+      let ok = false;
+      try { await navigator.clipboard.writeText(text); ok = true; } catch {}
+      if (!ok) {
+        // no clipboard (plain http on the LAN): the old way, through a hidden box
+        const ta = document.createElement("textarea");
+        ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.append(ta); ta.select();
+        try { ok = document.execCommand("copy"); } catch {}
+        ta.remove();
+      }
+      toast(ok ? what : "This browser would not copy — try again from the admin on nufurora.com");
+      return ok;
+    }
+    async function sectionCopy(key) {
+      if (key === "summary") { await loadSummary(); return summaryText(SUM); }
+      const m = MORE[key];
+      if (!m || !m.copy) return "";
+      const body = await m.copy();
+      return `## ${m.title || sectionTitle(key)}\n${stamp()}\n\n${String(body || "(nothing here)").trim()}`;
+    }
+    document.addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-copy-for]");
+      if (!b) return;
+      e.preventDefault(); // (inside a summary: copy, don't fold)
+      e.stopPropagation();
+      b.disabled = true;
+      try { await copyText(await sectionCopy(b.dataset.copyFor)); }
+      catch { toast("Couldn't put that together — the server did not answer"); }
+      finally { b.disabled = false; }
+    }, true);
+    $("#copy-all").addEventListener("click", async () => {
+      const b = $("#copy-all");
+      b.disabled = true;
+      const label = b.querySelector("span");
+      const was = label.textContent;
+      label.textContent = "Putting it together…";
+      const parts = [];
+      const seen = new Set();
+      for (const key of ["summary", ...Object.keys(MORE)]) {
+        const m = MORE[key];
+        if (key !== "summary" && (!m || !m.copy || m.inAll === false)) continue;
+        try {
+          const t = key === "summary" ? await sectionCopy(key) : (m.copyAll ? `## ${m.title || sectionTitle(key)}\n\n${await m.copyAll()}` : await sectionCopy(key));
+          // sections that share one answer (App health) are pasted once
+          const body = t.replace(/^## .*\n(_.*_\n)?/, "").trim();
+          if (body && !seen.has(body)) { seen.add(body); parts.push(t.replace(/\n_Aurora admin · .*_\n/, "\n")); }
+        } catch { parts.push(`## ${sectionTitle(key)}\n(could not be read)`); }
+      }
+      await copyText(`# Aurora admin — everything\n${stamp()}\n\n` + parts.join("\n\n"), "Everything copied for Claude — paste it in the chat");
+      label.textContent = was;
+      b.disabled = false;
+    });
+
 
     // ---------- update checker (Server tab) ----------
     // Three shas tell the whole story: GitHub master (remote), the checkout
@@ -3014,41 +3575,18 @@
       setTimeout(poll, 800);
     };
 
-    $("#update-restart-btn").onclick = async () => {
-      if (!await ask("Restart Aurora now? Anyone watching will be interrupted for a few seconds.")) return;
-      const host = $("#sv-update");
-      // Not supervised: the server refuses (409) and stays up — say why.
-      try {
-        const r = await adminFetch("/api/admin/update/restart", { method: "POST" });
-        if (r.status === 409) {
-          const d = await r.json().catch(() => ({}));
-          host.innerHTML = `<span class="pill warn">not restarted</span> <span class="muted">${esc(d.error || "Nothing supervises the server, so it was not stopped.")}</span>`;
-          return;
-        }
-      } catch {}
-      host.innerHTML = `<span class="pill warn">restarting…</span> <span class="muted">waiting for the server to come back</span>`;
-      // Poll until the new process answers, then reload the whole page so
-      // the admin UI itself is the freshly pulled version too.
-      const t0 = Date.now();
-      const poll = async () => {
-        try {
-          const r = await fetch("/api/ping?t=" + Date.now(), { cache: "no-store" });
-          if (r.ok) { location.reload(); return; }
-        } catch {}
-        if (Date.now() - t0 < 60000) setTimeout(poll, 1000);
-        else host.innerHTML = `<span class="pill warn">still down</span> <span class="muted">the server didn't come back within a minute — look at its supervisor on the box (docs/operations.md)</span>`;
-      };
-      setTimeout(poll, 1500);
-    };
+    $("#update-restart-btn").onclick = () => restartAurora({ host: $("#sv-update") });
 
     // ---------- aria2 speed limits (Downloads tab) ----------
     async function loadLimits() {
       let l;
       try { l = await json("/api/admin/aria2-limits"); } catch { return; }
-      if (!$("#lim-down").matches(":focus")) $("#lim-down").value = l.saved.download;
-      if (!$("#lim-up").matches(":focus")) $("#lim-up").value = l.saved.upload;
+      // (a field typed into and not applied yet is left alone by the 8-second refresh)
+      const fresh = (el) => !el.matches(":focus") && !el.dataset.dirty;
+      if (fresh($("#lim-down"))) $("#lim-down").value = l.saved.download;
+      if (fresh($("#lim-up"))) $("#lim-up").value = l.saved.upload;
       const eff = l.effective;
-      $("#lim-status").innerHTML = !l.available
+      let st = !l.available
         ? `<span class="muted">aria2 isn't installed — nothing to limit.</span>`
         : l.running && eff
           ? `<span class="muted">live on the engine now: ↓ ${esc(eff.download === "0" ? "unlimited" : eff.download)} · ↑ ${esc(eff.upload === "0" ? "unlimited" : eff.upload)}</span>`
@@ -3064,13 +3602,20 @@
       } else {
         slotsEl.title = "";
         slotsEl.min = sl.min; slotsEl.max = sl.max;
-        if (!slotsEl.matches(":focus")) slotsEl.value = sl.maxActive;
+        if (fresh(slotsEl)) slotsEl.value = sl.maxActive;
         if (sl.holding) {
-          $("#lim-status").innerHTML += ` <span class="pill warn" id="lim-holding">holding at ${esc(String(sl.holdAt))} while someone is watching</span>` +
+          st += ` <span class="pill warn" id="lim-holding">holding at ${esc(String(sl.holdAt))} while someone is watching</span>` +
             (sl.queued ? ` <span class="muted">${esc(String(sl.queued))} queued — ${sl.queued === 1 ? "it starts" : "they start"} when viewing stops</span>` : "");
         }
       }
+      setHTML($("#lim-status"), st);
+      // (and one quiet line above the list, where the jobs it holds back are)
+      setText($("#dl-hold"), [
+        sl && sl.counted != null ? `${sl.counted} of ${sl.maxActive} running${sl.notCounted ? ` + ${sl.notCounted} stalled, still looking` : ""}` : "",
+        sl && sl.holding ? `Holding at ${sl.holdAt} at once while someone is watching${sl.queued ? ` · ${sl.queued} queued` : ""}` : "",
+      ].filter(Boolean).join(" · "));
     }
+    for (const id of ["#lim-down", "#lim-up", "#lim-slots"]) $(id).addEventListener("input", (e) => { e.target.dataset.dirty = "1"; });
     $("#lim-apply").onclick = async () => {
       const btn = $("#lim-apply");
       btn.disabled = true;
@@ -3085,6 +3630,7 @@
           }),
         });
         const data = await r.json().catch(() => ({}));
+        for (const id of ["#lim-down", "#lim-up", "#lim-slots"]) delete $(id).dataset.dirty;
         if (!r.ok) { toast(data.error || "Failed to set limits"); loadLimits(); return; }
         toast(data.applied ? "Limits applied to the running engine" : "Limits saved — they apply when the engine starts");
         loadLimits();
@@ -3327,19 +3873,6 @@
       $("#usage-tv-screens").innerHTML = tvScreens.map((r) => `<tr><td>${esc(r.screen)}</td><td>${esc(r.v)}</td><td>${esc(r.impl)}</td><td>${r.n}</td><td>${r.frames}</td><td>${n1(r.p50)}</td><td>${n1(r.p90)}</td><td>${n1(r.p90hi)}</td><td>${r.jank == null ? "–" : `${Number(r.jank).toFixed(1)}%`}</td><td class="muted">${pc(r.low, r.n)}</td><td class="muted">${pc(r.lite, r.n)}</td></tr>`).join("") || `<tr><td colspan="11" class="muted">—</td></tr>`;
       $("#usage-tv-boxes").innerHTML = tvBoxes.map((d) => `<tr><td>${esc(d.model)}</td><td>${esc(Object.keys(d.sdk || {}).sort((a, b) => a - b).join(" / ") || "–")}</td><td>${d.mem_mb == null ? "–" : d.mem_mb}</td><td>${d.heap_mb == null ? "–" : d.heap_mb}</td><td class="muted">${esc(d.gpu || "–")}</td><td>${d.lowram || 0} / ${d.n}</td><td class="muted">${esc(devs(Object.fromEntries(Object.entries(d.low || {}).filter(([, v]) => v > 0))) || "–")}</td></tr>`).join("") || `<tr><td colspan="7" class="muted">—</td></tr>`;
     }
-    $("#usage-copy").onclick = async () => {
-      if (!usageText) await loadUsage();
-      try {
-        await navigator.clipboard.writeText(usageText);
-      } catch {
-        const ta = document.createElement("textarea");
-        ta.value = usageText; document.body.append(ta); ta.select();
-        try { document.execCommand("copy"); } catch {}
-        ta.remove();
-      }
-      toast("Usage stats copied — paste them anywhere");
-    };
-
     // ---------- app health: error reports, timings, most used (lib/tel) ----------
     const tel = { data: null, text: "", view: "fresh", app: "web" };
     const telAgo = (t) => {
@@ -3543,19 +4076,6 @@
       try { await post("/api/admin/telemetry/alert-rules", body); toast("Alert rules saved"); } catch { toast("Couldn't save the rules"); }
       loadTelemetry();
     };
-    $("#tel-copy").onclick = async () => {
-      if (!tel.text) await loadTelemetry();
-      try {
-        await navigator.clipboard.writeText(tel.text);
-      } catch {
-        const ta = document.createElement("textarea");
-        ta.value = tel.text; document.body.append(ta); ta.select();
-        try { document.execCommand("copy"); } catch {}
-        ta.remove();
-      }
-      toast("Report copied — paste it anywhere");
-    };
-
     // ---------- health: metrics (lib/metrics.js — /api/admin/metrics) ----------
     const fmtMs = (v) => (v == null ? "–" : v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)} s` : `${Math.round(v)} ms`);
     async function loadMetrics() {
@@ -3850,12 +4370,143 @@
     // who started a download, after its name (elia 2026-10-11)
     const byTag = (j) => (j.by ? ` <span class="muted" style="font-size:0.8rem;font-weight:600">· by ${esc(j.by)}</span>` : "") +
       (j.replaces ? ` <span class="pill warn" title="Replaces the copy in the library when it lands">replaces · ${esc(j.replaces.reasonLabel || j.replaces.reason || "")}</span>` : "");
+    // What a download in hand is doing, in one word for its pill — the ONE
+    // place a new state goes (downloads-v2, docs/downloads-v2.md "For the
+    // admin screen"): each rule is [does it apply, its words, its tone].
+    // Fields a server does not send are simply never matched.
+    // downloads-v2 (docs/downloads-v2.md §5): `health` while downloading
+    // (starting / ok / slow / stalled / dead), `heldBack` for a "watching
+    // now" download, `retryAt` while it waits for a copy, `sources` once a
+    // copy was given up on, `priority` { label, urgent }, `note` in words.
+    const hhmmShort = (t) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const FLIGHT_STATES = [
+      [(j) => j.replaceWait, () => "ready · old copy in use", "warn"],
+      [(j) => j.heldBack, () => "paused", "", (j) => `paused for “${j.heldBack.for || "a download someone is watching"}”, which goes first`],
+      [(j) => j.health && j.health.state === "dead", () => "switching copy", "warn", (j) => `no one is sharing this copy — moving to the next one${j.health.why ? ` (${j.health.why})` : ""}`],
+      [(j) => j.health && j.health.state === "stalled", () => "stalled", "warn", (j) => `stalled — not counted against “Downloads at once”${j.health.why ? `: ${j.health.why}` : ""}`],
+      [(j) => j.stalled || j.status === "stalled" || j.phase === "stalled", (j) => (j.stalledFor ? `stalled ${fmtDur(j.stalledFor)}` : "stalled"), "warn"],
+      [(j) => j.health && j.health.state === "slow", () => "slow", "warn"],
+      [(j) => j.health && j.health.state === "starting", () => "starting", "live"],
+      [(j) => j.status === "approved" && j.retryAt, () => "waiting for a copy", "", (j) => `no copy could be found yet — tries again at ${hhmmShort(j.retryAt)}`],
+      [(j) => j.switching || j.status === "switching" || j.phase === "switching", () => "switching to another version", "warn"],
+      [(j) => j.waitingFor || j.status === "paused-next" || j.phase === "paused-next", (j) => (j.waitingFor ? `waits for ${j.waitingFor}` : "waits for the episode before"), ""],
+      [(j) => j.paused || j.status === "paused", () => "paused", ""],
+      [(j) => j.status === "approved", () => "queued", ""],
+      [(j) => j.phase === "copying" && j.copyProgress != null, (j) => `copying ${Math.round(j.copyProgress * 100)}%`, "live"],
+      [(j) => j.status === "downloading" && j.phase && j.phase !== "downloading", (j) => j.phase, "live"],
+      [() => true, (j) => j.status, "live"],
+    ];
+    const flightState = (j) => {
+      for (const [test, word, tone, detail] of FLIGHT_STATES) if (test(j)) return { word: word(j), tone, detail: detail ? detail(j) : "" };
+      return { word: j.status, tone: "" };
+    };
+    // finished (or never started): everything else in the list is "in hand"
+    const DL_FINISHED = new Set(["done", "error", "failed", "declined", "canceled", "cancelled", "removed"]);
+    const inFlight = (j) => j.status !== "pending" && !DL_FINISHED.has(j.status);
+    const fmtEta = (s) => (s < 90 ? Math.round(s) + "s" : s < 5400 ? Math.round(s / 60) + "m" : (s / 3600).toFixed(1) + "h");
+    const dlEta = (j) => {
+      if (j.etaSec != null && j.status === "downloading") return "~" + fmtEta(j.etaSec) + " left";
+      if (j.status !== "downloading" || !j.downloadSpeed) return "";
+      const left = (j.sizeBytes || 0) * (1 - (j.progress || 0));
+      return left > 0 ? "~" + fmtEta(left / j.downloadSpeed) + " left" : "";
+    };
+    // a priority class (downloads-v2) beside who asked, when it is not the usual one
+    const prioTag = (j) => {
+      const p = j.priority || j.priorityClass;
+      const label = p && typeof p === "object" ? p.label : p;
+      const tag = label && !/^(normal|default)$/i.test(String(label)) ? ` <span class="pill${p && p.urgent ? " live" : ""}">${esc(String(label))}</span>` : "";
+      // which copy it is on, once one was given up on: "copy 2 of 4"
+      const src = j.sources && j.sources.tried ? ` <span class="pill">copy ${esc(String(j.sources.tried))} of ${esc(String(j.sources.max || "?"))}</span>` : "";
+      return tag + src;
+    };
+    // the quiet lines under a job: a second source being tried (media/dlrace.js), or why it waits
+    const flightNote = (j) => {
+      // what is going on, in the queue's own words (downloads-v2), and the copies it gave up on
+      const st = flightState(j);
+      const said = j.note || st.detail || (j.health && j.health.why && j.health.state !== "ok" ? j.health.why : "");
+      const gave = j.sources && (j.sources.given || []).length
+        ? `<div class="one">↳ gave up on: ${j.sources.given.map((g) => `${esc(g.release || g.quality || "a copy")}${g.why ? ` (${esc(g.why)})` : ""}`).join(" · ")}</div>` : "";
+      const lead = (said ? `<div class="one">↳ ${esc(said)}</div>` : "") + gave;
+      if (!j.race) return lead || (j.raceNote && j.status === "downloading" ? `<div class="one">↳ ${esc(j.raceNote)}</div>` : "");
+      const one = (a) => {
+        const left = a.etaSec != null ? "~" + fmtEta(a.etaSec) + " left" : "no end in sight";
+        const name = a.provider || (a.release ? a.release.slice(0, 40) : (a.infoHash || "").slice(0, 8) + "…");
+        return `<div class="one"><b>${a.role === "challenger" ? "second" : "first"}</b> ${esc(name)} · ${Math.round((a.progress || 0) * 100)}% · ${fmtSpeed(a.downloadSpeed)} · ${left}</div>`;
+      };
+      return lead + `<div>↳ <span class="pill warn">trying a second source</span> ${j.race.state === "racing" ? "both running, the first to finish is kept" : "checking that it connects"}` +
+        (j.race.why ? ` — the first was slow: ${esc(j.race.why)}` : "") + `</div>` + (j.race.attempts || []).map(one).join("");
+    };
+    // One row per download, made once and then only updated: the numbers
+    // change text in fixed tracks and the bar moves by a transform, so a
+    // tick never changes the page's layout (it used to jump on every one).
+    const FLIGHT_ROWS = new Map();
+    const flightRow = (id) => {
+      const el = document.createElement("div");
+      el.className = "fl-row";
+      el.setAttribute("role", "listitem");
+      el.dataset.dlId = id;
+      el.innerHTML = `<div class="fl-main"><div class="fl-name"><b class="fl-title"></b><span class="fl-by"></span></div>
+        <div class="fl-track"><i></i></div>
+        <div class="fl-nums"><span class="fl-pct"></span><span class="fl-size"></span><span class="fl-speed"></span><span class="fl-eta"></span></div></div>
+        <span class="pill fl-state"></span>
+        <button class="mini danger fl-act" data-dl-cancel="${esc(id)}">Cancel</button>
+        <div class="fl-note"></div>`;
+      el._r = {
+        title: el.querySelector(".fl-title"), by: el.querySelector(".fl-by"), bar: el.querySelector(".fl-track i"),
+        pct: el.querySelector(".fl-pct"), size: el.querySelector(".fl-size"), speed: el.querySelector(".fl-speed"),
+        eta: el.querySelector(".fl-eta"), state: el.querySelector(".fl-state"), note: el.querySelector(".fl-note"),
+      };
+      return el;
+    };
+    const fillFlight = (el, j) => {
+      const r = el._r;
+      const label = j.label || j.title || "—";
+      setText(r.title, label);
+      if (r.title.title !== label) r.title.title = label;
+      setHTML(r.by, `${j.by ? `by ${esc(j.by)}` : ""}${prioTag(j)}${j.replaces ? ` <span class="pill warn" title="Replaces the copy in the library when it lands">replaces · ${esc(j.replaces.reasonLabel || j.replaces.reason || "")}</span>` : ""}`);
+      const p = Math.max(0, Math.min(1, j.progress || 0));
+      const tf = `scaleX(${p.toFixed(4)})`;
+      if (r.bar.style.transform !== tf) r.bar.style.transform = tf;
+      setText(r.pct, `${Math.round(p * 100)}%`);
+      setText(r.size, fmtBytes(j.sizeBytes));
+      setText(r.speed, j.status === "downloading" ? fmtSpeed(j.downloadSpeed) : "");
+      setText(r.eta, dlEta(j));
+      const st = flightState(j);
+      setText(r.state, st.word);
+      const cls = `pill fl-state${st.tone ? " " + st.tone : ""}`;
+      if (r.state.className !== cls) r.state.className = cls;
+      const tip = (j.health && j.health.why) || st.word;
+      if (r.state.title !== tip) r.state.title = tip;
+      if (el.dataset.tone !== st.tone) el.dataset.tone = st.tone;
+      setHTML(r.note, flightNote(j));
+    };
+    let DL_JOBS = [];
+    function renderFlight(active) {
+      const host = $("#dl-jobs");
+      const ids = new Set(active.map((j) => j.id));
+      for (const [id, el] of FLIGHT_ROWS) if (!ids.has(id)) { el.remove(); FLIGHT_ROWS.delete(id); }
+      // stable order: the queue's own (oldest first), never re-sorted by progress
+      active.forEach((j, i) => {
+        let el = FLIGHT_ROWS.get(j.id);
+        if (!el) { el = flightRow(j.id); FLIGHT_ROWS.set(j.id, el); }
+        if (host.children[i] !== el) host.insertBefore(el, host.children[i] || null);
+        fillFlight(el, j);
+      });
+      setText($("#dl-flight-count"), active.length);
+      $("#dl-jobs-empty").classList.toggle("hidden", active.length > 0);
+    }
+    $("#dl-jobs").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-dl-cancel]");
+      if (b) cancelDownload(b.dataset.dlCancel);
+    });
     async function loadDownloads() {
       const jobs = await json("/api/downloads");
+      DL_JOBS = jobs;
       const pending = jobs.filter((j) => j.status === "pending");
-      $("#dl-pending-count").textContent = pending.length;
+      setText($("#dl-pending-count"), pending.length);
+      $("#dl-needs").classList.toggle("hidden", pending.length === 0);
       $("#dl-pending-empty").classList.toggle("hidden", pending.length > 0);
-      $("#dl-pending").innerHTML = pending.map((j) => `
+      setHTML($("#dl-pending"), pending.map((j) => `
         <div class="now-card">
           <div class="who">
             <div class="avatar">${j.type === "show" ? "📺" : "🎬"}</div>
@@ -3870,50 +4521,16 @@
             <span style="flex:1"></span>
             <button class="mini danger" onclick="declineDownload('${esc(j.id)}')">Decline</button>
           </div>
-        </div>`).join("");
+        </div>`).join(""));
 
-      // IN FLIGHT: live jobs with real progress, speed and time left.
-      const active = jobs.filter((j) => ["approved", "downloading"].includes(j.status));
-      const fmtEta = (s) => (s < 90 ? Math.round(s) + "s" : s < 5400 ? Math.round(s / 60) + "m" : (s / 3600).toFixed(1) + "h");
-      const eta = (j) => {
-        if (j.status !== "downloading" || !j.downloadSpeed) return "—";
-        const left = (j.sizeBytes || 0) * (1 - (j.progress || 0));
-        return left > 0 ? "~" + fmtEta(left / j.downloadSpeed) : "—";
-      };
-      // A second source being tried beside the first (media/dlrace.js): one
-      // quiet line under the job — which sources, how each is doing, and why.
-      const raceLine = (j) => {
-        const cell = (html) => `<tr class="race-row"><td colspan="7" class="muted" style="font-size:0.8rem;padding-top:0;border-top:0;white-space:normal">↳ ${html}</td></tr>`;
-        if (!j.race) return j.raceNote && j.status === "downloading" ? cell(esc(j.raceNote)) : "";
-        const one = (a) => {
-          const left = a.etaSec != null ? "~" + fmtEta(a.etaSec) + " left" : "no end in sight";
-          const name = a.provider || (a.release ? a.release.slice(0, 40) : (a.infoHash || "").slice(0, 8) + "…");
-          return `<b>${a.role === "challenger" ? "second" : "first"}</b> ${esc(name)} · ${Math.round((a.progress || 0) * 100)}% · ${fmtSpeed(a.downloadSpeed)} · ${left}`;
-        };
-        return cell(
-          `<span class="pill warn">trying a second source</span> ${j.race.state === "racing" ? "both running, the first to finish is kept" : "checking that it connects"}` +
-          (j.race.why ? ` — the first was slow: ${esc(j.race.why)}` : "") +
-          `<br>${(j.race.attempts || []).map(one).join(" &nbsp;‖&nbsp; ")}`);
-      };
-      $("#dl-jobs-empty").classList.toggle("hidden", active.length > 0);
-      $("#dl-jobs").innerHTML = active.map((j) => {
-        const pct = Math.round((j.progress || 0) * 100);
-        return `
-        <tr data-dl-id="${esc(j.id)}">
-          <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.label || j.title)}">${esc(j.label || j.title)}${byTag(j)}</td>
-          <td class="num">${fmtBytes(j.sizeBytes)}</td>
-          <td style="white-space:nowrap"><span class="mini-prog"><i style="width:${pct}%"></i></span><span class="muted num">${pct}%</span></td>
-          <td class="num">${j.status === "downloading" ? fmtSpeed(j.downloadSpeed) : "—"}</td>
-          <td class="num">${eta(j)}</td>
-          <td><span class="pill ${DL_STATUS_PILL[j.status] || ""}">${esc(phaseLabel(j))}</span></td>
-          <td style="text-align:right;white-space:nowrap"><button class="mini danger" onclick="cancelDownload('${esc(j.id)}')">Cancel</button></td>
-        </tr>${raceLine(j)}`;
-      }).join("");
+      // IN FLIGHT: updated in place (see renderFlight)
+      renderFlight(jobs.filter(inFlight));
 
       // FINISHED: done / declined / failed — retry and row cleanup live here.
-      const finished = jobs.filter((j) => !["pending", "approved", "downloading"].includes(j.status));
+      const finished = jobs.filter((j) => DL_FINISHED.has(j.status));
+      setText($("#dl-done-count"), finished.length);
       $("#dl-done-empty").classList.toggle("hidden", finished.length > 0);
-      $("#dl-done").innerHTML = finished.map((j) => `
+      setHTML($("#dl-done"), finished.map((j) => `
         <tr>
           <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.label || j.title)}">${esc(j.label || j.title)}${byTag(j)}</td>
           <td>${esc(j.quality || "—")}</td>
@@ -3923,7 +4540,7 @@
             ${j.status === "error" ? `<button class="mini" onclick="approveDownload('${esc(j.id)}')">Retry</button>` : ""}
             <button class="mini" onclick="removeDownload('${esc(j.id)}')">Remove</button>
           </td>
-        </tr>`).join("");
+        </tr>`).join(""));
     }
 
     // ---------- disk + library management ----------
@@ -3938,8 +4555,8 @@
       const minFree = disks.reduce((m, d) => (d.free != null && (m == null || d.free < m) ? d.free : m), null);
       if (minFree != null) {
         const low = minFree < 50e9;
-        $("#disk-headline").innerHTML =
-          `<b style="${low ? "color:#f87171" : ""}">${fmtBytes(minFree)} free</b>${low ? " — running low, clean up below" : ""}`;
+        setHTML($("#disk-headline"),
+          `<b style="${low ? "color:#f87171" : ""}">${fmtBytes(minFree)} free</b>${disks.length > 1 ? " on the fullest drive" : ""}${low ? " — running low: On disk → Suggest what to delete" : ""}${minFreePct > 0 ? ` · downloads start by themselves above ${minFreePct}% free` : ""}`);
       }
       const merged = [];
       for (const d of disks) {
@@ -3947,7 +4564,7 @@
         if (same) same.roots.push(d.root);
         else merged.push({ ...d, roots: [d.root] });
       }
-      $("#disk-bars").innerHTML = merged.map((d) => {
+      setHTML($("#disk-bars"), merged.map((d) => {
         // The folder NAME is what identifies a library ("Movies", "Shows");
         // the full path is a tooltip — on a phone it wrapped over 4 lines.
         const shortRoot = d.roots.map((r) => r.split(/[\\/]/).filter(Boolean).slice(-2).join("/")).join(" + ");
@@ -3970,7 +4587,7 @@
             ? `⚠ under ${minFreePct}% free — new downloads wait for your approval`
             : `downloads auto-start while above ${minFreePct}% free`}</div>` : ""}
         </div>`;
-      }).join("");
+      }).join(""));
     }
 
     // ON DISK: the whole library as a searchable, sortable, watched-aware
@@ -4535,12 +5152,10 @@
       toast("Banned " + ip); loadBans();
     };
     $("#broadcast-btn").onclick = async () => {
-      const message = $("#broadcast-input").value.trim();
+      const message = ((await askBox("Tell everyone what? It pops up on every screen that has Aurora open right now, like “Restarting in 5 minutes”.", true, "Send")) || "").trim();
       if (!message) return;
-      if (!await ask(`Send "${message}" to every screen that's open right now?`)) return;
       await post("/api/admin/broadcast", { message });
-      $("#broadcast-input").value = "";
-      toast("Broadcast sent");
+      toast("Sent to every open screen");
     };
 
     let sessTimer = null;
@@ -4553,22 +5168,6 @@
       analyticsDays = +b.dataset.days;
       for (const x of $("#range-chips").children) { x.classList.toggle("active", x === b); x.setAttribute("aria-pressed", x === b ? "true" : "false"); }
       loadAnalytics();
-    });
-
-    // ---------- collapsible cards ----------
-    // Fold state is per device (localStorage): the HTML's open attributes
-    // are just the first-visit defaults.
-    const ACARD_KEY = "aurora-admin-cards";
-    const acardState = (() => {
-      try { return JSON.parse(localStorage.getItem(ACARD_KEY)) || {}; } catch { return {}; }
-    })();
-    document.querySelectorAll("details.acard[data-key]").forEach((d) => {
-      const k = d.dataset.key;
-      if (k in acardState) d.open = !!acardState[k];
-      d.addEventListener("toggle", () => {
-        acardState[k] = d.open;
-        try { localStorage.setItem(ACARD_KEY, JSON.stringify(acardState)); } catch {}
-      });
     });
 
     // ---------- [phone-remote] Phone as a remote ----------
@@ -4926,29 +5525,312 @@
     }
     // ---------- [/add-your-own-file] ----------
 
+    // ---------- every Details section: what it loads, and its Copy for Claude ----------
+    // Order here is the order of "Copy everything for Claude".
+    const whenISO = (t) => (t ? new Date(t).toISOString().slice(0, 16).replace("T", " ") : "—");
+    let telLoading = null;
+    const loadTelOnce = () => (telLoading = telLoading || loadTelemetry().finally(() => setTimeout(() => { telLoading = null; }, 500)));
+    const telText = async () => { const d = await json("/api/admin/telemetry"); return d.text || "(nothing reported)"; };
+    const MORE = {
+      "ov-activity": {
+        load: () => { loadOverview(); loadClients(); loadTimeseries(); loadOverviewTop(); },
+        copy: async () => {
+          const [o, clients, a] = await Promise.all([json("/api/admin/overview"), json("/api/admin/clients"), json("/api/admin/analytics?days=7")]);
+          return [
+            MD.list([["watching now", o.watchingNow], ["connected", o.currentClients], ["watch time, 24 h", fmtDur(o.today.watchSec)], ["plays, 24 h", o.today.plays],
+              ["library", `${o.movieCount} movies, ${o.showCount} shows, ${o.episodeCount} episodes`], ["peak at once", o.peakConcurrent], ["up", fmtUptime((Date.now() - o.startedAt) / 1000)]]),
+            "\nConnected now:", MD.table(["profile", "device", "doing", "since"], clients.map((c) => [c.profile || "—", [c.device?.device, c.device?.browser, c.device?.os].filter(Boolean).join(" · "), [c.activity, c.details].filter(Boolean).join(" · "), ago(c.connectedAt)])),
+            "\nTop titles, 7 days:", MD.table(["title", "watch time", "plays", "viewers"], a.topTitles.slice(0, 10).map((t) => [t.content, fmtDur(t.watchSec), t.plays, t.viewers])),
+          ].join("\n");
+        },
+      },
+      "in-reports": {
+        title: "Problem reports (open)", inAll: true,
+        copy: async () => {
+          const items = ((await json("/api/admin/reports")).reports || []).filter((r) => r.status === "open");
+          if (!items.length) return "No open reports.";
+          return items.slice(0, 20).map((r) => {
+            const c = r.context || {};
+            return [`### ${whenISO(r.at)} · ${r.profile || "someone"} · ${c.route || ""}`, r.text,
+              MD.list([["app", [c.look, c.viewport, c.version ? "v" + c.version : "", c.net].filter(Boolean).join(" · ")], ["playing", c.title ? `${c.title} (${c.itemId || ""})` : ""],
+                ["start-up", c.startup ? startupLine(c.startup, c.server) : ""], ["another version", r.replace && r.replace.status ? replaceEnd(r.replace) : ""], ["browser", c.ua]]),
+              c.errors && c.errors.length ? "Errors the page saw:\n```\n" + c.errors.slice(-8).join("\n") + "\n```" : ""].filter(Boolean).join("\n");
+          }).join("\n\n");
+        },
+      },
+      "in-replaced": {
+        load: () => loadReplacements(),
+        copy: async () => MD.table(["when", "who", "title", "why", "old → new", "status"], ((await json("/api/admin/replacements")).replacements || []).map((e) => [whenISO(e.at), e.byName || e.by, e.display || e.title,
+          [e.reasonLabel || e.reason, e.note].filter(Boolean).join(" — "), `${(e.old && (e.old.release || e.old.fileName)) || "?"} → ${(e.new && (e.new.release || e.new.provider)) || "?"}`, replaceStatus(e) + (e.error ? ` (${e.error})` : "")])),
+      },
+      "in-intros": {
+        load: () => loadIntros(),
+        copy: async () => MD.table(["show", "range", "marked by", "key"], ((await json("/api/admin/intros")).intros || []).map((i) => [i.title || i.key, `${fmtClock(i.start)}–${fmtClock(i.end)}`, i.by || "—", i.key])),
+      },
+      "d-flight": {
+        title: "Downloads in flight",
+        copy: async () => {
+          const jobs = await json("/api/downloads");
+          const act = jobs.filter(inFlight);
+          const pend = jobs.filter((j) => j.status === "pending");
+          return [
+            MD.table(["title", "by", "state", "done", "size", "speed", "left", "note"], act.map((j) => [j.label || j.title, [j.by, j.priority && j.priority.label].filter(Boolean).join(" · "), flightState(j).word + (j.sources && j.sources.tried ? ` (copy ${j.sources.tried} of ${j.sources.max})` : ""), `${Math.round((j.progress || 0) * 100)}%`, fmtBytes(j.sizeBytes), j.status === "downloading" ? fmtSpeed(j.downloadSpeed) : "", dlEta(j), j.note || (j.health && j.health.state !== "ok" && j.health.why) || ""])),
+            ...act.filter((j) => j.race || j.raceNote).map((j) => `- ${j.label || j.title}: ${j.race ? `trying a second source (${j.race.state})${j.race.why ? ` — ${j.race.why}` : ""}; ` + (j.race.attempts || []).map((a) => `${a.role} ${a.provider || ""} ${Math.round((a.progress || 0) * 100)}% ${fmtSpeed(a.downloadSpeed)}`).join(" / ") : j.raceNote}`),
+            pend.length ? "\nWaiting for approval:\n" + MD.table(["title", "by", "size", "why held"], pend.map((j) => [j.label || j.title, j.by || "", fmtBytes(j.sizeBytes), j.holdReason || ""])) : "",
+          ].filter(Boolean).join("\n");
+        },
+      },
+      "d-upload": {
+        load: () => loadUploads(),
+        copy: async () => MD.table(["title", "status", "progress", "note"], ((await json("/api/admin/uploads")).jobs || []).map((j) => [j.title || j.name, j.status, j.progress != null ? `${Math.round(j.progress * 100)}%` : "", j.error || j.note || ""])),
+      },
+      "d-limits": {
+        load: () => loadLimits(),
+        copy: async () => {
+          const l = await json("/api/admin/aria2-limits");
+          return MD.list([["engine", !l.available ? "not installed" : l.running ? "running" : "idle"], ["running now", l.slots && l.slots.counted != null ? `${l.slots.counted} counted${l.slots.notCounted ? `, ${l.slots.notCounted} stalled and not counted` : ""}` : ""], ["saved caps", `down ${l.saved.download}, up ${l.saved.upload}`],
+            ["live caps", l.effective ? `down ${l.effective.download}, up ${l.effective.upload}` : ""], ["downloads at once", l.slots ? `${l.slots.maxActive}${l.slots.holding ? `, holding at ${l.slots.holdAt} while someone watches, ${l.slots.queued || 0} queued` : ""}` : "not reported"]]);
+        },
+      },
+      "d-done": {
+        copy: async () => MD.table(["title", "quality", "size", "status", "error"], (await json("/api/downloads")).filter((j) => DL_FINISHED.has(j.status)).map((j) => [j.label || j.title, j.quality || "", fmtBytes(j.sizeBytes), j.status, j.error || ""])),
+      },
+      "d-copies": {
+        load: () => loadCopies(),
+        copy: async () => {
+          const d = await json("/api/admin/library/copies");
+          const groups = d.groups || [];
+          return groups.length ? groups.slice(0, 25).map((g) => `- ${cpTitle(g).replace(/<[^>]+>/g, "")}: ${g.files} file${g.files === 1 ? "" : "s"}${(g.downloads || []).length ? ` + ${g.downloads.length} downloading` : ""}`).join("\n") : "No title is on the server more than once.";
+        },
+      },
+      "d-mylist": {
+        load: () => loadMyList(),
+        copy: async () => {
+          const m = await json("/api/admin/mylist");
+          return MD.list([["delete unwatched automatically", m.settings && m.settings.myListAutoDelete ? "yes" : "no"], ["stale after", m.settings && m.settings.myListStaleDays + " days"], ["delete after", m.settings && m.settings.myListDeleteDays + " days"]]) +
+            "\n" + MD.table(["title", "for", "added", "state", "why"], (m.records || []).map((r) => [r.label, r.by || "", mlDay(r.addedAt), (ML_STATE[r.state] || [r.state])[0], r.why || ""]));
+        },
+      },
+      "d-disk": {
+        load: () => { loadDisk(); loadLibraryTree(); },
+        copy: async () => {
+          const [dk, t] = await Promise.all([json("/api/admin/disk"), json("/api/admin/library/tree")]);
+          const disks = Array.isArray(dk) ? dk : dk.disks || [];
+          const movies = t.movies || [], shows = t.shows || [];
+          const big = [...movies.map((m) => [m.title + (m.year ? ` (${m.year})` : ""), m.sizeBytes || 0, m.watched || 0]),
+            ...shows.map((s) => [s.title, s.sizeBytes || (s.seasons || []).reduce((n, se) => n + (se.episodes || []).reduce((x, e) => x + (e.sizeBytes || 0), 0), 0), s.watched || 0])]
+            .sort((a, b) => b[1] - a[1]);
+          return MD.table(["drive", "free", "size"], disks.map((d) => [d.root, d.free == null ? "?" : fmtBytes(d.free), d.total == null ? "?" : fmtBytes(d.total)])) +
+            `\n\nLibrary: ${movies.length} movies, ${shows.length} shows.\nBiggest:\n` + MD.table(["title", "size", "finished by"], big.slice(0, 15).map(([n, b, w]) => [n, fmtBytes(b), w]));
+        },
+      },
+      "p-signin": {
+        copy: async () => {
+          const d = await json("/api/admin/people");
+          const m = AUTH_MODES.find((x) => x.id === d.authMode) || AUTH_MODES[0];
+          return MD.list([["sign-in", `${m.name} — ${m.short}`], ["people", (d.people || []).length], ["claimed", (d.people || []).filter((p) => p.claimed).length], ["household PIN", d.kidsPinSet ? "set" : "not set"]]);
+        },
+      },
+      "p-people": {
+        title: "People",
+        copy: async () => {
+          const d = await json("/api/admin/people");
+          return MD.table(["name", "sign-in", "last seen", "addresses", "downloads", "status"], (d.people || []).map((p) => [p.name, p.claimed ? (p.username ? "@" + p.username : "claimed") + (p.hasGoogle ? " (Google)" : "") : "not claimed",
+            p.live.length ? "now" : whenAgo(p.lastSeen), p.ipCount, p.downloadsTotal, [p.locked ? "suspended" : "", p.mustReset ? "reset pending" : "", p.kids ? `kids ${p.kids.maxAge}+` : "", p.fails >= 5 ? `${p.fails} failed unlocks` : ""].filter(Boolean).join(", ")]), 60);
+        },
+      },
+      "p-live": {
+        copy: async () => MD.table(["device", "who", "doing", "since"], ((await json("/api/admin/people")).clients || []).map((c) => [devStr(c.device), c.profile || (c.names || []).join("/") || "—", [c.activity, c.details].filter(Boolean).join(" · "), ago(c.connectedAt)])),
+      },
+      "p-remote": {
+        load: () => loadRemote(),
+        copy: async () => { const m = await json("/api/admin/remote"); return MD.list([["grown-ups may control the other TVs", m.household ? "yes" : "no"], ["devices on", m.targets || 0], ["open remotes", m.controllers || 0]]); },
+      },
+      "p-bans": {
+        copy: async () => MD.table(["address", "reason", "when"], ((await json("/api/admin/people")).bans || []).map((b) => [b.ip, b.reason || "", b.at ? ago(b.at) : ""])),
+      },
+      "an-watch": {
+        load: () => loadAnalytics(),
+        copy: async () => {
+          const a = await json("/api/admin/analytics?days=" + analyticsDays);
+          return [
+            `Last ${a.days || analyticsDays} days: ${fmtDur(a.totals.watchSec)} watched, ${a.totals.plays} plays, ${a.totals.uniqueTitles} titles, ${a.totals.uniqueViewers} viewers (IPs).`,
+            "\nBy profile:", MD.table(["profile", "watch time", "plays", "titles"], a.byProfile.map((p) => [p.name, fmtDur(p.watchSec), p.plays, p.titles])),
+            "\nBy device:", MD.table(["device", "watch time"], [...a.byDevice, ...a.byOs].map((d) => [d.name, fmtDur(d.watchSec)])),
+            "\nTop titles:", MD.table(["title", "watch time", "plays", "viewers", "completion"], a.topTitles.slice(0, 15).map((t) => [t.content, fmtDur(t.watchSec), t.plays, t.viewers, t.avgCompletion != null ? Math.round(t.avgCompletion * 100) + "%" : ""])),
+            "\nPer day:", a.byDay.map((d) => `${d.day} ${fmtDur(d.watchSec)}`).join(" · "),
+          ].join("\n");
+        },
+      },
+      "an-usage": {
+        load: () => loadUsage(),
+        // the app's own text (lib/usage.js + lib/tel), as the old Copy stats button gave it
+        copy: async () => { const u = await json("/api/admin/usage"); usageText = u.text || ""; return usageText || "(no usage stats yet)"; },
+      },
+      "an-intros": {
+        load: () => loadAnalytics(),
+        copy: async () => {
+          const it = (await json("/api/admin/analytics?days=" + analyticsDays)).intros;
+          return it ? MD.list([["episodes analysed", `${it.analyzed} of ${it.episodes}`], ["intros detected", it.intro], ["from chapter names", it.chapters], ["credits detected", it.credits], ["read from the picture", it.picture], ["marked by hand", it.manual]]) : "Intro detection needs ffmpeg on the server.";
+        },
+      },
+      // the three App health sections share the server's own report (the old "Copy report")
+      "tel-errors-sec": { load: loadTelOnce, copy: telText },
+      "tel-timings-sec": { load: loadTelOnce, copy: telText },
+      "tel-starts-sec": {
+        load: loadTelOnce,
+        copy: async () => {
+          const st = (await json("/api/admin/telemetry")).starts;
+          if (!st || !st.n) return "No start measured in the last 24 h.";
+          return [`${st.n} starts in 24 h · median ${telMs(st.p50)}, p90 ${telMs(st.p90)} · ${st.slow.n} slow (${Math.round(st.slow.overMs / 1000)} s or more)`,
+            MD.table(["step", "p50", "p90", "slowest in"], Object.entries(st.stepP50 || {}).map(([k, v]) => [STEP_WORDS[k] || k, telMs(v.p50), telMs(v.p90), st.slow.byStep[k] || ""])),
+            "\nSlow ones:", ...(st.recent || []).map((r) => `- ${r.title || r.id} (${r.app || r.device || ""}, ${telAgo(r.at)}): ${startupLine({ ...r, srv: { seg: r.seg, playlist: r.pl } })}`)].join("\n");
+        },
+      },
+      "tel-used-sec": { load: loadTelOnce, copy: telText },
+      "h-sessions": {
+        load: () => { loadSessionProfiles(); loadSessions(); },
+        copy: async () => MD.table(["started", "profile", "title", "device", "watched", "progress"], (await json("/api/admin/sessions?limit=40&q=&profile=")).map((x) => [whenISO(x.startedAt), x.profile || "—", x.content + (x.live ? " (live)" : ""), x.device?.os || "", fmtDur(x.watchedSec), x.duration > 0 && x.position != null ? Math.round((100 * x.position) / x.duration) + "%" : ""]), 40),
+      },
+      "h-legacy": {
+        load: () => loadHistory(),
+        copy: async () => MD.table(["when", "profile", "title", "plays"], (await json("/api/admin/watch-history")).slice(0, 30).map((e) => [ago(e.lastSeen || e.timestamp), e.profile || "—", e.content, e.count || 1])),
+      },
+      "h-conn": {
+        load: () => loadLog(),
+        copy: async () => MD.table(["when", "event", "device", "profile"], (await json("/api/admin/log")).slice(0, 30).map((e) => [ago(e.timestamp), e.event, e.device ? e.device.device + " · " + e.device.os : "", e.profile || "—"])),
+      },
+      "sv-healer": {
+        load: () => loadHealer(),
+        copy: async () => {
+          const h = await json("/api/admin/healer");
+          const last = h.last;
+          if (!last) return "No round yet.";
+          const bad = last.checks.filter((c) => c.status === "fail" || c.status === "warn");
+          return [`${last.checks.length} checks ${ago(new Date(last.at).toISOString())}: ${last.overall}. ${bad.length ? "" : "All fine."}`,
+            ...bad.map((c) => `- [${c.status}] ${c.group} · ${c.name}: ${c.summary}${(c.findings || []).length ? "\n" + c.findings.map((f) => `  - ${f.title}: ${f.text}${f.evidence ? ` (evidence: ${f.evidence})` : ""}${f.did ? ` (did: ${f.did})` : ""}${f.press ? ` (press: ${f.press.label})` : ""}`).join("\n") : ""}`),
+            (h.repairs || []).length ? "\nAutomatic repairs:\n" + h.repairs.slice(0, 10).map((r) => `- ${ago(new Date(r.at).toISOString())} ${r.title || r.action}: ${r.outcome} — ${r.why || ""}${r.said ? ` → ${r.said}` : ""}`).join("\n") : ""].filter(Boolean).join("\n");
+        },
+      },
+      "sv-metrics": {
+        load: () => loadMetrics(),
+        copy: async () => {
+          const m = await json("/api/admin/metrics");
+          const w = m.work || {}, t = m.totals || {}, loop = m.eventLoop || {};
+          const hosts = (m.upstream && m.upstream.hosts) || [];
+          const routes = (m.requests || []).filter((r) => r.n >= 3 && r.group !== "static").sort((a, b) => (b.p95Ms || 0) - (a.p95Ms || 0)).slice(0, 8);
+          return [MD.list([["event loop", `p50 ${fmtMs(loop.p50Ms)}, p99 ${fmtMs(loop.p99Ms)}, worst ${fmtMs(loop.maxMs)}`], ["CPU (this process)", `${m.cpuPercent} %`], ["memory", `${fmtBytes(m.memory.rss)} (heap ${fmtBytes(m.memory.heapUsed)})`],
+            ["in hand", `${w.requestsInFlight || 0} requests, ${w.streamsInFlight || 0} streams, ${w.encoders || 0} encoding, ${w.torrents || 0} torrents`], ["answered", `${t.n || 0} requests, ${t.slow || 0} over 1 s, ${t.s5 || 0} server errors`], ["up", fmtUptime(m.uptimeSec)]]),
+            ...((m.checks && m.checks.checks) || []).filter((c) => c.level !== "ok").map((c) => `- [${c.level}] ${c.text}`),
+            "\nOutside services:", MD.table(["service", "state", "calls", "failed", "typical", "last problem"], hosts.map((h) => [h.host, h.breaker === "closed" ? "answering" : h.breaker, h.calls, h.failed, fmtMs(h.p50Ms), h.lastError || ""])),
+            "\nSlowest requests (p95):", MD.table(["route", "count", "p50", "p95", "max", "errors"], routes.map((r) => [r.group, r.n, fmtMs(r.p50Ms), fmtMs(r.p95Ms), fmtMs(r.maxMs), r.s5]))].join("\n");
+        },
+      },
+      "sv-encoding": {
+        load: () => loadEncoding(),
+        copy: async () => {
+          const e = await json("/api/admin/encoding");
+          return MD.list([["now", e.sentence], ["at once", e.limit], ["in use", `${(e.running && e.running.load) || 0} of ${e.capacity}`], ["CPU", `${e.logical} threads, ${e.cpuModel || ""}`], ["measured speed", e.speed == null ? "" : e.speed + "×"],
+            ["falling behind", e.overloaded ? e.overloadWhy || "yes" : "no"], ["graphics card", e.hardware ? e.hardware.sentence : ""]]);
+        },
+      },
+      "sv-watchdog": {
+        load: () => loadHealth(),
+        copy: async () => {
+          const h = await json("/api/admin/health");
+          const sv = h.supervisor || {};
+          return MD.list([["memory", `${fmtBytes(h.now.rss)} resident (restart line ${fmtBytes(h.thresholds.hardRss)}), heap ${fmtBytes(h.now.heapUsed)}`], ["event-loop lag", `${h.now.lagMs} ms`], ["ffmpeg children", h.now.ffmpeg],
+            ["supervisor", sv.supervised ? `${sv.byWords || sv.by}, ${sv.restartsLastDay ?? "?"} restarts in a day${sv.lastExitWords ? `, last: ${sv.lastExitWords}` : ""}` : "not supervised"]]) +
+            ((h.events || []).length ? "\n\nWatchdog events:\n" + h.events.slice(-10).reverse().map((e) => `- ${ago(new Date(e.at).toISOString())} ${e.kind}${e.detail ? ` — ${e.detail}` : ""}`).join("\n") : "");
+        },
+      },
+      "sv-machine": {
+        load: () => { loadServer(); loadTimeseries(); },
+        copy: async () => {
+          const s = await json("/api/admin/server");
+          return MD.list([["memory", `${fmtBytes(s.memory.rss)} rss, ${fmtBytes(s.memory.heapUsed)} heap, ${fmtBytes(s.memory.systemFree)} free of ${fmtBytes(s.memory.systemTotal)}`], ["up", fmtUptime(s.uptimeSec)]]) +
+            "\n\nActive torrents:\n" + MD.table(["name", "progress", "peers", "down", "up", "size"], s.torrents.map((t) => [t.name, `${Math.round((t.fileProgress != null ? t.fileProgress : t.progress) * 100)}%`, t.peers, fmtSpeed(t.downloadSpeed), fmtSpeed(t.uploadSpeed), fmtBytes(t.length)]));
+        },
+      },
+      "sv-apps": {
+        load: () => loadTvApp(),
+        copy: async () => {
+          const [tv, ph] = await Promise.all([json("/api/admin/tv-app"), json("/api/admin/phone-app")]);
+          const one = (name, s) => { const a = s.apk || {}; return `- ${name}: ${a.error ? a.error : `${a.versionName} (build ${a.versionCode}, ${fmtBytes(a.sizeBytes)})`}; notes for ${(s.announced && s.announced.versionName) || "—"}; source ${s.source.versionName || "—"}${(s.problems || []).length ? "; " + s.problems.map((p) => p.text).join("; ") : ""}`; };
+          return [one("TV app", tv), one("Phone app", ph)].join("\n");
+        },
+      },
+      "sv-maint": { inAll: false },
+      "sv-env": {
+        load: () => loadServer(),
+        copy: async () => {
+          const s = await json("/api/admin/server");
+          return MD.list([["Node", s.node], ["machine", `${s.platform} · ${s.hostname} · ${s.cpus} cores`], ["ffmpeg", s.tools.ffmpeg ? "available" : "missing"], ["subtitle OCR", s.tools.ocr ? "available" : "missing"],
+            ["aria2", s.tools.aria2 ? "available" : "missing"], ["torrents", s.tools.torrentsEnabled ? "enabled" : "disabled"], ["online metadata", s.tools.onlineMetadata ? "enabled" : "disabled"]]);
+        },
+      },
+      "ac-data": {
+        load: () => loadDataSafety(),
+        copy: async () => {
+          const d = await json("/api/admin/stores");
+          const st = d.stores || [];
+          return MD.list([["files", st.filter((x) => x.kind !== "cache").length], ["in safe mode", st.filter((x) => x.safeMode).map((x) => x.name).join(", ") || "none"], ["not saved", st.filter((x) => x.unsavedSince).map((x) => x.name).join(", ") || "none"]]) +
+            ((d.recoveries || []).length ? "\n\nRecoveries:\n" + d.recoveries.slice(0, 8).map((r) => `- ${ago(new Date(r.at).toISOString())} ${r.sentence || r.store}${r.acknowledged ? "" : " (new)"}`).join("\n") : "\nNo file has ever needed recovering.");
+        },
+      },
+      "ac-backups": {
+        load: () => loadBackups(),
+        copy: async () => {
+          const d = await json("/api/admin/backups");
+          return MD.list([["daily backup", d.enabled === false ? "off" : `into ${d.dir}`], ["second location", d.mirror ? d.mirror.dir : "not set"], ["restore test", d.drill ? `${d.drill.ok ? "works" : "failed"} ${ago(new Date(d.drill.at).toISOString())}${d.drill.error ? ` — ${d.drill.error}` : ""}` : "not run yet"], ["advice", d.advice]]) +
+            "\n" + MD.table(["snapshot", "made", "size", "check"], (d.snapshots || []).map((b) => [b.name, ago(new Date(b.createdAt).toISOString()), fmtBytes(b.size), b.verified ? "intact" : "broken"]), 10);
+        },
+      },
+      "ac-alerts": {
+        load: () => loadAlerts(),
+        copy: async () => {
+          const d = await json("/api/admin/alerts");
+          return `Alerts go to: ${((d.delivery && d.delivery.channels) || []).join(", ") || "the server log only"}${d.lastRunAt ? ` · last checked ${ago(new Date(d.lastRunAt).toISOString())}` : ""}\n` +
+            (d.checks || []).map((c) => `- [${c.level}] ${c.name}: ${c.message || ""}`).join("\n");
+        },
+      },
+      "logs": {
+        title: "Server log (warnings and errors)",
+        copy: async () => {
+          const d = await json("/api/admin/logs?level=warn&limit=60");
+          const lines = (d.entries || []).map((e) => `${new Date(e.t).toISOString()} ${e.level.toUpperCase().padEnd(5)} ${e.msg}`).reverse();
+          return lines.length ? "```\n" + lines.join("\n") + "\n```" : "No warnings or errors held.";
+        },
+      },
+    };
+
     // ---------- tabs ----------
+    // On opening a screen: what is always visible on it, then the Details
+    // that are open (a closed one loads when it is opened).
     const tabLoaders = {
-      overview: () => { loadOverview(); loadClients(); loadTimeseries(); loadOverviewTop(); },
-      analytics: () => { loadAnalytics(); loadUsage(); },
-      telemetry: () => loadTelemetry(),
-      history: () => { loadSessionProfiles(); loadSessions(); loadHistory(); loadLog(); },
-      profiles: () => { loadPeople(); loadRemote(); },
-      server: () => { loadServer(); loadMetrics(); loadHealth(); loadEncoding(); loadHealer(); loadTimeseries(); loadUpdateCheck(); loadTvApp(); },
-      downloads: () => { loadUploads(); loadDownloads(); loadDisk(); loadLibraryTree(); loadCopies(); loadLimits(); loadMyList(); },
-      moderation: () => { loadReports(); loadReplacements(); loadRequests(); loadIntros(); },
+      overview: () => { loadSummary(); loadOpen("overview"); },
+      analytics: () => loadOpen("analytics"),
+      telemetry: () => loadOpen("telemetry"),
+      history: () => loadOpen("history"),
+      profiles: () => { loadPeople(); loadOpen("profiles"); },
+      server: () => { loadUpdateCheck(); loadOpen("server"); },
+      // (copies and My List decide whether their card is there at all; the
+      // limits feed the "holding while someone watches" line over the list)
+      downloads: () => { loadDownloads(); loadDisk(); loadCopies(); loadMyList(); loadLimits(); loadOpen("downloads"); },
+      moderation: () => { loadReports(); loadRequests(); loadOpen("moderation"); },
       logs: () => loadLogs(),
-      actions: () => { loadActions(); loadDataSafety(); loadBackups(); loadAlerts(); },
+      actions: () => { loadActions(); loadOpen("actions"); },
     };
     // What each page is for, said once at the top of it.
     const PAGES = {
-      overview: ["Home", "What's happening right now, and what's waiting for you."],
-      moderation: ["Inbox", "What people sent you: problem reports, title requests, skip-intro marks."],
-      downloads: ["Downloads", "Approve what's waiting, watch what's running, clean up the disk."],
-      profiles: ["People", "Sign-in on top, everyone in one table, who is connected now. Press a person for the rest."],
-      analytics: ["Insights", "What gets watched, when, and how fast the app feels.", "Analytics"],
+      overview: ["Home", "Does everything work, and what is waiting for you."],
+      moderation: ["Inbox", "What people sent you: problem reports and title requests."],
+      downloads: ["Downloads", "What is downloading, and what waits for your approval."],
+      profiles: ["People", "Who wants in, and everyone in one table. Press a person for the rest."],
+      analytics: ["Insights", "What gets watched and when — open a section, or copy it for Claude.", "Analytics"],
       telemetry: ["Insights", "What goes wrong on people's devices, how long things take, and which controls get used.", "App health"],
       history: ["Insights", "Every play and every connection, newest first.", "History"],
-      server: ["Server", "Health, self-repair, updates and the machine itself.", "Status"],
+      server: ["Server", "Updates and restart. The machine's details are below.", "Status"],
       actions: ["Server", "Everything you would otherwise open a terminal for. Each button runs one fixed, named job.", "Actions"],
       logs: ["Server", "The server's own log, live.", "Logs"],
     };
@@ -5051,6 +5933,9 @@
 
     // ---------- live updates ----------
     let analyticsRefresh = null;
+    const isOpen = (key) => { const d = document.querySelector(`details.more[data-more="${key}"]`); return !!(d && d.open); };
+    let soonT = null;
+    const soonSummary = (ms = 600) => { if (!soonT) soonT = setTimeout(() => { soonT = null; loadSummary(); }, ms); };
     function connectWs() {
       try {
         const ws = new WebSocket((location.protocol === "https:" ? "wss:" : "ws:") + "//" + location.host);
@@ -5060,16 +5945,16 @@
         ws.onmessage = (e) => {
           const data = JSON.parse(e.data);
           if (["client_connected", "client_disconnected", "client_update"].includes(data.type)) {
-            loadClients();
-            if (activeTab === "overview") loadOverview();
+            if (activeTab === "overview" && isOpen("ov-activity")) { loadClients(); loadOverview(); }
+            soonSummary(3000); // ("watching now" on the Playback line)
           } else if (data.type === "watch_history_update") {
             // Throttled: analytics recompute is cheap but no need to hammer it
             if (!analyticsRefresh) {
               analyticsRefresh = setTimeout(() => {
                 analyticsRefresh = null;
-                if (activeTab === "analytics") loadAnalytics();
-                if (activeTab === "history") { loadSessions(); loadHistory(); }
-                if (activeTab === "overview") loadOverviewTop();
+                if (activeTab === "analytics" && (isOpen("an-watch") || isOpen("an-intros"))) loadAnalytics();
+                if (activeTab === "history") { if (isOpen("h-sessions")) loadSessions(); if (isOpen("h-legacy")) loadHistory(); }
+                if (activeTab === "overview" && isOpen("ov-activity")) loadOverviewTop();
               }, 4000);
             }
           } else if (data.type === "request_new" || data.type === "request_update") {
@@ -5087,6 +5972,7 @@
           } else if (data.type === "download_new" || data.type === "download_update") {
             if (activeTab === "downloads") loadDownloads();
             if (data.type === "download_new") { toast("New download request: " + (data.job?.title || "")); loadBadges(); if (activeTab === "downloads") loadCopies(); }
+            else soonSummary(5000); // (the Downloads line)
           } else if (data.type === "upload_update") {
             if (data.removed) { UP.jobs = UP.jobs.filter((j) => j.id !== data.removed); upRenderJobs(); }
             else if (data.job) {
@@ -5095,30 +5981,36 @@
               if (data.job.status === "done" && was && was.status !== "done") toast(`In the library: ${data.job.title}`);
             }
           } else if (data.type === "healer_update") {
-            if (data.report) { noteHealer(data.report); if (activeTab === "server") paintHealer(data.report); }
+            if (data.report) { noteHealer(data.report); if (activeTab === "server" && isOpen("sv-healer")) paintHealer(data.report); }
           } else if (data.type === "library_updated") {
             // A delete (possibly from another admin tab) changed the disk —
             // keep the ON DISK zone honest.
-            if (activeTab === "downloads") { loadLibraryTree(); loadDisk(); loadCopies(); }
+            if (activeTab === "downloads") { if (isOpen("d-disk")) loadLibraryTree(); loadDisk(); loadCopies(); }
           }
         };
-        ws.onclose = () => { conn(false); setTimeout(connectWs, 5000); };
+        ws.onclose = () => { conn(false); soonSummary(800); setTimeout(connectWs, 5000); };
       } catch {}
     }
 
-    // Periodic refreshers for the visible tab (only once authed)
+    // Periodic refreshers for the visible tab (only once authed): the state
+    // everywhere, the screen's visible parts, and only the Details that are open.
+    const refreshOpen = (pane, keys) => { for (const k of openKeys(pane)) if (keys.includes(k)) loadMore(k); };
     setInterval(() => {
-      if (!ADMIN_PW || document.hidden) return;
-      loadBadges(); // pending-work counts stay honest on every tab
-      if (activeTab === "overview") { loadOverview(); loadTimeseries(); }
-      if (activeTab === "server") { loadServer(); loadMetrics(); loadTimeseries(); }
-      if (activeTab === "history") loadLog();
+      if (!ADMIN_PW || document.hidden || RESTARTING) return;
+      loadSummary();
+    }, 15000);
+    setInterval(() => {
+      if (!ADMIN_PW || document.hidden || RESTARTING) return;
+      if (activeTab === "overview") refreshOpen("overview", ["ov-activity"]);
+      if (activeTab === "server") refreshOpen("server", ["sv-machine", "sv-metrics", "sv-env"]);
+      if (activeTab === "history") refreshOpen("history", ["h-conn"]);
     }, 30000);
     setInterval(() => {
-      if (!ADMIN_PW || document.hidden) return;
-      if (activeTab === "server") loadServer();
-      if (activeTab === "downloads") { loadDownloads(); loadLimits(); loadUploads(); } // (the "holding" note follows who is watching)
+      if (!ADMIN_PW || document.hidden || RESTARTING) return;
+      if (activeTab === "server") refreshOpen("server", ["sv-machine"]);
+      if (activeTab === "downloads") { loadDownloads(); loadLimits(); refreshOpen("downloads", ["d-upload"]); } // (the "holding" line follows who is watching)
     }, 8000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && ADMIN_PW) loadSummary(); });
 
     // Live tail. Guarded the same way as the refreshers above: only the tab
     // that's open, and never while the browser window is hidden.
@@ -5153,7 +6045,7 @@
       } catch {}
       showTab(location.hash.replace("#", "") || "overview");
       connectWs();
-      loadBadges();
+      loadSummary(); // the state in the header, and the badges, on every screen
       loadUpdateCheck(); // fills the Server-tab badge even before visiting it
     }
 

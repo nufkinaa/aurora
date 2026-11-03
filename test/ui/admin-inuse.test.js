@@ -10,7 +10,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const assert = require("node:assert/strict");
-const { suite } = require("./helpers");
+const { suite, openDetails } = require("./helpers");
 
 const ui = suite();
 
@@ -28,6 +28,7 @@ const enter = async (page, srv) => {
 };
 const onDisk = async (page) => {
   await page.click('.tab[data-tab="downloads"]');
+  await openDetails(page, "d-disk");
   await page.waitForSelector("#lib-tree .lib-row");
 };
 // A player asking for the file's bytes (the stream route stamps it in use).
