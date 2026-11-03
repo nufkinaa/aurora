@@ -3,6 +3,15 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.9 — 2026-11-03
+
+**Downloads, rebuilt where it mattered.**
+- **No more stuck at 0 B/s holding up the queue.** A download that finished between two checks used to look like 0 % for good and was restarted again and again; fixed. A copy nobody is sharing stops taking a place in the queue after 3–4 minutes, so the others start, and it keeps looking for people to share it in the background.
+- **A copy that won't download is swapped by itself.** After 8–12 minutes with nothing arriving (or at once for a fake or broken file), Aurora tries the next-best copy: same quality first, then one step down, best shared first, and never a cinema copy or a dub. The bad copy is set aside, the download keeps its place, and you're told in plain words, like "No one was sharing that copy — now trying another (1080p · 1.4 GB)". After 4 copies it waits and tries again later, then says so plainly instead of looping.
+- **The next episode first.** What someone is watching right now, and its next episode, goes ahead of everything else. When it's quick (1.5 GB or less, well shared, a few minutes), other downloads slow down for a moment and pick up again by themselves once it lands. A person's own download is never held back for long.
+- **Fairer and steadier.** Oldest request first; a season pack takes one place, not one per episode; a full disk waits instead of failing; two episodes of the same pack no longer undo each other; fakes, samples and wrong files never reach the library; downloads survive a restart from where they were; each episode of a pack shows its own speed and time left; the same title from the same episode asked twice downloads once; finished files are linked into the library instead of copied.
+- The download engine is tuned for a fast line and disk, and the server log no longer fills with progress lines. Admin shows each download's state, priority and which copy it is on.
+
 ## 1.15.8 — 2026-11-03
 
 - **A simpler admin.** Every admin screen now opens with one answer: "Everything works", "Needs you" or "Down", with the reason and the fix, and five short lines (site, playback, streaming, disk, downloads). Minor warnings never turn it red; they wait behind "minor notes". Restart is at the top of every screen and asks first. People, password resets and held downloads waiting for you sit right under it. Everything else (stats, tables, logs, timings) is behind a closed Details, each with Copy for Claude, plus one Copy everything for Claude. The server page on a phone went from about 9,800 px tall to 1,100.
