@@ -62,8 +62,8 @@ const DEFAULTS = {
   unavailDeadMs: 6 * MIN,   // no complete copy among them (aria2.getPeers bitfields) for this long while nothing arrives
   // ---- slow but alive ----
   slowBps: 48 * KIB,        // under this (smoothed) is "slow" — a 1 GB episode at 48 KiB/s takes 6 h
-  slowMs: 5 * MIN,          // …for this long, after the grace below
-  slowGraceMs: 3 * MIN,     // nothing is called slow in its first minutes
+  slowMs: 3 * MIN,          // …for this long, after the grace below
+  slowGraceMs: 2 * MIN,     // nothing is called slow in its first minutes
   // ---- recovering ----
   recoverBytes: 2 * MIB,    // a stalled attempt is healthy again after this many new bytes…
   recoverBps: 96 * KIB,     // …or at this speed (smoothed)

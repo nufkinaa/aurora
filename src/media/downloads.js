@@ -789,10 +789,14 @@ const queueView = () => {
   const { cap, holding, maxActive: setting } = slotState();
   const holders = [];
   const parked = [];
+  let slowFree = 0;
   for (const [id, rec] of active) {
     const j = findJob(id);
     const h = { id, owner: ownerOf(j), key: keyOf(j), cls: j ? priorityOf(j).cls : dlprio.PERSON };
-    if (holdsSlot(rec)) holders.push(h); else parked.push(h);
+    // (slow-but-alive ones stop counting only up to PARKED_LIVE of them: a
+    // day when every copy is slow must not start the whole queue at once)
+    const slowOne = rec.health && rec.health.state === "slow";
+    if (holdsSlot(rec) || (slowOne && ++slowFree > dlslots.PARKED_LIVE)) holders.push(h); else parked.push(h);
   }
   const waiting = waitingJobs().map((j) => ({
     id: j.id, owner: ownerOf(j), key: keyOf(j), cls: priorityOf(j).cls,
@@ -2102,14 +2106,18 @@ const healthTick = (t) => {
     const v = dlhealth.assess(att, t, cfg, env);
     rec.health = v;
     if (was !== v.holdsSlot) slotsChanged = true;
-    const pub = { state: v.state, code: v.code, why: v.why, countsAsRunning: v.holdsSlot, since: isoAt(seams.wall() - (t - v.since)) };
     const prev = job.health || {};
+    // Inside one stalled stretch the reason can flip every second (a peer
+    // connects for a moment, the engine dials its own address): the first
+    // reason and its sentence stay until the state itself changes.
+    const steady = prev.state === v.state && v.state === "stalled";
+    const pub = { state: v.state, code: steady ? prev.code : v.code, why: steady ? prev.why : v.why, countsAsRunning: v.holdsSlot, since: isoAt(seams.wall() - (t - v.since)) };
     let changed = prev.state !== pub.state || prev.code !== pub.code || prev.countsAsRunning !== pub.countsAsRunning;
     if (changed) {
       job.health = pub;
       if (v.state !== "ok" && v.state !== "starting") console.log(`[download] ${id.slice(0, 6)} "${job.label || job.title}" is ${v.state}${v.why ? `: ${v.why}` : ""}${v.holdsSlot ? "" : " — not counted as running"}`);
     }
-    if (setNoteText(job, healthNote(job, rec, v))) changed = true;
+    if (setNoteText(job, healthNote(job, rec, steady ? { ...v, code: pub.code } : v))) changed = true;
     if (changed) broadcast(job);
     // stalled with people connected: do they even have what is missing?
     if (v.state === "stalled" && att.gid && att.connections > 0 && att.engine && typeof aria2.peers === "function" && t - (att.availAt || 0) >= AVAIL_EVERY_MS) {

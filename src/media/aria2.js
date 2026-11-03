@@ -63,8 +63,10 @@ let startup = null;
 //     seeding from ever holding one of the engine's download places.
 //   * --disk-cache=64M: fewer, larger writes (aria2's default is 16M); the
 //     server has 16 GB of memory and this is shared by every download.
-//   * --auto-save-interval=30: the resume file is written twice as often as
-//     the default, so a crash loses at most half a minute of a download.
+//   * --auto-save-interval=10: the resume file (.aria2) every 10 s instead of
+//     60. A kill — the engine dying, the server crashing, a restart that could
+//     not stop it tidily — loses what came in since the last save: measured on
+//     the rig at 3 MB/s, a download killed at 30% came back at 10-18% with 30 s.
 //   * --file-allocation: "none" unless downloadEngine.fileAllocation says
 //     otherwise. "falloc" is instant on ext4/NVMe and catches a full disk
 //     at the start instead of in the middle; it is left to the admin because
@@ -99,7 +101,7 @@ const engineArgs = ({ plan, eng = {}, dataDir, port = PORT, secret = SECRET, sta
     "--bt-load-saved-metadata=true",       // …so a second episode of a pack skips the metadata hunt
     `--file-allocation=${alloc}`,          // "none": preallocating a 4 GB pack stalls the add on Windows
     `--disk-cache=${cache}`,
-    "--auto-save-interval=30",
+    "--auto-save-interval=10",            // the resume file every 10 s: a crash or a kill loses at most 10 s of each download
     // Keep the DHT routing table between runs. Without a path aria2 looks for
     // one in ~/.cache and logs "Failed to load DHT routing table" on every
     // start, beginning each boot with an empty table; persisting it lets peer
@@ -113,7 +115,8 @@ const engineArgs = ({ plan, eng = {}, dataDir, port = PORT, secret = SECRET, sta
     ...(dport > 0 && dport < 65536 ? [`--dht-listen-port=${dport}`] : []),
     ...(trackers.length ? [`--bt-tracker=${trackers.join(",")}`] : []),
     ...(eng.excludeTrackers ? [`--bt-exclude-tracker=${list(eng.excludeTrackers).join(",")}`] : []),
-    "--summary-interval=0",                // no periodic console noise
+    "--summary-interval=0",                // no periodic console noise…
+    "--show-console-readout=false",        // …and no progress line every second per download in the server's log
     "--console-log-level=warn",
     `--max-concurrent-downloads=${plan.maxConcurrent}`,
     `--bt-max-peers=${plan.btMaxPeers}`,
@@ -464,17 +467,35 @@ process.on("exit", shutdown);
 // A server that is asked to stop (a restart, a deploy) lets aria2 stop
 // itself first: aria2.forceShutdown writes every unfinished download's
 // resume file (.aria2) on the way out, where a kill loses whatever came in
-// since the last periodic save (up to 30 s of each download — measured on
-// the rig: a clean restart at 30% carried on from 23%). lib/shutdown.js
+// since the last periodic save (see --auto-save-interval above). lib/shutdown.js
 // gives the hooks a few seconds; the kill in shutdown() still follows.
+const rawCall = (method) => new Promise((resolve, reject) => {
+  const body = JSON.stringify({ jsonrpc: "2.0", id: "stop", method, params: [`token:${SECRET}`] });
+  const req = require("http").request({ host: "127.0.0.1", port: PORT, path: "/jsonrpc", method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) }, timeout: 2000 }, (res) => {
+    let data = "";
+    res.on("data", (d) => { data += d; });
+    res.on("end", () => { try { const j = JSON.parse(data); j.error ? reject(new Error(j.error.message)) : resolve(j.result); } catch (e) { reject(e); } });
+  });
+  req.on("timeout", () => req.destroy(new Error("timed out")));
+  req.on("error", reject);
+  req.end(body);
+});
 const stopTidy = async () => {
   const child = proc;
   if (!child) return;
-  try { await call("aria2.forceShutdown"); } catch { return shutdown(); }
-  await new Promise((r) => {
-    const t = setTimeout(r, 3000);
-    child.once("exit", () => { clearTimeout(t); r(); });
+  const t0 = Date.now();
+  // (plain http, not fetch: while the server stops, fetch's shared pool
+  // answered "fetch failed" on the rig)
+  try { await rawCall("aria2.forceShutdown"); } catch (e) {
+    console.warn(`[aria2] could not ask the engine to stop by itself (${e && (e.cause && e.cause.code || e.message)}) — ending it`);
+    return shutdown();
+  }
+  const exited = await new Promise((r) => {
+    if (child.exitCode !== null) return r(true);
+    const t = setTimeout(() => r(false), 3000);
+    child.once("exit", () => { clearTimeout(t); r(true); });
   });
+  console.log(`[aria2] engine stopped by itself in ${Date.now() - t0} ms${exited ? " (resume files written)" : " — still there after 3 s, ended"}`);
   shutdown();
 };
 try { require("../lib/shutdown").register("download engine", stopTidy); } catch {}

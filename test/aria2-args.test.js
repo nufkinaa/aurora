@@ -9,12 +9,12 @@ const base = { plan, dataDir: "/data", port: 6801, secret: "s", stagingRoot: "/t
 const has = (args, flag) => args.includes(flag);
 const val = (args, name) => (args.find((a) => a.startsWith(`--${name}=`)) || "").slice(name.length + 3) || null;
 
-test("the defaults: not a seedbox, seeding never holds a place, a bigger write cache, resume file every 30 s, DHT on", () => {
+test("the defaults: not a seedbox, seeding never holds a place, a bigger write cache, resume file every 10 s, DHT on", () => {
   const a = aria2.engineArgs(base);
   assert.ok(has(a, "--seed-time=0"));
   assert.ok(has(a, "--bt-detach-seed-only=true"));
   assert.equal(val(a, "disk-cache"), "64M");
-  assert.equal(val(a, "auto-save-interval"), "30");
+  assert.equal(val(a, "auto-save-interval"), "10");
   assert.equal(val(a, "file-allocation"), "none");
   assert.equal(val(a, "enable-dht"), "true");
   assert.equal(val(a, "dht-entry-point"), "router.bittorrent.com:6881");

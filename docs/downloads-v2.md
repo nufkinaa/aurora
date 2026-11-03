@@ -78,7 +78,9 @@ Line numbers are on `origin/master` at 72602eab.
 | 14 | `media/downloads.js:826` | The finished file was **copied** from staging into the library: a second full write of a 15 GB film at the very end, needing twice its size free. | On Linux, same volume: a hard link (instant, no second copy). Windows keeps the copy. |
 | 15 | `media/downloads.js:1966` | After a restart every job's progress was reset to 0, so the disk gate counted the full size of half-finished downloads again. | Progress is kept (aria2 continues from the bytes anyway). |
 | 16 | `media/aria2.js:271,344` | Looking up a torrent read only the first 50 waiting downloads. | 1000. |
-| 17 | `media/aria2.js` args | Seeding-only torrents could hold engine places (no `bt-detach-seed-only`). The write cache was the 16M default, the resume file was saved every 60 s, and the listen port was random. | Fixed (§7). |
+| 17 | `media/aria2.js` args | Seeding-only torrents could hold engine places (no `bt-detach-seed-only`). The write cache was the 16M default, the resume file was saved every 60 s (a kill lost up to a minute of every download), the listen port was random, and aria2's console readout put a line per download per second into the server's log. | Fixed (§7). |
+| 18 | `media/downloads.js:1281-1290` (found on the rig) | With `--seed-time=0` aria2 reports a **complete** download with `completedLength` **0** for its files. A download that finished between two one-second polls read as 0%, never "won", and sat there; the healer restarted it every 12 min. On a fast line this is common — and it looks exactly like "stuck at 0 B/s". | `status: "complete"` counts as the file being in. |
+| 19 | (found on the rig, in the new code before release) | "S01E02.1080p" read as a double episode E02–E108. | Fixed and tested. |
 
 Edge cases checked, with where they are covered:
 
@@ -108,7 +110,7 @@ Edge cases checked, with where they are covered:
 | Connected, no new bytes, **no seeder** connected | 4 min | 12 min |
 | Connected, no new bytes, a "seeder" connected (zombie) | 4 min | 20 min |
 | The connected peers don't have the missing pieces (availability < 1, checked every 30 s while stalled) | — | 6 min |
-| **Slow:** under 48 KiB/s (smoothed) for 5 min, after a 3 min grace | Stops holding its slot **only if the line and the admin's cap have room**. Never dead. | — |
+| **Slow:** under 48 KiB/s (smoothed) for 3 min, after a 2 min grace | Stops holding its slot **only if the line and the admin's cap have room**. Never dead. | — |
 
 - **Hysteresis:** a stalled download only counts as healthy again after 2 MiB of new bytes, or 96 KiB/s.
 - **Clock:** every timer is monotonic.
@@ -122,6 +124,7 @@ Edge cases checked, with where they are covered:
 
 Not counted:
 - A stalled download stays in the engine, still looking for peers, so if a seeder comes back it simply carries on.
+- At most 4 *slow* downloads stop counting at once; any more slow ones count again, so a day when every copy is slow does not start the whole queue at once.
 - The engine carries at most **4 stalled downloads** (`PARKED_LIVE`) beyond that. Past that, the one stalled longest comes out and tries again in 10 min, or moves to its next copy if it is already halfway to dead.
 - aria2's own limit (`max-concurrent-downloads`) is the setting + 2 for magnet details + 4 parked + 2 "watching now" + the race.
 
@@ -258,9 +261,17 @@ The admin's lists can show these like a person's report, with the label from `re
 
 ---
 
-## 6. Test results
+## 6. Tests
 
-See §8, filled in from the rig runs.
+| Suite | What it covers |
+|---|---|
+| `test/dlhealth.test.js` (8) | Every stall rule, hysteresis, availability from bitfields |
+| `test/dlprio.test.js` (11) | Classes, ageing, the start plan (packs once, NOW past the cap, per account), quick, live check, victims, the held-time window |
+| `test/dlfallback.test.js` (14) | The next copy, the right file, samples, fakes, ffprobe, engine errors |
+| `test/aria2-args.test.js` (4) | The engine's options from `downloadEngine` |
+| `test/dlv2-queue.test.js` (15) | The whole queue on a fake engine and a fake clock: stalled stops counting, dead → next copy, wait and retry then a plain failure, bytes kept and resumed, disk full, a fake, a sample, an ffprobe fake, pre-empting and its fairness, the same title twice, a restart after a switch, the monotonic clock, "complete with 0 bytes" |
+| existing queue tests | `dlrace-queue`, `dl-landing`, `mylistdl-queue` and `replace-version` stub the ffprobe check and the source lookup; a failed replacement plays out its waiting rounds |
+| `test/ui/downloads.test.js` | The sentence on the card, "Waiting for a copy", the server's time left, no trickle speed while held back — desktop and phone width |
 
 ## 7. Faster: the engine on nufurora (2.5 Gbit, NVMe, 8 cores)
 
@@ -270,7 +281,9 @@ These options are always on now, with no config needed:
 |---|---|
 | `--bt-detach-seed-only=true` | A seeding-only torrent never holds a download place |
 | `--disk-cache=64M` | Fewer, larger writes |
-| `--auto-save-interval=30` | A crash loses at most 30 s of a download |
+| `--auto-save-interval=10` | A kill or crash loses at most ~10 s of a download (the default 60 s lost a third of a 300 MB download on the rig) |
+| `--show-console-readout=false` | No progress line per download per second in the server's log |
+| a clean stop asks aria2 to stop itself (`aria2.forceShutdown`) | Its resume files are written on the way out (best effort; the 10 s save covers the rest) |
 | no copy at the end on Linux (§3 #14) | A finished film appears in the library instantly, with no second write of its whole size |
 
 Recommended `config.json` for nufurora:
@@ -292,4 +305,57 @@ Recommended `config.json` for nufurora:
 
 ## 8. Rig results
 
-(filled in below)
+The rig is `tools/dl-rig/`:
+- `swarm.js`: a tracker and seeders on 127.0.0.1. Seeders can be fast, slow, stop at a fraction (a zombie that stays connected), leave, serve corrupt pieces, or appear later.
+- `aria2-smoke.js`: the real aria2 against that swarm.
+- `run.js`: a private instance of this tree under its keeper, with its own aria2 (no DHT, no PEX, only the rig's tracker).
+
+The content is random bytes after a real one-frame-per-second MKV header, so ffprobe sees a long video. Nothing left the PC. The production rules applied; the second-source race was off, so what is measured is the fallback.
+
+**A copy that will not download.** Seven titles at once, each with a bad first copy and a good second one. Times are from the moment the download started.
+
+| First copy | Stopped counting as running | Switched to the next copy | Next copy landed |
+|---|---|---|---|
+| A program (.exe) where the film should be | — | 3 s | +5 s |
+| Random bytes named .mkv (caught by ffprobe) | — | 5 s after its bytes were in | +5 s |
+| Nobody sharing it (no details) | 3:00 | 10:00 | +6 s |
+| Details in (cached .torrent), nobody to connect to | 4:03 | 8:03 | +8 s |
+| Only a liar serving corrupt pieces | 4:03 | 8:05 | +6 s |
+| The seeder leaves at 25% | 4:11 | 11:08 ("the people left don't have the file"); its 15 MB kept, cleaned when the job ended | +5 s |
+| A zombie seeder that stops at 10% | 4:06 | 12:28 | +5 s |
+
+- Every title ended with the **right bytes** in the library (checksums), and **none** of the bad copies' bytes.
+- All seven were one person's, so the 3-per-account limit applied. Titles 4–7 started the moment earlier ones stalled (at 3:01, 4:04, 4:12, 4:20). Before, they would have waited for good.
+
+**Slow but alive.** "Downloads at once" = 1: a copy at 30 KiB/s, with a fast one queued behind it.
+- With the first rule (slow after 3 + 5 min) the fast one started **8:00** later. The rule is now 2 + 3 min; the re-run number is below.
+- The slow one kept downloading ("Slow copy (about 30 KB/s) — other downloads go ahead meanwhile"), was never called dead, and kept its bytes.
+
+**The next episode while others download.** A 4 MB/s cap, two 1 GB films, and a 100 MB episode, three at once.
+
+| The episode as… | Arrived in |
+|---|---|
+| a person's ordinary download (the control) | **134 s** |
+| the next episode of a show being watched (one progress report for S01E01) | **31.3 s** |
+
+- The films were held to a trickle ("Paused for a moment — an episode someone is watching goes first") and let go the moment the episode was in.
+- Both films were still running at the end.
+
+**Restarts.** A 300 MB film at 3 MB/s, interrupted at 30%.
+
+| How | Back after | Carried on from | Jobs for the title | Right bytes, staging cleaned |
+|---|---|---|---|---|
+| Clean restart (keeper) | 6.6 s | 27% | 1 | yes |
+| aria2 killed | at once | 21% (≤ 10 s lost: the resume-file interval) | 1 | yes |
+| Server crash (killed; the keeper restarts it) | 6.2 s | 31% | 1 | yes |
+
+Before `--auto-save-interval=10` the same runs came back at **7%** (clean restart) and 10–18% (aria2 killed).
+
+**A season pack.** Three episodes, a sample and an .nfo. All three were asked for in the same instant, with episode 2 listed with the **sample's** file index. All three landed with the right bytes, and the sample never reached the library. This run is what found the "1080p read as an episode range" bug (§3 #19); it was fixed and re-run.
+
+**What aria2 itself does** (`aria2-smoke.js`):
+- Metadata from a live seeder in 2.1 s; the first byte 1.2 s later.
+- **No dead scenario ever errors.** No seeder, a zombie, a seeder that left, a liar: all stay "active" for ever. The queue has to decide.
+- `downloadSpeed` is smoothed over about 10 s; `completedLength` is the signal to watch.
+- A zombie looks exactly like a healthy idle seeder (`seeder: true`, speed 0). aria2 drops it after about 60 s and accepts it straight back.
+- `max-download-limit` takes hold in 0.2 s and lets go at once, with the connection kept. `pause` drops every peer.
