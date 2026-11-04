@@ -499,7 +499,7 @@ const handleMessage = (client, data, ws) => {
       } else {
         client.playState = null;
         if (wasWatching) {
-          telemetry.onStopWatching(client.id);
+          telemetry.onStopWatching(client.id, "stopped");
           stoppedOn(client);
         }
       }

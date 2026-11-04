@@ -15,7 +15,8 @@
 // profile never sees a grown-up's). Progress made while offline is queued and
 // sent when the server answers again (flushOfflineProgress).
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {AppState, NativeModules} from 'react-native';
+import {AppState, NativeModules, Platform} from 'react-native';
+import {PHONE_APP_VERSION} from '../../update';
 import {useEffect, useState} from 'react';
 import {api, getActiveProfile, getBaseUrl, mediaHeaders} from '../../api';
 import {showToast} from '../../toast';
@@ -398,7 +399,9 @@ export async function flushOfflinePlayed(device?: {build?: string; model?: strin
 }
 
 export async function flushOfflineProgress() {
-  flushOfflinePlayed();
+  // (the device, as the socket's hello names it: the admin's line for these plays)
+  const c = (Platform.constants || {}) as {Brand?: string; Manufacturer?: string; Model?: string};
+  flushOfflinePlayed({build: `Aurora phone ${PHONE_APP_VERSION}`, model: [c.Brand || c.Manufacturer || '', c.Model].filter(Boolean).join(' ') || undefined});
   try {
     const raw = await AsyncStorage.getItem(PROGRESS_KEY);
     const list: Pending[] = raw ? JSON.parse(raw) : [];

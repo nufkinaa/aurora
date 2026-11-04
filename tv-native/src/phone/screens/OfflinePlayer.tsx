@@ -12,7 +12,7 @@ import {replacePhone, usePNav} from '../nav';
 import PhoneChrome from '../player/PhoneChrome';
 import PhoneGestures from '../player/PhoneGestures';
 import {phoneNative} from '../native';
-import {flushOfflinePlayed, listOffline, noteOfflinePlayed, noteOfflineProgress, offlineFor} from '../offline/store';
+import {flushOfflineProgress, listOffline, noteOfflinePlayed, noteOfflineProgress, offlineFor} from '../offline/store';
 import {getActiveProfile} from '../../api';
 import {reportActivity} from '../../realtime';
 import {createWatchClock} from '../../watchClock';
@@ -100,7 +100,7 @@ export default function OfflinePlayer() {
     return () => {
       reportRef.current(); // the last seconds played
       reportActivity('Browsing');
-      flushOfflinePlayed();
+      flushOfflineProgress(); // (what was kept, with the device named)
       if (it) noteOfflineProgress(it.id, curRef.current, dur || it.duration || 0);
       phoneNative.setKeepAwake(false);
       phoneNative.setImmersive(false);

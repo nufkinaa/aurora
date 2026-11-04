@@ -3104,7 +3104,9 @@ export default function Player({
     const say = () => {
       const label = labelFn.current();
       if (!label) return;
-      watchClock.tick(curRef.current || 0, {playing: reallyPlaying(), rate: rateRef.current || 1});
+      // (no tick here: the position is read from the 1 Hz progress events, and
+      // a tick with that stale reading reset the clock's anchor — the next
+      // event then looked too fast and its second was dropped, ~1 s a report)
       reportActivity('Watching', label, {
         position: curRef.current || 0,
         duration: durRef.current || 0,
