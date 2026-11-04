@@ -1,9 +1,29 @@
 name: CI
 
+# Pushes and pull requests run only the test files a change can reach (docs/ci.md):
+# a runtime-traced map says which repo files each test file reads, and
+# tools/ci/ci-tests.js compares that with what changed since the last green run.
+# Any doubt runs everything. The nightly run, a run started by hand and a
+# server-*-stable tag always run everything, and refresh the map.
 on:
   push:
     branches: [master]
+    tags: ["server-*-stable"]
   pull_request:
+  schedule:
+    - cron: "23 2 * * *" # nightly full run (UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read # to find the last green run (the base to compare with)
+
+# A newer push to the same branch (or PR) cancels the older run: safe, because the
+# next run compares with the last GREEN run, so the cancelled run's changes are
+# still in its range. Nightly, by-hand and tag runs each get their own group.
+concurrency:
+  group: ci-${{ github.ref }}-${{ ((github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')) || github.event_name == 'pull_request') && 'latest' || github.run_id }}
+  cancel-in-progress: ${{ (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')) || github.event_name == 'pull_request' }}
 
 jobs:
   test:
@@ -14,21 +34,61 @@ jobs:
         node: [20, 22]
     name: "tests (node ${{ matrix.node }})"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # Whole history (commits and trees only: a sparse checkout fetches no old
+      # blobs) to compare with the last green run. The QA screenshots (~520 MB of
+      # the ~640 MB tree) are left out: no test reads them (docs/ci.md).
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/docs/qa/
+            !/docs/android-phone/
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
-      - run: npm ci
+      - name: Restore the test map
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ runner.temp }}/test-map
+          key: test-map-v1-node${{ matrix.node }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: test-map-v1-node${{ matrix.node }}-
+      - name: Choose the tests
+        id: select
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          TEST_MAP: ${{ runner.temp }}/test-map/test-map.json
+          SELECTION_OUT: ${{ runner.temp }}/selected-tests.txt
+        run: |
+          node tools/ci/ci-tests.js select
+          echo "day=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+      - if: steps.select.outputs.mode != 'none'
+        run: npm ci
       - name: npm test
+        id: tests
+        if: steps.select.outputs.mode != 'none'
         shell: bash
+        env:
+          # The tracer (tools/ci/trace-preload.cjs) only observes; it refreshes the map.
+          NODE_OPTIONS: --require ${{ github.workspace }}/tools/ci/trace-preload.cjs
+          AURORA_TRACE_DIR: ${{ runner.temp }}/trace
+          MODE: ${{ steps.select.outputs.mode }}
         run: |
           set -o pipefail
           node -v; (command -v ffmpeg >/dev/null && echo "ffmpeg: present" || echo "ffmpeg: absent")
-          npm test 2>&1 | tee test-output.log
+          if [ "$MODE" = all ]; then
+            npm test 2>&1 | tee test-output.log
+          else
+            mapfile -t files < "$RUNNER_TEMP/selected-tests.txt"
+            echo "node --test on ${#files[@]} test files"
+            node --test "${files[@]}" 2>&1 | tee test-output.log
+          fi
       # What failed, as annotations: they can be read from the run's page (and
       # the public API) without signing in, unlike the job's log.
       - name: Say what failed
-        if: failure()
+        if: failure() && steps.tests.outcome == 'failure'
         shell: bash
         run: |
           grep -nE "^\s*not ok " test-output.log | head -20 | while IFS= read -r line; do
@@ -36,3 +96,22 @@ jobs:
           done
           grep -E -A12 "^\s*not ok " test-output.log | grep -E "error:|expected|actual|Error|!==|code:" | head -30 | tr '\n' '|' | sed 's/^/::error title=Details::/'
           echo
+      - name: Update the test map
+        id: map
+        if: always() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure')
+        shell: bash
+        env:
+          MODE: ${{ steps.select.outputs.mode }}
+          OUTCOME: ${{ steps.tests.outcome }}
+        run: |
+          flags=(--merge "$RUNNER_TEMP/test-map/test-map.json")
+          [ "$MODE" = all ] && flags+=(--full)
+          [ "$OUTCOME" = success ] && flags+=(--passed)
+          node tools/ci/build-test-map.js --trace "$RUNNER_TEMP/trace" --out "$RUNNER_TEMP/test-map/test-map.json" "${flags[@]}"
+          [ -f "$RUNNER_TEMP/test-map/test-map.json" ] && echo "saved=yes" >> "$GITHUB_OUTPUT" || true
+      - name: Save the test map
+        if: always() && steps.map.outputs.saved == 'yes'
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ runner.temp }}/test-map
+          key: test-map-v1-node${{ matrix.node }}-${{ steps.select.outputs.day }}-${{ github.run_id }}-${{ github.run_attempt }}
