@@ -7,7 +7,8 @@
 //             really played
 //   screens   every connected screen, one row per screen (several tabs of one
 //             browser for one person are one row, "2 tabs"), with what it is
-//             doing: watching · paused · browsing · away · profile wall
+//             doing: watching · paused · browsing · away · profile wall ·
+//             quiet (said "watching", then nothing for 45 s)
 //   counts    the numbers on top
 //   today     real watch time since local midnight, per person and per title
 //   week      the same for the last 7 days
@@ -27,7 +28,7 @@ const splitLabel = (content) => {
   return { title: m[1].trim(), episode: `S${+m[2]} E${+m[3]}${m[4] ? m[4] : ""}`.trim() };
 };
 
-const PRESENCE_RANK = { watching: 5, paused: 4, browsing: 3, wall: 2, away: 1 };
+const PRESENCE_RANK = { watching: 6, paused: 5, browsing: 4, wall: 3, away: 2, quiet: 1 };
 
 // x: { now, clients: [publicClient + {session}], sessions: [...] newest first }
 const build = (x = {}) => {
@@ -37,7 +38,7 @@ const build = (x = {}) => {
 
   const nowRows = [];
   for (const c of clients) {
-    if (c.activity !== "Watching") continue;
+    if (c.activity !== "Watching" || c.presence === "quiet") continue; // (quiet: not answering — not watching)
     const s = c.session || null;
     const { title, episode } = splitLabel(c.details);
     nowRows.push({
@@ -85,8 +86,8 @@ const build = (x = {}) => {
   const counts = {
     watching: nowRows.filter((r) => r.state === "playing").length,
     paused: nowRows.filter((r) => r.state !== "playing").length,
-    screens: screens.filter((g) => g.presence !== "away").length,
-    away: screens.filter((g) => g.presence === "away").length,
+    screens: screens.filter((g) => g.presence !== "away" && g.presence !== "quiet").length,
+    away: screens.filter((g) => g.presence === "away" || g.presence === "quiet").length,
   };
 
   const roll = (fromMs) => {

@@ -116,3 +116,12 @@ test("a server restart: nobody is remembered; a live session is closed where it 
   assert.equal(s.watchedSec, 0, "nothing is assumed about the time the server was away");
   assert.equal(s.position, 1200);
 });
+
+test("a player that said Watching and then went silent for 45 s is 'quiet': not counted as watching", () => {
+  const c = add();
+  const t = Date.now();
+  say(c, { type: "hello", profile: "Ann", hb: 60 }, t);
+  say(c, { type: "activity", action: "Watching", details: "Quiet film", position: 0, duration: 100, played: 0, state: "playing" }, t);
+  assert.equal(realtime.presenceOf(c, t + 10000), "watching");
+  assert.equal(realtime.presenceOf(c, t + 46000), "quiet");
+});

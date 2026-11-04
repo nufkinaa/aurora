@@ -163,7 +163,12 @@ const ADMIN_EVERY_MS = 20 * 1000; // a watching client's position, to the admins
 const BEAT_MISSES = 2.5; // heartbeats missed before a client counts as gone
 const BEAT_MIN_SEC = 30;
 const BEAT_MAX_SEC = 300;
-const presenceOf = (c) => {
+//   quiet      the player said "Watching" but has sent nothing for SILENT_MS
+//              (its page frozen, a laptop asleep with the socket not yet
+//              dropped): not counted as watching; gone at the heartbeat deadline
+const SILENT_MS = 45 * 1000;
+const presenceOf = (c, nowMs = Date.now()) => {
+  if (c.activity === "Watching" && c.lastMsgAt && nowMs - c.lastMsgAt > SILENT_MS) return "quiet";
   if (c.activity === "Watching") return c.playState === "playing" ? "watching" : "paused";
   if (c.visible === false) return "away";
   if (!c.profile && !c.profileId) return "wall";
