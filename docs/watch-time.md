@@ -195,3 +195,21 @@ Sources are given after each claim. Where a vendor's internals are not public, t
 4. Each session is clamped to its wall span and to the media's length.
 5. Very short plays are not history (Tautulli 120 s, Jellyfin about 20 s).
 6. Concurrent plays of one title by one person are de-duplicated. No vendor documents its exact rule.
+
+## 7. Verified on devices (2026-11-04)
+
+**Mi TV (QA build 5.8.4, versionCode 199 to 201, private server through `adb reverse`):**
+- **Playing:** the server's count followed the position within a second. Position 13 / 28 / 48 / 68 against 12 / 27 / 47 / 67 s credited.
+- **Paused for 40 s:** nothing was added (82 / 80 before and after). The admin showed Paused at once.
+- **Home button while playing:** the app's JS stops in the background. The viewing went to "Not answering" after 45 s and closed at its last report ("silent", 101 s credited for 103 s played). The client was gone at the heartbeat deadline. Back in the app, it reconnected and went on.
+- **Screen off (`KEYCODE_SLEEP`) while playing:** the socket closed within 20 s. The viewing ended ("closed", 31 s credited for 31 s played).
+- **Found and fixed on the device:**
+  - The first ~11 s of a play were lost. The activity effect re-ran when the stream's details landed, ended the viewing and started a new one.
+  - About 1 s was lost per report, from a watch-clock tick with a stale position. The phone emulator check found this one.
+
+**Android phone emulator (QA build 1.0.4):**
+- **Profile chosen:** presence showed `app: phone`, `hb: 60`.
+- **Playing and pausing:** playing counted, and a 40 s pause added nothing.
+- **Home:** no picture-in-picture on the emulator, so the player was held still. The viewing went quiet, then closed at its last report with nothing counted for the background.
+- **Force-stop:** the client was gone in under 10 s and the viewing closed.
+- **Offline play:** a saved copy played 63 s with the server cut off. Nothing reached the server until the app came back to the front. Then one offline session of 62 s arrived, and a second foreground or a cold start did not count it again.
