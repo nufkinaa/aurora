@@ -3111,12 +3111,13 @@ export default function Player({
         position: curRef.current || 0,
         duration: durRef.current || 0,
         played: watchClock.take(),
-        state: playStateOf({
+        // a TV sent to the background holds its player still (react-native-video
+        // pauses it, and its JS stops soon after): said as paused at once.
+        // The phone's picture-in-picture plays on.
+        state: !PHONE && AppState.currentState !== 'active' ? 'paused' : playStateOf({
           paused: pausedRef.current,
           buffering: bufferingRef.current || pendingSeek.current != null,
           progressAgeMs: Date.now() - lastProgressAt.current,
-          // a TV sent to the background holds its player still (react-native-video
-          // pauses it); the phone's picture-in-picture plays on
           foreground: AppState.currentState === 'active' || PHONE,
         }),
         rate: rateRef.current || 1,

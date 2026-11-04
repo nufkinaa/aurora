@@ -72,7 +72,7 @@ ui.test("Activity: the numbers on top, who is watching, every screen, watch time
   assert.equal(await page.textContent("#act-n-watching"), "1");
   assert.equal(await page.textContent("#act-n-paused"), "1");
   assert.equal(await page.textContent("#act-n-screens"), "3");
-  assert.equal(await page.textContent("#act-n-screens-k"), "screens · 1 in background");
+  assert.equal(await page.textContent("#act-n-screens-k"), "screens · 1 away");
   assert.equal(await page.textContent("#act-n-today"), "2h 42m");
   const cards = await page.locator("#act-now > .act-card").evaluateAll((cs) => cs.map((c) => [c.dataset.state, c.querySelector(".act-name").textContent, c.querySelector(".act-title b").textContent, c.querySelector(".act-title span").textContent, c.querySelector(".act-chip").textContent.trim()]));
   assert.deepEqual(cards, [["playing", "Ann", "Silo", "S3 E2", "Playing"], ["paused", "Kim", "Arrival", "Film", "Paused"]]);

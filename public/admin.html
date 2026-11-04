@@ -2252,7 +2252,7 @@
       setA($('.act-n[data-k="watching"]'), "data-live", c.watching ? "1" : "0");
       setT($("#act-n-paused"), c.paused || 0);
       setT($("#act-n-screens"), c.screens || 0);
-      setT($("#act-n-screens-k"), c.away ? `screens · ${c.away} in background` : "screens open");
+      setT($("#act-n-screens-k"), c.away ? `screens · ${c.away} away` : "screens open");
       setT($("#act-n-today"), fmtMinShort((a.today && a.today.watchSec) || 0));
       keyed($("#act-now"), a.now || [], (r) => r.key, () => node(NOW_CARD), paintNowCard);
       $("#act-now-empty").hidden = (a.now || []).length > 0;
