@@ -142,20 +142,78 @@ const deviceInfo = () => {
 // messages - without them a TV was invisible there (elia, 2026-10-08).
 // Remembered, so a socket that reconnects mid-film says it again.
 let lastActivity: Record<string, unknown> | null = null;
+// Returns whether it left (a closed socket drops it).
 export const reportActivity = (
   action: 'Watching' | 'Browsing',
   details: string | null = null,
   extra: Record<string, unknown> = {},
 ) => {
   lastActivity = {type: 'activity', action, details, ...extra};
-  send(lastActivity);
+  return send(lastActivity);
 };
+
+// ---------- presence: this screen is really here (docs/watch-time.md) ----------
+// Every BEAT_MS a tiny "presence" message, answered by the server
+// ("presence_ok"):
+//   - the server ends a client that promised a heartbeat (hello `hb`) and
+//     then said nothing for 2.5 of them — an app killed, a TV switched off
+//     at the wall while its socket stayed half open
+//   - this app closes a socket whose beat went unanswered for ANSWER_MS and
+//     connects again — a TV that woke from standby holding a dead connection
+// The app in front or in the background is said at once (the admin's "away").
+export const BEAT_MS = 60 * 1000;
+const ANSWER_MS = 15 * 1000;
+let beatTimer: ReturnType<typeof setTimeout> | null = null;
+let answerTimer: ReturnType<typeof setTimeout> | null = null;
+// (beats are counted, not timed: a clock that jumps at a wake-up cannot fool it)
+let beatsAsked = 0;
+let beatsAnswered = 0;
+// this server answers heartbeats (its `welcome` says `presence`): only then is
+// an unanswered one held against the socket — an older server never answers
+let serverBeats = false;
+const foreground = () => !AppState.currentState || AppState.currentState === 'active';
+const beat = () => {
+  if (beatTimer) clearTimeout(beatTimer);
+  beatTimer = null;
+  const sock = ws;
+  if (!sock || sock.readyState !== WebSocket.OPEN) return;
+  beatTimer = setTimeout(beat, BEAT_MS);
+  const asked = ++beatsAsked;
+  send({type: 'presence', visible: foreground()});
+  if (answerTimer) clearTimeout(answerTimer);
+  answerTimer = setTimeout(() => {
+    if (serverBeats && ws === sock && beatsAnswered < asked) {
+      console.log('[live] the server did not answer the heartbeat: connecting again');
+      try {
+        sock.close();
+      } catch {}
+    }
+  }, ANSWER_MS);
+};
+const stopBeat = () => {
+  if (beatTimer) clearTimeout(beatTimer);
+  if (answerTimer) clearTimeout(answerTimer);
+  beatTimer = answerTimer = null;
+};
+AppState.addEventListener('change', s => {
+  if (!wanted || halted) return;
+  if (ws && ws.readyState === WebSocket.OPEN) beat();
+  else if (s === 'active' && !ws) {
+    // back in front with no socket: now, not after the backoff
+    if (timer) clearTimeout(timer);
+    timer = null;
+    open();
+  }
+});
 
 const hello = () => {
   if (!identity) return;
-  send({type: 'hello', profile: identity.name, profileId: identity.id, ...deviceInfo()});
+  send({type: 'hello', profile: identity.name, profileId: identity.id, ...deviceInfo(), hb: BEAT_MS / 1000, visible: foreground()});
   send({type: 'party_avatar', avatar: identity.avatar || null, avatarImage: identity.avatarImage || null});
-  if (lastActivity) send(lastActivity);
+  // (said again on every open — but what was PLAYED was counted by the socket
+  // it left on, so it is not repeated)
+  if (lastActivity) send({...lastActivity, ...(lastActivity.played != null ? {played: 0} : {})});
+  beat();
 };
 export const setIdentity = (id: typeof identity) => {
   identity = id;
@@ -175,6 +233,7 @@ const open = () => {
     ws = sock;
     sock.onopen = () => {
       if (ws !== sock) return;
+      serverBeats = false; // (until this server's welcome says so)
       wsUp(); // [analytics] lost → back, as a timing
       restartTries = 0; // the server is back
       // Only a socket that STAYS open earns a backoff reset (bans close at once).
@@ -205,6 +264,11 @@ const open = () => {
         for (const fn of [...newsNow]) fn(data); // (onLibraryNews: at once, held or not)
         return;
       }
+      if (data.type === 'welcome') serverBeats = !!data.presence;
+      if (data.type === 'presence_ok') {
+        beatsAnswered = beatsAsked;
+        return;
+      }
       if (data.type === 'kicked' || data.type === 'banned') halted = true;
       if (data.type === 'server_restarting') {
         restartWaitMs = restartWait(data.retryInMs);
@@ -215,7 +279,10 @@ const open = () => {
       if (subs) for (const fn of subs) fn(data);
     };
     sock.onclose = (e?: {code?: number}) => {
-      if (ws === sock) ws = null;
+      if (ws === sock) {
+        ws = null;
+        stopBeat();
+      }
       if (!wanted || halted) return;
       // (1012 = "service restart": a server that closed that way without its
       // message having arrived is treated the same)
@@ -273,6 +340,7 @@ registerProfileCache('realtime', () => {
 
 export const disconnect = () => {
   wanted = false;
+  stopBeat();
   if (timer) clearTimeout(timer);
   timer = null;
   refresher.cancel();

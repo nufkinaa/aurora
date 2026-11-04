@@ -22,6 +22,65 @@ export const send = (data) => {
 export const reportActivity = (action, details = null, extra = null) =>
   send({ type: "activity", action, details, ...(extra || {}) });
 
+// ---------- presence: this screen is really here (docs/watch-time.md) ----------
+// Every BEAT_MS a tiny "presence" message, answered by the server
+// ("presence_ok"). It proves both ends are alive:
+//   - the server ends a client that promised a heartbeat (hello `hb`) and
+//     then said nothing for 2.5 of them — a frozen page, a killed browser
+//   - this page closes a socket whose beat went unanswered for ANSWER_MS and
+//     connects again — a laptop that woke up holding a dead connection
+// Visibility is said at once when it changes (hidden → the admin's "away");
+// a page the browser freezes says so first; a page that goes away says
+// goodbye with a beacon (the socket's close may never leave a phone).
+export const BEAT_MS = 60 * 1000;
+const ANSWER_MS = 15 * 1000;
+let beatTimer = null;
+let answerTimer = null;
+// (beats are counted, not timed: a clock that jumps at a wake-up cannot fool it)
+let beatsAsked = 0;
+let beatsAnswered = 0;
+let serverBeats = false; // (its welcome says it answers them)
+const visibleNow = () => document.visibilityState !== "hidden";
+export const helloMsg = () => ({
+  type: "hello",
+  profile: state.profile ? state.profile.name : null,
+  profileId: state.profile ? state.profile.id : null,
+  hb: BEAT_MS / 1000,
+  app: "web",
+  visible: visibleNow(),
+});
+const beat = () => {
+  clearTimeout(beatTimer);
+  beatTimer = setTimeout(beat, BEAT_MS);
+  const ws = state.ws;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const asked = ++beatsAsked;
+  send({ type: "presence", visible: visibleNow() });
+  clearTimeout(answerTimer);
+  answerTimer = setTimeout(() => {
+    // no answer: this socket only looks open (a sleep, a network that changed)
+    if (serverBeats && state.ws === ws && beatsAnswered < asked) { try { ws.close(); } catch {} }
+  }, ANSWER_MS);
+};
+// (the tests read these)
+export const _presence = { beat, get asked() { return beatsAsked; }, get answered() { return beatsAnswered; } };
+document.addEventListener("visibilitychange", () => {
+  if (state.ws && state.ws.readyState === WebSocket.OPEN) beat();
+  else if (visibleNow() && !state.ws) connect(); // back in front with no socket: now, not after the backoff
+});
+// Chrome's page lifecycle: a page about to be frozen runs no timers until it
+// is resumed — it says so while it still can, and checks its socket after
+document.addEventListener("freeze", () => send({ type: "presence", visible: false }));
+document.addEventListener("resume", () => beat());
+window.addEventListener("online", () => { if (!state.ws) connect(); else beat(); });
+window.addEventListener("pagehide", (e) => {
+  // a page kept in the back/forward cache comes back; anything else is leaving
+  if (e.persisted || !state.clientId) return;
+  try {
+    navigator.sendBeacon("/api/presence/bye", new Blob([JSON.stringify({ clientId: state.clientId })], { type: "application/json" }));
+  } catch {}
+});
+
 // ---------- "the library changed": ask again, but not all at once ----------
 // The message carries no data; every device answers it by fetching the
 // library, its own state and (on Home) Home. When a hundred devices did that
@@ -75,7 +134,14 @@ const handle = (data) => {
   switch (data.type) {
     case "welcome":
       state.clientId = data.clientId || null; // this socket's name on the server
-      if (state.profile) send({ type: "hello", profile: state.profile.name, profileId: state.profile.id });
+      serverBeats = !!data.presence;
+      // (said with no profile too: the server then knows a screen on the
+      // profile wall, and that it keeps a heartbeat)
+      send(helloMsg());
+      beat();
+      break;
+    case "presence_ok":
+      beatsAnswered = beatsAsked;
       break;
     case "subtitle_ocr":
       if (data.status === "started") toast(`Writing subtitles for ${data.name}…`, "💬");
@@ -169,7 +235,12 @@ export const reconnect = () => {
   try { state.ws.close(); } catch { planned = false; }
 };
 
+let reconnectTimer = null;
 export const connect = () => {
+  clearTimeout(reconnectTimer);
+  // one socket per tab: a wake-up, a visibility change and the backoff timer
+  // can all ask at once
+  if (state.ws && (state.ws.readyState === WebSocket.CONNECTING || state.ws.readyState === WebSocket.OPEN)) return;
   try {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(`${proto}//${location.host}`);
@@ -201,7 +272,9 @@ export const connect = () => {
       } catch {}
     };
     ws.onclose = () => {
+      if (state.ws !== ws) return; // (an older socket closing after a newer one opened)
       state.ws = null;
+      clearTimeout(answerTimer);
       if (planned) {
         planned = false;
         return connect();
@@ -215,7 +288,7 @@ export const connect = () => {
       const wait = expected && failedAttempts === 1
         ? restartRetryMs + Math.round(Math.random() * 3000)
         : reconnectWait(reconnectDelay);
-      setTimeout(connect, wait);
+      reconnectTimer = setTimeout(connect, wait);
       reconnectDelay = Math.min(reconnectDelay * 2, 30000);
     };
     ws.onerror = () => {};

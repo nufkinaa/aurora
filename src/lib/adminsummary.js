@@ -203,7 +203,8 @@ const gather = async () => {
   const now = Date.now();
   const realtime = require("../realtime");
   let watchingNow = 0;
-  safe(() => { for (const c of realtime.clients.values()) if (c.activity === "Watching") watchingNow++; });
+  // (playing only: a paused player left open is not someone watching)
+  safe(() => { for (const c of realtime.clients.values()) if (realtime.presenceOf(c) === "watching") watchingNow++; });
   const pm = safe(() => require("./playmarks"));
   const enc = safe(() => {
     const b = require("../media/encbudget");

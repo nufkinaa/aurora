@@ -60,6 +60,8 @@ const DEVICE: Record<string, Record<string, string>> = {
     ticker: 'a timer (DownloadManager progress)',
     hevc: 'what this phone decodes',
     space: 'this phone’s free space',
+    playedChain: 'one write at a time to the queue of offline watch time (each entry is tagged with its profile)',
+    flushingPlayed: 'a flag: the queue is being sent',
   },
   'phone/remote/controller.ts': {
     remoteId: 'this phone, as a remote (the same for every profile on it)',
@@ -194,6 +196,11 @@ const DEVICE: Record<string, Record<string, string>> = {
   'profileScope.ts': {clearers: 'the registry itself'},
   'routeTiming.ts': {cur: 'the visit being timed (a usage event; the queue it goes to is the profile’s)', early: 'the same'},
   'realtime.ts': {
+    beatTimer: 'the socket’s heartbeat timer (docs/watch-time.md)',
+    answerTimer: 'the socket’s heartbeat timer',
+    beatsAsked: 'the socket’s heartbeat count',
+    beatsAnswered: 'the socket’s heartbeat count',
+    serverBeats: 'what the server said in its welcome',
     listeners: 'listeners',
     ws: 'the socket: SessionWiring disconnects it when the profile is left',
     wanted: 'the socket',

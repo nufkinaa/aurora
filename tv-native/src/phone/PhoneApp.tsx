@@ -6,7 +6,7 @@
 // (navigation.tsx), with the same session wiring as the TV (the socket, usage
 // stats, settings that follow the person, the household's recommendations).
 import React, {useEffect} from 'react';
-import {ActivityIndicator, Image, StatusBar, StyleSheet, Text, View} from 'react-native';
+import {ActivityIndicator, AppState, Image, StatusBar, StyleSheet, Text, View} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import AppRoot, {RootUi} from '../AppRoot';
 import SessionWiring from '../SessionWiring';
@@ -61,13 +61,19 @@ function Main() {
       },
       name: () => '',
     });
-    // what was watched on a saved copy while the server could not hear it
+    // what was watched on a saved copy while the server could not hear it —
+    // now, and each time the app comes back to the front (the server may be
+    // reachable again: back home, Wi-Fi on)
     flushOfflineProgress();
+    const fg = AppState.addEventListener('change', st => {
+      if (st === 'active') flushOfflineProgress();
+    });
     // a newer phone build on the server: the "Update ready" sheet, a few seconds in
     checkOnStart();
     loadMe(profileId)
       .then(me => wireProfileMenu({switchProfile: () => (resetTabs(), switchProfile()), name: () => me?.name || ''}))
       .catch(() => {});
+    return () => fg.remove();
   }, [profileId, switchProfile]);
   return (
     <>

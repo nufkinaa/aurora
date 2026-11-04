@@ -67,7 +67,7 @@ const wsMode = () => {
   const rm = typeof r === "string" ? r : r && typeof r === "object" ? r.mode : null;
   return ["log", "enforce", "off"].includes(rm) ? rm : "enforce"; // (the rate limits' own default)
 };
-const hygiene = { deadPeers: 0, skippedSends: 0, closedSlow: 0, oversize: 0, droppedMessages: 0, closedChatty: 0, overAddressLimit: 0, refusedAddressLimit: 0 };
+const hygiene = { deadPeers: 0, missedBeats: 0, skippedSends: 0, closedSlow: 0, oversize: 0, droppedMessages: 0, closedChatty: 0, overAddressLimit: 0, refusedAddressLimit: 0 };
 const isPrivateIp = (a) => a === "127.0.0.1" || a === "::1" || a.startsWith("10.") || a.startsWith("192.168.") || /^172\.(1[6-9]|2\d|3[01])\./.test(a);
 let saidAddressAt = 0;
 
@@ -135,7 +135,47 @@ const publicClient = (c) => ({
   streamReady: c.streamReady,
   connectedAt: c.connectedAt,
   lastSeen: c.lastSeen,
+  // presence (docs/watch-time.md): what the screen is doing, as the server
+  // last heard it, and whether this client keeps a heartbeat at all (old ones don't)
+  presence: presenceOf(c),
+  playState: c.playState || null,
+  visible: c.visible !== false,
+  app: c.app || null,
+  hb: c.hb || null,
+  lastBeatAt: c.lastMsgAt ? new Date(c.lastMsgAt).toISOString() : c.lastSeen,
 });
+
+// ---------- presence: who is really there (docs/watch-time.md) ----------
+// A client is CONNECTED while its socket is open AND it keeps answering:
+//   - every socket is pinged every HEARTBEAT_MS (below); one that misses a
+//     ping is ended (a device switched off, a laptop asleep, Wi-Fi gone)
+//   - a client that said it keeps a heartbeat (hello `hb`, seconds: web
+//     1.15.11+, TV 5.8.4+, phone 1.0.4+) and then says NOTHING for
+//     BEAT_MISSES heartbeats is ended too — its page is frozen or its app
+//     killed while the operating system kept the socket half open
+// What it is doing (presenceOf):
+//   watching   the player is open and playing (playState from the session)
+//   paused     the player is open, not playing (paused, buffering, end screen)
+//   browsing   the app or page is in front, no player
+//   away       the page is hidden / the app is in the background
+//   wall       the app is on the profile wall: nobody signed in yet
+const ADMIN_EVERY_MS = 20 * 1000; // a watching client's position, to the admins, at most this often
+const BEAT_MISSES = 2.5; // heartbeats missed before a client counts as gone
+const BEAT_MIN_SEC = 30;
+const BEAT_MAX_SEC = 300;
+//   quiet      the player said "Watching" but has sent nothing for SILENT_MS
+//              (its page frozen, a laptop asleep with the socket not yet
+//              dropped): not counted as watching; gone at the heartbeat deadline
+const SILENT_MS = 45 * 1000;
+const presenceOf = (c, nowMs = Date.now()) => {
+  if (c.activity === "Watching" && c.lastMsgAt && nowMs - c.lastMsgAt > SILENT_MS) return "quiet";
+  if (c.activity === "Watching") return c.playState === "playing" ? "watching" : "paused";
+  if (c.visible === false) return "away";
+  if (!c.profile && !c.profileId) return "wall";
+  return "browsing";
+};
+// The deadline a heartbeat client is held to, in ms (null: none).
+const beatDeadlineMs = (c) => (c.hb ? c.hb * 1000 * BEAT_MISSES : null);
 
 const broadcastAll = (data) => {
   if (!wss) return;
@@ -374,8 +414,21 @@ const handleMessage = (client, data, ws) => {
     return;
   }
   switch (data.type) {
-    case "hello":
+    case "hello": {
+      const before = client.profile;
       client.profile = String(data.profile || "").slice(0, 24) || null;
+      // a heartbeat promise: "I say something at least every hb seconds"
+      const hb = Number(data.hb);
+      if (hb > 0) client.hb = Math.max(BEAT_MIN_SEC, Math.min(BEAT_MAX_SEC, Math.round(hb)));
+      if (typeof data.visible === "boolean") client.visible = data.visible;
+      // the same screen, now someone else (a TV that switched profile): the
+      // viewing of the one before is over
+      if (before && before !== client.profile && client.activity === "Watching") {
+        telemetry.onStopWatching(client.id, "profile");
+        client.activity = "Browsing";
+        client.details = null;
+        client.playState = null;
+      }
       // the id too (the name is for presence; "is this download mine?" needs
       // the id). In closed mode the session is the truth, not the message.
       client.profileId = ws.authed && ws.profileId
@@ -391,12 +444,29 @@ const handleMessage = (client, data, ws) => {
         client.device = data.app === "tv"
           ? { device: "TV", browser: tidy(data.build, 24) || "Aurora TV", os: tidy(data.model, 40) || "Android TV" }
           : { device: "Mobile", browser: tidy(data.build, 24) || "Aurora phone", os: tidy(data.model, 40) || "Android phone" };
-      }
+        client.app = data.app;
+      } else if (data.app === "web") client.app = "web";
       broadcastAdmins({ type: "client_update", client: publicClient(client) });
       break;
+    }
+
+    // The heartbeat (every ~60 s), and a change of visibility at once: the
+    // page hidden or shown, the app sent to the background or back, a page
+    // frozen by the browser. Carries nothing else; any message counts as a
+    // beat (lastMsgAt is stamped in the socket's message handler).
+    case "presence": {
+      const was = presenceOf(client);
+      if (typeof data.visible === "boolean") client.visible = data.visible;
+      client.lastSeen = new Date().toISOString();
+      if (presenceOf(client) !== was) broadcastAdmins({ type: "client_update", client: publicClient(client) });
+      // the answer: the client closes and reconnects a socket whose beat goes unanswered
+      send(ws, JSON.stringify({ type: "presence_ok" }));
+      break;
+    }
 
     case "activity": {
       const wasWatching = client.activity === "Watching";
+      const prevShown = `${client.activity}|${client.details}|${client.playState}`;
       client.activity = String(data.action || "Browsing").slice(0, 32);
       client.details = data.details ? String(data.details).slice(0, 120) : null;
       client.position = typeof data.position === "number" ? data.position : null;
@@ -417,13 +487,30 @@ const handleMessage = (client, data, ws) => {
         // Sessions carry the full record (start/end/progress); the collapsed
         // watch-history entry is only bumped when a new session begins, so
         // periodic progress pings don't inflate play counts.
-        const { started } = telemetry.onWatch(client, client.details, client.position, client.mediaDuration);
-        if (started) recordWatch(client, client.details);
-      } else if (wasWatching) {
-        telemetry.onStopWatching(client.id);
-        stoppedOn(client);
+        // New clients add what they PLAYED since their last report, their
+        // player's state and speed (lib/watchtime.js reads old ones by position).
+        const res = telemetry.onWatch(client, client.details, {
+          position: client.position, duration: client.mediaDuration,
+          played: data.played, state: data.state, rate: data.rate,
+        });
+        client.playState = res.state || (res.credit > 0 ? "playing" : client.playState || null);
+        if (typeof data.visible === "boolean") client.visible = data.visible;
+        if (res.started) recordWatch(client, client.details);
+      } else {
+        client.playState = null;
+        if (wasWatching) {
+          telemetry.onStopWatching(client.id, "stopped");
+          stoppedOn(client);
+        }
       }
-      broadcastAdmins({ type: "client_update", client: publicClient(client) });
+      // The admins hear of a change of what is shown (title, playing/paused)
+      // at once; the 5-second position reports only every ADMIN_EVERY_MS
+      // (their page moves the time on by itself between them).
+      const nowMs = Date.now();
+      if (`${client.activity}|${client.details}|${client.playState}` !== prevShown || !client.adminToldAt || nowMs - client.adminToldAt >= ADMIN_EVERY_MS) {
+        client.adminToldAt = nowMs;
+        broadcastAdmins({ type: "client_update", client: publicClient(client) });
+      }
       break;
     }
 
@@ -523,11 +610,45 @@ const handleMessage = (client, data, ws) => {
   }
 };
 
+// Clients that promised a heartbeat and went quiet are ended: the close
+// handler then does what a clean close does (the session is closed at its
+// last report, the admins are told). Returns how many.
+const missedBeats = (nowMs = Date.now()) => {
+  let n = 0;
+  for (const c of clients.values()) {
+    const limit = beatDeadlineMs(c);
+    if (!limit || nowMs - (c.lastMsgAt || 0) <= limit) continue;
+    c.goneWhy = "missed heartbeats";
+    hygiene.missedBeats = (hygiene.missedBeats || 0) + 1;
+    try { c.ws.terminate(); } catch {}
+    n++;
+  }
+  return n;
+};
+
+// The page is going away (pagehide → navigator.sendBeacon, POST
+// /api/presence/bye): its viewing ends now and its socket is closed, rather
+// than when a close frame that may never leave a phone arrives. The client
+// id is the socket's own, known only to that page. Returns whether one was found.
+const bye = (clientId, why = "left") => {
+  const c = clients.get(String(clientId || ""));
+  if (!c) return false;
+  c.goneWhy = why;
+  if (c.activity === "Watching") stoppedOn(c);
+  telemetry.onStopWatching(c.id, why);
+  c.activity = "Browsing";
+  c.playState = null;
+  c.visible = false;
+  try { c.ws.close(1001, "left"); } catch {}
+  return true;
+};
+
 const attach = (server) => {
   wss = new WebSocket.Server({ server, maxPayload: maxMessageBytes() });
 
-  // the heartbeat (see "staying healthy" above)
-  const beat = setInterval(heartbeat, HEARTBEAT_MS);
+  // the heartbeat (see "staying healthy" above), and the app-level one
+  // (see "presence" above): both on the same beat
+  const beat = setInterval(() => { heartbeat(); missedBeats(); }, HEARTBEAT_MS);
   beat.unref?.();
   wss.on("close", () => clearInterval(beat));
 
@@ -603,6 +724,7 @@ const attach = (server) => {
       details: null,
       connectedAt: new Date().toISOString(),
       lastSeen: new Date().toISOString(),
+      lastMsgAt: Date.now(),
       ws,
     };
     clients.set(client.id, client);
@@ -610,7 +732,9 @@ const attach = (server) => {
     stats.peakConcurrent = Math.max(stats.peakConcurrent, clients.size);
     logEvent({ event: "connected", ...publicClient(client) });
 
-    send(ws, JSON.stringify({ type: "welcome", clientId: client.id }));
+    // (`presence`: this server answers heartbeats — a client holds an
+    // unanswered one against the socket only when it says so)
+    send(ws, JSON.stringify({ type: "welcome", clientId: client.id, presence: 1 }));
     // (a client that knows the message raises its "pick a new password" screen)
     if (ws.restricted) send(ws, JSON.stringify({ type: "password_reset_required", profileId: ws.restricted }));
     broadcastAdmins({ type: "client_connected", client: publicClient(client) });
@@ -623,6 +747,7 @@ const attach = (server) => {
     ws.on("message", (raw) => {
       ws.isAlive = true;
       const now = Date.now();
+      client.lastMsgAt = now; // (any message is a heartbeat)
       tokens = Math.min(MSG_BURST, tokens + ((now - refilled) / 1000) * MSG_RATE);
       refilled = now;
       if (tokens < 1) {
@@ -642,13 +767,13 @@ const attach = (server) => {
 
     ws.on("close", () => {
       if (client.activity === "Watching") stoppedOn(client);
-      telemetry.onStopWatching(client.id);
+      telemetry.onStopWatching(client.id, client.goneWhy || "closed");
       // a dropped socket does not leave its party: the member is away for a
       // grace period and takes its place again on reconnect (lib/party.js)
       if (party.drop(client, sendTo)) broadcastAll({ type: "party_list", parties: party.list() });
       devices.dropClient(client.id); // [phone-remote] a TV / a remote that went away
       clients.delete(client.id);
-      logEvent({ event: "disconnected", ...publicClient(client) });
+      logEvent({ event: "disconnected", ...publicClient(client), ...(client.goneWhy ? { why: client.goneWhy } : {}) });
       broadcastAdmins({ type: "client_disconnected", clientId: client.id });
     });
 
@@ -709,7 +834,9 @@ module.exports = {
   clients,
   clientsOfProfile,
   devices, // [phone-remote]
-  _internals: { proveProfile, stampSocket, handleMessage, soon, clock, coalesced, QUIET_MS, MAX_MS, send, hygiene, heartbeat },
+  bye,
+  presenceOf,
+  _internals: { proveProfile, stampSocket, handleMessage, soon, clock, coalesced, QUIET_MS, MAX_MS, send, hygiene, heartbeat, missedBeats, beatDeadlineMs, ADMIN_EVERY_MS },
   connectionLog,
   stats,
   bans,
