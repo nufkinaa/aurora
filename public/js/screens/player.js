@@ -7,6 +7,7 @@ import { navigate, cameFrom, navStartedAt } from "../router.js";
 import { startupOf, stepsText, serverSide, firstMedia, SLOW_START_MS } from "../startline.js";
 import { pushScope, popScope } from "../focus.js";
 import { reportActivity, onMessage } from "../ws.js";
+import { createWatchClock } from "../watchclock.js";
 import { party, createParty, joinParty, leaveParty, sendPartyState, setPartyItem, onPartyState, onPartyUpdate, onPartyEnded, onPartyItem, onPartyReact, serverNow, sendPartyBuffering, sendPartyReaction, partyInviteUrl, REACTIONS } from "../party.js";
 import { SYNC, targetOf, startsIn, decide, landTolerance, aheadOf, readyToGo, waitingWords } from "../partySync.js";
 import { showReportSheet, setPlayingContext } from "../report.js";
@@ -7076,14 +7077,28 @@ export const renderPlayer = async (root, { id }) => {
     }, 250);
   });
 
-  saveTimer = setInterval(() => {
-    if (!video.paused) saveProgress();
-    if (item._local) return;
+  // ---- real watch time (docs/watch-time.md) ----
+  // The clock adds only what PLAYED; each report below carries it, with the
+  // player's state and speed, and the server credits no more than that (and
+  // no more than its own clock let pass).
+  const watchClock = createWatchClock();
+  const reallyPlaying = () => !video.paused && !video.seeking && !video.ended && video.readyState >= 3;
+  const playState = () => (video.ended ? "ended" : video.paused ? "paused" : reallyPlaying() ? "playing" : "buffering");
+  video.addEventListener("timeupdate", () => watchClock.tick(effTime(), { playing: reallyPlaying(), rate: video.playbackRate || 1 }));
+  video.addEventListener("seeking", () => watchClock.reset());
+  const report = () => {
+    if (item._local || exited) return;
+    watchClock.tick(effTime(), { playing: reallyPlaying(), rate: video.playbackRate || 1 });
     // Keep the admin panel's live view honest: position/duration ride along,
-    // paused or not (a paused player still holds the title open).
+    // paused or not (a paused player still holds the title open) — and what
+    // played since the last report, which is all that counts as watch time.
     reportActivity("Watching", activityLabel, {
       position: effTime() || 0,
       duration: totalDuration() || 0,
+      played: watchClock.take(),
+      state: playState(),
+      rate: video.playbackRate || 1,
+      visible: document.visibilityState !== "hidden",
       // What THIS device's video element actually believes, as opposed to the
       // total we compute. On a live transcode they differ, and on an iPhone the
       // element's value is what the native fullscreen player shows — so this is
@@ -7093,6 +7108,18 @@ export const renderPlayer = async (root, { id }) => {
         : null,
       streamReady: video.readyState,
     });
+  };
+  // a pause, a resume, the page hidden: said now (the admin's playing/paused,
+  // and the last seconds played before a tab goes to sleep), at most once a second
+  let reportedAt = 0;
+  const reportSoon = () => { if (performance.now() - reportedAt > 1000) { reportedAt = performance.now(); report(); } };
+  for (const ev of ["pause", "playing", "ended"]) video.addEventListener(ev, reportSoon);
+  const onHidden = () => { if (document.visibilityState === "hidden") report(); };
+  document.addEventListener("visibilitychange", onHidden);
+  saveTimer = setInterval(() => {
+    if (!video.paused) saveProgress();
+    reportedAt = performance.now();
+    report();
   }, 5000);
 
   // ---------- input handling ----------
@@ -7390,6 +7417,7 @@ export const renderPlayer = async (root, { id }) => {
       toast(`Leaving hands the party to ${next ? next.name : "the others"} — press Back again to leave`, "👥");
       return;
     }
+    report(); // the last seconds played, before the player says it is gone
     exited = true;
     saveProgress();
     reportActivity("Browsing");
@@ -7589,6 +7617,10 @@ export const renderPlayer = async (root, { id }) => {
 
   // cleanup when the route changes away
   return () => {
+    // Leaving by any way (Back in the browser, a link, the next episode): the
+    // last seconds played, then "not watching" — without it the server heard
+    // "Watching" until the tab closed, and counted all of it (docs/watch-time.md)
+    if (!exited) { report(); if (!item._local) reportActivity("Browsing"); }
     exited = true;
     clearTimeout(startSteps.subsTimer);
     clearTimeout(startSteps.subsCheck);
@@ -7597,6 +7629,7 @@ export const renderPlayer = async (root, { id }) => {
     try { if (subsAbort) subsAbort.abort(); } catch {}
     playGone(); // [analytics]
     clearInterval(saveTimer);
+    document.removeEventListener("visibilitychange", onHidden);
     clearInterval(partySync);
     clearInterval(partyDrift);
     clearTimeout(partyStartTimer);

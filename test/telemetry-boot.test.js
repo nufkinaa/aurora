@@ -70,3 +70,11 @@ test("a fresh data folder still gets its (empty) file", () => {
   const r = boot({ sessions: [], fileExists: false });
   assert.equal(r.saves["watch-sessions.json"], 1);
 });
+
+test("watch-time accounting 2: a session the restart left live ends where it last PLAYED, not at its last report", () => {
+  const list = [{ ...ended("p"), live: true, endedAt: null, acct: 2, lastPlayAt: "2026-10-01T10:12:00.000Z", updatedAt: "2026-10-01T13:00:00.000Z", watchedSec: 720 }];
+  const r = boot({ sessions: list, fileExists: true });
+  assert.equal(r.sessions[0].endedAt, "2026-10-01T10:12:00.000Z");
+  assert.equal(r.sessions[0].watchedSec, 720, "the credited play stays; nothing is added for the time it stood paused");
+  assert.equal(r.sessions[0].endReason, "restart");
+});

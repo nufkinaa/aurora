@@ -33,8 +33,14 @@ router.use("/api/admin", adminOnly);
 router.get("/api/admin/overview", (req, res) => {
   const { movies, shows } = scanner.index;
   const episodeCount = shows.reduce((n, s) => n + s.episodeCount, 0);
+  // watching = the player is open AND playing; paused players are counted apart
   let watchingNow = 0;
-  for (const c of realtime.clients.values()) if (c.activity === "Watching") watchingNow++;
+  let pausedNow = 0;
+  for (const c of realtime.clients.values()) {
+    const p = realtime.presenceOf(c);
+    if (p === "watching") watchingNow++;
+    else if (p === "paused") pausedNow++;
+  }
   const today = telemetry.analytics(1);
   res.json({
     startedAt: realtime.stats.startedAt,
@@ -42,6 +48,7 @@ router.get("/api/admin/overview", (req, res) => {
     peakConcurrent: realtime.stats.peakConcurrent,
     currentClients: realtime.clients.size,
     watchingNow,
+    pausedNow,
     today: {
       watchSec: today.totals.watchSec,
       plays: today.totals.plays,
@@ -57,6 +64,12 @@ router.get("/api/admin/overview", (req, res) => {
       ocr: config.ocrAvailable,
     },
   });
+});
+
+// The Activity section in one answer (lib/activity.js): who is watching now,
+// every connected screen, real watch time today and this week, recent plays.
+router.get("/api/admin/activity", (req, res) => {
+  res.json(require("../lib/activity").gather());
 });
 
 router.get("/api/admin/clients", (req, res) => {

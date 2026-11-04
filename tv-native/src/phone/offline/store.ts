@@ -329,7 +329,76 @@ export async function noteOfflineProgress(id: string, position: number, duration
     } catch {}
   }
 }
+// ---- what a saved copy PLAYED while the server could not hear it ----
+// (docs/watch-time.md) The offline player measures real play (watchClock.ts)
+// and, while the socket is up, reports it like the streaming player does. With
+// no server the seconds are kept here, one entry per sitting (a report id, the
+// first and last moment on the phone's own clock), and sent to
+// POST /api/profiles/:id/watched when the server answers again — the server
+// bounds them like live reports and counts a resent one once.
+const PLAYED_KEY = 'aurora.offline.played';
+// `sitting`: the player's own key for one sitting; `reportId`: the store's id
+// for the part of it not sent yet (a part once sent is never added to — what
+// plays after it goes out under a fresh id, so the server's "counted once" holds)
+export type PlayedSitting = {sitting: string; reportId: string; profileId: string; label: string; played: number; position: number; duration: number; firstAt: number; lastAt: number};
+const newReportId = () => `ph-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+let playedChain: Promise<unknown> = Promise.resolve();
+const readPlayed = async (): Promise<PlayedSitting[]> => {
+  const raw = await AsyncStorage.getItem(PLAYED_KEY);
+  const list = raw ? JSON.parse(raw) : [];
+  return Array.isArray(list) ? list : [];
+};
+export function noteOfflinePlayed(s: {sitting: string; profileId: string; label: string; position: number; duration: number}, played: number) {
+  if (!(played > 0)) return playedChain;
+  // one write at a time: the 5-second reports must not overwrite each other
+  playedChain = playedChain.then(async () => {
+    try {
+      const list = await readPlayed();
+      const at = list.findIndex(p => p.sitting === s.sitting);
+      const now = Date.now();
+      if (at >= 0) list[at] = {...list[at], ...s, played: Math.round((list[at].played + played) * 10) / 10, lastAt: now};
+      else list.push({...s, reportId: newReportId(), played: Math.round(played * 10) / 10, firstAt: now - played * 1000, lastAt: now});
+      await AsyncStorage.setItem(PLAYED_KEY, JSON.stringify(list.slice(-50)));
+    } catch {}
+  });
+  return playedChain;
+}
+let flushingPlayed = false;
+export async function flushOfflinePlayed(device?: {build?: string; model?: string}) {
+  if (flushingPlayed) return;
+  flushingPlayed = true;
+  try {
+    await playedChain;
+    const list = await readPlayed();
+    if (!list.length) return;
+    const sent = new Map<string, PlayedSitting>();
+    for (const profileId of [...new Set(list.map(p => p.profileId))]) {
+      const mine = list.filter(p => p.profileId === profileId);
+      try {
+        await api.reportWatched(profileId, mine, device);
+        for (const p of mine) sent.set(p.reportId, p);
+      } catch {}
+    }
+    if (!sent.size) return;
+    // what was sent leaves; what played while it was on its way stays, as a new part
+    await (playedChain = playedChain.then(async () => {
+      const cur = await readPlayed();
+      const left: PlayedSitting[] = [];
+      for (const p of cur) {
+        const was = sent.get(p.reportId);
+        if (!was) left.push(p);
+        else if (p.played > was.played + 0.05) left.push({...p, reportId: newReportId(), played: Math.round((p.played - was.played) * 10) / 10, firstAt: was.lastAt});
+      }
+      await AsyncStorage.setItem(PLAYED_KEY, JSON.stringify(left));
+    }));
+  } catch {
+  } finally {
+    flushingPlayed = false;
+  }
+}
+
 export async function flushOfflineProgress() {
+  flushOfflinePlayed();
   try {
     const raw = await AsyncStorage.getItem(PROGRESS_KEY);
     const list: Pending[] = raw ? JSON.parse(raw) : [];

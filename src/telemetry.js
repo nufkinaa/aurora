@@ -12,6 +12,7 @@ const path = require("path");
 const crypto = require("crypto");
 const config = require("./config");
 const { JsonStore } = require("./lib/jsonstore");
+const watchtime = require("./lib/watchtime");
 
 const sessions = new JsonStore(path.join(config.DATA_DIR, "watch-sessions.json"), []);
 const hourly = new JsonStore(path.join(config.DATA_DIR, "telemetry-hours.json"), {});
@@ -29,13 +30,16 @@ const SAMPLE_MS = 30 * 1000;
 const RING_HOURS = 24;
 const RING_MAX = Math.ceil((RING_HOURS * 3600 * 1000) / SAMPLE_MS);
 
-// A server restart leaves live sessions dangling - close them at their last
-// known update so durations stay honest.
+// A server restart leaves live sessions dangling - close them at the last
+// moment they actually played (watch-time accounting 2: lastPlayAt; older
+// records: their last update) so durations stay honest. The stored watch
+// time is the credited play, so nothing more is added here.
 let closedAtBoot = 0;
 for (const s of sessions.data) {
   if (s.live) {
     s.live = false;
-    s.endedAt = s.updatedAt || s.startedAt;
+    s.endedAt = s.lastPlayAt || s.updatedAt || s.startedAt;
+    s.endReason = "restart";
     closedAtBoot++;
   }
 }
@@ -44,22 +48,85 @@ for (const s of sessions.data) {
 // viewing history at every boot to say nothing new.
 if (closedAtBoot || !require("fs").existsSync(sessions.filePath)) sessions.save();
 
+// The one-off repair of the watch time recorded the old way (lib/watchfix.js
+// has the rules): once per VERSION, marked in data/watch-time-fix.json, after
+// a copy of the file is put in the backups folder. Never fatal.
+const runWatchFix = () => {
+  const fs = require("fs");
+  const watchfix = require("./lib/watchfix");
+  const marker = path.join(path.dirname(sessions.filePath), "watch-time-fix.json"); // (beside the file it repaired)
+  let done = null;
+  try { done = JSON.parse(fs.readFileSync(marker, "utf-8")); } catch {}
+  if (done && done.version >= watchfix.VERSION) return null;
+  const p = watchfix.plan(sessions.data);
+  let backup = null;
+  if (p.changes.length && fs.existsSync(sessions.filePath)) {
+    const dir = config.BACKUP_DIR || path.join(config.DATA_DIR, "backups");
+    fs.mkdirSync(dir, { recursive: true });
+    backup = path.join(dir, `watch-sessions.before-watch-fix-${watchfix.VERSION}-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
+    fs.copyFileSync(sessions.filePath, backup);
+  }
+  const changed = watchfix.apply(sessions.data, p);
+  if (changed) sessions.save();
+  fs.writeFileSync(marker, JSON.stringify({ version: watchfix.VERSION, at: new Date().toISOString(), changed, beforeSec: p.before, afterSec: p.after, backup }, null, 2));
+  if (changed) console.log(`[watch-time] repaired ${changed} old viewings: ${Math.round(p.before / 360) / 10} h → ${Math.round(p.after / 360) / 10} h on record (backup: ${backup})`);
+  return { changed, ...p };
+};
+try { runWatchFix(); } catch (e) { console.warn(`[watch-time] the repair of old viewings did not run: ${e && e.message}`); }
+
+// ---------- real watch time (lib/watchtime.js has the rules) ----------
+// Every time here is the SERVER's clock — a device whose clock is wrong
+// changes nothing. Replaceable: the tests drive it by hand.
+const clock = { now: () => Date.now() };
+const iso = (ms) => new Date(ms).toISOString();
+// A live session that hears nothing for this long is closed at its last
+// report (the players report every 5 s while the player is open: nine missed).
+const STALE_MS = 45 * 1000;
+// A session that has stood paused this long is over: it is closed at the last
+// moment it played; playing again starts a new one (a new sitting).
+const PAUSE_CLOSE_MS = 30 * 60 * 1000;
+// A person+title's bank (watchtime.js) not touched for this long is dropped.
+const BANK_KEEP_MS = 10 * 60 * 1000;
+const SWEEP_MS = 15 * 1000;
+
 // clientId -> live session object (also present in sessions.data)
 const liveByClient = new Map();
+// session id -> its accounting { lastAt, lastPos, credited, duration } (memory only)
+const acct = new Map();
+// "<person>|<title>" -> bank { at, sec }: shared by every device of that
+// person playing that title, so two screens of one episode count it once
+const banks = new Map();
+// clientId -> { content, st }: a session closed for standing paused; its
+// reports are not a new play until the media moves again
+const pausedOut = new Map();
 
-const now = () => new Date().toISOString();
-const secondsBetween = (a, b) =>
-  Math.max(0, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 1000));
+const personOf = (x) => x.profileId || x.profile || `client:${x.clientId || x.id}`;
+const bankFor = (x, content, nowMs) => {
+  const key = `${personOf(x)}|${content}`;
+  let b = banks.get(key);
+  if (!b) { b = watchtime.newBank(nowMs); banks.set(key, b); }
+  return b;
+};
 
 // ---------- session lifecycle ----------
 
-const closeSession = (clientId) => {
+// `opts.at` (ms): when it ended, if not now — the sweeper closes a session
+// at its last report, not at the moment it noticed.
+const closeSession = (clientId, opts = {}) => {
   const s = liveByClient.get(clientId);
   if (!s) return;
   liveByClient.delete(clientId);
+  const st = acct.get(s.id);
+  acct.delete(s.id);
   s.live = false;
-  s.endedAt = now();
-  s.watchedSec = secondsBetween(s.startedAt, s.endedAt);
+  const endMs = Math.min(clock.now(), opts.at || clock.now());
+  // It ended when it last PLAYED; a session that never played ends at its
+  // last report (so the abnormal-end and span readings still work).
+  s.endedAt = s.lastPlayAt || iso(Math.max(Date.parse(s.startedAt), Math.min(endMs, Date.parse(s.updatedAt) || endMs)));
+  if (opts.reason) s.endReason = opts.reason;
+  if (st) s.watchedSec = Math.round(st.credited);
+  if (opts.reason === "paused" && st) pausedOut.set(clientId, { content: s.content, st: { lastAt: st.lastAt, lastPos: st.lastPos } });
+  else pausedOut.delete(clientId);
   // Did it end in trouble? A viewer who vanished mid-film with a stall that
   // never ended (or an error) just before is an abnormal end — the healer's
   // sessions check counts these (lib/playmarks.js has the marks).
@@ -67,8 +134,10 @@ const closeSession = (clientId) => {
     const unfinished = !(s.duration > 0 && s.position != null && s.position / s.duration > 0.93);
     if (unfinished && require("./lib/playmarks").troubledJustNow(s.ip)) s.abnormal = true;
   } catch {}
-  // Discard accidental blips (opened and closed within a few seconds)
-  if (s.watchedSec < 5) {
+  // Discard accidental blips: opened and closed within a few seconds, and
+  // never really played
+  const spanSec = (Date.parse(s.updatedAt) - Date.parse(s.startedAt)) / 1000;
+  if (spanSec < 5 && (s.watchedSec || 0) < 5) {
     const i = sessions.data.indexOf(s);
     if (i !== -1) sessions.data.splice(i, 1);
   }
@@ -84,52 +153,169 @@ const isSeek = (prevPos, prevAtMs, pos, nowMs) => {
   return moved < -SEEK_SEC || moved > elapsed + SEEK_SEC;
 };
 
-// Called on every "Watching" activity ping. Starts a session on first sight,
-// rolls to a new one when the content changes, refreshes progress otherwise.
-// Returns { session, started } so callers can react to new plays only.
-const onWatch = (client, content, position, duration) => {
+// The report a player sends, tidied. `played` / `state` / `rate` come from
+// new clients only (old ones send position and duration).
+const tidyReport = (r = {}) => {
+  const n = (v) => (typeof v === "number" && isFinite(v) ? v : null);
+  const out = { position: n(r.position), duration: n(r.duration) };
+  if (n(r.played) != null) out.played = Math.max(0, Math.min(watchtime.BEAT_MAX_SEC * 4, r.played));
+  if (["playing", "paused", "buffering", "ended"].includes(r.state)) out.state = r.state;
+  if (n(r.rate) != null && r.rate > 0 && r.rate <= 4) out.rate = r.rate;
+  return out;
+};
+
+// Called on every "Watching" activity report. Starts a session on first
+// sight, rolls to a new one when the content changes, credits real play
+// otherwise (lib/watchtime.js). Returns { session, started, credit, state } so
+// callers can react to new plays only. `report` is { position, duration,
+// played?, state?, rate? } (an older caller passes position, duration).
+const onWatch = (client, content, report, durationArg) => {
+  const r = tidyReport(typeof report === "object" && report !== null ? report : { position: report, duration: durationArg });
+  const nowMs = clock.now();
   let s = liveByClient.get(client.id);
   let started = false;
-  if (s && s.content !== content) {
-    closeSession(client.id);
+  // the same socket, now in another profile: that viewing is over
+  if (s && (s.content !== content || (client.profile && s.profile && s.profile !== client.profile))) {
+    closeSession(client.id, { reason: s.content !== content ? "next" : "profile" });
     s = null;
   }
   if (!s) {
+    // paused out earlier: a report that still stands paused is not a new play
+    const out = pausedOut.get(client.id);
+    if (out && out.content === content) {
+      const { claim } = watchtime.claimOf(out.st, r, nowMs);
+      out.st.lastAt = nowMs;
+      if (r.position != null) out.st.lastPos = r.position;
+      if (!(claim > 0)) return { session: null, started: false, credit: 0, state: r.state || "paused" };
+    }
+    pausedOut.delete(client.id);
     started = true;
     s = {
       id: crypto.randomBytes(6).toString("hex"),
       clientId: client.id,
       profile: client.profile,
+      profileId: client.profileId || null,
       ip: client.ip,
       device: client.device,
       content,
-      startedAt: now(),
-      updatedAt: now(),
+      startedAt: iso(nowMs),
+      updatedAt: iso(nowMs),
+      lastPlayAt: null,
       endedAt: null,
       watchedSec: 0,
-      position: typeof position === "number" ? Math.round(position) : null,
-      duration: typeof duration === "number" ? Math.round(duration) : null,
+      position: r.position != null ? Math.round(r.position) : null,
+      duration: r.duration != null ? Math.round(r.duration) : null,
+      state: r.state || null,
+      acct: 2, // watch time = credited play (lib/watchtime.js), not wall time
       live: true,
     };
+    if (r.rate && r.rate !== 1) s.rate = r.rate;
+    acct.set(s.id, { lastAt: nowMs, lastPos: r.position, credited: 0, duration: r.duration });
+    bankFor(s, content, nowMs); // the bank starts accruing now
     liveByClient.set(client.id, s);
     sessions.data.unshift(s);
     if (sessions.data.length > MAX_SESSIONS) sessions.data.length = MAX_SESSIONS;
     sessions.save();
-  } else {
-    const prevAt = new Date(s.updatedAt).getTime();
-    const prevPos = s.position;
-    s.updatedAt = now();
-    s.watchedSec = secondsBetween(s.startedAt, s.updatedAt);
-    if (!s.profile && client.profile) s.profile = client.profile;
-    if (typeof position === "number") s.position = Math.round(position);
-    if (typeof duration === "number") s.duration = Math.round(duration);
-    sessions.save(isSeek(prevPos, prevAt, s.position, Date.now()) ? undefined : { within: LIVE_WRITE_MS });
+    return { session: s, started, credit: 0, state: s.state };
   }
-  return { session: s, started };
+  let st = acct.get(s.id);
+  if (!st) { st = { lastAt: Date.parse(s.updatedAt), lastPos: s.position, credited: s.watchedSec || 0, duration: s.duration }; acct.set(s.id, st); }
+  const prevAt = st.lastAt;
+  const prevPos = st.lastPos;
+  const res = watchtime.credit(st, bankFor(s, content, nowMs), r, nowMs);
+  s.updatedAt = iso(nowMs);
+  s.watchedSec = Math.round(st.credited);
+  if (res.credit > 0) s.lastPlayAt = iso(nowMs);
+  if (res.state) s.state = res.state;
+  if (!s.profile && client.profile) s.profile = client.profile;
+  if (!s.profileId && client.profileId) s.profileId = client.profileId;
+  if (r.position != null) s.position = Math.round(r.position);
+  if (r.duration != null) s.duration = Math.round(r.duration);
+  if (r.rate) { if (r.rate !== 1) s.rate = r.rate; else delete s.rate; }
+  sessions.save(isSeek(prevPos, prevAt, r.position, nowMs) ? undefined : { within: LIVE_WRITE_MS });
+  return { session: s, started, credit: res.credit, state: s.state };
 };
 
 // Called when a client's activity moves away from Watching, or it disconnects.
-const onStopWatching = (clientId) => closeSession(clientId);
+const onStopWatching = (clientId, reason) => closeSession(clientId, reason ? { reason } : {});
+
+// The live session of a client (the admin's "watching now" reads its state).
+const liveSessionOf = (clientId) => liveByClient.get(clientId) || null;
+
+// Sessions that stopped hearing from their player, or stood paused too long,
+// are closed — the server does not wait for a clean goodbye that a device
+// switched off at the wall never sends. Returns how many were closed.
+const sweep = (nowMs = clock.now()) => {
+  let n = 0;
+  for (const [clientId, s] of [...liveByClient]) {
+    const last = Date.parse(s.updatedAt) || 0;
+    if (nowMs - last > STALE_MS) { closeSession(clientId, { at: last, reason: "silent" }); n++; continue; }
+    const played = Date.parse(s.lastPlayAt || s.startedAt) || 0;
+    if (s.state !== "playing" && nowMs - played > PAUSE_CLOSE_MS) { closeSession(clientId, { reason: "paused" }); n++; }
+  }
+  for (const [k, b] of banks) if (nowMs - b.at > BANK_KEEP_MS) banks.delete(k);
+  for (const [k, o] of pausedOut) if (nowMs - (o.st.lastAt || 0) > 6 * 3600 * 1000) pausedOut.delete(k);
+  return n;
+};
+let sweepTimer = null;
+const startSweep = () => {
+  if (sweepTimer) return;
+  sweepTimer = setInterval(() => { try { sweep(); } catch {} }, SWEEP_MS);
+  sweepTimer.unref?.();
+};
+
+// ---------- a saved copy watched with no server (the phone's offline queue) ----------
+// The phone measures what it played (its watchClock) and sends it when the
+// server answers again: one closed session per sitting. Bounded like a live
+// one: by the wall span the phone measured (its own clock, so only the
+// DIFFERENCE is used), by the media's length (x2 + 5 min) and by 6 h; dated
+// by the phone's clock, held between 30 days ago and now. Sent twice (a retry
+// whose answer was lost) is recorded once: `reportId`.
+const OFFLINE_MAX_SEC = 6 * 3600;
+const REPORT_ID_RE = /^[A-Za-z0-9_-]{6,40}$/;
+const addOfflinePlay = (x = {}) => {
+  const n = (v) => (typeof v === "number" && isFinite(v) ? v : null);
+  const reportId = typeof x.reportId === "string" ? x.reportId : null;
+  const content = typeof x.content === "string" ? x.content.slice(0, 120).trim() : "";
+  const played = n(x.played);
+  if (!reportId || !REPORT_ID_RE.test(reportId) || !content || played == null || played < 0) return { error: "bad report" };
+  if (sessions.data.some((s) => s.reportId === reportId)) return { ok: true, duplicate: true };
+  const nowMs = clock.now();
+  const firstAt = Math.min(nowMs, Math.max(nowMs - 30 * 86400 * 1000, n(x.firstAt) || nowMs));
+  const lastAt = Math.min(nowMs, Math.max(firstAt, n(x.lastAt) || firstAt));
+  const dur = n(x.duration) > 0 ? n(x.duration) : null;
+  let sec = Math.min(played, (lastAt - firstAt) / 1000 + watchtime.BANK_MAX_SEC, OFFLINE_MAX_SEC);
+  if (dur) sec = Math.min(sec, dur * watchtime.SESSION_DUR_FACTOR + watchtime.SESSION_DUR_EXTRA_SEC);
+  sec = Math.max(0, Math.round(sec));
+  if (sec < 5) return { ok: true, ignored: true };
+  const s = {
+    id: crypto.randomBytes(6).toString("hex"),
+    clientId: null,
+    profile: x.profile || null,
+    profileId: x.profileId || null,
+    ip: x.ip || null,
+    device: x.device || { device: "Mobile", browser: "Aurora phone", os: "Android phone" },
+    content,
+    startedAt: iso(firstAt),
+    updatedAt: iso(lastAt),
+    lastPlayAt: iso(lastAt),
+    endedAt: iso(lastAt),
+    watchedSec: sec,
+    position: n(x.position) != null ? Math.round(x.position) : null,
+    duration: dur != null ? Math.round(dur) : null,
+    acct: 2,
+    offline: true,
+    reportId,
+    live: false,
+  };
+  // newest first, by start
+  let i = 0;
+  while (i < sessions.data.length && sessions.data[i].startedAt > s.startedAt) i++;
+  sessions.data.splice(i, 0, s);
+  if (sessions.data.length > MAX_SESSIONS) sessions.data.length = MAX_SESSIONS;
+  sessions.save();
+  return { ok: true, session: s };
+};
 
 // ---------- time-series sampler ----------
 
@@ -150,6 +336,7 @@ const HOUR_GRACE_MS = 5 * 1000;
 const msToNextHour = (now = Date.now()) => 3600 * 1000 - (now % (3600 * 1000));
 
 const start = (getGauges) => {
+  startSweep(); // (sessions whose player went quiet are closed by the server)
   if (sampleTimer) return;
   const sample = () => {
     let g = {};
@@ -414,10 +601,16 @@ module.exports = {
   onWatch,
   onStopWatching,
   closeSession,
+  liveSessionOf,
+  sweep,
+  startSweep,
+  addOfflinePlay,
+  STALE_MS,
+  PAUSE_CLOSE_MS,
   analytics,
   todayWatchSec,
   wrappedFor,
   SAMPLE_MS,
   LIVE_WRITE_MS,
-  _internals: { isSeek, msToNextHour },
+  _internals: { isSeek, msToNextHour, clock, banks, acct, liveByClient, pausedOut, tidyReport },
 };

@@ -65,6 +65,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Animated,
+  AppState,
   BackHandler,
   Image,
   ScrollView,
@@ -117,6 +118,7 @@ import {
 } from '../party';
 import {decide, landTolerance, startsIn, SYNC, SyncState, targetOf, waitingWords} from '../partySync';
 import {holdLibraryRefresh, isOpen as socketOpen, onLibraryNews, onMessage, reportActivity} from '../realtime';
+import {createWatchClock, playStateOf} from '../watchClock';
 import {ignoreIntro, loadIgnoredIntros, loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS} from '../storage';
 import {PERSON_KEYS, PersonKey} from '../personPrefs';
 import {resumePoint, SKIP_STEPS} from '../episodeRules';
@@ -831,6 +833,10 @@ export default function Player({
   const prefetchCtrl = useRef<AbortController | null>(null);
   const upNextShown = useRef(false);
   const rateRef = useRef(1);
+  // what really played (watchClock.ts); the last real progress event, for "stalled"
+  const watchClock = useMemo(() => createWatchClock(), []);
+  const lastProgressAt = useRef(0);
+  const reallyPlaying = () => !pausedRef.current && !bufferingRef.current && pendingSeek.current == null;
   // The clock the cue layer runs on: content time, INTERPOLATED between the
   // player's 1Hz progress events. Reading curRef directly would leave cues up to
   // a second late (and a second is very visible in dialogue); raising
@@ -3083,21 +3089,49 @@ export default function Player({
     if (stream?.season != null && stream?.episode != null) return `${title || it?.title || ''} S${stream.season}E${stream.episode}`;
     return it?.title || title || '';
   }, [stream, title]);
+  // Real watch time (docs/watch-time.md): the clock adds only what PLAYED
+  // (ticked in onProgress); each report carries it with the player's state and
+  // speed, and the server credits no more than that, nor more than its own
+  // clock let pass. Old builds sent only the position — the server reads those too.
+  const sayRef = useRef<() => void>(() => {});
   useEffect(() => {
     const say = () => {
       const label = activityLabel();
       if (!label) return;
-      reportActivity('Watching', label, {position: curRef.current || 0, duration: durRef.current || 0});
+      watchClock.tick(curRef.current || 0, {playing: reallyPlaying(), rate: rateRef.current || 1});
+      reportActivity('Watching', label, {
+        position: curRef.current || 0,
+        duration: durRef.current || 0,
+        played: watchClock.take(),
+        state: playStateOf({
+          paused: pausedRef.current,
+          buffering: bufferingRef.current || pendingSeek.current != null,
+          progressAgeMs: Date.now() - lastProgressAt.current,
+          foreground: AppState.currentState === 'active',
+        }),
+        rate: rateRef.current || 1,
+        visible: AppState.currentState === 'active',
+      });
     };
+    sayRef.current = say;
     say();
     const first = setTimeout(say, 1500); // the title is known a moment after mount
     const iv = setInterval(say, 5000);
+    // the app sent to the background (Home, the screen switched off) or back: said now
+    const sub = AppState.addEventListener('change', () => say());
     return () => {
       clearTimeout(first);
       clearInterval(iv);
+      sub.remove();
+      say(); // the last seconds played
+      sayRef.current = () => {};
       reportActivity('Browsing');
     };
   }, [activityLabel]);
+  // a pause or a resume: said now (the admin's playing / paused)
+  useEffect(() => {
+    sayRef.current();
+  }, [paused]);
 
   const lastReported = useRef(0);
   useEffect(() => {
@@ -3899,6 +3933,8 @@ export default function Player({
     // media → content through clockBase (clock.ts), not the job's offset
     const content = toContent(clockBase.current, d.currentTime);
     curRef.current = content;
+    lastProgressAt.current = Date.now();
+    watchClock.tick(content, {playing: reallyPlaying(), rate: rateRef.current || 1});
     if (seeking()) seekResumed(content); // [analytics] (one boolean while no seek is being timed)
     // Re-anchor the cue clock (see timeRef): the interpolation between these
     // events is what keeps subtitles on the frame rather than up to a second out.

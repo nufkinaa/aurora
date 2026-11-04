@@ -131,6 +131,18 @@ const INTRO_KEY = /^(show|imdb):[\w.-]{1,40}$/;
 // slow start is diagnosable from the server log ([play] mount → path →
 // first-frame, with the milliseconds since mount). Public like the rest
 // of playback; bounded and never stored.
+// ---------- presence: a page going away says so (realtime.js `bye`) ----------
+// navigator.sendBeacon on pagehide: the viewing ends and the socket closes
+// now, not whenever a close frame a phone may never send arrives. The body
+// names the socket by the id it was given in `welcome` (known only to it).
+router.post("/api/presence/bye", (req, res) => {
+  let b = req.body;
+  if (typeof b === "string") { try { b = JSON.parse(b); } catch { b = null; } }
+  const id = b && typeof b.clientId === "string" ? b.clientId.slice(0, 24) : "";
+  const found = id ? require("../realtime").bye(id, "left") : false;
+  res.status(found ? 204 : 404).end();
+});
+
 router.post("/api/play-mark/:id", (req, res) => {
   const b = req.body || {};
   const tidy = (v, n) => String(v == null ? "" : v).replace(/[\x00-\x1f\x7f]/g, "").slice(0, n);

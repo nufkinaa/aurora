@@ -297,7 +297,8 @@ const enterProfile = async (profile, token = null) => {
   } catch {}
   await refreshProgress();
   if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-    state.ws.send(JSON.stringify({ type: "hello", profile: profile.name, profileId: profile.id }));
+    // (the same hello ws.js sends: the heartbeat promise and visibility ride along)
+    state.ws.send(JSON.stringify({ type: "hello", profile: profile.name, profileId: profile.id, hb: 60, app: "web", visible: document.visibilityState !== "hidden" }));
   }
   // `relist`: the lists this person may see differ from the last one's —
   // screens drop what they remembered (browse.js, search.js).

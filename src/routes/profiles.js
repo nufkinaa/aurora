@@ -512,6 +512,29 @@ router.post("/api/profiles/:id/progress", gate, (req, res) => {
     .catch((e) => console.warn("[smart] cleanup failed:", e && e.message ? e.message : e));
 });
 
+// What a saved copy PLAYED while there was no server (the phone's offline
+// queue, tv-native/src/phone/offline/store.ts): one closed viewing session
+// per report, bounded like a live one (telemetry.addOfflinePlay). Up to 50
+// reports at once; each carries its own id, so a retry counts once.
+router.post("/api/profiles/:id/watched", gate, (req, res) => {
+  const list = Array.isArray(req.body && req.body.reports) ? req.body.reports.slice(0, 50) : [];
+  if (!list.length) return res.status(400).json({ error: "reports required" });
+  const p = profiles.list().find((x) => x.id === req.params.id);
+  const tidy = (v, n) => String(v == null ? "" : v).replace(/[^\w .·()+-]/g, "").slice(0, n);
+  const d = (req.body && req.body.device) || {};
+  const device = { device: "Mobile", browser: tidy(d.build, 24) || "Aurora phone", os: tidy(d.model, 40) || "Android phone" };
+  const ip = require("../realtime").clientIp(req);
+  const out = list.map((r) => {
+    if (!r || typeof r !== "object") return { error: "bad report" };
+    const x = telemetry.addOfflinePlay({
+      reportId: r.reportId, content: r.label, played: r.played, position: r.position, duration: r.duration,
+      firstAt: r.firstAt, lastAt: r.lastAt, profile: p ? p.name : null, profileId: req.params.id, device, ip,
+    });
+    return x.error ? { reportId: r.reportId || null, error: x.error } : { reportId: r.reportId, ok: true, ...(x.duplicate ? { duplicate: true } : {}) };
+  });
+  res.json({ ok: true, results: out });
+});
+
 router.delete("/api/profiles/:id/progress/:itemId", gate, (req, res) => {
   profiles.clearProgress(req.params.id, req.params.itemId);
   res.json({ ok: true });

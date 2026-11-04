@@ -1702,6 +1702,17 @@ export const api = {
   // (null = there was none). One call for a whole season.
   markWatched: (profileId: string, items: MarkEntry[]) =>
     post<{ok: boolean; count: number}>(`/api/profiles/${profileId}/progress/mark`, {items}),
+  // What a saved copy played with no server (phone/offline/store.ts): the
+  // server records each sitting once (by reportId), bounded (telemetry.addOfflinePlay).
+  reportWatched: (
+    profileId: string,
+    reports: {reportId: string; label: string; played: number; position: number; duration: number; firstAt: number; lastAt: number}[],
+    device?: {build?: string; model?: string},
+  ) =>
+    post<{ok: boolean; results: {reportId: string; ok?: boolean; error?: string}[]}>(`/api/profiles/${profileId}/watched`, {
+      reports: reports.map(r => ({reportId: r.reportId, label: r.label, played: r.played, position: r.position, duration: r.duration, firstAt: r.firstAt, lastAt: r.lastAt})),
+      device,
+    }),
   saveProgress: (
     profileId: string,
     itemId: string,

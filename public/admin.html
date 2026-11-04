@@ -649,6 +649,167 @@
     .fl-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; color: var(--text-dim); font-size: 0.86rem; margin: -4px 0 10px; font-variant-numeric: tabular-nums; }
     @media (prefers-reduced-motion: reduce) { .fl-track i { transition: none; } }
 
+    /* ================= Activity (2026-11-04, docs/watch-time.md) =================
+       elia: "improve how the activity tab looks … modern UI", and "keeps
+       updating without reloading the page". The numbers on top, then who is
+       watching, every open screen, real watch time, recent plays. Every row is
+       made once and updated in place (keyed rows): fixed heights, single
+       lines, tabular numbers, bars drawn with a transform, so nothing moves
+       when the times tick. Mint = playing (the green of the logo), violet =
+       the accent, amber only for a stall. */
+    .act { --act-glass: rgba(255, 255, 255, 0.045); --act-edge: rgba(255, 255, 255, 0.08);
+      --act-grad: linear-gradient(90deg, var(--ok), var(--accent)); display: grid; gap: 22px; }
+    .more-body.act > section { margin: 0; }
+    .act-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; border-radius: 14px; overflow: hidden;
+      background: var(--act-edge); border: 1px solid var(--act-edge); }
+    .act-n { background: var(--bg-raised); padding: 12px 14px 11px; display: grid; gap: 2px; min-width: 0; }
+    .act-n b { font-size: 1.6rem; font-weight: 900; letter-spacing: -0.02em; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .act-n span { font-size: 0.68rem; font-weight: 800; letter-spacing: 0.11em; text-transform: uppercase; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .act-n[data-k="watching"][data-live="1"] b { color: var(--ok); text-shadow: 0 0 18px rgba(var(--ok-rgb), 0.35); }
+    .act-h { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; margin-bottom: 10px; min-height: 30px; }
+    .act-h h3 { font-size: 0.95rem; font-weight: 800; letter-spacing: -0.005em; }
+    .act-note { font-size: 0.78rem; color: var(--text-faint); font-weight: 600; min-width: 0; }
+    .act-live { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; font-size: 0.76rem; font-weight: 700; color: var(--text-faint);
+      font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .act-live i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); flex: none; }
+    .act-live[data-on="1"] { color: var(--text-dim); }
+    .act-live[data-on="1"] i { background: var(--ok); box-shadow: 0 0 0 0 rgba(var(--ok-rgb), 0.6); animation: act-pulse 2.4s ease-out infinite; }
+    @keyframes act-pulse { 0% { box-shadow: 0 0 0 0 rgba(var(--ok-rgb), 0.55); } 70%, 100% { box-shadow: 0 0 0 7px rgba(var(--ok-rgb), 0); } }
+    .act-empty { color: var(--text-faint); font-size: 0.86rem; padding: 14px 2px 4px; }
+    .act-empty[hidden] { display: none; }
+
+    /* who is watching */
+    .act-now { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 10px; }
+    .act-now:empty { display: none; }
+    .act-card { position: relative; display: grid; gap: 10px; padding: 14px 14px 13px; border-radius: 14px; background: var(--act-glass);
+      border: 1px solid var(--act-edge); min-width: 0; overflow: hidden; }
+    .act-card::before { content: ""; position: absolute; inset: -60% 40% auto -20%; height: 140%; pointer-events: none; opacity: 0; transition: opacity 0.4s;
+      background: radial-gradient(closest-side, rgba(var(--ok-rgb), 0.12), transparent 70%); }
+    .act-card[data-state="playing"]::before { opacity: 1; }
+    .act-card > * { position: relative; }
+    .act-who { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+    .act-av { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 900; font-size: 0.9rem; color: var(--text);
+      background: linear-gradient(var(--bg-raised), var(--bg-raised)) padding-box, var(--act-grad) border-box; border: 2px solid transparent; }
+    .act-card[data-state="paused"] .act-av, .act-card[data-state="ended"] .act-av, .act-card[data-state="buffering"] .act-av {
+      background: linear-gradient(var(--bg-raised), var(--bg-raised)) padding-box, linear-gradient(var(--act-edge), var(--act-edge)) border-box; color: var(--text-dim); }
+    .act-name { font-weight: 800; font-size: 0.92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; height: 1.3em; }
+    .act-dev { display: flex; align-items: center; gap: 6px; font-size: 0.76rem; color: var(--text-faint); white-space: nowrap; overflow: hidden; line-height: 1.3; height: 1.3em; }
+    .act-dev svg, .act-ico svg { width: 14px; height: 14px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .act-dev span { overflow: hidden; text-overflow: ellipsis; }
+    .act-chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 800;
+      letter-spacing: 0.02em; white-space: nowrap; background: rgba(255, 255, 255, 0.06); color: var(--text-dim); }
+    .act-chip i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+    .act-chip[data-s="playing"], .act-chip[data-s="watching"] { background: rgba(var(--ok-rgb), 0.13); color: var(--ok); }
+    .act-chip[data-s="playing"] i, .act-chip[data-s="watching"] i { box-shadow: 0 0 6px rgba(var(--ok-rgb), 0.9); }
+    .act-chip[data-s="paused"] i, .act-chip[data-s="ended"] i { width: 7px; height: 8px; border-radius: 0; background: none; border-left: 2px solid currentColor; border-right: 2px solid currentColor; }
+    .act-chip[data-s="buffering"] { background: rgba(var(--warn-rgb), 0.12); color: var(--warn); }
+    .act-chip[data-s="browsing"] { background: rgba(var(--accent-rgb), 0.14); color: #b9afff; }
+    .act-chip[data-s="away"], .act-chip[data-s="wall"] { color: var(--text-faint); }
+    .act-title { min-width: 0; display: grid; gap: 1px; }
+    .act-title b { font-weight: 800; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; height: 1.3em; }
+    .act-title span { font-size: 0.8rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; height: 1.3em; }
+    .act-track { position: relative; height: 4px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+    .act-track i { position: absolute; inset: 0; border-radius: inherit; background: var(--act-grad); transform-origin: left center; transform: scaleX(0); transition: transform 0.9s linear; }
+    .act-card[data-state="paused"] .act-track i, .act-card[data-state="ended"] .act-track i { filter: saturate(0.35) brightness(0.8); }
+    .act-nums { display: flex; justify-content: space-between; gap: 10px; font-size: 0.76rem; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; line-height: 1.3; height: 1.3em; overflow: hidden; }
+    .act-nums .pos b { color: var(--text); font-weight: 700; }
+    .act-nums .sit { overflow: hidden; text-overflow: ellipsis; }
+
+    /* screens */
+    .act-screens, .act-recent { display: grid; border-radius: 14px; border: 1px solid var(--act-edge); background: var(--act-glass); overflow: hidden; }
+    .act-screens:empty, .act-recent:empty { display: none; }
+    .act-scr { display: grid; grid-template-columns: 32px minmax(0, 1.2fr) minmax(0, 1.5fr) 6.4rem 5.4rem 7.4rem; gap: 12px; align-items: center;
+      padding: 9px 12px; min-height: 54px; border-top: 1px solid var(--act-edge); }
+    .act-scr:first-child { border-top: 0; }
+    .act-ico { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: rgba(255, 255, 255, 0.05); color: var(--text-dim); }
+    .act-ico svg { width: 17px; height: 17px; }
+    .act-scr[data-p="watching"] .act-ico { color: var(--ok); background: rgba(var(--ok-rgb), 0.1); }
+    .act-scr[data-p="away"] .two, .act-scr[data-p="away"] .doing, .act-scr[data-p="away"] .act-ico { opacity: 0.6; }
+    .act-scr .two { min-width: 0; display: grid; gap: 1px; }
+    .act-scr .two b { font-weight: 800; font-size: 0.88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; height: 1.3em; }
+    .act-scr .two span { font-size: 0.76rem; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; height: 1.3em; }
+    .act-scr .two .dl, .act-scr .two .since2 { height: auto; }
+    .act-scr .since2 { display: none; }
+    .act-scr .doing { font-size: 0.84rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .act-scr .act-chip { justify-self: start; }
+    .act-scr .since { font-size: 0.76rem; color: var(--text-faint); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+    .act-scr .acts { display: flex; gap: 6px; justify-content: flex-end; }
+    .act-scr .acts .mini { padding: 5px 10px; }
+
+    /* watch time */
+    .act-seg { margin-left: auto; display: inline-flex; padding: 3px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--act-edge); }
+    .act-seg button { height: 28px; padding: 0 14px; border-radius: 999px; font-weight: 800; font-size: 0.78rem; color: var(--text-dim); background: none; cursor: pointer; }
+    .act-seg button[aria-selected="true"] { background: rgba(var(--accent-rgb), 0.22); color: var(--text); }
+    .act-seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .act-total { display: flex; align-items: baseline; gap: 10px; margin: 0 0 12px; }
+    .act-total b { font-size: 1.35rem; font-weight: 900; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; }
+    .act-total span { color: var(--text-faint); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+    .act-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 14px; }
+    .act-col { border-radius: 14px; border: 1px solid var(--act-edge); background: var(--act-glass); padding: 12px 14px; min-width: 0; }
+    .act-col h4 { font-size: 0.68rem; font-weight: 800; letter-spacing: 0.11em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 6px; }
+    .act-col .act-empty { padding: 6px 0 2px; }
+    .act-bar { display: grid; grid-template-columns: minmax(0, 7.5rem) minmax(0, 1fr) 4.6rem; gap: 10px; align-items: center; height: 32px; }
+    .act-bar .nm { font-weight: 700; font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .act-bar .tr { height: 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); position: relative; overflow: hidden; }
+    .act-bar .tr i { position: absolute; inset: 0; border-radius: inherit; background: var(--act-grad); transform-origin: left center; transform: scaleX(0); transition: transform 0.6s ease; }
+    .act-bar .v, .act-ttl .v { text-align: right; font-size: 0.82rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .act-ttl { display: grid; grid-template-columns: minmax(0, 1fr) auto 4.6rem; gap: 10px; align-items: center; height: 42px; border-top: 1px solid var(--act-edge); }
+    .act-ttl:first-child { border-top: 0; }
+    .act-ttl .two { min-width: 0; display: grid; }
+    .act-ttl .two b { font-weight: 700; font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.25; }
+    .act-ttl .two span { font-size: 0.74rem; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.25; }
+    .act-ttl .who { font-size: 0.74rem; color: var(--text-faint); white-space: nowrap; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; }
+    .act-foot { margin-top: 10px; font-size: 0.76rem; color: var(--text-faint); }
+
+    /* recent plays */
+    .act-rec { display: grid; grid-template-columns: 6.6rem minmax(0, 0.8fr) minmax(0, 1.8fr) 9.5rem 24px; gap: 12px; align-items: center;
+      padding: 9px 12px; min-height: 50px; border-top: 1px solid var(--act-edge); }
+    .act-rec:first-child { border-top: 0; }
+    .act-rec .when { font-size: 0.76rem; color: var(--text-faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .act-rec .who { font-weight: 700; font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .act-rec .two { min-width: 0; display: grid; }
+    .act-rec .two b { font-weight: 700; font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.25; }
+    .act-rec .two span { font-size: 0.74rem; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.25; }
+    .act-rec .got { display: grid; gap: 5px; min-width: 0; }
+    .act-rec .got span { font-size: 0.78rem; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .act-rec .got .act-track { height: 3px; }
+    .act-rec .act-ico { width: 24px; height: 24px; border-radius: 7px; background: none; }
+    .act-rec[data-live="1"] .when { color: var(--ok); font-weight: 700; }
+    .act-facts { margin: 0; padding: 0 2px; font-size: 0.8rem; }
+
+    @media (max-width: 860px) {
+      .act-scr { grid-template-columns: 32px minmax(0, 1fr) auto; grid-template-areas: "ico two chip" "ico doing acts"; row-gap: 6px; }
+      .act-scr .since { display: none; }
+      .act-scr .since2 { display: inline; }
+      .act-scr .two > span { display: flex; min-width: 0; }
+      .act-scr .two .dl { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+      .act-scr .two .since2 { flex: none; white-space: pre; }
+      .act-scr .act-ico { grid-area: ico; align-self: start; }
+      .act-scr .two { grid-area: two; }
+      .act-scr .act-chip { grid-area: chip; justify-self: end; }
+      .act-scr .doing { grid-area: doing; }
+      .act-scr .acts { grid-area: acts; justify-content: flex-end; }
+      .act-rec { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "two when" "who got"; row-gap: 4px; }
+      .act-rec .two { grid-area: two; }
+      .act-rec .when { grid-area: when; justify-self: end; }
+      .act-rec .who { grid-area: who; color: var(--text-dim); font-weight: 600; font-size: 0.8rem; }
+      .act-rec .got { grid-area: got; width: 9.5rem; }
+      .act-rec .act-ico { display: none; }
+      .act-cols { grid-template-columns: minmax(0, 1fr); }
+    }
+    @media (max-width: 560px) {
+      .act-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .act-n b { font-size: 1.35rem; }
+      .act-h .act-note { flex-basis: 100%; order: 3; }
+      .act-bar { grid-template-columns: minmax(0, 5.8rem) minmax(0, 1fr) 4.2rem; }
+      .act-ttl .who { display: none; }
+      .act-ttl { grid-template-columns: minmax(0, 1fr) 4.2rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .act-live[data-on="1"] i { animation: none; }
+      .act-track i, .act-bar .tr i, .act-card::before { transition: none; }
+    }
+
     @media (max-width: 1100px) { .sum-areas { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
     @media (max-width: 700px) {
       .page-head { flex-wrap: nowrap; gap: 8px; }
@@ -823,32 +984,53 @@
         <div class="wait-list" id="wait-list"></div>
       </section>
       <div class="mores-h">Details</div>
-      <details class="more" data-more="ov-activity" data-title="Activity" data-sub="who is watching, connected devices, viewers over 24 h, top titles">
-        <div class="more-body">
-      <div class="stats" id="ov-stats"></div>
-      <div class="facts" id="ov-facts"></div>
-      <section>
-        <h2>Watching right now <span class="pill live" id="live-watch-count">0</span></h2>
-        <div class="now-grid" id="ov-now"></div>
-        <div class="empty-note hidden" id="ov-now-empty">Nobody is watching anything right now.</div>
-      </section>
-      <section>
-        <h2>Connected devices <span class="pill" id="client-count">0</span>
-          <span class="note">every screen with Aurora open — kick drops it once, ban keeps the address out</span></h2>
-        <div class="table-scroll"><table>
-          <thead><tr><th>Profile</th><th>IP</th><th>Device</th><th>Doing</th><th>Connected</th><th></th></tr></thead>
-          <tbody id="clients"></tbody>
-        </table></div>
-        <div class="empty-note hidden" id="clients-empty">Nobody is connected.</div>
-      </section>
-      <div class="card">
-        <h2>Viewers — last 24 hours <span class="note">30-second samples</span></h2>
-        <div class="chart" id="ov-viewers"></div>
-      </div>
-      <div class="card">
-        <h2>Top titles — last 7 days <span class="note">by watch time</span></h2>
-        <div class="hbars" id="ov-top"></div>
-      </div>
+      <details class="more" data-more="ov-activity" data-title="Activity" data-sub="who is watching, every open screen, real watch time, recent plays">
+        <div class="more-body act" id="act">
+          <div class="act-strip" role="group" aria-label="Right now">
+            <div class="act-n" data-k="watching"><b id="act-n-watching">0</b><span>watching</span></div>
+            <div class="act-n" data-k="paused"><b id="act-n-paused">0</b><span>paused</span></div>
+            <div class="act-n" data-k="screens"><b id="act-n-screens">0</b><span id="act-n-screens-k">screens open</span></div>
+            <div class="act-n" data-k="today"><b id="act-n-today">0 min</b><span>watched today</span></div>
+          </div>
+
+          <section class="act-block" aria-labelledby="act-h-now">
+            <header class="act-h"><h3 id="act-h-now">Right now</h3><span class="act-live" id="act-live" data-on="0"><i aria-hidden="true"></i><span id="act-live-t">Connecting…</span></span></header>
+            <div class="act-now" id="act-now"></div>
+            <p class="act-empty" id="act-now-empty">Nobody is watching right now.</p>
+          </section>
+
+          <section class="act-block" aria-labelledby="act-h-screens">
+            <header class="act-h"><h3 id="act-h-screens">Screens</h3><span class="act-note">every open Aurora · a screen that stops answering leaves within 2½ minutes</span></header>
+            <div class="act-screens" id="act-screens"></div>
+            <p class="act-empty" id="act-screens-empty">No screen has Aurora open.</p>
+          </section>
+
+          <section class="act-block" aria-labelledby="act-h-time">
+            <header class="act-h"><h3 id="act-h-time">Watch time</h3>
+              <div class="act-seg" role="tablist" aria-label="Period">
+                <button type="button" role="tab" id="act-span-today" data-span="today" aria-selected="true">Today</button>
+                <button type="button" role="tab" id="act-span-week" data-span="week" aria-selected="false">7 days</button>
+              </div>
+            </header>
+            <div class="act-total"><b id="act-total">0 min</b><span id="act-total-k">in 0 plays</span></div>
+            <div class="act-cols">
+              <div class="act-col"><h4>People</h4><div class="act-bars" id="act-people"></div><p class="act-empty" id="act-people-empty">Nothing watched yet.</p></div>
+              <div class="act-col"><h4>Titles</h4><div class="act-titles" id="act-titles"></div><p class="act-empty" id="act-titles-empty">Nothing watched yet.</p></div>
+            </div>
+            <p class="act-foot">Only time a film or episode was really playing counts — not paused, not loading, not a screen left on.</p>
+          </section>
+
+          <section class="act-block" aria-labelledby="act-h-recent">
+            <header class="act-h"><h3 id="act-h-recent">Recent plays</h3></header>
+            <div class="act-recent" id="act-recent"></div>
+            <p class="act-empty" id="act-recent-empty">No plays yet.</p>
+          </section>
+
+          <section class="act-block" aria-labelledby="act-h-chart">
+            <header class="act-h"><h3 id="act-h-chart">The last 24 hours</h3><span class="act-note">screens open and people watching, every 30 s</span></header>
+            <div class="chart" id="ov-viewers"></div>
+          </section>
+          <div class="facts act-facts" id="ov-facts"></div>
         </div>
       </details>
     </div>
@@ -1907,51 +2089,240 @@
     // ---------- shared renderers ----------
     const deviceIcon = (d) => (d === "TV" ? "📺" : d === "Mobile" ? "📱" : "💻");
 
-    const nowCard = (c) => {
-      const pct = c.mediaDuration > 0 ? Math.min(100, (100 * c.position) / c.mediaDuration) : null;
-      return `
-        <div class="now-card">
-          <div class="who">
-            <div class="avatar">${deviceIcon(c.device?.device)}</div>
-            <div>
-              <div class="name">${esc(c.profile || "No profile")}</div>
-              <div class="meta">${esc(c.device?.device || "?")} · ${esc(c.device?.browser || "?")} · ${esc(c.device?.os || "?")} · ${esc(c.ip)}</div>
-            </div>
-          </div>
-          <div class="title">▶ ${esc(c.details || "…")}</div>
-          ${pct != null ? `
-            <div class="prog"><i style="width:${pct.toFixed(1)}%"></i></div>
-            <div class="times"><span>${fmtClock(c.position)}</span><span>${Math.round(pct)}%</span><span>${fmtClock(c.mediaDuration)}</span></div>`
-            : `<div class="times"><span class="muted">no progress reported yet</span></div>`}
-          <div class="row-actions">
-            <span class="pill">${esc(ago(c.connectedAt))}</span>
-            <span style="flex:1"></span>
-            <button class="mini" onclick="kick('${esc(c.id)}')">Kick</button>
-            <button class="mini danger" onclick="banIp('${esc(c.ip)}')">Ban</button>
-          </div>
-        </div>`;
+    // ================= Activity (docs/watch-time.md) =================
+    // One answer (GET /api/admin/activity) painted into rows that are made
+    // once and then only updated: a row keeps its node by its key, a text is
+    // written only when it changed, a bar moves by a transform. Between
+    // answers a 1-second tick moves the playing positions on by themselves,
+    // so the cards run like a player's clock. Answers come when the live
+    // socket says something changed (debounced), and every 10 s anyway while
+    // the section is open and the page is in front.
+    const ACT = { data: null, span: "today", at: 0, timer: null, inflight: false, again: false };
+    const ACT_ICO = {
+      TV: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/></svg>',
+      Mobile: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
+      Desktop: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M2 20h20"/></svg>',
+    };
+    const icoOf = (d) => ACT_ICO[d && d.device] || ACT_ICO.Desktop;
+    const PRESENCE_WORD = { watching: "Watching", paused: "Paused", browsing: "Browsing", away: "In the background", wall: "On the profile wall" };
+    const STATE_WORD = { playing: "Playing", paused: "Paused", buffering: "Loading", ended: "At the end" };
+    const devLine = (d) => [d && d.browser, d && d.os].filter((x) => x && x !== "Other").join(" · ") || (d && d.device) || "Unknown device";
+    const fmtMin = (sec) => {
+      sec = Math.max(0, Math.round(sec || 0));
+      if (sec < 60) return sec ? "under a minute" : "0 min";
+      const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+      return h ? `${h} h ${String(m).padStart(2, "0")} min` : `${m} min`;
+    };
+    const fmtMinShort = (sec) => {
+      sec = Math.max(0, Math.round(sec || 0));
+      const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+      return h ? `${h}h ${String(m).padStart(2, "0")}m` : sec < 60 && sec > 0 ? "<1m" : `${m}m`;
+    };
+    const sinceWord = (iso) => {
+      const s = Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 1000));
+      if (s < 60) return "just now";
+      if (s < 3600) return `${Math.floor(s / 60)} min`;
+      if (s < 86400) return `${Math.floor(s / 3600)} h ${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}`;
+      return `${Math.floor(s / 86400)} d`;
+    };
+    // a text / attribute / style written only when it changed
+    const setT = (node, v) => { v = String(v ?? ""); if (node.textContent !== v) node.textContent = v; };
+    const setA = (node, k, v) => { v = String(v ?? ""); if (node.getAttribute(k) !== v) node.setAttribute(k, v); };
+    const setBar = (node, f) => { const v = `scaleX(${Math.max(0, Math.min(1, f || 0)).toFixed(4)})`; if (node.style.transform !== v) node.style.transform = v; };
+    // keep host's children in the order of items, each by its key
+    const keyed = (host, items, keyOf, make, paint) => {
+      const have = new Map();
+      for (const n of [...host.children]) if (n.dataset.key) have.set(n.dataset.key, n);
+      let prev = null;
+      for (const it of items) {
+        const k = String(keyOf(it));
+        let n = have.get(k);
+        if (n) have.delete(k);
+        else { n = make(it); n.dataset.key = k; }
+        paint(n, it);
+        const want = prev ? prev.nextElementSibling : host.firstElementChild;
+        if (n !== want) host.insertBefore(n, want);
+        prev = n;
+      }
+      for (const n of have.values()) n.remove();
+    };
+    const node = (html) => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+    const q = (n, sel) => n.querySelector(sel);
+
+    // where a playing card is now: its last report moved on by the time since
+    const livePos = (r, now = Date.now()) => {
+      if (r.position == null) return null;
+      let p = r.position;
+      if (r.state === "playing") p += Math.max(0, (now - (r.posAt || now)) / 1000) * (r.rate || 1);
+      return r.duration ? Math.min(r.duration, p) : p;
+    };
+    const liveSit = (r, now = Date.now()) => (r.sittingSec || 0) + (r.state === "playing" ? Math.max(0, Math.min(60, (now - (r.posAt || now)) / 1000)) : 0);
+
+    const paintNowCard = (n, r) => {
+      setA(n, "data-state", r.state);
+      setT(q(n, ".act-av"), (r.profile || "?").trim().charAt(0).toUpperCase() || "?");
+      setT(q(n, ".act-name"), r.profile || "No profile");
+      const dev = q(n, ".act-dev");
+      if (dev.dataset.d !== (r.device && r.device.device)) { dev.dataset.d = (r.device && r.device.device) || ""; dev.querySelector("i").innerHTML = icoOf(r.device); }
+      setT(q(dev, "span"), devLine(r.device));
+      const chip = q(n, ".act-chip");
+      setA(chip, "data-s", r.state);
+      setT(q(chip, "span"), STATE_WORD[r.state] || r.state);
+      setT(q(n, ".act-title b"), r.title || r.content || "…");
+      setT(q(n, ".act-title span"), r.episode ? r.episode : r.rate && r.rate !== 1 ? `at ${r.rate}×` : "Film");
+      paintNowTime(n, r);
+    };
+    const paintNowTime = (n, r, now = Date.now()) => {
+      const pos = livePos(r, now);
+      setBar(q(n, ".act-track i"), r.duration && pos != null ? pos / r.duration : 0);
+      setT(q(n, ".pos b"), pos != null ? fmtClock(pos) : "—");
+      setT(q(n, ".pos span"), r.duration ? ` / ${fmtClock(r.duration)}` : "");
+      setT(q(n, ".sit"), `${fmtMin(liveSit(r, now))} this sitting`);
+    };
+    const NOW_CARD = `<article class="act-card">
+      <div class="act-who"><div class="act-av" aria-hidden="true"></div>
+        <div style="min-width:0"><div class="act-name"></div><div class="act-dev"><i></i><span></span></div></div>
+        <span class="act-chip"><i aria-hidden="true"></i><span></span></span></div>
+      <div class="act-title"><b></b><span></span></div>
+      <div class="act-track" aria-hidden="true"><i></i></div>
+      <div class="act-nums"><span class="pos"><b></b><span></span></span><span class="sit"></span></div>
+    </article>`;
+
+    const SCREEN_ROW = `<div class="act-scr">
+      <span class="act-ico"></span>
+      <div class="two"><b></b><span><span class="dl"></span><span class="since2"></span></span></div>
+      <div class="doing"></div>
+      <span class="act-chip"><i aria-hidden="true"></i><span></span></span>
+      <span class="since"></span>
+      <span class="acts"><button type="button" class="mini" data-do="kick">Kick</button><button type="button" class="mini danger" data-do="ban">Ban</button></span>
+    </div>`;
+    const paintScreen = (n, g) => {
+      setA(n, "data-p", g.presence);
+      const ico = q(n, ".act-ico");
+      if (ico.dataset.d !== (g.device && g.device.device)) { ico.dataset.d = (g.device && g.device.device) || ""; ico.innerHTML = icoOf(g.device); }
+      setT(q(n, ".two b"), g.profile || (g.presence === "wall" ? "Nobody yet" : "No profile"));
+      setT(q(n, ".two .dl"), `${devLine(g.device)}${g.tabs > 1 ? ` · ${g.tabs} tabs` : ""} · ${g.ip}`);
+      setT(q(n, ".doing"), g.doing || (g.presence === "away" ? "Aurora open, not in front" : g.presence === "wall" ? "Choosing a profile" : "Looking around"));
+      const chip = q(n, ".act-chip");
+      setA(chip, "data-s", g.presence);
+      setT(q(chip, "span"), PRESENCE_WORD[g.presence] || g.presence);
+      setT(q(n, ".since"), sinceWord(g.since));
+      setT(q(n, ".since2"), ` · ${sinceWord(g.since)}`);
+      setA(q(n, ".since"), "title", `connected ${new Date(g.since).toLocaleString()}`);
+      n.dataset.ids = g.ids.join(",");
+      n.dataset.ip = g.ip;
     };
 
-    const renderNowGrids = (clients) => {
-      const watching = clients.filter((c) => c.activity === "Watching");
-      for (const [grid, empty] of [["#ov-now", "#ov-now-empty"]]) {
-        $(grid).innerHTML = watching.map(nowCard).join("");
-        $(empty).classList.toggle("hidden", watching.length > 0);
-      }
-      $("#live-watch-count").textContent = watching.length;
+    const BAR_ROW = `<div class="act-bar"><span class="nm"></span><span class="tr" aria-hidden="true"><i></i></span><span class="v"></span></div>`;
+    const TITLE_ROW = `<div class="act-ttl"><div class="two"><b></b><span></span></div><span class="who"></span><span class="v"></span></div>`;
+    const REC_ROW = `<div class="act-rec"><span class="when"></span><span class="who"></span><div class="two"><b></b><span></span></div>
+      <div class="got"><span></span><div class="act-track" aria-hidden="true"><i></i></div></div><span class="act-ico"></span></div>`;
+
+    const paintSpan = () => {
+      const a = ACT.data;
+      if (!a) return;
+      const r = a[ACT.span] || { watchSec: 0, plays: 0, people: [], titles: [] };
+      for (const b of document.querySelectorAll(".act-seg button")) setA(b, "aria-selected", b.dataset.span === ACT.span ? "true" : "false");
+      setT($("#act-total"), fmtMin(r.watchSec));
+      setT($("#act-total-k"), `${r.plays} ${r.plays === 1 ? "play" : "plays"} · ${ACT.span === "today" ? "since midnight" : "the last 7 days"}`);
+      const top = Math.max(1, ...r.people.map((p) => p.watchSec));
+      keyed($("#act-people"), r.people, (p) => p.name, () => node(BAR_ROW), (n, p) => {
+        setT(q(n, ".nm"), p.name);
+        setBar(q(n, ".tr i"), p.watchSec / top);
+        setT(q(n, ".v"), fmtMinShort(p.watchSec));
+        setA(n, "title", `${p.name}: ${fmtMin(p.watchSec)} in ${p.plays} ${p.plays === 1 ? "play" : "plays"}`);
+      });
+      $("#act-people-empty").hidden = r.people.length > 0;
+      keyed($("#act-titles"), r.titles.slice(0, 8), (t) => t.content, () => node(TITLE_ROW), (n, t) => {
+        setT(q(n, ".two b"), t.title || t.content);
+        setT(q(n, ".two span"), [t.episode, `${t.plays} ${t.plays === 1 ? "play" : "plays"}`].filter(Boolean).join(" · "));
+        setT(q(n, ".who"), (t.viewers || []).join(", "));
+        setT(q(n, ".v"), fmtMinShort(t.watchSec));
+      });
+      $("#act-titles-empty").hidden = r.titles.length > 0;
     };
+
+    const paintActivity = (a) => {
+      ACT.data = a;
+      ACT.at = Date.now();
+      const c = a.counts || {};
+      setT($("#act-n-watching"), c.watching || 0);
+      setA($('.act-n[data-k="watching"]'), "data-live", c.watching ? "1" : "0");
+      setT($("#act-n-paused"), c.paused || 0);
+      setT($("#act-n-screens"), c.screens || 0);
+      setT($("#act-n-screens-k"), c.away ? `screens · ${c.away} in background` : "screens open");
+      setT($("#act-n-today"), fmtMinShort((a.today && a.today.watchSec) || 0));
+      keyed($("#act-now"), a.now || [], (r) => r.key, () => node(NOW_CARD), paintNowCard);
+      $("#act-now-empty").hidden = (a.now || []).length > 0;
+      keyed($("#act-screens"), a.screens || [], (g) => g.key, () => node(SCREEN_ROW), paintScreen);
+      $("#act-screens-empty").hidden = (a.screens || []).length > 0;
+      paintSpan();
+      keyed($("#act-recent"), a.recent || [], (s) => s.id, () => node(REC_ROW), (n, s) => {
+        setA(n, "data-live", s.live ? "1" : "0");
+        setT(q(n, ".when"), s.live ? "Now" : fmtWhen(s.startedAt));
+        setT(q(n, ".who"), s.profile || "—");
+        setT(q(n, ".two b"), s.title || s.content);
+        setT(q(n, ".two span"), [s.episode, s.offline ? "saved on the phone" : null].filter(Boolean).join(" · ") || "Film");
+        // (a little over the length is real: parts played twice)
+        setT(q(n, ".got span"), !s.duration ? `${fmtMin(s.watchedSec)} watched` : s.watchedSec <= s.duration * 1.02 ? `${fmtMin(s.watchedSec)} of ${fmtMin(s.duration)}` : `${fmtMin(s.watchedSec)} · ${fmtMin(s.duration)} long`);
+        setBar(q(n, ".got .act-track i"), s.duration && s.position != null ? s.position / s.duration : 0);
+        const ico = q(n, ".act-ico");
+        if (ico.dataset.d !== (s.device && s.device.device)) { ico.dataset.d = (s.device && s.device.device) || ""; ico.innerHTML = icoOf(s.device); }
+        setA(n, "title", `${s.profile || "—"} · ${s.content} · started ${new Date(s.startedAt).toLocaleString()}${s.endedAt ? ` · ended ${new Date(s.endedAt).toLocaleString()}` : ""}`);
+      });
+      $("#act-recent-empty").hidden = (a.recent || []).length > 0;
+      // the summary row of the closed section says it too
+      const sub = $("#sub-ov-activity");
+      if (sub) setT(sub, `${c.watching || 0} watching · ${c.paused || 0} paused · ${c.screens || 0} ${c.screens === 1 ? "screen" : "screens"} open · ${fmtMinShort((a.today && a.today.watchSec) || 0)} watched today`);
+      paintLive();
+    };
+    const paintLive = () => {
+      const on = !!(ACT.wsOn && ACT.data);
+      const live = $("#act-live");
+      setA(live, "data-on", on ? "1" : "0");
+      const age = ACT.at ? Math.round((Date.now() - ACT.at) / 1000) : null;
+      setT($("#act-live-t"), !ACT.wsOn ? "Reconnecting…" : age == null ? "Connecting…" : age < 3 ? "Live · just now" : `Live · ${age < 60 ? `${age} s` : `${Math.floor(age / 60)} min`} ago`);
+    };
+    async function loadActivity() {
+      if (ACT.inflight) { ACT.again = true; return; }
+      ACT.inflight = true;
+      try { paintActivity(await json("/api/admin/activity")); } catch {} finally {
+        ACT.inflight = false;
+        if (ACT.again) { ACT.again = false; loadActivity(); }
+      }
+    }
+    // "something changed" from the socket: one answer for a burst of them
+    const activitySoon = (ms = 700) => { if (!ACT.timer) ACT.timer = setTimeout(() => { ACT.timer = null; loadActivity(); }, ms); };
+    // the clocks between answers
+    setInterval(() => {
+      if (document.hidden || !ACT.data || !isOpen("ov-activity")) return;
+      const now = Date.now();
+      const byKey = new Map((ACT.data.now || []).map((r) => [r.key, r]));
+      for (const n of document.querySelectorAll("#act-now > .act-card")) { const r = byKey.get(n.dataset.key); if (r) paintNowTime(n, r, now); }
+      const sc = new Map((ACT.data.screens || []).map((g) => [g.key, g]));
+      for (const n of document.querySelectorAll("#act-screens > .act-scr")) { const g = sc.get(n.dataset.key); if (g) { setT(q(n, ".since"), sinceWord(g.since)); setT(q(n, ".since2"), ` · ${sinceWord(g.since)}`); } }
+      paintLive();
+    }, 1000);
+    for (const b of document.querySelectorAll(".act-seg button")) b.addEventListener("click", () => { ACT.span = b.dataset.span; paintSpan(); });
+    $("#act-screens").addEventListener("click", async (e) => {
+      const b = e.target.closest("button[data-do]");
+      if (!b) return;
+      const row = b.closest(".act-scr");
+      if (b.dataset.do === "kick") {
+        const ids = (row.dataset.ids || "").split(",").filter(Boolean);
+        if (!await ask(ids.length > 1 ? `Kick these ${ids.length} tabs? They reconnect on their next load — use Ban to keep them out.` : "Kick this screen? It reconnects on its next load — use Ban to keep it out.")) return;
+        for (const id of ids) { try { await post("/api/admin/kick/" + id); } catch {} }
+        toast("Kicked");
+        loadActivity();
+      } else banIp(row.dataset.ip);
+    });
+
+    async function loadClients() { return loadActivity(); }
 
     // ---------- overview ----------
     async function loadOverview() {
       const o = await json("/api/admin/overview");
-      // Four numbers that change through the day get tiles; the rest is one
-      // quiet line under them (ten equal boxes read as noise).
-      $("#ov-stats").innerHTML = [
-        [o.watchingNow, "watching now"],
-        [o.currentClients, "connected"],
-        [fmtDur(o.today.watchSec), "watch time · 24h"],
-        [o.today.plays, "plays · 24h"],
-      ].map(([v, k]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`).join("");
+      // the quiet line under the Activity section: the library and the server's day
       $("#ov-facts").innerHTML = [
         [o.movieCount, "movies"],
         [o.showCount, "shows"],
@@ -1977,37 +2348,6 @@
         { name: "Download", color: C.s1, points: pts.map((p) => ({ t: p.t, v: p.downKBs })) },
         { name: "Upload", color: C.s2, points: pts.map((p) => ({ t: p.t, v: p.upKBs })) },
       ], { fmtV: (v) => (v >= 1024 ? (v / 1024).toFixed(1) + " MB/s" : Math.round(v) + " KB/s") });
-    }
-
-    async function loadOverviewTop() {
-      const a = await json("/api/admin/analytics?days=7");
-      hbars("#ov-top", a.topTitles.slice(0, 10).map((t) => ({
-        label: t.content, v: t.watchSec,
-        tipHtml: `<div class="t">${esc(t.content)}</div>` +
-          tipRow(C.s1, "Watch time", fmtDur(t.watchSec)) +
-          tipRow(C.s2, "Plays", t.plays) +
-          tipRow(C.s3, "Viewers", t.viewers),
-      })), { empty: "No plays in the last 7 days." });
-    }
-
-    // ---------- live ----------
-    async function loadClients() {
-      const clients = await json("/api/admin/clients");
-      renderNowGrids(clients);
-      $("#client-count").textContent = clients.length;
-      $("#clients-empty").classList.toggle("hidden", clients.length > 0);
-      $("#clients").innerHTML = clients.map((c) => `
-        <tr>
-          <td>${esc(c.profile || "—")}</td>
-          <td>${esc(c.ip)}</td>
-          <td>${deviceIcon(c.device?.device)} ${esc(c.device?.device)} · ${esc(c.device?.browser)} · ${esc(c.device?.os)}</td>
-          <td>${esc(c.activity)}${c.details ? " · <span class='muted'>" + esc(c.details) + "</span>" : ""}</td>
-          <td class="muted">${esc(ago(c.connectedAt))}</td>
-          <td style="text-align:right;white-space:nowrap">
-            <button class="mini" onclick="kick('${esc(c.id)}')">Kick</button>
-            <button class="mini danger" onclick="banIp('${esc(c.ip)}')">Ban</button>
-          </td>
-        </tr>`).join("");
     }
 
     // ---------- analytics ----------
@@ -3129,7 +3469,7 @@
     // again leaves them alone (it used to rebuild them every tick).
     {
       const proto = Object.getOwnPropertyDescriptor(Element.prototype, "innerHTML");
-      for (const id of ["#ov-now", "#ov-stats", "#ov-facts", "#clients", "#sv-stats", "#sv-torrents", "#sv-health", "#sv-health-events", "#mx-stats", "#mx-checks", "#mx-up", "#mx-slow", "#mx-limits",
+      for (const id of ["#ov-facts", "#sv-stats", "#sv-torrents", "#sv-health", "#sv-health-events", "#mx-stats", "#mx-checks", "#mx-up", "#mx-slow", "#mx-limits",
         "#en-stats", "#en-running", "#people-live", "#up-jobs", "#ml-rows", "#reports", "#requests", "#replacements", "#hl-checks", "#hl-repairs", "#hl-history", "#hl-events", "#ac-runs"]) {
         const el = $(id);
         if (!el) continue;
@@ -5535,14 +5875,21 @@
     const telText = async () => { const d = await json("/api/admin/telemetry"); return d.text || "(nothing reported)"; };
     const MORE = {
       "ov-activity": {
-        load: () => { loadOverview(); loadClients(); loadTimeseries(); loadOverviewTop(); },
+        load: () => { loadActivity(); loadOverview(); loadTimeseries(); },
         copy: async () => {
-          const [o, clients, a] = await Promise.all([json("/api/admin/overview"), json("/api/admin/clients"), json("/api/admin/analytics?days=7")]);
+          const [o, a] = await Promise.all([json("/api/admin/overview"), json("/api/admin/activity")]);
+          const pos = (r) => (r.position != null ? `${fmtClock(r.position)}${r.duration ? " / " + fmtClock(r.duration) : ""}` : "—");
           return [
-            MD.list([["watching now", o.watchingNow], ["connected", o.currentClients], ["watch time, 24 h", fmtDur(o.today.watchSec)], ["plays, 24 h", o.today.plays],
+            "Watch time counts only real play (docs/watch-time.md): not paused, not loading, not a screen left on.",
+            MD.list([["watching now", a.counts.watching], ["paused", a.counts.paused], ["screens open", a.counts.screens], ["in the background", a.counts.away],
+              ["watched today", `${fmtMin(a.today.watchSec)} in ${a.today.plays} plays`], ["watched, 7 days", `${fmtMin(a.week.watchSec)} in ${a.week.plays} plays`],
               ["library", `${o.movieCount} movies, ${o.showCount} shows, ${o.episodeCount} episodes`], ["peak at once", o.peakConcurrent], ["up", fmtUptime((Date.now() - o.startedAt) / 1000)]]),
-            "\nConnected now:", MD.table(["profile", "device", "doing", "since"], clients.map((c) => [c.profile || "—", [c.device?.device, c.device?.browser, c.device?.os].filter(Boolean).join(" · "), [c.activity, c.details].filter(Boolean).join(" · "), ago(c.connectedAt)])),
-            "\nTop titles, 7 days:", MD.table(["title", "watch time", "plays", "viewers"], a.topTitles.slice(0, 10).map((t) => [t.content, fmtDur(t.watchSec), t.plays, t.viewers])),
+            "\nRight now:", MD.table(["who", "title", "state", "where", "this sitting", "device"], a.now.map((r) => [r.profile || "—", [r.title, r.episode].filter(Boolean).join(" "), r.state, pos(r), fmtMin(r.sittingSec), devLine(r.device)])),
+            "\nScreens:", MD.table(["who", "device", "doing", "state", "since"], a.screens.map((g) => [g.profile || "—", `${devLine(g.device)}${g.tabs > 1 ? ` (${g.tabs} tabs)` : ""}`, g.doing || "—", g.presence, sinceWord(g.since)])),
+            "\nWatch time today, by person:", MD.table(["person", "watch time", "plays"], a.today.people.map((p) => [p.name, fmtMin(p.watchSec), p.plays])),
+            "\nWatch time, 7 days, by person:", MD.table(["person", "watch time", "plays"], a.week.people.map((p) => [p.name, fmtMin(p.watchSec), p.plays])),
+            "\nTop titles, 7 days:", MD.table(["title", "watch time", "plays", "viewers"], a.week.titles.map((t) => [t.content, fmtMin(t.watchSec), t.plays, (t.viewers || []).join(", ")])),
+            "\nRecent plays:", MD.table(["started", "who", "title", "watched", "of", "live"], a.recent.map((r) => [fmtWhen(r.startedAt), r.profile || "—", r.content, fmtMin(r.watchedSec), r.duration ? fmtMin(r.duration) : "", r.live ? "yes" : ""])),
           ].join("\n");
         },
       },
@@ -5942,12 +6289,12 @@
       try {
         const ws = new WebSocket((location.protocol === "https:" ? "wss:" : "ws:") + "//" + location.host);
         // pw travels in the message (page memory), not a cookie or the URL.
-        const conn = (on) => { $("#conn").classList.toggle("conn-on", on); $("#conn-text").textContent = on ? "Live updates on" : "Reconnecting…"; };
+        const conn = (on) => { $("#conn").classList.toggle("conn-on", on); $("#conn-text").textContent = on ? "Live updates on" : "Reconnecting…"; ACT.wsOn = on; paintLive(); if (on && activeTab === "overview") activitySoon(200); };
         ws.onopen = () => { ws.send(JSON.stringify({ type: "admin_subscribe", pw: ADMIN_PW })); conn(true); };
         ws.onmessage = (e) => {
           const data = JSON.parse(e.data);
           if (["client_connected", "client_disconnected", "client_update"].includes(data.type)) {
-            if (activeTab === "overview" && isOpen("ov-activity")) { loadClients(); loadOverview(); }
+            if (activeTab === "overview") activitySoon(isOpen("ov-activity") ? 700 : 4000);
             soonSummary(3000); // ("watching now" on the Playback line)
           } else if (data.type === "watch_history_update") {
             // Throttled: analytics recompute is cheap but no need to hammer it
@@ -5956,7 +6303,7 @@
                 analyticsRefresh = null;
                 if (activeTab === "analytics" && (isOpen("an-watch") || isOpen("an-intros"))) loadAnalytics();
                 if (activeTab === "history") { if (isOpen("h-sessions")) loadSessions(); if (isOpen("h-legacy")) loadHistory(); }
-                if (activeTab === "overview" && isOpen("ov-activity")) loadOverviewTop();
+                if (activeTab === "overview") activitySoon(); // (recent plays, watch time)
               }, 4000);
             }
           } else if (data.type === "request_new" || data.type === "request_update") {
@@ -6003,7 +6350,11 @@
     }, 15000);
     setInterval(() => {
       if (!ADMIN_PW || document.hidden || RESTARTING) return;
-      if (activeTab === "overview") refreshOpen("overview", ["ov-activity"]);
+      if (activeTab === "overview") loadActivity(); // (open: every row; closed: the line on its summary)
+    }, 10000);
+    setInterval(() => {
+      if (!ADMIN_PW || document.hidden || RESTARTING) return;
+      if (activeTab === "overview" && isOpen("ov-activity")) { loadOverview(); loadTimeseries(); }
       if (activeTab === "server") refreshOpen("server", ["sv-machine", "sv-metrics", "sv-env"]);
       if (activeTab === "history") refreshOpen("history", ["h-conn"]);
     }, 30000);

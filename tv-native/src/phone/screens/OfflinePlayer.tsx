@@ -4,15 +4,18 @@
 // your profile when the server answers (store.ts noteOfflineProgress), so the
 // TV and the website pick up where the phone left off. Up next is the next
 // saved episode of the show.
-import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {AppState, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import Video, {SelectedTrackType, TextTrackType, VideoRef} from 'react-native-video';
 import {useRoute, RouteProp} from '@react-navigation/native';
 import {replacePhone, usePNav} from '../nav';
 import PhoneChrome from '../player/PhoneChrome';
 import PhoneGestures from '../player/PhoneGestures';
 import {phoneNative} from '../native';
-import {listOffline, noteOfflineProgress, offlineFor} from '../offline/store';
+import {flushOfflinePlayed, listOffline, noteOfflinePlayed, noteOfflineProgress, offlineFor} from '../offline/store';
+import {getActiveProfile} from '../../api';
+import {reportActivity} from '../../realtime';
+import {createWatchClock} from '../../watchClock';
 import {nextSaved} from '../offline/rules';
 import {personNow} from '../../personSync';
 import {showToast} from '../../toast';
@@ -40,6 +43,44 @@ export default function OfflinePlayer() {
   const lastSave = useRef(0);
   const next = it ? nextSaved(listOffline(), it) : null;
 
+  // Real watch time (docs/watch-time.md): what this copy really played. With
+  // the server there it is reported live, like the streaming player; without,
+  // it is kept on the phone and sent when the server answers (store.ts).
+  const clock = useMemo(() => createWatchClock(), []);
+  const pausedRef = useRef(false);
+  pausedRef.current = paused;
+  const sitting = useRef(`s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
+  const label = it ? (it.showTitle && it.season != null && it.episode != null ? `${it.showTitle} S${it.season}E${it.episode}` : it.title) : '';
+  const report = useCallback(
+    (state?: 'playing' | 'paused' | 'ended') => {
+      if (!it) return;
+      const played = clock.take();
+      const position = curRef.current || 0;
+      const duration = dur || it.duration || 0;
+      const st = state || (pausedRef.current ? 'paused' : 'playing');
+      const live = reportActivity('Watching', label, {position, duration, played, state: st, rate: 1, visible: AppState.currentState === 'active', saved: true});
+      if (!live) {
+        const profileId = it.profileId || getActiveProfile();
+        if (profileId) noteOfflinePlayed({sitting: sitting.current, profileId, label, position, duration}, played);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dur, label],
+  );
+  const reportRef = useRef(report);
+  reportRef.current = report;
+  useEffect(() => {
+    const iv = setInterval(() => reportRef.current(), 5000);
+    const sub = AppState.addEventListener('change', () => reportRef.current());
+    return () => {
+      clearInterval(iv);
+      sub.remove();
+    };
+  }, []);
+  useEffect(() => {
+    reportRef.current();
+  }, [paused]);
+
   const show = useCallback(() => {
     setControls(true);
     if (hide.current) clearTimeout(hide.current);
@@ -57,6 +98,9 @@ export default function OfflinePlayer() {
       setSubIdx(i >= 0 ? i : 0);
     }
     return () => {
+      reportRef.current(); // the last seconds played
+      reportActivity('Browsing');
+      flushOfflinePlayed();
       if (it) noteOfflineProgress(it.id, curRef.current, dur || it.duration || 0);
       phoneNative.setKeepAwake(false);
       phoneNative.setImmersive(false);
@@ -105,6 +149,7 @@ export default function OfflinePlayer() {
         }}
         onProgress={p => {
           curRef.current = p.currentTime;
+          clock.tick(p.currentTime, {playing: !pausedRef.current, rate: 1});
           if (preview == null) setCur(p.currentTime);
           if (Date.now() - lastSave.current > 15000) {
             lastSave.current = Date.now();
@@ -112,6 +157,7 @@ export default function OfflinePlayer() {
           }
         }}
         onEnd={() => {
+          reportRef.current('ended');
           noteOfflineProgress(it.id, dur, dur);
           if (next) replacePhone('OfflinePlayer', {id: next.id});
           else navigation.goBack();
