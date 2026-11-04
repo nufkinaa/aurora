@@ -732,7 +732,9 @@ const attach = (server) => {
     stats.peakConcurrent = Math.max(stats.peakConcurrent, clients.size);
     logEvent({ event: "connected", ...publicClient(client) });
 
-    send(ws, JSON.stringify({ type: "welcome", clientId: client.id }));
+    // (`presence`: this server answers heartbeats — a client holds an
+    // unanswered one against the socket only when it says so)
+    send(ws, JSON.stringify({ type: "welcome", clientId: client.id, presence: 1 }));
     // (a client that knows the message raises its "pick a new password" screen)
     if (ws.restricted) send(ws, JSON.stringify({ type: "password_reset_required", profileId: ws.restricted }));
     broadcastAdmins({ type: "client_connected", client: publicClient(client) });

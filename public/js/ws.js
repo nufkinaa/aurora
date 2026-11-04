@@ -39,6 +39,7 @@ let answerTimer = null;
 // (beats are counted, not timed: a clock that jumps at a wake-up cannot fool it)
 let beatsAsked = 0;
 let beatsAnswered = 0;
+let serverBeats = false; // (its welcome says it answers them)
 const visibleNow = () => document.visibilityState !== "hidden";
 export const helloMsg = () => ({
   type: "hello",
@@ -58,7 +59,7 @@ const beat = () => {
   clearTimeout(answerTimer);
   answerTimer = setTimeout(() => {
     // no answer: this socket only looks open (a sleep, a network that changed)
-    if (state.ws === ws && beatsAnswered < asked) { try { ws.close(); } catch {} }
+    if (serverBeats && state.ws === ws && beatsAnswered < asked) { try { ws.close(); } catch {} }
   }, ANSWER_MS);
 };
 // (the tests read these)
@@ -133,6 +134,7 @@ const handle = (data) => {
   switch (data.type) {
     case "welcome":
       state.clientId = data.clientId || null; // this socket's name on the server
+      serverBeats = !!data.presence;
       // (said with no profile too: the server then knows a screen on the
       // profile wall, and that it keeps a heartbeat)
       send(helloMsg());

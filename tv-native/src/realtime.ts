@@ -168,6 +168,9 @@ let answerTimer: ReturnType<typeof setTimeout> | null = null;
 // (beats are counted, not timed: a clock that jumps at a wake-up cannot fool it)
 let beatsAsked = 0;
 let beatsAnswered = 0;
+// this server answers heartbeats (its `welcome` says `presence`): only then is
+// an unanswered one held against the socket — an older server never answers
+let serverBeats = false;
 const foreground = () => !AppState.currentState || AppState.currentState === 'active';
 const beat = () => {
   if (beatTimer) clearTimeout(beatTimer);
@@ -179,7 +182,7 @@ const beat = () => {
   send({type: 'presence', visible: foreground()});
   if (answerTimer) clearTimeout(answerTimer);
   answerTimer = setTimeout(() => {
-    if (ws === sock && beatsAnswered < asked) {
+    if (serverBeats && ws === sock && beatsAnswered < asked) {
       console.log('[live] the server did not answer the heartbeat: connecting again');
       try {
         sock.close();
@@ -230,6 +233,7 @@ const open = () => {
     ws = sock;
     sock.onopen = () => {
       if (ws !== sock) return;
+      serverBeats = false; // (until this server's welcome says so)
       wsUp(); // [analytics] lost → back, as a timing
       restartTries = 0; // the server is back
       // Only a socket that STAYS open earns a backoff reset (bans close at once).
@@ -260,6 +264,7 @@ const open = () => {
         for (const fn of [...newsNow]) fn(data); // (onLibraryNews: at once, held or not)
         return;
       }
+      if (data.type === 'welcome') serverBeats = !!data.presence;
       if (data.type === 'presence_ok') {
         beatsAnswered = beatsAsked;
         return;

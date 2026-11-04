@@ -44,6 +44,7 @@ const opened = () => {
   connect();
   const s = FakeSocket.all[FakeSocket.all.length - 1];
   s.onopen?.();
+  s.say({type: 'welcome', clientId: 'c1', presence: 1});
   return s;
 };
 
@@ -80,7 +81,19 @@ test('on a new socket the remembered activity is said again — with nothing pla
   jest.advanceTimersByTime(1500);
   const s2 = FakeSocket.all[FakeSocket.all.length - 1];
   s2.onopen?.();
+  s2.say({type: 'welcome', clientId: 'c2', presence: 1});
   const again = s2.sent.find(m => m.type === 'activity')!;
   expect(again.details).toBe('A film');
   expect(again.played).toBe(0);
+});
+
+test('an older server (no `presence` in its welcome) never answers: the socket is kept', () => {
+  setIdentity({id: 'p1', name: 'Ann'});
+  connect();
+  const s = FakeSocket.all[FakeSocket.all.length - 1];
+  s.onopen?.();
+  s.say({type: 'welcome', clientId: 'c1'});
+  jest.advanceTimersByTime(BEAT_MS * 3);
+  expect(s.readyState).toBe(1);
+  expect(FakeSocket.all).toHaveLength(1);
 });
