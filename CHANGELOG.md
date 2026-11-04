@@ -3,6 +3,16 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.11 — 2026-11-04
+
+**Real watch time** — on the website, Aurora TV 5.8.4 and Aurora for Android phones 1.0.4.
+- **Only what really plays counts.** Watch time used to run from a session's first report to its last, paused or not, so a TV left paused for three days showed 71 hours for one 40-minute episode. Now only time a film or episode is actually playing counts: never paused, buffering, seeking, the end screen, a sleeping laptop, a switched-off TV or a lost connection. 10 minutes at 2× counts as 10 minutes, and two screens of one person on the same title count once.
+- **Older apps can't over-count either:** the server judges them by how far the film really moved.
+- **The numbers already saved are corrected** once, after a backup: impossible totals are brought back to what could really have been watched.
+- **Films watched offline on the phone count too**, and arrive once when the phone is back online.
+- **Who's connected is really connected.** Every screen answers a small check about once a minute; one that stops answering (turned off, lid closed, Wi-Fi gone, app killed) is shown as gone within about 2½ minutes. A screen on the profile wall no longer counts as connected.
+- **Admin Activity, redesigned and live:** who is watching now (what, where in it, on which screen, playing or paused), every screen, watch time today and over 7 days per person and per title, and recent plays. It updates by itself without reloading or jumping.
+
 ## 1.15.10 — 2026-11-03
 
 - **iPhone, opened from the Home Screen:** the search box, page headings and the profile menu no longer run under the buttons at the top. Search, Movies, Shows, My List, Settings, What's new, My downloads, Wrapped, Swipe your taste, the recommendation lists and the rest now sit the same distance below the buttons as they do in Safari.
