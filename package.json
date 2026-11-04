@@ -9,7 +9,7 @@
     "url": "https://github.com/nufkinaa/aurora.git"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "start": "node server.js",

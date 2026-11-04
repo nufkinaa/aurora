@@ -1,6 +1,6 @@
 # CI: run only the tests a change can reach
 
-`.github/workflows/ci.yml` runs the root suite (`node --test test/*.test.js`) on Node 20 and 22.
+`.github/workflows/ci.yml` runs the root suite (`node --test test/*.test.js`) on Node 22 only (elia, 2026-11-04).
 Pushes and pull requests now run **only the test files a change can reach**. Everything runs
 whenever there is any doubt, every night, on a run started by hand, and on `server-*-stable` tags.
 
@@ -121,7 +121,7 @@ The job still passes, and its summary says "No affected tests".
 - A full run that **passed** replaces the map. Anything else only **adds** to it: a partial run,
   or a run with failures (whose tests may have stopped early). So the map can't forget a file
   because one run crashed early.
-- It lives in the Actions cache. Each leg (Node 20, Node 22) keeps its own map, saved as
+- It lives in the Actions cache. Each Node version keeps its own map, saved as
   `test-map-v1-node<major>-<day>-<run id>-<attempt>` and restored by the prefix
   `test-map-v1-node<major>-`, so the newest one is used. Nothing is committed.
 - The nightly run (02:23 UTC) refreshes it.
@@ -189,14 +189,7 @@ node tools/ci/ci-tests.js simulate --map /tmp/test-map.json --count 30 --full-ms
 
 ## Decisions for elia
 
-- **Node 20** is past end of life. The "Node.js 20 is deprecated" warning on every run came from
-  `actions/checkout@v4` and `actions/setup-node@v4` running on Node 20. They are now v6 (Node 24),
-  so that warning goes away. The **test matrix still runs Node 20**, because `engines` says `>=20`
-  and we don't know which Node nufurora.com runs. Options:
-  1. keep both (as now);
-  2. **Node 22 only on pushes and PRs, Node 20 in the nightly run only.** This halves push minutes.
-     Change the matrix to `node: ${{ github.event_name == 'schedule' && fromJSON('[20,22]') || fromJSON('[22]') }}`;
-  3. drop Node 20 after checking `node -v` on nufurora.com, and set `engines` to `>=22`.
+- **Node 20: decided 2026-11-04, elia: "only test 22".** CI runs Node 22 alone, and `engines` says `>=22`. (The "Node.js 20 is deprecated" warning came from checkout/setup-node v4; they are v6 now.) If nufurora.com still runs Node 20, `npm ci` there only warns, but it should move to Node 22 since nothing tests 20 any more.
 - **Browser tests (`npm run test:ui`)**: not in CI. They need Chrome and ffmpeg, take minutes,
   and flake under load. A nightly-only job is possible later. Not worth it per push.
 - **tv-native jest (`jest.logic.config.js`)**: cheap to run, but `npm ci --legacy-peer-deps` plus

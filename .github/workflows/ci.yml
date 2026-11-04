@@ -31,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22]
+        node: [22]
     name: "tests (node ${{ matrix.node }})"
     steps:
       # Whole history (commits and trees only: a sparse checkout fetches no old
