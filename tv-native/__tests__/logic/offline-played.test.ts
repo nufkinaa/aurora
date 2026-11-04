@@ -41,7 +41,7 @@ test('what plays while a send is on its way goes out later under a new id', asyn
   await noteOfflinePlayed(S, 10);
   hold = () => {};
   const flushing = flushOfflinePlayed();
-  await new Promise(r => setTimeout(r, 0));
+  await new Promise<void>(r => setTimeout(() => r(), 0));
   await noteOfflinePlayed(S, 5); // played meanwhile
   const release = hold as unknown as () => void;
   hold = null;

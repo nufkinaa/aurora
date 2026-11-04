@@ -210,13 +210,25 @@ const onWatch = (client, content, report, durationArg) => {
       live: true,
     };
     if (r.rate && r.rate !== 1) s.rate = r.rate;
-    acct.set(s.id, { lastAt: nowMs, lastPos: r.position, credited: 0, duration: r.duration });
-    bankFor(s, content, nowMs); // the bank starts accruing now
+    const st = { lastAt: nowMs, lastPos: null, credited: 0, duration: r.duration };
+    acct.set(s.id, st);
+    // The first report of a viewing credits what a new client says it played
+    // since its last report — out of the person+title's bank, which is new
+    // (empty) for a first play and holds the real wall time when the same
+    // title goes on after a moment (a player remade, a socket back). Old
+    // clients' first report has nothing to compare and credits nothing.
+    let credit0 = 0;
+    if (r.played > 0) {
+      credit0 = watchtime.credit(st, bankFor(s, content, nowMs), r, nowMs).credit;
+      s.watchedSec = Math.round(st.credited);
+      if (credit0 > 0) s.lastPlayAt = iso(nowMs);
+    } else bankFor(s, content, nowMs); // the bank starts accruing now
+    st.lastPos = r.position;
     liveByClient.set(client.id, s);
     sessions.data.unshift(s);
     if (sessions.data.length > MAX_SESSIONS) sessions.data.length = MAX_SESSIONS;
     sessions.save();
-    return { session: s, started, credit: 0, state: s.state };
+    return { session: s, started, credit: credit0, state: s.state };
   }
   let st = acct.get(s.id);
   if (!st) { st = { lastAt: Date.parse(s.updatedAt), lastPos: s.position, credited: s.watchedSec || 0, duration: s.duration }; acct.set(s.id, st); }

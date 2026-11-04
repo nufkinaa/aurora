@@ -3094,9 +3094,15 @@ export default function Player({
   // speed, and the server credits no more than that, nor more than its own
   // clock let pass. Old builds sent only the position — the server reads those too.
   const sayRef = useRef<() => void>(() => {});
+  // (the effect below follows the label's TEXT: the callback is remade when the
+  // stream's details land, and each remake used to say "Browsing" then
+  // "Watching" again — ending the viewing and starting a new one, seconds in)
+  const labelFn = useRef(activityLabel);
+  labelFn.current = activityLabel;
+  const labelText = activityLabel();
   useEffect(() => {
     const say = () => {
-      const label = activityLabel();
+      const label = labelFn.current();
       if (!label) return;
       watchClock.tick(curRef.current || 0, {playing: reallyPlaying(), rate: rateRef.current || 1});
       reportActivity('Watching', label, {
@@ -3107,7 +3113,9 @@ export default function Player({
           paused: pausedRef.current,
           buffering: bufferingRef.current || pendingSeek.current != null,
           progressAgeMs: Date.now() - lastProgressAt.current,
-          foreground: AppState.currentState === 'active',
+          // a TV sent to the background holds its player still (react-native-video
+          // pauses it); the phone's picture-in-picture plays on
+          foreground: AppState.currentState === 'active' || PHONE,
         }),
         rate: rateRef.current || 1,
         visible: AppState.currentState === 'active',
@@ -3127,7 +3135,7 @@ export default function Player({
       sayRef.current = () => {};
       reportActivity('Browsing');
     };
-  }, [activityLabel]);
+  }, [labelText]);
   // a pause or a resume: said now (the admin's playing / paused)
   useEffect(() => {
     sayRef.current();

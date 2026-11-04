@@ -308,3 +308,20 @@ test("the phone's offline queue: real played time, bounded, dated by the phone b
   assert.equal(telemetry.addOfflinePlay({ reportId: "off-neg001", content: "Bad", played: -5 }).error, "bad report");
   assert.equal(telemetry.sessions.data.filter((s) => s.offline).length, 3);
 });
+
+test("the same title going on after a moment (a player remade, a socket back): the seconds in between still count, once", () => {
+  const c = makeClient("Ann", "TV");
+  const F = "Remade film";
+  let pos = 0;
+  newReport(c, F, pos, 7200, 0);
+  for (let i = 0; i < 6; i++) { step(5); pos += 5; newReport(c, F, pos, 7200, 5); }
+  send(c, { type: "activity", action: "Browsing" }); // the player's effect re-ran
+  step(5); pos += 5;
+  newReport(c, F, pos, 7200, 5); // its first report: 5 s played since the last one
+  for (let i = 0; i < 6; i++) { step(5); pos += 5; newReport(c, F, pos, 7200, 5); }
+  assert.equal(totalOf(F), 65);
+  // a brand-new viewing's first report cannot claim time from before it began
+  const d = makeClient("Bob", "TV");
+  newReport(d, "Fresh film", 0, 7200, 30);
+  assert.equal(totalOf("Fresh film"), 0);
+});
