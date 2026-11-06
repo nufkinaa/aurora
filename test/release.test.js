@@ -30,8 +30,8 @@ test("options: required, refused combinations, defaults", () => {
   const o = R.parseArgs([...base, "--branches", "a, b,,c", "--trailer", "X: 1", "--trailer", "Y: 2", "--date", "2026-11-06"]);
   assert.deepEqual(o.branches, ["a", "b", "c"]);
   assert.deepEqual(o.trailers, ["X: 1", "Y: 2"]);
-  assert.equal(o.tagIt, false, "a server-only release is not tagged by default");
-  assert.equal(R.parseArgs([...base, "--tv", "--tv-notes", "n"]).tagIt, true, "an app release is tagged");
+  assert.equal(o.tagIt, true, "every release is tagged by default (the tag is what nufurora installs)");
+  assert.equal(R.parseArgs([...base, "--no-tag"]).tagIt, false);
   assert.equal(R.parseArgs([...base, "--tag"]).tagIt, true);
   assert.equal(R.parseArgs([...base, "--tv", "--tv-notes", "n", "--no-tag"]).tagIt, false);
   assert.equal(R.parseArgs([...base, "--version=1.2.4"]).version, "1.2.4");
@@ -116,6 +116,38 @@ test("redaction: secrets as whole tokens and URL credentials never reach the out
     for (const v of ["adm-PW-1", "env-PW-2", "store-PW-3", "key-PW-4"]) assert.ok(s.includes(v), v);
     assert.ok(!s.includes("aurora.keystore") && !s.includes("aurora"), "file names and aliases are not secrets");
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("test output: counts and the failing tests' files", () => {
+  const tap = [
+    "# Subtest: a",
+    "ok 1 - a",
+    "# Subtest: blur + fmt=webp",
+    "not ok 2 - blur + fmt=webp",
+    "  ---",
+    "  location: 'C:\\\\work\\\\rel\\\\test\\\\imgvariant.test.js:204:1'",
+    "  failureType: 'testCodeFailure'",
+    "  ...",
+    "not ok 3 - test/crashed.test.js",
+    "  ---",
+    "not ok 4 - no location here",
+    "ok 5 - after",
+    "  location: '/x/test/never.test.js:1:1'",
+    "# tests 5",
+    "# pass 2",
+    "# fail 3",
+    "# skipped 0",
+  ].join("\n");
+  assert.deepEqual(R.parseCounts(tap), { tests: 5, pass: 2, fail: 3, skipped: 0 });
+  assert.equal(R.parseCounts("nothing"), null);
+  const f = R.parseFailures(tap, "C:\\work\\rel");
+  assert.deepEqual(f.map((x) => x.name), ["blur + fmt=webp", "test/crashed.test.js", "no location here"]);
+  assert.equal(f[1].file, "test/crashed.test.js");
+  assert.equal(f[2].file, null, "a location after the next result is not taken");
+  if (process.platform === "win32") assert.equal(f[0].file, "test/imgvariant.test.js");
+  else assert.match(f[0].file, /imgvariant\.test\.js$/);
+  const posix = R.parseFailures("not ok 1 - x\n  location: '/home/u/rel/test/y.test.js:3:1'\n", "/home/u/rel");
+  if (process.platform !== "win32") assert.equal(posix[0].file, "test/y.test.js");
 });
 
 test("waiting for /healthz: the new version, not just an answer", async () => {
@@ -204,6 +236,12 @@ function sandbox() {
   gitIn(live, "add", "-A");
   gitIn(live, "commit", "-qm", "broken test");
   gitIn(live, "checkout", "-q", "master");
+  // flaky fails its first run only (a stand-in for a test that fails under load)
+  gitIn(live, "checkout", "-q", "-b", "flaky");
+  write(path.join(live, "test", "flaky.test.js"), `const fs=require("fs");const m=__dirname+"/../.flaky-ran";require("node:test")("flaky",()=>{if(!fs.existsSync(m)){fs.writeFileSync(m,"1");throw new Error("first run fails")}});\n`);
+  gitIn(live, "add", "-A");
+  gitIn(live, "commit", "-qm", "flaky test");
+  gitIn(live, "checkout", "-q", "master");
   gitIn(live, "worktree", "add", "-q", "--detach", repo);
   write(path.join(repo, "config.json"), JSON.stringify({ adminPassword: SECRET }));
   const notes = path.join(t, "notes.md");
@@ -242,7 +280,10 @@ test("sandbox: a dry run prints every step and changes nothing; the real run mer
     const real = runTool(s, ["--version", "1.0.1", "--branches", "a,b", "--notes-file", s.notes, "--tag", "--push", "--trailer", "Co-Authored-By: Test <t@t>"]);
     assert.equal(real.status, 0, real.out);
     assert.ok(!real.out.includes(SECRET), "the admin password printed by a test is masked");
-    assert.match(real.out, /pw is \*\*\*/);
+    const log = fs.readFileSync(path.join(s.t, "staging", "release-tests.log"), "utf8");
+    assert.match(log, /pw is \*\*\*/, "the test's output is kept in the staging log, masked");
+    assert.ok(!log.includes(SECRET));
+    assert.match(real.out, /\d+ tests: \d+ pass, 0 fail/);
     assert.match(real.out, /Running ALL/, "no map: the whole suite runs");
     const head = gitIn(s.remote, "rev-parse", "refs/heads/master");
     assert.equal(gitIn(s.remote, "rev-parse", "refs/tags/server-1.0.1-stable"), head);
@@ -280,7 +321,9 @@ test("sandbox: a merge conflict and a failing test each stop the release with no
 
     const red = runTool(s, ["--version", "1.0.1", "--branches", "a,broken", "--notes-file", s.notes, "--push", "--tag"]);
     assert.equal(red.status, 1, red.out);
-    assert.match(red.out, /STOPPED: the root tests failed\. The release commit is only on rel-1\.0\.1/);
+    assert.match(red.out, /not ok: broken  \(test\/broken\.test\.js\)/);
+    assert.match(red.out, /running test\/broken\.test\.js again, alone/);
+    assert.match(red.out, /STOPPED: root-tests: test\/broken\.test\.js failed again when run alone \(1 of 1\): a real failure\. The release commit is only on rel-1\.0\.1/);
     assert.equal(snapshot(s).remote, before.remote, "nothing pushed");
     assert.equal(snapshot(s).live, before.live, "the live tree did not move");
     assert.equal(gitIn(s.live, "tag", "-l", "server-*"), "", "no tag");
@@ -291,5 +334,23 @@ test("sandbox: a merge conflict and a failing test each stop the release with no
     const dirty = runTool(s, ["--version", "1.0.2", "--notes-file", s.notes]);
     assert.equal(dirty.status, 1);
     assert.match(dirty.out, /the release worktree has uncommitted changes/);
+  } finally { s.cleanup(); }
+});
+
+test("sandbox: a file that fails in the big run and passes alone is reported as flaky, and the release goes on", { timeout: 240000 }, () => {
+  const s = sandbox();
+  try {
+    const r = runTool(s, ["--version", "1.0.1", "--branches", "flaky", "--notes-file", s.notes, "--push", "--no-tag"]);
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /not ok: flaky  \(test\/flaky\.test\.js\)/);
+    assert.match(r.out, /FLAKY: test\/flaky\.test\.js failed in the big run and passed alone \(1 of 1\); going on/);
+    assert.match(r.out, /NOTE: flaky under load \(failed in the big run, passed alone\): test\/flaky\.test\.js/);
+    assert.equal(gitIn(s.remote, "log", "-1", "--format=%s", "refs/heads/master"), "1.0.1: sandbox release");
+    assert.equal(gitIn(s.remote, "tag", "-l"), "", "--no-tag: no tag");
+    // --no-retry: the same first failure stops it
+    fs.rmSync(path.join(s.repo, ".flaky-ran"), { force: true });
+    const strict = runTool(s, ["--version", "1.0.2", "--branches", "flaky", "--notes-file", s.notes, "--no-retry"]);
+    assert.equal(strict.status, 1, strict.out);
+    assert.match(strict.out, /STOPPED: root-tests: tests failed\./);
   } finally { s.cleanup(); }
 });

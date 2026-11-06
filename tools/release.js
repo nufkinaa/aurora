@@ -25,7 +25,8 @@
 //   10 tests        the release tests (test/phoneapp*.test.js, test/tvapp.test.js) and
 //                   the root tests the change can reach (tools/ci/ci-tests.js select)
 //   11 live         fast-forward the live tree's master to rel-<v>
-//   12 tag          server-<v>-stable (app releases, or --tag)
+//   12 tag          server-<v>-stable (every release unless --no-tag: nufurora's
+//                   auto-update installs tagged releases)
 //   13 push         (--push) master and the tag
 //   14 restart      (--restart) node scripts/keeper.js --restart in the live tree, wait for /healthz
 //   15 qa tv        (--qa-tv) a QA TV build (only http://127.0.0.1:4000, versionCode + N)
@@ -79,13 +80,17 @@ const USAGE = `usage: node tools/release.js --version X.Y.Z --notes-file notes.m
   --phone-notes "…"      phone-version.json "notes" (required with --phone)
   --summary "…"          the commit subject after "X.Y.Z[ / TV a][ / phone b]: " (default: from the notes)
   --trailer "…"          a line at the end of the commit message (repeatable)
-  --tag / --no-tag       tag server-X.Y.Z-stable (default: only for app releases)
+  --no-tag               do not tag server-X.Y.Z-stable (by default every release is tagged:
+                         the tag is what nufurora's auto-update installs in its stable mode)
+  --tag                  (the default; kept for scripts)
   --dry-run              read-only checks, then print every step instead of doing it
   --push                 push master and the tag
   --restart              restart the live server (keeper.js --restart) and wait for /healthz
   --qa-tv                build a QA TV variant and install it on the test TV (needs --tv)
   --no-ci-wait           after --push, do not watch the CI run
   --skip-tests           do not run tests (refused together with --push)
+  --no-retry             a failing test file is not run again alone (by default it is, once:
+                         passing alone it is reported as flaky and the release goes on)
 
   paths: --repo ${DEFAULTS.repo}  --live ${DEFAULTS.live}  --build-dir ${DEFAULTS.buildDir}
          --remote ${DEFAULTS.remote}  --sdk ${DEFAULTS.sdk}  --java-home <JAVA_HOME>
@@ -93,7 +98,7 @@ const USAGE = `usage: node tools/release.js --version X.Y.Z --notes-file notes.m
          --adb-target ${DEFAULTS.adbTarget}  --qa-bump ${DEFAULTS.qaBump}  --staging <dir>
          --date YYYY-MM-DD  --ci-poll-sec ${DEFAULTS.ciPollSec}  --ci-timeout-min ${DEFAULTS.ciTimeoutMin}`;
 
-const BOOL = new Set(["tv", "phone", "dry-run", "push", "restart", "qa-tv", "no-ci-wait", "skip-tests", "tag", "no-tag", "help"]);
+const BOOL = new Set(["tv", "phone", "dry-run", "push", "restart", "qa-tv", "no-ci-wait", "skip-tests", "no-retry", "tag", "no-tag", "help"]);
 const VALUE = new Set(["version", "branches", "notes-file", "tv-notes", "phone-notes", "summary", "trailer", "repo", "live", "build-dir", "remote", "sdk", "java-home", "map", "health-url", "adb-target", "qa-bump", "staging", "date", "ci-poll-sec", "ci-timeout-min", "health-timeout-sec"]);
 
 const camel = (s) => s.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
@@ -135,7 +140,7 @@ function parseArgs(argv, defaults = DEFAULTS) {
   if (o.date && !/^\d{4}-\d{2}-\d{2}$/.test(o.date)) return { error: "--date must be YYYY-MM-DD" };
   for (const b of o.branches) if (!/^[A-Za-z0-9._\/-]+$/.test(b)) return { error: `branch name "${b}" has characters this tool does not accept` };
   o.date = o.date || localDate();
-  o.tagIt = o.noTag ? false : o.tag ? true : !!(o.tv || o.phone);
+  o.tagIt = !o.noTag;
   return o;
 }
 
@@ -236,6 +241,38 @@ const parseDumpsysVersionCode = (out) => {
   const m = String(out).match(/versionCode=(\d+)/);
   return m ? Number(m[1]) : null;
 };
+
+// PURE: node --test's summary → { tests, pass, fail, skipped } (the last summary in the output).
+function parseCounts(out) {
+  const get = (k) => { const m = [...String(out).matchAll(new RegExp(`^\\s*# ${k} (\\d+)\\s*$`, "gm"))].pop(); return m ? Number(m[1]) : null; };
+  const tests = get("tests");
+  if (tests == null) return null;
+  return { tests, pass: get("pass") || 0, fail: get("fail") || 0, skipped: get("skipped") || 0 };
+}
+
+// PURE: node --test's TAP → the failing tests, each with the test file it is in
+// (from its "location:" line, or a file-level "not ok … test/x.test.js").
+function parseFailures(out, root = null) {
+  const lines = String(out).split(/\r?\n/);
+  const found = [];
+  const rel = (f) => {
+    let p = f.replace(/\\\\/g, "\\").replace(/^file:\/\/\/?/, "");
+    if (root) { const r = path.relative(root, p); if (r && !r.startsWith("..") && !path.isAbsolute(r)) p = r; }
+    return p.replace(/\\/g, "/");
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^\s*not ok \d+ - (.*)$/);
+    if (!m) continue;
+    let file = /\.test\.js$/.test(m[1].trim()) ? m[1].trim() : null;
+    for (let j = i + 1; j < Math.min(lines.length, i + 20) && !file; j++) {
+      if (/^\s*(not )?ok \d+ - /.test(lines[j])) break;
+      const l = lines[j].match(/location:\s*'(.+?\.test\.js):\d+:\d+'/);
+      if (l) file = l[1];
+    }
+    found.push({ name: m[1].trim(), file: file ? rel(file) : null });
+  }
+  return found;
+}
 
 // PURE: the commit subject from the notes (first bold phrase, else the first line).
 function summaryFromNotes(entry) {
@@ -357,8 +394,7 @@ class Runner {
       const child = shell
         ? spawn([cmd, ...args].map(quoteWin).join(" "), { cwd, env, shell: true, windowsHide: true })
         : spawn(cmd, args, { cwd, env, windowsHide: true });
-      let out = "", err = "";
-      const sink = logFile ? fs.createWriteStream(logFile) : null;
+      let out = "", err = "", all = "";
       let pending = "";
       const echo = (chunk) => {
         if (!stream) return;
@@ -367,14 +403,15 @@ class Runner {
         pending = parts.pop();
         for (const p of parts) this.say(`    ${p}`);
       };
-      child.stdout.on("data", (d) => { const s = d.toString(); out += s; if (sink) sink.write(s); echo(s); });
-      child.stderr.on("data", (d) => { const s = d.toString(); err += s; if (sink) sink.write(s); echo(s); });
+      child.stdout.on("data", (d) => { const s = d.toString(); out += s; if (logFile) all += s; echo(s); });
+      child.stderr.on("data", (d) => { const s = d.toString(); err += s; if (logFile) all += s; echo(s); });
       const timer = setTimeout(() => { try { child.kill(); } catch {} err += `\n(timed out after ${Math.round(timeoutMs / 1000)} s)`; }, timeoutMs);
       child.on("error", (e) => { err += String(e.message); });
       child.on("close", (code) => {
         clearTimeout(timer);
         if (pending && stream) this.say(`    ${pending}`);
-        if (sink) sink.end();
+        // (written once, redacted as a whole: a secret split across two chunks is still found)
+        if (logFile) { try { fs.writeFileSync(logFile, this.redact(all)); } catch {} }
         resolve({ status: okCodes.includes(code) ? 0 : code === null ? -1 : code, code, out, err });
       });
     });
@@ -429,7 +466,7 @@ async function release(o, deps = {}) {
   const env = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
   const javaEnv = { ...env, JAVA_HOME: o.javaHome };
   const notes = { file: o.notesFile };
-  const state = { mergedSha: null, apps: {}, pushed: false, liveMoved: false, tagged: false, committed: null };
+  const state = { mergedSha: null, apps: {}, pushed: false, liveMoved: false, tagged: false, committed: null, flaky: [] };
 
   x.say(`Aurora release ${v}${o.dryRun ? " (DRY RUN: only read-only checks run; every other step is printed)" : ""}`);
   x.say(`  release worktree ${o.repo}, live tree ${o.live}, remote ${o.remote}${apps.length ? `, build worktree ${o.buildDir}` : ""}`);
@@ -654,17 +691,38 @@ async function release(o, deps = {}) {
     const testDir = path.join(o.repo, "test");
     const list = () => { try { return fs.readdirSync(testDir); } catch { return []; } };
     const releaseTests = list().filter((f) => /^(phoneapp.*|tvapp)\.test\.js$/.test(f)).sort().map((f) => `test/${f}`);
+    if (!x.dry) fs.mkdirSync(staging, { recursive: true });
+    // A run's whole output goes to a log in the staging folder (redacted); the
+    // screen gets the counts and the failing tests. A file that fails in a big
+    // run is run again ALONE once (real-ffmpeg and timing tests can fail under
+    // load): passing alone, it is reported as flaky and the release goes on.
+    const testRun = async (label, cmd, args) => {
+      const log = path.join(staging, `${label}.log`);
+      const r = await x.run(cmd, args, { cwd: o.repo, logFile: x.dry ? null : log });
+      if (x.dry) return;
+      const c = parseCounts(r.out);
+      x.say(`    ${c ? `${c.tests} tests: ${c.pass} pass, ${c.fail} fail, ${c.skipped} skipped` : "no counts in the output"} (log: ${log})`);
+      if (r.status === 0) return;
+      const failures = parseFailures(r.out, o.repo);
+      for (const f of failures.slice(0, 15)) x.say(`    not ok: ${f.name}${f.file ? `  (${f.file})` : ""}`);
+      const files = [...new Set(failures.map((f) => f.file).filter(Boolean))];
+      if (o.noRetry || !files.length || files.length > 5) x.fail(`${label}: tests failed${files.length > 5 ? " (too many files to call it load)" : ""}. ${notPushed()}`);
+      x.say(`    running ${files.join(", ")} again, alone`);
+      const again = await x.run(process.execPath, ["--test", ...files], { cwd: o.repo, logFile: path.join(staging, `${label}-again.log`) });
+      const c2 = parseCounts(again.out);
+      if (again.status !== 0) x.fail(`${label}: ${files.join(", ")} failed again when run alone${c2 ? ` (${c2.fail} of ${c2.tests})` : ""}: a real failure. ${notPushed()}`);
+      x.say(`    FLAKY: ${files.join(", ")} failed in the big run and passed alone${c2 ? ` (${c2.pass} of ${c2.tests})` : ""}; going on`);
+      state.flaky.push(...files);
+    };
     if (releaseTests.length) {
       x.say("  release tests:");
-      const r = await x.run(process.execPath, ["--test", ...releaseTests], { cwd: o.repo, stream: true });
-      if (r.status !== 0) x.fail(`the release tests failed. ${notPushed()}`);
+      await testRun("release-tests", process.execPath, ["--test", ...releaseTests]);
     } else x.say("  (no release tests in this tree)");
     const selector = path.join(o.repo, "tools", "ci", "ci-tests.js");
     const selOut = path.join(os.tmpdir(), `aurora-release-tests-${process.pid}.txt`);
     if (!fs.existsSync(selector)) {
       x.say("  no tools/ci/ci-tests.js in this tree: running the whole root suite");
-      const r = await x.run(npmCmd, ["test"], { cwd: o.repo, stream: true });
-      if (r.status !== 0) x.fail(`the root tests failed. ${notPushed()}`);
+      await testRun("root-tests", npmCmd, ["test"]);
     } else {
       const mapArgs = o.map && o.map !== "none" ? ["--map", o.map] : [];
       x.say("  affected root tests:");
@@ -677,14 +735,12 @@ async function release(o, deps = {}) {
       else {
         const chosen = (fs.existsSync(selOut) ? fs.readFileSync(selOut, "utf8") : "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
         try { fs.rmSync(selOut, { force: true }); } catch {}
-        let r;
-        if (/^Running ALL/.test(first)) r = await x.run(npmCmd, ["test"], { cwd: o.repo, stream: true });
+        if (/^Running ALL/.test(first)) await testRun("root-tests", npmCmd, ["test"]);
         else {
           const rest = chosen.filter((t) => !releaseTests.includes(t));
-          if (!rest.length) { x.say("    nothing more to run"); r = { status: 0 }; }
-          else r = await x.run(process.execPath, ["--test", ...rest], { cwd: o.repo, stream: true });
+          if (!rest.length) x.say("    nothing more to run");
+          else await testRun("root-tests", process.execPath, ["--test", ...rest]);
         }
-        if (r.status !== 0) x.fail(`the root tests failed. ${notPushed()}`);
       }
     }
   }
@@ -700,7 +756,7 @@ async function release(o, deps = {}) {
   if (o.tagIt) {
     await must(await x.run("git", ["-C", o.repo, "tag", tag, rel]), `git tag ${tag}`);
     state.tagged = !x.dry;
-  } else x.say("  no tag (a server-only release; pass --tag to tag it, which also lets nufurora's auto-update in stable mode take it)");
+  } else x.say("  no tag (--no-tag): nufurora's auto-update in stable mode will not install this release");
 
   // ---------------------------------------------------------------- 13 push
   x.title("Push");
@@ -744,6 +800,7 @@ async function release(o, deps = {}) {
     }
   }
 
+  if (state.flaky.length) x.say(`\nNOTE: flaky under load (failed in the big run, passed alone): ${[...new Set(state.flaky)].join(", ")}`);
   x.say(`\n${x.dry ? "Dry run done: nothing was changed." : `Release ${v} done.`}`);
   return state;
 }
@@ -885,5 +942,5 @@ if (require.main === module) {
 module.exports = {
   parseArgs, changelogEntry, insertChangelog, updateVersionJson, parseAapt, parseApksigner, qaApiTs,
   setTvVersionCode, parseDumpsysVersionCode, summaryFromNotes, commitMessage, githubRepoOf, collectSecrets,
-  makeRedact, cmpVersion, waitHealth, watchCi, release, Runner, Stop, DEFAULTS, STABLE_TAG, REL_BRANCH,
+  makeRedact, cmpVersion, parseCounts, parseFailures, waitHealth, watchCi, release, Runner, Stop, DEFAULTS, STABLE_TAG, REL_BRANCH,
 };
