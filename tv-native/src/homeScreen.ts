@@ -316,6 +316,12 @@ export function clearHomeScreen() {
   lastRows = null;
   lastProfile = null;
   lastJobs = [];
+  // the person's "Tell me when it's ready" leaves with them (the next one's
+  // arrives with their settings: SessionWiring.tsx)
+  if (!personNotices) {
+    personNotices = true;
+    applyNotices();
+  }
   // native clear() also forgets what configure() stored and cancels the job
   native?.clear().catch(() => {});
 }
