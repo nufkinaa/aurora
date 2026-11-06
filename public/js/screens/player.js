@@ -5993,6 +5993,10 @@ export const renderPlayer = async (root, { id }) => {
     // no resume card for either)
     if (quietLoad || onAir()) {
       // nothing to resume
+    } else if (!usingTranscode && !restart && remoteStart && remoteStart.position > 0) {
+      // [play-on-tv] opened by a remote (Continue on this phone, Play on this
+      // computer): the second it was at wins over this profile's saved spot
+      video.currentTime = resumeAt;
     } else if (
       !usingTranscode &&
       !restart &&

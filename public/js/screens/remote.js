@@ -23,8 +23,8 @@ import { pushScope, popScope } from "../focus.js";
 import {
   getDevices, onDevices, onDeviceState, findDevice, watchDevice, command, devicesHeard,
   ensureRemoteCss, initRemote, deviceIcon, deviceLine, chooseDevice, playOn, ICONS, householdOn, listProblem,
-  continueHere, formOf, // [play-on-tv]
-} from "../remote.js";
+  continueHere, formOf,
+} from "../remote.js"; // [play-on-tv] continueHere, formOf
 import { PLAY_ON } from "../playOnWords.js"; // [play-on-tv]
 
 const LAST_KEY = "aurora-remote-last";

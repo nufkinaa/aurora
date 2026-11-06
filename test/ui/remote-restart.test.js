@@ -32,6 +32,7 @@ ui.test("a server restart: the TV and the phone find each other again, and the r
     await page.goto(`${srv.url}/#/movie/${lib.film1.id}`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector(".rm-playon:not([hidden])", { timeout: 20000 });
     await page.locator(".rm-playon").click();
+    await page.locator(".rm-sheet-wrap.on .rm-sheet-row", { hasText: "Living room TV" }).first().click(); // [play-on-tv] the one-press confirmation
     await page.waitForSelector('.remote-screen[data-state="playing"]');
     await until("watched", () => tv.watched);
     const connects = tv.connects;

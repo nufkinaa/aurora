@@ -166,7 +166,7 @@ onMessage("remote_ack", (d) => {
   if (!w) return;
   waiting.delete(d.id);
   clearTimeout(w.timer);
-  w.resolve({ ok: !!d.ok, error: d.error || null, message: d.message || null, ms: d.ms });
+  w.resolve({ ok: !!d.ok, error: d.error || null, message: d.message || null, status: d.status || null, ms: d.ms }); // [play-on-tv] status: playing / needs-pin / needs-password
 });
 /** -> Promise<{ok, error, message}> — never rejects */
 export const command = (deviceId_, cmd, args = {}) =>
