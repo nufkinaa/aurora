@@ -21,6 +21,7 @@ export default function MoreSheet() {
       uiId={e.uiId}
       icon={e.icon}
       title={e.label}
+      titleLines={4}
       detail={big ? undefined : e.detail}
       chevron={e.group === 'places'}
       onPress={() => {

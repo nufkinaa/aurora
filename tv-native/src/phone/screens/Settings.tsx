@@ -324,12 +324,12 @@ export default function Settings() {
             onPress={pickLimit}
           />
           <ListRow
-            title="Tidy up after watching"
+            title="Tidy up this phone after watching"
             detail="A saved episode leaves this phone a day after you finish it. Films stay."
             right={<Toggle value={offline.tidyAfter} onChange={v => setOff({tidyAfter: v})} />}
           />
           <ListRow
-            title="Keep the next episodes ready"
+            title="Keep the next episodes on this phone"
             detail={`While you watch a show, its next ${KEEP_NEXT} episodes are saved on this phone. On Wi-Fi only, never mobile data.`}
             right={<Toggle value={offline.keepNext} onChange={v => setOff({keepNext: v})} />}
           />

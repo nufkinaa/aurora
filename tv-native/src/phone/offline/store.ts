@@ -217,7 +217,8 @@ async function finish(it: Saved) {
     if (file) got.push({label: t.label, lang: t.lang, file});
   }
   put(it.id, {profileId: it.profileId, state: 'done', pct: 1, subs: got, savedAt: Date.now(), waitingWifi: false});
-  showToast(`“${label(it)}” is saved on this phone`, '📱');
+  // (keep-next's own saves arrive quietly: it is a background helper, the person did not tap)
+  if (!it.auto) showToast(`“${label(it)}” is saved on this phone`, '📱');
 }
 const label = (it: {title: string; showTitle?: string | null; season?: number | null; episode?: number | null}) =>
   it.showTitle && it.season != null && it.episode != null ? `${it.showTitle} · S${it.season} E${it.episode}` : it.title;

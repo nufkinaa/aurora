@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The phone app's window background: the app's night sky (src/phone/assets/sky.png, the same
+     picture ui/Sky.tsx draws), over the page colour. It is what shows in the cold-start moment
+     before React draws, so the first thing seen is the sky, not a plain dark page (elia,
+     2026-11-06). The navigator drops it once its own sky is up (perfTier dropWindowBackground). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/aurora_bg" />
+    <item>
+        <bitmap android:src="@drawable/phone_sky" android:gravity="fill" android:filter="true" />
+    </item>
+</layer-list>
