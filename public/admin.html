@@ -1671,6 +1671,59 @@
           .fp-foot .fp-del { width: 100%; min-height: 44px; }
         }
       </style>
+      <style>
+        /* "Free up space": what is safe to remove, chosen by hand (media/freespace.js) */
+        .fs-top { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 8px 2px 2px; }
+        .fs-line { flex: 1 1 260px; margin: 0; font-size: 0.92rem; line-height: 1.45; }
+        .fs-line b { font-weight: 700; }
+        .fs-body { margin-top: 8px; }
+        .fs-forecast { margin: 2px 2px 8px; color: var(--text-dim); font-size: 0.85rem; line-height: 1.45; }
+        .fs-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 4px 0 8px; }
+        .fs-days { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.86rem; color: var(--text-dim); flex: 1 1 auto; }
+        .fs-days input { max-width: 76px; flex: none; min-width: 0; text-align: center; }
+        .fs-h { font-size: 0.95rem; margin: 12px 0 2px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+        .fs-h .muted { font-weight: 400; font-size: 0.82rem; }
+        .fs-list { border-top: 1px solid rgba(255,255,255,0.06); max-height: 52vh; overflow: auto; }
+        .fs-list .fp-row { flex-wrap: wrap; }
+        .fs-list .fp-lab { flex: 1 1 260px; }
+        .fs-one { flex: none; }
+        .fs-one:disabled { opacity: 0.4; cursor: not-allowed; }
+        .fs-empty { color: var(--text-dim); font-size: 0.86rem; padding: 8px 4px; }
+        .fs-note { color: var(--text-faint); font-size: 0.8rem; margin: 8px 2px 0; line-height: 1.45; }
+        @media (max-width: 640px) {
+          .fs-top #fs-toggle { width: 100%; min-height: 36px; }
+          .fs-list .fp-lab { flex-basis: 100%; }
+          .fs-one { margin-left: 30px; min-height: 32px; }
+          .fs-foot .fp-del { width: 100%; min-height: 44px; }
+        }
+      </style>
+      <details class="more" data-more="d-free" id="fs-card" data-title="Free up space" data-sub="what is safe to remove: watched by everyone who started it, on nobody's My List, old enough — and extra copies" data-pill-id="fs-count">
+        <div class="more-body">
+          <div class="fs-top">
+            <p class="fs-line" id="fs-line" role="status">Looking for what is safe to remove…</p>
+            <button type="button" class="mini" id="fs-toggle" aria-expanded="false" aria-controls="fs-body">Details</button>
+          </div>
+          <div class="fs-body" id="fs-body" hidden>
+            <p class="fs-forecast" id="fs-forecast"></p>
+            <div class="fs-bar">
+              <label class="fs-days">Only what has been in the library at least
+                <input type="number" id="fs-days" min="0" max="3650" step="1" value="60" inputmode="numeric" aria-label="Days in the library, at least" /> days</label>
+              <button type="button" class="mini" id="fs-all">Select all</button>
+              <button type="button" class="mini" id="fs-none">Select none</button>
+            </div>
+            <div id="fs-result" class="fp-result hidden" role="status"></div>
+            <h3 class="fs-h">Watched by everyone who started it <span class="muted" id="fs-safe-sum"></span></h3>
+            <div class="fs-list" id="fs-safe"></div>
+            <h3 class="fs-h">Extra copies <span class="muted" id="fs-dup-sum"></span></h3>
+            <div class="fs-list" id="fs-dups"></div>
+            <div class="fp-foot fs-foot">
+              <span class="fp-total" id="fs-total" aria-live="polite"></span>
+              <button type="button" class="btn small btn-primary fp-del" id="fs-remove" disabled>Remove selected</button>
+            </div>
+            <p class="fs-note">Nothing is removed by itself. Each Remove asks once, for that item or for the ticked ones together. Files go for good; watch history is kept.</p>
+          </div>
+        </div>
+      </details>
       <details class="more hidden" data-more="d-copies" id="cp-card" data-title="More than one copy" data-sub="the same film or episode on disk more than once — keep one, delete the others" data-pill-id="cp-count" data-pill-class="warn">
         <div class="more-body">
           <div class="empty-note" id="cp-summary" style="font-size:0.88rem;padding:6px 4px 0"></div>
@@ -4894,13 +4947,15 @@
       const res = await json("/api/admin/disk");
       const disks = Array.isArray(res) ? res : res.disks || [];
       const minFreePct = Array.isArray(res) ? 0 : res.minFreePct || 0;
+      // "about 40 days until full at this week's pace" (media/diskforecast.js)
+      const fc = Array.isArray(res) ? null : res.forecast;
       // The headline number this page exists for (the ENOSPC lesson): free
       // space, always visible, red under 50GB.
       const minFree = disks.reduce((m, d) => (d.free != null && (m == null || d.free < m) ? d.free : m), null);
       if (minFree != null) {
         const low = minFree < 50e9;
         setHTML($("#disk-headline"),
-          `<b style="${low ? "color:#f87171" : ""}">${fmtBytes(minFree)} free</b>${disks.length > 1 ? " on the fullest drive" : ""}${low ? " — running low: On disk → Suggest what to delete" : ""}${minFreePct > 0 ? ` · downloads start by themselves above ${minFreePct}% free` : ""}`);
+          `<b style="${low ? "color:#f87171" : ""}">${fmtBytes(minFree)} free</b>${disks.length > 1 ? " on the fullest drive" : ""}${fc && fc.line ? ` · <span id="disk-forecast" title="${esc(fc.detail || "")}">${esc(fc.line)}</span>` : ""}${low ? " — running low: On disk → Suggest what to delete" : ""}${minFreePct > 0 ? ` · downloads start by themselves above ${minFreePct}% free` : ""}`);
       }
       const merged = [];
       for (const d of disks) {
@@ -5439,6 +5494,167 @@
       libRefresh();
     });
 
+    // ---------- free up space: what is SAFE to remove (media/freespace.js) ----------
+    // The server lists (GET /api/admin/library/freeup?days=N): titles every
+    // profile that started has finished, on nobody's My List, at least N days
+    // in the library — and the extra copies of a title held twice. Nothing is
+    // ticked at first and nothing goes without a yes: a row's Remove asks once
+    // for that row, "Remove N (X GB)" asks once for the ticked ones. The
+    // server checks every key again before it removes anything, through the
+    // same deletes as On disk and More than one copy.
+    let fsData = null;
+    const FS_DAYS_KEY = "aurora-admin-fs-days";
+    try { const v = localStorage.getItem(FS_DAYS_KEY); if (v != null && /^\d{1,4}$/.test(v)) $("#fs-days").value = v; } catch {}
+    const fsDays = () => { const n = parseInt($("#fs-days").value, 10); return n >= 0 && n <= 3650 ? n : 60; };
+    const fsChecks = () => [...document.querySelectorAll("#fs-card .fs-check")];
+    const fsChosen = () => fsChecks().filter((c) => c.checked && !c.disabled);
+    const fsRows = () => (fsData ? [...fsData.safe, ...fsData.duplicates] : []);
+    const fsRowOf = (key) => fsRows().find((r) => r.key === key);
+    const fsBusy = `<span class="pill live">▶ being watched</span>`;
+    const fsRow = (r) => {
+      const label = r.kind === "copy" ? `${esc(r.name)}${r.quality ? ` · ${esc(r.quality)}` : ""}` : esc(r.name);
+      const sub = r.kind === "copy" && r.fileName ? `<span class="fp-sub">${esc(r.fileName)}</span>` : "";
+      return `<div class="fp-row fs-row${r.inUse ? " fp-busy" : ""}" data-fs-key="${esc(r.key)}">
+        <label class="fp-lab">
+          <input type="checkbox" class="fs-check" data-key="${esc(r.key)}" data-size="${r.sizeBytes}" data-name="${esc(r.name)}"${r.inUse ? " disabled" : ""} />
+          ${libThumb(r.cover, r.kind === "movie" ? "🎬" : "📺")}
+          <span class="fp-text"><b>${label}</b>${sub}<span class="fp-why">${r.inUse ? `${fsBusy} right now — kept, and not counted · ` : ""}${esc(r.why)}</span></span>
+          <span class="fp-size">${fmtBytes(r.fileBytes)}</span>
+        </label>
+        <button type="button" class="mini danger fs-one" data-fs-one="${esc(r.key)}"${r.inUse ? " disabled" : ""} aria-label="Remove ${esc(r.name)}">Remove</button>
+      </div>`;
+    };
+    // the calm line: how much is safe to remove, and how long the disk lasts
+    const fsLine = (d) => {
+      const t = d.totals.all;
+      const f = d.forecast && d.forecast.line ? ` · ${esc(d.forecast.line)}` : "";
+      return t.count
+        ? `<b>${t.count} item${t.count === 1 ? "" : "s"} safe to remove — ${fmtBytes(t.bytes)}</b>${f}`
+        : `Nothing is safe to remove right now${d.days ? ` (in the library ${d.days}+ days)` : ""}${f}`;
+    };
+    function renderFreeSpace() {
+      const d = fsData;
+      if (!d) return;
+      setText($("#fs-count"), d.totals.all.count);
+      $("#fs-line").innerHTML = fsLine(d);
+      const f = d.forecast;
+      $("#fs-forecast").textContent = f ? `Forecast: ${f.line}. ${f.detail || ""}`.trim() : "Forecast: not measured.";
+      const sum = (t) => (t.count ? `${t.count} · ${fmtBytes(t.bytes)}` : "");
+      setText($("#fs-safe-sum"), sum(d.totals.safe));
+      setText($("#fs-dup-sum"), sum(d.totals.duplicates));
+      $("#fs-safe").innerHTML = d.safe.length ? d.safe.map(fsRow).join("")
+        : `<div class="fs-empty">Nothing yet: no title in the library ${d.days}+ days has been finished by everyone who started it while on nobody's My List.</div>`;
+      $("#fs-dups").innerHTML = d.duplicates.length ? d.duplicates.map(fsRow).join("")
+        : `<div class="fs-empty">No title is on the disk twice.</div>`;
+      $("#fs-all").disabled = $("#fs-none").disabled = d.totals.all.count === 0;
+      fsUpdate();
+    }
+    function fsUpdate() {
+      const chosen = fsChosen();
+      const bytes = chosen.reduce((n, c) => n + (+c.dataset.size || 0), 0);
+      setText($("#fs-total"), chosen.length ? `${chosen.length} ticked · ${fmtBytes(bytes)}` : "Nothing ticked");
+      const btn = $("#fs-remove");
+      if (!btn.dataset.busy) btn.textContent = chosen.length ? `Remove ${chosen.length} (${fmtBytes(bytes)})` : "Remove selected";
+      btn.disabled = chosen.length === 0 || !!btn.dataset.busy;
+    }
+    async function loadFreeSpace() {
+      let d = null;
+      try { d = await json(`/api/admin/library/freeup?days=${fsDays()}`); } catch { return; }
+      if (!d || !Array.isArray(d.safe) || !Array.isArray(d.duplicates)) {
+        $("#fs-line").textContent = (d && d.error) || "Could not read what is safe to remove.";
+        return;
+      }
+      // keep what was ticked, where it is still offered
+      const ticked = new Set(fsChosen().map((c) => c.dataset.key));
+      fsData = d;
+      renderFreeSpace();
+      for (const c of fsChecks()) if (ticked.has(c.dataset.key) && !c.disabled) c.checked = true;
+      fsUpdate();
+    }
+    // Remove these keys — after the one question has been answered yes.
+    async function fsRemove(keys) {
+      const btn = $("#fs-remove");
+      btn.dataset.busy = "1";
+      btn.disabled = true;
+      btn.textContent = `Removing ${keys.length}…`;
+      let res = null;
+      try {
+        const r = await adminFetch("/api/admin/library/freeup/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keys, days: fsDays() }) });
+        res = await r.json().catch(() => ({}));
+        if (!r.ok || res.error) throw new Error(res.error || "Remove failed");
+      } catch (err) {
+        delete btn.dataset.busy;
+        fsUpdate();
+        return toast(err.message);
+      }
+      delete btn.dataset.busy;
+      const done = res.deleted.length;
+      const skipped = res.skipped || [];
+      const head = done ? `Removed ${done} of ${keys.length} — ${fmtBytes(res.freedBytes)} freed.` : "Nothing was removed.";
+      const out = $("#fs-result");
+      out.classList.remove("hidden");
+      out.classList.toggle("fp-some", skipped.length > 0);
+      out.innerHTML = `<b>${esc(head)}</b>` + (skipped.length
+        ? ` ${skipped.length} kept:<ul>${skipped.map((x) => `<li>${esc(x.name || (fsRowOf(x.key) || {}).name || x.key)} — ${esc(x.why)}</li>`).join("")}</ul>`
+        : "");
+      toast(skipped.length ? `${head} ${skipped.length} kept` : head);
+      for (const c of fsChecks()) c.checked = false;
+      await loadFreeSpace();
+      libRefresh();
+    }
+    $("#fs-toggle").addEventListener("click", () => {
+      const b = $("#fs-toggle");
+      const open = b.getAttribute("aria-expanded") !== "true";
+      b.setAttribute("aria-expanded", String(open));
+      b.textContent = open ? "Hide details" : "Details";
+      $("#fs-body").hidden = !open;
+    });
+    $("#fs-days").addEventListener("change", () => {
+      try { localStorage.setItem(FS_DAYS_KEY, String(fsDays())); } catch {}
+      $("#fs-result").classList.add("hidden");
+      loadFreeSpace();
+    });
+    $("#fs-days").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); e.target.dispatchEvent(new Event("change")); } });
+    $("#fs-card").addEventListener("change", (e) => { if (e.target.closest(".fs-check")) fsUpdate(); });
+    $("#fs-all").addEventListener("click", () => { fsChecks().forEach((c) => { if (!c.disabled) c.checked = true; }); fsUpdate(); });
+    $("#fs-none").addEventListener("click", () => { fsChecks().forEach((c) => { c.checked = false; }); fsUpdate(); });
+    $("#fs-card").addEventListener("click", async (e) => {
+      const one = e.target.closest("[data-fs-one]");
+      if (!one) return;
+      const r = fsRowOf(one.dataset.fsOne);
+      if (!r || r.inUse) return;
+      const nEp = r.kind === "show" ? r.episodes.filter((x) => !x.inUse).length : 0;
+      const what = r.kind === "show" ? `${nEp} episode file${nEp === 1 ? "" : "s"} of "${r.name}"` : r.kind === "copy" ? `this extra copy of "${r.name}"` : `"${r.name}"`;
+      if (!await ask(`Remove ${what} — ${fmtBytes(r.sizeBytes)}?\n\nSafe because: ${r.why}.\n\nThe file${nEp > 1 ? "s are" : " is"} removed for good and this cannot be undone. Watch history is kept.`)) return;
+      one.disabled = true;
+      await fsRemove([r.key]);
+    });
+    $("#fs-remove").addEventListener("click", async () => {
+      const chosen = fsChosen();
+      if (!chosen.length) return;
+      const bytes = chosen.reduce((n, c) => n + (+c.dataset.size || 0), 0);
+      const n = chosen.length;
+      const list = chosen.slice(0, 8).map((c) => `• ${c.dataset.name} — ${fmtBytes(+c.dataset.size)}`).join("\n");
+      if (!await ask(`Remove ${n} item${n === 1 ? "" : "s"} — ${fmtBytes(bytes)}?\n\n${list}${n > 8 ? `\n…and ${n - 8} more` : ""}\n\nEach one is safe to remove (see why beside it). The files are removed for good and this cannot be undone. Watch history is kept.`)) return;
+      await fsRemove(chosen.map((c) => c.dataset.key));
+    });
+    // Copy for Claude: the forecast and every candidate with why, as plain text.
+    const freeSpaceText = async () => {
+      const d = await json(`/api/admin/library/freeup?days=${fsDays()}`);
+      const f = d.forecast || {};
+      const t = (d.totals && d.totals.all) || { count: 0, bytes: 0 };
+      return [
+        MD.list([["forecast", f.line || "not measured"], ["behind it", f.detail || ""],
+          ["free", d.disk && d.disk.free != null ? `${fmtBytes(d.disk.free)} of ${fmtBytes(d.disk.total)}` : "not measured"],
+          ["safe to remove", `${t.count} item${t.count === 1 ? "" : "s"}, ${fmtBytes(t.bytes)} (titles in the library at least ${d.days} days)`]]),
+        "\nWatched by everyone who started it, on nobody's My List:",
+        MD.table(["title", "size", "why it is safe"], (d.safe || []).map((r) => [r.name, fmtBytes(r.fileBytes), (r.inUse ? "BEING WATCHED NOW, kept · " : "") + r.why]), 40),
+        "\nExtra copies:",
+        MD.table(["title", "copy", "size", "why it is safe"], (d.duplicates || []).map((r) => [r.name, [r.quality, r.fileName].filter(Boolean).join(" · "), fmtBytes(r.fileBytes), (r.inUse ? "BEING WATCHED NOW, kept · " : "") + r.why]), 40),
+        "\nNothing is removed automatically; every removal is confirmed in the admin.",
+      ].join("\n");
+    };
+
     $("#lib-batch-delete").addEventListener("click", async () => {
       const checked = [...document.querySelectorAll(".lib-ep-check:checked")];
       if (!checked.length) return;
@@ -5962,6 +6178,10 @@
             "\n" + MD.table(["title", "for", "added", "state", "why"], (m.records || []).map((r) => [r.label, r.by || "", mlDay(r.addedAt), (ML_STATE[r.state] || [r.state])[0], r.why || ""]));
         },
       },
+      "d-free": {
+        load: () => loadFreeSpace(),
+        copy: () => freeSpaceText(),
+      },
       "d-disk": {
         load: () => { loadDisk(); loadLibraryTree(); },
         copy: async () => {
@@ -6336,7 +6556,7 @@
           } else if (data.type === "library_updated") {
             // A delete (possibly from another admin tab) changed the disk —
             // keep the ON DISK zone honest.
-            if (activeTab === "downloads") { if (isOpen("d-disk")) loadLibraryTree(); loadDisk(); loadCopies(); }
+            if (activeTab === "downloads") { if (isOpen("d-disk")) loadLibraryTree(); if (isOpen("d-free")) loadFreeSpace(); loadDisk(); loadCopies(); }
           }
         };
         ws.onclose = () => { conn(false); soonSummary(800); setTimeout(connectWs, 5000); };

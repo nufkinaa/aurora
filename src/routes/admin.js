@@ -129,7 +129,11 @@ router.get("/api/admin/disk", async (req, res) => {
     const s = await disk.space(root);
     out.push(s ? { root, free: s.free, total: s.total } : { root, free: null, total: null });
   }
-  res.json({ disks: out, minFreePct: config.DOWNLOAD_MIN_FREE_PERCENT });
+  // "about 40 days until full at this week's pace" for the fullest drive (media/diskforecast.js)
+  const minFree = out.reduce((m, d) => (d.free != null && (m == null || d.free < m) ? d.free : m), null);
+  let forecast = null;
+  try { forecast = require("../media/diskforecast").measure(minFree); } catch {}
+  res.json({ disks: out, minFreePct: config.DOWNLOAD_MIN_FREE_PERCENT, forecast });
 });
 
 // Every title with its on-disk size, for the "free up space" list.
@@ -360,23 +364,25 @@ router.get("/api/admin/library/copies", (req, res) => {
 // one of a title's copies right now. A copy someone is playing is refused;
 // the last copy on disk needs confirmLast. The download jobs that wrote it
 // go with it; watch history stays (it is per title).
-router.post("/api/admin/library/copies/delete", (req, res) => {
+// The delete itself, shared with "Free up space" below: { status, body } —
+// the answer the route sends. `rescan: false` leaves the rescan to the caller.
+const deleteCopy = (ref, confirmLast, { rescan = true } = {}) => {
   const copies = require("../media/copies");
-  const { ref, confirmLast } = req.body || {};
+  const R = (status, body) => ({ status, body });
   const where = copies.resolveRef(ref, config.LIBRARIES, config.VIDEO_EXTENSIONS);
   if (where.error) {
     console.warn(`[admin] copy delete refused (${where.error}): ${String(ref || "").slice(0, 200)}`);
-    return res.status(where.notFound ? 404 : 400).json({ error: where.error });
+    return R(where.notFound ? 404 : 400, { error: where.error });
   }
   const hit = copies.findCopy(where.abs);
   if (!hit) {
     console.warn(`[admin] copy delete refused (not a copy of a title with more than one): ${where.abs}`);
-    return res.status(409).json({ error: "This file is not one of several copies of a title any more — reload the list.", code: "not-a-copy" });
+    return R(409, { error: "This file is not one of several copies of a title any more — reload the list.", code: "not-a-copy" });
   }
   const may = copies.deletable(hit.grp, hit.copy, { confirmLast: confirmLast === true });
   if (!may.ok) {
     console.warn(`[admin] copy delete refused (${may.code}): ${where.abs}`);
-    return res.status(409).json({ error: may.error, code: may.code });
+    return R(409, { error: may.error, code: may.code });
   }
   const roots = [...config.LIBRARIES.movies, ...config.LIBRARIES.shows];
   let result;
@@ -385,7 +391,7 @@ router.post("/api/admin/library/copies/delete", (req, res) => {
   } catch (err) {
     const refusal = /outside the library/.test(err.message);
     console.warn(`[admin] copy delete failed: ${where.abs}: ${err.message}`);
-    return res.status(refusal ? 400 : 500).json({ error: refusal ? err.message : `Delete failed: ${err.message}` });
+    return R(refusal ? 400 : 500, { error: refusal ? err.message : `Delete failed: ${err.message}` });
   }
   // The jobs that wrote this file are history about a file that is gone.
   const downloads = require("../media/downloads");
@@ -393,10 +399,99 @@ router.post("/api/admin/library/copies/delete", (req, res) => {
   for (const j of hit.copy.jobs) {
     if (!downloads.remove(j.id).error) jobsRemoved.push(j.id);
   }
-  scanner.scan();
-  realtime.libraryUpdated();
+  if (rescan) {
+    scanner.scan();
+    realtime.libraryUpdated();
+  }
   console.log(`[admin] deleted copy of "${hit.grp.title}"${hit.grp.kind === "episode" ? ` S${hit.grp.season}E${hit.grp.episode}` : ""} → ${result.deleted.join(", ")} (${result.freedBytes} bytes)${hit.grp.files <= 1 ? " — it was the last copy" : ""}${jobsRemoved.length ? `; removed download ${jobsRemoved.join(", ")}` : ""}`);
-  res.json({ ok: true, ...result, jobsRemoved, wasLast: hit.grp.files <= 1 });
+  return R(200, { ok: true, ...result, jobsRemoved, wasLast: hit.grp.files <= 1 });
+};
+router.post("/api/admin/library/copies/delete", (req, res) => {
+  const { ref, confirmLast } = req.body || {};
+  const r = deleteCopy(ref, confirmLast);
+  res.status(r.status).json(r.body);
+});
+
+// ---------- "Free up space" (media/freespace.js + media/diskforecast.js) ----------
+// What is SAFE to remove, for the admin to choose from: titles everyone who
+// started has finished, on nobody's My List, at least `days` days in the
+// library — and the extra copies of a title held twice. With the disk
+// forecast, so one answer paints the section. Nothing is deleted here.
+router.get("/api/admin/library/freeup", async (req, res) => {
+  const freespace = require("../media/freespace");
+  const out = freespace.gather({ days: req.query.days });
+  const roots = [...new Set([...config.LIBRARIES.movies, ...config.LIBRARIES.shows])];
+  let free = null;
+  let total = null;
+  for (const root of roots) {
+    const s = await disk.space(root);
+    if (s && (free == null || s.free < free)) { free = s.free; total = s.total; }
+  }
+  let forecast = null;
+  try { forecast = require("../media/diskforecast").measure(free); } catch {}
+  res.json({ ...out, disk: { free, total }, forecast });
+});
+
+// Remove what the admin confirmed: { keys: [...], days }. Each key is removed
+// only if it is STILL on the safe list right now (for the same days) — a film
+// somebody started since, or put on their My List, is kept — and only
+// through the deletes the On disk and More-than-one-copy buttons use (a
+// film's folder, an episode's file, one extra copy). One rescan at the end.
+router.post("/api/admin/library/freeup/delete", async (req, res) => {
+  const raw = req.body && req.body.keys;
+  if (!Array.isArray(raw)) return res.status(400).json({ error: "keys must be a list" });
+  const keys = [...new Set(raw.filter((x) => typeof x === "string" && x && x.length <= 600))];
+  if (!keys.length) return res.status(400).json({ error: "Nothing was chosen." });
+  if (keys.length > 2000) return res.status(400).json({ error: "Too many at once" });
+  const freespace = require("../media/freespace");
+  const fresh = freespace.gather({ days: req.body.days });
+  const byKey = new Map([...fresh.safe, ...fresh.duplicates].map((r) => [r.key, r]));
+  const deleted = [];
+  const skipped = [];
+  let freedBytes = 0;
+  for (const key of keys) {
+    const row = byKey.get(key);
+    if (!row) {
+      skipped.push({ key, name: null, reason: "not-safe", why: "Not safe to remove any more — somebody started it, put it on My List, or it is gone. Reload the list." });
+      continue;
+    }
+    if (row.inUse) {
+      skipped.push({ key, name: row.name, reason: "in-use", why: "Being watched right now — kept" });
+      continue;
+    }
+    let bytes = 0;
+    let fail = null;
+    if (row.kind === "movie") {
+      const r = deleteLibraryTitle("movie", row.ids[0], { rescan: false });
+      if (r.status === 200) bytes = row.sizeBytes;
+      else fail = r;
+    } else if (row.kind === "show") {
+      let any = false;
+      for (const ep of row.episodes) {
+        if (ep.inUse) continue;
+        const r = await deleteLibraryFile(ep.id, { rescan: false });
+        if (r.status === 200) { any = true; bytes += typeof r.body.freedBytes === "number" ? r.body.freedBytes : ep.sizeBytes; }
+        else fail = fail || r;
+      }
+      if (any) fail = null;
+    } else if (row.kind === "copy") {
+      const r = deleteCopy(row.ref, false, { rescan: false });
+      if (r.status === 200) bytes = typeof r.body.freedBytes === "number" ? r.body.freedBytes : row.sizeBytes;
+      else fail = r;
+    }
+    if (fail) {
+      skipped.push({ key, name: row.name, reason: fail.status === 409 ? "in-use" : "failed", why: (fail.body && fail.body.error) || "Delete failed" });
+    } else {
+      freedBytes += bytes;
+      deleted.push({ key, name: row.name, sizeBytes: bytes });
+    }
+  }
+  if (deleted.length) {
+    scanner.scan();
+    realtime.libraryUpdated();
+  }
+  console.log(`[admin] free up space: removed ${deleted.length} of ${keys.length} (${freedBytes} bytes)${skipped.length ? `; kept ${skipped.map((x) => `${x.key} (${x.reason})`).join(", ")}` : ""}`);
+  res.json({ ok: true, deleted, skipped, freedBytes });
 });
 
 // ---------- left over from My List downloads (media/mylistdl.js) ----------
