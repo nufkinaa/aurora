@@ -24,6 +24,21 @@ import { showReportSheet } from "../report.js";
 export const ROUND = "1.15.7";
 const NEW_FROM = ROUND;
 const FEATURES = [
+  // ---- downloads-next (2026-11-06): the same cards, the same words, on the TV ----
+  {
+    since: ROUND, cue: "tap", glyph: "🎧",
+    title: "Checked for the right language",
+    what: "When a copy you reported as Wrong language arrives, Aurora reads its sound tracks first. If it is in the wrong language again, it is not swapped in and the next version is fetched. If the copy doesn't say its language, it is swapped in and Aurora tells you so.",
+    how: "In the player: Report a problem → Problem with this copy → Wrong language. The new copy is checked before it replaces yours.",
+    go: { label: "My downloads", to: "#/downloads" },
+  },
+  {
+    since: ROUND, cue: "tap", glyph: "🔔",
+    title: "Tell me when it's ready",
+    what: "When something you asked for has downloaded, Aurora says so on the website, the TV and the phone. Switch it off once and it is off on every device you use.",
+    how: "Settings → More settings → Downloads → Tell me when it's ready. For a notification with Aurora closed, also switch on Notifications on this device.",
+    go: { label: "Open Preferences", to: "#/preferences" },
+  },
   // ---- Niso's reports (2026-11-02): the same cards, the same words, on the TV ----
   {
     since: ROUND, cue: "tap", glyph: "⏹️",

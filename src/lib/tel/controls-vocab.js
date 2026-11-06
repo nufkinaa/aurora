@@ -240,6 +240,7 @@ module.exports = {
   "settings.look": "w",
   "settings.notices": "t",
   "settings.party": "tp",
+  "settings.ready": "tp", // Tell me when it's ready (the person's; the site's is settings.toggle)
   "settings.report": "tp",
   "settings.rows.hide": "w",
   "settings.signout": "tp",

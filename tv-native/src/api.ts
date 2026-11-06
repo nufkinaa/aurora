@@ -673,6 +673,11 @@ export type MyDownload = DownloadJob & {
   retryAt?: string | null;
   heldBack?: {since: string; for: string} | null;
   etaSec?: number | null;
+  // "Tell me when it's ready" (readyNotice.ts): what is said when it lands,
+  // and what the language check found — the server's sentences, the same as
+  // the website's (null / absent on an older server)
+  readyLine?: string | null;
+  langLine?: string | null;
 };
 
 // "Problem with this copy? → Get another version" (src/routes/replace.js).

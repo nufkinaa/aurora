@@ -101,6 +101,7 @@ const SEGMENTS = new Set((
   "air airplay " + // AirPlay links (/air/:token/stream/…, /api/airplay/link, /stream/airplay/:id/…)
   "stores accept ack drill encoding calibrate " +
   "copies delete " + // /api/admin/library/copies, …/copies/delete (media/copies.js)
+  "freeup " + // admin "Free up space": /api/admin/library/freeup, …/freeup/delete (media/freespace.js)
   "replace replacements " + // "Get another version" (/api/replace/:id, …/sources, …/cancel, /api/admin/replacements)
   "js screens vendor ws " +
   "household sent " + // recommendations between the people of the household (/api/profiles/:id/household, …/sent, /recommend/people)

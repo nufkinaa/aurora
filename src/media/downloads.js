@@ -42,6 +42,8 @@ const badreleases = require("./badreleases");
 const dlhealth = require("./dlhealth");
 const dlprio = require("./dlprio");
 const dlfallback = require("./dlfallback");
+const langcheck = require("./langcheck");
+const copylang = require("./copylang");
 
 const store = new JsonStore(path.join(config.DATA_DIR, "downloads.json"), []);
 
@@ -109,7 +111,7 @@ const seams = {
   // only a clear "this is not a video" from ffprobe counts against a copy.
   probe: (file) => new Promise((resolve) => {
     if (!config.ffmpegAvailable || !config.FFPROBE) return resolve(null);
-    require("child_process").execFile(config.FFPROBE, ["-v", "error", "-show_entries", "format=duration:stream=codec_type", "-of", "json", file],
+    require("child_process").execFile(config.FFPROBE, ["-v", "error", "-show_entries", "format=duration:stream=codec_type:stream_tags=language,title", "-of", "json", file],
       { encoding: "utf-8", timeout: 60000, windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
         if (err) {
           if (err.killed || err.signal) return resolve(null);
@@ -118,12 +120,43 @@ const seams = {
         try {
           const j = JSON.parse(stdout || "{}");
           const streams = j.streams || [];
-          resolve({ video: streams.some((x) => x.codec_type === "video"), duration: Number(j.format && j.format.duration) || 0, invalid: false });
+          resolve({
+            video: streams.some((x) => x.codec_type === "video"), duration: Number(j.format && j.format.duration) || 0, invalid: false,
+            // each audio track's language tag and title (the language check, media/langcheck.js)
+            audio: streams.filter((x) => x.codec_type === "audio").map((x) => ({ language: (x.tags && x.tags.language) || null, title: (x.tags && x.tags.title) || null })),
+          });
         } catch { resolve(null); }
       });
   }),
   // a hard link instead of a copy into the library (same volume, not Windows)
   link: process.platform !== "win32",
+  // The language check (media/langcheck.js): the audio language a person last
+  // picked in a player (their profile's prefs.audioLang), and a title's
+  // original language (TMDB: cached, else asked once, briefly — no answer
+  // means the check for an ordinary download is simply not made).
+  personLang: (who) => {
+    try {
+      const p = require("../profiles").list().find((x) => x.id === who || x.name === who);
+      return (p && p.prefs && p.prefs.audioLang) || null;
+    } catch { return null; }
+  },
+  originalLanguage: async (job) => {
+    if (!job.imdbId) return null;
+    const discover = require("./discover");
+    const kind = job.type === "show" ? "series" : "movie";
+    const known = discover.metaCached(kind, job.imdbId);
+    if (known) return known.originalLanguage || null;
+    const meta = await Promise.race([discover.meta(kind, job.imdbId).catch(() => null), new Promise((r) => { const t = setTimeout(() => r(null), 2500); t.unref?.(); })]);
+    return (meta && meta.originalLanguage) || null;
+  },
+  // does this person want to hear when a download of theirs lands (Settings →
+  // "Tell me when a download is ready", prefs.readyNotice; on unless switched off)
+  readyNotice: (who) => {
+    try {
+      const p = require("../profiles").list().find((x) => x.id === who || x.name === who);
+      return !(p && p.prefs && p.prefs.readyNotice === false);
+    } catch { return true; }
+  },
 };
 const later = (fn, ms) => { if (seams.auto) { const t = setTimeout(fn, ms); t.unref?.(); } };
 
@@ -252,7 +285,27 @@ const publicJob = (j) => ({
   retryAt: j.status === "approved" && j.retryAt ? j.retryAt : null,
   // Time left at the speed it has had lately (seconds), null when unknown.
   etaSec: j.status === "downloading" && Number.isFinite(j.etaSec) ? j.etaSec : null,
+  // ---- "tell me when it's ready" + the language check ----
+  // The sentences every client says when a download lands, from here so the
+  // website, the TV and the phone say the same: `readyLine` ("“Film” is ready
+  // to watch") and, when the language check has something to say, `langLine`
+  // ("This copy doesn't say its language — report it again if it's wrong.").
+  readyLine: j.status === "done" ? readyLineOf(j) : null,
+  langLine: j.status === "done" ? langLineOf(j) : null,
 });
+// What the person is told when it lands (publicJob readyLine).
+const readyLineOf = (j) => {
+  const name = String(j.label || j.title || "").replace(/ — another version$/, "");
+  return j.replaces ? `The new version of “${name}” is in — ready to watch` : `“${name}” is ready to watch`;
+};
+// What the language check found, when it is worth saying (publicJob langLine).
+const langLineOf = (j) => {
+  const c = j.langCheck;
+  if (!c) return null;
+  if (c.verdict === "unknown" && isLanguageReplace(j)) return langcheck.UNKNOWN_LINE;
+  if (c.verdict === "kept" && (c.has || []).length && (c.want || []).length) return langcheck.lines.keptWrong(c.has, c.want);
+  return null;
+};
 
 // The requester opened the finished file: the "ready to play" nudge for it
 // goes away on every device of theirs. Only the requester can clear it.
@@ -1618,6 +1671,7 @@ const claimWin = (job, rec, att, file, engineStatus) => {
     if (e && e.quiet) return;
     // the bytes are all there and they are not the film: the next copy
     if (e && e.fakeFile && active.get(job.id) === rec) return switchNow(job, rec, { kind: "fake", why: e.message });
+    if (e && e.wrongLanguage && active.get(job.id) === rec) return switchNow(job, rec, { kind: "language", why: e.message, lead: e.lead });
     fail(job, errText(e));
   });
   return true;
@@ -1637,8 +1691,14 @@ const completeJob = async (job, rec, file, engineStatus) => {
   // Is it a film at all? A copy whose bytes are all there can still be a
   // fake (random bytes, a renamed sample): ffprobe says, before anything
   // lands in the library (dlfallback.checkProbe).
-  const bad = dlfallback.checkProbe(await seams.probe(file.path), job, file.length);
+  const facts = await seams.probe(file.path);
+  const bad = dlfallback.checkProbe(facts, job, file.length);
   if (bad) throw Object.assign(new Error(bad), { fakeFile: true });
+  if (active.get(job.id) !== rec) throw Object.assign(new Error("stopped before it was copied"), { quiet: true });
+  // Is it in the language it was fetched for? (media/langcheck.js) A copy
+  // that clearly is not goes no further: the next copy.
+  const lang = await languageGate(job, facts);
+  if (lang) throw Object.assign(new Error(lang.why), { wrongLanguage: true, lead: lang.lead });
   if (active.get(job.id) !== rec) throw Object.assign(new Error("stopped before it was copied"), { quiet: true });
 
   job.phase = "copying";
@@ -2213,10 +2273,104 @@ const excludeFor = (job) => {
 };
 const acceptFor = (job) => {
   const r = job.replaces;
-  if (!r) return null;
+  const fit = job.langFit ? { wanted: job.langFit.want || [], wrong: job.langFit.wrong || [] } : null;
+  if (!r && !fit) return null;
   const rk = badreleases._internals.relKey;
-  const old = r.oldRelease ? rk(r.oldRelease) : null;
-  return (s) => !(old && s.release && rk(s.release) === old);
+  const old = r && r.oldRelease ? rk(r.oldRelease) : null;
+  // a copy whose NAME says it is in a language not wanted is not tried
+  // (media/copylang.js judge: "same" as the copy given up on, or "other")
+  return (s) => !(old && s.release && rk(s.release) === old) && !(fit && ["same", "other"].includes(copylang.judge(s, fit)));
+};
+// The next copy for a job, from a fresh source list. A job looking for a
+// language (`langFit`) takes a copy whose name says that language first.
+const pickNext = (job, streams, oldHash) => {
+  const args = {
+    job, tried: triedSet(job), exclude: excludeFor(job), live: otherSources(job.id), accept: acceptFor(job),
+    original: { dubbed: false, hardsub: false, ...((streams || []).find((x) => sameHash(x.infoHash, oldHash)) || {}) },
+  };
+  if (job.langFit) {
+    const fit = { wanted: job.langFit.want || [], wrong: job.langFit.wrong || [] };
+    const right = (streams || []).filter((s) => copylang.judge(s, fit) === "right");
+    if (right.length) {
+      const first = dlfallback.chooseFallback({ ...args, streams: right });
+      if (first.source) return first;
+    }
+  }
+  return dlfallback.chooseFallback({ ...args, streams: streams || [] });
+};
+
+// ---------- the language check (media/langcheck.js) ----------
+// What a job's copy should be in: { want, wrong } (ISO 639-1 codes), or null
+// when nothing is asked of it.
+//   "Wrong language" (media/replace.js) - what the request said: the person's
+//     language and the title's own, not the language of the copy replaced
+//   any other download - the language the person last picked in a player and
+//     the title's original language (a Hebrew speaker's English film in
+//     English is right), only when both are known
+const uniqLangs = (list) => [...new Set(list.map((x) => require("../lib/lang").iso1(x)).filter(Boolean))];
+const isLanguageReplace = (job) => !!(job.replaces && job.replaces.reason === "language");
+const langWish = async (job) => {
+  if (job.langFit) return job.langFit;
+  if (isLanguageReplace(job)) {
+    const r = job.replaces;
+    if (r.lang) return { want: uniqLangs(r.lang.want || []), wrong: uniqLangs(r.lang.wrong || []) };
+    // (a request from before the check stored what it was after)
+    let original = null;
+    try { original = await seams.originalLanguage(job); } catch {}
+    return { want: uniqLangs([seams.personLang(r.by), original]), wrong: [] };
+  }
+  const mine = job.profile ? seams.personLang(job.profile) : null;
+  if (!require("../lib/lang").iso1(mine)) return null;
+  let original = null;
+  try { original = await seams.originalLanguage(job); } catch {}
+  if (!original) return null;
+  return { want: uniqLangs([mine, original]), wrong: [] };
+};
+// Called with the finished file's ffprobe facts, before it lands. -> null (it
+// lands) or { why, lead } (it does not: the next copy). What was found is kept
+// on the job (`langCheck`) for the line the person is told (publicJob
+// langLine).
+//   "Wrong language" replacement: right -> swap; wrong -> the next copy;
+//     unknown (untagged audio) -> swap, and the person is told so plainly.
+//   any other download: only when its tracks say their language; wrong ->
+//     the next copy, or - when there is no other copy to try - it lands as it
+//     is and says so (a whole download thrown away for nothing is worse).
+const languageGate = async (job, facts) => {
+  const audio = facts && Array.isArray(facts.audio) ? facts.audio : null;
+  const replace = isLanguageReplace(job);
+  if (!replace && !(audio && audio.some((t) => langcheck.trackLangs(t).length))) return null;
+  const wish = await langWish(job);
+  if (!wish || (!wish.want.length && !wish.wrong.length)) {
+    if (replace) job.langCheck = { verdict: "unknown", has: [], want: [] };
+    return null;
+  }
+  const v = langcheck.verdict({ audio, release: job.release, want: wish.want, wrong: wish.wrong });
+  console.log(`[download] ${job.id.slice(0, 6)} language check: ${v.verdict} (has ${v.has.join(",") || "nothing tagged"}; wants ${wish.want.join(",") || "-"}${wish.wrong.length ? `; not ${wish.wrong.join(",")}` : ""})`);
+  if (v.verdict !== "wrong") {
+    job.langCheck = { verdict: v.verdict, has: v.has, want: wish.want };
+    return null;
+  }
+  const next = { want: wish.want, wrong: uniqLangs([...wish.wrong, ...v.has]) };
+  if (!replace) {
+    // is there another copy to try? None: it lands as it is.
+    const was = job.langFit;
+    job.langFit = next;
+    let pick = null;
+    if ((job.tried || []).length + 1 < dlfallback.MAX_SOURCES) {
+      try {
+        const found = await seams.findSources(job);
+        pick = pickNext({ ...job, tried: [...(job.tried || []), { h: lc(job.infoHash) }] }, (found && found.streams) || [], job.infoHash);
+      } catch { pick = null; }
+    }
+    if (!pick || !pick.source) {
+      if (was) job.langFit = was; else delete job.langFit;
+      job.langCheck = { verdict: "kept", has: v.has, want: wish.want };
+      return null;
+    }
+  }
+  job.langFit = next;
+  job.langCheck = { verdict: "wrong", has: v.has, want: wish.want };
+  return { why: `its sound is in ${langcheck._internals.list(v.has, "and")}`, lead: langcheck.lines.lead(v.has, wish.want) };
 };
 // A source as the job carries it.
 const asSource = (s) => {
@@ -2232,11 +2386,14 @@ const LEADS = {
   dead: "No one was sharing that copy",
   fake: "That copy was fake or broken",
   failed: "That copy failed",
+  language: "That copy was in the wrong language",
 };
 // Give up on the job's copy and move to the next one — inside its running
 // slot, so it keeps its place. `kind`: "dead" (nobody sharing it), "fake"
-// (not the film, or damaged), "failed" (the engine gave up on it).
-const switchSource = async (job, rec, { kind, why }) => {
+// (not the film, or damaged), "failed" (the engine gave up on it), "language"
+// (its sound is not in the language wanted: media/langcheck.js; `lead` says
+// which).
+const switchSource = async (job, rec, { kind, why, lead }) => {
   if (rec.switching || active.get(job.id) !== rec) return;
   rec.switching = true;
   const old = rec.main;
@@ -2244,10 +2401,11 @@ const switchSource = async (job, rec, { kind, why }) => {
     const key = dlrace.titleKey(job);
     const wall = seams.wall();
     // 1. what is remembered about the copy that let this title down
-    remember(job, old.infoHash, kind === "dead" ? "stalled" : "failed");
+    // (a copy in another language downloaded fine: nothing against its source)
+    if (kind !== "language") remember(job, old.infoHash, kind === "dead" ? "stalled" : "failed");
     if (key) {
       try {
-        badreleases.record(key, { infoHash: old.infoHash, release: job.release || old.src.release || null, reason: kind === "dead" ? "dead" : "fake", auto: true, byName: "Aurora" }, wall);
+        badreleases.record(key, { infoHash: old.infoHash, release: job.release || old.src.release || null, reason: kind === "dead" ? "dead" : kind === "language" ? "language" : "fake", auto: true, byName: "Aurora" }, wall);
       } catch (e) { console.warn("[download] could not file the copy:", errText(e)); }
     }
     const tried = (job.tried || []).filter((x) => !sameHash(x.h, old.infoHash));
@@ -2276,10 +2434,7 @@ const switchSource = async (job, rec, { kind, why }) => {
       try { found = await seams.findSources(job); } catch (e) { found = null; pick = { source: null, reason: `the list of copies could not be fetched (${errText(e)})` }; }
       if (active.get(job.id) !== rec || job.status !== "downloading") return;
       if (found) {
-        pick = dlfallback.chooseFallback({
-          job, streams: (found && found.streams) || [], tried: triedSet(job), exclude: excludeFor(job),
-          live: otherSources(job.id), accept: acceptFor(job), original: { dubbed: false, hardsub: false, ...((found.streams || []).find((x) => sameHash(x.infoHash, old.infoHash)) || {}) },
-        });
+        pick = pickNext(job, (found && found.streams) || [], old.infoHash);
       }
     }
     if (!pick || !pick.source) {
@@ -2307,7 +2462,7 @@ const switchSource = async (job, rec, { kind, why }) => {
     job.peers = 0;
     job.etaSec = null;
     job.health = { state: "starting", code: "finding", why: null, countsAsRunning: true, since: isoAt(wall) };
-    job.fallbackNote = `${LEADS[kind] || LEADS.failed} — now trying another${sourceDesc(src) ? ` (${sourceDesc(src)})` : ""}`;
+    job.fallbackNote = `${lead || LEADS[kind] || LEADS.failed} — now trying another${sourceDesc(src) ? ` (${sourceDesc(src)})` : ""}`;
     job.note = job.fallbackNote;
     store.save();
     broadcast(job);
@@ -2336,6 +2491,12 @@ const waitAndRetry = (job, rec, reason) => {
   job.retries = (job.retries || 0) + 1;
   const n = (job.tried || []).length;
   const copies = `${n} cop${n === 1 ? "y" : "ies"}`;
+  // Every copy tried was in the wrong language (media/langcheck.js): trying
+  // them again later would only fetch the same files again.
+  if (n && !(job.shelved || []).length && (job.tried || []).every((x) => x.kind === "language")) {
+    job.fallbackNote = null;
+    return fail(job, langcheck.lines.none((job.langFit && job.langFit.want) || [], n));
+  }
   if (job.retries > max) {
     const since = Date.parse(job.firstStartedAt || job.approvedAt || job.at) || seams.wall();
     job.fallbackNote = null;
@@ -2346,9 +2507,11 @@ const waitAndRetry = (job, rec, reason) => {
       : `It would not download — tried ${copies} over ${over} (last: ${last.why || last.kind}). Try again later.`);
   }
   // what to try when the time comes
+  // (a copy found in the wrong language is never tried again: it would be
+  // the same file)
   const pool = [
     ...(job.shelved || []).slice().sort((a, b) => (b.bytes || 0) - (a.bytes || 0)).map((x) => ({ ...x, fileIdx: x.fileIdx || 0 })),
-    ...(job.tried || []).filter((x) => !(job.shelved || []).some((y) => sameHash(y.infoHash, x.h))).map((x) => ({
+    ...(job.tried || []).filter((x) => x.kind !== "language" && !(job.shelved || []).some((y) => sameHash(y.infoHash, x.h))).map((x) => ({
       infoHash: x.h, fileIdx: x.fileIdx || 0, quality: x.q, sizeBytes: x.size, provider: x.provider, seeders: x.seeders, release: x.rel,
     })),
   ];
@@ -2619,14 +2782,22 @@ const finish = async (job, destPath) => {
   tellReplace(job);
   if (job.replaces) notify.send("Aurora: copy replaced", `"${job.label || job.title}" — ${job.replaces.byName || "someone"} replaced the copy (${job.replaces.reasonLabel || job.replaces.reason}).`);
   else notify.send("Aurora: download ready", `"${job.label || job.title}" is downloaded and in the library.`);
-  // …and the person who asked for it (or whose follow / smart download
-  // fetched it) hears on the devices where they switched notifications on.
-  for (const who of [job.profile, ...(job.also || [])].filter(Boolean)) {
+  // …and the person who asked for it hears on the devices where they switched
+  // notifications on — unless they said no under Settings ("Tell me when a
+  // download is ready", prefs.readyNotice). A smart download nobody asked for
+  // stays quiet, as it does in the apps. What the language check found is
+  // said either way (langLine).
+  const langLine = langLineOf(job);
+  const askers = [...new Set([...(job.smart ? [] : [job.profile]), ...(job.also || [])].filter(Boolean))];
+  for (const who of askers) {
+    const ready = seams.readyNotice(who);
+    if (!ready && !langLine) continue;
     try {
       const libId = scanner.idForPath(destPath);
+      const base = job.replaces ? "The new version is in — ready to watch." : "Downloaded and ready to watch.";
       require("../lib/push").send(who, {
         title: job.type === "show" && job.season ? `${job.title} · S${job.season} E${job.episode}` : job.title,
-        body: job.replaces ? "The new version is in — ready to watch." : "Downloaded and ready to watch.",
+        body: ready ? (langLine ? `${base} ${langLine}` : base) : langLine,
         url: libId ? `/#/play/${libId}` : "/#/downloads",
         tag: `dl-${job.id}`,
       });

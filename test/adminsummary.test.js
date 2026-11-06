@@ -113,3 +113,11 @@ test("missing inputs are not faults: an empty read still answers Everything work
   assert.equal(s.areas.length, 5);
   assert.equal(s.areas.find((a) => a.id === "disk").line, "not measured");
 });
+
+test("the Disk line carries the forecast's few words (media/diskforecast.js), and only when there are some", () => {
+  const line = (forecast) => decide(calm({ forecast })).areas.find((a) => a.id === "disk").line;
+  assert.equal(line({ state: "filling", short: "about 40 days until full" }), "812 GB free · about 40 days until full");
+  assert.equal(line({ state: "flat", short: "no growth this week" }), "812 GB free · no growth this week");
+  assert.equal(line({ state: "short-history", short: "" }), "812 GB free");
+  assert.equal(line(null), "812 GB free");
+});

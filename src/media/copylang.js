@@ -63,6 +63,11 @@ const namedIn = (line) => {
   return out;
 };
 
+// The language words in a short free text — an audio track's title ("Russian
+// Dub", "English 5.1", "Hebrew AC3"): every word counts, the three-letter ones
+// too (a track title has no film title in front to be mistaken for).
+const wordsIn = (text) => uniq(String(text || "").toLowerCase().split(/[^a-z]+/).map((w) => WORDS[w]).filter(Boolean));
+
 // Every language a source's name and flags say it has, as ISO 639-1 codes.
 const languagesOf = (s) => {
   if (!s) return [];
@@ -140,4 +145,4 @@ const arrange = (streams, fit) => {
   return { streams: list, hidden, note };
 };
 
-module.exports = { languagesOf, fitFor, judge, arrange, nameOf };
+module.exports = { languagesOf, fitFor, judge, arrange, nameOf, namesOf, wordsIn };

@@ -166,7 +166,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 286 ids: 187 on the website
 | row | `row.arrow` | – | – |
 | saved | `saved.play` `saved.remove` | – | – |
 | search | `search.clear` | – | `search.recent.pick` `search.suggestion.pick` `search.voice` `search.voice.lang` `search.retry` |
-| settings | `settings.accent` `settings.done` `settings.link` `settings.look` `settings.rows.hide` `settings.theme` `settings.toggle` | `settings.audio.dialogue` `settings.audio.night` `settings.autoplay` `settings.av.fps` `settings.av.surround` `settings.downloads` `settings.genre` `settings.notices` `settings.party` `settings.report` `settings.signout` `settings.taste` `settings.subs.auto` `settings.subs.bg` `settings.subs.color` `settings.subs.lang` `settings.subs.opacity` `settings.subs.pos` `settings.subs.size` `settings.subs.weight` `settings.trailers` `settings.tvname` `settings.tvname.pick` `settings.update` `settings.usagestats` `settings.whatsnew` `settings.hh.sent` `settings.hh.toggle` | `settings.hh.mute` |
+| settings | `settings.accent` `settings.done` `settings.link` `settings.look` `settings.rows.hide` `settings.theme` `settings.toggle` | `settings.audio.dialogue` `settings.audio.night` `settings.autoplay` `settings.av.fps` `settings.av.surround` `settings.downloads` `settings.genre` `settings.notices` `settings.party` `settings.ready` `settings.report` `settings.signout` `settings.taste` `settings.subs.auto` `settings.subs.bg` `settings.subs.color` `settings.subs.lang` `settings.subs.opacity` `settings.subs.pos` `settings.subs.size` `settings.subs.weight` `settings.trailers` `settings.tvname` `settings.tvname.pick` `settings.update` `settings.usagestats` `settings.whatsnew` `settings.hh.sent` `settings.hh.toggle` | `settings.hh.mute` |
 | taste | `taste.back` `taste.edit` `taste.key` `taste.swipe` `taste.unnope` | – | `taste.done` `taste.love` `taste.more` `taste.nope` `taste.skip` `taste.undo` |
 | signin | `signin.getapps` | `signin.mode.google` `signin.submit` | – |
 | state | – | `state.action` | – |
@@ -196,7 +196,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 286 ids: 187 on the website
 | recommend | – | `recommend.close` `recommend.send` |
 | report | – | `report.send` |
 | search | – | `search.recent.pick` `search.retry` `search.suggestion.pick` `search.voice` `search.voice.lang` |
-| settings | – | `settings.autoplay` `settings.downloads` `settings.genre` `settings.hh.mute` `settings.hh.sent` `settings.hh.toggle` `settings.party` `settings.report` `settings.signout` `settings.subs.auto` `settings.subs.lang` `settings.update` `settings.usagestats` |
+| settings | – | `settings.autoplay` `settings.downloads` `settings.genre` `settings.hh.mute` `settings.hh.sent` `settings.hh.toggle` `settings.party` `settings.ready` `settings.report` `settings.signout` `settings.subs.auto` `settings.subs.lang` `settings.update` `settings.usagestats` |
 | signin | `signin.mode.qr` `signin.mode.typed` | `signin.submit` |
 | update | – | `update.install` `update.later` |
 

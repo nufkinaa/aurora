@@ -44,6 +44,7 @@ import TvNamePicker, {useTvName} from '../remote/TvNamePicker'; // [phone-remote
 import {HouseholdSettings} from '../api'; // [household]
 import {nameWord, WORDS as HH} from '../householdRecs'; // [household]
 import {householdChanged} from '../householdLive'; // [household]
+import {READY_LABEL, READY_NOTE} from '../readyNotice';
 
 const {colors, fontSize, spacing, radius} = theme;
 
@@ -506,6 +507,13 @@ export default function Settings({
         )}
         <Text style={styles.h2}>Notifications</Text>
         <View style={styles.list}>
+          {/* the person's (follows them to the website and the phone) */}
+          <Row uiId="settings.ready"
+            label={READY_LABEL}
+            note={READY_NOTE}
+            value={prefs.readyNotice ? 'On' : 'Off'}
+            onPress={() => set('readyNotice', !prefs.readyNotice)}
+          />
           <Row uiId="settings.notices"
             label="Tell me when a download lands (TV notification)"
             note={

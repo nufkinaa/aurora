@@ -170,6 +170,8 @@ export type Prefs = {
   // fetched by a follow / smart download) lands. The native side keeps its own
   // copy (DownloadNotices.kt) for the background job, which has no JS.
   downloadNotices: boolean;
+  // "Tell me when it's ready" — the PERSON's (personPrefs.ts), the box's copy
+  readyNotice: boolean;
   // Whether lastSub* has ever been written. Without this, `null` for "the viewer
   // chose off" is indistinguishable from `null` for "fresh install", and a fresh
   // install would come up with subtitles off — the opposite of subsDefault.
@@ -207,6 +209,7 @@ export const PREFS_DEFAULTS: Prefs = {
   heroTrailers: true,
   usageStats: true,
   downloadNotices: true,
+  readyNotice: true,
   matchFrameRate: 'auto',
   surround: 'auto',
 };

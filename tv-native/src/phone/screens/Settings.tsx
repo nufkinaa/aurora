@@ -37,6 +37,7 @@ import {OFFLINE_QUALITIES, offlinePrefs, setOfflinePrefs, useOfflineUsage} from 
 import {colors, GUTTER} from '../theme';
 
 import {checkNow, running} from '../update/store';
+import {READY_LABEL, READY_NOTE} from '../../readyNotice';
 // the installed package's own version (the truth), the source's constant if it cannot be read
 const PHONE_VERSION = running().versionName;
 
@@ -292,6 +293,8 @@ export default function Settings() {
         </Section>
 
         <Section icon="bell" title="Notifications">
+          {/* the person's (follows them to the website and the TV) */}
+          <ListRow uiId="settings.ready" title={READY_LABEL} detail={READY_NOTE} right={<Toggle value={prefs.readyNotice !== false} onChange={v => set('readyNotice', v)} />} />
           <ListRow
             title="Tell me when a download lands"
             detail={notifyNote || 'When something you asked for or follow has downloaded, this phone says so.'}
