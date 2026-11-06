@@ -7,6 +7,9 @@
 //   node tools/ci/ci-tests.js select [--map f] [--base sha] [--head sha] [--out list.txt]
 //        In GitHub Actions everything comes from the environment (see `fromActions`);
 //        locally, --base/--head pick the range (default HEAD^..HEAD).
+//   node tools/ci/ci-tests.js changed --match tv-native/ [--match …] [--base sha] [--head sha]
+//        Says (run=true|false in $GITHUB_OUTPUT) whether anything under those paths
+//        changed in the same range; any doubt says run=true. Gates the tv-native job.
 //   node tools/ci/ci-tests.js simulate [--map f] [--count 30] [--full-ms 130000]
 //        Replays the last N first-parent commits through the selector.
 const fs = require("fs");
@@ -238,6 +241,48 @@ async function cmdSelect(args, env) {
   return result;
 }
 
+// Does this run need a job that only cares about some paths (the tv-native job:
+// `--match tv-native/ --match .github/workflows/`)? The same range as the root
+// tests: the last green run on a push, the base on a pull request. The nightly
+// run compares with the last green run as well (it would otherwise rerun an
+// unchanged app every night). A tag, a run by hand, a re-run, or any doubt
+// (no green base, git failing) runs the job.
+const matchesAny = (p, prefixes) => prefixes.some((m) => (m.endsWith("/") ? p.startsWith(m) : p === m || p.startsWith(`${m}/`)));
+
+async function decideChanged({ prefixes, env, base, head }) {
+  let ctx;
+  if (base || !env.GITHUB_ACTIONS) ctx = { base: base || "HEAD^", head: head || "HEAD", note: "given range" };
+  else if (env.GITHUB_EVENT_NAME === "schedule") {
+    const g = await lastGreen(env);
+    ctx = g.sha ? { base: g.sha, head: "HEAD", note: g.note } : { force: `${g.note}: no safe base to compare with` };
+  } else ctx = await fromActions(env);
+  if (ctx.force) return { run: true, reason: ctx.force, matched: [] };
+  let changes;
+  try { changes = changedFiles(ctx.base, ctx.head); } catch (e) {
+    return { run: true, reason: `git could not compare ${short(ctx.base)}..${ctx.head} (${e.message.split("\n")[0]})`, matched: [] };
+  }
+  const matched = changes.map((c) => c.path).filter((p) => matchesAny(p, prefixes));
+  const sha = (r) => { try { return short(git("rev-parse", r)); } catch { return short(r); } };
+  const range = `${sha(ctx.base)}..${sha(ctx.head)} (${ctx.note})`;
+  return matched.length
+    ? { run: true, reason: `${matched.length} changed file(s) under ${prefixes.join(" or ")} in ${range}`, matched }
+    : { run: false, reason: `nothing under ${prefixes.join(" or ")} changed in ${range}`, matched };
+}
+
+async function cmdChanged(args, env) {
+  const prefixes = args.map((a, i) => (args[i - 1] === "--match" ? a : null)).filter(Boolean);
+  if (!prefixes.length) throw new Error("changed: give at least one --match <path prefix>");
+  const r = await decideChanged({ prefixes, env, base: arg(args, "--base"), head: arg(args, "--head") });
+  const line = `${r.run ? "Running" : "Skipping"}: ${r.reason}`;
+  console.log(line);
+  for (const p of r.matched.slice(0, 20)) console.log(`  ${p}`);
+  if (r.matched.length > 20) console.log(`  … ${r.matched.length - 20} more`);
+  if (env.GITHUB_OUTPUT) fs.appendFileSync(env.GITHUB_OUTPUT, `run=${r.run}\n`);
+  if (env.GITHUB_STEP_SUMMARY) fs.appendFileSync(env.GITHUB_STEP_SUMMARY, `### ${line}\n`);
+  if (env.GITHUB_ACTIONS) console.log(`::notice title=${r.run ? "Running" : "Skipped"}::${r.reason.replace(/[\r\n]+/g, " ")}`);
+  return r;
+}
+
 function cmdSimulate(args) {
   const map = readMap(arg(args, "--map"));
   const count = Number(arg(args, "--count", "30"));
@@ -270,6 +315,13 @@ if (require.main === module) {
       if (env.GITHUB_STEP_SUMMARY) fs.appendFileSync(env.GITHUB_STEP_SUMMARY, `### Running ALL ${files.length} test files: the test chooser failed (${String(e && e.message).split("\n")[0]})\n`);
       if (env.GITHUB_ACTIONS) console.log(`::warning title=Test chooser failed::running everything (${String(e && e.message).split("\n")[0]})`);
     });
+  } else if (cmd === "changed") {
+    // A bug here must never skip the job: any error runs it.
+    cmdChanged(args, process.env).catch((e) => {
+      console.error(e);
+      if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, "run=true\n");
+      if (process.env.GITHUB_ACTIONS) console.log(`::warning title=Change check failed::running the job (${String(e && e.message).split("\n")[0]})`);
+    });
   } else if (cmd === "simulate") {
     const { rows, total, fullMs } = cmdSimulate(args);
     let sumTests = 0, sumShare = 0;
@@ -281,9 +333,9 @@ if (require.main === module) {
     }
     console.log(`\n${rows.length} commits: ${sumTests} test-file runs instead of ${rows.length * total} (${Math.round((100 * sumTests) / (rows.length * total))}%), about ${Math.round((100 * sumShare) / rows.length)}% of the test time${fullMs ? ` (~${(sumShare * fullMs / 60000).toFixed(1)} min instead of ${(rows.length * fullMs / 60000).toFixed(1)} per Node version)` : ""}`);
   } else {
-    console.error("usage: ci-tests.js select|simulate [options]");
+    console.error("usage: ci-tests.js select|changed|simulate [options]");
     process.exit(2);
   }
 }
 
-module.exports = { mergeChanges, widenForMap, versionOnly, changedFiles, fromActions, lastGreen, report, testFiles, cmdSimulate, wantsFull };
+module.exports = { mergeChanges, widenForMap, versionOnly, changedFiles, fromActions, lastGreen, report, testFiles, cmdSimulate, wantsFull, matchesAny, decideChanged };
