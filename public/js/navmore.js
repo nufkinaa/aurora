@@ -51,6 +51,8 @@ export const MORE_ACTIONS = [
   ["party", "Join a watch party", "aurora-join-party", ICON.party],
   ["report", "Report a problem", "aurora-report", ICON.report],
 ];
+// each line's data-ui id, written out (the controls contract reads literals)
+const TAG = { new: "more.new", saved: "more.saved", downloads: "more.downloads", remote: "more.remote", household: "more.household", wrapped: "more.wrapped", taste: "more.taste", pick: "more.pick", settings: "more.settings", apps: "more.apps", pair: "more.pair", party: "more.party", report: "more.report" }; // data-ui
 // the screens that light the More tab while they are open
 const MORE_ROUTES = [...MORE_PLACES, ...MORE_ACTIONS].map(([, , to]) => to).filter((to) => to.startsWith("#/"));
 
@@ -75,7 +77,7 @@ const row = ([id, words, to, icon], here) => {
   const sub = id === "remote" ? tvLine() : null;
   const attrs = {
     class: "nav-more-item focusable" + (to.startsWith("#/") && here.startsWith(to) ? " active" : "") + (sub ? " live" : ""),
-    "data-ui": `more.${id}`,
+    "data-ui": TAG[id],
     "data-more": id,
   };
   const body = [
