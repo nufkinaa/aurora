@@ -18,6 +18,21 @@ import {setTabBarShown} from './ui/tabBarShown';
 import Sky from './ui/Sky';
 import PhoneOverlays from './Overlays';
 import {useLinks} from './links';
+import {setPlayingOffline} from './offline/store';
+import {keepNextAfter} from './offline/keepNext';
+
+// A player opened: the saved copy on screen is never tidied away under the person, and
+// keep-next (off unless turned on) looks at what comes after the episode. Once per screen.
+let lastPlayKey: string | null = null;
+function onPlayRoute(r: {key: string; name: string; params?: object}) {
+  const p = (r.params || {}) as {id?: string; stream?: unknown};
+  setPlayingOffline(r.name === 'OfflinePlayer' ? p.id || null : null);
+  if (r.name !== 'Player' && r.name !== 'OfflinePlayer') return;
+  if (r.key === lastPlayKey) return;
+  lastPlayKey = r.key;
+  // (a torrent stream has no library id: nothing on the server to save from)
+  if (p.id && !p.stream && !String(p.id).startsWith('torrent|') && !String(p.id).startsWith('stream|')) keepNextAfter(p.id);
+}
 
 export type PhoneStackParamList = RootStackParamList & {
   Remote: undefined;
@@ -46,6 +61,7 @@ const SCREENS = {
   Taste: () => require('./screens/Taste').default,
   TasteList: () => require('./screens/Taste').TasteList,
   Wrapped: () => require('./screens/Wrapped').default,
+  Pick: () => require('./screens/Pick').default,
 } as const;
 
 // evaluated one at a time after Home has had its first seconds (the TV's warmScreens)
@@ -99,6 +115,7 @@ export default function PhoneNavigator() {
           routeStarted(`phone:${r.name.toLowerCase()}`, r.key);
           frameScreen(r.name.toLowerCase());
           setRoute(r.name);
+          onPlayRoute(r);
         }}>
         <Stack.Navigator
           screenOptions={{
@@ -129,6 +146,7 @@ export default function PhoneNavigator() {
           <Stack.Screen name="Taste" getComponent={SCREENS.Taste} />
           <Stack.Screen name="TasteList" getComponent={SCREENS.TasteList} />
           <Stack.Screen name="Wrapped" getComponent={SCREENS.Wrapped} />
+          <Stack.Screen name="Pick" getComponent={SCREENS.Pick} />
           <Stack.Screen
             name="OfflinePlayer"
             getComponent={SCREENS.OfflinePlayer}

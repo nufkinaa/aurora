@@ -35,6 +35,9 @@ const PROFILE: Record<string, string[]> = {
   'phone/tabs.ts': ['current'],
   // [android-phone] the profile's TVs, as the remote sees them
   'phone/remote/controller.ts': ['devices', 'household', 'watchId'],
+  // [phone-nav] AI pick: whether this profile has the recommender, and its last answer
+  'phone/aiStatus.ts': ['known', 'asking'],
+  'phone/screens/Pick.tsx': ['last'],
   'prefetch.ts': ['profileId', 'idleTimer', 'idleRest', 'warmedSections', 'dwell'],
   'realtime.ts': ['identity', 'lastActivity', 'lastLibraryMsg'],
   // [phone-remote] this TV as the profile's target (device_leave when the profile is left)
@@ -56,13 +59,18 @@ const DEVICE: Record<string, Record<string, string>> = {
     items: 'the copies saved on this phone — each tagged with its profile, and a profile is shown only its own',
     loaded: 'a flag: the list has been read from storage',
     subs: 'listeners',
-    prefs: 'this phone’s saving choices (quality, Wi-Fi only)',
+    prefs: 'this phone’s saving choices (quality, Wi-Fi only, where, the space limit, tidy-up, keep-next)',
     ticker: 'a timer (DownloadManager progress)',
     hevc: 'what this phone decodes',
     space: 'this phone’s free space',
     playedChain: 'one write at a time to the queue of offline watch time (each entry is tagged with its profile)',
     flushingPlayed: 'a flag: the queue is being sent',
+    playing: 'the saved copy on screen now (never tidied away under the person)',
+    tidying: 'a flag: a tidy-up pass is running (it works over every profile’s copies, each tagged with its profile)',
+    tidyTimer: 'a timer (the hourly tidy-up)',
   },
+  'phone/offline/keepNext.ts': {busy: 'shows being looked at this moment (one pass per show at a time)'},
+  'phone/navigation.tsx': {lastPlayKey: 'the player screen last looked at (a route key, once per screen)'},
   'phone/remote/controller.ts': {
     remoteId: 'this phone, as a remote (the same for every profile on it)',
     heard: 'a flag: the server has answered since the socket opened',
@@ -97,6 +105,7 @@ const DEVICE: Record<string, Record<string, string>> = {
   },
   'phone/auth/state.ts': {setupFor: 'which profile a sign-in just said has no password yet (keyed by that profile id; read by the set-a-password screen)'},
   'passRules.ts': {COMMON: 'a constant (the common passwords the strength hint calls weak)'},
+  'phone/moreMenu.ts': {open: 'whether the More sheet is up (the screen’s; every line closes it first)', subs: 'listeners (the More sheet, the tab bar)'},
   'phone/profileMenu.ts': {switchFn: "the app's one handler (AppContext's switchProfile)", nameOf: "the app's one handler (reads the current profile's name)", open: 'whether the menu panel is up (the screen’s; every line closes it first)', subs: 'listeners (the menu panel)'},
   'party.ts': {deviceId: 'this TV, as a party member (person + device)', clockOffset: "the server's clock as this box sees it", samples: 'the clock pings behind it', rejoining: 'a rejoin in flight (the party itself is the profile’s and is left with it)'},
   'api.ts': {

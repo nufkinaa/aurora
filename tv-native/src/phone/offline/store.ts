@@ -14,6 +14,11 @@
 // the profile that saved it — a profile is shown its own copies only (a kids
 // profile never sees a grown-up's). Progress made while offline is queued and
 // sent when the server answers again (flushOfflineProgress).
+//
+// The storage choices (offline/storage.ts has the rules): where new copies go (this
+// phone or its SD card), a space limit (full: offer to remove the oldest watched copy),
+// tidy up after watching (a saved episode goes a day after it is finished — off unless
+// turned on), and keep-next (offline/keepNext.ts — off unless turned on).
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {AppState, NativeModules, Platform} from 'react-native';
 import {PHONE_APP_VERSION} from '../../update';
@@ -21,6 +26,7 @@ import {useEffect, useState} from 'react';
 import {api, getActiveProfile, getBaseUrl, mediaHeaders} from '../../api';
 import {showToast} from '../../toast';
 import {ACTIVE_STATES, fromNative, JobState, noRoomText, OfflineQuality, Option, pickOption, roomFor} from './rules';
+import {dueForTidy, finishedFrom, FINISHED_AT, GB, makeRoom, STORAGE_DEFAULTS, StoragePrefs, Volume} from './storage';
 
 export {OFFLINE_QUALITIES} from './rules';
 
@@ -33,6 +39,8 @@ type Native = {
   exists(path: string): Promise<boolean>;
   space(): Promise<{free: number; used: number}>;
   network(): Promise<'wifi' | 'cellular' | 'other' | 'none'>;
+  volumes?(): Promise<Volume[]>;
+  setVolume?(path: string | null): Promise<string | null>;
 };
 const N = (NativeModules as {AuroraOffline?: Native}).AuroraOffline;
 
@@ -61,6 +69,8 @@ export type Saved = {
   at: number;
   savedAt?: number;
   position?: number; // where it was left, on this phone
+  finishedAt?: number | null; // when it was finished (here, or as the server tells it) — tidy-up counts from it
+  auto?: boolean; // saved by keep-next, not by a tap
 };
 export type SaveItem = {
   id: string;
@@ -82,7 +92,8 @@ const PROGRESS_KEY = 'aurora.offline.progress';
 let items: Saved[] = [];
 let loaded = false;
 const subs = new Set<(l: Saved[]) => void>();
-let prefs: {quality: OfflineQuality; wifiOnly: boolean} = {quality: 'ask', wifiOnly: false};
+export type OfflinePrefs = {quality: OfflineQuality; wifiOnly: boolean} & StoragePrefs;
+let prefs: OfflinePrefs = {quality: 'ask', wifiOnly: false, ...STORAGE_DEFAULTS};
 let ticker: ReturnType<typeof setTimeout> | null = null;
 let hevc: boolean | null = null;
 let space = {free: 0, used: 0};
@@ -109,14 +120,27 @@ const ready = (async () => {
   } catch {}
   loaded = true;
   for (const fn of [...subs]) fn(items);
+  if (prefs.volume) N?.setVolume?.(prefs.volume).catch(() => null);
   tick();
+  tidyUp();
 })();
 
 export const offlineAvailable = () => !!N;
 export const offlinePrefs = () => prefs;
-export const setOfflinePrefs = (p: {quality: OfflineQuality; wifiOnly: boolean}) => {
-  prefs = p;
-  AsyncStorage.setItem(PREFS_KEY, JSON.stringify(p)).catch(() => {});
+export const setOfflinePrefs = (p: Partial<OfflinePrefs>) => {
+  const was = prefs;
+  prefs = {...prefs, ...p};
+  AsyncStorage.setItem(PREFS_KEY, JSON.stringify(prefs)).catch(() => {});
+  if (p.volume !== undefined && p.volume !== was.volume) N?.setVolume?.(prefs.volume).catch(() => null);
+  if (p.tidyAfter && !was.tidyAfter) tidyUp();
+};
+/** Where copies can go (the phone's own storage first, then an SD card), with their room. */
+export const listVolumes = async (): Promise<Volume[]> => {
+  try {
+    return (await N?.volumes?.()) || [];
+  } catch {
+    return [];
+  }
 };
 const mine = () => items.filter(x => x.profileId === getActiveProfile());
 export const listOffline = () => mine();
@@ -146,7 +170,7 @@ export function useOfflineUsage() {
       .catch(() => {});
   }, [l.length]);
   const done = l.filter(x => x.state === 'done');
-  return {count: done.length, bytes: done.reduce((n, x) => n + (x.sizeBytes || 0), 0), free: sp.free};
+  return {count: done.length, bytes: done.reduce((n, x) => n + (x.sizeBytes || 0), 0), free: sp.free, limitGb: prefs.limitGb};
 }
 
 // ---- the DownloadManager side ----
@@ -174,6 +198,7 @@ AppState.addEventListener('change', s => {
   if (s === 'active') {
     tick();
     flushOfflineProgress();
+    tidyUp();
   }
 });
 
@@ -210,28 +235,57 @@ const canHevc = async () => {
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
+export type SaveResult = 'started' | 'already' | 'stopped' | 'full' | 'failed';
+export type SaveOpts = {
+  /** keep-next: no questions (the quality given, a full limit skips it), Wi-Fi only, no toasts */
+  auto?: {quality: OfflineQuality};
+  /** one of many (a whole season): no "Saving …" toast of its own */
+  quiet?: boolean;
+  /** asked when the space limit is full and watched copies could make room: resolve true to
+   *  remove them and save, false to stop (choose.ts confirmRoom) */
+  confirmRoom?: (remove: Saved[], limitGb: number) => Promise<boolean>;
+};
+
+const say = (o: SaveOpts | undefined, text: string, glyph: string) => {
+  if (!o?.auto) showToast(text, glyph);
+};
+
 /**
  * Save one library item to the phone. `choose` is asked when the person's quality is
  * "Ask each time" (a sheet with the sizes); resolve null to stop.
  */
-export async function saveOffline(item: SaveItem, choose: (options: Option[]) => Promise<string | null>): Promise<void> {
+export async function saveOffline(item: SaveItem, choose: (options: Option[]) => Promise<string | null>, o?: SaveOpts): Promise<SaveResult> {
   await ready;
   const profileId = getActiveProfile();
-  if (!N || !profileId) return showToast('Saving to this phone needs the Aurora app', '⚠');
+  if (!N || !profileId) return say(o, 'Saving to this phone needs the Aurora app', '⚠'), 'failed';
   const was = get(item.id);
-  if (was && ACTIVE_STATES.includes(was.state)) return showToast(`“${label(was)}” is already on its way to this phone`, '⏳');
-  if (was && was.state === 'done') return showToast(`“${label(was)}” is already on this phone`, '📱');
+  if (was && ACTIVE_STATES.includes(was.state)) return say(o, `“${label(was)}” is already on its way to this phone`, '⏳'), 'already';
+  if (was && was.state === 'done') return say(o, `“${label(was)}” is already on this phone`, '📱'), 'already';
   const h = await canHevc();
   let options: Option[] = [];
   try {
     options = (await api.offlineOptions(item.id, h)).options || [];
   } catch (e) {
-    return showToast((e as Error)?.message || "Couldn't reach the server", '⚠');
+    return say(o, (e as Error)?.message || "Couldn't reach the server", '⚠'), 'failed';
   }
-  if (!options.length) return showToast("The server can't make a copy of this file for the phone", '⚠');
-  const picked = pickOption(options, prefs.quality)?.quality || (await choose(options));
-  if (!picked) return;
-  const opt = options.find(o => o.quality === picked) || options[0];
+  if (!options.length) return say(o, "The server can't make a copy of this file for the phone", '⚠'), 'failed';
+  const picked = pickOption(options, o?.auto ? o.auto.quality : prefs.quality)?.quality || (o?.auto ? null : await choose(options));
+  if (!picked) return 'stopped';
+  const opt = options.find(x => x.quality === picked) || options[0];
+  // the space limit (Settings → Saved on this phone): full, the oldest watched copies may make room
+  if (prefs.limitGb > 0) {
+    const room = makeRoom(items, profileId, opt.sizeBytes || 0, prefs.limitGb, item.id);
+    if (room === null) {
+      say(o, `Not saved — it would go over the ${prefs.limitGb} GB you allowed on this phone. Remove something you've watched, or raise the limit in Settings.`, '⚠');
+      return 'full';
+    }
+    if (room.length) {
+      if (o?.auto) return 'full'; // keep-next never removes anything to make room
+      const yes = o?.confirmRoom ? await o.confirmRoom(room as Saved[], prefs.limitGb) : false;
+      if (!yes) return 'stopped';
+      for (const c of room) await removeCopy(c as Saved, true);
+    }
+  }
   const entry: Saved = {
     id: item.id,
     profileId,
@@ -251,15 +305,16 @@ export async function saveOffline(item: SaveItem, choose: (options: Option[]) =>
     state: 'preparing',
     pct: 0,
     at: Date.now(),
+    ...(o?.auto ? {auto: true} : {}),
   };
   items = [...items.filter(x => !(x.id === item.id && x.profileId === profileId)), entry];
   emit();
-  showToast(`Saving “${label(entry)}” to this phone · ${opt.label}`, '📱');
+  if (!o?.quiet) say(o, `Saving “${label(entry)}” to this phone · ${opt.label}`, '📱');
   try {
     let st = await api.offlinePrepare(item.id, opt.quality, h);
     let misses = 0;
     while (st.state === 'queued' || st.state === 'working') {
-      if (!get(item.id)) return; // cancelled meanwhile
+      if (!get(item.id)) return 'stopped'; // cancelled meanwhile
       put(item.id, {profileId, state: 'preparing', pct: st.progress || 0, note: st.wait?.text || (st.state === 'queued' ? 'waiting for the server' : opt.instant ? 'repackaging — a few seconds' : 'converting on the server')});
       await sleep(opt.instant && st.state === 'working' ? 800 : 2000);
       try {
@@ -269,25 +324,28 @@ export async function saveOffline(item: SaveItem, choose: (options: Option[]) =>
         if (++misses >= 6) throw new Error(`lost touch with the server while it was preparing the copy — try again`);
       }
     }
-    if (!get(item.id)) return;
+    if (!get(item.id)) return 'stopped';
     if (st.state !== 'ready' || !st.url) throw new Error(st.error || "the server couldn't prepare it");
     const sp = await N.space().catch(() => ({free: 0, used: 0}));
     const size = st.sizeBytes || opt.sizeBytes || 0;
     if (!roomFor(size, sp.free)) throw new Error(noRoomText(size, sp.free));
     const net = await N.network().catch(() => 'other');
+    const wifi = prefs.wifiOnly || !!o?.auto; // keep-next never uses mobile data
     const {id: dmId, file} = await N.start(
       getBaseUrl() + st.url,
       mediaHeaders(),
       `${item.id}-${opt.quality}.mp4`,
       label(entry),
       'Saving to this phone',
-      prefs.wifiOnly,
+      wifi,
     );
-    put(item.id, {profileId, state: 'saving', dmId, file, pct: 0, note: null, sizeBytes: size, waitingWifi: prefs.wifiOnly && net !== 'wifi'});
+    put(item.id, {profileId, state: 'saving', dmId, file, pct: 0, note: null, sizeBytes: size, waitingWifi: wifi && net !== 'wifi'});
     tick();
+    return 'started';
   } catch (e) {
     if (get(item.id)) put(item.id, {profileId, state: 'failed', error: (e as Error)?.message || String(e)});
-    showToast(`Couldn't save it — ${(e as Error)?.message || 'try again'}`, '⚠');
+    say(o, `Couldn't save it — ${(e as Error)?.message || 'try again'}`, '⚠');
+    return 'failed';
   }
 }
 
@@ -302,20 +360,64 @@ export async function cancelOffline(id: string) {
 
 export async function removeOffline(id: string) {
   const it = get(id);
-  if (!it) return;
+  if (it) await removeCopy(it, false);
+}
+async function removeCopy(it: Saved, quiet: boolean) {
   if (it.dmId != null && it.state !== 'done') await N?.cancel(it.dmId).catch(() => 0);
   if (it.file) await N?.remove(it.file).catch(() => false);
   for (const s of it.subs || []) if (s.file) await N?.remove(s.file).catch(() => false);
-  items = items.filter(x => x !== it);
+  items = items.filter(x => !(x.id === it.id && x.profileId === it.profileId));
   emit();
-  showToast(`Removed “${label(it)}” from this phone`, '🗑');
+  if (!quiet) showToast(`Removed “${label(it)}” from this phone`, '🗑');
+}
+
+// ---- tidy up after watching (Settings → Saved on this phone; off unless turned on) ----
+let playing: string | null = null;
+/** The saved copy on screen now (the offline player): never tidied away under the person. */
+export const setPlayingOffline = (id: string | null) => {
+  playing = id;
+};
+let tidying = false;
+let tidyTimer: ReturnType<typeof setTimeout> | null = null;
+/**
+ * Saved episodes finished a day ago or more leave the phone. "Finished" is what this phone
+ * saw (the saved copy played to the end) or what the server says of the profile (watched on
+ * the TV, the website, or streamed): the server is asked for the active profile's copies.
+ * Runs at start, each time the app comes back, and hourly while it is open.
+ */
+export async function tidyUp(now = Date.now()) {
+  if (tidyTimer) clearTimeout(tidyTimer);
+  tidyTimer = null;
+  if (!prefs.tidyAfter || tidying) return;
+  tidying = true;
+  try {
+    await ready;
+    const profileId = getActiveProfile();
+    const open = items.filter(x => x.profileId === profileId && x.state === 'done' && x.showId && !x.finishedAt);
+    if (profileId && open.length) {
+      try {
+        const st = await api.state(profileId);
+        const prog = (st.progress || {}) as Record<string, {position?: number; duration?: number; finished?: boolean; updatedAt?: number}>;
+        for (const c of open) {
+          const at = finishedFrom(prog[c.id], now);
+          if (at) put(c.id, {profileId, finishedAt: at});
+        }
+      } catch {} // no server: what this phone saw is all there is
+    }
+    const due = dueForTidy(items, now, playing);
+    for (const c of due) await removeCopy(c as Saved, true);
+    if (due.length) showToast(due.length === 1 ? `Tidied up “${label(due[0] as Saved)}” — you watched it` : `Tidied up ${due.length} episodes you've watched`, '🧹');
+  } finally {
+    tidying = false;
+    if (prefs.tidyAfter) tidyTimer = setTimeout(() => tidyUp(), 60 * 60 * 1000);
+  }
 }
 
 // ---- watching a saved copy ----
 type Pending = {profileId: string; itemId: string; position: number; duration: number; at: number};
 export async function noteOfflineProgress(id: string, position: number, duration: number) {
   const it = get(id);
-  if (it) put(id, {profileId: it.profileId, position});
+  if (it) put(id, {profileId: it.profileId, position, ...(!it.finishedAt && duration > 0 && position / duration > FINISHED_AT ? {finishedAt: Date.now()} : {})});
   const profileId = getActiveProfile();
   if (!profileId) return;
   try {
@@ -418,3 +520,4 @@ export async function flushOfflineProgress() {
   } catch {}
 }
 export const offlineLoaded = () => loaded;
+export const limitBytes = () => (prefs.limitGb > 0 ? prefs.limitGb * GB : 0);

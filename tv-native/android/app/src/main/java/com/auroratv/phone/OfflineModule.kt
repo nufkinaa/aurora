@@ -32,6 +32,11 @@ import java.util.concurrent.Executors
  *
  *   <external files>/offline/<name>   (the films, and their subtitles beside them)
  *
+ * "External files" is the phone's own storage, or — when the person picks it in Settings
+ * (Save to) — the app's folder on the SD card (getExternalFilesDirs: every volume Android
+ * gives this app a folder on; still no permission). Copies already saved stay where they
+ * are; the choice is for the next save.
+ *
  * Phone build only (PhonePackage).
  */
 class OfflineModule(private val ctx: ReactApplicationContext) : ReactContextBaseJavaModule(ctx) {
@@ -40,7 +45,17 @@ class OfflineModule(private val ctx: ReactApplicationContext) : ReactContextBase
 
   private val io = Executors.newSingleThreadExecutor()
   private fun dm() = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-  private fun dir(): File = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "offline").apply { mkdirs() }
+  /** The volume folder chosen in Settings (one of getExternalFilesDirs), or null: the phone's own. */
+  @Volatile private var root: File? = null
+  private fun volumes(): List<File> = try { ctx.getExternalFilesDirs(null).filterNotNull() } catch (_: Throwable) { emptyList() }
+  private fun base(): File {
+    val r = root
+    if (r != null && r.exists() && Environment.getExternalStorageState(r) == Environment.MEDIA_MOUNTED) return r
+    return ctx.getExternalFilesDir(null) ?: ctx.filesDir
+  }
+  private fun dir(): File = File(base(), "offline").apply { mkdirs() }
+  /** Every folder a copy may be in: each volume's offline folder (and the internal fallback). */
+  private fun allDirs(): List<File> = (volumes() + ctx.filesDir).map { File(it, "offline") }
   private fun safeName(n: String) = n.replace(Regex("[^A-Za-z0-9._-]"), "_").take(120)
 
   /** Start a save. Resolves the DownloadManager id and the file it will write. */
@@ -159,8 +174,9 @@ class OfflineModule(private val ctx: ReactApplicationContext) : ReactContextBase
   fun remove(path: String, promise: Promise) {
     try {
       val f = File(path)
-      // only ever inside the offline folder
-      promise.resolve(f.canonicalPath.startsWith(dir().canonicalPath) && f.delete())
+      // only ever inside an offline folder (the phone's or the SD card's)
+      val inside = allDirs().any { d -> f.canonicalPath.startsWith(d.canonicalPath + File.separator) }
+      promise.resolve(inside && f.delete())
     } catch (t: Throwable) {
       promise.resolve(false)
     }
@@ -186,6 +202,45 @@ class OfflineModule(private val ctx: ReactApplicationContext) : ReactContextBase
     } catch (t: Throwable) {
       promise.reject("space", t.message, t)
     }
+  }
+
+  /**
+   * Where copies can go: each volume this app has a folder on — the phone's own first, then an
+   * SD card — with its free and total space, whether it can be taken out, whether it is there.
+   */
+  @ReactMethod
+  fun volumes(promise: Promise) {
+    try {
+      val out = Arguments.createArray()
+      volumes().forEachIndexed { i, f ->
+        val m = Arguments.createMap()
+        val mounted = try { Environment.getExternalStorageState(f) == Environment.MEDIA_MOUNTED } catch (_: Throwable) { false }
+        m.putString("path", f.absolutePath)
+        m.putBoolean("primary", i == 0)
+        m.putBoolean("removable", try { Environment.isExternalStorageRemovable(f) } catch (_: Throwable) { i > 0 })
+        m.putBoolean("mounted", mounted)
+        try {
+          val st = StatFs(f.absolutePath)
+          m.putDouble("free", st.availableBytes.toDouble())
+          m.putDouble("total", st.totalBytes.toDouble())
+        } catch (_: Throwable) {
+          m.putDouble("free", 0.0)
+          m.putDouble("total", 0.0)
+        }
+        out.pushMap(m)
+      }
+      promise.resolve(out)
+    } catch (t: Throwable) {
+      promise.reject("volumes", t.message, t)
+    }
+  }
+
+  /** Save the next copies to this volume folder (one volumes() named), or null for the phone's own. */
+  @ReactMethod
+  fun setVolume(path: String?, promise: Promise) {
+    val pick = if (path.isNullOrEmpty()) null else volumes().firstOrNull { it.absolutePath == path }
+    root = pick
+    promise.resolve(pick?.absolutePath)
   }
 
   /** "wifi" | "cellular" | "other" | "none". */

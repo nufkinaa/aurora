@@ -12,7 +12,7 @@ import {useIsFocused} from '@react-navigation/native';
 import {useApp} from '../../AppContext';
 import {useDownloadLine} from '../../useDownloadLine';
 import {useMe} from '../../navSection';
-import {openJoinParty, openReport} from '../../overlay';
+import {openActions, openJoinParty, openReport} from '../../overlay';
 import {loadPrefs, Prefs, PREFS_DEFAULTS, saveAuthSession, savePrefs} from '../../storage';
 import {PERSON_KEYS, PersonKey, SUB_LANGS, SUB_LANG_LABEL} from '../../personPrefs';
 import {onPersonPrefs, refreshPerson, setPersonPref} from '../../personSync';
@@ -33,7 +33,8 @@ import {ChipButton} from '../ui/Buttons';
 import Icon from '../ui/Icon';
 import {useTabBarSpace} from '../ui/TabBar';
 import {resetTabs} from '../tabs';
-import {OFFLINE_QUALITIES, offlinePrefs, setOfflinePrefs, useOfflineUsage} from '../offline/store';
+import {listVolumes, OFFLINE_QUALITIES, offlinePrefs, OfflinePrefs, setOfflinePrefs, useOfflineUsage} from '../offline/store';
+import {currentVolume, hasChoice, KEEP_NEXT, LIMIT_CHOICES, limitLabel, Volume, volumeName} from '../offline/storage';
 import {colors, GUTTER} from '../theme';
 
 import {checkNow, running} from '../update/store';
@@ -123,6 +124,35 @@ export default function Settings() {
   const [notifyNote, setNotifyNote] = useState<string | null>(null);
   const [offline, setOffline] = useState(offlinePrefs());
   const usage = useOfflineUsage();
+  const [vols, setVols] = useState<Volume[]>([]);
+  useEffect(() => {
+    listVolumes().then(setVols);
+  }, [usage.count]);
+  const setOff = (p: Partial<OfflinePrefs>) => {
+    const next = {...offline, ...p};
+    setOffline(next);
+    setOfflinePrefs(p);
+  };
+  const vol = currentVolume(vols, offline.volume);
+  const volIndex = (v: Volume) => vols.filter(x => !x.primary).indexOf(v) + 1;
+  const pickVolume = () =>
+    openActions({
+      title: 'Save to',
+      sub: 'Where the next saves go. What is saved already stays where it is.',
+      items: vols
+        .filter(v => v.mounted)
+        .map(v => ({
+          label: `${volumeName(v, volIndex(v))}${vol && vol.path === v.path ? '  ✓' : ''}`,
+          tag: `${gb(v.free)} free of ${gb(v.total)}`,
+          onPress: () => setOff({volume: v.primary ? null : v.path}),
+        })),
+    });
+  const pickLimit = () =>
+    openActions({
+      title: 'Space limit',
+      sub: 'The most saved copies may take on this phone. When it is full, Aurora offers to remove the oldest one you have watched.',
+      items: LIMIT_CHOICES.map(g => ({label: `${limitLabel(g)}${offline.limitGb === g ? '  ✓' : ''}`, onPress: () => setOff({limitGb: g})})),
+    });
   const genreGroups = useRef(new Map<string, string[]>());
 
   useEffect(() => {
@@ -269,24 +299,39 @@ export default function Settings() {
             right={<Value text={(OFFLINE_QUALITIES.find(q => q.id === offline.quality) || OFFLINE_QUALITIES[0]).label} />}
             onPress={() => {
               const i = OFFLINE_QUALITIES.findIndex(q => q.id === offline.quality);
-              const next = {...offline, quality: OFFLINE_QUALITIES[(i + 1) % OFFLINE_QUALITIES.length].id};
-              setOffline(next);
-              setOfflinePrefs(next);
+              setOff({quality: OFFLINE_QUALITIES[(i + 1) % OFFLINE_QUALITIES.length].id});
             }}
           />
           <ListRow
             title="Save on Wi-Fi only"
             detail="Saves wait for Wi-Fi instead of using mobile data."
-            right={
-              <Toggle
-                value={offline.wifiOnly}
-                onChange={v => {
-                  const next = {...offline, wifiOnly: v};
-                  setOffline(next);
-                  setOfflinePrefs(next);
-                }}
-              />
-            }
+            right={<Toggle value={offline.wifiOnly} onChange={v => setOff({wifiOnly: v})} />}
+          />
+          {hasChoice(vols) ? (
+            <ListRow
+              uiId="phone.settings.saveto"
+              title="Save to"
+              detail={vol ? `${gb(vol.free)} free there. What is saved already stays where it is.` : undefined}
+              right={<Value text={vol ? volumeName(vol, volIndex(vol)) : 'This phone'} />}
+              onPress={pickVolume}
+            />
+          ) : null}
+          <ListRow
+            uiId="phone.settings.limit"
+            title="Space limit"
+            detail={offline.limitGb > 0 ? `${gb(usage.bytes)} of ${offline.limitGb} GB used. When it is full, Aurora offers to remove the oldest copy you've watched.` : 'Use as much as there is free. Or set the most saved copies may take.'}
+            right={<Value text={limitLabel(offline.limitGb)} />}
+            onPress={pickLimit}
+          />
+          <ListRow
+            title="Tidy up after watching"
+            detail="A saved episode leaves this phone a day after you finish it. Films stay."
+            right={<Toggle value={offline.tidyAfter} onChange={v => setOff({tidyAfter: v})} />}
+          />
+          <ListRow
+            title="Keep the next episodes ready"
+            detail={`While you watch a show, its next ${KEEP_NEXT} episodes are saved on this phone. On Wi-Fi only, never mobile data.`}
+            right={<Toggle value={offline.keepNext} onChange={v => setOff({keepNext: v})} />}
           />
           <ListRow uiId="phone.settings.saved" icon="storage" title="On this phone" detail="Play, or remove, what is saved here." chevron onPress={() => navigation.push('Downloads', undefined)} />
         </Section>
