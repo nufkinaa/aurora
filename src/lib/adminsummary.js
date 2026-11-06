@@ -166,7 +166,8 @@ const decide = (x = {}) => {
     },
     {
       id: "disk", label: "Disk", level: worst("disk"),
-      line: lowest ? `${fmtGb(lowest.free)} free${disks.length > 1 ? " on the fullest drive" : ""}` : "not measured",
+      // + "about 40 days until full" / "no growth this week" (media/diskforecast.js)
+      line: lowest ? `${fmtGb(lowest.free)} free${disks.length > 1 ? " on the fullest drive" : ""}${x.forecast && x.forecast.short ? ` · ${x.forecast.short}` : ""}` : "not measured",
     },
     {
       id: "downloads", label: "Downloads", level: worst("downloads"),
@@ -220,6 +221,8 @@ const gather = async () => {
     const s = await within(disk.space(root), 1500, null);
     if (s) disks.push({ root, free: s.free, total: s.total });
   }
+  const fullest = disks.reduce((m, d) => (!m || d.free < m.free ? d : m), null);
+  const forecast = fullest ? safe(() => require("../media/diskforecast").measure(fullest.free, now)) : null;
   const jobs = safe(() => require("../media/downloads").list(), []);
   const health = safe(() => require("./health").status(), null);
   const healer = safe(() => require("./healer").status(), null);
@@ -245,6 +248,7 @@ const gather = async () => {
     loop: safe(() => require("./looplag").read()),
     enc,
     disks,
+    forecast,
     minFreePct: config.DOWNLOAD_MIN_FREE_PERCENT || 0,
     watchingNow,
     plays: pm ? { hour: safe(() => pm.summarize(pm.list(), now, HOUR)), day: safe(() => pm.summarize(pm.list(), now, DAY)) } : null,
