@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import android.view.KeyEvent
 import com.facebook.react.bridge.Arguments
@@ -26,7 +27,10 @@ import kotlin.math.roundToInt
  *    (FLAG_SHOW_UI), as the volume keys do, and answers with the new volume. `supported` is
  *    false on a box whose volume is fixed (HDMI out, the TV's own remote sets it);
  *  - deviceName(): the name the system gives the TV (Settings → Device name), else the model;
- *  - bringToFront(): Aurora to the front when the TV is showing something else.
+ *  - bringToFront(): Aurora to the front when the TV is showing something else;
+ *  - wake(): the screen on — "Play on TV" on a TV showing its screensaver (a dream). A short
+ *    wake lock with ACQUIRE_CAUSES_WAKEUP makes the power manager wake the device, and waking
+ *    ends a dream; Aurora, which the dream was drawn over, is in front again.
  */
 class RemoteModule(private val ctx: ReactApplicationContext) : ReactContextBaseJavaModule(ctx) {
 
@@ -149,6 +153,28 @@ class RemoteModule(private val ctx: ReactApplicationContext) : ReactContextBaseJ
    * window another — and says nothing when it refuses. So this answers only whether the start
    * was ASKED for; src/remote/open.ts then waits to see whether the app really came forward.
    */
+  @Suppress("DEPRECATION")
+  @ReactMethod
+  fun wake(promise: Promise) {
+    try {
+      val pm = ctx.getSystemService(Context.POWER_SERVICE) as? PowerManager
+      if (pm == null) {
+        promise.resolve(false)
+        return
+      }
+      // (SCREEN_BRIGHT is deprecated for keeping a screen on — FLAG_KEEP_SCREEN_ON is the way
+      // for that — but it is still the lock ACQUIRE_CAUSES_WAKEUP works with)
+      val lock = pm.newWakeLock(
+        PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.ON_AFTER_RELEASE,
+        "aurora:playontv",
+      )
+      lock.acquire(3000L)
+      promise.resolve(true)
+    } catch (_: Throwable) {
+      promise.resolve(false)
+    }
+  }
+
   @ReactMethod
   fun bringToFront(promise: Promise) {
     // Android 10+ refuses an activity start from an app with no visible window

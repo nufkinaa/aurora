@@ -102,7 +102,7 @@ test("a command goes to the TV and its answer back to the remote that sent it", 
   const got = r.last("t1", "remote_command");
   assert.equal(got.cmd, "seek");
   assert.deepEqual(got.args, { to: 125.5 });
-  assert.deepEqual(got.from, { label: "iPhone", profileName: "Elia" });
+  assert.deepEqual(got.from, { label: "iPhone", profileName: "Elia", profileId: "pa" }, "who asks, as the server proved it");
   assert.equal(got.first, true, "the first command from this remote — the TV says who is in control");
   // only the TV's own socket may answer
   assert.equal(devices.ack(client("intruder", ["pa"]), { ref: got.ref, ok: true }), false);
@@ -120,7 +120,7 @@ test("a command goes to the TV and its answer back to the remote that sent it", 
   const c2 = client("c2", ["pa"], { profile: "Elia" });
   devices.subscribe(c2, { profileId: "pa", label: "iPhone", remoteId: "phone-12345678" });
   devices.command(c2, { id: "x3", deviceId: t.deviceId, cmd: "pause" });
-  assert.deepEqual(r.last("t1", "remote_command").from, { label: "iPhone", profileName: "Elia", id: "phone-12345678" });
+  assert.deepEqual(r.last("t1", "remote_command").from, { label: "iPhone", profileName: "Elia", profileId: "pa", id: "phone-12345678" });
   devices.ack(t, { ref: r.last("t1", "remote_command").ref, ok: true });
 });
 

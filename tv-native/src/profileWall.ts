@@ -26,6 +26,9 @@ import {
 import {profilePicked} from './telemetry'; // [analytics]
 
 export type OnChosen = (profileId: string, token: string | null, sid?: string | null, extra?: {mustReset?: boolean; typed?: string | null}) => void;
+/** What a press on a tile came to ([play-on-tv]: the TV tells the phone that
+ *  sent a title): in, the password is asked for, the PIN is, or it went wrong. */
+export type Door = 'in' | 'password' | 'pin' | 'error';
 
 export function useProfileWall(onChosen: OnChosen) {
   const [profiles, setProfiles] = useState<Profile[] | null>(null);
@@ -94,10 +97,10 @@ export function useProfileWall(onChosen: OnChosen) {
   }, [profiles, recent]);
 
 
-  const choose = async (p: Profile, pw = '', withPin = goodPin.current) => {
+  const choose = async (p: Profile, pw = '', withPin = goodPin.current): Promise<Door> => {
     // A second OK while the unlock is in flight would double-POST and call
     // onChosen twice.
-    if (busy) return;
+    if (busy) return 'error';
     setBusy(true);
     setPwError('');
     setPinError('');
@@ -120,6 +123,7 @@ export function useProfileWall(onChosen: OnChosen) {
         // A claimed profile's unlock signs the device in on the spot — carry
         // the session up so the eventual flip to closed mode costs nothing.
         onChosen(p.id, res.token, res.session || null, res.mustReset ? {mustReset: true, typed: pw} : undefined);
+        return 'in';
       } else {
         setPwError(res.error === 'wrong password' ? 'Wrong password' : 'Could not unlock');
       }
@@ -135,6 +139,7 @@ export function useProfileWall(onChosen: OnChosen) {
         // (no PIN was sent: that is a question, not an error to show in red)
         setPinError(withPin || e.status === 429 ? e.message : '');
         setPinFor({profile: p, mode: 'open'});
+        return 'pin';
       }
       // The server returns 401 for a wrong password and 403 for an admin-locked
       // profile — distinguish those from an actual network failure.
@@ -151,6 +156,7 @@ export function useProfileWall(onChosen: OnChosen) {
     } finally {
       setBusy(false);
     }
+    return 'error';
   };
 
   // The PIN has let this TV out of the kids profile. If the TV is also SIGNED
@@ -179,7 +185,7 @@ export function useProfileWall(onChosen: OnChosen) {
   // session it is and /api/auth/profile-token turns it into an unlock token;
   // anything short of that (no session, someone else's, a refusal, no
   // answer) falls through to the password, as before.
-  const open = async (p: Profile) => {
+  const open = async (p: Profile): Promise<Door> => {
     if (p.hasPassword && getSession() && !busy) {
       setBusy(true);
       try {
@@ -189,7 +195,7 @@ export function useProfileWall(onChosen: OnChosen) {
         // the new-password screen, which saves with the session it holds.
         if (who.passwordResetRequired && who.resetProfile?.id === p.id) {
           onChosen(p.id, null, null, {mustReset: true, typed: null});
-          return;
+          return 'in';
         }
         if (who.user && who.user.profileId === p.id) {
           const t = await api.profileTokenFromSession();
@@ -198,7 +204,7 @@ export function useProfileWall(onChosen: OnChosen) {
             if (p.kids) await saveKidsLock({id: p.id, maxAge: p.kids.maxAge});
             else await clearKidsLock();
             onChosen(p.id, t.token, null, who.user.mustReset || who.mustReset ? {mustReset: true, typed: null} : undefined);
-            return;
+            return 'in';
           }
         }
       } catch {
@@ -212,9 +218,9 @@ export function useProfileWall(onChosen: OnChosen) {
       setPwFor(p);
       setPassword('');
       setPwError('');
-    } else {
-      choose(p);
+      return 'password';
     }
+    return choose(p);
   };
 
   // Does picking `p` mean LEAVING the kids profile this TV is locked to?
@@ -222,14 +228,14 @@ export function useProfileWall(onChosen: OnChosen) {
   const leavesKids = (p: Profile) =>
     !!lock && p.id !== lock.id && !(p.kids && p.kids.maxAge <= lock.maxAge);
 
-  const onTile = async (p: Profile) => {
+  const onTile = async (p: Profile): Promise<Door> => {
     if (p.locked) {
       setLoadError(`"${p.name}" has been locked by an admin.`);
-      return;
+      return 'error';
     }
     setLoadError('');
     if (!leavesKids(p)) return open(p);
-    if (busy) return;
+    if (busy) return 'error';
     // Leaving a kids profile. Is there a PIN in the house at all?
     setBusy(true);
     let pinSet = true; // can't tell (server unreachable): ask — never fail open
@@ -251,6 +257,7 @@ export function useProfileWall(onChosen: OnChosen) {
     setPin('');
     setPinError('');
     setPinFor({profile: p, mode: 'exit'});
+    return 'pin';
   };
 
   // OK on the PIN view.

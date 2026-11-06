@@ -18,7 +18,7 @@
 import {AppState, Platform} from 'react-native';
 import {getToken} from '../api';
 import {isOpen, onMessage, onSocketOpen, send} from '../realtime';
-import {currentRouteName} from '../rootNav';
+import {currentRouteName, navRef} from '../rootNav';
 import {registerProfileCache} from '../profileScope';
 import {showToast} from '../toast';
 import {answer, createPacer, type HandlerCtx} from './handler';
@@ -27,7 +27,9 @@ import {activePlayer, onRemoteChange} from './player';
 import {loadDevice, onTvName, setTvName} from './identity';
 import {hasNativeRemote, nativeRemote} from './native';
 import {goHomeOnTv, playItemOnTv} from './open';
-import {KEY_GAP_MS, type Caps, type CommandMsg, type NowState, type RemoteState, type VolumeState} from './protocol';
+import {serverNow} from './clock'; // [play-on-tv] a command that came too late is not carried out
+import {takePendingPlay} from './handoff'; // [play-on-tv] a title sent to this TV on its wall
+import {KEY_GAP_MS, type Caps, type CommandMsg, type NowState, type PlayItemArgs, type RemoteState, type VolumeState} from './protocol';
 
 const VOLUME_IDLE_TICKS = 5; // the volume is read every tick while watched, else every fifth
 
@@ -122,7 +124,25 @@ const ctxOf = (s: Session): HandlerCtx => ({
   rename: setTvName,
   toast: (text, glyph) => showToast(text, glyph),
   seen: s.seen,
+  serverNow: () => serverNow(),
 });
+
+// [play-on-tv] A title sent while this TV was on its profile wall, for the
+// profile that has just come in: played once the screens are up (the
+// navigator mounts with Home; a few seconds at most).
+const READY_WAIT_MS = 10000;
+const playWhenReady = (s: Session, args: PlayItemArgs) => {
+  const started = Date.now();
+  const tryNow = () => {
+    if (session !== s) return;
+    if (navRef.isReady() && currentRouteName()) {
+      playItemOnTv(args).then(o => console.log('[remote] the title sent to the wall:', o.ok ? 'playing' : o.error));
+      return;
+    }
+    if (Date.now() - started < READY_WAIT_MS) setTimeout(tryNow, 150);
+  };
+  tryNow();
+};
 
 /** A profile session started: this TV is a target for that profile's remotes. */
 export const startTarget = (profileId: string) => {
@@ -146,6 +166,8 @@ export const startTarget = (profileId: string) => {
     send: state => session === s && send({type: 'device_state', state}),
   });
   session = s;
+  const sent = takePendingPlay(profileId);
+  if (sent) playWhenReady(s, sent);
   s.offs.push(
     onSocketOpen(() => announce(s)),
     onMessage('remote_command', d => {

@@ -68,6 +68,33 @@
 //   - a target never appears to itself.
 // Every command is checked again when it arrives (a profile switched, the
 // admin's switch flipped), not only when the list was sent.
+//
+// ---------------------------------------------------------------- Play on TV to a TV on its profile wall
+// A TV that is on "Who's watching?" belongs to nobody yet. It announces
+// itself as a WALL target: {type:"device_announce", wall:true, kind:"tv",
+// deviceId, name} with no profile. Proof: the socket is not a must-reset one,
+// and it holds a sign-in session — or the server is not "closed" (where the
+// wall itself is open to the house). It is offered to every proven profile of
+// the household (the people its wall would let in), takes `play_item` ONLY
+// (no arrows, no transport — nothing is playing, and the wall's tiles are not
+// the phone's to press), and the command names who asks:
+// from.profileId / from.profileName (proven by the server, never by the
+// phone). The TV then opens that profile the way its own wall would — and
+// NEVER past a password, the household PIN or a kids lock: it asks for it
+// ("Enter your PIN to play Arrival") and answers status "needs-pin" /
+// "needs-password". When the profile is in, the same deviceId announces
+// again as that profile's TV, and the remote screen carries on with it.
+//
+// ---------------------------------------------------------------- expiry, answers, two senders
+//   - every command carries `at` (the server's clock) and `ttl` (ACK_MS): a
+//     TV that hears one later than that (a socket that sat in a sleeping
+//     box) does not carry it out. The TV learns the server's clock from
+//     device_ok's `now`.
+//   - the sender always hears back within ACK_MS: the TV's answer, with
+//     `status` ("playing" | "needs-pin" | "needs-password") on a play_item,
+//     or "<TV> didn't answer".
+//   - two play_items for one TV at once: the later one wins; the earlier
+//     sender is answered "superseded" at once.
 "use strict";
 
 const ACK_MS = 6000;
@@ -77,6 +104,8 @@ const MAX_PENDING_PER_TARGET = 24;
 const CMD_RATE = 15;
 const CMD_BURST = 40;
 const MAX_TARGETS_PER_PROFILE = 24;
+const MAX_WALL_TARGETS = 16; // TVs on their profile wall, in the whole house
+const STATUSES = new Set(["playing", "needs-pin", "needs-password"]);
 const STATE_MAX_JSON = 16 * 1024;
 
 const ID_RE = /^[A-Za-z0-9_-]{8,48}$/;
@@ -89,13 +118,14 @@ const targets = new Map(); // deviceId -> target
 const targetOf = new Map(); // clientId -> deviceId
 const controllers = new Map(); // clientId -> controller
 const pending = new Map(); // ref -> {controllerId, id, deviceId, timer, at}
-const counters = { announced: 0, commands: 0, refused: 0, rateLimited: 0, timeouts: 0, acks: 0 };
+const counters = { announced: 0, commands: 0, refused: 0, rateLimited: 0, timeouts: 0, acks: 0, superseded: 0 };
 let refSeq = 0;
 
 // Replaceable by the tests (and wired by realtime.js).
 const deps = {
   send: () => false, // (clientId, data) -> bool
   prove: () => null, // (client, profileId, token) -> proven profile id | null
+  proveWall: () => false, // (client) -> may this socket be a TV on its profile wall?
   profile: () => null, // (profileId) -> {id, name, avatar, kids:boolean} | null
   household: () => false, // the admin's switch
   mode: () => "enforce", // the WebSocket limits' mode: "enforce" | "log" | "off"
@@ -246,9 +276,12 @@ const firstOf = (t) => (t.clientIds.length ? t.clientIds[t.clientIds.length - 1]
 
 // May the remote on `ctl` control target `t`? (both proven; see the header)
 const mayControl = (ctl, t) => {
-  if (!ctl || !t || !ctl.profileId || !t.profileId) return false;
+  if (!ctl || !t || !ctl.profileId || (!t.profileId && !t.wall)) return false;
   if (ctl.clientId && t.clientIds.includes(ctl.clientId)) return false; // not yourself
   if (ctl.ownDeviceId && ctl.ownDeviceId === t.deviceId) return false;
+  // a TV on its wall is nobody's yet: any proven profile of the house may
+  // send it a title (the TV asks for whatever that profile's door asks)
+  if (t.wall) return true;
   if (ctl.profileId === t.profileId) return true;
   const me = deps.profile(ctl.profileId);
   if (!me || me.kids) return false;
@@ -256,15 +289,16 @@ const mayControl = (ctl, t) => {
 };
 
 const publicDevice = (t, ctl) => {
-  const p = deps.profile(t.profileId) || { id: t.profileId, name: "Someone", avatar: null };
+  const p = t.wall ? null : deps.profile(t.profileId) || { id: t.profileId, name: "Someone", avatar: null };
   return {
     deviceId: t.deviceId,
     name: t.name,
     kind: t.kind,
     form: t.form,
     model: t.model,
-    profile: { id: p.id, name: p.name, avatar: p.avatar || null, avatarImage: p.avatarImage || null },
-    mine: !!ctl && ctl.profileId === t.profileId,
+    profile: p ? { id: p.id, name: p.name, avatar: p.avatar || null, avatarImage: p.avatarImage || null } : null,
+    mine: !!ctl && !t.wall && ctl.profileId === t.profileId,
+    wall: !!t.wall,
     caps: t.caps,
     state: t.state,
     since: t.since,
@@ -307,13 +341,17 @@ const announce = (client, msg) => {
   if (!ID_RE.test(deviceId)) return { error: "bad-device-id" };
   const kind = KINDS.has(m.kind) ? m.kind : null;
   if (!kind) return { error: "bad-kind" };
-  const profileId = deps.prove(client, String(m.profileId || "").slice(0, 40), typeof m.token === "string" ? m.token.slice(0, 200) : null);
-  if (!profileId) return { error: "not-signed-in" };
+  // a TV on its profile wall: nobody's yet (see the header)
+  const wall = m.wall === true;
+  if (wall && kind !== "tv") return { error: "bad-kind" };
+  if (wall && !deps.proveWall(client)) return { error: "not-signed-in" };
+  const profileId = wall ? null : deps.prove(client, String(m.profileId || "").slice(0, 40), typeof m.token === "string" ? m.token.slice(0, 200) : null);
+  if (!profileId && !wall) return { error: "not-signed-in" };
   // a socket announces ONE device: another id from the same socket replaces it
   const had = targetOf.get(client.id);
   if (had && had !== deviceId) leaveTarget(client.id, { quiet: true });
   let t = targets.get(deviceId);
-  if (t && t.profileId !== profileId) {
+  if (t && (t.profileId !== profileId || !!t.wall !== wall)) {
     // the same box, signed in to another profile now: it is that profile's
     // device from here on — whoever had it loses it
     for (const cid of t.clientIds) if (cid !== client.id) targetOf.delete(cid);
@@ -323,17 +361,19 @@ const announce = (client, msg) => {
   }
   if (!t) {
     let mine = 0;
-    for (const o of targets.values()) if (o.profileId === profileId) mine++;
-    if (mine >= MAX_TARGETS_PER_PROFILE) return { error: "too-many-devices" };
+    for (const o of targets.values()) if (wall ? o.wall : o.profileId === profileId) mine++;
+    if (mine >= (wall ? MAX_WALL_TARGETS : MAX_TARGETS_PER_PROFILE)) return { error: "too-many-devices" };
     t = { deviceId, clientIds: [], profileId, since: deps.now(), state: cleanState(null), coarse: "", stateAt: 0, watched: false, firstFrom: new Set() };
     targets.set(deviceId, t);
   }
   t.profileId = profileId;
+  t.wall = wall;
   t.kind = kind;
   t.form = FORMS.has(m.form) ? m.form : kind === "tv" ? "tv" : "computer";
   t.name = tidy(m.name, 40) || (kind === "tv" ? "Living room TV" : "This computer");
   t.model = tidy(m.model, 60) || null;
-  t.caps = cleanCaps(m.caps);
+  // on the wall: titles only, whatever it says it can do
+  t.caps = wall ? { navigate: false, volume: false, playItem: true, tracks: false } : cleanCaps(m.caps);
   t.clientIds = t.clientIds.filter((c) => c !== client.id);
   t.clientIds.push(client.id);
   targetOf.set(client.id, deviceId);
@@ -472,6 +512,7 @@ const command = (client, msg) => {
   if (!mayControl(c, t)) return refuse(client, id, deviceId, "not-allowed", "This profile can't control that device");
   const clean = Object.prototype.hasOwnProperty.call(COMMANDS, m.cmd) ? COMMANDS[m.cmd](m.args || {}) : null;
   if (!clean) return refuse(client, id, deviceId, "bad-command", "That command isn't known");
+  if (t.wall && m.cmd !== "play_item") return refuse(client, id, deviceId, "on-wall", `${t.name} is on “Who's watching?” — use Play on TV`);
   if (m.cmd === "key" && !t.caps.navigate) return refuse(client, id, deviceId, "unsupported", `${t.name} can't be steered with arrows`);
   if (m.cmd === "play_item" && !t.caps.playItem) return refuse(client, id, deviceId, "unsupported", `${t.name} can't open titles`);
   const mode = deps.mode();
@@ -482,6 +523,15 @@ const command = (client, msg) => {
   let mine = 0;
   for (const p of pending.values()) if (p.deviceId === deviceId) mine++;
   if (mine >= MAX_PENDING_PER_TARGET) return refuse(client, id, deviceId, "busy", `${t.name} is busy — try again`);
+  // two senders at once: the later title wins, the earlier sender hears so now
+  if (m.cmd === "play_item") {
+    for (const [ref, p] of [...pending]) {
+      if (p.deviceId === deviceId && p.cmd === "play_item") {
+        counters.superseded++;
+        finish(ref, { ok: false, error: "superseded", message: `Something else was just started on ${t.name}` });
+      }
+    }
+  }
   const ref = `r${(++refSeq).toString(36)}`;
   const timer = deps.setTimeout(() => {
     counters.timeouts++;
@@ -497,8 +547,11 @@ const command = (client, msg) => {
     ref,
     cmd: m.cmd,
     args: clean,
-    from: { label: c.label.word, profileName: c.label.profileName || null, ...(c.remoteId ? { id: c.remoteId } : {}) },
+    // (profileId: the server's proof of who asks — what a TV on its wall opens)
+    from: { label: c.label.word, profileName: c.label.profileName || null, profileId: c.profileId, ...(c.remoteId ? { id: c.remoteId } : {}) },
     first,
+    at: deps.now(),
+    ttl: ACK_MS,
   });
   if (!sent) finish(ref, { ok: false, error: "gone", message: `${t.name} went away` });
   return { ref };
@@ -516,6 +569,7 @@ const finish = (ref, res) => {
     ok: !!res.ok,
     ...(res.error ? { error: tidy(res.error, 32) } : {}),
     ...(res.message ? { message: tidy(res.message, 160) } : {}),
+    ...(res.status && STATUSES.has(res.status) ? { status: res.status } : {}),
     ms: deps.now() - p.at,
   });
   return true;
@@ -529,7 +583,7 @@ const ack = (client, msg) => {
   const t = targets.get(p.deviceId);
   if (!t || !t.clientIds.includes(client.id)) return false;
   counters.acks++;
-  return finish(String(m.ref), { ok: m.ok !== false, error: m.ok === false ? m.error || "failed" : null, message: m.message || null });
+  return finish(String(m.ref), { ok: m.ok !== false, error: m.ok === false ? m.error || "failed" : null, message: m.message || null, status: m.ok !== false ? m.status || null : null });
 };
 
 // A socket closed: whatever it was, it is not any more.
@@ -593,6 +647,7 @@ module.exports = {
   listFor,
   mayControl,
   ACK_MS,
+  MAX_WALL_TARGETS,
   CMD_RATE,
   CMD_BURST,
   _internals: { targets, targetOf, controllers, pending, cleanState, coarse, COMMANDS, cleanItem, controllerLabel, _reset, deps },

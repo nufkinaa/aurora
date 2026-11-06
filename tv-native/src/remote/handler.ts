@@ -14,6 +14,9 @@
 //     socket that reconnects does not say it again).
 //   - The arguments arrive checked and bounded by the server (devices.js
 //     COMMANDS); they are checked again here only for what could hurt.
+//   - A command that reaches the TV after its `ttl` (by the server's clock,
+//     as device_ok taught it) is answered "expired" and NOT carried out — a
+//     film must never start by itself minutes after someone gave up on it.
 import {MSG, type Ack, type CommandMsg, type From, type NowState, type Outcome, type PlayItemArgs, type RemoteKey, type VolumeState, KEYS} from './protocol';
 
 /** The player while it is up (Player.tsx registers one — remote/player.ts). */
@@ -58,6 +61,18 @@ export type HandlerCtx = {
   toast: (text: string, glyph: string) => void;
   /** who this TV has already named in the toast */
   seen: Set<string>;
+  /** the server's clock as this TV reckons it (null: not known yet — nothing expires) */
+  serverNow?: () => number | null;
+};
+
+/** Leeway on top of a command's ttl: the clock was learned over the network. */
+export const EXPIRY_SLACK_MS = 2000;
+/** Has this command run out? Only when it says when it was sent and the server's clock is known. */
+export const expired = (msg: Pick<CommandMsg, 'at' | 'ttl'>, serverNow: number | null | undefined): boolean => {
+  const at = typeof msg.at === 'number' && Number.isFinite(msg.at) ? msg.at : null;
+  const ttl = typeof msg.ttl === 'number' && Number.isFinite(msg.ttl) && msg.ttl > 0 ? msg.ttl : null;
+  if (at == null || ttl == null || typeof serverNow !== 'number' || !Number.isFinite(serverNow)) return false;
+  return serverNow - at > ttl + EXPIRY_SLACK_MS;
 };
 
 const ok = (message?: string): Outcome => (message ? {ok: true, message} : {ok: true});
@@ -225,12 +240,22 @@ export function answer(
       const ack: Ack = {type: 'remote_ack', ref, ok: !!o.ok};
       if (!o.ok) ack.error = o.error || 'failed';
       if (o.message) ack.message = o.message;
+      if (o.ok && o.status) ack.status = o.status;
       try {
         send(ack);
       } catch {}
       resolve(ack);
     };
     const timer = timers.setTimeout(() => finish(no('timeout', MSG.failed)), ANSWER_MS);
+    let late = false;
+    try {
+      late = expired(msg, ctx.serverNow ? ctx.serverNow() : null);
+    } catch {}
+    if (late) {
+      console.log('[remote] a command came too late, not carried out:', msg.cmd);
+      finish(no('expired', MSG.expired));
+      return;
+    }
     try {
       noteFirst(msg, ctx);
     } catch {}

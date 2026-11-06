@@ -14,6 +14,7 @@ type RemoteNative = {
   setMuted: (on: boolean) => Promise<NativeVolume>;
   deviceName: () => Promise<string>;
   bringToFront: () => Promise<boolean>;
+  wake?: () => Promise<boolean>;
 };
 
 const mod = (): RemoteNative | null => {
@@ -59,6 +60,16 @@ export const nativeRemote = {
       return typeof n === 'string' && n.trim() ? n.trim().slice(0, 40) : null;
     } catch {
       return null;
+    }
+  },
+  /** The screen on (ends the TV's screensaver). False: not in this build, or refused. */
+  wake: async (): Promise<boolean> => {
+    const m = mod();
+    if (!m || typeof m.wake !== 'function') return false;
+    try {
+      return !!(await m.wake());
+    } catch {
+      return false;
     }
   },
   bringToFront: async (): Promise<boolean> => {
