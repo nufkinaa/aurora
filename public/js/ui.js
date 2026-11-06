@@ -265,12 +265,14 @@ export const backupPosterUrl = (item) =>
 // what a poster on its way always showed (its placeholder). The person
 // touching anything (a scroll, a tap, a key) lets everything go at once, so
 // scrolling meets the same lazy-load as ever; and a screen whose pictures
-// stall lets go after a few seconds without progress. Work that fetches
+// stall lets go after 15 s without progress. Work that fetches
 // pictures nobody is looking at yet (the title prefetch's art, the idle hero
 // upgrade, the nav tint's probe) waits for the same moment (`afterPictures`).
-const PIC_STALL_MS = 6000; // nothing arrived for this long: let everything go
+// (a desktop billboard on a slow 3G line is ~200 KB: 5–10 s on its own, so
+// "stalled" is measured generously)
+const PIC_STALL_MS = 15000; // nothing arrived for this long: let everything go
 const PIC_EMPTY_MS = 12000; // a screen that has shown no picture yet (its data on the way)
-const PIC_MAX_MS = 20000; // and never hold longer than this
+const PIC_MAX_MS = 30000; // and never hold longer than this
 const pic = {
   open: true,
   held: new Map(), // img -> its start()
