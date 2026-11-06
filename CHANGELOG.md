@@ -3,6 +3,13 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.12 — 2026-11-06
+
+- **The right language, checked.** Before a replacement copy goes in, Aurora reads its audio tracks. A copy clearly in another language is set aside and the next one is tried ("That copy was in English, not Hebrew — now trying another"); a copy that doesn't say its language goes in with a short note to report it again if it's wrong. Other finished downloads get the same check when your audio language is set and the file says its language.
+- **Tell me when it's ready.** When something you asked for has downloaded, Aurora says so on every device you use (and by push, where you turned push on). It's on for everyone; turn it off in Settings → Notifications. Automatic downloads nobody asked for stay quiet.
+- **Admin:** a disk forecast ("about 47 days until full at this week's pace") on Downloads and in the Disk line, and Free up space: titles everyone who started has finished, on nobody's My List and older than 60 days, plus extra copies of the same title. Nothing is removed without your OK, and nothing being played.
+- On the TV and phone apps, the notices use the same words with their next update.
+
 ## 1.15.11 — 2026-11-04
 
 **Real watch time** — on the website, Aurora TV 5.8.4 and Aurora for Android phones 1.0.4.
