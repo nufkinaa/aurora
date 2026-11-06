@@ -78,10 +78,10 @@ ui.test("every switch flips, and stays flipped across navigation and a reload", 
   // (the notifications switch asks the browser first, and "Help improve
   // Aurora" does not persist — a reported bug: each has its own test below)
   const labels = (await page.evaluate(() => [...document.querySelectorAll('#app button[role="switch"]')].map((b) => b.getAttribute("aria-label"))))
-    .filter((l) => l !== "Tell me when it's ready" && l !== "Help improve Aurora");
+    .filter((l) => l !== "Notifications on this device" && l !== "Help improve Aurora");
   // ("Dark box behind subtitles" became the subtitle look's Background choice,
   // 2026-10-19; night mode and dialogue boost are switches — player-options.test.js)
-  for (const want of ["Trailers on the home page", "Play the next episode", "Subtitles on by themselves", "Night mode", "Dialogue boost", "Get the next episode ready", "Tidy up after watching"]) {
+  for (const want of ["Trailers on the home page", "Play the next episode", "Subtitles on by themselves", "Night mode", "Dialogue boost", "Get the next episode ready", "Tidy up after watching", "Tell me when it's ready"]) {
     assert.ok(labels.includes(want), `no "${want}" switch; found ${JSON.stringify(labels)}`);
   }
 
@@ -100,7 +100,7 @@ ui.test("every switch flips, and stays flipped across navigation and a reload", 
   // the two that live on the profile reached the server
   await page.waitForFunction(async (id) => {
     const p = ((await (await fetch("/api/profiles")).json()).find((x) => x.id === id).prefs) || {};
-    return p.smartDownloads === false;
+    return p.smartDownloads === false && p.readyNotice === false;
   }, me.id);
 
   await goto("#/movies");
@@ -113,6 +113,7 @@ ui.test("every switch flips, and stays flipped across navigation and a reload", 
   await ready(page);
   assert.deepEqual(only(await read()), want, "after a reload");
   assert.equal((await api.profile(me.id)).prefs.smartDownloads, false);
+  assert.equal((await api.profile(me.id)).prefs.readyNotice, false, "Tell me when it's ready follows the person");
 
   // and back again: a switch is not a one-way door
   await openMore(page);
@@ -221,7 +222,7 @@ ui.test("the notifications switch, in a browser that refuses: a toast, the switc
   await openMore(page);
   assert.notEqual(await page.evaluate(() => Notification.permission), "granted");
 
-  const toggle = page.locator(sw("Tell me when it's ready"));
+  const toggle = page.locator(sw("Notifications on this device"));
   assert.equal(await toggle.getAttribute("aria-checked"), "false");
   await toggle.click();
   await page.waitForFunction(() => /Notifications are blocked for Aurora/.test(document.getElementById("toasts").innerText));
