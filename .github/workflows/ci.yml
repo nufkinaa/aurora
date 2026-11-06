@@ -41,9 +41,11 @@ jobs:
         with:
           fetch-depth: 0
           sparse-checkout-cone-mode: false
+          # (ci-changed.test.js checks the TV tests' DESIGN.md exists; the screenshots stay out)
           sparse-checkout: |
             /*
             !/docs/qa/
+            /docs/qa/household-recs/*.md
             !/docs/android-phone/
       - uses: actions/setup-node@v6
         with:
