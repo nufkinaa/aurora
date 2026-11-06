@@ -11,7 +11,8 @@
 // picture of Home (the server cuts each to this device's sizes once and keeps
 // the cut). Then each run: a fresh browser context, cold (no HTTP cache, no
 // service worker, the profile remembered), Chrome's CPU slowdown and line
-// emulation, Home opened and left alone (no scroll) until every picture in
+// emulation, Home opened and left alone (no scroll; the billboard does not
+// turn: its 9 s rotation is not started) until every picture in
 // the first screen has arrived plus 3 s. The runs of A and B are interleaved
 // (A B, B A, A B…) so whatever else the machine does slows both alike.
 //
@@ -49,6 +50,11 @@ const path = require("path");
 
 const INIT = () => {
   try { performance.setResourceTimingBufferSize(5000); } catch {}
+  // the billboard's 9-second rotation is not started (as in mobile-perf/
+  // shots.js): on a slow line the window outlasts it, and the next slide's
+  // picture would be measured as "the billboard" (and compete as well)
+  const realInterval = window.setInterval;
+  window.setInterval = (fn, ms, ...rest) => (ms === 9000 ? 0 : realInterval(fn, ms, ...rest));
   const w = (window.__pp = { lcps: [], imgs: new Map() });
   try {
     new PerformanceObserver((l) => { for (const e of l.getEntries()) w.lcps.push(e.startTime); }).observe({ type: "largest-contentful-paint", buffered: true });
