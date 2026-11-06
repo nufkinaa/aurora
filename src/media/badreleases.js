@@ -16,6 +16,9 @@
 // picture does not get better. The download queue files copies too, by
 // itself (`auto: true`, AUTO_REASONS): a fake or broken file for good, a copy
 // nobody was sharing ("dead") for DEAD_DAYS (`exp`) — swarms come back.
+// And a finished copy whose sound turned out to be in the wrong language
+// (media/langcheck.js) is filed under the person's own reason, "language"
+// (`auto: true`, for good: a file does not change its language).
 "use strict";
 const path = require("path");
 const config = require("../config");

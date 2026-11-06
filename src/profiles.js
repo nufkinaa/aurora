@@ -841,7 +841,7 @@ const lastSeenBefore = (profileId) => {
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 const THEMES = ["aurora", "oled", "warm"];
 // The on/off choices a profile carries (see `update` for what each one is).
-const PREF_SWITCHES = ["smartDownloads", "smartCleanup", "usageStats", "autoplayNext", "subsDefault"];
+const PREF_SWITCHES = ["smartDownloads", "smartCleanup", "usageStats", "autoplayNext", "subsDefault", "readyNotice"];
 // Player options that follow the person (2026-10-19), each a closed set:
 //   nightMode, dialogueBoost   the sound (default off)
 //   subSize … subPos           how subtitles look (defaults: M, white, box,
@@ -887,6 +887,8 @@ const update = (id, fields) => {
   //                   from a profile that opted out is dropped)  default on
   //   autoplayNext    play the next episode by itself       default on
   //   subsDefault     subtitles on by themselves            default on
+  //   readyNotice     tell me when a download is ready (the
+  //                   in-app notice and Web Push; media/downloads.js) default on
   //   subLang         subtitle language (any|he|en|ru)      default any
   //   voiceLang       voice search listens in (auto|he|en)  default auto
   //   audioLang, subPick   what was last picked in the player

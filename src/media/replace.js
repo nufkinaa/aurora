@@ -330,7 +330,8 @@ const request = async (libraryId, viewer, { reason, note, source, context, ip, k
   if (!src) return { status: 400, body: { error: "That version isn't one of this title's sources any more — pick again.", code: "source" } };
   if (isCurrent(cur, src)) return { status: 400, body: { error: "That is the copy you have now — pick another one.", code: "same" } };
   // (a sheet that did not ask for the language list: an app from before it)
-  if (reason === "language" && copylang.judge(src, await languageFit(s, viewer)) === "same") {
+  const fit = reason === "language" ? await languageFit(s, viewer) : null;
+  if (fit && copylang.judge(src, fit) === "same") {
     return { status: 400, body: { error: "That version is in the same language as this copy — pick another one.", code: "same-language" } };
   }
   // (re-checked after the lookup: two presses in a row, two devices)
@@ -349,6 +350,9 @@ const request = async (libraryId, viewer, { reason, note, source, context, ip, k
     replaces: {
       id, libraryId: s.libraryId, path: s.path, reason, reasonLabel: label, by: viewer.id, byName: viewer.name || null,
       oldRelease: cur.release, oldInfoHash: cur.infoHash, titleKey: key,
+      // what the finished file is checked against before it is swapped in
+      // (media/langcheck.js, downloads.languageGate)
+      ...(fit ? { lang: { want: fit.wanted, wrong: fit.wrong } } : {}),
     },
   });
   if (!r || r.error || !r.job) {
