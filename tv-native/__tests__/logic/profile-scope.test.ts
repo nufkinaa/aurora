@@ -222,6 +222,10 @@ const DEVICE: Record<string, Record<string, string>> = {
     nameFns: 'listeners',
   },
   'remote/player.ts': {players: 'the mounted players (they unmount with the profile’s navigator)', changeFns: 'listeners'},
+  // [play-on-tv]
+  'remote/clock.ts': {offset: 'the server’s clock against this box’s — nobody’s profile'},
+  'remote/handoff.ts': {pending: 'a title sent to this TV on its profile wall, waiting for the profile that sent it: it must outlive the profile change (that is what it is for); only that profile takes it, any other drops it'},
+  'remote/wall.ts': {wall: 'this TV as a target while it is on its profile wall — nobody is signed in to it'},
   // [/phone-remote]
   'settle.ts': {waiting: 'the at-rest clock', moveFns: 'the at-rest clock', lastMove: 'the at-rest clock', timer: 'the at-rest clock', timerDue: 'the at-rest clock'},
   'storage.ts': {
