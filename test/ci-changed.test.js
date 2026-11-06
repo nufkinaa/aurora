@@ -40,6 +40,8 @@ test("a commit that changed tv-native runs the job; a docs-only one does not; th
   const wf = await decideChanged({ prefixes: PREFIXES, env: {}, base: `${WORKFLOW}^`, head: WORKFLOW });
   assert.equal(wf.run, true);
   assert.deepEqual(wf.matched, [".github/workflows/ci.yml"]);
+  const many = await decideChanged({ prefixes: [...PREFIXES, "a/", "b/", "c/"], env: {}, base: `${DOCS_ONLY}^`, head: DOCS_ONLY });
+  assert.match(many.reason, /^nothing under tv-native\/ or \.github\/workflows\/ or 3 more watched paths changed/);
 });
 
 test("any doubt runs the job: a run by hand, a tag, a re-run, a nightly without a green base, a bad range", async () => {

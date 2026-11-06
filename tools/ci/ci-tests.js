@@ -264,9 +264,10 @@ async function decideChanged({ prefixes, env, base, head }) {
   const matched = changes.map((c) => c.path).filter((p) => matchesAny(p, prefixes));
   const sha = (r) => { try { return short(git("rev-parse", r)); } catch { return short(r); } };
   const range = `${sha(ctx.base)}..${sha(ctx.head)} (${ctx.note})`;
+  const what = prefixes.length > 3 ? `${prefixes.slice(0, 2).join(" or ")} or ${prefixes.length - 2} more watched paths` : prefixes.join(" or ");
   return matched.length
-    ? { run: true, reason: `${matched.length} changed file(s) under ${prefixes.join(" or ")} in ${range}`, matched }
-    : { run: false, reason: `nothing under ${prefixes.join(" or ")} changed in ${range}`, matched };
+    ? { run: true, reason: `${matched.length} changed file(s) under ${what} in ${range}`, matched }
+    : { run: false, reason: `nothing under ${what} changed in ${range}`, matched };
 }
 
 async function cmdChanged(args, env) {
