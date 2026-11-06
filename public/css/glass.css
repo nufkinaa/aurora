@@ -5036,13 +5036,96 @@ button.xr-person:focus-visible {
   .person-grid .card.pt-card:hover, .person-grid .card.pt-card:focus { transform: none; }
 }
 
+/* ---------- the phone tab bar's More (2026-11-06) ----------
+   The bar holds Home, Movies, Shows, My List, More and Search; AI, New and
+   Saved are in More's sheet (js/navmore.js), with every other place. The
+   sheet is the bar's own frosted glass (the dark floor of 1.15.10, same
+   blur), rising from it. Structure: responsive.css. */
+@media (max-width: 720px) {
+  html[data-look="glass"]:root .nav-items > #nav-pick,
+  html[data-look="glass"]:root .nav-items > #nav-new,
+  html[data-look="glass"]:root .nav-items > #nav-saved {
+    display: none;
+  }
+  html[data-look="glass"]:root .nav-items > .nav-more {
+    display: block;
+    order: 8; /* the last word, right before Search */
+  }
+  html[data-look="glass"]:root .nav-items > .nav-more.open {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+  html[data-look="glass"] .nav-more.has-new .nav-new-dot {
+    display: block;
+    position: absolute;
+    top: 8px;
+    left: calc(50% + 15px); /* at the word's shoulder */
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #8cffbe, #7fd1e8);
+    box-shadow: 0 0 10px rgba(140, 255, 190, 0.8);
+  }
+  /* the words fit, measured (js/navmore.js fitBar, NAV.md section 1): the
+     sides come in (6 -> 2 px), then the words step down, then More is three dots */
+  html[data-look="glass"]:root .nav-items.fit-pad .nav-item { padding-left: 2px; padding-right: 2px; }
+  html[data-look="glass"]:root .nav-items.fit-small .nav-item { font-size: 10.5px; }
+  html[data-look="glass"]:root .nav-items.fit-dots .nav-more-word { display: none; }
+  html[data-look="glass"]:root .nav-items.fit-dots .nav-more-dots { display: inline-block; }
+}
+html[data-look="glass"] .nav-more-wrap {
+  background: rgba(4, 5, 12, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+html[data-look="glass"] .nav-more-sheet {
+  left: max(12px, env(safe-area-inset-left, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+  padding: 6px;
+  border: 0;
+  border-radius: var(--g-radius);
+  background: var(--g-fill),
+    linear-gradient(90deg, rgba(14, 36, 90, 0.9), rgba(24, 30, 64, 0.9) 45%, rgba(16, 19, 42, 0.9));
+  box-shadow: var(--g-edge), var(--g-shadow);
+  -webkit-backdrop-filter: blur(7px) saturate(1.2);
+  backdrop-filter: blur(7px) saturate(1.2);
+}
+html[data-look="glass"] .nav-more-rule { background: rgba(255, 255, 255, 0.12); }
+html[data-look="glass"] .nav-more-item {
+  border-radius: 14px;
+  color: rgba(243, 244, 248, 0.92);
+  transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+html[data-look="glass"] .nav-more-item:active { transform: scale(0.98); }
+html[data-look="glass"] .nav-more-item:hover { background: rgba(255, 255, 255, 0.08); }
+html[data-look="glass"] .nav-more-item.active {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+html[data-look="glass"] .nav-more-item:focus-visible {
+  color: #0b0c14;
+  background: #fff;
+  box-shadow: var(--focus-ring);
+}
+html[data-look="glass"] .nav-more-item:focus-visible .nav-more-sub { color: rgba(11, 12, 20, 0.7); }
+html[data-look="glass"] .nav-more-icon {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  color: rgba(243, 244, 248, 0.92);
+}
+html[data-look="glass"] .nav-more-sub { color: rgba(243, 244, 248, 0.66); }
+html[data-look="glass"] .nav-more-item.live .nav-more-sub { color: #8cffbe; }
+
 /* Reduced transparency (and a TV's browser): the toast and the phone tab bar
    take the flat tint every other glass surface takes there (top of this
    file); their own floors above come later in the file and would otherwise
    win. */
 @media (prefers-reduced-transparency: reduce), (hover: none) and (pointer: coarse) and (min-width: 1200px) {
   html[data-look="glass"]:root .toast,
-  html[data-look="glass"]:root .nav-items {
+  html[data-look="glass"]:root .nav-items,
+  html[data-look="glass"]:root .nav-more-sheet {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
     background: rgba(18, 20, 34, 0.9);

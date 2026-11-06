@@ -87,6 +87,7 @@ module.exports = {
   "nav.home": "wtp",
   "nav.movies": "wtp",
   "nav.mylist": "wtp",
+  "nav.more": "w", // the phone tab bar's More (js/navmore.js)
   "nav.new": "w",
   "nav.profile": "wtp",
   "nav.remote": "w", // [phone-remote]
@@ -94,6 +95,20 @@ module.exports = {
   "nav.search": "wtp",
   "nav.settings": "wtp",
   "nav.shows": "wtp",
+  // more (the phone tab bar's More sheet, js/navmore.js; ids as in docs/android-phone/NAV.md)
+  "more.apps": "w",
+  "more.downloads": "w",
+  "more.household": "w",
+  "more.new": "w",
+  "more.pair": "w",
+  "more.party": "w",
+  "more.pick": "w",
+  "more.remote": "w",
+  "more.report": "w",
+  "more.saved": "w",
+  "more.settings": "w",
+  "more.taste": "w",
+  "more.wrapped": "w",
   // newpassword
   "newpassword.signout": "tp",
   "newpassword.submit": "tp",

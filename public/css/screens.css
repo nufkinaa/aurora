@@ -711,7 +711,10 @@
 }
 
 /* ---------- Taste picker ---------- */
-.taste { padding-top: calc(var(--nav-h) + 18px); }
+/* (no padding of its own at the top: its heading is a .browse-head, which
+   already starts from --nav-h — with both, the page began a whole nav height
+   lower than My List, Movies and the rest) */
+.taste { padding-top: 0; }
 .taste-tile {
   position: relative;
   border-radius: var(--radius);

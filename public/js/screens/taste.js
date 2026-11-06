@@ -565,7 +565,8 @@ export const renderTasteList = async (root) => {
       "Tap the ones you'd defend in an argument. Home learns from these — you can come back and change them anytime."),
     el("button", { "data-ui": "taste.back", class: "btn small focusable taste-back-swipe", onclick: () => navigate("#/taste") }, "← Back to swiping"),
     grid,
-    nopes,
+    // (no "not for me" answers: nothing — a bare null here was printed as "null")
+    ...(nopes ? [nopes] : []),
     // Done floats — no scrolling a 120-poster grid just to leave
     el("div", { class: "taste-done" },
       el("button", { class: "btn btn-primary focusable", html: "<span>Done</span>", onclick: () => { save.flush && save.flush(); navigate("#/preferences"); } })),

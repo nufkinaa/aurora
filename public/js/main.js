@@ -717,6 +717,7 @@ const startRemote = () => import("./remote.js").then((m) => { remoteMod = m; m.i
 
 const showProfileMenu = () => {
   document.querySelector(".nav-menu-wrap")?.remove(); // toggle: second click closes
+  if (document.querySelector(".nav-more-wrap")) import("./navmore.js").then((m) => m.close()).catch(() => {}); // one menu at a time
   const remoteOn = !!(remoteMod && remoteMod.getDevices().length); // [phone-remote]
   const item = (label, onclick, cls = "") =>
     el("button", { class: `nav-menu-item focusable ${cls}`, onclick }, label);
@@ -739,7 +740,7 @@ const showProfileMenu = () => {
     item("Report a problem", () => { close(); showReportSheet(); }),
     item("Join a watch party", () => { close(); showJoinParty(); }),
     // [phone-remote] there while a TV (or another computer) of this profile is on
-    remoteOn && item("Remote", () => { close(); navigate("#/remote"); }),
+    remoteOn && item("Your TVs", () => { close(); navigate("#/remote"); }),
     // [/phone-remote]
     state.user &&
       item("Sign out", () => {
@@ -760,6 +761,18 @@ const showProfileMenu = () => {
   document.body.append(wrap);
   setTimeout(() => menu.querySelector("button")?.focus({ preventScroll: true }), 40);
 };
+
+// The phone tab bar's More (js/navmore.js): every place the bar has no room
+// for, in a sheet over the bar. Loaded after the first frame — it also fits
+// the bar's words to the width (larger text), and lights More on a screen
+// it leads to.
+{
+  const loadMore = () => import("./navmore.js");
+  $("#nav-more").addEventListener("click", () => loadMore().then((m) => { m.initMore(); m.toggleMore(); }).catch(() => {}));
+  requestAnimationFrame(() => loadMore().then((m) => m.initMore()).catch(() => {}));
+}
+// "Report a problem" from More's sheet (the profile menu calls it directly)
+document.addEventListener("aurora-report", () => showReportSheet());
 
 $("#nav-profile").addEventListener("click", () => {
   // Before any profile is active (shouldn't happen — the gate covers boot),

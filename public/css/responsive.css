@@ -667,3 +667,147 @@
     bottom: 0;
   }
 }
+
+/* ---------- The phone tab bar's More (2026-11-06) ----------
+   elia: "do we have a way to reach all screens on smaller phone screens?"
+   At 320 px with AI and Saved on, Search fell off the end of the bar, and
+   New was not in it at all. The bar now holds Home, Movies, Shows, My List,
+   More and Search; More opens a sheet with every other place
+   (js/navmore.js; the set, order and words: docs/android-phone/NAV.md,
+   docs/web-nav.md). Desktop and tablet: no More, nothing moves. Glass has
+   its own skin (glass.css); this is the classic one. */
+.nav-more {
+  display: none;
+  position: relative;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+.nav-more .nav-new-dot { display: none; }
+.nav-more-dots { display: none; vertical-align: -5px; }
+.nav-more-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 99; /* under the nav (100): the bar stays tappable, More closes it */
+  background: rgba(0, 0, 0, 0.35);
+  animation: nav-more-fade 160ms ease-out both;
+}
+.nav-more-wrap.leaving { animation: nav-more-fade 160ms ease-in reverse both; pointer-events: none; }
+@keyframes nav-more-fade { from { opacity: 0; } to { opacity: 1; } }
+.nav-more-sheet {
+  position: fixed;
+  left: max(8px, env(safe-area-inset-left, 0px));
+  right: max(8px, env(safe-area-inset-right, 0px));
+  margin: 0 auto;
+  max-width: 520px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  border-radius: 16px;
+  background: #14151f; /* the bar's flat ground, a shade lighter */
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  transform-origin: bottom right;
+  animation: nav-more-in 200ms var(--ease) both;
+}
+/* more below the fold of a short screen: the last row fades out */
+.nav-more-sheet.more-below {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), rgba(0, 0, 0, 0.25));
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), rgba(0, 0, 0, 0.25));
+}
+@keyframes nav-more-in { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+.nav-more-list { display: flex; flex-direction: column; }
+.nav-more-rule { height: 1px; margin: 5px 10px; background: var(--line); flex: none; }
+.nav-more-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 5px 12px 5px 8px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.93rem;
+  font-weight: 650;
+  line-height: 1.25;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  flex: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.nav-more-item:hover { background: var(--surface-hover); }
+.nav-more-item:focus-visible { box-shadow: var(--focus-ring); outline: none; }
+.nav-more-item.active { background: var(--surface-hover); }
+.nav-more-icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-dim);
+}
+.nav-more-item.live .nav-more-icon { color: #8cffbe; background: rgba(74, 222, 128, 0.14); }
+.nav-more-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.nav-more-sub { font-size: 0.76rem; font-weight: 600; color: var(--text-dim); }
+.nav-more-item.live .nav-more-sub { color: #8cffbe; }
+.nav-more-dot {
+  flex: none;
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #8cffbe, #7fd1e8);
+  box-shadow: 0 0 10px rgba(140, 255, 190, 0.8);
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-more-wrap, .nav-more-wrap.leaving, .nav-more-sheet { animation: none; }
+}
+/* the classic bar: AI, New and Saved make way for More (the sheet has them) */
+@media (max-width: 600px) {
+  html:not([data-look="glass"]) .nav-items > #nav-pick,
+  html:not([data-look="glass"]) .nav-items > #nav-new,
+  html:not([data-look="glass"]) .nav-items > #nav-saved {
+    display: none;
+  }
+  html:not([data-look="glass"]) .nav-items > .nav-more {
+    display: block;
+    order: 8; /* the last word, right before Search */
+  }
+  html:not([data-look="glass"]) .nav-more:focus:not(:focus-visible) {
+    color: var(--text-dim);
+    background: none;
+    box-shadow: none;
+  }
+  html:not([data-look="glass"]) .nav-more.open,
+  html:not([data-look="glass"]) .nav-more.open:focus:not(:focus-visible) {
+    color: var(--text);
+    background: var(--surface);
+  }
+  html:not([data-look="glass"]) .nav-more.has-new .nav-new-dot {
+    display: block;
+    position: absolute;
+    top: 8px;
+    left: calc(50% + 15px); /* at the word's shoulder */
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--accent);
+  }
+  /* the words fit, measured (js/navmore.js fitBar, NAV.md section 1):
+     narrower sides, then smaller words, then More as three dots */
+  html:not([data-look="glass"]) .nav-items.fit-pad .nav-item { padding-left: 2px; padding-right: 2px; }
+  html:not([data-look="glass"]) .nav-items.fit-small .nav-item { font-size: 10.5px; }
+  html:not([data-look="glass"]) .nav-items.fit-dots .nav-more-word { display: none; }
+  html:not([data-look="glass"]) .nav-items.fit-dots .nav-more-dots { display: inline-block; }
+}
