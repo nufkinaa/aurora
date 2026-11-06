@@ -21,7 +21,7 @@ const {colors, fontSize, spacing, radius} = theme;
 // one place to change: its cards say `since: ROUND`, and NEW_FROM = ROUND puts the New
 // ribbon on them alone. (The website has the same cards: public/js/screens/whatsnew.js,
 // ROUND there; its `webOnly` cards — AirPlay from an iPhone — have nothing to do on a TV.)
-export const ROUND = '5.8.3';
+export const ROUND = '5.8.5';
 const NEW_FROM = ROUND;
 const cmpVersion = (a: string, b: string) => {
   const pa = a.split('.').map(Number);
@@ -52,7 +52,7 @@ export const FEATURES: Feature[] = [
   },
   // ---- Niso's reports (2026-11-02): the same cards, the same words, on the website ----
   {
-    since: ROUND,
+    since: '5.8.3',
     glyph: '⏹️',
     title: "Cancel a download, anywhere",
     what: "Cancel is on My downloads, on the title page and on the versions list, and it always asks first, so a stray press changes nothing. What is on its way now sits at the top of My downloads.",
@@ -60,7 +60,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'My downloads', act: 'downloads'},
   },
   {
-    since: ROUND,
+    since: '5.8.3',
     glyph: '🔢',
     title: "See how many downloads you have",
     what: "One line shows yours: how many are downloading, how many are waiting and how many are ready. It only counts them; there is no limit.",
@@ -68,7 +68,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'My downloads', act: 'downloads'},
   },
   {
-    since: ROUND,
+    since: '5.8.3',
     glyph: '🗣️',
     title: "Wrong language? It looks for the right one",
     what: "Report a copy as Wrong language and the list leaves out copies naming that language, with the language you want first. If a try is cancelled or fails, Aurora says who or why and offers the next version.",
