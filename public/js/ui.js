@@ -240,6 +240,207 @@ export const backupPosterUrl = (item) =>
       (item.year ? `&y=${encodeURIComponent(item.year)}` : "")
     : null;
 
+// ---------- the pictures on screen first ----------
+// A screen that has just been opened asks for its pictures all at once: the
+// billboard, the few cards in view, and — because the browser's lazy-load
+// reaches 1250–2500 px past the screen on a phone line — every card of the
+// next eight or so shelves, plus the shelves' first cards marked eager for a
+// screen taller than a phone's. On a slow line they all share it, and the
+// pictures the person is looking at arrive last among equals (a phone on
+// 3G: ~33 posters, ~0.8 MB, in flight before the first shelf was in).
+//
+// So while a screen's first pictures are on their way, the others wait:
+// a poster that is not yet known to this page is created without its
+// address. The moment it is known to be in view it gets it, at high
+// priority, and the screen waits for it — known three ways: the screen says
+// so as soon as its first part is placed (home.js `releaseInView`, in the
+// same task, as an eager card was always asked for at once); a
+// ResizeObserver, inside the first frame that lays it out (where the
+// browser's own lazy-load would have decided); an IntersectionObserver, for
+// one that comes into view later. Once every picture in view — and the
+// billboard's, home.js `pictureWait` — has arrived (or failed), everything
+// that waited is given its address, exactly as it would have had it before:
+// a lazy one then loads by the browser's own rule, an eager one at once.
+// Nothing is drawn differently, only asked for later: a waiting poster shows
+// what a poster on its way always showed (its placeholder). The person
+// touching anything (a scroll, a tap, a key) lets everything go at once, so
+// scrolling meets the same lazy-load as ever; and a screen whose pictures
+// stall lets go after a few seconds without progress. Work that fetches
+// pictures nobody is looking at yet (the title prefetch's art, the idle hero
+// upgrade, the nav tint's probe) waits for the same moment (`afterPictures`).
+const PIC_STALL_MS = 6000; // nothing arrived for this long: let everything go
+const PIC_EMPTY_MS = 12000; // a screen that has shown no picture yet (its data on the way)
+const PIC_MAX_MS = 20000; // and never hold longer than this
+const pic = {
+  open: true,
+  held: new Map(), // img -> its start()
+  unseen: new Set(), // observed, no answer from the observer yet
+  pending: new Set(), // in view and on its way
+  waits: 0, // other first-screen pictures (the billboard's)
+  after: [],
+  known: new Set(), // addresses this page has shown: the memory cache has them
+  io: null,
+  ro: null,
+  raf: 0,
+  stall: 0,
+  max: 0,
+};
+const picOpen = () => {
+  if (pic.open) return;
+  pic.open = true;
+  clearTimeout(pic.stall);
+  clearTimeout(pic.max);
+  pic.max = 0;
+  if (pic.raf) cancelAnimationFrame(pic.raf);
+  pic.raf = 0;
+  if (pic.io) pic.io.disconnect();
+  if (pic.ro) pic.ro.disconnect();
+  const go = [...pic.held.values()];
+  pic.held.clear();
+  pic.unseen.clear();
+  pic.pending.clear();
+  pic.waits = 0;
+  for (const start of go) start();
+  const after = pic.after.splice(0);
+  for (const fn of after) { try { fn(); } catch {} }
+};
+const picProgress = () => {
+  clearTimeout(pic.stall);
+  if (pic.open) return;
+  const busy = pic.held.size || pic.pending.size || pic.waits;
+  pic.stall = setTimeout(picOpen, busy ? PIC_STALL_MS : PIC_EMPTY_MS);
+  // (the longest hold counts from the first picture held)
+  if (busy && !pic.max) pic.max = setTimeout(picOpen, PIC_MAX_MS);
+};
+const picCheck = () => {
+  if (!pic.open && !pic.unseen.size && !pic.pending.size && !pic.waits) picOpen();
+};
+// A screen is being opened: hold what it does not show (router.js
+// "aurora-route-start", and the first screen at load).
+const picClose = () => {
+  if (typeof IntersectionObserver === "undefined") return;
+  if (!pic.open) return picProgress();
+  pic.open = false;
+  clearTimeout(pic.max);
+  pic.max = 0;
+  picProgress();
+  if (!pic.io) pic.io = new IntersectionObserver(picSeen);
+  if (!pic.ro && typeof ResizeObserver !== "undefined") pic.ro = new ResizeObserver(picLaidOut);
+};
+// The first layout of a held poster: is it in view? A ResizeObserver's
+// callback runs inside the frame, right after its layout — the moment the
+// browser's own lazy-load would decide — so the answer costs no layout of
+// its own (the observer's answer only comes a task later).
+const picLaidOut = (entries) => {
+  if (pic.open) return;
+  const vh = window.innerHeight;
+  const vw = window.innerWidth;
+  for (const e of entries) {
+    const img = e.target;
+    pic.ro.unobserve(img);
+    if (!pic.held.has(img)) continue;
+    const b = img.getBoundingClientRect();
+    if (!(b.width > 0 && b.height > 0 && b.bottom > 0 && b.top < vh && b.right > 0 && b.left < vw)) continue;
+    // (a shelf clips the cards past its own edges)
+    const clip = img.closest(".row-scroller");
+    const c = clip ? clip.getBoundingClientRect() : null;
+    if (c && (b.right <= c.left || b.left >= c.right)) continue;
+    picRelease(img);
+  }
+  picCheck();
+};
+// The IntersectionObserver's answers: a held poster that has come into view
+// (a scroll put back by the screen, a shelf that grew above it). Its own
+// callback is an ordinary task, which on a busy phone waits behind the rest
+// of the screen being built (Home's shelves, one task each), so its records
+// are also taken on each animation frame while anything is held (picSweep).
+const picSeen = (entries) => {
+  for (const e of entries) {
+    const img = e.target;
+    pic.unseen.delete(img);
+    if (!e.isIntersecting) continue;
+    picRelease(img);
+  }
+  picCheck();
+};
+// A held poster that is in view: its address now, at high priority, and the
+// screen waits for it.
+const picRelease = (img) => {
+  const start = pic.held.get(img);
+  if (!start) return;
+  pic.held.delete(img);
+  pic.unseen.delete(img);
+  pic.io.unobserve(img);
+  if (pic.ro) pic.ro.unobserve(img);
+  pic.pending.add(img);
+  const done = () => {
+    img.removeEventListener("load", done);
+    img.removeEventListener("error", done);
+    if (pic.pending.delete(img)) { picProgress(); picCheck(); }
+  };
+  img.addEventListener("load", done);
+  img.addEventListener("error", done);
+  img.fetchPriority = "high";
+  start();
+};
+const picSweep = () => {
+  pic.raf = 0;
+  if (pic.open || !pic.io) return;
+  picSeen(pic.io.takeRecords());
+  // (while anything still waits: a held poster can come into view later — a
+  // scroll put back by the screen, a shelf that grew above it)
+  if (!pic.open && (pic.held.size || pic.waits)) pic.raf = requestAnimationFrame(picSweep);
+};
+// A screen that knows its first pictures are placed (home.js, right after its
+// first shelves): the held ones in view get their address now, in the same
+// task — the observer's answer comes with the next frame, which on a busy
+// phone is a few hundred ms away, and a card marked eager was always asked
+// for at once. One layout, which the next frame would have done anyway; none
+// at all when nothing in `root` is held (a revisit: the pictures are known).
+export const releaseInView = (root) => {
+  if (pic.open || !root || !pic.held.size) return;
+  const imgs = [...root.querySelectorAll("img")].filter((im) => pic.held.has(im));
+  if (!imgs.length) return;
+  const vh = window.innerHeight;
+  const vw = window.innerWidth;
+  for (const im of imgs) {
+    const b = im.getBoundingClientRect();
+    if (b.width > 0 && b.height > 0 && b.bottom > 0 && b.top < vh && b.right > 0 && b.left < vw) picRelease(im);
+  }
+};
+// Another first-screen picture to wait for (an Image, or a promise).
+export const pictureWait = (what) => {
+  if (pic.open || !what) return;
+  pic.waits++;
+  if (pic.waits === 1) picProgress();
+  let settled = false;
+  const done = () => {
+    if (settled) return;
+    settled = true;
+    if (pic.open) return;
+    pic.waits = Math.max(0, pic.waits - 1);
+    picProgress();
+    picCheck();
+  };
+  if (typeof what.then === "function") what.then(done, done);
+  else if (what.complete) done();
+  else { what.addEventListener("load", done, { once: true }); what.addEventListener("error", done, { once: true }); }
+};
+// Are the pictures on screen in (nothing is being held)?
+export const picturesIn = () => pic.open;
+// Run `fn` once the pictures on screen are in (at once if they are).
+export const afterPictures = (fn) => {
+  if (pic.open) fn();
+  else pic.after.push(fn);
+};
+if (typeof window !== "undefined" && window.addEventListener && typeof document !== "undefined") {
+  picClose(); // the first screen
+  window.addEventListener("aurora-route-start", picClose);
+  for (const ev of ["pointerdown", "touchstart", "wheel", "keydown"]) {
+    window.addEventListener(ev, picOpen, { capture: true, passive: true });
+  }
+}
+
 // `backup`: a second address to try (the backup poster) once the first has
 // failed twice — only then does the titled tile take over.
 export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-fallback", { w = null, eager = false, backup = null } = {}) => {
@@ -249,22 +450,37 @@ export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-f
   // placeholder: the fade-in this always had.
   const blur = blurOf(src);
   src = artUrl(src, w);
-  const img = el("img", { class: cls + (blur ? " img-blurup" : " img-fade"), src, loading: eager ? "eager" : "lazy", decoding: "async", alt: "" });
+  // (held: see "the pictures on screen first" above — its address comes later)
+  const hold = !pic.open && !!src && !pic.known.has(src);
+  const img = el("img", { class: cls + (blur ? " img-blurup" : " img-fade"), src: hold ? null : src, loading: eager ? "eager" : "lazy", decoding: "async", alt: "" });
   if (blur) img.style.backgroundImage = `url("${blur}")`;
   // Fade in on decode instead of popping — but ONLY when the picture took a
   // moment to arrive. One that lands within a few frames came from the
   // cache, and fading THAT in made every revisit of Home look like the rows
   // were loading again (elia: "the list takes time to look ok"). Cached
   // images can even be complete before this handler attaches.
-  const t0 = performance.now();
+  let t0 = performance.now();
   const reveal = () => {
     if (performance.now() - t0 < 120) img.classList.add("img-now");
     img.classList.add("img-in");
+    if (pic.known.size > 3000) pic.known.clear();
+    pic.known.add(src);
     // the placeholder has done its job; a see-through PNG must not show it
     if (blur) setTimeout(() => { img.style.backgroundImage = ""; }, 500);
   };
   img.onload = reveal;
-  if (img.complete && img.naturalWidth > 0) reveal();
+  if (hold) {
+    pic.held.set(img, () => {
+      t0 = performance.now();
+      img.src = src;
+      if (img.complete && img.naturalWidth > 0) reveal();
+    });
+    pic.unseen.add(img);
+    if (pic.held.size === 1) picProgress(); // (the stall clock: from now)
+    pic.io.observe(img);
+    if (pic.ro) pic.ro.observe(img);
+    if (!pic.raf) pic.raf = requestAnimationFrame(picSweep);
+  } else if (img.complete && img.naturalWidth > 0) reveal();
   let retried = false;
   img.onerror = () => {
     if (!retried) {
