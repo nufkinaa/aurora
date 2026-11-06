@@ -13,7 +13,7 @@ export const APP_VERSION = '5.8.4';
 // [android-phone] The phone app's own series (build.gradle's `auroraPhone` block:
 // versionName / versionCode), announced by the server at /phone-version.json from
 // public/aurora-phone.apk and fetched from /download/phone.
-export const PHONE_APP_VERSION = '1.0.4';
+export const PHONE_APP_VERSION = '1.0.5';
 /** The version of the app that is running (the TV's or the phone's). */
 export const runningVersion = () => (isPhone() ? PHONE_APP_VERSION : APP_VERSION);
 
