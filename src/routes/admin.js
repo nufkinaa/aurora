@@ -419,7 +419,12 @@ router.post("/api/admin/library/copies/delete", (req, res) => {
 // forecast, so one answer paints the section. Nothing is deleted here.
 router.get("/api/admin/library/freeup", async (req, res) => {
   const freespace = require("../media/freespace");
-  const out = freespace.gather({ days: req.query.days });
+  let out;
+  // (Express 4 does not catch a throw in an async route: answer it here)
+  try { out = freespace.gather({ days: req.query.days }); } catch (err) {
+    console.warn("[admin] free up space list failed:", err && err.message ? err.message : err);
+    return res.status(500).json({ error: "Could not read what is safe to remove." });
+  }
   const roots = [...new Set([...config.LIBRARIES.movies, ...config.LIBRARIES.shows])];
   let free = null;
   let total = null;
@@ -444,7 +449,11 @@ router.post("/api/admin/library/freeup/delete", async (req, res) => {
   if (!keys.length) return res.status(400).json({ error: "Nothing was chosen." });
   if (keys.length > 2000) return res.status(400).json({ error: "Too many at once" });
   const freespace = require("../media/freespace");
-  const fresh = freespace.gather({ days: req.body.days });
+  let fresh;
+  try { fresh = freespace.gather({ days: req.body.days }); } catch (err) {
+    console.warn("[admin] free up space check failed:", err && err.message ? err.message : err);
+    return res.status(500).json({ error: "Could not check what is safe to remove — nothing was removed." });
+  }
   const byKey = new Map([...fresh.safe, ...fresh.duplicates].map((r) => [r.key, r]));
   const deleted = [];
   const skipped = [];
