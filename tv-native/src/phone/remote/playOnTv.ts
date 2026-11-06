@@ -19,7 +19,15 @@ import {pushPhone} from '../nav';
 import {command, Device, playOn, wireItem} from './controller';
 
 type Item = Parameters<typeof wireItem>[0];
-export type SendOpts = {position?: number | null; restart?: boolean; subLang?: string | null; audioLang?: string | null; after?: () => void};
+export type SendOpts = {
+  position?: number | null;
+  /** read when the TV is chosen (the phone's player goes on playing while the sheet is up) */
+  positionAt?: () => number;
+  restart?: boolean;
+  subLang?: string | null;
+  audioLang?: string | null;
+  after?: () => void;
+};
 
 /** The sheet's second line for a device: whose it is, or that it is on its profile wall. */
 export const tvTag = (d: Device): string | undefined => (d.wall ? PLAY_ON.onWall : d.mine === false && d.profile ? d.profile.name : undefined);
@@ -28,7 +36,7 @@ export function sendToTv(tvs: Device[], item: Item, o: SendOpts = {}) {
   if (!tvs.length) return;
   const what = playOnTitle(item);
   const go = async (d: Device) => {
-    const r = await playOn(d, item, o);
+    const r = await playOn(d, item, {...o, position: o.positionAt ? o.positionAt() : o.position});
     if (!r.ok) return;
     o.after?.();
     // the remote for that TV (the same device id when a TV on its wall comes into the profile)
@@ -69,7 +77,15 @@ export async function continueHere(d: Device | null, n: NowState | null) {
     audioLang: f.audioLang,
   });
   if (!navRef.isReady()) return false;
-  navRef.dispatch(StackActions.push('Player', params));
+  // the remote gives way to the player: a player of this phone still under it
+  // (the one that handed the title over) is replaced, not stacked — two
+  // players, one paused under the other, made Back leave the app
+  const st = navRef.getRootState?.() as {index?: number; routes?: {name: string}[]} | undefined;
+  const below = st && st.routes && typeof st.index === 'number' ? st.routes[st.index - 1] : null;
+  if (below && below.name === 'Player') {
+    navRef.dispatch(StackActions.pop());
+    navRef.dispatch(StackActions.replace('Player', params));
+  } else navRef.dispatch(StackActions.replace('Player', params));
   showToast(PLAY_ON.continued(d.name), '📱');
   return true;
 }

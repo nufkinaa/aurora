@@ -74,7 +74,7 @@ ui.test("phone: Play on TV to a TV on its profile wall — one press and a confi
     });
     await page.waitForFunction((id) => location.hash === `#/remote/${id}`, tv.deviceId);
     await page.waitForSelector('.remote-screen[data-state="idle"]');
-    assert.match(await page.locator(".rm-idle .rm-subtitle").innerText(), /On “Who's watching\?”/);
+    assert.equal(await page.locator(".rm-idle .rm-subtitle").innerText(), "On “Who's watching?”");
     await shot(page, "web-phone-remote-tv-asks-pin");
     // the PIN is typed on the TV: the same box, now this profile's, playing it
     await tv.enterProfile(profile);

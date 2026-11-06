@@ -12,9 +12,10 @@ let mockAnswer: Record<string, unknown> = {ok: true, status: 'playing'};
 
 jest.mock('../../src/overlay', () => ({openActions: (o: (typeof mockSheets)[number]) => mockSheets.push(o)}));
 jest.mock('../../src/toast', () => ({showToast: (t: string) => mockToasts.push(t)}));
-jest.mock('../../src/rootNav', () => ({navRef: {isReady: () => true, dispatch: (a: unknown) => mockDispatched.push(a)}}));
+let mockRoutes: {name: string}[] = [{name: 'Home'}, {name: 'Remote'}];
+jest.mock('../../src/rootNav', () => ({navRef: {isReady: () => true, dispatch: (a: unknown) => mockDispatched.push(a), getRootState: () => ({index: mockRoutes.length - 1, routes: mockRoutes})}}));
 jest.mock('../../src/phone/nav', () => ({pushPhone: (name: string, params?: unknown) => mockPushed.push({name, params})}));
-jest.mock('@react-navigation/native', () => ({StackActions: {push: (n: string, p: unknown) => ({type: 'push', n, p})}}));
+jest.mock('@react-navigation/native', () => ({StackActions: {push: (n: string, p: unknown) => ({type: 'push', n, p}), replace: (n: string, p: unknown) => ({type: 'replace', n, p}), pop: () => ({type: 'pop'})}}));
 jest.mock('../../src/phone/remote/controller', () => ({
   wireItem: (it: unknown) => it,
   command: async (deviceId: string, cmd: string, args: Record<string, unknown> = {}) => {
@@ -106,12 +107,28 @@ test("Continue on this phone: the TV is paused, this phone's player opens at the
   expect(await continueHere({...LIVING, heardAt}, NOW)).toBe(true);
   expect(mockCommands.map(c => c.cmd)).toEqual(['pause']);
   const push = mockDispatched[0] as {n: string; p: {id: string; title: string; remote: {position: number; subLang: string; audioLang: string}}};
-  expect(push.n).toBe('Player');
+  expect(push).toMatchObject({type: 'replace', n: 'Player'}); // the remote gives way to the player
   expect(push.p.id).toBe('lib-ep3');
   expect(push.p.title).toBe('Silo · S1 E3');
   expect(Math.round(push.p.remote.position)).toBe(1203);
   expect([push.p.remote.subLang, push.p.remote.audioLang]).toEqual(['he', 'en']);
   expect(mockToasts).toEqual(['Paused on Living room TV — carrying on here']);
+});
+
+test("Continue with this phone's own player still under the remote: that player is replaced, not stacked", async () => {
+  mockRoutes = [{name: 'Home'}, {name: 'Player'}, {name: 'Remote'}];
+  await continueHere(LIVING, {...NOW, paused: true});
+  expect(mockDispatched.map(a => (a as {type: string}).type)).toEqual(['pop', 'replace']);
+  mockRoutes = [{name: 'Home'}, {name: 'Remote'}];
+});
+
+test('the position sent is read when the TV is chosen, not when the button was pressed', async () => {
+  let t = 60;
+  sendToTv([LIVING], {id: 'x', title: 'Arrival'}, {positionAt: () => t});
+  t = 64;
+  mockSheets[0].items[0].onPress();
+  await flush();
+  expect(mockCommands[0].args.position).toBe(64);
 });
 
 test('Continue with nothing playing there: says so, opens nothing; a paused TV is not paused again', async () => {

@@ -302,7 +302,7 @@ export const renderRemote = async (root, params = {}) => {
       if (lastArt !== null) { lastArt = null; backdrop.classList.remove("on"); }
       if (d) {
         idleTitle.textContent = `Nothing playing on ${d.name}`;
-        idleSub.textContent = `${deviceLine(d)}${d.mine ? "" : ` · ${d.profile ? d.profile.name : ""}`}`;
+        idleSub.textContent = `${deviceLine(d)}${d.mine || d.wall ? "" : ` · ${d.profile ? d.profile.name : ""}`}`; // [play-on-tv] a TV on its wall is nobody's
       }
       fillIdle();
     }

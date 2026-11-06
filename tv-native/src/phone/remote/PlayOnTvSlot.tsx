@@ -17,7 +17,7 @@ export default function PlayOnTvSlot({children}: {children: (onPress: () => void
     const n = p?.now();
     if (!p || !n) return;
     const f = fromNow(n);
-    sendToTv(tvs, f.item, {position: p.position(), subLang: f.subLang, audioLang: f.audioLang, after: () => p.pause()});
+    sendToTv(tvs, f.item, {positionAt: () => p.position(), subLang: f.subLang, audioLang: f.audioLang, after: () => p.pause()});
   };
   return <>{children(onPress, tvs.length === 1 ? PLAY_ON.buttonFor(tvs[0].name) : PLAY_ON.button)}</>;
 }
