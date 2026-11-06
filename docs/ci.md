@@ -185,10 +185,14 @@ and `npx tsc --noEmit -p .`, both in `tv-native/`, after `npm ci --legacy-peer-d
 (its postinstall applies `tv-native/patches`). npm's download cache (`~/.npm`) is kept in
 the Actions cache, keyed on `tv-native/package-lock.json`.
 
-It runs only when something under `tv-native/` or `.github/workflows/` changed, in the
-same range the root tests compare: `node tools/ci/ci-tests.js changed --match tv-native/
---match .github/workflows/` writes `run=true|false`, and every later step is skipped on
-`false` (the job stays green, like "No affected tests").
+It runs only when something under `tv-native/` or `.github/workflows/` changed, or one of
+the few files outside `tv-native/` that its tests read (the website/server parity checks:
+`public/js/screens/player.js`, `src/media/household.js`, `docs/qa/household-recs/` and
+others), in the same range the root tests compare: `node tools/ci/ci-tests.js changed
+--match tv-native/ --match …` writes `run=true|false`, and every later step is skipped on
+`false` (the job stays green, like "No affected tests"). `test/ci-changed.test.js` scans
+the TV tests for such reads and fails when one is missing from the list, or left out of
+the job's sparse checkout (it keeps `docs/qa/household-recs/*.md`, not the screenshots).
 
 - **push:** since the last green run of this workflow. The workflow is green only when both
   jobs are, so a red or cancelled TV run keeps its changes in the next range.
