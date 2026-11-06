@@ -42,7 +42,7 @@ const Frame = ({children}: {children?: React.ReactNode}) => (
 function Notice({title, detail, action, onAction}: {title: string; detail: string; action: string; onAction: () => void}) {
   return (
     <View style={s.center}>
-      <Sky dim />
+      <Sky />
       <Image source={LOGO} style={s.logo} resizeMode="contain" />
       <Text style={s.title}>{title}</Text>
       <Text style={s.detail}>{detail}</Text>
@@ -87,7 +87,7 @@ const PHONE_UI: RootUi = {
   Frame,
   Loading: ({note}) => (
     <View style={s.center}>
-      <Sky dim />
+      <Sky />
       <Image source={LOGO} style={s.logo} resizeMode="contain" />
       <ActivityIndicator color={colors.text} size="large" style={{marginTop: 18}} />
       {/* the patient first launch (serverPick.ts): said once it is taking a while */}

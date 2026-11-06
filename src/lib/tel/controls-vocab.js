@@ -80,6 +80,20 @@ module.exports = {
   "home.switchprofile": "t",
   // mylist
   "mylist.filter": "tp",
+  // more (the phone's More sheet, docs/android-phone/NAV.md)
+  "more.apps": "p",
+  "more.downloads": "p",
+  "more.household": "p",
+  "more.new": "p",
+  "more.pair": "p",
+  "more.party": "p",
+  "more.pick": "p",
+  "more.remote": "p",
+  "more.report": "p",
+  "more.saved": "p",
+  "more.settings": "p",
+  "more.taste": "p",
+  "more.wrapped": "p",
   // nav
   "nav.ai": "wt",
   "nav.downloads": "w",
@@ -87,9 +101,10 @@ module.exports = {
   "nav.home": "wtp",
   "nav.movies": "wtp",
   "nav.mylist": "wtp",
+  "nav.more": "p", // the phone tab bar's More (docs/android-phone/NAV.md)
   "nav.new": "w",
   "nav.profile": "wtp",
-  "nav.remote": "w", // [phone-remote]
+  "nav.remote": "wp", // [phone-remote] (phone: the top bar's TV button while a TV is on)
   "nav.saved": "w",
   "nav.search": "wtp",
   "nav.settings": "wtp",
@@ -109,9 +124,9 @@ module.exports = {
   "peek.playontv": "w", // [phone-remote]
   "peek.remove": "w",
   // pick
-  "pick.example": "wt",
-  "pick.go": "wt",
-  "pick.option": "wt",
+  "pick.example": "wtp",
+  "pick.go": "wtp",
+  "pick.option": "wtp",
   "pick.retry": "t",
   "pick.unfold": "t",
   // picker
@@ -348,6 +363,8 @@ module.exports = {
   "phone.settings.remote": "p", // Settings: Your TVs
   "phone.settings.whatsnew": "p", // Settings: What's new
   "phone.settings.saved": "p", // Settings: On this phone
+  "phone.settings.saveto": "p", // Saved on this phone: Save to (this phone / SD card)
+  "phone.settings.limit": "p", // Saved on this phone: Space limit
   "phone.settings.switch": "p", // Settings: Switch profile / Sign out
   "phone.settings.wrapped": "p", // Settings: Your Aurora Wrapped
   "phone.taste.retry": "p", // Swipe your taste / Edit list: Try again (titles did not load)

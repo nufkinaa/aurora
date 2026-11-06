@@ -6,9 +6,11 @@ If the website needs to differ, change this file in both branches and say why.
 
 ## 1. The bottom tab bar (phones, portrait)
 
-`Home · Movies · Shows · My List · [Search icon] · More`
+`Home · Movies · Shows · My List · More · [Search icon]`
 
-- Five places plus Search, nothing else. The extra tabs the website shows today on a
+(Search stays last, elia 2026-10-06; More is the last word, right before it.)
+
+- Four tabs, More, and Search, nothing else. The extra tabs the website shows today on a
   phone (AI, Saved, New) move into **More**.
 - **No label is ever cut off.** The bar fits itself to the width and the font size:
   1. labels at 12.16 px bold (the font may grow with the phone's font size up to x1.2);
