@@ -260,6 +260,8 @@ for (const look of ["glass", "legacy"]) {
       await signIn(me);
       await goto("#/");
       await page.waitForSelector("#nav-remote:not([hidden])", { timeout: 20000 });
+      // (its look comes with remote.css, fetched when the first TV appears)
+      await page.waitForFunction(() => document.getElementById("nav-remote").getBoundingClientRect().width >= 32);
       const top = await page.evaluate(() => {
         const b = document.getElementById("nav-remote").getBoundingClientRect();
         const logo = document.querySelector(".nav-logo").getBoundingClientRect();
