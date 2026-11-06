@@ -359,3 +359,35 @@ Before `--auto-save-interval=10` the same runs came back at **7%** (clean restar
 - `downloadSpeed` is smoothed over about 10 s; `completedLength` is the signal to watch.
 - A zombie looks exactly like a healthy idle seeder (`seeder: true`, speed 0). aria2 drops it after about 60 s and accepts it straight back.
 - `max-download-limit` takes hold in 0.2 s and lets go at once, with the connection kept. `pause` drops every peer.
+
+---
+
+## 9. downloads-next (2026-11-06): the language check and "Tell me when it's ready"
+
+### 9.1 The language check (`media/langcheck.js`, called from `completeJob` before anything lands)
+
+Niso reported a copy in the wrong language; the replacement Aurora picked named no language in its title, so it could land in the wrong language again. Now the finished file's audio tracks are read with ffprobe (`seams.probe` also returns each audio track's `language` tag and `title`) before it is swapped in or copied to the library.
+
+What a track says: its **title** when it names a language ("Russian Dub" beats a tag "eng"), else its **tag** ("und" says nothing). The release name counts too.
+
+| Verdict | When |
+|---|---|
+| right | a track is in a wanted language; or a track says nothing and the release name names a wanted language |
+| wrong | every track says its language and none is wanted (and the name does not claim one); with nothing to look for, every track is in the replaced copy's language |
+| unknown | no audio read, untagged tracks, or tags and name disagree |
+
+**"Wrong language" replacement** (`replaces.lang` = `{ want, wrong }`, stored at request time from `copylang.fitFor`):
+- right → swapped in.
+- wrong → not swapped in. The copy is filed in `badreleases` (reason `language`, `auto: true`, no expiry) and the 1.15.9 fallback moves to the next copy, inside the same slot. Copies whose **name** says a wanted language go first; ones naming another language are skipped. Note: "That copy was in English, not Hebrew — now trying another (1080p · 2.1 GB)".
+- unknown → swapped in; the person is told "This copy doesn't say its language — report it again if it's wrong." (`publicJob.langLine`, in the in-app notice and the push).
+- every copy that could be found was wrong → it fails in words ("No copy in Hebrew could be found — the 2 copies tried were in another language. Try again later."); the old copy stays. A copy found wrong is never fetched again by the waiting rounds.
+
+**Any other download** — only when the person's profile has `prefs.audioLang`, the title's original language is known (TMDB, cached or 2.5 s) and the file's tracks say their language. Wanted = the person's language **or** the title's own (a Hebrew speaker's English film in English is right).
+- wrong with another copy available → the next copy, as above.
+- wrong with no other copy → it lands as it is (a whole download thrown away for nothing is worse) and says "This copy is in Russian — no copy in English was found."
+
+### 9.2 "Tell me when it's ready"
+
+- When a download a person **asked for** lands (not a smart download nobody asked for), the website, the TV and the phone show a notice with the server's sentence: `publicJob.readyLine` ("“Film” is ready to watch" / "The new version of “Film” is in — ready to watch") plus `langLine` when there is one. `public/js/readyNotice.js` and `tv-native/src/readyNotice.ts` compose it word for word (`test/ready-notice.test.js`).
+- Web Push (`lib/push.js`, only to devices that switched it on) follows the same rule. Never ntfy (that is the admin's channel).
+- Opt-out per person: Settings → "Tell me when it's ready" (`prefs.readyNotice`, a person switch in `profiles.js` `PREF_SWITCHES`, synced by personPrefs / personSync). Off silences the notice, the push, and the TV's / phone's own notification; what the language check found is still said. The website's browser-notification row is now called "Notifications on this device".
