@@ -16,6 +16,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Tap from '../ui/Tap';
 import Icon, {PhoneIconName} from '../ui/Icon';
 import {phoneNative} from '../native';
+import PlayOnTvSlot from '../remote/PlayOnTvSlot'; // [play-on-tv]
 
 const SCRIM_TOP = require('../../assets/player-top.png');
 const SCRIM_BOTTOM = require('../../assets/player-bottom.png');
@@ -186,6 +187,8 @@ export default function PhoneChrome(p: ChromeProps) {
             </View>
           ) : null}
         </View>
+        {/* [play-on-tv] there while a TV is on; not for a copy on the phone (no server) */}
+        {!p.simple ? <PlayOnTvSlot>{(onPress, label) => <Btn uiId="phone.player.playontv" icon="cast" label={label} onPress={onPress} />}</PlayOnTvSlot> : null}
         {p.pip ? <Btn uiId="phone.player.pip" icon="pip" label="Picture in picture" onPress={p.onPip} /> : null}
         <Btn uiId="phone.player.lock" icon="lockOpen" label="Lock the controls" onPress={() => p.onLock(true)} />
       </View>

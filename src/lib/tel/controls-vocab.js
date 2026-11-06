@@ -178,6 +178,7 @@ module.exports = {
   "remote.audio": "w",
   "remote.back": "w",
   "remote.close": "w",
+  "remote.continuehere": "w", // [play-on-tv] Continue on this phone
   "remote.device.open": "w",
   "remote.device.pick": "w",
   "remote.dpad": "w",
@@ -322,11 +323,13 @@ module.exports = {
   "phone.player.fit": "p", // the player: Fit the picture / Fill the screen
   "phone.player.lock": "p", // the player: Lock the controls
   "phone.player.pip": "p", // the player: Picture in picture
+  "phone.player.playontv": "p", // [play-on-tv] the player: Play on TV
   "phone.player.rotate": "p", // the player: Portrait / Landscape
   "phone.player.unlock": "p", // the player: Unlock the controls
   "phone.remote.arrow": "p", // the remote: an arrow of the pad
   "phone.remote.audio": "p", // the remote: audio track
   "phone.remote.back": "p", // the remote: Back
+  "phone.remote.continuehere": "p", // [play-on-tv] the remote: Continue on this phone
   "phone.remote.device": "p", // the remote: which TV
   "phone.remote.home": "p", // the remote: Home
   "phone.remote.next": "p", // the remote: next episode

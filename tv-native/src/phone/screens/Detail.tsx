@@ -84,7 +84,8 @@ import {FADE_MS, LOW_END} from '../lowEnd';
 import {pushPhone} from '../nav';
 import {saveOffline, useOffline} from '../offline/store';
 import {chooseQuality} from '../offline/choose';
-import {Device, playOn, useDevices} from '../remote/controller';
+import {useDevices} from '../remote/controller';
+import {sendToTv} from '../remote/playOnTv'; // [play-on-tv]
 import {colors, EP_W, G_EDGE, G_FILL, GUTTER, radius, SHELF_GAP} from '../theme';
 import {heroCover, showsPoster} from '../heroArt';
 
@@ -691,9 +692,8 @@ export default function Detail() {
         ? {id: heroEp.epId, title: heroEp.label, showId: full?.id || item.id, showTitle: title, season: heroEp.season, episode: heroEp.episode, imdbId: imdb, cover: item.cover || item.poster || null, duration: heroEp.durationSec || null, position: nextUp?.at || null}
         : null;
     if (!target) return showToast('Only what is on the server plays on a TV — save it first', 'ℹ️');
-    const go = (d: Device) => playOn(d, target, {position: target.position});
-    if (tvs.length === 1) return go(tvs[0]);
-    openActions({title: 'Play on…', items: tvs.map(d => ({label: d.name, tag: d.mine === false && d.profile ? d.profile.name : undefined, onPress: () => go(d)}))});
+    // [play-on-tv] one TV: confirmed in one press; then the remote for it
+    sendToTv(tvs, target, {position: target.position});
   };
 
   // MARK WATCHED IS NOT WATCHING (the TV's rule): the server's mark route, and what

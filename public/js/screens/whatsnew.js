@@ -24,6 +24,14 @@ import { showReportSheet } from "../report.js";
 export const ROUND = "1.15.7";
 const NEW_FROM = ROUND;
 const FEATURES = [
+  // ---- [play-on-tv] Play on TV / Continue on this phone: the same card, the same words, on the TV ----
+  {
+    since: ROUND, cue: "tap", glyph: "📺",
+    title: "Play on TV, and back to your phone",
+    what: "Press Play on TV on a title, an episode or in the player, and the TV starts it at the same second: it wakes from its screensaver and opens your profile, asking for its PIN or password if it has one. Your phone or computer pauses and becomes the remote, and Continue on this phone brings it back.",
+    how: "Title page, an episode or the player → Play on TV. On the remote: Continue on this phone.",
+    go: { label: "Your TVs", to: "#/remote" },
+  },
   // ---- Niso's reports (2026-11-02): the same cards, the same words, on the TV ----
   {
     since: ROUND, cue: "tap", glyph: "⏹️",

@@ -33,6 +33,15 @@ export const isNewCard = (f: {since?: string}) => !!f.since && cmpVersion(f.sinc
 
 type Feature = {since?: string; glyph: string; title: string; what: string; how: string; go?: {label: string; act: string}};
 export const FEATURES: Feature[] = [
+  // ---- [play-on-tv] Play on TV / Continue on this phone: the same card, the same words, on the website ----
+  {
+    since: ROUND,
+    glyph: '📺',
+    title: "Play on TV, and back to your phone",
+    what: "Press Play on TV on a title, an episode or in the player, and the TV starts it at the same second: it wakes from its screensaver and opens your profile, asking for its PIN or password if it has one. Your phone or computer pauses and becomes the remote, and Continue on this phone brings it back.",
+    how: "Leave this TV on, signed in or on Who's watching?. On your phone or computer: Play on TV.",
+    go: {label: 'Home', act: 'home'},
+  },
   // ---- Niso's reports (2026-11-02): the same cards, the same words, on the website ----
   {
     since: ROUND,

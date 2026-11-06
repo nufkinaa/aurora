@@ -18,6 +18,7 @@ import {peekMe} from '../../navSection';
 import {showToast} from '../../toast';
 import type {RemoteState} from '../../remote/protocol';
 import {registerProfileCache} from '../../profileScope';
+import {playOnResult, playOnTitle} from '../../remote/playOnWords'; // [play-on-tv] the website's words
 
 export type Device = {
   deviceId: string;
@@ -26,6 +27,8 @@ export type Device = {
   form?: string;
   model?: string;
   mine?: boolean;
+  /** [play-on-tv] a TV on its profile wall: nobody's yet, titles only */
+  wall?: boolean;
   profile?: {id: string; name: string} | null;
   caps?: {navigate?: boolean; volume?: boolean; playItem?: boolean; tracks?: boolean};
   state?: RemoteState | null;
@@ -42,7 +45,7 @@ let seq = 0;
 const waiting = new Map<string, {resolve: (r: Ack) => void; timer: ReturnType<typeof setTimeout>}>();
 const listSubs = new Set<(d: Device[]) => void>();
 const stateSubs = new Set<(id: string, s: RemoteState) => void>();
-export type Ack = {ok: boolean; error: string | null; message: string | null};
+export type Ack = {ok: boolean; error: string | null; message: string | null; status?: string | null};
 
 AsyncStorage.getItem(ID_KEY)
   .then(v => {
@@ -93,7 +96,7 @@ onMessage('remote_ack', d => {
   if (!w) return;
   waiting.delete(String(d.id));
   clearTimeout(w.timer);
-  w.resolve({ok: !!d.ok, error: (d.error as string) || null, message: (d.message as string) || null});
+  w.resolve({ok: !!d.ok, error: (d.error as string) || null, message: (d.message as string) || null, status: (d.status as string) || null});
 });
 
 export const getDevices = () => devices;
@@ -160,17 +163,24 @@ export const wireItem = (it: {id: string; title?: string; showTitle?: string | n
   duration: it.duration || null,
 });
 
-/** "Play on TV": the command, the remembered subtitle and audio languages of the person. */
-export async function playOn(device: Device, item: Parameters<typeof wireItem>[0], o: {position?: number | null; restart?: boolean} = {}): Promise<Ack> {
+/** "Play on TV": the command, the remembered subtitle and audio languages of the person
+ *  (or the ones the phone's player has on, when it sends what it plays). */
+export async function playOn(
+  device: Device,
+  item: Parameters<typeof wireItem>[0],
+  o: {position?: number | null; restart?: boolean; subLang?: string | null; audioLang?: string | null} = {},
+): Promise<Ack> {
   const prefs = (peekMe(getActiveProfile() || '')?.prefs || {}) as {subPick?: string; audioLang?: string};
   const sub = prefs.subPick || null;
   const res = await command(device.deviceId, 'play_item', {
     item: wireItem(item),
     position: o.position && o.position > 0 ? o.position : null,
     restart: !!o.restart,
-    subLang: sub === 'off' || /^[a-z]{2,3}$/.test(String(sub || '')) ? sub : null,
-    audioLang: /^[a-z]{2,3}$/.test(String(prefs.audioLang || '')) ? prefs.audioLang : null,
+    subLang: o.subLang !== undefined ? o.subLang : sub === 'off' || /^[a-z]{2,3}$/.test(String(sub || '')) ? sub : null,
+    audioLang: o.audioLang !== undefined ? o.audioLang : /^[a-z]{2,3}$/.test(String(prefs.audioLang || '')) ? prefs.audioLang : null,
   });
-  showToast(res.ok ? `Playing on ${device.name}` : res.message || `Couldn't play on ${device.name}`, res.ok ? '📺' : '⚠️');
+  // [play-on-tv] playing / "Enter your PIN on Living room TV to play Arrival" / "<TV> didn't answer"
+  const asks = res.ok && (res.status === 'needs-pin' || res.status === 'needs-password');
+  showToast(playOnResult(res, device.name, playOnTitle(item)), !res.ok ? '⚠️' : asks ? '🔒' : '📺');
   return res;
 }

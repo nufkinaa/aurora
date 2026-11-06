@@ -23,7 +23,9 @@ import { pushScope, popScope } from "../focus.js";
 import {
   getDevices, onDevices, onDeviceState, findDevice, watchDevice, command, devicesHeard,
   ensureRemoteCss, initRemote, deviceIcon, deviceLine, chooseDevice, playOn, ICONS, householdOn, listProblem,
+  continueHere, formOf, // [play-on-tv]
 } from "../remote.js";
+import { PLAY_ON } from "../playOnWords.js"; // [play-on-tv]
 
 const LAST_KEY = "aurora-remote-last";
 const VIEW_KEY = "aurora-remote-view";
@@ -100,7 +102,10 @@ export const renderRemote = async (root, params = {}) => {
   const audioChip = chip("Audio", I.audio, () => audioSheet(), "remote.audio"); // data-ui
   const nextChip = chip("Next episode", I.next, () => cmd("next", {}, { done: "Next episode" }), "remote.next"); // data-ui
   const stopChip = chip("Stop", I.stop, () => cmd("stop", {}, { done: "Stopped" }), "remote.stop"); // data-ui
-  const chips = el("div", { class: "rm-chips" }, ccChip, audioChip, nextChip, stopChip);
+  // [play-on-tv] the reverse of Play on TV: what the TV plays, on this device, at its second
+  const hereChip = chip(PLAY_ON.continueHere(formOf()), ICONS.cast, () => { const d = dev(); if (d) continueHere(d); }, "remote.continuehere"); // data-ui
+  hereChip.classList.add("rm-chip-here");
+  const chips = el("div", { class: "rm-chips" }, ccChip, audioChip, nextChip, stopChip, hereChip);
   const playing = el("section", { class: "rm-playing" }, artBox, el("div", { class: "rm-meta" }, eyebrow, title, sub), scrubBox, transport, chips);
 
   // nothing playing: Continue Watching, played there with a tap

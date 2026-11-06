@@ -14,6 +14,7 @@
 // A title waits PENDING_MS at most (somebody walks to the TV to type the
 // PIN); a press on another tile, or Back off the prompt, drops it.
 import {MSG, type From, type Outcome, type PlayItemArgs, type WireItem} from './protocol';
+import {playOnTitle} from './playOnWords';
 
 export const PENDING_MS = 2 * 60 * 1000;
 
@@ -37,9 +38,8 @@ export const takePendingPlay = (profileId: string, now = Date.now()): PlayItemAr
 /** Test-only. */
 export const _pending = () => pending;
 
-/** "Arrival", "Silo · S1 E3" — what the TV's prompt names. */
-export const titleOf = (it: Pick<WireItem, 'title' | 'showTitle' | 'season' | 'episode'>): string =>
-  it.showTitle && it.season != null && it.episode != null ? `${it.showTitle} · S${it.season} E${it.episode}` : it.title || it.showTitle || '';
+/** "Arrival", "Silo · S1 E3" — what the TV's prompt names (the phone's words, playOnWords.ts). */
+export const titleOf = (it: Pick<WireItem, 'title' | 'showTitle' | 'season' | 'episode'>): string => playOnTitle(it);
 
 /** The wall's answer for a profile (what WallOpener resolves). */
 export type WallDoor = 'in' | 'pin' | 'password' | 'locked' | 'missing' | 'error';
