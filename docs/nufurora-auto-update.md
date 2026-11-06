@@ -219,9 +219,10 @@ rm -f /opt/aurora/data/auto-update.*      # its log and state
 - Who is watching lives in the server's memory. Right after any restart,
   viewers take a little while to reconnect, so a server that started less than
   two minutes ago is left alone (`MIN_SERVER_UPTIME`).
-- `npm ci` empties `node_modules` and installs it again. It only runs when
-  the lockfile changed and nobody is watching. The running server keeps the
-  modules it has loaded until the restart that follows.
+- The install step is `npm install --omit=dev` (as the admin's own updater
+  does), not `npm ci`: `npm ci` empties `node_modules` first, and a module the
+  running server loads late would be missing until the restart. It only runs
+  when the lockfile changed and nobody is watching (`NPM_CI_CMD` overrides it).
 - A run stopped half-way (a reboot during an update) is finished by the next
   run.
 - The admin password is sent only to `127.0.0.1` and never written to the log.

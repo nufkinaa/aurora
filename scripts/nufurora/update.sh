@@ -471,7 +471,7 @@ main() {
   PORT=${PORT:-}
   HEALTH_TIMEOUT=${HEALTH_TIMEOUT:-300}
   RESTART_CMD=${RESTART_CMD:-auto}
-  NPM_CI_CMD=${NPM_CI_CMD:-npm ci --omit=dev --no-audit --no-fund}
+  NPM_CI_CMD=${NPM_CI_CMD:-npm install --omit=dev --no-audit --no-fund}
   COUNT_PAUSED=${COUNT_PAUSED:-yes}
   WATCH_CHECK=${WATCH_CHECK:-required}
   MIN_SERVER_UPTIME=${MIN_SERVER_UPTIME:-120}
