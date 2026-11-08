@@ -3367,10 +3367,10 @@
       if (withTime) Object.assign(o, c.hourCycle ? { hourCycle: c.hourCycle, hour: /^h2[34]$/.test(c.hourCycle) ? "2-digit" : "numeric" } : { hour: "2-digit" }, { minute: "2-digit" });
       return fmt(o);
     }
-    const AUTO_FOR = { next: (n) => `${n}'s next episode`, follow: (n) => `a new episode of a show ${n} follows`, mylist: (n) => `from ${n}'s My List` };
+    const AUTO_FOR = { next: (n) => `${n}'s next episode`, follow: (n) => `a new episode of a show ${n} follows` };
     // { key: "p" | "auto" | "unknown", words, people } — people: the names it counts for
     function dlWho(j) {
-      const auto = j.auto || (j.smart ? "next" : null);
+      const auto = j.autoFor || (j.smart ? "next" : null);
       if (auto) {
         const f = AUTO_FOR[auto];
         return { key: "auto", words: "Automatic" + (j.by ? ` · ${f ? f(j.by) : `for ${j.by}`}` : ""), people: j.by ? [j.by] : [] };

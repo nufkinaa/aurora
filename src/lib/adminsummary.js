@@ -276,7 +276,7 @@ const gather = async () => {
     waiting: {
       people: people.map((r) => ({ id: r.id, name: r.name, realName: r.realName || null, avatar: r.avatar || null, requestedAt: r.requestedAt || null })),
       resets,
-      downloads: jobs.filter((j) => j.status === "pending").map((j) => ({ id: j.id, label: j.label || j.title, by: j.by || null, auto: j.auto || null, at: j.at || null, sizeBytes: j.sizeBytes || 0, holdReason: j.holdReason || null })),
+      downloads: jobs.filter((j) => j.status === "pending").map((j) => ({ id: j.id, label: j.label || j.title, by: j.by || null, autoFor: j.autoFor || null, at: j.at || null, sizeBytes: j.sizeBytes || 0, holdReason: j.holdReason || null })),
       reports: safe(() => require("../routes/reports").openCount(), 0),
       requests: safe(() => require("../routes/requests").pendingCount(), 0),
       update: update && !update.error ? { available: !!update.available, restartNeeded: !!update.restartNeeded } : null,

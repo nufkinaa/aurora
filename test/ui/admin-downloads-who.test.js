@@ -31,15 +31,15 @@ const ago = (ms) => new Date(Date.now() - ms).toISOString();
 // "Nov 8" for now, in the household's zone (the per-person lines' "last …")
 const today = () => new Intl.DateTimeFormat("en-US", { timeZone: TZ, month: "short", day: "numeric" }).format(new Date());
 
-const base = { type: "movie", quality: "1080p", sizeBytes: GB, progress: 0, downloadSpeed: 0, alsoBy: [], auto: null };
+const base = { type: "movie", quality: "1080p", sizeBytes: GB, progress: 0, downloadSpeed: 0, alsoBy: [], autoFor: null };
 const JOBS = () => [
   { ...base, id: "fl1", label: "Flight One", status: "downloading", phase: "downloading", progress: 0.4, downloadSpeed: 2e6, by: "Niso", at: ago(2 * 3600e3 + 60e3) },
-  { ...base, id: "fl2", label: "Next Show · S1 E3", type: "show", status: "downloading", phase: "downloading", progress: 0.1, by: "Niso", smart: true, auto: "next", at: ago(30 * 60e3) },
+  { ...base, id: "fl2", label: "Next Show · S1 E3", type: "show", status: "downloading", phase: "downloading", progress: 0.1, by: "Niso", smart: true, autoFor: "next", at: ago(30 * 60e3) },
   // an old record: nobody and no time were kept
   { ...base, id: "fl3", label: "Queued Unknown", status: "approved", by: null },
   { ...base, id: "pe1", label: "Dor Film", status: "pending", holdReason: "Held back: under 10% free", by: "Dor", at: ago(3 * 3600e3 + 60e3) },
   { ...base, id: "dn1", label: "Niso Film", status: "done", progress: 1, sizeBytes: 4 * GB, by: "Niso", at: "2026-11-06T17:00:00.000Z", doneAt: "2026-11-06T19:14:00.000Z", libraryId: "mov1" },
-  { ...base, id: "dn2", label: "Some Show · S1 E1", type: "show", status: "done", progress: 1, by: "Dor", smart: true, auto: "follow", at: "2026-11-05T07:00:00.000Z", doneAt: "2026-11-05T08:05:00.000Z", libraryId: "ep1" },
+  { ...base, id: "dn2", label: "Some Show · S1 E1", type: "show", status: "done", progress: 1, by: "Dor", smart: true, autoFor: "follow", at: "2026-11-05T07:00:00.000Z", doneAt: "2026-11-05T08:05:00.000Z", libraryId: "ep1" },
   { ...base, id: "dn3", label: "Some Show · S1 E2", type: "show", status: "done", progress: 1, sizeBytes: 2 * GB, by: "Niso", alsoBy: ["Dor"], at: "2026-11-07T18:00:00.000Z", doneAt: "2026-11-07T20:00:00.000Z", libraryId: "ep2" },
   { ...base, id: "er1", label: "Broken Film", status: "error", error: "no source", by: null },
 ];

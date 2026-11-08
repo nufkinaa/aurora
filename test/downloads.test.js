@@ -168,12 +168,14 @@ test("publicJob exposes what the pages and admin read, and hides the rest", () =
 test("publicJob says which automatic kind queued a download, and who else asked for it (admin's who-and-when, 2026-11-08)", () => {
   const pj = (j) => downloads.publicJob({ id: "x", at: "2026-11-06T19:14:00.000Z", ...j });
   // a person's own request: not automatic
-  assert.equal(pj({ profile: "0123456789ab", profileName: "Niso" }).auto, null);
-  // smart downloads ("next"; the oldest smart jobs carry no kind and are these), a followed show, the old My List downloads
-  assert.equal(pj({ smart: true, auto: "next", profileName: "Niso" }).auto, "next");
-  assert.equal(pj({ smart: true, profileName: "Niso" }).auto, "next");
-  assert.equal(pj({ smart: true, auto: "follow", profileName: "Niso" }).auto, "follow");
-  assert.equal(pj({ smart: true, auto: "mylist" }).auto, "mylist");
+  assert.equal(pj({ profile: "0123456789ab", profileName: "Niso" }).autoFor, null);
+  // smart downloads ("next"; the oldest smart jobs carry no kind and are these), a followed show,
+  // and any other automatic one plainly ("auto": no My List tag is sent any more)
+  assert.equal(pj({ smart: true, auto: "next", profileName: "Niso" }).autoFor, "next");
+  assert.equal(pj({ smart: true, profileName: "Niso" }).autoFor, "next");
+  assert.equal(pj({ smart: true, auto: "follow", profileName: "Niso" }).autoFor, "follow");
+  assert.equal(pj({ smart: true, auto: "mylist" }).autoFor, "auto");
+  assert.equal(pj({ smart: true, auto: "mylist" }).auto, undefined, "the stored kind stays server-side");
   // …and `by` is the person it was for
   assert.equal(pj({ smart: true, auto: "next", profileName: "Niso" }).by, "Niso");
   // the others who joined it: by name, never an id nobody has any more, never the requester twice
@@ -183,7 +185,7 @@ test("publicJob says which automatic kind queued a download, and who else asked 
   const old = pj({});
   assert.equal(old.by, null);
   assert.deepEqual(old.alsoBy, []);
-  assert.equal(old.auto, null);
+  assert.equal(old.autoFor, null);
   assert.equal(pj({ at: undefined }).at, undefined, "no time is invented either");
 });
 

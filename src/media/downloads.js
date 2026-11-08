@@ -234,9 +234,15 @@ const alsoAsked = (j) => {
 };
 // Which automatic kind queued it, for "Automatic · Niso's next episode" on the
 // admin's Downloads screen: "next" (smart downloads; the oldest smart jobs
-// carry no kind and are these), "follow" (a followed show's new episode),
-// "mylist" (the old My List downloads) — null for a download a person asked for.
-const autoKind = (j) => (j.auto ? j.auto : j.smart ? "next" : null);
+// carry no kind and are these), "follow" (a followed show's new episode), or
+// just "auto" for any other (the old My List downloads: no My List tag is sent
+// any more, mylistdl-queue.test.js) — null for a download a person asked for.
+// (Not `auto`, the stored field, which stays server-side.)
+const autoKind = (j) => {
+  if (!j.smart && !j.auto) return null;
+  const k = j.auto || "next";
+  return k === "next" || k === "follow" ? k : "auto";
+};
 
 // Strip fields nobody outside needs; keep it small for WS.
 const publicJob = (j) => ({
@@ -263,7 +269,7 @@ const publicJob = (j) => ({
   // …the others who asked for it too, and which automatic kind queued it
   // (then `by` is the person it was for: whose next episode, whose follow).
   alsoBy: alsoAsked(j),
-  auto: autoKind(j),
+  autoFor: autoKind(j),
   libraryId: j.status === "done" && j.destPath ? scanner.idForPath(j.destPath) : null,
   // A second source is being tried beside the first (media/dlrace.js). The
   // card stays ONE card: `progress` above is the leading attempt's. `race` is
