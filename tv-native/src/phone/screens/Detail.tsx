@@ -277,6 +277,8 @@ export default function Detail() {
         if (libId) {
           const f = await api.item(libId, profileId);
           if (live) setFull(f);
+          // its file is on a storage drive that is not answering (server lib/drives)
+          if (live && f.unavailable?.message) showToast(f.unavailable.message, '⚠️', 8000);
         }
       } catch {}
       if (live) setLibSettled(true);

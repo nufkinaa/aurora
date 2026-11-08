@@ -354,9 +354,17 @@ const gatherVolumes = async (config) => {
   if (config.BACKUPS) wanted.push(["backups", config.BACKUP_DIR, existing(config.BACKUP_DIR)]);
   const byVolume = new Map();
   for (const [role, dir, probe] of wanted) {
+    // A network drive is never asked from here (a hung one would hold this
+    // round, and a pool thread, for ever): its numbers come from lib/drives'
+    // own checks, and while it is not answering that module alone tells the
+    // admin — once (no second "cannot be reached" alert for the same outage).
+    let net = null;
+    try { net = require("./drives").onPath(probe); } catch {}
+    if (net && net.network && !net.answering) continue;
     const space = await disk.space(probe);
     let key;
     if (!space) key = `gone:${dir}`;
+    else if (net && net.network) key = `drive:${net.drive.id}:${space.total}`;
     else {
       try { key = `dev:${fs.statSync(probe).dev}:${space.total}`; } catch { key = `size:${space.total}`; }
     }
@@ -492,6 +500,11 @@ const clear = (id, message) => {
   applyResults([{ id, name, level: "ok", message, recovered: message, clearAfter: 1 }], Date.now(), { states: d.checks, repeatMs: t.repeatHours * HOUR, send: deliver });
   persist();
 };
+
+// One message from a module that keeps its own outage state (lib/drives:
+// "a storage drive is not answering" / "answering again") — through the
+// same log, event list and channels as every alert here.
+const announce = (id, name, type, level, message) => deliver({ id, name }, { type, level, message });
 
 // ------------------------------------------- the dead-man's switch
 
@@ -647,6 +660,6 @@ const healthz = (req, res) => {
 };
 
 module.exports = {
-  start, stop, run, status, raise, clear, healthz, pingOnce,
+  start, stop, run, status, raise, clear, announce, healthz, pingOnce,
   _internals: { step, freshState, thresholds, diskLevel, decideDisk, decideTools, decideDownloader, decideBackup, decideRestarts, decideProcess, applyResults, validPingUrl, live, DEFAULTS, NOWHERE },
 };

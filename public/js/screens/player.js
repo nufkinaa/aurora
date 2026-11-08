@@ -810,6 +810,13 @@ export const renderPlayer = async (root, { id }) => {
       return navigate("#/");
     }
   }
+  // Its file is on a storage drive that is not answering (lib/drives): the
+  // server's sentence at once, and back — never a spinner that waits for a
+  // drive that does not answer.
+  if (item && item.unavailable && item.unavailable.message) {
+    toast(item.unavailable.message, "⚠️");
+    return history.length > 1 ? history.back() : navigate("#/");
+  }
   startSteps.item = performance.now();
   // Detect torrent playback
   const isTorrent =

@@ -23,6 +23,30 @@ router.use(["/stream/video/:id", "/stream/hls/:id", "/stream/transcode/:id", "/s
   next();
 });
 
+// A library file on a network drive that is not answering (lib/drives):
+// the request is answered at once — 503 with the sentence every app shows —
+// instead of a file call that would wait for ever and, a few of them later,
+// hold the server for everyone. Other titles are not touched. Local drives
+// pass straight through (no look at the disk here).
+const drivesLib = lazy(require, "../lib/drives");
+const viewerLib = lazy(require, "../lib/viewer");
+router.use(["/stream/video/:id", "/stream/hls/:id", "/stream/transcode/:id", "/stream/download/:id", "/stream/airplay/:id", "/stream/subtitle/:id", "/stream/embedded/:id", "/img/:id"], (req, res, next) => {
+  const entry = scanner.resolve(req.params.id);
+  if (!entry || !entry.path) return next();
+  let drives;
+  try { drives = drivesLib(); } catch { return next(); }
+  const o = drives.onPath(entry.path);
+  if (!o || !o.network) return next();
+  let who = null;
+  try { who = viewerLib().viewerOf(req); } catch {}
+  drives.guard(entry.path, who).then((g) => {
+    if (g.ok) return next();
+    res.set("Retry-After", "60");
+    res.set("X-Aurora-Error", g.code);
+    res.status(g.status || 503).json({ error: g.message, code: g.code });
+  }, () => next());
+});
+
 const MIME = {
   ".mp4": "video/mp4",
   ".m4v": "video/mp4",

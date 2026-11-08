@@ -10,9 +10,19 @@ const shape = (s) => ({
   freePct: s.blocks > 0 ? (s.bavail / s.blocks) * 100 : null,
 });
 
+// A folder on a NETWORK drive is never asked here: a statfs on a hung NFS
+// mount waits for ever (in the thread pool, or on the event loop for the
+// Sync form). Its numbers come from lib/drives' last check, made in a child
+// process with a deadline — null while it is not answering.
+const fromDrives = (dir) => {
+  try { return require("./drives").spaceOf(dir); } catch { return undefined; }
+};
+
 // { free, total, freePct } for the volume `dir` lives on, or null when the path
 // can't be queried (drive missing/offline, permissions).
 const space = async (dir) => {
+  const net = fromDrives(dir);
+  if (net !== undefined) return net;
   try {
     return shape(await fs.promises.statfs(dir));
   } catch {
@@ -23,6 +33,8 @@ const space = async (dir) => {
 // Same, blocking. A local statfs is a sub-millisecond syscall, so this is fine
 // on a request path and keeps callers that are otherwise synchronous simple.
 const spaceSync = (dir) => {
+  const net = fromDrives(dir);
+  if (net !== undefined) return net;
   try {
     return shape(fs.statfsSync(dir));
   } catch {

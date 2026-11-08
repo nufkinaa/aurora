@@ -136,6 +136,48 @@ router.get("/api/admin/disk", async (req, res) => {
   res.json({ disks: out, minFreePct: config.DOWNLOAD_MIN_FREE_PERCENT, forecast });
 });
 
+// ---------- storage drives (lib/drives, docs/storage-drives.md) ----------
+// Every drive the server can see: its numbers, what Aurora keeps there, its
+// speed score, and whether new downloads go there. ?fresh=1 asks every drive
+// again first (each network drive in a child process with a deadline).
+router.get("/api/admin/drives", async (req, res) => {
+  const drives = require("../lib/drives");
+  try {
+    const list = await drives.list({ fresh: req.query.fresh === "1" });
+    res.json({ drives: list, reservePct: require("../lib/drives/rules").RESERVE_PCT, reserveMaxBytes: require("../lib/drives/rules").RESERVE_MAX });
+  } catch (err) {
+    res.status(500).json({ error: `Could not list the drives: ${(err && err.message) || err}` });
+  }
+});
+const driveId = (req) => (req.body && typeof req.body.id === "string" && req.body.id.length <= 1024 ? req.body.id : null);
+// "Use this drive too": checks Aurora can write there, makes <drive>/Aurora/
+// Movies and Shows, adds them to config.json's libraries, rescans.
+router.post("/api/admin/drives/use", async (req, res) => {
+  const id = driveId(req);
+  if (!id) return res.status(400).json({ error: "Which drive?" });
+  try {
+    const r = await require("../lib/drives").use(id);
+    if (r.error) return res.status(409).json(r);
+    res.json(r);
+  } catch (err) {
+    res.status(500).json({ error: `Could not set the drive up: ${(err && err.message) || err}` });
+  }
+});
+// { id, on }: on false = "Stop using for new downloads" (nothing on it moves)
+router.post("/api/admin/drives/new-downloads", (req, res) => {
+  const id = driveId(req);
+  if (!id || typeof req.body.on !== "boolean") return res.status(400).json({ error: "Which drive, and on or off?" });
+  const r = require("../lib/drives").setNewDownloads(id, req.body.on);
+  res.status(r.error ? 409 : 200).json(r);
+});
+// "Test again": the speed check (runs when nobody is watching)
+router.post("/api/admin/drives/test", (req, res) => {
+  const id = driveId(req);
+  if (!id) return res.status(400).json({ error: "Which drive?" });
+  const r = require("../lib/drives").testAgain(id);
+  res.status(r.error ? 409 : 200).json(r);
+});
+
 // Every title with its on-disk size, for the "free up space" list.
 router.get("/api/admin/library", (req, res) => {
   const movies = scanner.index.movies.map((m) => ({

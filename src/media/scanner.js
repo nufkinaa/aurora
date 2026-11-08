@@ -238,6 +238,7 @@ const seasonFromFolder = (relDir) => {
 // from that snapshot. `building` is the snapshot being built from.
 let building = null; // { snap, lists: Map<dir, entries> }
 const readDir = (dir) => {
+  if (isDownRoot(dir)) return [];
   try {
     return fs.readdirSync(dir, { withFileTypes: true });
   } catch {
@@ -283,6 +284,7 @@ const statSafe = (p) => {
     const hit = building.lookup(p);
     if (hit !== undefined) return hit;
   }
+  if (isDownRoot(p)) return null;
   try {
     return fs.statSync(p);
   } catch {
@@ -964,9 +966,31 @@ const storeRevs = () => {
   try { s += `|${idpins.rev()}`; } catch {}
   return s;
 };
+// A library folder on a network drive that is not answering (lib/drives) is
+// not walked — a walk into a hung NFS mount never comes back — and what the
+// last walk saw there is kept: its titles stay listed (playing one says the
+// drive is not answering, at once), nothing is dropped as "deleted".
+const drivesLib = require("../lib/lazy")(require, "../lib/drives");
+const isDownRoot = (dir) => { try { return drivesLib().isDown(dir); } catch { return false; } };
+const upRoots = (list) => (list || []).filter((d) => !isDownRoot(d));
+const downRoots = () => [...config.LIBRARIES.movies, ...config.LIBRARIES.shows].filter(isDownRoot);
+const keepDownRoots = (snap, down) => {
+  if (!down.length || !snap) return snap;
+  const libroots = require("../lib/libroots");
+  const prev = lastSnap;
+  if (prev) {
+    for (const [k, v] of Object.entries(prev.dirs || {})) if (!snap.dirs[k] && libroots.isUnder(k, down)) snap.dirs[k] = v;
+    for (const [k, v] of Object.entries(prev.dirAt || {})) if (snap.dirAt && snap.dirAt[k] == null && libroots.isUnder(k, down)) snap.dirAt[k] = v;
+    for (const [k, v] of Object.entries(prev.files || {})) if (!snap.files[k] && libroots.isUnder(k, down)) snap.files[k] = v;
+  }
+  for (const d of down) if (!snap.dirs[d]) snap.dirs[d] = [];
+  snap.hash = `${snap.hash}|kept:${down.join("|")}`;
+  snap.keptDown = down;
+  return snap;
+};
 const walkOpts = (skipUnchanged) => ({
-  movies: config.LIBRARIES.movies,
-  shows: config.LIBRARIES.shows,
+  movies: upRoots(config.LIBRARIES.movies),
+  shows: upRoots(config.LIBRARIES.shows),
   statExts: [...STAT_EXTS()],
   skipUnchanged,
 });
@@ -975,8 +999,8 @@ const walkOpts = (skipUnchanged) => ({
 // extra — not the folders' dates, nor the subtitles' (the subtitle passes
 // date the few they look at when they look).
 const syncWalkOpts = () => ({
-  movies: config.LIBRARIES.movies,
-  shows: config.LIBRARIES.shows,
+  movies: upRoots(config.LIBRARIES.movies),
+  shows: upRoots(config.LIBRARIES.shows),
   statExts: [...config.VIDEO_EXTENSIONS, ...config.EXTRA_EXTENSIONS].map((e) => e.toLowerCase()),
   dateFolders: false,
 });
@@ -1064,7 +1088,7 @@ const pruneProbes = (snap) => {
 
 const scan = () => {
   syncScans++;
-  return apply(scanwalk.walk(syncWalkOpts()));
+  return apply(keepDownRoots(scanwalk.walk(syncWalkOpts()), downRoots()));
 };
 
 let asyncRun = null;
@@ -1092,7 +1116,16 @@ const scanAsync = ({ force = false, full = false } = {}) => {
         const syncBefore = syncScans;
         const full = workerWalks++ % FULL_WALK_EVERY === 0 || asyncFull;
         asyncFull = false;
-        const snap = await scanworkerLib().walk(walkOpts(!full));
+        let snap;
+        try {
+          snap = keepDownRoots(await scanworkerLib().walk(walkOpts(!full)), downRoots());
+        } catch (e) {
+          // the walk did not come back in time (a drive that stopped answering
+          // mid-walk): this round is given up, the index stays as it was
+          if (!(e && e.timeout)) throw e;
+          console.warn(`[scan] ${e.message} — the library keeps what it had; the drives are checked again`);
+          break;
+        }
         scanStats.async++;
         // a scan on the main thread landed while this walk was out: it saw
         // the disk later than this walk did, so this one is not applied
@@ -1192,6 +1225,13 @@ const libraryReady = (req, res, next) => {
 
 // A library file's { size, mtimeMs } as the last walk saw it, or null when
 // the walk did not date it (not a video / extra / subtitle, not in the library).
+// The folder names directly in a library root, as the last walk saw them
+// (null when the walk has not read it) — for a question that must not read
+// a network drive on the way (media/downloads.js: where does a show live?).
+const rootFolders = (root) => {
+  const list = lastSnap && lastSnap.dirs && lastSnap.dirs[root];
+  return list ? list.filter((e) => e[1] === scanwalk.DIR && !String(e[0]).startsWith(".")).map((e) => e[0]) : null;
+};
 const walkedStat = (absPath) => {
   const f = lastSnap && lastSnap.files[absPath];
   return f ? { size: f[0], mtimeMs: f[1] } : null;
@@ -1405,6 +1445,7 @@ module.exports = {
   boot,
   libraryReady,
   walkedStat,
+  rootFolders,
   withLastWalk,
   scanStats: () => ({ ...scanStats, version: index.version, worker: (() => { try { return require("./scanworker").stats(); } catch { return null; } })() }),
   enrich,

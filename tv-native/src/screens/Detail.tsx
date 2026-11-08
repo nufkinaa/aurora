@@ -856,6 +856,8 @@ export default function Detail({
           const f = await api.item(libId, profileId);
           if (!live) return;
           setFull(f);
+          // its file is on a storage drive that is not answering (server lib/drives)
+          if (f.unavailable?.message) showToast(f.unavailable.message, '⚠️', 8000);
           if (f.seasons && f.seasons.length) {
             setSeason(prev => (prev == null ? f.seasons![0].number : prev));
           }

@@ -67,6 +67,7 @@ const fmtUp = (sec) => {
   const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
   return d > 0 ? `${d} d ${h} h` : h > 0 ? `${h} h ${m} min` : `${m} min`;
 };
+const clockOf = (t) => { const d = new Date(t); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
 const plural = (n, one, many = one + "s") => `${n} ${n === 1 ? one : many}`;
 // how quickly the server picks up a request (the event loop's p99)
 const answers = (loop) => (!loop ? "" : (loop.p99Ms || 0) < 20 ? "answers at once" : `answers in ${Math.round(loop.p99Ms)} ms`);
@@ -115,7 +116,18 @@ const decide = (x = {}) => {
     add(minor, { id: "slow-starts", area: "playback", title: "Plays start slowly", why: `The median start in the last day took ${fmtSec(starts.p50)} (${starts.n} starts).` });
   }
   // 5. disk
-  const disks = (x.disks || []).filter((d) => d && d.free != null && d.total);
+  // 5a. a storage drive in use that is not answering (lib/drives): its titles cannot play
+  const inUse = (x.drives || []).filter((d) => d && d.id);
+  for (const d of inUse.filter((y) => y.answering === false)) {
+    const since = d.downSince ? ` since ${clockOf(d.downSince)}` : "";
+    const n = d.titles || 0;
+    add(needs, { id: `drive-down:${d.id}`, area: "disk", title: "A storage drive isn't answering", why: `Storage drive ${d.mount} isn't answering${since} — ${plural(n, "title")} can't play. New downloads go to the other drives until it answers again.`, fix: go("Open Drives", "downloads", "d-disk") });
+  }
+  // with several drives in use, the drives that take new downloads count together
+  const pool = inUse.length > 1 ? inUse.filter((d) => d.answering !== false && d.newDownloads !== false && d.free != null && d.total) : null;
+  const disks = pool && pool.length
+    ? [{ root: pool.length > 1 ? `${pool.length} drives` : pool[0].mount, free: pool.reduce((n, d) => n + d.free, 0), total: pool.reduce((n, d) => n + d.total, 0), pooled: pool.length }]
+    : (x.disks || []).filter((d) => d && d.free != null && d.total);
   const lowest = disks.reduce((m, d) => (!m || d.free < m.free ? d : m), null);
   if (lowest && lowest.free < DISK_BAD && !needs.some((n) => n.area === "disk")) {
     add(needs, { id: "disk", area: "disk", title: "A drive is almost full", why: `${fmtGb(lowest.free)} free on ${lowest.root}. Downloads and recordings fail when it runs out.`, fix: go("Free up space", "downloads", "d-disk") });
@@ -167,7 +179,9 @@ const decide = (x = {}) => {
     {
       id: "disk", label: "Disk", level: worst("disk"),
       // + "about 40 days until full" / "no growth this week" (media/diskforecast.js)
-      line: lowest ? `${fmtGb(lowest.free)} free${disks.length > 1 ? " on the fullest drive" : ""}${x.forecast && x.forecast.short ? ` · ${x.forecast.short}` : ""}` : "not measured",
+      line: lowest
+        ? `${fmtGb(lowest.free)} free${lowest.pooled > 1 ? ` on ${lowest.pooled} drives` : disks.length > 1 ? " on the fullest drive" : ""}${inUse.some((d) => d.answering === false) ? ` · ${plural(inUse.filter((d) => d.answering === false).length, "drive")} not answering` : ""}${x.forecast && x.forecast.short ? ` · ${x.forecast.short}` : ""}`
+        : "not measured",
     },
     {
       id: "downloads", label: "Downloads", level: worst("downloads"),
@@ -221,7 +235,10 @@ const gather = async () => {
     const s = await within(disk.space(root), 1500, null);
     if (s) disks.push({ root, free: s.free, total: s.total });
   }
-  const fullest = disks.reduce((m, d) => (!m || d.free < m.free ? d : m), null);
+  const drives = safe(() => require("./drives").summaryFacts(), []);
+  // (several drives in use: the forecast is for all of them together)
+  const pooled = drives.length > 1 ? drives.filter((d) => d.answering !== false && d.newDownloads !== false && d.free != null) : [];
+  const fullest = pooled.length ? { free: pooled.reduce((n, d) => n + d.free, 0) } : disks.reduce((m, d) => (!m || d.free < m.free ? d : m), null);
   const forecast = fullest ? safe(() => require("../media/diskforecast").measure(fullest.free, now)) : null;
   const jobs = safe(() => require("../media/downloads").list(), []);
   const health = safe(() => require("./health").status(), null);
@@ -248,6 +265,7 @@ const gather = async () => {
     loop: safe(() => require("./looplag").read()),
     enc,
     disks,
+    drives,
     forecast,
     minFreePct: config.DOWNLOAD_MIN_FREE_PERCENT || 0,
     watchingNow,

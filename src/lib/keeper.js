@@ -352,8 +352,11 @@ class Keeper {
       AURORA_SUPERVISOR: "keeper",
       AURORA_KEEPER_STATE: this.stateFile,
       // libuv's pool serves every streaming read; 4 threads is small for it
-      // (ecosystem.config.js has carried the same figure for pm2)
-      UV_THREADPOOL_SIZE: this.env.UV_THREADPOOL_SIZE || "6",
+      // (ecosystem.config.js has carried the same figure for pm2). 16 since
+      // 2026-11-08: a network drive (NFS) that stops answering holds a pool
+      // thread per file call that was already on its way — lib/drives keeps
+      // later ones off it, and 16 leaves the rest of the house room meanwhile.
+      UV_THREADPOOL_SIZE: this.env.UV_THREADPOOL_SIZE || "16",
     };
     const proc = spawn(process.execPath, [...(this.nodeArgs || []), this.script, ...this.args], {
       cwd: this.cwd,

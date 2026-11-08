@@ -121,3 +121,35 @@ test("the Disk line carries the forecast's few words (media/diskforecast.js), an
   assert.equal(line({ state: "short-history", short: "" }), "812 GB free");
   assert.equal(line(null), "812 GB free");
 });
+
+// ---- storage drives (lib/drives): several in use, one not answering ----
+test("drives: several in use — the Disk line counts the ones that take new downloads together", () => {
+  const s = decide(calm({
+    drives: [
+      { id: "/", mount: "/", free: 105 * GB, total: 502 * GB, answering: true, newDownloads: true },
+      { id: "/mnt/storagespace", mount: "/mnt/storagespace", network: true, free: 990 * GB, total: 1000 * GB, answering: true, newDownloads: true },
+      { id: "/mnt/old", mount: "/mnt/old", free: 2 * GB, total: 500 * GB, answering: true, newDownloads: false },
+    ],
+  }));
+  assert.equal(s.state, "works", "a full drive that takes no new downloads is nobody's emergency");
+  const line = Object.fromEntries(s.areas.map((a) => [a.id, a.line]));
+  assert.equal(line.disk, `${Math.round((1095 * GB) / GB)} GB free on 2 drives`);
+});
+
+test("drives: one not answering — Needs you, with when and how many titles", () => {
+  const since = new Date(2026, 10, 8, 15, 42).getTime();
+  const s = decide(calm({
+    drives: [
+      { id: "/", mount: "/", free: 105 * GB, total: 502 * GB, answering: true, newDownloads: true },
+      { id: "/mnt/storagespace", mount: "/mnt/storagespace", network: true, free: null, total: null, answering: false, downSince: since, newDownloads: true, titles: 37 },
+    ],
+  }));
+  assert.equal(s.state, "needs-you");
+  assert.equal(s.needs[0].id, "drive-down:/mnt/storagespace");
+  assert.equal(s.needs[0].title, "A storage drive isn't answering");
+  assert.equal(s.needs[0].why, "Storage drive /mnt/storagespace isn't answering since 15:42 — 37 titles can't play. New downloads go to the other drives until it answers again.");
+  assert.equal(s.reason, `A storage drive isn't answering: ${s.needs[0].why}`);
+  const disk = s.areas.find((a) => a.id === "disk");
+  assert.equal(disk.level, "bad");
+  assert.match(disk.line, /105 GB free · 1 drive not answering/);
+});

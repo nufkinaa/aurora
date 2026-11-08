@@ -1552,6 +1552,14 @@ export default function Player({
             setError(NO_FILE);
             return;
           }
+          // On a storage drive that is not answering (server lib/drives): the
+          // server's sentence at once — never a spinner waiting on that drive.
+          // Try again stays (it answers again by itself).
+          if (it.unavailable?.message) {
+            setBuffering(false);
+            setError(it.unavailable.message);
+            return;
+          }
           // `restart` (Detail's "Start over") means ignore the saved position.
           const at = restart ? null : resumePoint(st.progress?.[id], it.duration);
           if (at != null) resumeAt.current = at;

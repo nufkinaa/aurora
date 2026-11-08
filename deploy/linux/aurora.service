@@ -40,8 +40,9 @@ User=aurora
 WorkingDirectory=/opt/aurora
 ExecStart=/usr/bin/node scripts/keeper.js --host systemd
 Environment=NODE_ENV=production
-# libuv's pool serves every streaming read (the keeper sets the same default).
-Environment=UV_THREADPOOL_SIZE=6
+# libuv's pool serves every streaming read (the keeper sets the same default;
+# 16 leaves room when a network drive stops answering — docs/storage-drives.md).
+Environment=UV_THREADPOOL_SIZE=16
 
 Restart=always
 RestartSec=3

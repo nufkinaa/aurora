@@ -360,6 +360,9 @@ export type VideoInfo = { codec?: string; bitDepth?: number; hdr?: string | null
 
 export type Item = HeroItem & {
   videoUrl?: string;
+  // Set by the server when the title's file is on a storage drive that is not
+  // answering (server lib/drives): `message` is the one sentence every app shows.
+  unavailable?: {code: string; message: string};
   downloadUrl?: string;
   transcodeBase?: string;
   // What the scanner recorded about the FILE. The detail page shows all three —

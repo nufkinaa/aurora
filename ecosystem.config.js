@@ -26,7 +26,7 @@ module.exports = {
       // on this box a few concurrent streams plus a password hash queued behind
       // each other. 8 leaves ample room for ffmpeg and node.
       // Read once at startup, hence here rather than in code.
-      env: { NODE_ENV: "production", UV_THREADPOOL_SIZE: "6" },
+      env: { NODE_ENV: "production", UV_THREADPOOL_SIZE: "16" },
     },
   ],
 };

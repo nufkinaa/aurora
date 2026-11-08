@@ -391,3 +391,33 @@ What a track says: its **title** when it names a language ("Russian Dub" beats a
 - When a download a person **asked for** lands (not a smart download nobody asked for), the website, the TV and the phone show a notice with the server's sentence: `publicJob.readyLine` ("“Film” is ready to watch" / "The new version of “Film” is in — ready to watch") plus `langLine` when there is one. `public/js/readyNotice.js` and `tv-native/src/readyNotice.ts` compose it word for word (`test/ready-notice.test.js`).
 - Web Push (`lib/push.js`, only to devices that switched it on) follows the same rule. Never ntfy (that is the admin's channel).
 - Opt-out per person: Settings → "Tell me when it's ready" (`prefs.readyNotice`, a person switch in `profiles.js` `PREF_SWITCHES`, synced by personPrefs / personSync). Off silences the notice, the push, and the TV's / phone's own notification; what the language check found is still said. The website's browser-notification row is now called "Notifications on this device".
+
+## 10. Several drives (2026-11-08, `lib/drives`, docs/storage-drives.md)
+
+When more than one drive holds a library folder of a kind (after the admin's
+"Use this drive too"), the folder a download lands in is chosen when the job
+STARTS (`destinationFor` → `lib/drives/rules.js` `pick`) and kept on the job
+as `destRoot`:
+
+1. only drives that take new downloads (not "Stop using for new downloads")
+   and that answer;
+2. a show's new episode goes where the show already has its folder (seen in
+   the last library walk, never a fresh read of a network drive) when that
+   drive has room;
+3. otherwise the drives with room — free, minus what is already on its way
+   there, minus this file, still at least the reserve (10% of the drive or
+   50 GB, whichever is smaller); of those, the ones with at least 75% of the
+   roomiest one's space are equals and the fastest (speed score) wins;
+4. no drive has room: the roomiest, and the disk gate holds the download for
+   the admin, as it always did with one drive.
+
+With one folder of a kind nothing changes (that folder, no drive lookup).
+The disk gate counts, per drive, only what is going to that drive.
+
+**Staging stays on the fast local disk.** Landing on a network drive is a copy
+(no hard link across volumes) to the hidden temp name, then the no-clobber
+link into place — as before. Just before landing, a network destination is
+checked once more in a child process with a deadline; a drive that stopped
+answering meanwhile is swapped for another one (a replacement keeps its
+folder and fails with "the storage drive … isn't answering"). Nothing already
+in a library is ever moved between drives.

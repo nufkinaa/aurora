@@ -336,12 +336,49 @@ const isValidHash = (h) => typeof h === "string" && /^[a-z0-9]{32,40}$/i.test(h)
 
 const SUB_EXT = [".srt", ".vtt", ".ass", ".ssa"];
 
-// The library root a finished job lands in. Falls back to null if nothing is
-// configured for that media type.
-const destRoot = (type) => {
-  const roots = type === "show" ? config.LIBRARIES.shows : config.LIBRARIES.movies;
-  return (roots && roots[0]) || null;
+// The library root a job lands in. Falls back to null if nothing is
+// configured for that media type. One folder: that one, as always. Several
+// (more than one drive in use — lib/drives, docs/storage-drives.md): the
+// drive with room (keeping its reserve), the fastest of the roomy ones, and
+// for a show the drive it already lives on when that has room
+// (lib/drives/rules.js pick). `job` (optional): { id, title, sizeBytes }.
+const drivesLib = require("../lib/lazy")(require, "../lib/drives");
+const rootsOf = (type) => (type === "show" ? config.LIBRARIES.shows : config.LIBRARIES.movies) || [];
+// Does the show already have a folder in `root`? From the last library walk's
+// listing (a network root is never read on the way to answering), else the disk.
+const showFolderIn = (root, title) => {
+  let names = null;
+  try { names = scanner.rootFolders(root); } catch {}
+  if (!names) {
+    let net = false;
+    try { const o = drivesLib().onPath(root); net = !!(o && o.network); } catch {}
+    names = net ? [] : foldersIn(root);
+  }
+  const want = folderKey(title);
+  return names.some((n) => folderKey(n) === want);
 };
+// Bytes still to land in `root`: jobs on their way there, and — not knowing
+// yet where they go — every queued job of the same kind.
+const committedOn = (root, type, excludeId) =>
+  store.data.reduce((n, j) => {
+    if (j.id === excludeId || !["approved", "downloading"].includes(j.status)) return n;
+    if (j.destRoot ? j.destRoot !== root : (j.type === "show" ? "show" : "movie") !== (type === "show" ? "show" : "movie")) return n;
+    if (j.attempts && j.attempts.length > 1) return n + j.attempts.reduce((m, a) => m + Math.max(0, (a.sizeBytes || 0) * (1 - (a.progress || 0))), 0);
+    return n + Math.max(0, (j.sizeBytes || 0) * (1 - (j.progress || 0)));
+  }, 0);
+const destPick = (type, job = null) => {
+  const roots = rootsOf(type);
+  if (roots.length <= 1) return { root: roots[0] || null, why: "the only library folder", full: false };
+  try {
+    return drivesLib().pickRoot(type === "show" ? "show" : "movie", { sizeBytes: (job && job.sizeBytes) || 0 }, {
+      hasShowAt: (root) => !!(job && job.title && type === "show" && showFolderIn(root, job.title)),
+      committedOn: (root) => committedOn(root, type, job && job.id),
+    });
+  } catch (e) {
+    return { root: roots[0], why: `the first folder (${(e && e.message) || e})`, full: false };
+  }
+};
+const destRoot = (type, job = null) => destPick(type, job).root;
 
 // ---------- the disk gate (what replaced blanket admin approval) ----------
 const gb = (n) => (n / 1e9).toFixed(1);
@@ -372,12 +409,14 @@ const committedBytes = (excludeId) =>
 const diskGate = (type, sizeBytes, excludeId) => {
   const min = config.DOWNLOAD_MIN_FREE_PERCENT;
   if (!(min > 0)) return { ok: true }; // 0/disabled = never ask
-  const root = destRoot(type);
+  const several = rootsOf(type).length > 1;
+  const root = destRoot(type, { id: excludeId, sizeBytes });
   const s = root ? disk.spaceSync(root) : null;
   if (!s || s.freePct == null || !s.total) {
     return { ok: false, reason: `Couldn't read free space on ${root || "the library drive"}.` };
   }
-  const needed = Math.max(0, sizeBytes || 0) + committedBytes(excludeId);
+  // (several drives: only what is on its way to THIS one counts against it)
+  const needed = Math.max(0, sizeBytes || 0) + (several ? committedOn(root, type, excludeId) : committedBytes(excludeId));
   const pctAfter = ((s.free - needed) / s.total) * 100;
   if (pctAfter >= min) return { ok: true };
   return {
@@ -1021,9 +1060,17 @@ const destinationFor = (job) => {
     const p = job.replaces.path;
     return { dir: path.dirname(p), base: path.basename(p, path.extname(p)) };
   }
-  const root = destRoot(job.type);
+  const pick = destPick(job.type, job);
+  const root = pick.root;
   if (!root) throw new Error("no library folder configured");
-  const folder = chooseFolder(foldersIn(root), job.title, job.year);
+  if (rootsOf(job.type).length > 1) {
+    job.destRoot = root;
+    console.log(`[download] ${String(job.id || "").slice(0, 6)} goes to ${root} (${pick.why})`);
+  }
+  // (a network root's folders from the last walk: no blocking read of a mount that may hang)
+  let listing = null;
+  try { const o = drivesLib().onPath(root); if (o && o.network) listing = scanner.rootFolders(root) || []; } catch {}
+  const folder = chooseFolder(listing || foldersIn(root), job.title, job.year);
   if (job.type === "show") {
     const s = job.season || 1;
     const e = job.episode || 1;
@@ -1415,7 +1462,7 @@ const attemptFailed = (job, rec, att, message, code = null) => {
 // either). It starts again by itself once the disk gate passes (healthTick).
 const holdForDisk = (job, message) => {
   stopActive(job.id, `held: the disk is full (${message})`);
-  const root = destRoot(job.type);
+  const root = job.destRoot || destRoot(job.type);
   job.status = "pending";
   job.approvedAt = null;
   job.diskHold = true;
@@ -1708,6 +1755,21 @@ const completeJob = async (job, rec, file, engineStatus) => {
   job.etaSec = null;
   broadcast(job);
 
+  // A destination on a network drive is asked first, in a child process
+  // with a deadline (lib/drives): the landing below makes blocking calls
+  // there, and a drive that stopped answering would hold the server.
+  if (!job.replaces) {
+    try {
+      const o = await drivesLib().confirm(rec.dir);
+      if (o && o.network && !o.answering) {
+        const again = destinationFor(job);
+        if (again.dir === rec.dir) throw Object.assign(new Error(`the storage drive ${o.drive.mount} isn't answering`), { driveDown: true });
+        console.log(`[download] ${job.id.slice(0, 6)} ${o.drive.mount} isn't answering — lands on ${job.destRoot || "another drive"} instead`);
+        rec.dir = again.dir;
+        rec.base = again.base;
+      }
+    } catch (e) { if (e && e.driveDown) throw e; }
+  }
   fs.mkdirSync(rec.dir, { recursive: true });
   sweepTemps(rec.dir, job.id);
   // The bytes go to a hidden temp name in the destination folder; only a

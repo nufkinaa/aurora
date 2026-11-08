@@ -850,6 +850,33 @@
       .fl-nums { gap: 10px; }
       .fl-nums .fl-eta { min-width: 7ch; }
     }
+
+    /* storage drives (lib/drives): one calm card per drive — what fills it,
+       Aurora's share, its speed, and the one button that matters */
+    .drv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 14px; margin-bottom: 14px; }
+    .drv { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 15px; min-width: 0; }
+    .drv[data-down="1"] { border-color: rgba(var(--bad-rgb), 0.55); }
+    .drv-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .drv-name { font-weight: 800; }
+    .drv-mount { font-size: 0.8rem; color: var(--text-faint); overflow-wrap: anywhere; }
+    .drv-tags { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 10px; }
+    .drv-bar { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: rgba(255,255,255,0.08); }
+    .drv-bar i { display: block; height: 100%; }
+    .drv-bar .a { background: var(--accent-strong, #7c6cff); }
+    .drv-bar .o { background: rgba(255,255,255,0.32); }
+    .drv-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 7px; font-size: 0.8rem; color: var(--text-dim); }
+    .drv-legend b { color: var(--text); font-weight: 700; }
+    .drv-legend .k { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+    .drv-legend .k.a { background: var(--accent-strong, #7c6cff); }
+    .drv-legend .k.o { background: rgba(255,255,255,0.32); }
+    .drv-legend .k.f { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); }
+    .drv-line { font-size: 0.84rem; color: var(--text-dim); margin-top: 9px; line-height: 1.45; overflow-wrap: anywhere; }
+    .drv-line.bad { color: var(--bad); font-weight: 700; }
+    .drv-score { display: inline-flex; align-items: baseline; gap: 6px; }
+    .drv-score b { font-size: 1.05rem; }
+    .drv-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .drv-acts .mini.go { background: var(--accent-strong); color: #fff; }
+    @media (max-width: 640px) { .drv-acts .mini { flex: 1; } }
   </style>
 </head>
 <body>
@@ -1732,6 +1759,7 @@
       </details>
       <details class="more" data-more="d-disk" data-title="On disk" data-sub="the drives and the whole library — find it, see who watched it, free up space">
         <div class="more-body">
+          <div class="drv-grid" id="drives-card" aria-live="polite"></div>
           <div class="now-grid" id="disk-bars" style="margin-bottom:14px"></div>
           <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:8px;margin:8px 0 6px">
             <input type="text" id="lib-search" placeholder="Search titles &amp; episodes…" style="max-width:230px;flex:1;min-width:150px" />
@@ -4941,21 +4969,153 @@
     }
 
     // ---------- disk + library management ----------
+    // ---------- storage drives (lib/drives, docs/storage-drives.md) ----------
+    // One card per drive the server can see: how full it is in general and
+    // with Aurora's own files, how fast it is (the speed check's score), and
+    // the button that matters: "Use this drive too" on a drive Aurora does not
+    // use yet; "Stop using for new downloads" / "Test again" on one it does.
+    let DRIVES = null;
+    const fmtDrive = (b) => (b >= 2 ** 40 ? (b / 2 ** 40).toFixed(b >= 10 * 2 ** 40 ? 0 : 1) + " TB" : fmtBytes(b));
+    const drvPct = (x, total) => (total > 0 ? Math.round((x / total) * 100) : 0);
+    const drvParts = (d) => {
+      const total = d.total || 0;
+      const used = d.used != null ? d.used : total - (d.free || 0);
+      const aurora = Math.min(d.aurora ? d.aurora.bytes : 0, Math.max(0, used));
+      return { total, used, aurora, other: Math.max(0, used - aurora), free: d.free || 0 };
+    };
+    const drvSpeedLine = (d) => {
+      const sc = d.score;
+      if (d.testing === "running") return "Speed check: running now (about 20 seconds)…";
+      if (d.testing) return `Speed check: ${d.testing === "queued" ? "next in line" : esc(d.testing)}.`;
+      if (sc) {
+        const m = sc.measured || {};
+        const bits = [m.readMBps != null ? `read ${Math.round(m.readMBps)} MB/s` : "", m.writeMBps != null ? `write ${Math.round(m.writeMBps)} MB/s` : "", m.iops ? `${m.iops} small reads/s` : "", sc.streams ? `about ${sc.streams} 4K streams at once` : ""].filter(Boolean);
+        return `<span class="drv-score" title="${esc(`Read: ${m.readMethod || "?"}. Small reads: ${m.randomMethod || "?"}. Median small-read time ${m.latencyMs != null ? m.latencyMs + " ms" : "?"}. Tested ${sc.at ? fmtWhen(sc.at) : "?"}.`)}">Speed <b>${sc.value}</b> ${esc(sc.word)}</span> · ${esc(bits.join(" · "))}`;
+      }
+      if (d.scoreError) return `Speed check: ${esc(d.scoreError)}.`;
+      return d.inUse ? "Speed: not tested yet." : "Speed: tested when you start using it.";
+    };
+    const driveCard = (d) => {
+      const p = drvParts(d);
+      const down = d.inUse && !d.answering;
+      const tags = [
+        `<span class="pill">${d.network ? "Network" : "Local"}</span>`,
+        down ? `<span class="pill bad">Not answering</span>` : d.inUse ? `<span class="pill live">In use</span>` : `<span class="pill">Not in use</span>`,
+        d.inUse && !d.newDownloads ? `<span class="pill warn">No new downloads</span>` : "",
+        d.readOnly ? `<span class="pill">Read-only</span>` : "",
+      ].join("");
+      const bar = p.total
+        ? `<div class="drv-bar" role="img" aria-label="${esc(`${drvPct(p.used, p.total)}% used, ${drvPct(p.aurora, p.total)}% by Aurora, ${fmtDrive(p.free)} free`)}"><i class="a" style="width:${(p.aurora / p.total) * 100}%"></i><i class="o" style="width:${(p.other / p.total) * 100}%"></i></div>
+           <div class="drv-legend">
+             <span><i class="k a"></i>Aurora <b>${d.aurora ? `${fmtDrive(p.aurora)} · ${drvPct(p.aurora, p.total)}%` : d.inUse ? "counting…" : "none"}</b></span>
+             <span><i class="k o"></i>Other <b>${fmtDrive(p.other)} · ${drvPct(p.other, p.total)}%</b></span>
+             <span><i class="k f"></i>Free <b>${fmtDrive(p.free)} · ${drvPct(p.free, p.total)}%</b></span>
+           </div>
+           <div class="drv-line">Used ${fmtDrive(p.used)} of ${fmtDrive(p.total)} (${drvPct(p.used, p.total)}%)${d.inUse && d.reserve ? ` · keeps ${fmtDrive(d.reserve)} free` : ""}</div>`
+        : `<div class="drv-line">${down ? "No numbers while it does not answer." : "Size not measured yet."}</div>`;
+      const state = down
+        ? `<div class="drv-line bad">Not answering since ${d.downSince ? hhmmShort(d.downSince) : "a moment ago"} — ${d.titles} title${d.titles === 1 ? "" : "s"} can't play. New downloads go to the other drives; everything resumes by itself when it answers.</div>`
+        : d.inUse
+          ? `<div class="drv-line">${d.newDownloads ? "New downloads can go here." : "New downloads go to the other drives. What is here stays and plays."}${d.titles ? ` ${d.titles} title${d.titles === 1 ? "" : "s"} here.` : ""}</div>`
+          : `<div class="drv-line">Aurora keeps no films or shows here${d.holds && d.holds.length ? ` (only its ${d.holds.includes("data") ? "own data" : "download staging"})` : ""}.</div>`;
+      const hint = d.network && d.hardMount
+        ? `<div class="drv-line" style="font-size:0.78rem;color:var(--text-faint)">Mounted “hard”: a drive that stops answering makes file calls wait for ever. Aurora keeps itself out of the way — the safer mount line is in docs/storage-drives.md.</div>`
+        : "";
+      const acts = d.inUse
+        ? `<button class="mini" data-drv-act="${d.newDownloads ? "stop" : "resume"}" data-id="${esc(d.id)}">${d.newDownloads ? "Stop using for new downloads" : "Use for new downloads again"}</button>` +
+          `<button class="mini" data-drv-act="test" data-id="${esc(d.id)}"${down || d.testing ? " disabled" : ""}>Test again</button>`
+        : `<button class="mini go" data-drv-act="use" data-id="${esc(d.id)}"${d.readOnly || !d.answering ? " disabled" : ""}>Use this drive too</button>`;
+      return `<div class="drv" data-drive="${esc(d.id)}"${down ? ' data-down="1"' : ""}>
+        <div class="drv-head"><span class="drv-name">${esc(d.name || d.mount)}</span><span class="drv-mount" title="${esc(d.source || "")}">${esc(d.mount)}${d.fstype ? ` · ${esc(d.fstype)}` : ""}</span></div>
+        <div class="drv-tags">${tags}</div>
+        ${bar}
+        ${state}
+        <div class="drv-line">${drvSpeedLine(d)}</div>
+        ${hint}
+        <div class="drv-acts">${acts}</div>
+      </div>`;
+    };
+    // the drives that take new downloads, together (the headline's number)
+    const drivesPool = (list) => (list || []).filter((d) => d.inUse && d.answering && d.newDownloads && d.free != null);
+    function paintDrives(list) {
+      DRIVES = list;
+      const box = $("#drives-card");
+      if (!box) return;
+      // in use first, then the rest, by mount
+      const sorted = list.slice().sort((a, b) => (b.inUse - a.inUse) || String(a.mount).localeCompare(String(b.mount)));
+      setHTML(box, sorted.map(driveCard).join(""));
+    }
+    async function driveAction(act, id) {
+      const d = (DRIVES || []).find((x) => x.id === id);
+      if (!d) return;
+      let r;
+      if (act === "use") {
+        const sep = /\\/.test(d.mount) ? "\\" : "/";
+        const base = d.mount.replace(/[\\/]+$/, "") + sep + "Aurora";
+        const ok = await askBox(`Use ${d.mount} for Aurora too?\n\nAurora checks it can write there, makes the folders ${base}${sep}Movies and ${base}${sep}Shows (unless they exist), adds them to the library in config.json (a copy of the old file is kept) and rescans. New downloads then go to whichever drive has the most room. Nothing already on the drive is moved or deleted.`, false, "Yes, use this drive");
+        if (!ok) return;
+        toast("Setting the drive up…");
+        r = await post("/api/admin/drives/use", { id }).catch(() => null);
+        if (r && r.ok) toast(`Now using ${d.mount} — new downloads can go there`);
+      } else if (act === "stop" || act === "resume") {
+        r = await post("/api/admin/drives/new-downloads", { id, on: act === "resume" }).catch(() => null);
+        if (r && r.ok) toast(act === "stop" ? `No new downloads to ${d.mount} — what is there stays` : `${d.mount} takes new downloads again`);
+      } else if (act === "test") {
+        r = await post("/api/admin/drives/test", { id }).catch(() => null);
+        if (r && r.ok) toast(r.waiting ? `Speed check queued — ${r.waiting}` : "Speed check started — about 20 seconds");
+      }
+      if (r && r.error) toast(r.error);
+      loadDisk();
+      if (act === "test" || act === "use") setTimeout(() => { if (activeTab === "downloads") loadDisk(); }, 25000);
+    }
+    document.addEventListener("click", (e) => {
+      const b = e.target.closest && e.target.closest("[data-drv-act]");
+      if (!b || b.disabled) return;
+      driveAction(b.dataset.drvAct, b.dataset.id);
+    });
+    function drivesText(list) {
+      if (!list) return "Drives: the server did not answer.";
+      const rows = list.map((d) => {
+        const p = drvParts(d);
+        const m = (d.score && d.score.measured) || {};
+        return [
+          d.mount, d.network ? "network" : "local", d.fstype || "",
+          d.inUse ? (!d.answering ? `NOT ANSWERING since ${d.downSince ? hhmmShort(d.downSince) : "?"}${d.why ? ` (${d.why})` : ""}` : d.newDownloads ? "in use" : "in use, no new downloads") : "not in use",
+          p.total ? `${fmtDrive(p.used)} of ${fmtDrive(p.total)} (${drvPct(p.used, p.total)}%)` : "?",
+          d.aurora ? `${fmtDrive(p.aurora)} (${drvPct(p.aurora, p.total)}%)` : d.inUse ? "counting" : "-",
+          p.total ? fmtDrive(p.free) : "?",
+          d.score ? `${d.score.value} ${d.score.word} (read ${Math.round(m.readMBps || 0)} MB/s, write ${Math.round(m.writeMBps || 0)} MB/s, ${m.iops || 0} small reads/s; read ${m.readMethod || "?"})` : d.testing ? `testing (${d.testing})` : d.scoreError || "not tested",
+          d.network ? (d.hardMount ? "hard" : "soft") + (d.options && d.options.length ? ` [${d.options.join(",")}]` : "") : "",
+        ];
+      });
+      return "Drives:\n" + MD.table(["drive", "kind", "fs", "state", "used", "Aurora", "free", "speed", "mount options"], rows);
+    }
+
     async function loadDisk() {
+      // the drives card (a server from before it answers 404: the old bars stay)
+      const drvP = json("/api/admin/drives").catch(() => null);
       // The endpoint used to return a bare array; tolerate both so this page
       // works against a server that hasn't been restarted yet.
       const res = await json("/api/admin/disk");
+      const drv = await drvP;
+      const drivesList = drv && Array.isArray(drv.drives) ? drv.drives : null;
+      if (drivesList) paintDrives(drivesList);
+      $("#disk-bars").classList.toggle("hidden", !!drivesList);
       const disks = Array.isArray(res) ? res : res.disks || [];
       const minFreePct = Array.isArray(res) ? 0 : res.minFreePct || 0;
       // "about 40 days until full at this week's pace" (media/diskforecast.js)
       const fc = Array.isArray(res) ? null : res.forecast;
       // The headline number this page exists for (the ENOSPC lesson): free
       // space, always visible, red under 50GB.
-      const minFree = disks.reduce((m, d) => (d.free != null && (m == null || d.free < m) ? d.free : m), null);
+      // several drives in use: the ones that take new downloads count together
+      const pool = drivesList ? drivesPool(drivesList) : [];
+      const pooled = !!drivesList && drivesList.filter((d) => d.inUse).length > 1 && pool.length > 0;
+      const downN = drivesList ? drivesList.filter((d) => d.inUse && !d.answering).length : 0;
+      const minFree = pooled ? pool.reduce((n, d) => n + d.free, 0) : disks.reduce((m, d) => (d.free != null && (m == null || d.free < m) ? d.free : m), null);
       if (minFree != null) {
         const low = minFree < 50e9;
         setHTML($("#disk-headline"),
-          `<b style="${low ? "color:#f87171" : ""}">${fmtBytes(minFree)} free</b>${disks.length > 1 ? " on the fullest drive" : ""}${fc && fc.line ? ` · <span id="disk-forecast" title="${esc(fc.detail || "")}">${esc(fc.line)}</span>` : ""}${low ? " — running low: On disk → Suggest what to delete" : ""}${minFreePct > 0 ? ` · downloads start by themselves above ${minFreePct}% free` : ""}`);
+          `<b style="${low ? "color:#f87171" : ""}">${pooled ? fmtDrive(minFree) : fmtBytes(minFree)} free</b>${pooled ? ` on ${pool.length} drive${pool.length === 1 ? "" : "s"}` : disks.length > 1 ? " on the fullest drive" : ""}${downN ? ` · <b style="color:var(--bad)">${downN} drive${downN === 1 ? "" : "s"} not answering</b>` : ""}${fc && fc.line ? ` · <span id="disk-forecast" title="${esc(fc.detail || "")}">${esc(fc.line)}</span>` : ""}${low ? " — running low: On disk → Suggest what to delete" : ""}${minFreePct > 0 ? ` · downloads start by themselves above ${minFreePct}% free` : ""}`);
       }
       const merged = [];
       for (const d of disks) {
@@ -6185,13 +6345,14 @@
       "d-disk": {
         load: () => { loadDisk(); loadLibraryTree(); },
         copy: async () => {
-          const [dk, t] = await Promise.all([json("/api/admin/disk"), json("/api/admin/library/tree")]);
+          const [dk, t, dv] = await Promise.all([json("/api/admin/disk"), json("/api/admin/library/tree"), json("/api/admin/drives").catch(() => null)]);
           const disks = Array.isArray(dk) ? dk : dk.disks || [];
+          const drivesPart = dv && Array.isArray(dv.drives) ? drivesText(dv.drives) + "\n\n" : "";
           const movies = t.movies || [], shows = t.shows || [];
           const big = [...movies.map((m) => [m.title + (m.year ? ` (${m.year})` : ""), m.sizeBytes || 0, m.watched || 0]),
             ...shows.map((s) => [s.title, s.sizeBytes || (s.seasons || []).reduce((n, se) => n + (se.episodes || []).reduce((x, e) => x + (e.sizeBytes || 0), 0), 0), s.watched || 0])]
             .sort((a, b) => b[1] - a[1]);
-          return MD.table(["drive", "free", "size"], disks.map((d) => [d.root, d.free == null ? "?" : fmtBytes(d.free), d.total == null ? "?" : fmtBytes(d.total)])) +
+          return drivesPart + "Library folders:\n" + MD.table(["drive", "free", "size"], disks.map((d) => [d.root, d.free == null ? "?" : fmtBytes(d.free), d.total == null ? "?" : fmtBytes(d.total)])) +
             `\n\nLibrary: ${movies.length} movies, ${shows.length} shows.\nBiggest:\n` + MD.table(["title", "size", "finished by"], big.slice(0, 15).map(([n, b, w]) => [n, fmtBytes(b), w]));
         },
       },

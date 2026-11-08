@@ -653,6 +653,10 @@ require("./src/lib/healer").start();
 // loops — told to the admin (ntfy / Telegram) once, and again when they
 // clear; plus the dead-man's-switch ping when "healthPingUrl" is set.
 require("./src/lib/health").start();
+// Storage drives (lib/drives): which drives there are, how full and how fast,
+// and — for a network drive — whether it answers (asked in a child process
+// with a deadline; a hung NFS mount never holds the server).
+require("./src/lib/drives").start();
 // A store that could not be read at boot was restored from a good copy, or
 // put in safe mode (lib/jsonstore.js): say each such event ONCE, through the
 // health alerts (the log, ntfy / Telegram, the admin page).
