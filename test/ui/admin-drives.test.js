@@ -65,9 +65,11 @@ const NFS = {
 };
 const answer = (drives) => ({ drives, reservePct: 10, reserveMaxBytes: 50e9 });
 const stubDisk = (page) => page.route((u) => u.pathname === "/api/admin/disk", (route) => route.fulfill({ json: { disks: [{ root: "/opt/aurora/media/Movies", free: 100 * GIB, total: 500 * GIB }], minFreePct: 0, forecast: null } }));
+// the page asks for the list as often as it likes; the answer moves on only after a press
+let step = 0;
 const stubDrives = async (page, answers) => {
-  let n = 0;
-  await page.route((u) => u.pathname === "/api/admin/drives", (route) => route.fulfill({ json: answers[Math.min(n++, answers.length - 1)] }));
+  step = 0;
+  await page.route((u) => u.pathname === "/api/admin/drives", (route) => route.fulfill({ json: answers[Math.min(step, answers.length - 1)] }));
 };
 const catchPosts = async (page) => {
   const posts = [];
@@ -75,6 +77,7 @@ const catchPosts = async (page) => {
     const body = JSON.parse(route.request().postData() || "{}");
     const what = new URL(route.request().url()).pathname.split("/").pop();
     posts.push([what, body]);
+    step++;
     return route.fulfill({ json: what === "use" ? { ok: true, movies: "/mnt/storagespace/Aurora/Movies", shows: "/mnt/storagespace/Aurora/Shows" } : { ok: true, waiting: null } });
   });
   return posts;
@@ -257,7 +260,7 @@ ui.test("for real: a network drive stops answering — viewers told at once, oth
   assert.ok(Date.now() - t1 < 1500, `answered in ${Date.now() - t1} ms`);
   assert.equal(r.status, 503);
   assert.equal(r.headers.get("x-aurora-error"), "drive-down");
-  assert.equal((await r.json()).message, item.unavailable.message);
+  assert.deepEqual(await r.json(), { error: item.unavailable.message, code: "drive-down" });
   // another title, on the local disk, plays as ever
   const ok = await fetch(`${srv.url}/stream/video/${other.id}`, { headers: { Range: "bytes=0-1023" } });
   assert.equal(ok.status, 206);
@@ -297,3 +300,4 @@ ui.test("for real: a network drive stops answering — viewers told at once, oth
   const sum2 = await srv.api.adminGet("/api/admin/summary");
   assert.ok(!sum2.needs.some((n) => n.id.startsWith("drive-down:")));
 });
+ui.run({ concurrency: 1 });

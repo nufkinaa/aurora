@@ -888,7 +888,7 @@
     .drv-legend .k.f { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); }
     .drv-line { font-size: 0.84rem; color: var(--text-dim); margin-top: 9px; line-height: 1.45; overflow-wrap: anywhere; }
     .drv-line.bad { color: var(--bad); font-weight: 700; }
-    .drv-score { display: inline-flex; align-items: baseline; gap: 6px; }
+    .drv-score { white-space: nowrap; }
     .drv-score b { font-size: 1.05rem; }
     .drv-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     .drv-acts .mini.go { background: var(--accent-strong); color: #fff; }
@@ -5170,7 +5170,7 @@
     // the button that matters: "Use this drive too" on a drive Aurora does not
     // use yet; "Stop using for new downloads" / "Test again" on one it does.
     let DRIVES = null;
-    const fmtDrive = (b) => (b >= 2 ** 40 ? (b / 2 ** 40).toFixed(b >= 10 * 2 ** 40 ? 0 : 1) + " TB" : fmtBytes(b));
+    const fmtDrive = (b) => (b >= 1000 * 2 ** 30 ? (b / 2 ** 40).toFixed(b >= 10 * 2 ** 40 ? 0 : 1) + " TB" : fmtBytes(b));
     const drvPct = (x, total) => (total > 0 ? Math.round((x / total) * 100) : 0);
     const drvParts = (d) => {
       const total = d.total || 0;

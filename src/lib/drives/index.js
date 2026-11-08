@@ -222,11 +222,14 @@ const check = async (drive) => {
   const s = stateOf(drive.id);
   const roots = dirsOn(drive).filter((d) => d.kind === "movies" || d.kind === "shows").map((d) => d.dir);
   if (!drive.network) {
+    // (a local disk does not hang the way a network one does — but a dying
+    // USB disk can be slow: the round never waits on it longer than this)
+    const within = (p, ms = 10 * SEC) => Promise.race([p, new Promise((_, no) => { const t = setTimeout(() => no(Object.assign(new Error("slow"), { code: "slow to answer" })), ms); t.unref?.(); })]);
     try {
-      const v = await deps.statfsLocal(drive.mount);
+      const v = await within(deps.statfsLocal(drive.mount));
       Object.assign(s, v, { at: deps.now() });
       const r = {};
-      for (const d of roots) { try { r[d] = (await fs.promises.stat(d)).isDirectory(); } catch { r[d] = false; } }
+      for (const d of roots) { try { r[d] = (await within(fs.promises.stat(d))).isDirectory(); } catch { r[d] = false; } }
       s.roots = r;
       markUp(drive);
     } catch (e) {
@@ -380,7 +383,12 @@ const start = () => {
   if (live.started) return;
   live.started = true;
   openStore();
-  const tick = () => round().catch((e) => console.warn(`[drives] a round failed: ${(e && e.message) || e}`));
+  // (one round at a time: a check that waits for its deadline must not start a second round behind it)
+  const tick = () => {
+    if (live.rounding) return;
+    live.rounding = true;
+    round().catch((e) => console.warn(`[drives] a round failed: ${(e && e.message) || e}`)).finally(() => { live.rounding = false; });
+  };
   const t1 = setTimeout(tick, 3 * SEC);
   const t2 = setInterval(tick, 5 * SEC); // each drive is asked only at its own pace (round)
   t1.unref?.(); t2.unref?.();
