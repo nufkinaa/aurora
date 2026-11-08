@@ -647,6 +647,16 @@
     .fl-nums .fl-size { min-width: 7.5ch; }
     .fl-nums .fl-speed { min-width: 9ch; }
     .fl-nums .fl-eta { min-width: 9ch; }
+    /* who asked, and when (2026-11-08): its own quiet line, fixed height */
+    .fl-who { font-size: 0.8rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; height: 1.3em; line-height: 1.3; }
+    .dl-who-chips { flex-wrap: wrap; margin: 0 0 12px; }
+    .dl-who-chips button .n { margin-left: 6px; opacity: 0.7; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .dl-who-lines { display: grid; gap: 6px; padding: 8px 4px 4px; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+    .dl-who-line { overflow-wrap: anywhere; }
+    .dl-who-zone { font-size: 0.8rem; padding: 4px 4px 2px; }
+    /* (wraps rather than cut: on a phone an episode row is narrow) */
+    .lib-dl { display: block; font-size: 0.76rem; color: var(--text-faint); font-weight: 500; white-space: normal; line-height: 1.3; }
+    .lib-dl > span + span { white-space: nowrap; }
     .fl-state { grid-area: state; justify-self: start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .fl-act { grid-area: act; justify-self: end; }
     .fl-note { grid-area: note; display: grid; gap: 2px; margin-top: 6px; font-size: 0.8rem; color: var(--text-faint); min-width: 0; }
@@ -1551,6 +1561,7 @@
     <!-- ================= DOWNLOADS (three zones: needs you / in flight / on disk) ================= -->
     <div class="pane" id="pane-downloads">
       <div class="fl-head" id="dl-headline"><span id="disk-headline">Measuring the disks…</span><span class="muted" id="dl-hold"></span></div>
+      <div class="range-chips dl-who-chips hidden" id="dl-who-chips" role="toolbar" aria-label="Show one person's downloads"></div>
       <section class="hidden" id="dl-needs">
         <h2>Needs you <span class="pill warn" id="dl-pending-count">0</span>
           <span class="note">held back because disk space is low — everything else runs by itself</span></h2>
@@ -1614,10 +1625,16 @@
       <details class="more" data-more="d-done" data-title="Finished" data-sub="done, declined or failed — remove rows you're done with" data-pill-id="dl-done-count">
         <div class="more-body">
           <div class="table-scroll"><table>
-            <thead><tr><th>Title</th><th>Quality</th><th>Size</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Title</th><th>Who</th><th>When</th><th>Quality</th><th>Size</th><th>Status</th><th></th></tr></thead>
             <tbody id="dl-done"></tbody>
           </table></div>
           <div class="empty-note hidden" id="dl-done-empty">Nothing finished yet.</div>
+        </div>
+      </details>
+      <details class="more" data-more="d-who" data-title="Who downloaded what" data-sub="per person: how many, how big, the last one — tap a name above to see only theirs" data-pill-id="dl-who-count">
+        <div class="more-body">
+          <div class="dl-who-lines" id="dl-who-lines"></div>
+          <div class="muted dl-who-zone" id="dl-who-zone"></div>
         </div>
       </details>
       <details class="more hidden" data-more="d-mylist" id="ml-card" data-title="Left from My List downloads" data-sub="copies the old My List downloads fetched — still tidied up if nobody watches them">
@@ -3357,6 +3374,99 @@
     const fixBtn = (fix, cls = "mini") => fix
       ? `<button class="${cls}" data-fix='${esc(JSON.stringify(fix))}'>${esc(fix.label)}</button>` : "";
 
+    // ================= who asked for a download, and when (elia 2026-11-08) =================
+    // "I need to see on downloads which user has downloaded what … and when":
+    // every download names WHO — the person, "Automatic" (smart downloads, a
+    // followed show's new episode, the old My List downloads) with whose it
+    // was, or "Unknown" for old records that never kept one — and WHEN, in the
+    // household's clock: the server's time zone and locale (GET
+    // /api/admin/summary `clock`), this browser's until that answers. Nothing
+    // is guessed: a time that was never recorded is "Unknown".
+    let HOUSE_CLOCK = null;
+    function houseDate(t, withTime = true) {
+      if (t == null || t === "") return null;
+      const d = new Date(t);
+      if (Number.isNaN(d.getTime())) return null;
+      const c = HOUSE_CLOCK || {};
+      // (this page is English: a server in another language — he-IL on the
+      // household's PC — still gives its time zone and 24-hour clock, the
+      // words stay English: "Nov 6, 21:14")
+      const want = c.locale || navigator.language || "";
+      const loc = /^en(-|$)/i.test(want) ? want : "en-US";
+      const fmt = (o) => {
+        try { return new Intl.DateTimeFormat(loc, { timeZone: c.tz || undefined, ...o }).format(d); }
+        catch { return new Intl.DateTimeFormat(undefined, o).format(d); }
+      };
+      const yearOf = (x) => { try { return new Intl.DateTimeFormat("en", { timeZone: c.tz || undefined, year: "numeric" }).format(x); } catch { return String(x.getFullYear()); } };
+      const o = { month: "short", day: "numeric" };
+      if (yearOf(d) !== yearOf(new Date())) o.year = "numeric";
+      if (withTime) Object.assign(o, c.hourCycle ? { hourCycle: c.hourCycle, hour: /^h2[34]$/.test(c.hourCycle) ? "2-digit" : "numeric" } : { hour: "2-digit" }, { minute: "2-digit" });
+      return fmt(o);
+    }
+    const AUTO_FOR = { next: (n) => `${n}'s next episode`, follow: (n) => `a new episode of a show ${n} follows` };
+    // { key: "p" | "auto" | "unknown", words, people } — people: the names it counts for
+    function dlWho(j) {
+      const auto = j.autoFor || (j.smart ? "next" : null);
+      if (auto) {
+        const f = AUTO_FOR[auto];
+        return { key: "auto", words: "Automatic" + (j.by ? ` · ${f ? f(j.by) : `for ${j.by}`}` : ""), people: j.by ? [j.by] : [] };
+      }
+      const people = [...new Set([j.by, ...(j.alsoBy || [])].filter(Boolean))];
+      return people.length ? { key: "p", words: people.join(" + "), people } : { key: "unknown", words: "Unknown", people: [] };
+    }
+    // "asked 2h ago" with the date as its tooltip (rel), or "landed Nov 6, 21:14" with how long ago as its tooltip
+    function dlWhenHTML(word, t, rel = false, more = "") {
+      const day = houseDate(t);
+      if (!day) return `<span class="dl-when"${more ? ` title="${esc(more)}"` : ""}>${esc(word)}: Unknown</span>`;
+      const tip = (rel ? day : ago(new Date(t).toISOString())) + (more ? ` · ${more}` : "");
+      return `<span class="dl-when" title="${esc(tip)}">${esc(word)} ${esc(rel ? ago(new Date(t).toISOString()) : day)}</span>`;
+    }
+    function dlWhenText(word, t) {
+      const day = houseDate(t);
+      return day ? `${word} ${day} (${ago(new Date(t).toISOString())})` : `${word}: Unknown`;
+    }
+    // when a finished (or given-up) download ended, and the word for it
+    function dlEnd(j) {
+      const word = { done: "landed", error: "failed", failed: "failed", declined: "declined", canceled: "canceled", cancelled: "canceled", removed: "removed" }[j.status] || "ended";
+      return { word, at: j.status === "done" ? j.doneAt || null : j.resolvedAt || j.doneAt || null };
+    }
+    // One line per person (and "Automatic", "Unknown"): how many downloads,
+    // how big the ones that landed are, and when the last was asked for —
+    // newest first. A person's automatic downloads count for them too.
+    function dlPeople(jobs) {
+      const m = new Map();
+      const add = (key, name, j, auto) => {
+        let r = m.get(key);
+        if (!r) m.set(key, (r = { key, name, n: 0, auto: 0, bytes: 0, last: null, done: 0, live: 0, waiting: 0, ended: 0 }));
+        r.n++;
+        if (auto) r.auto++;
+        if (j.status === "done") { r.done++; r.bytes += j.sizeBytes || 0; }
+        else if (j.status === "pending") r.waiting++;
+        else if (DL_FINISHED.has(j.status)) r.ended++;
+        else r.live++;
+        const t = j.at ? new Date(j.at).getTime() : NaN;
+        if (Number.isFinite(t) && (r.last == null || t > r.last)) r.last = t;
+      };
+      for (const j of jobs) {
+        const w = dlWho(j);
+        for (const p of w.people) add("p:" + p, p, j, w.key === "auto");
+        if (w.key === "auto") add("auto", "Automatic", j, false);
+        if (w.key === "unknown") add("unknown", "Unknown", j, false);
+      }
+      // (a tie: the people before "Automatic" and "Unknown")
+      const person = (r) => (r.key.startsWith("p:") ? 0 : 1);
+      return [...m.values()].sort((a, b) => (b.last ?? -Infinity) - (a.last ?? -Infinity) || person(a) - person(b) || a.name.localeCompare(b.name));
+    }
+    function dlPersonLine(r) {
+      const bits = [`${r.n} download${r.n === 1 ? "" : "s"}${r.key.startsWith("p:") && r.auto ? ` (${r.auto} automatic)` : ""}`];
+      if (r.bytes) bits.push(fmtBytes(r.bytes));
+      bits.push(r.last != null ? `last ${houseDate(r.last, false)}` : "last: Unknown");
+      return `${r.name} — ${bits.join(" · ")}`;
+    }
+    const dlPersonDetail = (r) => [[r.done, "finished"], [r.live, "in flight"], [r.waiting, "waiting for approval"], [r.ended, "failed, declined or canceled"]]
+      .filter(([n]) => n).map(([n, w]) => `${n} ${w}`).join(" · ");
+    const houseZone = () => (HOUSE_CLOCK && HOUSE_CLOCK.tz) || (Intl.DateTimeFormat().resolvedOptions().timeZone || "this device's time");
+
     async function loadSummary() {
       clearTimeout(sumRetry);
       if (!ADMIN_PW) return null;
@@ -3370,6 +3480,12 @@
       } catch {}
       if (d && d.state) {
         SUM = d; SUM_FAILS = 0; SUM_DOWN_SINCE = null;
+        const ck = d.clock;
+        if (ck && ck.tz && (!HOUSE_CLOCK || ck.tz !== HOUSE_CLOCK.tz || ck.locale !== HOUSE_CLOCK.locale || ck.hourCycle !== HOUSE_CLOCK.hourCycle)) {
+          HOUSE_CLOCK = { tz: ck.tz, locale: ck.locale || null, hourCycle: ck.hourCycle || null };
+          // (the downloads were written in this browser's clock until now)
+          if (DL_LOADED) paintDownloads(DL_JOBS);
+        }
         if (!RESTARTING) paintSummary(d);
         return d;
       }
@@ -3464,7 +3580,7 @@
         <div><b>${esc(r.name)} asked for a new password</b><small>${esc(r.requestedAt ? "asked " + when(r.requestedAt) : "")}</small></div>
         <div class="acts"><button class="mini" data-reset-ok="${esc(r.id)}" data-reset-name="${esc(r.name)}">Approve</button><button class="mini danger" data-reset-no="${esc(r.id)}" data-reset-name="${esc(r.name)}">Decline</button></div></div>`);
       for (const j of w.downloads || []) rows.push(`<div class="wait-row"><span class="ic">${WAIT_ICO.dl}</span>
-        <div><b>${esc(j.label)} waits for your approval</b><small>${esc([j.by, j.sizeBytes ? fmtBytes(j.sizeBytes) : "", j.holdReason].filter(Boolean).join(" · "))}</small></div>
+        <div><b>${esc(j.label)} waits for your approval</b><small>${esc([dlWho(j).words, j.at ? "asked " + when(j.at) : "asked: Unknown", j.sizeBytes ? fmtBytes(j.sizeBytes) : "", j.holdReason].filter(Boolean).join(" · "))}</small></div>
         <div class="acts"><button class="mini" data-dl-approve="${esc(j.id)}">Approve anyway</button><button class="mini danger" data-dl-decline="${esc(j.id)}">Decline</button></div></div>`);
       const inbox = [w.reports ? `${w.reports} problem report${w.reports === 1 ? "" : "s"} open` : "", w.requests ? `${w.requests} title request${w.requests === 1 ? "" : "s"}` : ""].filter(Boolean);
       if (inbox.length) rows.push(`<div class="wait-row"><span class="ic">${WAIT_ICO.inbox}</span>
@@ -4800,8 +4916,8 @@
       }
       return j.phase;
     };
-    // who started a download, after its name (elia 2026-10-11)
-    const byTag = (j) => (j.by ? ` <span class="muted" style="font-size:0.8rem;font-weight:600">· by ${esc(j.by)}</span>` : "") +
+    // (who started it has its own column now: dlWho, 2026-11-08)
+    const byTag = (j) =>
       (j.replaces ? ` <span class="pill warn" title="Replaces the copy in the library when it lands">replaces · ${esc(j.replaces.reasonLabel || j.replaces.reason || "")}</span>` : "");
     // What a download in hand is doing, in one word for its pill — the ONE
     // place a new state goes (downloads-v2, docs/downloads-v2.md "For the
@@ -4879,13 +4995,14 @@
       el.setAttribute("role", "listitem");
       el.dataset.dlId = id;
       el.innerHTML = `<div class="fl-main"><div class="fl-name"><b class="fl-title"></b><span class="fl-by"></span></div>
+        <div class="fl-who"></div>
         <div class="fl-track"><i></i></div>
         <div class="fl-nums"><span class="fl-pct"></span><span class="fl-size"></span><span class="fl-speed"></span><span class="fl-eta"></span></div></div>
         <span class="pill fl-state"></span>
         <button class="mini danger fl-act" data-dl-cancel="${esc(id)}">Cancel</button>
         <div class="fl-note"></div>`;
       el._r = {
-        title: el.querySelector(".fl-title"), by: el.querySelector(".fl-by"), bar: el.querySelector(".fl-track i"),
+        title: el.querySelector(".fl-title"), by: el.querySelector(".fl-by"), who: el.querySelector(".fl-who"), bar: el.querySelector(".fl-track i"),
         pct: el.querySelector(".fl-pct"), size: el.querySelector(".fl-size"), speed: el.querySelector(".fl-speed"),
         eta: el.querySelector(".fl-eta"), state: el.querySelector(".fl-state"), note: el.querySelector(".fl-note"),
       };
@@ -4896,7 +5013,9 @@
       const label = j.label || j.title || "—";
       setText(r.title, label);
       if (r.title.title !== label) r.title.title = label;
-      setHTML(r.by, `${j.by ? `by ${esc(j.by)}` : ""}${prioTag(j)}${j.replaces ? ` <span class="pill warn" title="Replaces the copy in the library when it lands">replaces · ${esc(j.replaces.reasonLabel || j.replaces.reason || "")}</span>` : ""}`);
+      // who asked, and when: "Anna · asked 2h ago" (the date as its tooltip)
+      setHTML(r.who, `${esc(dlWho(j).words)} · ${dlWhenHTML("asked", j.at, true)}`);
+      setHTML(r.by, `${prioTag(j)}${j.replaces ? ` <span class="pill warn" title="Replaces the copy in the library when it lands">replaces · ${esc(j.replaces.reasonLabel || j.replaces.reason || "")}</span>` : ""}`);
       const p = Math.max(0, Math.min(1, j.progress || 0));
       const tf = `scaleX(${p.toFixed(4)})`;
       if (r.bar.style.transform !== tf) r.bar.style.transform = tf;
@@ -4914,6 +5033,18 @@
       setHTML(r.note, flightNote(j));
     };
     let DL_JOBS = [];
+    let DL_LOADED = false;
+    // the person chips: "all", "p:<name>", "auto" or "unknown"
+    let DL_WHO = "all";
+    const dlShown = (j) => {
+      if (DL_WHO === "all") return true;
+      const w = dlWho(j);
+      if (DL_WHO === "auto" || DL_WHO === "unknown") return w.key === DL_WHO;
+      return w.people.includes(DL_WHO.slice(2));
+    };
+    // ON DISK: library id -> the finished downloads that wrote it (newest first)
+    let DL_BY_LIB = new Map();
+    let dlLibSig = "";
     function renderFlight(active) {
       const host = $("#dl-jobs");
       const ids = new Set(active.map((j) => j.id));
@@ -4933,8 +5064,27 @@
       if (b) cancelDownload(b.dataset.dlCancel);
     });
     async function loadDownloads() {
-      const jobs = await json("/api/downloads");
-      DL_JOBS = jobs;
+      paintDownloads(await json("/api/downloads"));
+    }
+    function paintDownloads(all) {
+      DL_JOBS = all;
+      DL_LOADED = true;
+      // WHO: one chip per person (newest first), plus Automatic and Unknown;
+      // a chip shows only that person's downloads in the three lists below
+      const people = dlPeople(all);
+      if (DL_WHO !== "all" && !people.some((r) => r.key === DL_WHO)) DL_WHO = "all";
+      $("#dl-who-chips").classList.toggle("hidden", all.length === 0);
+      setHTML($("#dl-who-chips"), [{ key: "all", name: "Everyone", n: all.length }, ...people].map((r) =>
+        `<button type="button" data-dl-who="${esc(r.key)}" class="${r.key === DL_WHO ? "active" : ""}" aria-pressed="${r.key === DL_WHO}">${esc(r.name)}<span class="n">${r.n}</span></button>`).join(""));
+      setText($("#dl-who-count"), people.filter((r) => r.key.startsWith("p:")).length);
+      setHTML($("#dl-who-lines"), people.length
+        ? people.map((r) => `<div class="dl-who-line" data-who="${esc(r.key)}" title="${esc(dlPersonDetail(r))}">${esc(dlPersonLine(r))}</div>`).join("")
+        : `<div class="empty-note">No downloads yet.</div>`);
+      setText($("#dl-who-zone"), `Times are in ${houseZone()}, the server's clock. Counted from the last ${all.length} download${all.length === 1 ? "" : "s"} the server keeps.`);
+      const jobs = all.filter(dlShown);
+      const filtered = DL_WHO !== "all";
+      setText($("#dl-jobs-empty"), filtered ? "Nothing of theirs is downloading right now." : "Nothing is downloading right now.");
+      setText($("#dl-done-empty"), filtered ? "Nothing of theirs has finished." : "Nothing finished yet.");
       const pending = jobs.filter((j) => j.status === "pending");
       setText($("#dl-pending-count"), pending.length);
       $("#dl-needs").classList.toggle("hidden", pending.length === 0);
@@ -4945,7 +5095,8 @@
             <div class="avatar">${j.type === "show" ? "📺" : "🎬"}</div>
             <div>
               <div class="name">${esc(j.label || j.title)}</div>
-              <div class="meta">${j.by ? esc(j.by) + " · " : ""}${esc(j.quality || "?")} · ${fmtBytes(j.sizeBytes)}${j.provider ? " · " + esc(j.provider) : ""} · ${ago(j.at)}</div>
+              <div class="meta dl-whowhen">${esc(dlWho(j).words)} · ${dlWhenHTML("asked", j.at, true)}</div>
+              <div class="meta">${esc(j.quality || "?")} · ${fmtBytes(j.sizeBytes)}${j.provider ? " · " + esc(j.provider) : ""}</div>
               ${j.holdReason ? `<div class="meta" style="color:#f87171">${esc(j.holdReason)}</div>` : ""}
             </div>
           </div>
@@ -4963,9 +5114,11 @@
       const finished = jobs.filter((j) => DL_FINISHED.has(j.status));
       setText($("#dl-done-count"), finished.length);
       $("#dl-done-empty").classList.toggle("hidden", finished.length > 0);
-      setHTML($("#dl-done"), finished.map((j) => `
-        <tr>
+      setHTML($("#dl-done"), finished.map((j) => { const end = dlEnd(j); const who = dlWho(j).words; return `
+        <tr data-dl-id="${esc(j.id)}">
           <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.label || j.title)}">${esc(j.label || j.title)}${byTag(j)}</td>
+          <td class="dl-who" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(who)}">${esc(who)}</td>
+          <td class="dl-end" style="white-space:nowrap">${dlWhenHTML(end.word, end.at, false, `asked ${houseDate(j.at) || "Unknown"}`)}</td>
           <td>${esc(j.quality || "—")}</td>
           <td class="num">${fmtBytes(j.sizeBytes)}</td>
           <td><span class="pill ${DL_STATUS_PILL[j.status] || ""}">${esc(j.status)}</span>${j.error ? " <span class='muted' title='" + esc(j.error) + "'>" + esc(j.error.slice(0, 40)) + "</span>" : ""}</td>
@@ -4973,8 +5126,42 @@
             ${j.status === "error" ? `<button class="mini" onclick="approveDownload('${esc(j.id)}')">Retry</button>` : ""}
             <button class="mini" onclick="removeDownload('${esc(j.id)}')">Remove</button>
           </td>
-        </tr>`).join(""));
+        </tr>`; }).join(""));
+
+      // ON DISK: which download wrote each title — repainted only when that changes
+      const byLib = new Map();
+      for (const j of all) {
+        if (j.status !== "done" || !j.libraryId) continue;
+        if (!byLib.has(j.libraryId)) byLib.set(j.libraryId, []);
+        byLib.get(j.libraryId).push(j);
+      }
+      for (const list of byLib.values()) list.sort((a, b) => String(b.doneAt || "").localeCompare(String(a.doneAt || "")));
+      const sig = [...byLib].map(([id, l]) => id + ":" + l.map((j) => `${j.id}/${j.doneAt || ""}/${dlWho(j).words}`).join(",")).join("|") + "@" + houseZone();
+      DL_BY_LIB = byLib;
+      if (sig !== dlLibSig) { dlLibSig = sig; if (libTreeData) renderLibTree(); }
     }
+    $("#dl-who-chips").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-dl-who]");
+      if (!b || b.dataset.dlWho === DL_WHO) return;
+      DL_WHO = b.dataset.dlWho;
+      paintDownloads(DL_JOBS);
+    });
+    // "↓ Anna · Nov 6" under an On-disk row that came from a download (the
+    // newest, when it was downloaded twice; "Automatic (Dor)" for one queued
+    // by itself); a show: who, and the last one. The tooltip says it in full.
+    const libWho = (j) => { const w = dlWho(j); return w.key === "auto" ? `Automatic${j.by ? ` (${j.by})` : ""}` : w.words; };
+    const libDlLine = (ids) => {
+      const jobs = ids.flatMap((id) => DL_BY_LIB.get(id) || []);
+      if (!jobs.length) return "";
+      jobs.sort((a, b) => String(b.doneAt || "").localeCompare(String(a.doneAt || "")));
+      const top = jobs[0];
+      const names = [...new Set(jobs.map((j) => { const w = dlWho(j); return w.key === "p" ? w.words : w.key === "auto" ? "Automatic" : "Unknown"; }))];
+      const who = ids.length > 1 ? (names.length > 2 ? `${names.slice(0, 2).join(", ")} +${names.length - 2}` : names.join(", ")) : libWho(top);
+      const day = houseDate(top.doneAt, false);
+      const tip = jobs.slice(0, 6).map((j) => `${j.label || j.title}: downloaded by ${dlWho(j).words} — ${dlWhenText("landed", j.doneAt)}`).join("\n");
+      return `<small class="lib-dl" title="${esc(tip)}"><span><span aria-label="downloaded by">↓</span>&nbsp;${esc(who)}</span> <span>· ${ids.length > 1 ? "last " : ""}${day ? esc(day) : "Unknown"}</span></small>`;
+    };
+
 
     // ---------- disk + library management ----------
     // ---------- storage drives (lib/drives, docs/storage-drives.md) ----------
@@ -5233,7 +5420,7 @@
       const epRow = (e) => libRow(
         `<input type="checkbox" class="lib-ep-check" data-id="${esc(e.id)}" data-size="${e.sizeBytes}" data-name="${esc(e.fileName)}" data-watched="${e.watched ? 1 : 0}" style="margin:0" />` +
         `<span class="muted num" style="min-width:52px">S${String(e.season).padStart(2, "0")}E${String(e.episode || 0).padStart(2, "0")}</span>` +
-        `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.fileName)}">${esc(e.title)}</span>` +
+        `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.fileName)}">${esc(e.title)}${libDlLine([e.id])}</span>` +
         watchedBadge(e.watched) + myListBadge(e.mylist) + copyPill(e.id) +
         `<span class="num muted">${fmtBytes(e.sizeBytes)}</span>` +
         `<button class="mini danger" data-file-id="${esc(e.id)}" data-file-name="${esc(e.fileName)}" data-file-size="${e.sizeBytes}">Delete</button>`, 26);
@@ -5247,7 +5434,7 @@
         if (it.kind === "movie") {
           return libRow(
             libThumb(it.cover, "🎬") +
-            `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)}${it.year ? ` <span class="muted">(${it.year})</span>` : ""}</span>` +
+            `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)}${it.year ? ` <span class="muted">(${it.year})</span>` : ""}${libDlLine([it.id])}</span>` +
             watchedBadge(it.watched) + myListBadge(it.mylist) + copyPill(it.id) +
             `<span class="num muted">${fmtBytes(it.sizeBytes)}</span>` +
             `<button class="mini danger" data-del-type="movie" data-del-id="${esc(it.id)}" data-del-title="${esc(it.title)}">Delete</button>`);
@@ -5273,7 +5460,7 @@
         return `<details class="lib-show" data-key="${esc(it.id)}"${open}>
           <summary style="list-style:none;cursor:pointer">${libRow(
             libThumb(it.cover, "📺") +
-            `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)} <span class="muted">${it.epCount} ep${it.epWatched ? ` · ${it.epWatched} watched` : ""}</span></span>` +
+            `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)} <span class="muted">${it.epCount} ep${it.epWatched ? ` · ${it.epWatched} watched` : ""}</span>${libDlLine(it.seasons.flatMap((se) => se.episodes.map((e) => e.id)))}</span>` +
             `<span class="num muted">${fmtBytes(it.sizeBytes)}</span>` +
             `<button class="mini danger" data-del-type="show" data-del-id="${esc(it.id)}" data-del-title="${esc(it.title)}">Delete</button>`)}</summary>
           ${seasons}
@@ -6309,9 +6496,10 @@
           const act = jobs.filter(inFlight);
           const pend = jobs.filter((j) => j.status === "pending");
           return [
-            MD.table(["title", "by", "state", "done", "size", "speed", "left", "note"], act.map((j) => [j.label || j.title, [j.by, j.priority && j.priority.label].filter(Boolean).join(" · "), flightState(j).word + (j.sources && j.sources.tried ? ` (copy ${j.sources.tried} of ${j.sources.max})` : ""), `${Math.round((j.progress || 0) * 100)}%`, fmtBytes(j.sizeBytes), j.status === "downloading" ? fmtSpeed(j.downloadSpeed) : "", dlEta(j), j.note || (j.health && j.health.state !== "ok" && j.health.why) || ""])),
+            MD.table(["title", "by", "asked", "state", "done", "size", "speed", "left", "note"], act.map((j) => [j.label || j.title, [dlWho(j).words, j.priority && j.priority.label].filter(Boolean).join(" · "), dlWhenText("asked", j.at), flightState(j).word + (j.sources && j.sources.tried ? ` (copy ${j.sources.tried} of ${j.sources.max})` : ""), `${Math.round((j.progress || 0) * 100)}%`, fmtBytes(j.sizeBytes), j.status === "downloading" ? fmtSpeed(j.downloadSpeed) : "", dlEta(j), j.note || (j.health && j.health.state !== "ok" && j.health.why) || ""])),
             ...act.filter((j) => j.race || j.raceNote).map((j) => `- ${j.label || j.title}: ${j.race ? `trying a second source (${j.race.state})${j.race.why ? ` — ${j.race.why}` : ""}; ` + (j.race.attempts || []).map((a) => `${a.role} ${a.provider || ""} ${Math.round((a.progress || 0) * 100)}% ${fmtSpeed(a.downloadSpeed)}`).join(" / ") : j.raceNote}`),
-            pend.length ? "\nWaiting for approval:\n" + MD.table(["title", "by", "size", "why held"], pend.map((j) => [j.label || j.title, j.by || "", fmtBytes(j.sizeBytes), j.holdReason || ""])) : "",
+            pend.length ? "\nWaiting for approval:\n" + MD.table(["title", "by", "asked", "size", "why held"], pend.map((j) => [j.label || j.title, dlWho(j).words, dlWhenText("asked", j.at), fmtBytes(j.sizeBytes), j.holdReason || ""])) : "",
+            `\nBy person (times in ${houseZone()}):\n` + (dlPeople(jobs).map((r) => `- ${dlPersonLine(r)}`).join("\n") || "(no downloads)"),
           ].filter(Boolean).join("\n");
         },
       },
@@ -6328,7 +6516,15 @@
         },
       },
       "d-done": {
-        copy: async () => MD.table(["title", "quality", "size", "status", "error"], (await json("/api/downloads")).filter((j) => DL_FINISHED.has(j.status)).map((j) => [j.label || j.title, j.quality || "", fmtBytes(j.sizeBytes), j.status, j.error || ""])),
+        copy: async () => MD.table(["title", "by", "asked", "ended", "quality", "size", "status", "error"], (await json("/api/downloads")).filter((j) => DL_FINISHED.has(j.status)).map((j) => { const end = dlEnd(j); return [j.label || j.title, dlWho(j).words, dlWhenText("asked", j.at), dlWhenText(end.word, end.at), j.quality || "", fmtBytes(j.sizeBytes), j.status, j.error || ""]; })) + `\n\nTimes are in ${houseZone()}.`,
+      },
+      "d-who": {
+        copy: async () => {
+          const rows = dlPeople(await json("/api/downloads"));
+          return rows.length
+            ? rows.map((r) => `- ${dlPersonLine(r)}${dlPersonDetail(r) ? ` (${dlPersonDetail(r)})` : ""}`).join("\n") + `\n\nTimes are in ${houseZone()}. "Automatic" is smart downloads and followed shows; a person's automatic downloads count for them too.`
+            : "No downloads yet.";
+        },
       },
       "d-copies": {
         load: () => loadCopies(),

@@ -153,3 +153,21 @@ test("drives: one not answering — Needs you, with when and how many titles", (
   assert.equal(disk.level, "bad");
   assert.match(disk.line, /105 GB free · 1 drive not answering/);
 });
+
+test("the household's clock is the server's: its time zone, locale and hour cycle, for the admin's who-and-when (2026-11-08)", () => {
+  const { clock } = require("../src/lib/adminsummary");
+  const was = process.env.TZ;
+  try {
+    process.env.TZ = "Asia/Tokyo";
+    const c = clock();
+    assert.equal(c.tz, "Asia/Tokyo");
+    assert.ok(typeof c.locale === "string" && c.locale.length >= 2, "a locale");
+    assert.ok(c.hourCycle == null || /^h(11|12|23|24)$/.test(c.hourCycle), `an hour cycle Intl knows: ${c.hourCycle}`);
+    // what the page formats with works as it is
+    assert.doesNotThrow(() => new Intl.DateTimeFormat("en-US", { timeZone: c.tz, hourCycle: c.hourCycle || undefined, hour: "2-digit" }).format(new Date()));
+    process.env.TZ = "America/New_York";
+    assert.equal(clock().tz, "America/New_York");
+  } finally {
+    if (was === undefined) delete process.env.TZ; else process.env.TZ = was;
+  }
+});
