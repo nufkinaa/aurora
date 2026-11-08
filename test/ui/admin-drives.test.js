@@ -183,8 +183,13 @@ ui.test("Copy for Claude on On disk starts with the drives", { permissions: ["cl
   await enter(page, srv);
   await openDisk(page);
   await page.click('details.more[data-more="d-disk"] [data-copy-for="d-disk"]');
-  await page.waitForFunction(async () => /Drives:/.test(await navigator.clipboard.readText()), null, { timeout: 15000 });
-  const text = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
+  // Poll from here: an async predicate in waitForFunction returns a promise, which counts as
+  // truthy at once, so it never waited for the copy to land. One read, kept.
+  let text = "";
+  for (const end = Date.now() + 15000; Date.now() < end; await page.waitForTimeout(100)) {
+    text = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
+    if (/Drives:/.test(text)) break;
+  }
   assert.match(text, /Drives:\n\| drive \| kind \| fs \| state \| used \| Aurora \| free \| speed \| mount options \|/);
   assert.match(text, /\| \/ \| local \| ext4 \| in use \| 400\.0 GB of 500\.0 GB \(80%\) \| 300\.0 GB \(60%\) \| 100\.0 GB \| 92 Fast \(read 2300 MB\/s, write 1500 MB\/s, 21000 small reads\/s; read direct \(O_DIRECT, page cache bypassed\)\) \|/);
   assert.match(text, /\| \/mnt\/storagespace \| network \| nfs \| not in use \| .* \| - \| 1\.0 TB \| not tested \| hard \[rw,vers=3,hard\] \|/);
