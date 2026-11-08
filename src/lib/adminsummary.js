@@ -199,6 +199,16 @@ const decide = (x = {}) => {
 const safe = (fn, fallback = null) => { try { const v = fn(); return v === undefined ? fallback : v; } catch { return fallback; } };
 const within = (p, ms, fallback) => Promise.race([Promise.resolve(p).catch(() => fallback), new Promise((r) => setTimeout(() => r(fallback), ms).unref?.())]);
 
+// The household's clock: the server's time zone and locale, so the admin
+// page writes "Nov 6, 21:14" in the house's time whatever device it is opened
+// on (the downloads' who-and-when, elia 2026-11-08). PURE apart from Intl.
+const clock = () => {
+  let tz = null, locale = null, hourCycle = null;
+  try { const o = new Intl.DateTimeFormat().resolvedOptions(); tz = o.timeZone || null; locale = o.locale || null; } catch {}
+  try { hourCycle = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hourCycle || null; } catch {}
+  return { tz: tz || "UTC", locale: locale || "en-US", hourCycle };
+};
+
 const gather = async () => {
   const config = require("../config");
   const now = Date.now();
@@ -266,13 +276,14 @@ const gather = async () => {
     waiting: {
       people: people.map((r) => ({ id: r.id, name: r.name, realName: r.realName || null, avatar: r.avatar || null, requestedAt: r.requestedAt || null })),
       resets,
-      downloads: jobs.filter((j) => j.status === "pending").map((j) => ({ id: j.id, label: j.label || j.title, by: j.by || null, sizeBytes: j.sizeBytes || 0, holdReason: j.holdReason || null })),
+      downloads: jobs.filter((j) => j.status === "pending").map((j) => ({ id: j.id, label: j.label || j.title, by: j.by || null, auto: j.auto || null, at: j.at || null, sizeBytes: j.sizeBytes || 0, holdReason: j.holdReason || null })),
       reports: safe(() => require("../routes/reports").openCount(), 0),
       requests: safe(() => require("../routes/requests").pendingCount(), 0),
       update: update && !update.error ? { available: !!update.available, restartNeeded: !!update.restartNeeded } : null,
     },
     restart: x.supervisor || { supervised: false, by: null },
+    clock: clock(),
   };
 };
 
-module.exports = { decide, gather, WATCH_CHECKS, _internals: { LOOP_BAD, LOOP_SLOW_P99, DISK_BAD, DISK_LOW } };
+module.exports = { decide, gather, clock, WATCH_CHECKS, _internals: { LOOP_BAD, LOOP_SLOW_P99, DISK_BAD, DISK_LOW } };

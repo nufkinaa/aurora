@@ -217,6 +217,26 @@ const whoAsked = (j) => {
   } catch {}
   return /^[0-9a-f]{12}$/i.test(j.profile) ? null : j.profile;
 };
+// The others who asked for the same download after it was on its way
+// (`also`, profile ids — see create's "same TITLE" join), by name; ids nobody
+// has any more are left out, never shown.
+const alsoAsked = (j) => {
+  if (!j || !Array.isArray(j.also) || !j.also.length) return [];
+  let people = [];
+  try { people = require("../profiles").list(); } catch {}
+  const out = [];
+  for (const id of j.also) {
+    const p = people.find((x) => x.id === id);
+    const name = p && p.name ? p.name : /^[0-9a-f]{12}$/i.test(String(id)) ? null : id;
+    if (name && name !== whoAsked(j) && !out.includes(name)) out.push(name);
+  }
+  return out;
+};
+// Which automatic kind queued it, for "Automatic · Niso's next episode" on the
+// admin's Downloads screen: "next" (smart downloads; the oldest smart jobs
+// carry no kind and are these), "follow" (a followed show's new episode),
+// "mylist" (the old My List downloads) — null for a download a person asked for.
+const autoKind = (j) => (j.auto ? j.auto : j.smart ? "next" : null);
 
 // Strip fields nobody outside needs; keep it small for WS.
 const publicJob = (j) => ({
@@ -240,6 +260,10 @@ const publicJob = (j) => ({
   // Who started it, by NAME only (elia 2026-10-11: "downloads should say who
   // started them"); the profile id stays server-side.
   by: whoAsked(j),
+  // …the others who asked for it too, and which automatic kind queued it
+  // (then `by` is the person it was for: whose next episode, whose follow).
+  alsoBy: alsoAsked(j),
+  auto: autoKind(j),
   libraryId: j.status === "done" && j.destPath ? scanner.idForPath(j.destPath) : null,
   // A second source is being tried beside the first (media/dlrace.js). The
   // card stays ONE card: `progress` above is the leading attempt's. `race` is

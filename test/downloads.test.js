@@ -165,6 +165,28 @@ test("publicJob exposes what the pages and admin read, and hides the rest", () =
   assert.equal(downloads.publicJob({ id: "x" }).by, null);
 });
 
+test("publicJob says which automatic kind queued a download, and who else asked for it (admin's who-and-when, 2026-11-08)", () => {
+  const pj = (j) => downloads.publicJob({ id: "x", at: "2026-11-06T19:14:00.000Z", ...j });
+  // a person's own request: not automatic
+  assert.equal(pj({ profile: "0123456789ab", profileName: "Niso" }).auto, null);
+  // smart downloads ("next"; the oldest smart jobs carry no kind and are these), a followed show, the old My List downloads
+  assert.equal(pj({ smart: true, auto: "next", profileName: "Niso" }).auto, "next");
+  assert.equal(pj({ smart: true, profileName: "Niso" }).auto, "next");
+  assert.equal(pj({ smart: true, auto: "follow", profileName: "Niso" }).auto, "follow");
+  assert.equal(pj({ smart: true, auto: "mylist" }).auto, "mylist");
+  // …and `by` is the person it was for
+  assert.equal(pj({ smart: true, auto: "next", profileName: "Niso" }).by, "Niso");
+  // the others who joined it: by name, never an id nobody has any more, never the requester twice
+  assert.deepEqual(pj({ profileName: "Niso", also: ["Dor", "0123456789ab", "Niso", "Dor"] }).alsoBy, ["Dor"]);
+  assert.deepEqual(pj({ profileName: "Niso" }).alsoBy, []);
+  // an old record with nobody recorded: nothing made up
+  const old = pj({});
+  assert.equal(old.by, null);
+  assert.deepEqual(old.alsoBy, []);
+  assert.equal(old.auto, null);
+  assert.equal(pj({ at: undefined }).at, undefined, "no time is invented either");
+});
+
 test("publicJobFor says 'mine' to the requester (by id, or by name for older jobs) and nothing about who asked", () => {
   const job = { id: "j1", status: "done", profile: "p-elia", at: "now" };
   assert.equal(downloads.publicJobFor(job, { id: "p-elia", name: "Elia" }).mine, true);
