@@ -372,8 +372,14 @@
        So: every grid cell may be narrower than its content, long words break,
        what is wider than a phone scrolls inside its own box, the bar strip
        fits, and the page clips at its edge as a backstop (clip, not hidden:
-       hidden would make body a scroll box and end every position: sticky). */
-    html, .wrap { overflow-x: clip; }
+       hidden would make body a scroll box and end every position: sticky).
+       body too: base.css gives it overflow-x: hidden, and with html not
+       visible that no longer goes to the viewport — body became a box as
+       tall as the page that never scrolls, its overscroll-behavior: none
+       ate every mouse-wheel turn on a PC and the sticky title row stuck to
+       it instead of the window (elia 2026-11-08: "scroll in admin pc does
+       not work well"). */
+    html, body, .wrap { overflow-x: clip; }
     .wrap, .pane, .card, section, .now-card, .stat { min-width: 0; max-width: 100%; }
     .grid-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
     .grid-2 > *, .stats > *, .now-grid > *, .kv > * { min-width: 0; }
@@ -1609,8 +1615,10 @@
         #lib-chips .chip-active { background: #7c5cff; border-color: #7c5cff; color: #fff; }
         #lib-tree summary::-webkit-details-marker { display: none; }
         #lib-tree details > summary .lib-row:hover { background: rgba(255,255,255,0.04); }
-        /* Controls stay put; only the catalog itself scrolls. */
-        #lib-tree { max-height: min(52vh, 560px); overflow-y: auto; overscroll-behavior: contain;
+        /* Controls stay put; only the catalog itself scrolls. (No
+           overscroll-behavior: contain — it held the mouse wheel even when the
+           catalog was short, and at its end the page would not go on.) */
+        #lib-tree { max-height: min(52vh, 560px); overflow-y: auto;
           border: 1px solid var(--line); border-radius: 10px; }
         @media (max-width: 640px) {
           #lib-tree { max-height: 58vh; }
