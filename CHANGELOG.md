@@ -3,6 +3,13 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.13 — 2026-11-08
+
+- **More storage drives.** Admin → Downloads → On disk shows every drive the server has, network drives too: how much is used in total and by Aurora (GB and %), what's free, and a speed score from a short test. Press **Use this drive too** and Aurora checks it can write there, makes its Movies and Shows folders and starts using it — nothing already on it is moved or deleted. New downloads go to the drive with the most room (a show's new episodes stay where the show is), and each drive can be stopped for new downloads.
+- **A storage drive that stops answering** never freezes Aurora. Titles on it say plainly that the drive isn't answering and the admin has been told; everything else keeps playing. The admin page shows "Needs you", one alert goes to the admin's phone (and one when it's back), and everything resumes by itself.
+- **Who downloaded what, and when:** every download in admin shows who asked for it and when it was asked for or landed, with a filter by person and a line per person ("Niso — 14 downloads · 182 GB · last Nov 6").
+- **Admin scrolls again on a computer:** the mouse wheel didn't move the admin page, and the title row didn't stay on top.
+
 ## 1.15.12 — 2026-11-06
 
 - **The right language, checked.** Before a replacement copy goes in, Aurora reads its audio tracks. A copy clearly in another language is set aside and the next one is tried ("That copy was in English, not Hebrew — now trying another"); a copy that doesn't say its language goes in with a short note to report it again if it's wrong. Other finished downloads get the same check when your audio language is set and the file says its language.
