@@ -31,7 +31,7 @@
 // already); any other value is ignored. Settings picked by measurement:
 // tools/art-format-bench.js.
 //
-// AVIF (2026-11-09, docs/qa/avif/REPORT.md): an unblurred variant for a
+// AVIF (2026-11-09, tools/avif-bench; crops in docs/qa/avif): an unblurred variant for a
 // browser that says it decodes AVIF (`image/avif` in its Accept header — the
 // route passes `opts.avif`, see wantsAvif) or that asks with ?fmt=avif. The
 // same picture at a smaller size, settings chosen by measurement against
@@ -344,7 +344,7 @@ const codecFor = (out, width, blur) =>
     ? ["-c:v", "libwebp", "-quality", width >= HERO_STEP ? "84" : "78", "-compression_level", "4"]
     : ["-q:v", "4"];
 
-// The AVIF encode — every choice measured (docs/qa/avif/REPORT.md: 29
+// The AVIF encode — every choice measured (tools/avif-bench; crops in docs/qa/avif: 29
 // real posters and backdrops from the library cache, 70 picture-and-width
 // pairs, decoded in Chrome, against today's WebP on SSIM, MS-SSIM, PSNR-HVS
 // and Netflix's banding score CAMBI, and crops looked at):

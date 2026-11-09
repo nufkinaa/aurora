@@ -3,7 +3,7 @@
 // (the AVIF is made behind it), and the AVIF after that — and the posters
 // look the same either way: the same decoded size, the same pixels within a
 // few levels, no colour cast. (The picture quality itself is measured on
-// real posters: docs/qa/avif/REPORT.md.) (The covers are swapped for a detailed picture first: the
+// real posters: tools/avif-bench; crops in docs/qa/avif.) (The covers are swapped for a detailed picture first: the
 // test library's are single colours, which would prove nothing.)
 const assert = require("node:assert/strict");
 const fs = require("fs");
@@ -14,9 +14,10 @@ const config = require("../../src/config");
 
 const ui = suite({
   setup: async (srv) => {
-    const films = fs.readdirSync(path.join(srv.media, "movies"));
+    // (this instance's own copy of the library — never the shared built one)
+    const films = fs.readdirSync(srv.library.movies);
     films.forEach((f, i) => {
-      const cover = path.join(srv.media, "movies", f, "cover.jpg");
+      const cover = path.join(srv.library.movies, f, "cover.jpg");
       if (!fs.existsSync(cover)) return;
       execFileSync(config.FFMPEG, ["-v", "error", "-y", "-f", "lavfi", "-i", `mandelbrot=size=400x600:rate=1:start_scale=${(3 - i * 0.7).toFixed(2)}`, "-frames:v", "1", "-q:v", "2", cover], { windowsHide: true });
     });

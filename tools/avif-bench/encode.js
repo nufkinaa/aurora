@@ -1,5 +1,5 @@
 // The AVIF-vs-WebP picture bench behind lib/imgvariant.js's AVIF settings
-// (docs/qa/avif/REPORT.md). <dir> holds samples/*.jpg (read-only copies of
+// (tools/avif-bench; crops in docs/qa/avif). <dir> holds samples/*.jpg (read-only copies of
 // real posters "po-*"/"pl-*" and backdrops "bd-*" from the library cache):
 //   node tools/avif-bench/encode.js <dir> [grid.json-text] [out]   reference, today's WebP/JPEG, the AVIF grid
 //   node tools/avif-bench/decode.js <dir> [out]                    every candidate decoded IN CHROME to PNG

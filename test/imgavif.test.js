@@ -45,7 +45,7 @@ test("wantsAvif: ?fmt=avif asks, ?fmt=webp and blur say no, otherwise the Accept
   assert.equal(iv.wantsAvif(null, CHROME), true);
 });
 
-test("the AVIF encode: the measured settings (docs/qa/avif/REPORT.md)", () => {
+test("the AVIF encode: the measured settings (tools/avif-bench; crops in docs/qa/avif)", () => {
   // full range 4:2:0, the width ladder's own scale
   assert.equal(iv.avifFilter(480), "scale='min(480,iw)':-2:out_range=full,format=yuv420p");
   const opt = (c, k) => c[c.indexOf(k) + 1];
