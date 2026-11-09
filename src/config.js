@@ -193,6 +193,10 @@ module.exports = {
   //                       excludeTrackers, fileAllocation, diskCache, peerSpeedTarget }
   DOWNLOAD_HEALTH: userConfig.downloadHealth,
   DOWNLOAD_PRIORITY: userConfig.downloadPriority,
+  // The overnight preparation's clock and thresholds (media/overnightplan.js
+  // TIMING, by name — the tests and tools/overnight-rig run on a short one).
+  // Its switch, hours and disk budget are the admin's (settings.json "overnight").
+  OVERNIGHT: userConfig.overnight && typeof userConfig.overnight === "object" ? userConfig.overnight : {},
   DOWNLOAD_ENGINE: userConfig.downloadEngine && typeof userConfig.downloadEngine === "object" ? userConfig.downloadEngine : {},
   NOTIFICATIONS: userConfig.notifications || {},
   // ---- password reset by email (auth-round; lib/mailer.js) — off unless set ----

@@ -153,7 +153,7 @@ import {CUE_PX, cueBottomFor, cueLook, CueLook, nextChoice, readStyle, styleLabe
 import {AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES} from '../audioFx';
 // ---- picture and sound (TV round 2026-10-19): the server's play decision,
 // refresh-rate matching, passthrough — avCaps.ts (rules), av.ts (native) ----
-import {armPlan, lieFrom, Play, profileFor, readPlay, silentLie, wantsFrameRate} from '../avCaps';
+import {armPlan, lieFrom, Play, preparedFor, profileFor, readPlay, silentLie, wantsFrameRate} from '../avCaps';
 import {matchFrameRate, noteLie, restoreFrameRate, setPassthrough} from '../av';
 import {personNow} from '../personSync';
 // ---- end picture and sound ----
@@ -1719,6 +1719,11 @@ export default function Player({
       }
     }
     let plan: ReturnType<typeof armPlan> = null; // (the server's play decision — see below)
+    // Made overnight for a box like this one (src/media/overnight.js): a file
+    // it plays as it is, where the title's own would be converted live — it
+    // is opened in its place below (the direct start: native seeks, no
+    // server encode). Only when it carries the track this start plays.
+    const prep = !stream ? preparedFor(it.prepared, audioIdxRef.current) : null;
     if (stream) {
       // A source the server tagged DTS / TrueHD / Atmos / DD+ / H.265 will not
       // play as-is on this hardware, so hand ExoPlayer the remux rather than
@@ -1747,10 +1752,10 @@ export default function Player({
       // server's AAC-stereo copy: it is passed to the TV / soundbar untouched
       // (or decoded here). Without a decision (an older server, a report not
       // made yet) the rule below stands as it was.
-    } else if ((plan = armPlan(readPlay(it.play), {audioIdx: audioIdxRef.current, hasVideoUrl: !!it.videoUrl, hasBase: !!base})) && plan !== 'direct') {
+    } else if (!prep && (plan = armPlan(readPlay(it.play), {audioIdx: audioIdxRef.current, hasVideoUrl: !!it.videoUrl, hasBase: !!base})) && plan !== 'direct') {
       mark('decision', {mode: plan, audio: readPlay(it.play)?.audio || null});
       startTranscode(base as string, r, plan);
-    } else if (!plan && base && ((it.audio && it.audio.compatible === false) || !it.videoUrl || audioIdxRef.current > 0)) {
+    } else if (!prep && !plan && base && ((it.audio && it.audio.compatible === false) || !it.videoUrl || audioIdxRef.current > 0)) {
       // The scanner already knows whether this file's audio is playable, and the
       // browser client acts on that same flag. Walking into it instead meant
       // ExoPlayer tried to PASSTHROUGH 6-channel E-AC3 to the HDMI sink, the
@@ -1771,10 +1776,15 @@ export default function Player({
       // a copy can't be assumed to help.
       startTranscode(base, r, it.videoUrl ? 'copy' : 'h264');
     } else {
-      const direct = assetUrl(it.videoUrl) as string;
+      const direct = assetUrl(prep ? prep.url : it.videoUrl) as string;
+      if (prep) {
+        // (no lie is learnt from a prepared file: it is not the title's own)
+        playDecision.current = null;
+        mark('decision', {mode: 'prepared', kind: prep.kind});
+      }
       // (the server's decision said "as it is here": what the fallback reads
       // if this start fails before its first frame — onError, noteLie)
-      if (plan === 'direct') {
+      else if (plan === 'direct') {
         const pl = readPlay(it.play);
         playDecision.current = pl;
         const vc = it.video?.codec || null;

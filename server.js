@@ -647,6 +647,10 @@ require("./src/media/wellknown").start();
 }
 // Followed shows: new episodes download by themselves when they air.
 require("./src/media/follows").start();
+// Overnight: the next episodes downloaded ahead, and at quiet hours made
+// playable without a live conversion for the devices that need it
+// (media/overnight.js — Admin → Downloads → Overnight).
+require("./src/media/overnight").start();
 require("./src/lib/watchdog").start();
 require("./src/lib/healer").start();
 // Health alerts: disk, ffmpeg, the download engine, backup freshness, crash

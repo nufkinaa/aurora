@@ -799,6 +799,15 @@ router.get("/api/item/:id", (req, res) => {
     if (req.query.caps && !out.unavailable) {
       const play = require("./avcaps").decisionFor(req, require("../media/playpath").factsOfItem(out), { label: out.title, key: id });
       if (play) out = { ...out, play };
+      // made overnight for a device like this one (media/overnight.js): a
+      // file it plays as it is, where this one would be converted live — the
+      // players open `prepared.url` in its place (when they start on its track)
+      if (play && play.mode !== "direct") {
+        try {
+          const prep = require("../media/overnight").preparedFor(id, String(req.query.caps), play);
+          if (prep) out = { ...out, prepared: prep };
+        } catch {}
+      }
     }
   }
   // a show's page: marked when its episodes are on a drive that is not answering

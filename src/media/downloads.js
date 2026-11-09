@@ -234,14 +234,15 @@ const alsoAsked = (j) => {
 };
 // Which automatic kind queued it, for "Automatic · Niso's next episode" on the
 // admin's Downloads screen: "next" (smart downloads; the oldest smart jobs
-// carry no kind and are these), "follow" (a followed show's new episode), or
+// carry no kind and are these), "follow" (a followed show's new episode),
+// "ahead" (the episode after next, downloaded ahead — media/overnight.js), or
 // just "auto" for any other (the old My List downloads: no My List tag is sent
 // any more, mylistdl-queue.test.js) — null for a download a person asked for.
 // (Not `auto`, the stored field, which stays server-side.)
 const autoKind = (j) => {
   if (!j.smart && !j.auto) return null;
   const k = j.auto || "next";
-  return k === "next" || k === "follow" ? k : "auto";
+  return k === "next" || k === "follow" || k === "ahead" ? k : "auto";
 };
 
 // Strip fields nobody outside needs; keep it small for WS.
@@ -735,7 +736,9 @@ const create = (fields) => {
     smart: !!smart, // queued by smart downloads (the next episode), not by hand
     // which automatic kind: "next" (smart downloads) or "follow" (a followed
     // show's new episode) — its priority class (media/dlprio.js)
-    ...(smart && ["next", "follow"].includes(fields.auto) ? { auto: fields.auto } : {}),
+    // (or "ahead": the episode after next, downloaded ahead overnight —
+    // media/overnight.js; the Background class)
+    ...(smart && ["next", "follow", "ahead"].includes(fields.auto) ? { auto: fields.auto } : {}),
     ...(replaces ? { replaces: { ...replaces } } : {}),
     status: gate.ok ? "approved" : "pending",
     // Set when the queue started this itself, so pump() knows it may still send

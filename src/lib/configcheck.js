@@ -59,6 +59,7 @@ const SCHEMA = {
   downloadRace: [(v) => (v === false || v === true || isObj(v) ? null : "must be false or an object { … }"), "on, with its defaults"],
   downloadHealth: [T.objOrNull, "the built-in stall rules (docs/downloads-v2.md)"],
   downloadPriority: [T.objOrNull, "the built-in priority and pre-empting rules (docs/downloads-v2.md)"],
+  overnight: [T.objOrNull, "the overnight preparation's built-in clock (media/overnightplan.js TIMING)"],
   downloadEngine: [T.objOrNull, "aria2's options as Aurora sets them (docs/downloads-v2.md)"],
   notifications: [(v) => {
     if (!isObj(v)) return "must be an object { … }";

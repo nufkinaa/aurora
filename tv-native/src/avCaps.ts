@@ -155,6 +155,26 @@ export const armPlan = (
   return play.mode === 'direct' ? 'direct' : 'copy';
 };
 
+// ------------------------------------------------------------ made overnight
+/** A file the server made at night for a box like this one (src/media/
+ *  prepared.js, src/media/overnight.js): one it plays as it is where the
+ *  file itself would be converted live — a copy with the sound made AAC, or
+ *  a 1080p H.264. The website's rule, to the letter (public/js/screens/
+ *  player.js preparedFor). */
+export type Prepared = {url: string; kind: 'copy' | 'h264'; audioIndex?: number; height?: number; sizeBytes?: number; why?: string};
+
+/** The prepared file to open in place of the title's own, or null: only one
+ *  the server sent (a /stream/prepared/ address of a known kind), and only
+ *  when it carries the audio track this start plays (a prepared file has the
+ *  one track the person starts on; another dub goes the way it always did). */
+export const preparedFor = (x: unknown, audioIdx: number): Prepared | null => {
+  if (!x || typeof x !== 'object') return null;
+  const p = x as Prepared;
+  if (typeof p.url !== 'string' || !/^\/stream\/prepared\/[^/?]+\?k=(copy|h264)$/.test(p.url)) return null;
+  if (p.kind !== 'copy' && p.kind !== 'h264') return null;
+  return (Number(p.audioIndex) || 0) === (Number(audioIdx) || 0) ? p : null;
+};
+
 /** A torrent source's start, by the server's decision (its release name read
  *  by the same table): what streamPlayItem hands the player. null = the
  *  release-tag rule (playBest.ts) stands. */

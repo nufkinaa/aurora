@@ -11,7 +11,7 @@ import {pickServerPatiently} from './serverPick';
 import type {TasteCard, Verdict} from './tasteSession';
 import type {ResyncAnswer, ResyncBody, SubTiming} from './playback/resync';
 // what this box can play, and the server's decision from it (TV round 2026-10-19)
-import type {Play} from './avCaps';
+import type {Play, Prepared} from './avCaps';
 import type {ReleaseStatus} from './releaseWords';
 import {currentCapsId} from './av';
 import {isPhone} from './formFactor';
@@ -387,6 +387,9 @@ export type Item = HeroItem & {
   // carried ?caps= — avCaps.ts armPlan): direct / remux / transcode, the frame
   // rate (refresh-rate matching), every reason
   play?: Play;
+  // a file made overnight that THIS box plays as it is, where the title's own
+  // would be converted live (src/media/prepared.js — avCaps.ts preparedFor)
+  prepared?: Prepared;
 };
 
 // The toast for an add — the site's LIST_ADDED (public/js/ui.js), to the

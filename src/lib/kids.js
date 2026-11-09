@@ -533,7 +533,8 @@ const createGate = (deps) => {
     const fileM =
       // (embedded: a subtitle track read out of the film's own file — its dialogue)
       // (airplay: the AirPlay master and subtitle playlists of a title — routes/stream.js)
-      /^\/stream\/(?:video|download|hls|transcode|embedded|airplay)\/([^/]+)/.exec(p) ||
+      // (prepared: the copy made overnight for a device that can't play the file — media/prepared.js)
+      /^\/stream\/(?:video|download|hls|transcode|embedded|airplay|prepared)\/([^/]+)/.exec(p) ||
       /^\/offline\/file\/([^/]+)/.exec(p) ||
       /^\/img\/(?:still|frame)\/([^/]+)/.exec(p) ||
       /^\/api\/offline\/(?:options|prepare|status|cancel)\/([^/]+)/.exec(p);

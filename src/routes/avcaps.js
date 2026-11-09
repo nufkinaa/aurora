@@ -62,6 +62,9 @@ const decisionFor = (req, facts, { label = "", key = "", track = null } = {}) =>
   const capsId = req.query && req.query.caps;
   const caps = capsId ? avcaps.lookup(String(capsId)) : null;
   if (!caps || !facts) return null;
+  // this person plays on this device: what the overnight preparation makes
+  // ready is for the devices people really use (media/overnight.js)
+  if (req.query.profile) { try { require("../media/overnight").sawDevice(String(req.query.profile), String(capsId)); } catch {} }
   try {
     const d = playpath.decide(facts, caps, { prefs: prefsFor(req.query.profile ? String(req.query.profile) : ""), track });
     if (d && key) say(`${capsId}|${key}`, label, d);

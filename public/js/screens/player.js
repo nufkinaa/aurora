@@ -205,6 +205,19 @@ const MIME = {
 // unchanged. Without it (a torrent, an older server, the first read before
 // the report was answered) the rules ask the browser, as they always did.
 const serverPlay = (item) => (item && item.play && /^(direct|remux|transcode)$/.test(item.play.mode) ? item.play : null);
+// MADE OVERNIGHT for a device like this one (src/media/overnight.js): a
+// library item read with ?caps= carries `prepared` when the server holds a
+// file this browser plays AS IT IS where the title's own would be converted
+// live — a copy with the sound made AAC, or a 1080p H.264. The start opens it
+// in place of the file (no live encode, every seek native); only when it
+// carries the audio track this start plays (one track is in it). The TV
+// app's rule, to the letter (tv-native/src/avCaps.ts preparedFor).
+export const preparedFor = (item, audioIdx = 0) => {
+  const p = item && !item._offline && !item._local && !item._isTorrent ? item.prepared : null;
+  if (!p || typeof p.url !== "string" || !/^\/stream\/prepared\/[^/?]+\?k=(copy|h264)$/.test(p.url)) return null;
+  if (p.kind !== "copy" && p.kind !== "h264") return null;
+  return (Number(p.audioIndex) || 0) === (Number(audioIdx) || 0) ? p : null;
+};
 // iPhone: HLS through Safari's NATIVE pipeline, never MSE (see startHls).
 export const nativeHlsFor = (video) =>
   /iPhone|iPod/.test(navigator.userAgent) && !!video.canPlayType("application/vnd.apple.mpegurl");
@@ -574,6 +587,8 @@ let probeEl = null;
 export const startPlan = (item) => {
   if (!item || item._isTorrent || item.magnet || String(item.id || "").startsWith("torrent|") || item._offline) return null;
   if (!item.transcodeBase || !item.id) return null;
+  // made overnight: the file itself, nothing to warm on the server
+  if (preparedFor(item, startAudioIdx(item))) return { kind: "direct", prepared: true };
   const video = probeEl || (probeEl = document.createElement("video"));
   const nativeHls = nativeHlsFor(video);
   const needV = videoTranscodeFor(item, video);
@@ -2545,6 +2560,13 @@ export const renderPlayer = async (root, { id }) => {
     // already playing the capped stream (or the player closed while asking)
   } else if (item._offline) {
     // The saved copy was made playable for this device (offline.js); play it.
+    startDirect();
+  } else if (!isTorrent && preparedFor(item, audioIdx)) {
+    // Made overnight for a device like this one (preparedFor above): played as
+    // the file — the decode-stall watchdog below still falls back to the live
+    // conversion of the title's own file if this browser cannot after all.
+    mark("decision", { why: `prepared overnight (${item.prepared.kind})` });
+    item.videoUrl = item.prepared.url;
     startDirect();
   } else if (
     !isTorrent &&
