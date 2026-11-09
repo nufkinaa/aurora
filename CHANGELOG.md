@@ -3,6 +3,13 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.22 — 2026-11-09
+
+**Aurora TV 5.9.0** (checked on the Mi TV) — everything the TV had been waiting for since 5.8.4:
+- **Play on TV:** a title sent from a phone or computer starts on the TV at the same second; a TV on "Who's watching?" asks for the profile's password or PIN first and never skips a lock. If another app is in front, the sender is told to open Aurora on the TV.
+- **Pick together** on the big screen, **Hebrew subtitles (עברית AI) and Fix timing**, **Save & watch** instead of streaming straight from a torrent, "Other" asks what's wrong first, **tell me when it's ready**, plays the **overnight-prepared** copies, and the new download and drive messages.
+- Franchise order and the newest pieces come in the next TV update.
+
 ## 1.15.21 — 2026-11-09
 
 - **Watch franchises in order.** 165 franchises, each film checked: the Marvel Cinematic Universe, DC, Star Wars with its series, the Wizarding World, Middle-earth, Bond, Fast & Furious, Alien and Predator, the Conjuring universe, MonsterVerse and many more, plus TMDB collections where the server has a TMDB key. A film's page says where it sits ("Part of the Marvel Cinematic Universe · 12 of 34"); Watch in order lists every entry with what's on the server and what you've seen, in release or story order (your choice follows you to every device). Missing films are saved from their own page — nothing downloads by itself. At the end of a film the next one is offered (a countdown only when it's on the server), and Home has Continue the franchise. On the website now; on the TV and phone apps with their next update.
