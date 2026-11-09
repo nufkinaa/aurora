@@ -274,7 +274,7 @@ ui.test("embedded tracks carry their language code and the menu names them by it
   assert.deepEqual(it.audioTracks.map((t) => t.label), ["English", "Hebrew"]);
   await signIn(await freshProfile());
   await player.open(page, srv, lib.film2.id);
-  const items = (await player.menu(page, "Subtitles")).filter((i) => !/Resync/.test(i.text));
+  const items = (await player.menu(page, "Subtitles")).filter((i) => !/Resync|Fix timing|Reload subtitles/.test(i.text));
   assert.deepEqual(items.map((i) => i.text), ["Off", "English", "Hebrew"]);
 });
 

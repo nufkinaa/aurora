@@ -19,8 +19,8 @@
 // (media/subtrans.js). One title at a time, in the background; one batch call
 // in flight (the recommender keeps the provider's other slot); budgets per
 // title (cues, an estimated and a spent cost) and per day (titles, cost). A
-// title that could not be done is not tried again for a week (or until its
-// file changes); a title over the day's budget waits for the next day.
+// title that could not be done is not tried again for a week; a title over
+// the day's budget waits for the next day.
 //
 // No key, or "subtitleAi": { "enabled": false }: nothing here runs and the
 // players never hear of it.
@@ -111,16 +111,15 @@ const dayUse = () => {
   const d = store.data.day;
   return d && d.day === today() ? d : { day: today(), titles: 0, usd: 0 };
 };
-const mtime = (p) => { try { return fs.statSync(p).mtimeMs; } catch { return 0; } };
+// A title that could not be done waits until `until` (asked on every progress
+// save, so nothing here touches the disk: a network drive that hangs must not
+// hold the server). A replaced copy is a new file — a new path — anyway.
 const triedRecently = (video) => {
   const t = store.data.tried[video];
-  if (!t) return false;
-  if (t.videoMtime !== mtime(video)) return false;
-  if (t.until && deps.now() < t.until) return true;
-  return false;
+  return !!(t && t.until && deps.now() < t.until);
 };
 const remember = (video, why, { days = opts().retryDays, until = null } = {}) => {
-  store.data.tried[video] = { at: new Date(deps.now()).toISOString(), why, videoMtime: mtime(video), until: until || deps.now() + days * 864e5 };
+  store.data.tried[video] = { at: new Date(deps.now()).toISOString(), why, until: until || deps.now() + days * 864e5 };
   store.save();
 };
 

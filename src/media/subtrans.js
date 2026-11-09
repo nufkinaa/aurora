@@ -12,8 +12,8 @@
 //            ("- Hi.\n- Hello.") keeps one line per speaker.
 //   TAGS     <i> <b> <u> are kept (a cue that is italic as a whole comes back
 //            italic as a whole); anything else — <font>, <c.x>, <v Name>,
-//            SubStation {\…} overrides — is dropped, except a leading {\anN}
-//            position, which is put back in front.
+//            SubStation {\…} overrides, a {\an8} position too — is dropped:
+//            no player of ours reads them; the website and the TV would print "{\an8}" as text.
 //   RTL      a Hebrew line that would START with a Latin word ("OK, בוא נלך")
 //            is laid out left-to-right by every renderer that takes the
 //            direction from the first strong letter (browsers' WebVTT, Android),
@@ -159,7 +159,7 @@ const finish = (answer, prep, { max = LINE_MAX } = {}) => {
   }
   let out = lines.map(rtlLine).join("\n");
   if (prep.italic && out) out = out.split("\n").map((l) => `<i>${l}</i>`).join("\n");
-  return (prep.pos || "") + out;
+  return out;
 };
 
 // ---------- batches ----------
@@ -261,10 +261,13 @@ const acceptable = (answer, src) => {
 
 // ---------- cost ----------
 
-// What a translation of these cues should cost, before it is made.
-// Measured on real films (docs/qa/subtitles-ai/REPORT.md): Hebrew output runs
-// about 1.4 tokens per character of English source with the JSON keys; the
-// prompt adds SYSTEM_TOKENS per batch.
+// What a translation of these cues should cost, before it is made — on the
+// cautious side, as a budget check should be. Assumed, not yet measured
+// against a real model (no key on the machine this was built on): English in
+// at ~3.6 characters a token with its JSON keys, the prompt SYSTEM_TOKENS a
+// call; Hebrew out at ~0.62 tokens per character of English (Hebrew text is
+// ~0.85 the length, ~2.5 characters a token, plus room for a model that
+// thinks first). A 1,500-line film: ~$0.13 at gemini-2.5-flash prices.
 const SYSTEM_TOKENS = 330;
 const estimate = (items, { batchCount = 1, priceIn = 0.3, priceOut = 2.5 } = {}) => {
   const chars = items.reduce((n, x) => n + x.send.length + 12, 0);

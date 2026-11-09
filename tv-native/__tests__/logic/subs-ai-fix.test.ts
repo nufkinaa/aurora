@@ -83,7 +83,7 @@ describe('the Hebrew track translated with AI', () => {
     expect(tracks[p1.index].label).toBe('עברית (AI)');
     const step = followPick({first: false, cur: 'English', curUsable: true, pickKey: tracks[p1.index].key});
     expect(step).toEqual({change: true, key: 'עברית (AI)', announce: true});
-    expect(foundToast(tracks[p1.index], 'Hebrew')).toBe('“עברית (AI)” is ready — switched on');
+    expect(foundToast(tracks[p1.index], 'Hebrew')).toBe('Hebrew subtitles translated with AI — switched on');
     expect(foundToast({label: 'Hebrew'}, 'Hebrew')).toBe('Hebrew subtitles found — switched on');
     expect(foundToast({label: 'x'}, null)).toBe('Subtitles found — switched on');
   });

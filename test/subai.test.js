@@ -201,11 +201,11 @@ test("a title with English only: translated in batches, written beside the video
     assert.equal(c.end, src[i].end, `cue ${i + 1} end`);
   });
   // the cues: Hebrew, two lines at most, the dialogue one line per speaker,
-  // the italic cue italic, the position kept, "♪" as it was, the name as the model gave it
+  // the italic cue italic, no "{\an8}" left to print, "♪" as it was
   assert.match(out[0].text, /^[֐-׿\s\d]+\.$/);
   assert.equal(out[3].text, "- מילה מילה?\n- מילה מילה, מילה מילה.");
   assert.match(out[5].text, /^<i>.*<\/i>$/);
-  assert.match(out[7].text, /^\{\\an8\}מילה/);
+  assert.match(out[7].text, /^מילה/);
   assert.equal(out[8].text, "♪");
   for (const c of out) assert.ok(c.text.split("\n").length <= 2);
 

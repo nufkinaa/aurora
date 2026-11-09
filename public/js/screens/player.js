@@ -1,7 +1,7 @@
 // Full-screen player with Apple TV-style controls: auto-hiding UI, scrubber,
 // ±10s, subtitle + speed menus, Up Next auto-advance, server-side resume.
 import { el, icons, fmtClock, toast, formatRow } from "../ui.js";
-import { api } from "../api.js";
+import { api, forgetWarm } from "../api.js";
 import { state, progressFor, titleProgressFor, refreshProgress, progressAge, readyDownloads, setPersonPref } from "../state.js";
 import { navigate, cameFrom, navStartedAt } from "../router.js";
 import { startupOf, stepsText, serverSide, firstMedia, SLOW_START_MS } from "../startline.js";
@@ -7402,6 +7402,9 @@ export const renderPlayer = async (root, { id }) => {
   const unsubSync = onMessage("subtitle_sync", async (msg) => {
     if (!msg || msg.id !== item.id || exited) return;
     let fresh;
+    // past the read cache (api.js warmed: a minute), or the news is not in
+    // the answer — the title opened less than a minute ago
+    forgetWarm(`/api/item/${encodeURIComponent(item.id)}`);
     try { fresh = await api.item(item.id); } catch { return; }
     if (exited || !fresh) return;
     const byUrl = new Map((fresh.subtitles || []).map((t) => [trackPath(t), t]));
@@ -7420,7 +7423,7 @@ export const renderPlayer = async (root, { id }) => {
         if ((awaitingAi || SUB_LANG_TEST[last] || prefs.get("subsDefault", true)) && SUB_LANG_TEST[want] && added.some((t) => langOf(t) === want)) {
           awaitingAi = null;
           const t = added.find((x) => langOf(x) === want);
-          switchToWanted(want, t.ai ? `“${t.label}” is ready — switched on` : `${SUB_LANG_NAME[want] || "Matching"} subtitles found — switched on`);
+          switchToWanted(want, t.ai ? "Hebrew subtitles translated with AI — switched on" : `${SUB_LANG_NAME[want] || "Matching"} subtitles found — switched on`);
         }
       }
     }

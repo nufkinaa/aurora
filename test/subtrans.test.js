@@ -101,7 +101,7 @@ test("acceptable: Hebrew for anything with words; a name or a number may stay; n
   assert.equal(T.acceptable("א".repeat(200), "Hi there."), false);
 });
 
-test("finish: two lines at most and about 40 characters each, one line per speaker, italics back, the position in front", () => {
+test("finish: two lines at most and about 40 characters each, one line per speaker, italics back, no {\\an8} printed as text", () => {
   const long = "אני לא חושב שזה רעיון טוב ללכת לשם עכשיו בלילה בלי אף אחד";
   const out = T.finish(long, T.prepare("I don't think it's a good idea to go there now at night without anyone."));
   const lines = out.split("\n");
@@ -120,7 +120,7 @@ test("finish: two lines at most and about 40 characters each, one line per speak
   // a tag the model kept inside: kept; one it invented: dropped
   assert.equal(T.finish("הוא אמר <i>אף פעם</i>.", T.prepare("He said <i>never</i>.")), "הוא אמר <i>אף פעם</i>.");
   assert.equal(T.finish('<font color="red">שלום</font> <script>x</script>', T.prepare("Hello")), "שלום x");
-  assert.equal(T.finish("למעלה!", T.prepare("{\\an8}Up here!")), "{\\an8}למעלה!");
+  assert.equal(T.finish("למעלה!", T.prepare("{\\an8}Up here!")), "למעלה!");
   // a "<" that is no tag would break the WebVTT
   assert.equal(T.finish("אני <3 אותך", T.prepare("I <3 you")), "אני 3 אותך");
 });

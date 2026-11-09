@@ -55,7 +55,7 @@ ui.test("only the subtitle that is on is fetched — at the start and after the 
   const on = await showing();
   assert.ok(new Set(subs).size <= on.length, `fetched tracks ${JSON.stringify([...new Set(subs)])} with ${JSON.stringify(on)} on`);
   // switching one on fetches it
-  const items = (await player.menu(page, "Subtitles")).filter((i) => !/Resync|Off/.test(i.text));
+  const items = (await player.menu(page, "Subtitles")).filter((i) => !/Resync|Fix timing|Reload subtitles|Off/.test(i.text));
   const other = items.find((i) => !on.includes(i.text));
   await page.locator(".player .menu .menu-item", { hasText: other.text }).click();
   await page.waitForFunction((label) => {

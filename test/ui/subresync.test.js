@@ -203,6 +203,36 @@ for (const [name, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
   });
 }
 
+// "Fix timing" (2026-11-09): the row's words, and the file's own timing as a
+// choice once a track is served moved — pressed, it is back for everyone;
+// Fix timing again moves it again.
+ui.test("the menu says Fix timing; after a fix the file's own timing is a choice — back for everyone, and fixed again", async ({ page, srv, signIn, freshProfile }) => {
+  await signIn(await freshProfile());
+  await player.open(page, srv, srv.talk.id);
+  await pickExact(page, "Hebrew");
+  await page.waitForFunction(() => { const t = [...document.querySelector(".player video").textTracks].find((x) => x.label === "Hebrew"); return t && t.cues && t.cues.length > 20 && Math.abs(t.cues[0].startTime - 4) < 0.25; }, null, { timeout: 30000 });
+  let items = (await player.menu(page, "Subtitles")).map((x) => x.text);
+  assert.equal(items[0], "⟲ Fix timing");
+  assert.equal(items[1], "↺ Use the file's own timing", JSON.stringify(items));
+  await page.screenshot({ path: path.join(ART, "subresync-fix-undo-menu.png") }).catch(() => {});
+  await watchPill(page);
+  await page.click('.player .menu [data-ui="player.subtitles.undo"]');
+  await page.waitForFunction(() => window.__pill.includes("Back to the file's own timing"), null, { timeout: 15000 });
+  // the cues are the file's own again (2.6 s late), here and for every device
+  await page.waitForFunction((late) => { const t = [...document.querySelector(".player video").textTracks].find((x) => x.label === "Hebrew"); return t && t.cues && t.cues.length > 20 && Math.abs(t.cues[0].startTime - (4 + late)) < 0.05; }, LATE, { timeout: 30000 });
+  const he = (await srv.api.item(srv.talk.id)).subtitles.find((t) => t.label === "Hebrew");
+  assert.equal(he.timing.verdict, "original");
+  const res = await fetch(srv.url + he.url);
+  assert.doesNotMatch(res.headers.get("x-aurora-subtitle-repair") || "", /audio/);
+  items = (await player.menu(page, "Subtitles")).map((x) => x.text);
+  assert.equal(items.includes("↺ Use the file's own timing"), false, JSON.stringify(items));
+  await page.keyboard.press("Escape");
+  // and Fix timing lines it up again
+  const { words } = await resync(page, "Hebrew");
+  assert.match(words, /^Moved 2\.[456] s earlier$/);
+  await page.waitForFunction(() => { const t = [...document.querySelector(".player video").textTracks].find((x) => x.label === "Hebrew"); return t && t.cues && Math.abs(t.cues[0].startTime - 4) < 0.25; }, null, { timeout: 30000 });
+});
+
 ui.test("Resync of a subtitle that matches nothing says so and leaves it exactly as it was", async ({ page, srv, signIn, freshProfile }) => {
   await signIn(await freshProfile());
   await player.open(page, srv, srv.talk.id);

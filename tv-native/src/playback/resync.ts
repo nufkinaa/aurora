@@ -121,9 +121,9 @@ export const aiPendingToast = (r: {tracks?: unknown[]; ai?: string | null} | nul
   r && r.ai && !(r.tracks && r.tracks.length) ? 'No Hebrew subtitles yet — translating with AI, ready in a few minutes' : null;
 
 /** The toast when a track the viewer was waiting for switched on by itself:
- *  the AI translation says its own name, the website's words. */
+ *  the AI translation says so (the website's words). */
 export const foundToast = (t: {label: string; ai?: boolean} | null | undefined, langName: string | null | undefined): string =>
-  t && t.ai ? `“${t.label}” is ready — switched on` : langName ? `${langName} subtitles found — switched on` : 'Subtitles found — switched on';
+  t && t.ai ? 'Hebrew subtitles translated with AI — switched on' : langName ? `${langName} subtitles found — switched on` : 'Subtitles found — switched on';
 
 // ---------------------------------------------------------------- while it runs
 /** The line shown while the server works: it listens first (the long part —

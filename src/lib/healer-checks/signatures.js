@@ -124,8 +124,8 @@ const SIGNATURES = [
   },
   {
     id: "ai", title: "The AI provider is failing", level: "warn", min: 3,
-    re: /^\[ai\] (?:one call failed|recommend failed|model returned nothing usable)/, // media/ai.js, routes/ai.js
-    means: "The AI provider (OpenRouter) is failing, so “recommend by mood” comes back empty.",
+    re: /^\[ai\] (?:one call failed|recommend failed|model returned nothing usable)|^\[subai\] .+ failed: /, // media/ai.js, routes/ai.js, media/subai.js
+    means: "The AI provider (OpenRouter) is failing, so “recommend by mood” comes back empty and titles without Hebrew subtitles get none translated.",
     setting: "Check the key and its credit: \"openrouterApiKey\" in config.json (or OPENROUTER_API_KEY in .env).",
   },
   {
