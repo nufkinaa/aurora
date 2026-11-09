@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.25 — 2026-11-09
+
+- **Pictures on the timeline.** Drag the bar, hover it or skip with the arrow keys and you see the moment you'll land on. Aurora makes small preview pictures for every title in the background (about 1.4 MB a title, when it lands and at night).
+- **The Next episode countdown is back** at the credits: the next episode's picture, "Starts in 15" with a filling bar, Play now and Watch credits. It had been switched off whenever Aurora guessed a scene followed the credits — now it counts down and says so.
+- On the TV and phone apps (with their next update): the same pictures, and on the TV holding left or right glides smoothly and speeds up, a tap steps 10 seconds, and letting go stops at once.
+
 ## 1.15.24 — 2026-11-09
 
 - **Calendar.** New episodes, season premieres and film release dates (cinema, and out to stream or buy) for everything in your My List, the shows you follow and the shows you've been watching — by day, in Coming up (next 60 days) and Recently out (last 14). It shows what's already on the server, with Play, and Save & watch for what isn't (only when you press it). In the menu on the computer, in More on phones, and on the TV with its next update. Kids see only what they're allowed.
