@@ -88,7 +88,9 @@ const budgetWhy = () => (deps.low() ? "the low-power profile" : deps.cpus() <= S
 // ffmpeg read each; credits: the credits picture, creditscv.js / introdetect.js)
 // (speech: the speech timeline of a film for the audio subtitle sync,
 // media/speech.js — one ffmpeg decode of one audio track)
-const WEIGHTS = { encode: 2, ocr: 1, intro: 1, credits: 1, sublang: 1, speech: 1, light: 0 };
+// (sprites: the progress bar's preview pictures, media/scrubsprites.js — one
+// key-frame-only decode of one file)
+const WEIGHTS = { encode: 2, ocr: 1, intro: 1, credits: 1, sublang: 1, speech: 1, sprites: 1, light: 0 };
 
 const deps = {
   setPriority: (pid, prio) => os.setPriority(pid, prio),

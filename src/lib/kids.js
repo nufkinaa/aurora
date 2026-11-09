@@ -535,7 +535,8 @@ const createGate = (deps) => {
       // (airplay: the AirPlay master and subtitle playlists of a title — routes/stream.js)
       /^\/stream\/(?:video|download|hls|transcode|embedded|airplay)\/([^/]+)/.exec(p) ||
       /^\/offline\/file\/([^/]+)/.exec(p) ||
-      /^\/img\/(?:still|frame)\/([^/]+)/.exec(p) ||
+      /^\/img\/(?:still|frame|scrub)\/([^/]+)/.exec(p) ||
+      /^\/api\/scrub\/([^/]+)/.exec(p) ||
       /^\/api\/offline\/(?:options|prepare|status|cancel)\/([^/]+)/.exec(p);
     if (fileM) {
       let id = fileM[1];

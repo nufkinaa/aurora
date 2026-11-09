@@ -600,6 +600,9 @@ require("./src/media/librarywarm");
 // Intros and credits, detected from the files themselves (chapters, then
 // audio that repeats across a season) — the skip button and Up Next timing.
 require("./src/media/introdetect");
+// The progress bar's preview pictures: made when a title lands, and for the
+// rest of the library in the quiet hours (media/scrubsprites.js).
+require("./src/media/scrubsprites").start();
 // The daily round: what came from the outside world is asked again so it
 // stays current — skip intro / recap / credits (Up next) timestamps for the
 // library and for recently streamed episodes, and library metadata + art.

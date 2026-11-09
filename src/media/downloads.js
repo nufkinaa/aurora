@@ -2880,6 +2880,8 @@ const finish = async (job, destPath) => {
   {
     const libId = scanner.idForPath(destPath);
     if (libId) require("./preconvert").consider(libId);
+    // …and the progress bar's preview pictures, in the background (media/scrubsprites.js)
+    if (libId) { try { require("./scrubsprites").landed(libId); } catch {} }
   }
   console.log(`[download] ${job.id.slice(0, 6)} done "${job.title}"`);
   tellMyList(job);

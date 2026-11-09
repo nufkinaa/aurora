@@ -360,6 +360,8 @@ export const api = {
   // is only fetched by the page that prints it)
   version: () => versionP || (versionP = json("/api/changelog?head=1").catch((e) => { versionP = null; throw e; })),
   introAuto: (id) => json(`/api/intro/auto/${encodeURIComponent(id)}`),
+  // the progress bar's preview pictures ({ ready:false } until made — media/scrubsprites.js)
+  scrubIndex: (id) => json(`/api/scrub/${encodeURIComponent(id)}`),
   // intro / recap / credits for a STREAMED episode, by identity (the public
   // databases — a stream has no file to analyse)
   // Which episode comes after this one — the server's one rule for the

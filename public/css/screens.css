@@ -2935,6 +2935,25 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
   pointer-events: none;
   white-space: nowrap;
 }
+/* …with the picture at that second above the time (media/scrubsprites.js) */
+.scrub-thumb {
+  display: none;
+}
+.scrub-tip.has-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 4px 3px;
+  bottom: 22px;
+}
+.scrub-tip.has-thumb .scrub-thumb {
+  display: block;
+  border-radius: 6px;
+  background-color: #0b0d12;
+  background-repeat: no-repeat;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
 
 /* Volume */
 .vol-group {
@@ -3173,6 +3192,84 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
   display: inline-block;
   margin-right: 6px;
   font-variant-numeric: tabular-nums;
+}
+/* The Next episode card: the next episode's picture, the countdown and its
+   bar (filled by a transition over the 15 s), Play now / Watch credits. */
+.upnext-card {
+  width: 340px;
+}
+.upnext-card.has-art {
+  padding: 12px;
+}
+.upnext-art {
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0b0d12;
+  margin-bottom: 12px;
+}
+.upnext-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.upnext-card .t {
+  margin-bottom: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.upnext-count {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.upnext-count .ring {
+  margin: 0;
+  color: var(--text, #fff);
+  font-weight: 800;
+}
+.upnext-scene {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin: -4px 0 8px;
+}
+.upnext-bar {
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.upnext-bar i {
+  display: block;
+  height: 100%;
+  background: #fff;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition-property: transform;
+  transition-timing-function: linear;
+}
+/* a phone: the picture beside the words, the buttons under both */
+@media (max-width: 720px) {
+  .upnext-card.has-art {
+    display: grid;
+    grid-template-columns: 104px minmax(0, 1fr);
+    column-gap: 12px;
+    align-items: start;
+  }
+  .upnext-card.has-art .upnext-art {
+    margin: 2px 0 0;
+  }
+  .upnext-card.has-art .upnext-actions {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 360px) {
+  .upnext-card .btn {
+    padding: 9px 12px;
+  }
 }
 
 /* Loading spinner */

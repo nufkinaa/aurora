@@ -51,7 +51,7 @@ ui.test("Up next appears near the end of episode 1, counts down, and starts epis
   await card.waitFor({ timeout: 8000 });
   const shownAt = (await player.state(page)).t;
   assert.ok(shownAt >= UPNEXT_AT - 0.5 && shownAt <= UPNEXT_AT + 3, `Up next appeared at ${shownAt.toFixed(1)}s, expected about ${UPNEXT_AT}s`);
-  assert.equal(await card.locator(".k").textContent(), "Up next");
+  assert.equal(await card.locator(".k").textContent(), "Next episode");
   assert.match(await card.locator(".t").textContent(), /S1 E2/);
   assert.equal((await card.locator(".btn-primary").textContent()).trim(), "Play now");
   const count = Number(await card.locator(".ring").textContent());
@@ -88,14 +88,14 @@ ui.test("Media Session names the episode, and still does after going to the next
   assert.equal(await page.evaluate(() => navigator.mediaSession.playbackState), "playing");
 });
 
-ui.test("Play now on Up next starts the next episode at once; Dismiss keeps this one", async ({ page, srv, signIn, freshProfile, lib }) => {
+ui.test("Play now on Up next starts the next episode at once; Watch credits keeps this one", async ({ page, srv, signIn, freshProfile, lib }) => {
   await signIn(await freshProfile());
   await player.open(page, srv, lib.e1.id);
   await player.jump(page, UPNEXT_AT + 1);
   const card = page.locator(".player .upnext");
   await card.waitFor({ timeout: 8000 });
 
-  await card.locator("button", { hasText: "Dismiss" }).click();
+  await card.locator("button", { hasText: "Watch credits" }).click();
   await card.waitFor({ state: "detached" });
   await page.waitForTimeout(1500);
   assert.equal(await card.count(), 0, "Up next came back after being dismissed");

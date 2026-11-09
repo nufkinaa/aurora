@@ -204,6 +204,26 @@ router.get("/img/frame/:id", async (req, res) => {
   }
 });
 
+// Preview pictures for the progress bar (media/scrubsprites.js): the index a
+// player asks for once ({ ready:false } until they are made — the player then
+// scrubs as it always did), and the sheets it names.
+router.get("/api/scrub/:id", (req, res) => {
+  res.setHeader("Cache-Control", "private, no-cache");
+  try {
+    res.json(require("../media/scrubsprites").answerFor(req.params.id));
+  } catch {
+    res.json({ ready: false });
+  }
+});
+router.get("/img/scrub/:id/:sheet", (req, res) => {
+  const m = /^(\d{1,4})\.jpg$/.exec(req.params.sheet || "");
+  const file = m ? require("../media/scrubsprites").sheetFile(req.params.id, Number(m[1])) : null;
+  if (!file) return res.status(404).send("Not found");
+  // (the address carries the file's key: a new copy of the title is a new address)
+  res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+  res.sendFile(file, (err) => { if (err && !res.headersSent) res.status(404).send("Not found"); });
+});
+
 // ---------- external artwork proxy-cache ----------
 // Discover posters/backdrops hotlink external CDNs — measured 2026-08-23:
 // ~319 unique posters per home load, all from one host, at 200–650ms each.
