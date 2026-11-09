@@ -136,6 +136,8 @@ const keyOf = (file, mtime) => crypto.createHash("md5").update(`${file}|${mtime}
 // -------------------------------------------------------------- the disk
 const deps = {
   dir: null,
+  // a library file's date as the scanner's last walk saw it (no stat), or null
+  walkedStat: (file) => scannerLib().walkedStat(file),
   now: () => Date.now(),
   date: () => new Date(),
   env: process.env,
@@ -156,7 +158,7 @@ const enabled = () => String(deps.env.AURORA_SCRUB || "").toLowerCase() !== "off
 
 const mtimeOf = (file) => {
   try {
-    const st = scannerLib().walkedStat(file);
+    const st = deps.walkedStat(file);
     if (st) return Math.floor(st.mtimeMs);
   } catch {}
   try { return Math.floor(fs.statSync(file).mtimeMs); } catch { return null; }
@@ -411,7 +413,7 @@ const landed = (id) => {
 const runAll = () => {
   if (!enabled()) return 0;
   let n = 0;
-  for (const id of libraryVideos()) if (!queue.has(id) && wantsPictures(id)) { queue.add(id); n++; }
+  for (const id of libraryVideos()) if (id !== current && !queue.has(id) && wantsPictures(id)) { queue.add(id); n++; }
   pump();
   return n;
 };

@@ -135,6 +135,13 @@ ui.test("Up next appears where the picture says the credits start, and the scrub
     await player.wake(page);
     await page.screenshot({ path: path.join(SHOTS, "upnext-at-picture-credits.png") });
   }
+  // …and from there the 15-second countdown, then episode 2 by itself
+  assert.match(await card.locator(".upnext-count").textContent(), /^Starts in \d+$/);
+  const count = Number(await card.locator(".ring").textContent());
+  await page.waitForFunction((c) => Number((document.querySelector(".player .upnext .ring") || {}).textContent) < c, count);
+  const e2 = (await api.item(e1.showId || (await api.library()).shows.find((x) => x.title === SHOW).id)).seasons[0].episodes[1];
+  await player.tag(page);
+  await player.playing(page, { id: e2.id, fresh: true, timeout: 30000 });
 });
 
 ui.run({ concurrency: 1 });

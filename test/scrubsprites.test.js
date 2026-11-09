@@ -11,6 +11,7 @@ const { spawnSync } = require("child_process");
 const config = require("../src/config");
 const sprites = require("../src/media/scrubsprites");
 const { planFor, tileAt, argsFor, cpuMsOf, jpegSize, parseQuiet, inQuiet, keyOf, deps } = sprites._internals;
+deps.walkedStat = () => null; // (the dates from the disk: no scanner in this process)
 
 test("plan: one picture every 10 s, 100 to a sheet; a very long file gets a wider step, never more sheets", () => {
   assert.equal(planFor(0), null);

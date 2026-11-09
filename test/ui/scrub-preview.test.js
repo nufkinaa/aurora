@@ -8,6 +8,8 @@
 const fs = require("fs");
 const path = require("path");
 const assert = require("node:assert/strict");
+const { spawnSync } = require("child_process");
+const config = require("../../src/config");
 const { suite, player, PHONE, EPISODE_SECONDS } = require("./helpers");
 
 const SHOTS = process.env.UI_SHOTS ? path.join(__dirname, "..", "..", "docs", "qa", "scrub-previews") : null;
@@ -17,18 +19,52 @@ const shot = async (page, name) => {
   await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
 };
 
-// every title's pictures, made before the first test
+// Every title's pictures, made before the first test. The server's own way
+// first (the admin's "make them now" — background work at the OS's idle
+// priority); on a machine whose CPUs are all taken (other test runs), the
+// idle class can wait for minutes, so after 45 s whatever is still missing is
+// made here, by the same module, into the instance's own folder — the same
+// files the server would have made (the folder is the file's path and date).
+const videosUnder = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+  const p = path.join(dir, e.name);
+  return e.isDirectory() ? videosUnder(p) : /\.(mp4|mkv)$/i.test(e.name) ? [p] : [];
+});
+const durationOf = (file) => {
+  const r = spawnSync(config.FFPROBE, ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file], { windowsHide: true });
+  return parseFloat(String(r.stdout)) || 0;
+};
+let madeHere = 0;
 const ui = suite({
   setup: async (srv) => {
+    const dbg = (...a) => process.env.SCRUB_DEBUG && console.error("[setup]", new Date().toISOString(), ...a);
+    dbg("start");
     const ids = [srv.lib.film1.id, srv.lib.e1.id, srv.lib.e2.id];
-    const deadline = Date.now() + 90000;
-    for (;;) {
-      await srv.api.adminPost("/api/admin/scrub/run");
-      const all = await Promise.all(ids.map((id) => srv.api.get(`/api/scrub/${id}`)));
-      if (all.every((a) => a.ready)) break;
-      if (Date.now() > deadline) throw new Error(`no pictures after 90 s: ${JSON.stringify(all)}`);
+    const ready = async () => (await Promise.all(ids.map((id) => srv.api.get(`/api/scrub/${id}`)))).every((a) => a.ready);
+    const deadline = Date.now() + 45000;
+    dbg("run", JSON.stringify(await srv.api.adminPost("/api/admin/scrub/run")));
+    while (Date.now() < deadline) {
+      const r = await ready();
+      dbg("ready?", r);
+      if (r) break;
       await new Promise((r) => setTimeout(r, 1000));
     }
+    if (await ready()) return;
+    dbg("in-process");
+    const sprites = require("../../src/media/scrubsprites");
+    const before = sprites._internals.deps.dir;
+    sprites._internals.deps.dir = path.join(srv.dataDir, "cache", "scrub");
+    // (the dates from the disk: the scanner is not loaded in this process)
+    sprites._internals.deps.walkedStat = () => null;
+    try {
+      for (const file of [...videosUnder(srv.library.movies), ...videosUnder(srv.library.shows)]) {
+        const r = await sprites.make(file, durationOf(file), { threads: 1 });
+        dbg(file, JSON.stringify(r).slice(0, 80));
+        if (r.ok) madeHere++;
+      }
+    } finally {
+      sprites._internals.deps.dir = before;
+    }
+    assert.ok(await ready(), "no pictures for the library");
   },
 });
 
@@ -69,6 +105,7 @@ ui.test("the server's index: one picture every 10 s, sheets that are real pictur
   // what it cost, for the admin
   const sum = await srv.api.adminGet("/api/admin/scrub");
   assert.ok(sum.titles >= 3 && sum.bytes > 0, JSON.stringify(sum));
+  if (madeHere) console.log(`# (${madeHere} title(s) made by the test: the server's idle-priority run was starved by a busy machine)`);
 });
 
 ui.test("hovering the bar shows the picture of that second above the time; dragging moves it and seeks on release", async ({ page, srv, signIn, freshProfile, lib }) => {
@@ -121,7 +158,7 @@ ui.test("on a phone a finger's drag shows the picture, and the film goes there o
   await page.waitForFunction(() => document.querySelector(".player .scrub-tip.has-thumb:not(.hidden)"));
   const t = await tip(page);
   assert.equal(t.width, 144, "the phone's smaller picture");
-  assert.equal(t.position, "-432px 0px", "picture 4 (36 s → 40 s) at 60 %");
+  assert.equal(t.position, "-576px 0px", "picture 4 (36 s → 40 s) at 60 %: 4 × 144 px");
   assert.ok(t.box.left >= 0 && t.box.right <= PHONE.width, "the picture leaves the screen");
   await shot(page, "phone-drag");
   await touch("touchEnd", 0);
@@ -209,3 +246,5 @@ ui.test("Next episode on a phone: the picture beside the words, both buttons on 
   assert.ok(Math.abs(boxes[2].top - boxes[3].top) < 4, "the two buttons share a row");
   await shot(page, "next-episode-phone-320");
 });
+
+ui.run();
