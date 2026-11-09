@@ -3,6 +3,15 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.15 — 2026-11-09
+
+**Storage drives, better.**
+- The speed check fits its time on slow network drives, says what it measured even when cut short, cleans up its test file and never marks a slow drive "Not answering". Network drives are scored by what they can serve at once ("about N 1080p and M 4K streams"): Fast, Good, Fine for 1080p or Too slow.
+- Aurora's share of a drive is counted properly (each file once, by the space it really takes), and says so when it can't be exact.
+- **Keep the fast drive for new and 4K titles** (on by default): new 4K, what someone is about to watch and personal requests go to the fastest drive; when it runs low, titles nobody has played for 60 days move to a roomier drive, safely and one at a time, never while being watched, and keep their place in everyone's history and lists.
+- **Stop using this drive:** moves its titles to the other drives first, or takes an empty or gone drive out of use — no alerts afterwards.
+- **Tune this network drive:** after a one-time helper setup on the server, admin can switch a network share to faster settings and shows the speed before and after, with Put it back.
+
 ## 1.15.14 — 2026-11-09
 
 - **"Problem with this copy → Other" asks what's wrong first.** A box to say it in your own words, then a plain question: get another version, or just send the report. Nothing downloads until you pick a version, and both steps say so. Your words reach the admin with the report.
