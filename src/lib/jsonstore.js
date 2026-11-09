@@ -46,10 +46,17 @@
 // To start a store empty ON PURPOSE, deleting its file is no longer enough
 // (the last-good copy comes back): create an empty file named
 // <name>.start-empty beside it, or delete <name>.good1 / .good2 as well.
+//
+// SQLITE. The stores named in SQLITE_STORES keep their data in the folder's
+// SQLite database (lib/sqlitestore.js: what, why, the one-time switch, the
+// way back) instead of their JSON file; to their callers nothing changes.
+// Without node:sqlite, or with "sqlite": false in config.json, they are JSON
+// files as before.
 "use strict";
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const sqlitestore = require("./sqlitestore");
 
 const DEBOUNCE_MS = 1500;
 const GOOD_EVERY_MS = 10 * 60 * 1000; // a last-good copy at most this often
@@ -65,6 +72,16 @@ const CRITICAL = new Set(["profiles.json", "sessions.json", "settings.json"]);
 // Rebuilt by the server on its own (lib/backup.js leaves the same ones out):
 // no last-good copies, no fsync, may start empty.
 const REBUILDABLE = new Set(["metadata-cache.json", "online-metadata.json", "ocr-failed.json", "daily.json", "watchdog.json", "health.json"]);
+// Kept in SQLite (lib/sqlitestore.js): the stores that grow, or that are
+// rewritten while people watch, download or upload. The critical ones
+// (profiles, sessions, settings), the watch journal, the caches and the
+// small config-like files stay JSON files. A constructor's `sqlite:
+// true|false` overrides this (tests).
+const SQLITE_STORES = new Set([
+  "watch-sessions.json", "telemetry-hours.json", "watch-history.json",
+  "downloads.json", "uploads.json", "requests.json", "reports.json", "replacements.json", "auth-log.json",
+  "sub-audiosync.json", "sub-langs.json", "intro-auto.json", "intro-prints.json", "healer.json",
+]);
 
 // Every instance registers here so they can all be flushed on shutdown.
 const instances = new Set();
@@ -409,6 +426,15 @@ const releaseOwnership = () => {
   ownedDir = null;
 };
 const refusedOnce = new Set();
+// Why the stores of a folder are not in SQLite, said once per folder.
+const sqlOffSaid = new Set();
+const noteSqlOff = (dir, why) => {
+  const key = path.resolve(dir);
+  if (sqlOffSaid.has(key)) return;
+  sqlOffSaid.add(key);
+  if (/^switched off/.test(why)) console.log(`[store] SQLite ${why}: the stores stay JSON files`);
+  else console.warn(`[store] SQLite cannot be used (${why}): the stores stay JSON files`);
+};
 
 class JsonStore {
   // opts: { kind: "critical" | "state" | "cache", shape: (data) => null | "what is wrong",
@@ -452,6 +478,10 @@ class JsonStore {
     const proto = fallbackValue();
     this._check = (data) => (named ? named(data) : null) || sameKind(data, proto);
     this._backupLookup = opts.backupLookup || backupLookup;
+    // where the data lives: "json" (its file) or "sqlite" (lib/sqlitestore.js)
+    this.backend = "json";
+    this._sql = null;
+    this._sqlWanted = opts.sqlite !== undefined ? !!opts.sqlite : SQLITE_STORES.has(this.name.toLowerCase());
     this.data = this._load(fallbackValue);
     instances.add(this);
   }
@@ -466,9 +496,201 @@ class JsonStore {
     if (fs.existsSync(marker)) {
       console.warn(`[store] ${this.name}: starting empty on request (${path.basename(marker)})`);
       this._startEmptyMarker = marker;
-      return fallbackValue();
+      const empty = fallbackValue();
+      if (this._sqlWanted) this._startEmptySql(empty);
+      return empty;
     }
-    const live = readChecked(file, this._check, { keepRaw: this._digestOnLoad });
+    if (this._sqlWanted) return this._loadSql(fallbackValue);
+    return this._loadJson(fallbackValue);
+  }
+
+  // ------------------------------------------------ the SQLite side of a load
+  // (lib/sqlitestore.js explains the switch). Whatever happens here, the
+  // store ends up with its data: from SQLite, or from its JSON file through
+  // every recovery _loadJson knows — never empty because SQLite failed.
+  _loadSql(fallbackValue) {
+    const foreign = !!foreignOwnerOf(this.filePath);
+    const got = sqlitestore.backendFor(this.filePath, { foreign });
+    const sql = got.backend;
+    if (!sql) {
+      if (got.why) noteSqlOff(path.dirname(this.filePath), got.why);
+      return this._loadJson(fallbackValue);
+    }
+    const look = sql.inspect(this.filePath);
+    if (got.mode === "handback") {
+      // switched off: a store whose truth is the database is written back
+      // as its JSON file, then runs as one
+      if (look.migrated && look.json !== "newer" && !foreign) {
+        const r = sql.load();
+        if (r.ok && !this._check(r.data)) {
+          try {
+            atomicWriteSync(this.filePath, JSON.stringify(r.data));
+            console.warn(`[store] ${this.name}: SQLite is ${got.why} — handed back to ${this.name} (${r.rows} rows)`);
+            sql.db.event(this.name, "handback", `${r.rows} rows`);
+          } catch (e) {
+            console.error(`[store] ${this.name}: SQLite is ${got.why}, and handing it back to ${this.name} failed (${e.message}) — kept in SQLite for this run`);
+            this.backend = "sqlite";
+            this._sql = sql;
+            return r.data;
+          }
+        }
+      }
+      return this._loadJson(fallbackValue);
+    }
+    // a newer JSON file that cannot be read is no reason to leave good rows:
+    // it is set aside, and SQLite stays the truth
+    if (look.migrated && look.json === "newer") {
+      const r = readChecked(this.filePath, this._check);
+      if (!r.ok) {
+        console.warn(`[store] ${this.name}: a ${this.name} newer than its SQLite rows was found, but it is ${r.problem} — SQLite stays the truth`);
+        look.json = foreign ? "none" : "older";
+      }
+    }
+    if (look.migrated && look.json !== "newer") {
+      if (!foreign && look.json === "leftover") this._renameJson(sql, "migrated"); // a kill between the commit and the rename
+      else if (!foreign && look.json === "older") this._renameJson(sql, "conflict");
+      const r = sql.load();
+      let problem = r.ok ? null : r.problem;
+      if (r.ok) {
+        const bad = this._check(r.data);
+        if (!bad) {
+          this.backend = "sqlite";
+          this._sql = sql;
+          if (!foreign) this._noteGoodAtLoadSql(r.data, look.reg);
+          return r.data;
+        }
+        problem = `the wrong shape (${bad})`;
+      }
+      // its rows cannot be used: the same recovery as a damaged file
+      const keptAs = foreign ? null : this._keepRows(sql);
+      const data = this._loadJson(fallbackValue, { ok: false, problem: `${problem} in ${sqlitestore.DB_NAME}`, keptAs, damagedAt: look.reg.updated_at });
+      return this._adoptSql(sql, data, { why: "recovered", foreign });
+    }
+    // Not in the database yet (the switch), or a JSON file newer than it.
+    let override = null;
+    if (!look.migrated && sql.db.damaged && !fs.existsSync(this.filePath) && this._migratedCopies().length) {
+      override = { ok: false, problem: `${sqlitestore.DB_NAME} was damaged (${sql.db.damaged.problem})`, keptAs: sql.db.damaged.keptAs, damagedAt: Date.now() };
+    }
+    const data = this._loadJson(fallbackValue, override);
+    if (this.safeMode) return data; // never moved while nothing good was found
+    return this._adoptSql(sql, data, { why: look.migrated ? "import" : "migrate", foreign });
+  }
+
+  // `data` becomes the store's content in SQLite (verified; see
+  // Backend.replaceAll). On success the JSON file is kept under another name
+  // and the store runs on SQLite; on failure nothing has changed and it runs
+  // on its JSON file.
+  _adoptSql(sql, data, { why, foreign }) {
+    if (foreign) return data; // a process that does not own the folder moves nothing
+    const file = this.filePath;
+    const hadJson = fs.existsSync(file);
+    let sourceText = null;
+    if (hadJson) { try { sourceText = fs.readFileSync(file, "utf8"); } catch {} }
+    let text;
+    try { text = JSON.stringify(data); } catch { text = null; }
+    if (why === "import") {
+      // what SQLite held is kept when the file replaces something different
+      try {
+        const cur = sql.exportText();
+        if (cur !== null && cur !== text) {
+          const keep = `${file}.sqlite-before-${sqlitestore.stamp()}.json`;
+          atomicWriteSync(keep, cur);
+          console.warn(`[store] ${this.name}: its JSON file is newer than its SQLite rows — importing it; what SQLite held is kept as ${path.basename(keep)}`);
+        }
+      } catch (e) {
+        console.error(`[store] ${this.name}: NOT imported into SQLite (what it held could not be kept first: ${e.message}) — it runs on its JSON file`);
+        return data;
+      }
+    }
+    const r = sql.replaceAll(data, { from: hadJson ? this.name : why, sourceText });
+    if (!r.ok) {
+      console.error(`[store] ${this.name}: NOT moved into SQLite (${r.problem}) — it stays a JSON file, unchanged`);
+      sql.db.event(this.name, `${why}-failed`, r.problem);
+      return data;
+    }
+    this.backend = "sqlite";
+    this._sql = sql;
+    let kept = null;
+    if (sqlitestore._internals.hooks.beforeRename) sqlitestore._internals.hooks.beforeRename(this.name);
+    if (hadJson) kept = this._renameJson(sql, "migrated", { quiet: true });
+    const words = why === "migrate" ? "moved into SQLite" : why === "import" ? "imported into SQLite" : "recovered into SQLite";
+    console.log(`[store] ${this.name}: ${words} — ${r.rows} rows, verified (row count and checksum), ${r.ms.toFixed(1)} ms${kept ? `; the JSON file is kept as ${kept}` : ""}`);
+    sql.db.event(this.name, why, `${r.rows} rows, md5 ${r.md5}, ${r.ms.toFixed(1)} ms${kept ? `, kept ${kept}` : ""}`);
+    return data;
+  }
+
+  // The JSON file out of the way, kept: <name>.migrated-<time> (it was moved
+  // into SQLite) or <name>.conflict-<time> (older than SQLite's rows).
+  _renameJson(sql, as, { quiet = false } = {}) {
+    const to = `${this.filePath}.${as}-${sqlitestore.stamp()}`;
+    try {
+      renameRetry(this.filePath, to);
+    } catch (e) {
+      console.error(`[store] ${this.name}: could not rename ${this.name} to ${path.basename(to)} (${e.code || e.message}) — tried again at the next start`);
+      return null;
+    }
+    if (as === "conflict") console.warn(`[store] ${this.name}: a ${this.name} older than its SQLite rows was found — SQLite stays the truth; the file is kept as ${path.basename(to)}`);
+    else if (!quiet) console.log(`[store] ${this.name}: the JSON file it was moved from is now ${path.basename(to)}`);
+    sql.db.event(this.name, `renamed-${as}`, path.basename(to));
+    return path.basename(to);
+  }
+
+  // Rows that cannot be used are written out raw before anything replaces them.
+  _keepRows(sql) {
+    try {
+      const rows = sql.db.readRows(this.name);
+      const keep = `${this.filePath}.corrupt-${Date.now()}`;
+      fs.writeFileSync(keep, rows.map((r) => JSON.stringify(r)).join("\n"));
+      return path.basename(keep);
+    } catch {
+      return null;
+    }
+  }
+
+  // The <name>.migrated-* files beside it, newest first.
+  _migratedCopies() {
+    try {
+      const dir = path.dirname(this.filePath);
+      const pre = `${this.name}.migrated-`;
+      return fs.readdirSync(dir).filter((n) => n.startsWith(pre)).sort().reverse().map((n) => path.join(dir, n));
+    } catch {
+      return [];
+    }
+  }
+
+  // "Start empty" for a store that is (or would be) in SQLite.
+  _startEmptySql(empty) {
+    if (foreignOwnerOf(this.filePath)) return;
+    const got = sqlitestore.backendFor(this.filePath);
+    if (!got.backend || got.mode !== "use") return;
+    const r = got.backend.replaceAll(empty, { from: "start-empty" });
+    if (!r.ok) { console.error(`[store] ${this.name}: could not start it empty in SQLite (${r.problem}) — it runs on its JSON file`); return; }
+    if (fs.existsSync(this.filePath)) this._renameJson(got.backend, "migrated", { quiet: true });
+    this.backend = "sqlite";
+    this._sql = got.backend;
+    try { fs.unlinkSync(this._startEmptyMarker); } catch {}
+    this._startEmptyMarker = null;
+  }
+
+  // As _noteGoodAtLoad, for a store loaded from SQLite: a last-good copy
+  // exists that is not older than the rows (or was taken in the last ten
+  // minutes).
+  _noteGoodAtLoadSql(data, reg) {
+    if (this.kind === "cache") return;
+    try {
+      const good = mtimeOf(this._goodPath(1));
+      this.lastGoodAt = good;
+      if (good && (good >= reg.updated_at || Date.now() - good < GOOD_EVERY_MS)) return;
+      this._writeGood(JSON.stringify(data));
+    } catch {}
+  }
+
+  // The JSON side of a load. `override`: what to make of the live copy
+  // instead of reading the file ({ ok: false, problem, keptAs, damagedAt } —
+  // the store's SQLite rows could not be used).
+  _loadJson(fallbackValue, override = null) {
+    const file = this.filePath;
+    const live = override || readChecked(file, this._check, { keepRaw: this._digestOnLoad });
     if (live.ok) {
       if (this._digestOnLoad) this.loadedMd5 = md5(live.raw);
       this._written = null;
@@ -482,7 +704,7 @@ class JsonStore {
     }
 
     // ---- not a cache, and the live file cannot be used
-    const damagedAt = mtimeOf(file);
+    const damagedAt = override ? override.damagedAt || 0 : mtimeOf(file);
     const candidates = [];
     for (let n = 1; n <= GOOD_COPIES; n++) {
       const r = readChecked(this._goodPath(n), this._check);
@@ -498,9 +720,17 @@ class JsonStore {
         if (ok && !this._check(data)) candidates.push({ from: `the backup ${b.name}`, source: "backup", data, at: b.at || 0 });
       }
     }
+    // a store that was moved into SQLite: the JSON file it was moved from
+    // (older than anything above, better than nothing)
+    if (!candidates.length) {
+      for (const m of this._migratedCopies()) {
+        const r = readChecked(m, this._check);
+        if (r.ok) { candidates.push({ from: `the file it was moved into SQLite from (${path.basename(m)})`, source: "migrated", data: r.data, at: mtimeOf(m) }); break; }
+      }
+    }
     if (!candidates.length && live.problem === "missing") return fallbackValue(); // a first start
 
-    const keptAs = live.problem === "missing" || live.problem === "empty" ? null : this._copyAside();
+    const keptAs = override ? override.keptAs || null : live.problem === "missing" || live.problem === "empty" ? null : this._copyAside();
     const dir = path.dirname(file);
     if (candidates.length) {
       const c = candidates[0];
@@ -671,8 +901,74 @@ class JsonStore {
     this._wrote(snap.text, snap.token);
   }
 
+  // ------------------------------------------------ writing into SQLite
+  // One transaction of what changed since the last write (lib/sqlitestore.js
+  // Backend.write), on the loop: no fsync (the checkpoints are a worker's),
+  // so it is short. The same bookkeeping as a file write: unsaved and tried
+  // again on a failure; after a few failures in a row the store goes back to
+  // its JSON file for the rest of the run (the next start imports it again).
+  // good: "sync" | "async" — how a due last-good copy is taken.
+  _writeSql(good) {
+    if (this.safeMode) return false;
+    const other = foreignOwnerOf(this.filePath);
+    if (other) {
+      if (!refusedOnce.has(this.filePath)) {
+        refusedOnce.add(this.filePath);
+        console.warn(`[store] ${this.name}: not written — the running server (pid ${other}) owns this data folder`);
+      }
+      this.dirty = false;
+      return false;
+    }
+    let token;
+    if (this._prepare) {
+      try { token = this._prepare(); } catch (err) { console.error(`Failed to prepare ${this.filePath}:`, err.message); }
+    }
+    const rev = this.rev;
+    let r;
+    try {
+      r = this._sql.write(this.data);
+    } catch (err) {
+      this._failed(err);
+      if (this.failures >= sqlitestore._internals.FALLBACK_AFTER_FAILURES) this._fallBackToJson(err);
+      return false;
+    }
+    if (this.unsavedSince) console.log(`[store] ${this.name} saved again after ${this.failures} failed attempt${this.failures === 1 ? "" : "s"}`);
+    if (this.rev === rev) this.dirty = false;
+    this.unsavedSince = 0;
+    this.failures = 0;
+    this.lastSavedAt = Date.now();
+    if (r === "unchanged") this.skipped++;
+    else this.writes++;
+    if (this._startEmptyMarker) { try { fs.unlinkSync(this._startEmptyMarker); } catch {} this._startEmptyMarker = null; }
+    let text = null;
+    if (r !== "unchanged" && this.kind !== "cache" && Date.now() - this.lastGoodAt >= GOOD_EVERY_MS) {
+      let fine = false;
+      try { fine = !this._check(this.data); } catch {}
+      if (fine) {
+        try { text = JSON.stringify(this.data); } catch {}
+        if (text) { if (good === "sync") this._writeGood(text); else this._writeGoodAsync(text); }
+      }
+    }
+    if (this._afterWrite) {
+      try { if (text === null) text = JSON.stringify(this.data); } catch {}
+      if (text !== null) this._wrote(text, token);
+    }
+    return true;
+  }
+
+  _fallBackToJson(err) {
+    console.error(`[store] ${this.name}: ${sqlitestore.DB_NAME} will not take writes (${err && err.message}) — ${this.name} is written as a JSON file from now on; the next start moves it back into SQLite`);
+    try { this._sql.db.event(this.name, "fallback-json", err && err.message); } catch {}
+    this.backend = "json";
+    this._written = null;
+    this.failures = 0;
+    this.unsavedSince = this.unsavedSince || Date.now();
+    this.dirty = true;
+  }
+
   // Synchronous: returns true when the disk holds what memory holds.
   _writeNow() {
+    if (this.backend === "sqlite") return this._writeSql("sync");
     const snap = this._snapshot();
     if (!snap) return false;
     if (this._unchanged(snap)) return true;
@@ -690,6 +986,7 @@ class JsonStore {
   // writing happens off the loop. One at a time; asked again meanwhile, it
   // runs once more when this one is done. Returns a promise of "disk holds it".
   _writeAsync() {
+    if (this.backend === "sqlite") return Promise.resolve(this._writeSql("async"));
     if (this._busy) { this._again = true; return this._busy; }
     const snap = this._snapshot();
     if (!snap) return Promise.resolve(false);
@@ -838,6 +1135,7 @@ const beforeFlushAll = (fn) => { if (typeof fn === "function") flushHooks.push(f
 const flushAll = () => {
   for (const fn of flushHooks) { try { fn(); } catch (e) { console.error("[store] before-flush step failed:", e && e.message); } }
   for (const s of instances) if (s.saveTimer || s.dirty || s._busy) s.flush();
+  sqlitestore.checkpointAll(); // the SQLite WAL into its main file
 };
 // Every store's writes under way, landed (tests; a tool before it exits).
 const idleAll = async () => { for (const s of [...instances]) await s.idle(); };
@@ -846,9 +1144,12 @@ const idleAll = async () => { for (const s of [...instances]) await s.idle(); };
 
 const statusOf = (s) => {
   let bytes = null;
-  try { bytes = fs.statSync(s.filePath).size; } catch {}
+  const inSql = s.backend === "sqlite" && s._sql;
+  if (inSql) bytes = s._sql.bytes(); // its rows' JSON, as the file would be
+  else { try { bytes = fs.statSync(s.filePath).size; } catch {} }
   return {
     name: s.name, kind: s.kind, bytes,
+    backend: s.backend || "json", ...(inSql ? { rows: s._sql.rows() } : {}),
     safeMode: s.safeMode ? { ...s.safeMode } : null,
     unsavedSince: s.unsavedSince || null,
     failures: s.failures,
@@ -871,6 +1172,7 @@ const status = () => {
     safeMode: stores.filter((s) => s.safeMode).map((s) => s.name),
     unsaved: stores.filter((s) => s.unsavedSince).map((s) => s.name),
     recoveries,
+    sqlite: sqlitestore.status(),
   };
 };
 
@@ -952,6 +1254,6 @@ module.exports = {
   JsonStore, FileWriter, flushAll, idleAll, beforeFlushAll, ownSignals, atomicWriteSync, readChecked, md5,
   claimOwnership, releaseOwnership, foreignOwnerOf, OWNER_FILE,
   status, inSafeMode, leaveSafeMode, announceRecoveries, acknowledgeRecoveries, recoverySentence,
-  CRITICAL, REBUILDABLE, SHAPES,
+  CRITICAL, REBUILDABLE, SHAPES, SQLITE_STORES,
   _internals: { instances, io, aio, kindFor, renameRetry, sameKind, readRecoveries, fmtSpan, digest, setBackupLookup: (fn) => { backupLookup = fn; }, DEBOUNCE_MS, GOOD_EVERY_MS, RETRY_LATER_MS },
 };

@@ -21,7 +21,13 @@
 // Aurora. Inside:
 //   manifest.json        app version, when, and every file with its size
 //                        and sha256
-//   data/<file>          the stores, exactly as they were on disk
+//   data/<file>          the stores, exactly as they were on disk (a store
+//                        kept in SQLite: its content, exactly as its file
+//                        would hold it — lib/sqlitestore.js)
+//   sqlite/aurora.db     a consistent copy (VACUUM INTO) of the SQLite
+//                        database those stores came from; restores do not
+//                        need it — they put the data/*.json files back, and
+//                        the server imports them into SQLite at its next start
 //   data/usage/…         usage logs
 //   data/avatars/…       uploaded profile pictures
 //   config/config.json   the server's configuration
@@ -560,6 +566,19 @@ const createSnapshot = async (opts) => {
     files.push({ path: w.as, size: data.length, sha256: sha256(data), mtime: new Date(st.mtimeMs).toISOString() });
     entries.push({ name: w.as, data, mtime: st.mtimeMs });
     if (hooks.afterRead) await hooks.afterRead(w);
+  }
+  // The stores kept in SQLite (lib/sqlitestore.js): each one's content as
+  // data/<name>.json — exactly what its file would hold, so everything below
+  // and every restore reads it as before — all taken from ONE consistent
+  // VACUUM INTO copy of the database, plus that copy as sqlite/aurora.db.
+  let sqlEntries = [];
+  try { sqlEntries = await require("./sqlitestore").backupEntries(dataDir); } catch (e) { warnings.push(`the stores in SQLite could not be copied (${(e && e.message) || e}) — this snapshot does not hold them`); }
+  for (const e of sqlEntries) {
+    if (entries.some((x) => x.name === e.as)) continue;
+    total += e.data.length;
+    if (total > MAX_TOTAL_BYTES) throw new Error("the state to back up is over 1 GB — something that is not state is in the data folder");
+    files.push({ path: e.as, size: e.data.length, sha256: sha256(e.data), mtime: new Date(e.mtime).toISOString() });
+    entries.push({ name: e.as, data: e.data, mtime: e.mtime });
   }
   // The household in numbers, as the server would read these files at boot —
   // and against the snapshot before: a store of the wrong shape, or a

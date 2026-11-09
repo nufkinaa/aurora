@@ -38,7 +38,7 @@ test("a timer's write leaves the loop free while the disk is slow, and is durabl
   const dir = tmp();
   const calls = [];
   const restore = slowDisk(400, calls);
-  const s = new JsonStore(path.join(dir, "downloads.json"), []);
+  const s = new JsonStore(path.join(dir, "downloads.json"), [], { sqlite: false });
   try {
     s.data.push({ id: 1 });
     const t0 = Date.now();
@@ -62,7 +62,7 @@ test("one write at a time per store: a burst during a slow write is ONE more wri
   const dir = tmp();
   const calls = [];
   const restore = slowDisk(150, calls);
-  const s = new JsonStore(path.join(dir, "requests.json"), { n: 0 });
+  const s = new JsonStore(path.join(dir, "requests.json"), { n: 0 }, { sqlite: false });
   try {
     s.data.n = 1;
     const first = s.persist();
@@ -155,7 +155,7 @@ test("a timer-driven write that fails is not forgotten: unsaved, tried again lat
   let fail = 1;
   I.aio.open = (p, f) => (fail-- > 0 ? Promise.reject(Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" })) : real.open(p, f));
   t.mock.timers.enable({ apis: ["setTimeout"] });
-  const s = new JsonStore(path.join(dir, "reports.json"), { reports: [] });
+  const s = new JsonStore(path.join(dir, "reports.json"), { reports: [] }, { sqlite: false });
   const saved = console.error;
   console.error = () => {};
   try {

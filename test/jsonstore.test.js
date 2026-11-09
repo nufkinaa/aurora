@@ -110,7 +110,7 @@ test("EPERM on rename (a scanner holding the file) is tried again at once and su
     return real.renameSync(a, b);
   };
   I.io.sleepSync = (ms) => slept.push(ms);
-  const s = new JsonStore(path.join(dir, "downloads.json"), []);
+  const s = new JsonStore(path.join(dir, "downloads.json"), [], { sqlite: false });
   try {
     s.data.push({ id: 1 });
     assert.equal(s.flush(), true, "saved despite three refusals");
@@ -141,7 +141,7 @@ test("a file that stays locked: the save is NOT forgotten — marked unsaved, tr
     return realAio.rename(a, b);
   };
   t.mock.timers.enable({ apis: ["setTimeout"] });
-  const s = new JsonStore(file, []);
+  const s = new JsonStore(file, [], { sqlite: false });
   try {
     const lines = await quiet(async () => {
       s.data.push({ id: "new" });
@@ -452,7 +452,7 @@ test("starting a store empty ON PURPOSE: the .start-empty marker (deleting the f
   try {
     fs.writeFileSync(`${file}.good1`, JSON.stringify([{ id: 1 }]));
     fs.writeFileSync(`${file}.start-empty`, "");
-    await quiet(async () => { s = new JsonStore(file, []); });
+    await quiet(async () => { s = new JsonStore(file, [], { sqlite: false }); });
     assert.deepEqual(s.data, []);
     s.data.push({ id: 2 });
     s.flush();
@@ -470,7 +470,7 @@ test("an ordinary store with nothing good starts from its defaults, as it always
   fs.writeFileSync(file, "{{{{");
   let s;
   try {
-    const lines = await quiet(async () => { s = new JsonStore(file, []); });
+    const lines = await quiet(async () => { s = new JsonStore(file, [], { sqlite: false }); });
     assert.deepEqual(s.data, []);
     assert.equal(s.safeMode, null);
     assert.ok(lines.some((l) => /^Corrupt store .+ backed up to .+starting from defaults/.test(l)));

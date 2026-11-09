@@ -22,7 +22,12 @@ const arg = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1
 const applyIt = args.includes("--apply");
 let file = arg("--file");
 if (!file) file = path.join(require("../src/config").DATA_DIR, "watch-sessions.json");
-if (!fs.existsSync(file)) { console.error(`No such file: ${file}`); process.exit(1); }
+if (!fs.existsSync(file)) {
+  // kept in SQLite since then (src/lib/sqlitestore.js): a JSON copy first
+  if (!arg("--file") && fs.existsSync(path.join(path.dirname(file), "aurora.db"))) console.error(`watch-sessions is kept in SQLite (data/aurora.db). Write a JSON copy first — node scripts/sqlite-export.js --out <folder> — and run this with --file <folder>/watch-sessions.json (the server repairs its own data at startup anyway).`);
+  else console.error(`No such file: ${file}`);
+  process.exit(1);
+}
 
 const sessions = JSON.parse(fs.readFileSync(file, "utf-8"));
 if (!Array.isArray(sessions)) { console.error("Not a list of viewings."); process.exit(1); }
