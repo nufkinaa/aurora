@@ -213,9 +213,7 @@ test('the note: line breaks folded, cut at 300; heard words added after what is 
 
 test("the report's text: the server's first line for a copy, then that nothing was asked for", () => {
   expect(copyReport({reasonLabel: 'Other', note: '  Freezes\n at 20 min '})).toBe('Problem with this copy: Other — Freezes at 20 min\nNo other version asked for — the copy stays.');
-  // the server's line for a replacement starts the same way (src/media/replace.js)
-  const server: string = fs.readFileSync(path.join(__dirname, '../../../src/media/replace.js'), 'utf8');
-  expect(server).toContain('text: `Problem with this copy: ${label}${cleanNote ? ` — ${cleanNote}` : ""}');
+  // (that the server's line for a replacement starts the same way: test/save-watch-parity.test.js)
 });
 
 test("the microphone's word and line", () => {

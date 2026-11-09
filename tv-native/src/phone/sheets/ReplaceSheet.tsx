@@ -18,9 +18,10 @@
 // Opened from anywhere through overlay.ts openReplace (the player's "Audio and settings",
 // a film's page) — on the phone it used to open nothing.
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, StyleSheet, Text, TextInput, View} from 'react-native';
+import {ActivityIndicator, StyleSheet, Text, View} from 'react-native';
 import Sheet from '../ui/Sheet';
 import ListRow from '../ui/Row';
+import Field from '../ui/Field';
 import {GlassButton, PrimaryButton} from '../ui/Buttons';
 import {Bar} from '../ui/Cards';
 import {api, ReplaceStream, ReplaceView} from '../../api';
@@ -307,7 +308,7 @@ export default function ReplaceSheet({libraryId, title, context, onClose}: {libr
     body = (
       <>
         <Text style={s.body}>{WORDS.otherBody}</Text>
-        <TextInput
+        <Field
           style={s.input}
           value={note}
           onChangeText={v => {
@@ -318,7 +319,6 @@ export default function ReplaceSheet({libraryId, title, context, onClose}: {libr
           multiline
           maxLength={COPY_NOTE_MAX * 2}
           placeholder={WORDS.otherPlaceholder}
-          placeholderTextColor={colors.textDim}
         />
         {voice.line ? <Text style={s.faint}>{voice.line}</Text> : null}
         {noteErr ? <Text style={s.error}>{noteErr}</Text> : null}
@@ -355,17 +355,6 @@ const s = StyleSheet.create({
   list: {marginTop: 8, marginHorizontal: -(GUTTER + 4)},
   btn: {alignSelf: 'stretch', marginTop: 12},
   quote: {color: colors.text, fontSize: 15, lineHeight: 22, fontStyle: 'italic', marginTop: 10},
-  input: {
-    color: colors.text,
-    fontSize: 16,
-    minHeight: 96,
-    marginTop: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    textAlignVertical: 'top',
-  },
+  // the phone's Report a problem field (SmallSheets.tsx)
+  input: {height: 120, textAlignVertical: 'top', paddingTop: 14, marginTop: 12},
 });

@@ -161,7 +161,6 @@ describe('Play on a title page never streams from a torrent', () => {
     }
     expect(SAVE_WATCH).toBe('Save & watch');
     expect(read('screens/Detail.tsx')).toContain('`⬇  ${SAVE_WATCH}`');
-    // the website's word
-    expect(fs.readFileSync(path.join(__dirname, '../../../public/js/screens/discover-detail.js'), 'utf8')).toContain('<span>Save &amp; watch</span>');
+    // (the website's word is held to the same by test/save-watch-parity.test.js)
   });
 });
