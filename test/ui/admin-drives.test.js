@@ -186,7 +186,7 @@ ui.test("a network drive's score says what it serves; a share as big as all that
   await shot(page, "drives-network-score", "#drives-card");
 });
 
-ui.test("Stop using this drive: moves the titles first, removes an empty one, and warns for one that does not answer; the fast-drive switch and Moved recently", { permissions: ["clipboard-read", "clipboard-write"] }, async ({ page, srv }) => {
+for (const [name, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) ui.test(`Stop using this drive: moves the titles first, removes an empty one, and warns for one that does not answer; the fast-drive switch and Moved recently (${name})`, { viewport, permissions: ["clipboard-read", "clipboard-write"] }, async ({ page, srv }) => {
   await stubDisk(page);
   const withTitles = { ...NFS, inUse: true, newDownloads: true, holds: ["movies", "shows"], titles: 37, aurora: { bytes: 300 * GIB, files: 40, partial: false, at: Date.now() } };
   const moving = { ...withTitles, newDownloads: false, evacuating: { since: Date.now(), left: 36, moved: 1, why: null } };
@@ -224,20 +224,22 @@ ui.test("Stop using this drive: moves the titles first, removes an empty one, an
   await box.locator("#drv-keepfast").uncheck();
   await toastSays(page, /New downloads go where there is most room/);
   assert.deepEqual(posts.shift(), ["keep-fast", { on: false }]);
-  await shot(page, "drives-moves", "#drives-moves");
+  await shot(page, `drives-moves-${name}`, "#drives-moves");
 
   // 37 titles there: "Move them to the other drives first"
   await c().locator('[data-drv-act="remove"]').click();
   const dlg = page.locator("dialog.ask");
   await dlg.waitFor();
   assert.match(await dlg.innerText(), /Move 37 titles off \/mnt\/storagespace first\?[\s\S]*one at a time — never while one is playing/);
-  await shot(page, "drives-stop-move", "dialog.ask");
+  await shot(page, `drives-stop-move-${name}`, "dialog.ask");
   await dlg.locator(".ask-yes").click();
   await toastSays(page, /Moving 37 titles off \/mnt\/storagespace — it is removed when empty/);
   assert.deepEqual(posts.shift(), ["stop-using", { id: "/mnt/storagespace", how: "move" }]);
   await page.waitForFunction(() => /Moving off/.test(document.querySelector('#drives-card .drv[data-drive="/mnt/storagespace"]').innerText));
   assert.match(await c().innerText(), /Moving its titles to the other drives — 36 left, 1 moved\./);
-  await shot(page, "drives-moving-off", "#drives-card");
+  const sw = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  assert.ok(sw <= 1, `the page scrolls sideways by ${sw}px`);
+  await shot(page, `drives-moving-off-${name}`, "#drives-card");
   // "Stop moving — keep using it"
   await c().locator('[data-drv-act="cancel-move"]').click();
   await toastSays(page, /Stopped moving titles off/);
@@ -257,7 +259,7 @@ ui.test("Stop using this drive: moves the titles first, removes an empty one, an
   await c().locator('[data-drv-act="remove"]').click();
   await dlg.waitFor();
   assert.match(await dlg.innerText(), /Stop using \/mnt\/storagespace anyway\?[\s\S]*is not mounted any more[\s\S]*Its 37 titles will disappear from the library/);
-  await shot(page, "drives-stop-gone", "dialog.ask");
+  await shot(page, `drives-stop-gone-${name}`, "dialog.ask");
   await dlg.locator(".ask-yes").click();
   await page.waitForFunction(() => /Not in use/.test(document.querySelector('#drives-card .drv[data-drive="/mnt/storagespace"]').innerText));
   assert.deepEqual(posts.shift(), ["stop-using", { id: "/mnt/storagespace", how: "force" }]);
