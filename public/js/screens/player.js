@@ -6144,7 +6144,7 @@ export const renderPlayer = async (root, { id }) => {
     }
   };
   // asked a while into the film, so the card is ready the moment it is due
-  setTimeout(() => { if (!exited) franchiseNext(); }, 20000);
+  const franchiseAsk = setTimeout(() => { if (!exited) franchiseNext(); }, 20000);
   const filmEnd = () => {
     const d = totalDuration();
     if (!d || item._offline || item._local) return;
@@ -7768,6 +7768,9 @@ export const renderPlayer = async (root, { id }) => {
     clearTimeout(seekDebounce);
     clearTimeout(hlsRecoverTimer);
     clearTimeout(controlsTimer);
+    clearTimeout(franchiseAsk); // (a timer holds the whole player until it fires)
+    clearInterval(filmEndTimer);
+    franchiseAtEnd = null;
     try {
       if (prefetchCtrl) prefetchCtrl.abort();
     } catch {}
