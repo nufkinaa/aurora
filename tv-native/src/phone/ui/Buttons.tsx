@@ -110,7 +110,14 @@ export function ActionCircle({
   tint,
   testID,
   uiId,
-}: Base & {on?: boolean; tint?: string}) {
+  lines = 2,
+}: Base & {
+  on?: boolean;
+  tint?: string;
+  /** how many lines the word may take; 0: all it needs (a TV's whole name, as the website's
+   *  round buttons wrap it — device names are 40 characters at most, src/lib/devices.js) */
+  lines?: number;
+}) {
   return (
     <Tap
       uiId={uiId}
@@ -130,7 +137,7 @@ export function ActionCircle({
         ) : null}
       </View>
       {/* (the largest font sizes: the word grows a little, never broken in two inside a 76 dp column) */}
-      <Text style={s.actionText} numberOfLines={2} maxFontSizeMultiplier={1.15} textBreakStrategy="simple" android_hyphenationFrequency="none">
+      <Text style={s.actionText} numberOfLines={lines} maxFontSizeMultiplier={1.15} textBreakStrategy="simple" android_hyphenationFrequency="none">
         {label}
       </Text>
     </Tap>

@@ -57,8 +57,11 @@ import {track} from '../../usage';
 import {
   ACTIVE_JOB,
   JobMark,
+  jobMark,
   Air,
   dlText,
+  SAVE_WORDS,
+  saveText,
   fmtAirDate,
   fmtClock,
   fmtDuration,
@@ -88,6 +91,7 @@ import {saveOffline, useOffline} from '../offline/store';
 import {chooseQuality, confirmRoom} from '../offline/choose';
 import {useDevices} from '../remote/controller';
 import {sendToTv} from '../remote/playOnTv'; // [play-on-tv]
+import {PLAY_ON} from '../../remote/playOnWords';
 import {colors, EP_W, G_EDGE, G_FILL, GUTTER, radius, SHELF_GAP} from '../theme';
 import {heroCover, showsPoster} from '../heroArt';
 
@@ -142,7 +146,7 @@ const EpisodeCard = React.memo(function EpisodeCard({ep, onPress, onLong}: {ep: 
         {ep.pct > 0 ? <Bar f={ep.pct / 100} style={s.epBar} /> : null}
         {ep.dl ? (
           <View style={s.epDl}>
-            <Text style={s.epDlText}>{dlText(ep.dl)}</Text>
+            <Text style={s.epDlText}>{dlText(ep.dl).toUpperCase() /* the website's kicker is in capitals */}</Text>
           </View>
         ) : null}
       </View>
@@ -203,6 +207,16 @@ export default function Detail() {
   const [libraryTick, setLibraryTick] = useState(0);
   const [jobs, setJobs] = useState<Record<string, JobMark>>({});
   const [jobsRead, setJobsRead] = useState(false);
+  // A download that finished, its copy not read from the library yet: Play says the website's
+  // "Almost there…" (its button keeps that until the page turns into Play) instead of going back
+  // to Save & watch for a moment. By key; let go after 30 s whatever happens.
+  const [landing, setLanding] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const keys = Object.keys(landing);
+    if (!keys.length) return;
+    const t = setTimeout(() => setLanding({}), 30000);
+    return () => clearTimeout(t);
+  }, [landing]);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [heroRel, setHeroRel] = useState<ReleaseStatus | null>(null);
   const [filmBest, setFilmBest] = useState<boolean | null>(null); // [franchise] a best source? (what `save` waits for)
@@ -387,11 +401,15 @@ export default function Detail() {
       for (const j of list) {
         if (j.imdbId !== imdb || isReplacement(j) || !ACTIVE_JOB.includes(j.status)) continue;
         const k = j.season && j.episode ? `${j.season}x${j.episode}` : 'film';
-        if (!next[k] || j.mine) next[k] = {status: j.status, progress: j.progress || 0, id: j.id, mine: !!j.mine};
+        if (!next[k] || j.mine) next[k] = jobMark(j);
       }
       setJobs(prev => {
-        const ended = Object.keys(prev).some(k => !next[k]);
-        if (ended) setTimeout(() => setLibraryTick(t => t + 1), 1500);
+        const gone = Object.keys(prev).filter(k => !next[k]);
+        if (gone.length) {
+          // gone from the list: taken as landed until the library says otherwise (the TV's rule)
+          setLanding(m => ({...m, ...Object.fromEntries(gone.map(k => [k, Date.now()]))}));
+          setTimeout(() => setLibraryTick(t => t + 1), 1500);
+        }
         return next;
       });
       setJobsRead(true);
@@ -420,10 +438,13 @@ export default function Detail() {
           delete n[k];
           return n;
         });
-        if (j.status === 'done') setTimeout(() => setLibraryTick(t => t + 1), 1200);
+        if (j.status === 'done') {
+          setLanding(m => ({...m, [k]: Date.now()}));
+          setTimeout(() => setLibraryTick(t => t + 1), 1200);
+        } else setLanding(m => (m[k] ? Object.fromEntries(Object.entries(m).filter(([x]) => x !== k)) : m));
         return;
       }
-      setJobs(prev => ({...prev, [k]: {status: j.status, progress: j.progress || 0, id: j.id, mine: !!j.mine}}));
+      setJobs(prev => ({...prev, [k]: jobMark(j)}));
       if (!timer) timer = setTimeout(tick, 4000);
     });
     const offLib = onMessage('library_updated', () => setLibraryTick(t => t + 1));
@@ -581,7 +602,8 @@ export default function Detail() {
       }
       inflight.current.add(key);
       setBusyKey(key);
-      setNote({text: `Getting ${name}  ·  finding the best source…`, tone: 'live'});
+      // Play itself says it from here (the website's "Starting download…"); a card's press keeps its line
+      setNote(play ? null : {text: `Getting ${name}  ·  finding the best source…`, tone: 'live'});
       try {
         const {streams, release} = await api.torrentSources(s && e ? {type: 'series', title: imdb, year: year ?? undefined, season: s, episode: e} : {type: 'movie', title: imdb, year: year ?? undefined});
         const pick = pickBest(streams);
@@ -949,24 +971,35 @@ export default function Detail() {
     if (heroRel) return openSources();
     saveBest(null, null, true);
   };
+  const heroJob = (isShow ? heroEp?.key : 'film') ? jobs[(isShow ? heroEp?.key : 'film') as string] || null : null;
+  // an episode's "S1 E1" after the website's words, so the button says which
+  const epOf = (key: string | null | undefined) => {
+    const m = /^(\d+)x(\d+)$/.exec(key || '');
+    return m ? ` · S${m[1]} E${m[2]}` : '';
+  };
   const primaryLabel = (() => {
-    if (busyKey) return 'Finding the best source…';
+    // pressed, and while it downloads: the website's Save & watch words (detailLogic.ts saveText)
+    if (busyKey) return `${SAVE_WORDS.starting}${epOf(busyKey)}`;
     if (isShow) {
       if (!heroEp) return loading ? 'Loading…' : 'No episodes yet';
       if (nextUp?.resume) return `Continue S${heroEp.season} E${heroEp.episode}${nextUp.at ? ` · ${fmtClock(nextUp.at)}` : ''}`;
+      if (!heroEp.owned && heroJob) return `${saveText(heroJob)}${epOf(heroEp.key)}`;
+      if (!heroEp.owned && landing[heroEp.key]) return `${SAVE_WORDS.finishing}${epOf(heroEp.key)}`;
       return heroEp.owned ? `Play S${heroEp.season} E${heroEp.episode}` : `${SAVE_WATCH} S${heroEp.season} E${heroEp.episode}`;
     }
     if (ownedMovieId) return movieResume ? `Resume ${fmtClock(movieResume)}` : 'Play';
     // on its way: what it is doing (never a stream of it — playBest.ts)
-    if (filmJob) return dlText(filmJob).toLowerCase().replace(/^\w/, c => c.toUpperCase());
+    if (filmJob) return saveText(filmJob);
+    if (landing.film) return SAVE_WORDS.finishing;
     if (heroRel) return 'See the sources';
     return SAVE_WATCH;
   })();
   const primaryIcon = isShow ? (heroEp && !heroEp.owned ? 'download' : 'play') : ownedMovieId ? 'play' : heroRel && !filmJob ? 'search' : 'download';
-  const heroJob = (isShow ? heroEp?.key : 'film') ? jobs[(isShow ? heroEp?.key : 'film') as string] || null : null;
+  // Under the button: while it downloads only the bar (the website's button fills
+  // as it goes and has no line under it); otherwise one sentence when there is one.
   const statusLine = (() => {
     const job = heroJob;
-    if (job) return {text: job.status === 'pending' ? 'Requested · waiting for approval' : `Downloading · best source · ${Math.round((job.progress || 0) * 100)}%`, tone: 'live' as const, pct: job.progress || 0};
+    if (job) return job.status === 'pending' ? null : {text: null, tone: 'live' as const, pct: job.progress || 0};
     if (note) return {...note, pct: null};
     if (!isShow && heroRel?.line) return {text: heroRel.line, tone: 'warn' as const, pct: null};
     return null;
@@ -1087,13 +1120,13 @@ export default function Detail() {
           />
           {statusLine ? (
             <View style={s.status}>
-              <Text style={[s.statusText, statusLine.tone === 'warn' && {color: '#ffcf8a'}, statusLine.tone === 'ok' && {color: colors.owned}]}>{statusLine.text}</Text>
-              {statusLine.pct != null ? <Bar f={statusLine.pct} bead={false} style={{marginTop: 6}} /> : null}
+              {statusLine.text ? <Text style={[s.statusText, statusLine.tone === 'warn' && {color: '#ffcf8a'}, statusLine.tone === 'ok' && {color: colors.owned}]}>{statusLine.text}</Text> : null}
+              {statusLine.pct != null ? <Bar f={statusLine.pct} bead={false} style={statusLine.text ? {marginTop: 6} : undefined} /> : null}
             </View>
           ) : null}
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.actionsStrip} contentContainerStyle={s.actions}>
-            {tvs.length && (ownedMovieId || heroEp?.owned) ? <ActionCircle uiId="phone.detail.playon" icon="cast" label={tvs.length === 1 ? `Play on ${tvs[0].name}` : 'Play on TV'} onPress={playOnTv} /> : null}
+            {tvs.length && (ownedMovieId || heroEp?.owned) ? <ActionCircle uiId="phone.detail.playon" icon="cast" label={tvs.length === 1 ? PLAY_ON.buttonFor(tvs[0].name) : PLAY_ON.button} lines={0} onPress={playOnTv} /> : null}
             {!isShow && !ownedMovieId && imdb ? <ActionCircle uiId="detail.sources" icon="play" label="Stream instead" onPress={() => openSources()} /> : null}
             {ownedMovieId ? (
               <ActionCircle uiId="phone.save.film"

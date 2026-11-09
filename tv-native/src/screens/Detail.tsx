@@ -73,6 +73,7 @@ import {
   libMatch,
   dropKey,
   JobMark,
+  jobMark,
   sameJob,
   sameJobs,
   dlText,
@@ -649,7 +650,7 @@ const EpisodeCard = React.memo(function EpisodeCardItem({
         <View>
           <View style={styles.epKickerRow}>
             <Text style={[styles.epKicker, ep.dl && styles.epKickerDl]} numberOfLines={1}>
-              {ep.dl ? `EPISODE ${ep.num}  ·  ${dlText(ep.dl)}` : `EPISODE ${ep.num}${ep.durationMin ? `  ·  ${ep.durationMin} MIN` : ''}`}
+              {ep.dl ? `EPISODE ${ep.num}  ·  ${dlText(ep.dl).toUpperCase()}` : `EPISODE ${ep.num}${ep.durationMin ? `  ·  ${ep.durationMin} MIN` : ''}`}
             </Text>
             {/* a saving episode wears a small download glyph after its text (elia, 2026-10-07) */}
             {ep.dl ? <Icon name="download" size={11} color="#8cffbe" /> : null}
@@ -952,24 +953,14 @@ export default function Detail({
   // The Play button's own episode ("SxE"; "film" on a film page). Written by
   // the render once the target is known; the socket handler reads it.
   const heroKeyRef = useRef<string | null>(null);
-  // Speed and stage of the Play button's job, for the status line only — the
-  // cards never show them, so they are kept out of epJobs (whose sameJob
-  // compare is what keeps the cards from repainting every second).
-  const [dlLive, setDlLive] = useState<{key: string; speed: number; phase: string | null} | null>(null);
-  const dlLiveAt = useRef(0);
+  // The stage of the Play button's job (finding / starting / copying…): what
+  // tells "Starting download…" and "Almost there…" apart on the button (the
+  // website's words, detailLogic.ts saveText). Only a change of stage repaints.
+  const [dlLive, setDlLive] = useState<{key: string; phase: string | null} | null>(null);
   const noteLive = useCallback((key: string, j: DownloadJob) => {
     if (key !== heroKeyRef.current) return;
-    const speed = j.downloadSpeed || 0;
     const phase = j.phase || null;
-    setDlLive(prev => {
-      if (prev && prev.key === key && prev.phase === phase) {
-        // a repaint at most every 2 s, and only for a change the line can show
-        if (Date.now() - dlLiveAt.current < 2000) return prev;
-        if (Math.round(prev.speed / 1e5) === Math.round(speed / 1e5)) return prev;
-      }
-      dlLiveAt.current = Date.now();
-      return {key, speed, phase};
-    });
+    setDlLive(prev => (prev && prev.key === key && prev.phase === phase ? prev : {key, phase}));
   }, []);
   // How a job ended, by key, when the socket said (done / error / declined…).
   // The poll only sees a job vanish; this is what tells "ready" from "failed".
@@ -1030,13 +1021,13 @@ export default function Detail({
         noteLive(jk, j);
         if (!j.season || !j.episode) {
           keys.set(j.id, 'film');
-          if (!film || j.mine) film = {status: j.status, progress: j.progress || 0, id: j.id, mine: !!j.mine};
+          if (!film || j.mine) film = jobMark(j);
           live = true;
           continue;
         }
         const k = jk;
         keys.set(j.id, k);
-        if (!next[k] || j.mine) next[k] = {status: j.status, progress: j.progress || 0, id: j.id, mine: !!j.mine};
+        if (!next[k] || j.mine) next[k] = jobMark(j);
         live = true;
       }
       // a running job that is gone now: remember how it ended, unless the
@@ -1637,7 +1628,7 @@ export default function Detail({
         return;
       }
       const key = j.season && j.episode ? `${j.season}x${j.episode}` : 'film';
-      const val: JobMark = {status: j.status, progress: j.progress || 0, id: j.id, mine: !!j.mine};
+      const val: JobMark = jobMark(j);
       const fresh = !jobKeys.current.has(j.id);
       if (fresh) console.log('[live] detail: job', j.status, key);
       noteLive(key, j);
@@ -2388,7 +2379,7 @@ export default function Detail({
   const heroJob = heroOwned || !heroKey ? null : heroKey === 'film' ? movieJob : epJobs[heroKey];
   // no target yet (a show whose episode list has not landed): nothing to say
   const heroDl = !heroKey
-    ? ({busy: false, line: null, pct: null, tone: 'hint'} as ReturnType<typeof dlStatus>)
+    ? ({busy: false, label: null, line: null, pct: null, tone: 'hint'} as ReturnType<typeof dlStatus>)
     : dlStatus(
         heroName,
         heroJob,
@@ -2456,28 +2447,31 @@ export default function Detail({
       clearTimeout(give);
     };
   }, [dlNote, ownedSig, ownedMovieId, item.title, bumpLibrarySoon]);
-  // The line under Play: a strip while it saves, then one muted sentence.
-  const heroStatusLine = heroDl.line ? (
+  // Under Play: the strip while it saves (the website's button fills as it
+  // goes), or one muted sentence when it is not saving.
+  const heroStatusLine = heroDl.line || heroDl.pct != null ? (
     <View style={styles.movieDl}>
       {heroDl.pct != null ? (
         <View style={styles.movieDlTrack}>
           <View style={[styles.epBarFill, styles.epBarFillDl, styles.movieDlFill, {width: `${Math.max(2, Math.round(heroDl.pct * 100))}%`}]} />
         </View>
       ) : null}
-      <View style={styles.dlLineRow}>
-        {heroDl.tone === 'live' ? <Icon name="download" size={11} color="#8cffbe" /> : null}
-        {heroDl.tone === 'ok' ? <Icon name="check" size={11} color="#8cffbe" /> : null}
-        <Text
-          style={[
-            styles.movieDlHint,
-            heroDl.tone === 'live' && styles.dlLineLive,
-            heroDl.tone === 'ok' && styles.dlLineOk,
-            heroDl.tone === 'warn' && styles.dlLineWarn,
-          ]}
-          numberOfLines={1}>
-          {heroDl.line}
-        </Text>
-      </View>
+      {heroDl.line ? (
+        <View style={styles.dlLineRow}>
+          {heroDl.tone === 'live' ? <Icon name="download" size={11} color="#8cffbe" /> : null}
+          {heroDl.tone === 'ok' ? <Icon name="check" size={11} color="#8cffbe" /> : null}
+          <Text
+            style={[
+              styles.movieDlHint,
+              heroDl.tone === 'live' && styles.dlLineLive,
+              heroDl.tone === 'ok' && styles.dlLineOk,
+              heroDl.tone === 'warn' && styles.dlLineWarn,
+            ]}
+            numberOfLines={1}>
+            {heroDl.line}
+          </Text>
+        </View>
+      ) : null}
     </View>
   ) : null;
   // The two facts the site puts in a show's meta line.
@@ -2759,8 +2753,10 @@ export default function Detail({
             edgeLeft
             busy={heroDl.busy}
             label={
-              heroDl.busy
-                ? `Getting ${heroName}…`
+              heroDl.label
+                ? // the website's words while it saves (detailLogic.ts saveText) beside
+                  // its spinner, and which episode
+                  `${heroDl.label} · ${heroName}`
                 : nextUp?.resume
                   ? // the clock when it is part-way through (past 10 s), as the site's
                     `▶  Continue S${nextUp.season} E${nextUp.episode}${nextUp.at ? ` · ${fmtClock(nextUp.at)}` : ''}`
@@ -2938,19 +2934,19 @@ export default function Detail({
         <PrimaryBtn uiId="detail.play"
           hasTVPreferredFocus
           edgeLeft
-          busy={!ownedMovieId && !movieJob && heroDl.busy}
+          // the spinner and the website's words while it saves (its button's
+          // mini-spinner and saveState)
+          busy={!ownedMovieId && heroDl.busy}
           label={
             ownedMovieId
               ? movieResume
                 ? `▶  Resume ${fmtClock(movieResume)}`
                 : '▶  Play'
-              : movieJob
-                ? `⬇  ${dlText(movieJob).toLowerCase().replace(/^\w/, c => c.toUpperCase())}`
-                : heroDl.busy
-                  ? 'Getting it…'
-                  : heroRel
-                    ? '≡  Sources'
-                    : `⬇  ${SAVE_WATCH}`
+              : heroDl.label
+                ? heroDl.label // the website's words while it saves (detailLogic.ts saveText)
+                : heroRel
+                  ? '≡  Sources'
+                  : `⬇  ${SAVE_WATCH}`
           }
           // one press: a copy on disk plays; anything else saves the best
           // source (Save & watch, the website's word — never streamed
