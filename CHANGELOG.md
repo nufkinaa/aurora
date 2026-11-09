@@ -3,6 +3,14 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.20 — 2026-11-09
+
+**Aurora for Android phones 1.1.0** (phones offer the update by themselves) — and Play on TV on the website.
+- **Play on TV / Continue on this phone.** Press Play on TV on a title, an episode or in the player (website or phone app): your TV wakes and plays it from the same second, and your phone or computer becomes its remote. "Continue on this phone" brings it back. A TV on "Who's watching?" asks for the profile's PIN or password and never skips a lock; only the household can send to a TV, kids profiles never.
+- **The phone app catches up with the website:** a More menu with every screen (the same list and words as the website's), a TV button at the top while one of your TVs is on, Pick together, Hebrew subtitles and Fix timing, Save & watch (no streaming straight from a torrent), "Other" asks what's wrong first, tell me when it's ready, the overnight-prepared copies, and the night sky on sign-in.
+- **Storage on the phone** (Settings → Saved on this phone): save to the SD card, a space limit, tidy up an episode a day after you finish it (off by default), keep the next 2 episodes ready on Wi-Fi (off by default), and save a whole season in one go.
+- Aurora TV 5.9.0 with all of this follows after its check on the TV.
+
 ## 1.15.19 — 2026-11-09
 
 - **Behind the scenes: a small database for the records that grow.** Viewing sessions, watch history, statistics, downloads, uploads, requests, reports and a few more now live in `data/aurora.db` (SQLite), writing only what changed instead of rewriting whole files. On the first start each one moves over inside a checked step (counts and contents compared both ways) and its old file is kept as `.migrated-<date>`; if anything goes wrong that record simply stays a file. Profiles, sign-ins and settings stay as files. Backups keep holding every record. Going back: `node scripts/sqlite-export.js`, or `"sqlite": false` in config.json.
