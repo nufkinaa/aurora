@@ -527,6 +527,27 @@ router.post("/api/admin/library/copies/delete", (req, res) => {
   res.status(r.status).json(r.body);
 });
 
+// ---------- Overnight (media/overnight.js) ----------
+// The line ("Overnight: 6 episodes prepared, 3 downloaded ahead · next run
+// 02:00"), what is prepared and why, tonight's plan, the downloads ahead and
+// the last runs; the switch, the hours and the disk budget; Run now.
+router.get("/api/admin/overnight", (req, res) => {
+  try { res.json(require("../media/overnight").status()); } catch (err) {
+    console.warn("[admin] overnight status failed:", err && err.message ? err.message : err);
+    res.status(500).json({ error: "Could not read the overnight preparation." });
+  }
+});
+router.post("/api/admin/overnight/settings", (req, res) => {
+  const r = require("../media/overnight").setSettings(req.body || {});
+  if (r.error) return res.status(400).json(r);
+  res.json(r);
+});
+router.post("/api/admin/overnight/run", (req, res) => {
+  const r = require("../media/overnight").runNow();
+  if (r.error) return res.status(409).json(r);
+  res.json(r);
+});
+
 // ---------- "Free up space" (media/freespace.js + media/diskforecast.js) ----------
 // What is SAFE to remove, for the admin to choose from: titles everyone who
 // started has finished, on nobody's My List, at least `days` days in the

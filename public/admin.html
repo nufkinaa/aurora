@@ -1694,6 +1694,55 @@
           <div class="muted dl-who-zone" id="dl-who-zone"></div>
         </div>
       </details>
+      <!-- ================= OVERNIGHT (media/overnight.js) ================= -->
+      <style>
+        /* "Overnight": the next episodes downloaded ahead, made playable at night */
+        .on-top { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 8px 2px 2px; }
+        .on-line { flex: 1 1 260px; margin: 0; font-size: 0.92rem; line-height: 1.45; }
+        .on-body { margin-top: 8px; }
+        .on-h { font-size: 0.95rem; margin: 12px 0 2px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+        .on-h .muted { font-weight: 400; font-size: 0.82rem; }
+        .on-list { list-style: none; margin: 4px 0 0; padding: 0; border-top: 1px solid rgba(255,255,255,0.06); max-height: 44vh; overflow: auto; }
+        .on-list li { padding: 7px 4px; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 0.86rem; line-height: 1.4; overflow-wrap: anywhere; }
+        .on-list li.on-empty { color: var(--text-dim); border-bottom: 0; }
+        .on-meta { display: block; color: var(--text-faint); font-size: 0.78rem; }
+        .on-note { color: var(--text-dim); font-size: 0.84rem; margin: 4px 2px 0; line-height: 1.45; }
+        .on-set input[type="time"] { flex: none; min-width: 0; max-width: 120px; }
+        .on-set select { padding: 6px 8px; background: var(--bg-input, #1c1c24); color: inherit; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; max-width: 100%; }
+        @media (max-width: 640px) {
+          .on-top .mini { flex: 1 1 auto; min-height: 36px; }
+          .on-set label { width: 100%; flex-wrap: wrap; }
+        }
+      </style>
+      <details class="more" data-more="d-overnight" id="on-card" data-title="Overnight" data-sub="the next episodes downloaded ahead, and made playable at night without a live conversion">
+        <div class="more-body">
+          <div class="on-top">
+            <p class="on-line" id="on-line" role="status">Reading…</p>
+            <button type="button" class="mini" id="on-run">Run now</button>
+            <button type="button" class="mini" id="on-toggle" aria-expanded="false" aria-controls="on-body">Details</button>
+          </div>
+          <div class="on-body" id="on-body" hidden>
+            <p class="on-note" id="on-budget"></p>
+            <h3 class="on-h">Prepared <span class="muted" id="on-prep-sum"></span></h3>
+            <ul class="on-list" id="on-prepared"></ul>
+            <h3 class="on-h">Tonight's plan <span class="muted" id="on-plan-sum"></span></h3>
+            <ul class="on-list" id="on-plan"></ul>
+            <h3 class="on-h">Downloaded ahead <span class="muted" id="on-ahead-sum"></span></h3>
+            <ul class="on-list" id="on-ahead"></ul>
+            <h3 class="on-h">Last runs</h3>
+            <ul class="on-list" id="on-runs"></ul>
+            <div class="fs-set on-set">
+              <h3>Settings</h3>
+              <label><input type="checkbox" id="on-on" /> Prepare at night</label>
+              <label>Quiet hours from <input type="time" id="on-from" value="02:00" aria-label="Quiet hours start" /> to <input type="time" id="on-to" value="07:00" aria-label="Quiet hours end" /></label>
+              <label>Use at most <input type="number" id="on-pct" min="1" max="50" step="1" value="10" inputmode="numeric" aria-label="Disk budget, percent of the free space" /> % of the free space</label>
+              <label>Download ahead <select id="on-ahead-n" aria-label="Episodes downloaded ahead"><option value="2">the next two episodes</option><option value="1">the next episode</option><option value="0">nothing</option></select></label>
+              <button type="button" class="btn small btn-primary" id="on-save">Save</button>
+            </div>
+            <p class="on-note">Only for the devices people here really use, and only where one of them can't play a title as it is: a copy with the sound made AAC, or a 1080p H.264 copy. It pauses the moment somebody starts watching and goes on when it is quiet again. A prepared copy goes once everyone it was made for has watched it, or after a week nobody needed it. Downloads ahead are shows only: the next episodes of what each person is watching.</p>
+          </div>
+        </div>
+      </details>
       <details class="more hidden" data-more="d-mylist" id="ml-card" data-title="Left from My List downloads" data-sub="copies the old My List downloads fetched — still tidied up if nobody watches them">
         <div class="more-body">
           <div class="bar-row" style="align-items:center;margin-top:10px;flex-wrap:wrap;gap:10px 16px">
@@ -6631,6 +6680,117 @@
       btn.disabled = false;
       await loadFreeSpace();
     });
+    // ---------- Overnight (media/overnight.js) ----------
+    // The calm line (also the section's own sub-line, so it reads closed), and
+    // behind Details: what is prepared and why, tonight's plan, the downloads
+    // ahead, the last runs, the settings.
+    const ON_KIND = { copy: "copy, sound made AAC", h264: "1080p H.264" };
+    const ON_REASON = { next: "next episode", continue: "Continue watching", landed: "asked for, not watched yet" };
+    const ON_STATUS = { done: "landed", downloading: "downloading", approved: "waiting its turn", pending: "waiting for your approval", error: "failed", canceled: "cancelled", declined: "declined", gone: "no longer in the list" };
+    const onWhen = (t) => (t ? fmtWhen(new Date(t).toISOString()) : "—");
+    const onLi = (main, meta) => `<li>${esc(main)}${meta ? `<span class="on-meta">${esc(meta)}</span>` : ""}</li>`;
+    const onEmpty = (text) => `<li class="on-empty">${esc(text)}</li>`;
+    async function loadOvernight() {
+      let d;
+      try { d = await json("/api/admin/overnight"); } catch { return; }
+      if (!d || d.error || !d.settings) return;
+      $("#on-line").textContent = d.line;
+      const sub = $("#sub-d-overnight");
+      if (sub) sub.textContent = d.line;
+      const b = d.budget || {};
+      $("#on-budget").textContent = `Disk budget ${fmtBytes(b.bytes)} (${b.pct}% of the free space) · ${fmtBytes(b.usedBytes)} used${b.freeBytes != null ? ` · ${fmtBytes(b.freeBytes)} free` : ""}.` +
+        (d.making ? ` Now: ${d.making.label}, ${Math.round((d.making.progress || 0) * 100)}%${d.making.paused ? " — paused while someone watches" : ""}.` : "") +
+        (d.state === "waiting" && d.busyWhy ? ` Waiting: ${d.busyWhy}.` : "");
+      const prep = d.prepared || [];
+      $("#on-prep-sum").textContent = prep.length ? `${prep.length} · ${fmtBytes(prep.reduce((n, r) => n + (r.bytes || 0), 0))}` : "";
+      $("#on-prepared").innerHTML = prep.length
+        ? prep.map((r) => onLi(`${r.label || r.id} — ${ON_KIND[r.kind] || r.kind} · ${fmtBytes(r.bytes)}`,
+          `for ${(r.people || []).join(", ") || "the house"} · ${ON_REASON[r.reason] || r.reason || ""} · made ${onWhen(r.madeAt)}${r.ms ? ` in ${fmtDur(r.ms / 1000)}` : ""} · ${r.usedAt ? `played ${onWhen(r.usedAt)}` : "not played yet"}`)).join("")
+        : onEmpty("Nothing prepared right now.");
+      const p = d.plan;
+      $("#on-plan-sum").textContent = p ? `made ${onWhen(p.at)} · ${p.make.length} to prepare, ${(p.keep || []).length} ready, ${p.skip.length} over the budget, ${p.considered} looked at` : "";
+      $("#on-plan").innerHTML = !p
+        ? onEmpty(`No plan yet — it is made when the quiet hours begin (${d.settings.from}), or with Run now.`)
+        : [...p.make.map((w) => onLi(`${w.label} — ${ON_KIND[w.kind] || w.kind}, about ${fmtBytes(w.bytes)}`, `${ON_REASON[w.reason] || w.reason} · for ${(w.people || []).join(", ")} · needed by ${(w.devices || []).join(", ") || "the house's devices"}`)),
+          ...p.skip.map((w) => onLi(`Not tonight: ${w.label} — ${ON_KIND[w.kind] || w.kind}`, w.why)),
+          ...(p.notes || []).slice(0, 12).map((n) => onLi(`Nothing needed: ${n.label}`, n.why)),
+          ...(p.removed || []).map((x) => onLi(`Removed: ${x.key.split("|")[0]}`, x.why))].join("") || onEmpty("Nothing to prepare: every device here plays what is coming up as it is.");
+      const a = d.ahead || {};
+      $("#on-ahead-sum").textContent = `${a.landedDay || 0} landed in the last day${a.onTheWay ? `, ${a.onTheWay} on the way` : ""}`;
+      $("#on-ahead").innerHTML = [
+        ...(a.last && a.last.why ? [onLi(a.last.why)] : []),
+        ...(a.recent || []).map((r) => onLi(`${r.label} — ${ON_STATUS[r.status] || r.status}`, `for ${r.name || r.profile} · ${r.nth === 0 ? "the next episode" : "the one after"} · asked ${onWhen(r.at)}`)),
+      ].join("") || onEmpty(d.settings.aheadEpisodes ? "Nothing downloaded ahead yet." : "Downloading ahead is off.");
+      $("#on-runs").innerHTML = (d.runs || []).length
+        ? d.runs.map((r) => onLi(`${onWhen(r.startedAt)} – ${onWhen(r.endedAt)}: ${r.made.length} prepared (${fmtBytes(r.made.reduce((n, m) => n + (m.bytes || 0), 0))})${r.stopped.length ? `, ${r.stopped.length} stopped` : ""}${r.failed.length ? `, ${r.failed.length} failed` : ""}`,
+          [r.end, ...r.failed.slice(0, 3).map((f) => `${f.label}: ${f.why}`)].filter(Boolean).join(" · "))).join("")
+        : onEmpty("No run yet.");
+      const s = d.settings;
+      const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest(".on-set");
+      if (!typing) {
+        $("#on-on").checked = !!s.on;
+        $("#on-from").value = s.from;
+        $("#on-to").value = s.to;
+        $("#on-pct").value = s.budgetPct;
+        $("#on-ahead-n").value = String(s.aheadEpisodes);
+      }
+    }
+    $("#on-toggle").addEventListener("click", () => {
+      const b = $("#on-toggle");
+      const open = b.getAttribute("aria-expanded") !== "true";
+      b.setAttribute("aria-expanded", String(open));
+      b.textContent = open ? "Hide details" : "Details";
+      $("#on-body").hidden = !open;
+    });
+    $("#on-save").addEventListener("click", async () => {
+      const pct = parseInt($("#on-pct").value, 10);
+      if (!(pct >= 1 && pct <= 50)) return toast("Disk budget: a whole number from 1 to 50 (% of the free space)");
+      const btn = $("#on-save");
+      btn.disabled = true;
+      try {
+        const r = await adminFetch("/api/admin/overnight/settings", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ on: $("#on-on").checked, from: $("#on-from").value, to: $("#on-to").value, budgetPct: pct, aheadEpisodes: parseInt($("#on-ahead-n").value, 10) }) });
+        const res = await r.json().catch(() => ({}));
+        if (!r.ok || res.error) throw new Error(res.error || "Could not save");
+        toast("Saved");
+      } catch (err) { toast(err.message); }
+      btn.disabled = false;
+      await loadOvernight();
+    });
+    $("#on-run").addEventListener("click", async () => {
+      const btn = $("#on-run");
+      btn.disabled = true;
+      try {
+        const r = await adminFetch("/api/admin/overnight/run", { method: "POST" });
+        const res = await r.json().catch(() => ({}));
+        if (!r.ok || res.error) throw new Error(res.error || "Could not start it");
+        toast(res.waiting || "Started — tonight's run, now");
+      } catch (err) { toast(err.message); }
+      btn.disabled = false;
+      setTimeout(loadOvernight, 1500);
+    });
+    // Copy for Claude: the line, the settings, and every list behind Details.
+    const overnightText = async () => {
+      const d = await json("/api/admin/overnight");
+      const s = d.settings || {};
+      const b = d.budget || {};
+      const p = d.plan;
+      return [
+        d.line,
+        MD.list([["switch", s.on ? "on" : "off"], ["quiet hours", `${s.from}–${s.to} (server time)`], ["state", d.state + (d.busyWhy ? ` — ${d.busyWhy}` : "")],
+          ["disk budget", `${fmtBytes(b.bytes)} (${b.pct}% of the free space), ${fmtBytes(b.usedBytes)} used, ${b.freeBytes != null ? fmtBytes(b.freeBytes) + " free" : "free space not read"}`],
+          ["downloaded ahead", `${s.aheadEpisodes === 0 ? "off" : s.aheadEpisodes === 1 ? "the next episode" : "the next two episodes"}${d.ahead && d.ahead.last && d.ahead.last.why ? ` — ${d.ahead.last.why}` : ""}`],
+          ["now", d.making ? `${d.making.label} ${Math.round((d.making.progress || 0) * 100)}%${d.making.paused ? " (paused)" : ""}` : ""]]),
+        "\nPrepared:", MD.table(["title", "kind", "size", "for", "why", "made", "last played"], (d.prepared || []).map((r) => [r.label || r.id, ON_KIND[r.kind] || r.kind, fmtBytes(r.bytes), (r.people || []).join(", "), ON_REASON[r.reason] || r.reason || "", onWhen(r.madeAt), r.usedAt ? onWhen(r.usedAt) : "not yet"])),
+        "\nTonight's plan" + (p ? ` (made ${onWhen(p.at)}, ${p.considered} titles looked at):` : ": none yet"),
+        p ? MD.table(["title", "kind", "about", "why", "for", "devices"], p.make.map((w) => [w.label, ON_KIND[w.kind] || w.kind, fmtBytes(w.bytes), ON_REASON[w.reason] || w.reason, (w.people || []).join(", "), (w.devices || []).join(", ")])) : "",
+        p && p.skip.length ? "\nNot tonight:\n" + MD.table(["title", "kind", "why"], p.skip.map((w) => [w.label, w.kind, w.why])) : "",
+        p && (p.notes || []).length ? "\nNothing needed:\n" + MD.table(["title", "why"], p.notes.map((n) => [n.label, n.why])) : "",
+        "\nDownloaded ahead:", MD.table(["episode", "for", "which", "status", "asked"], ((d.ahead && d.ahead.recent) || []).map((r) => [r.label, r.name || r.profile, r.nth === 0 ? "next" : "the one after", ON_STATUS[r.status] || r.status, onWhen(r.at)])),
+        "\nLast runs:", MD.table(["began", "ended", "prepared", "stopped", "failed", "why it ended"], (d.runs || []).map((r) => [onWhen(r.startedAt), onWhen(r.endedAt), `${r.made.length} (${fmtBytes(r.made.reduce((n, m) => n + (m.bytes || 0), 0))})`, r.stopped.length, r.failed.length, r.end || ""])),
+        "\nDevices by person:\n" + ((d.devices || []).map((x) => `- ${x.person}: ${x.devices.join(", ")}`).join("\n") || "(none seen yet — the house's devices are used)"),
+      ].filter((x) => x !== "").join("\n");
+    };
     // Copy for Claude: the forecast and every candidate with why, as plain text.
     const freeSpaceText = async () => {
       const d = await json(`/api/admin/library/freeup?days=${fsDays()}`);
@@ -7198,6 +7358,10 @@
         load: () => loadFreeSpace(),
         copy: () => freeSpaceText(),
       },
+      "d-overnight": {
+        load: () => loadOvernight(),
+        copy: () => overnightText(),
+      },
       "d-disk": {
         load: () => { loadDisk(); loadLibraryTree(); },
         copy: async () => {
@@ -7409,7 +7573,7 @@
       server: () => { loadUpdateCheck(); loadOpen("server"); },
       // (copies and My List decide whether their card is there at all; the
       // limits feed the "holding while someone watches" line over the list)
-      downloads: () => { loadDownloads(); loadDisk(); loadCopies(); loadMyList(); loadLimits(); loadOpen("downloads"); },
+      downloads: () => { loadDownloads(); loadDisk(); loadCopies(); loadMyList(); loadLimits(); loadOvernight(); loadOpen("downloads"); },
       moderation: () => { loadReports(); loadRequests(); loadOpen("moderation"); },
       logs: () => loadLogs(),
       actions: () => { loadActions(); loadOpen("actions"); },
@@ -7606,7 +7770,7 @@
     setInterval(() => {
       if (!ADMIN_PW || document.hidden || RESTARTING) return;
       if (activeTab === "server") refreshOpen("server", ["sv-machine"]);
-      if (activeTab === "downloads") { loadDownloads(); loadLimits(); refreshOpen("downloads", ["d-upload"]); } // (the "holding" line follows who is watching)
+      if (activeTab === "downloads") { loadDownloads(); loadLimits(); refreshOpen("downloads", ["d-upload", "d-overnight"]); } // (the "holding" line follows who is watching)
     }, 8000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden && ADMIN_PW) loadSummary(); });
 

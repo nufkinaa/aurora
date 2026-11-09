@@ -18,7 +18,7 @@ const stillsLib = lazy(require, "../media/stills");
 // right now" (lib/inuse.js) — what the admin's "delete this copy" asks
 // before it deletes anything.
 const inuse = require("../lib/inuse");
-router.use(["/stream/video/:id", "/stream/hls/:id", "/stream/transcode/:id", "/stream/download/:id"], (req, res, next) => {
+router.use(["/stream/video/:id", "/stream/hls/:id", "/stream/transcode/:id", "/stream/download/:id", "/stream/prepared/:id"], (req, res, next) => {
   inuse.touch(req.params.id);
   next();
 });
@@ -186,6 +186,16 @@ router.get("/offline/file/:id", (req, res) => {
   if (!file) return res.status(404).send("Not prepared");
   res.setHeader("Cache-Control", "private, max-age=0");
   res.sendFile(file);
+});
+
+// A file made overnight for devices that cannot play the title as it is
+// (media/prepared.js — ?k=copy | h264). Range-capable: the players open it as
+// they would the file itself, and every seek is native.
+router.get("/stream/prepared/:id", (req, res) => {
+  const file = require("../media/prepared").fileFor(req.params.id, String(req.query.k || ""));
+  if (!file) return res.status(404).send("Not prepared");
+  res.setHeader("Cache-Control", "private, max-age=0");
+  res.sendFile(file, { headers: { "Content-Type": "video/mp4" } });
 });
 
 // A frame at a given second (?t=), for "resume from here" prompts.

@@ -114,6 +114,7 @@ const SEGMENTS = new Set((
   "phone phone-app .well-known " + // the phone app (/download/phone, /api/admin/phone-app, /.well-known/assetlinks.json)
   "caps play " + // what a device can play (/api/caps, /api/caps/:id/play/:itemId — routes/avcaps.js)
   "drives use new-downloads test keep-fast stop-using tune preview revert " + // storage drives (/api/admin/drives, …/use, …/new-downloads, …/test, …/keep-fast, …/stop-using, …/tune, …/tune/preview, …/tune/revert — lib/drives)
+  "overnight prepared " + // the overnight preparation (/api/admin/overnight, …/settings, …/run, /stream/prepared/:id — media/overnight.js)
   "uploads chunk retry " +
   "restore " + // a copy of the household's data on every drive (/api/admin/backups/drives, …/settings, …/run, …/check, …/summary, …/restore — lib/drivecopies.js)
   "reset request code check complete reset-requests reset-code app-start app-finish " + // sign-in round: password reset, the phone's Google (routes/auth.js) // admin "Add your own file" (/api/admin/uploads, …/link, …/:id/chunk, …/cancel, …/retry, …/dismiss)

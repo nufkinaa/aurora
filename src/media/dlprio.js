@@ -15,7 +15,8 @@
 //   1  PERSON     a person asked for it (Download, Save & watch, Get another
 //                 version, Try again)
 //   2  AUTO       the next episode smart downloads fetched for later
-//   3  BACKGROUND a followed show's new episode, what My List left behind
+//   3  BACKGROUND a followed show's new episode, what My List left behind,
+//                 the episode after next downloaded ahead (media/overnight.js)
 //
 // FAIRNESS: a waiting job moves up one class for every AGE_STEP_MS it has
 // waited — never past PERSON (only a real viewer makes NOW) — so automatic
@@ -89,7 +90,7 @@ const baseClass = (job, t = Date.now(), streaming = null) => {
   if (job.urgentUntil && job.urgentUntil > t) return NOW;
   if (streaming && job.infoHash && streaming.has(String(job.infoHash).toLowerCase())) return NOW;
   if (!job.smart) return PERSON;
-  if (job.auto === "follow" || job.auto === "mylist") return BACKGROUND;
+  if (job.auto === "follow" || job.auto === "mylist" || job.auto === "ahead") return BACKGROUND;
   return AUTO;
 };
 
