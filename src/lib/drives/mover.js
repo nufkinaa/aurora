@@ -285,6 +285,8 @@ module.exports = (ctx) => {
         await Promise.resolve(deps.rescan()).catch(() => {});
         if (cur.reason === "evacuate" && evac()[cur.from]) evac()[cur.from].moved = (evac()[cur.from].moved || 0) + 1;
         try { if (ctx.afterMove) ctx.afterMove(cur); } catch {}
+        // both drives' shares are counted again shortly (index.js recountSoon)
+        try { require("./index").recountSoon(cur.src); require("./index").recountSoon(cur.dst); } catch {}
         finish(cur, "moved", `moved "${cur.title}" (${size(cur.bytes || 0)}) from ${cur.fromRoot} to ${cur.toRoot}${cur.landed && cur.landed.beside && cur.landed.beside.length ? ` (${cur.landed.beside.length} file(s) landed beside one of the same name)` : ""}`);
         return "moved";
       }

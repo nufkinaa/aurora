@@ -2887,6 +2887,8 @@ const finish = async (job, destPath) => {
   // No Hebrew subtitles anywhere, for somebody who watches with Hebrew ones:
   // one is translated in the background (media/subai.js; only with an AI key)
   try { require("./subai").landed(destPath, [job.profile, ...(job.also || [])].filter(Boolean)); } catch {}
+  // Aurora's share of that drive is counted again shortly (lib/drives recountSoon), not at the 6-hour round
+  try { drivesLib().recountSoon(destPath); } catch {}
   console.log(`[download] ${job.id.slice(0, 6)} done "${job.title}"`);
   tellMyList(job);
   tellReplace(job);

@@ -281,6 +281,7 @@ const live = {
   speedQueue: [],
   speedWaiting: null, // why the queue waits
   usageRunning: new Set(),
+  recount: new Map(), // id -> timer: count Aurora's share again shortly (recountSoon)
   swept: new Set(), // drives whose leftover test files were looked for since the start
   titles: { at: 0, by: new Map() },
   // drives Aurora keeps its hands off for a while (lib/drives/tune.js: the
@@ -638,7 +639,7 @@ const start = () => {
   t1.unref?.(); t2.unref?.();
   live.timers.push(t1, t2);
 };
-const stop = () => { for (const t of live.timers) { clearTimeout(t); clearInterval(t); } live.timers = []; live.started = false; if (moverInst) moverInst.stop(); };
+const stop = () => { for (const t of live.recount.values()) clearTimeout(t); live.recount.clear(); for (const t of live.timers) { clearTimeout(t); clearInterval(t); } live.timers = []; live.started = false; if (moverInst) moverInst.stop(); };
 
 // ---------- questions from the rest of the server (all from memory) ----------
 const onPath = (abs) => {
@@ -656,6 +657,29 @@ const onPath = (abs) => {
   const s = stateOf(drive.id);
   const paused = isPaused(drive.id);
   return { drive, network: !!drive.network, answering: s.answering !== false && !paused, paused, state: s };
+};
+// Something landed on, moved to or was removed from a drive: count Aurora's share
+// of it again soon (it is otherwise counted every {USAGE_EVERY_MS} — six hours —
+// and a film that just landed showed as "Other" until then; elia, 2026-11-09).
+// Several changes close together are counted once, ~30 s after the last.
+const RECOUNT_AFTER_MS = 30 * SEC;
+const recountSoon = (abs) => {
+  try {
+    const o = abs ? onPath(abs) : null;
+    if (!o || !o.drive) return false;
+    const id = o.drive.id;
+    const t = live.recount.get(id);
+    if (t) clearTimeout(t);
+    const timer = setTimeout(() => {
+      live.recount.delete(id);
+      const d = live.drives.find((x) => x.id === id);
+      // (through the exports, so a test can watch it)
+      if (d && !isPaused(id) && stateOf(id).answering !== false) module.exports._internals.measureUsage(d).catch(() => {});
+    }, RECOUNT_AFTER_MS);
+    if (timer.unref) timer.unref();
+    live.recount.set(id, timer);
+    return true;
+  } catch { return false; }
 };
 // onPath, after a fresh check of a network drive (a download about to land
 // there). A paused drive: the landing waits until it is back (at most 15 min).
@@ -1071,7 +1095,7 @@ const summaryFacts = () => {
 };
 
 module.exports = {
-  start, stop, list, use, setNewDownloads, testAgain, pickRoot, setKeepFast, stopUsing, moverView, mover, candidatesFor, onPath, confirm, isDown, spaceOf, rootReadable, guard, unavailableFor, summaryFacts,
+  start, stop, list, use, setNewDownloads, testAgain, recountSoon, pickRoot, setKeepFast, stopUsing, moverView, mover, candidatesFor, onPath, confirm, isDown, spaceOf, rootReadable, guard, unavailableFor, summaryFacts,
   VIEWER_MESSAGE, PAUSED_MESSAGE, CODE,
   deps, limits,
   // for lib/drives/tune.js

@@ -298,6 +298,7 @@ const deleteLibraryFile = async (id, { rescan = true } = {}) => {
     realtime.libraryUpdated();
   }
   console.log(`[admin] deleted file ${id} → ${result.deleted.join(", ")} (${result.freedBytes} bytes)`);
+  try { require("../lib/drives").recountSoon(entry.path); } catch {} // Aurora's share of that drive, counted again shortly
   return { status: 200, body: { ok: true, ...result } };
 };
 router.delete("/api/admin/library/file/:id", async (req, res) => {
@@ -360,6 +361,7 @@ const deleteLibraryTitle = (type, id, { rescan = true } = {}) => {
     realtime.libraryUpdated();
   }
   console.log(`[admin] deleted ${type} "${id}" → ${folder}`);
+  try { require("../lib/drives").recountSoon(folder); } catch {} // Aurora's share of that drive, counted again shortly
   return R(200, { ok: true });
 };
 router.delete("/api/admin/library/:type/:id", (req, res) => {
