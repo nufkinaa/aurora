@@ -3,6 +3,15 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.26 — 2026-11-09
+
+**Aurora TV 5.9.1 and Aurora for Android phones 1.1.1** (checked on the Mi TV and the phone) — the apps catch up with the website:
+- **Watch franchises in order:** the line on a film's page, the franchise page with release or story order, the next film at the end, and Continue the franchise on Home.
+- **Calendar** in the TV's menu and in More on the phone.
+- **Pictures on the timeline:** on the TV, a tap steps 10 seconds, holding glides and speeds up, letting go stops at once, OK jumps there and Back cancels; the picture follows you.
+- **The Next episode countdown** at the credits, with Watch credits.
+- **The same download words as the website** ("Downloading · 42%", "Almost there…"). On the phone, Pick together shows its QR code and is on the AI page, long TV names show in full, small screens no longer cut settings notes, and a title opened from a link turns to Play as soon as it lands.
+
 ## 1.15.25 — 2026-11-09
 
 - **Pictures on the timeline.** Drag the bar, hover it or skip with the arrow keys and you see the moment you'll land on. Aurora makes small preview pictures for every title in the background (about 1.4 MB a title, when it lands and at night).
