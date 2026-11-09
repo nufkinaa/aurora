@@ -298,6 +298,41 @@ devices.configure({
 });
 // ---------- [/phone-remote] ----------
 
+// ---------- "What do we watch tonight?" (lib/grouppick.js, routes/group.js) ----------
+// A member's socket watches its session: it is told `group_update { code,
+// rev }` whenever the session changed, and asks the route again (which is
+// where who may see what is decided). The watch is also the member's
+// presence: a socket that closes makes them "away" after the grace.
+const grouppick = require("./lib/grouppick");
+const groupWatchers = new Map(); // code -> Set(clientId)
+const groupUnwatch = (client) => {
+  const w = client.groupWatch;
+  if (!w) return;
+  client.groupWatch = null;
+  const set = groupWatchers.get(w.code);
+  if (set) { set.delete(client.id); if (!set.size) groupWatchers.delete(w.code); }
+  grouppick.watch(w.code, w.profileId, w.device, -1);
+};
+const groupWatch = (client, data) => {
+  groupUnwatch(client);
+  const code = grouppick._internals.tidyCode(data.code);
+  const device = String(data.device || "").slice(0, 40);
+  const pid = proveProfile(client, data.profileId ? String(data.profileId).slice(0, 24) : null, data.token ? String(data.token).slice(0, 200) : null);
+  if (!pid || !grouppick.isMember(code, pid, device)) return false;
+  client.groupWatch = { code, profileId: pid, device };
+  if (!groupWatchers.has(code)) groupWatchers.set(code, new Set());
+  groupWatchers.get(code).add(client.id);
+  grouppick.watch(code, pid, device, +1);
+  return true;
+};
+grouppick.configure({
+  notify: (code, rev) => {
+    const set = groupWatchers.get(code);
+    if (!set) return;
+    for (const id of set) sendTo(id, { type: "group_update", code, rev });
+  },
+});
+
 const broadcastAdmins = (data) => {
   if (!wss) return;
   const msg = JSON.stringify(data);
@@ -619,6 +654,13 @@ const handleMessage = (client, data, ws) => {
       break;
     // ---------- [/phone-remote] ----------
 
+    case "group_watch":
+      send(ws, JSON.stringify({ type: "group_watching", code: String(data.code || "").slice(0, 8), ok: groupWatch(client, data) }));
+      break;
+    case "group_unwatch":
+      groupUnwatch(client);
+      break;
+
     case "admin_subscribe":
       // The password rides in the subscribe message (page memory only, never a
       // cookie) — browsers can't set WS headers, so this is how the live
@@ -793,6 +835,7 @@ const attach = (server) => {
       // grace period and takes its place again on reconnect (lib/party.js)
       if (party.drop(client, sendTo)) broadcastAll({ type: "party_list", parties: party.list() });
       devices.dropClient(client.id); // [phone-remote] a TV / a remote that went away
+      groupUnwatch(client); // "What do we watch tonight?": the member is away after the grace
       clients.delete(client.id);
       logEvent({ event: "disconnected", ...publicClient(client), ...(client.goneWhy ? { why: client.goneWhy } : {}) });
       broadcastAdmins({ type: "client_disconnected", clientId: client.id });

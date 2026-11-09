@@ -63,6 +63,9 @@ Rules:
   (`GET /api/ai/status` → `enabled`).
 - **Calendar** is a slot: it appears once the app has its screen (another branch).
 - **Your TVs** is always listed (its page says "No TV is on" when none is).
+- **Pick together** (group-pick, 1.15.18) is NOT a More line: the website keeps it in the
+  profile menu (js/main.js) and not in its menu behind More, so the phone does the same —
+  profile menu → Pick together (and the AI page on the TV). Add it to both lists together.
 - Lines 1–5 switch the tab bar to that tab (back to the tab screen first).
 - "What's new" carries the green dot while this version's page is unseen (website),
   the phone shows it when it has the same "seen" marker.

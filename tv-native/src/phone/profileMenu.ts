@@ -7,6 +7,7 @@ import {pushPhone} from './nav';
 import {Linking} from 'react-native';
 import {getAuthMode, getBaseUrl} from '../api';
 import {openJoinParty, openReport} from '../overlay';
+import {WORDS} from '../groupPick';
 
 let switchFn: (() => void) | null = null;
 let nameOf: () => string = () => '';
@@ -29,6 +30,7 @@ export const menuItems = (closed: boolean): MenuItem[] => [
   {label: 'Get the apps', uiId: 'phone.menu.apps', onPress: () => Linking.openURL(`${getBaseUrl() || 'https://nufurora.com'}/install`).catch(() => {})},
   {label: 'Report a problem', uiId: 'phone.menu.report', onPress: () => openReport()},
   {label: 'Join a watch party', uiId: 'phone.menu.party', onPress: () => openJoinParty()},
+  {label: WORDS.entry, uiId: 'group.open', onPress: () => pushPhone('GroupPick')},
 ];
 
 let open = false;

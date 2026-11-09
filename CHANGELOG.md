@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.18 — 2026-11-09
+
+- **Pick together — what do we watch tonight?** Start it on the TV (or the website or phone), everyone in the room joins with the code or QR on their phone and swipes yes, maybe or no at the same time. The deck is built from everyone's tastes, puts what's on the server first and skips what everyone has seen; anyone can add titles by search. The pick shows on the TV with a short why ("3 of 3 said yes"), and one press plays it; "Something else" shows the next. Household only, codes expire, a short tutorial the first time, and kids' age limits apply when a kids profile joins. On the website now; on the TV and phone apps with their next update.
+
 ## 1.15.17 — 2026-11-09
 
 - **Hebrew subtitles for everything.** A film or episode with no Hebrew subtitles gets one translated with AI for people whose subtitles are Hebrew, listed as "עברית (AI)": every line keeps its timing, reads right to left and stays short. It needs the server's AI key and keeps to a daily budget. "Resync subtitles" is now **Fix timing**, and "Use the file's own timing" puts a track back, on the website, TV and phone.

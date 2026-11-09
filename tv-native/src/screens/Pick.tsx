@@ -41,6 +41,7 @@ import {noteFocus, railOpen, requestRailOpen, useFocusFallback, useTVKeys, press
 import {showToast} from '../toast';
 import {registerProfileCache} from '../profileScope';
 import {RootStackParamList} from '../navigation';
+import {WORDS as GROUP} from '../groupPick'; // [group-pick]
 import theme, {useTvMetrics} from '../theme';
 
 const {colors, radius, fontSize, spacing, CLEARANCE} = theme;
@@ -292,6 +293,10 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
     },
     [navigation],
   );
+  // [group-pick]
+  const openTogether = useCallback(() => {
+    if (canNavigate(navigation)) navigation.push('GroupPick');
+  }, [navigation]);
   const renderCard = useCallback(
     ({item, index}: {item: PickItem; index: number}) => {
       const onServer = item.source === 'downloaded' || !!item.inLibrary;
@@ -346,6 +351,16 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
       <Text style={styles.sub} numberOfLines={1}>
         Describe a mood or pick a few filters, and Aurora picks from what is on this server and what it can stream.
       </Text>
+
+      {/* [group-pick] "What do we watch tonight?" — everyone in the room on their own phone */}
+      <Focusable uiId="group.open" edgeLeft noScale style={styles.together} highlightColor={colors.surfaceHover} onPress={openTogether}>
+        <Icon name="people" size={20} color={colors.accent} />
+        <Text style={styles.togetherTitle}>{GROUP.entry}</Text>
+        <Text style={styles.togetherLine} numberOfLines={1}>
+          {GROUP.entryLine}
+        </Text>
+        <Text style={styles.togetherGo}>›</Text>
+      </Focusable>
 
       {off ? (
         <View style={styles.notice}>
@@ -583,6 +598,22 @@ const styles = StyleSheet.create({
   kicker: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 3},
   h1: {color: colors.text, fontSize: fontSize.title, lineHeight: 30, fontWeight: '900', marginTop: 2},
   sub: {color: colors.textDim, fontSize: 14, lineHeight: 19, marginTop: 2, marginBottom: 12},
+  // [group-pick] the way into "What do we watch tonight?" — the panel's glass, one line
+  together: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(139,123,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(139,123,255,0.28)',
+    borderRadius: radius.l,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  togetherTitle: {color: colors.text, fontSize: 16, fontWeight: '800'},
+  togetherLine: {flex: 1, color: colors.textDim, fontSize: 14},
+  togetherGo: {color: colors.textDim, fontSize: 20, fontWeight: '700'},
 
   // ---- the no-key notice ----
   notice: {
