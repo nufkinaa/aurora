@@ -339,6 +339,10 @@ const englishTitle = async (q) => {
 
 // ---------- search ----------
 const STRONG = 900; // the first card's title starts with what was said, or is it
+// Hebrew is placed from here: its official Hebrew name starts a title (900),
+// or a whole English title sounds like it (870, media/hebrew.js) — the same
+// line the typed search draws before it asks Wikipedia (media/search.js)
+const HE_STRONG = 870;
 const topTier = (r) => (r && r.results && r.results[0] && r.results[0].match ? r.results[0].match.tier || 0 : 0);
 // The better answer: its first card matches better. Two exact names: the
 // spoken numbers over the digits, the longer one ("show me a hero" over "a
@@ -365,7 +369,8 @@ const search = async (text, opts = {}) => {
     const empty = await engine.search("", opts);
     return { ...empty, q: "", spoken };
   }
-  const ask = (c) => Promise.resolve(engine.search(c.q, opts)).then((r) => ({ c, r }), () => null);
+  // (the engine's own Hebrew Wikipedia step is this file's, below: asked once, here)
+  const ask = (c) => Promise.resolve(engine.search(c.q, { ...opts, noHebrewFallback: true })).then((r) => ({ c, r }), () => null);
   const tries = (await Promise.all(n.candidates.map(ask))).filter(Boolean);
   if (!tries.length) throw new Error("search failed");
   let best = tries[0];
@@ -375,7 +380,7 @@ const search = async (text, opts = {}) => {
   // (without `wait`: a candidate the catalogue has not answered yet may still
   // win, so the waiting call is owed)
   let pending = tries.some((t) => t.r.pending);
-  if (n.hebrew && topTier(best.r) < STRONG) {
+  if (n.hebrew && topTier(best.r) < HE_STRONG) {
     const cached = englishTitleCached(n.q);
     let en = cached ? cached.title : undefined;
     if (en === undefined && opts.wait) en = await englishTitle(n.q);
