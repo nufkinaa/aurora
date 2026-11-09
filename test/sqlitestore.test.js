@@ -192,13 +192,13 @@ test("a new viewing session at the front of 8,000 is one row written (plus the o
     s.data.unshift(session(-1));
     s.data.length = 8000;
     s.flush();
-    assert.deepEqual(s._sql.lastOps, { up: 1, move: 0, del: 1 });
+    assert.deepEqual({ ...s._sql.lastOps, whole: undefined }, { whole: undefined,  up: 1, move: 0, del: 1 });
     s.data[0].position = 77; // a live session moving on
     s.flush();
-    assert.deepEqual(s._sql.lastOps, { up: 1, move: 0, del: 0 });
+    assert.deepEqual({ ...s._sql.lastOps, whole: undefined }, { whole: undefined,  up: 1, move: 0, del: 0 });
     s.data.splice(4000, 1); // a blip removed from the middle
     s.flush();
-    assert.deepEqual(s._sql.lastOps, { up: 0, move: 0, del: 1 });
+    assert.deepEqual({ ...s._sql.lastOps, whole: undefined }, { whole: undefined,  up: 0, move: 0, del: 1 });
     const expect = JSON.stringify(s.data);
     s = reopen(s, []);
     assert.equal(JSON.stringify(s.data), expect);
@@ -434,6 +434,36 @@ test("concurrent writes: many stores in one database interleaved, a second conne
       assert.equal(JSON.stringify(s.data), expect[i], n);
       forget(s);
     });
+  } finally {
+    rm(dir);
+  }
+});
+
+test("two processes writing the same store (no server owns the folder): last writer wins, the rows are always whole", { skip }, () => {
+  const dir = tmp();
+  try {
+    const file = path.join(dir, "watch-history.json");
+    write(file, SEEDS["watch-history.json"]());
+    const s = open(file, []);
+    // a second process: its own connection on the same file
+    const db2 = new Q.Db(dir).open();
+    const other = new Q.Backend(db2, "watch-history.json");
+    const mine = other.load();
+    assert.ok(mine.ok);
+    mine.data.unshift({ id: "from-the-other-process" });
+    mine.data.splice(50, 30);
+    assert.equal(other.write(mine.data), "written");
+    s.data.unshift({ id: "from-this-process" });
+    s.flush();
+    assert.equal(s._sql.lastOps.whole, true, "it saw the other write and wrote the store whole");
+    s.data[0].count = 5;
+    s.flush();
+    assert.equal(s._sql.lastOps.whole, false, "and differences again after that");
+    const expect = JSON.stringify(s.data);
+    db2.close();
+    const again = reopen(s, []);
+    assert.equal(JSON.stringify(again.data), expect, "exactly the last writer's data, nothing of the other mixed in");
+    forget(again);
   } finally {
     rm(dir);
   }

@@ -657,6 +657,7 @@ class Backend {
     state.bytes = bytes;
     this.state = state;
     this.reg = reg;
+    this.seen = reg.writes;
     return { ok: true, data, rows: rows.length };
   }
 
@@ -705,6 +706,7 @@ class Backend {
     }
     applied(state, p, { fresh: true });
     this.state = state;
+    this.seen = 0;
     this.failures = 0;
     return { ok: true, rows: rowsIn.length, ms: Number(process.hrtime.bigint() - t0) / 1e6, md5: want };
   }
@@ -712,21 +714,35 @@ class Backend {
   // One write: only the difference. Returns "written" | "unchanged"; throws
   // when the database refused it (memory is untouched then, and the next
   // write carries the same difference again).
+  //
+  // Another process may have written the same store since (two tools on a
+  // folder no server owns): then the difference against what THIS process
+  // last wrote would be wrong, so the store is written whole instead — the
+  // last writer wins, as with a JSON file, and the rows are always whole.
   write(data) {
-    const p = plan(data, this.colls, this.state);
+    let p = plan(data, this.colls, this.state);
     if (!p.changed) return "unchanged";
     const s = this.db.stmts;
-    const { up, move, del } = p.ops;
+    let whole = false;
+    let seen = 0;
     this.db.tx(() => {
-      for (const r of up) s.up.run(this.name, r.coll, r.k, r.pos, r.v);
-      for (const r of move) s.move.run(r.pos, this.name, r.coll, r.k);
-      for (const r of del) s.del.run(this.name, r.coll, r.k);
-      const res = s.head.run(p.head, p.nextKey, p.count, Date.now(), this.name);
-      if (!res || res.changes !== 1) throw new Error("the store is not registered in the database");
+      const cur = s.reg.get(this.name);
+      if (!cur) throw new Error("the store is not registered in the database");
+      seen = cur.writes;
+      if (cur.writes !== this.seen) {
+        whole = true;
+        p = plan(data, this.colls, { ...newState(), ids: this.state.ids, nextKey: Math.max(this.state.nextKey, cur.next_key) }, { fresh: true });
+        s.clear.run(this.name);
+      }
+      for (const r of p.ops.up) s.up.run(this.name, r.coll, r.k, r.pos, r.v);
+      for (const r of p.ops.move) s.move.run(r.pos, this.name, r.coll, r.k);
+      for (const r of p.ops.del) s.del.run(this.name, r.coll, r.k);
+      s.head.run(p.head, p.nextKey, p.count, Date.now(), this.name);
     });
-    applied(this.state, p);
+    applied(this.state, p, { fresh: whole });
+    this.seen = seen + 1;
     this.failures = 0;
-    this.lastOps = { up: up.length, move: move.length, del: del.length };
+    this.lastOps = { up: p.ops.up.length, move: p.ops.move.length, del: p.ops.del.length, whole };
     return "written";
   }
 
