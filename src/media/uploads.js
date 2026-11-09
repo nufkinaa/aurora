@@ -616,6 +616,8 @@ const place = async (job) => {
     await rescanFor(job, dest);
     job.status = "done";
     job.finishedAt = Date.now();
+    // the admin's own file: never suggested for deletion by default (media/untouched.js)
+    try { require("./untouched").noteUpload(dest); } catch {}
     job.updatedAt = Date.now();
     save();
     tell(job, true);

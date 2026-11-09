@@ -15,6 +15,7 @@ const resetgateLib = lazy(require, "./lib/resetgate");
 const authzLib = lazy(require, "./lib/authz");
 const profilesLib = lazy(require, "./profiles");
 const torrentLib = lazy(require, "./media/torrent");
+const untouchedLib = lazy(require, "./media/untouched");
 
 const bans = new JsonStore(path.join(config.DATA_DIR, "bans.json"), {});
 const watchHistory = new JsonStore(path.join(config.DATA_DIR, "watch-history.json"), []);
@@ -395,6 +396,11 @@ const stoppedOn = (client) => {
   try { profilesLib().noteStop(pid); } catch {}
 };
 
+const seenOn = (client, ws) => {
+  const pid = client.profileId || (ws && ws.profileId) || null;
+  if (pid) untouchedLib().seen(pid);
+};
+
 const handleMessage = (client, data, ws) => {
   // A socket of a profile that owes a new password says nothing that counts
   // (presence, activity, watch parties) — in every sign-in mode.
@@ -413,6 +419,9 @@ const handleMessage = (client, data, ws) => {
   ) {
     return;
   }
+  // Somebody is connected (media/untouched.js: "has this person been on
+  // Aurora since their last play?"). A screen on the profile wall is nobody.
+  if (data.type === "presence" || data.type === "activity") seenOn(client, ws);
   switch (data.type) {
     case "hello": {
       const before = client.profile;
@@ -446,6 +455,7 @@ const handleMessage = (client, data, ws) => {
           : { device: "Mobile", browser: tidy(data.build, 24) || "Aurora phone", os: tidy(data.model, 40) || "Android phone" };
         client.app = data.app;
       } else if (data.app === "web") client.app = "web";
+      seenOn(client, ws);
       broadcastAdmins({ type: "client_update", client: publicClient(client) });
       break;
     }
