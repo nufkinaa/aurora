@@ -58,6 +58,24 @@ module.exports = (ctx) => {
   const driveById = (id) => ctx.live.drives.find((d) => d.id === id) || null;
   const answering = (id) => ctx.stateOf(id).answering !== false;
   const label = (t) => t.title || path.basename(t.src || t.dir || "");
+
+  // The title being moved is busy for the admin's delete suggestions and the
+  // deletes behind them (lib/busyfiles.js): its original, its temp copy and
+  // where it lands. Asked from moves.current, so a move picked up after a
+  // restart is covered too.
+  require("../busyfiles").register((abs) => {
+    const cur = ctx.data() && ctx.data().moves && ctx.data().moves.current;
+    if (!cur || !abs) return null;
+    const norm = (p) => (process.platform === "win32" ? path.resolve(p).toLowerCase() : path.resolve(p));
+    const a = norm(abs);
+    for (const dir of [cur.src, cur.temp, cur.dst]) {
+      if (!dir) continue;
+      const d = norm(dir);
+      const rel = path.relative(d, a);
+      if (a === d || (rel && !rel.startsWith("..") && !path.isAbsolute(rel))) return "being moved to another drive";
+    }
+    return null;
+  });
   const ask = (drive, op, args, ms) => deps.ask(op, args, { timeoutMs: ms, key: `${drive}:move`, low: true });
 
   // ---------- what plays where ----------
