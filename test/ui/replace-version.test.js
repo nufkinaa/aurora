@@ -101,6 +101,9 @@ for (const look of ["glass", "legacy"]) {
       assert.match(await card.innerText(), /What's wrong with this copy\?/);
       const reasons = await page.locator(`${sheet} [data-ui="replace.reason"]`).allInnerTexts();
       assert.deepEqual(reasons, ["Burned-in subtitles", "Bad picture", "Bad sound", "Wrong language", "Other"]);
+      // (the sheet moves focus 40 ms after it paints — replaceCopy.js focusFirst — so wait for it:
+      // read at once, a loaded machine still had it on the opener now and then)
+      await page.waitForFunction(() => document.activeElement && document.activeElement.textContent === "Burned-in subtitles", null, { timeout: 3000 }).catch(() => {});
       assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.textContent), "Burned-in subtitles", "focus lands on the first reason");
       if (vp === "phone") await assertNoHorizontalOverflow(page, "the reasons sheet");
       await shot(page, `${vp}-${look}-2-reasons`);
