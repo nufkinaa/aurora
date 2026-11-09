@@ -274,9 +274,13 @@ export default function Detail() {
       try {
         let libId = item.inLibrary || null;
         if (!libId) {
-          const l = await api.library();
+          // (after a download lands — libraryTick — the library is read again, not the minute-old copy;
+          // and the IMDb id matches first: a page opened from a link — "… is ready", a shared
+          // #/discover/movie/tt… — has no title to match by, so it stayed on Save & watch)
+          const l = await api.library(libraryTick > 0);
           if (!live) return;
-          libId = libMatch(isShow ? l.shows : l.movies, item.title, item.year)?.id || null;
+          const pool = isShow ? l.shows : l.movies;
+          libId = (item.imdbId ? pool.find(i => i.imdbId === item.imdbId)?.id : null) || libMatch(pool, item.title, item.year)?.id || null;
         }
         if (libId) {
           const f = await api.item(libId, profileId);
@@ -290,7 +294,7 @@ export default function Detail() {
     return () => {
       live = false;
     };
-  }, [stream, item.inLibrary, isShow, item.title, item.year, profileId, libraryTick]);
+  }, [stream, item.inLibrary, item.imdbId, isShow, item.title, item.year, profileId, libraryTick]);
   // the IMDb id (what sources, X-Ray, follow and the catalogue are keyed by)
   useEffect(() => {
     if (stream) return;

@@ -651,6 +651,12 @@ export default function GroupPick() {
   const [flying, setFlying] = useState<Flying[]>([]);
   // the last answer's card finishes its flight before "done — waiting" takes the page
   const step = stepNow === 'waiting' && flying.length && session?.phase === 'swiping' ? 'swipe' : stepNow;
+  // a new step (the form -> the lobby -> the result ...) opens at its top: pressing Start at the
+  // foot of the long form used to land the host mid-lobby, the room's code scrolled off-screen
+  const scroller = useRef<ScrollView>(null);
+  useEffect(() => {
+    scroller.current?.scrollTo({y: 0, animated: false});
+  }, [step, tut]);
   const xy = useRef(new Animated.ValueXY({x: 0, y: 0})).current;
   const lift = useRef(new Animated.Value(1)).current;
   const flights = useRef(0);
@@ -1053,7 +1059,7 @@ export default function GroupPick() {
         <View style={[s.root, {paddingTop: barTop + 56, paddingBottom: bottom}]}>{body}</View>
       ) : (
         <KeyboardAvoidingView behavior="height" style={s.root}>
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[{paddingTop: top, paddingBottom: bottom + 24, paddingHorizontal: GUTTER}, column]}>
+          <ScrollView ref={scroller} keyboardShouldPersistTaps="handled" contentContainerStyle={[{paddingTop: top, paddingBottom: bottom + 24, paddingHorizontal: GUTTER}, column]}>
             <View style={s.page}>{body}</View>
           </ScrollView>
         </KeyboardAvoidingView>
