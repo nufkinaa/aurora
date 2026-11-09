@@ -537,6 +537,15 @@ class JsonStore {
       }
       return this._loadJson(fallbackValue);
     }
+    // a newer JSON file that cannot be read is no reason to leave good rows:
+    // it is set aside, and SQLite stays the truth
+    if (look.migrated && look.json === "newer") {
+      const r = readChecked(this.filePath, this._check);
+      if (!r.ok) {
+        console.warn(`[store] ${this.name}: a ${this.name} newer than its SQLite rows was found, but it is ${r.problem} — SQLite stays the truth`);
+        look.json = foreign ? "none" : "older";
+      }
+    }
     if (look.migrated && look.json !== "newer") {
       if (!foreign && look.json === "leftover") this._renameJson(sql, "migrated"); // a kill between the commit and the rename
       else if (!foreign && look.json === "older") this._renameJson(sql, "conflict");

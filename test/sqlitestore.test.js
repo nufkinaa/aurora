@@ -583,6 +583,28 @@ test("a JSON file OLDER than the rows (an old copy put back by hand): SQLite sta
   }
 });
 
+test("a NEWER JSON file that is damaged (half a copy): SQLite's good rows stay, the file is set aside", { skip }, () => {
+  const dir = tmp();
+  try {
+    const file = path.join(dir, "downloads.json");
+    write(file, SEEDS["downloads.json"]());
+    let s = open(file, []);
+    const expect = JSON.stringify(s.data);
+    forget(s);
+    sq.closeAll();
+    fs.writeFileSync(file, '[{"id":"d0","sta');
+    let lines;
+    lines = quiet(() => { s = new JsonStore(file, []); });
+    assert.equal(s.backend, "sqlite");
+    assert.equal(JSON.stringify(s.data), expect, "not replaced by a last-good copy");
+    assert.ok(lines.some((l) => /SQLite stays the truth/.test(l)));
+    assert.ok(files(dir).some((n) => /^downloads.json.conflict-/.test(n)), "kept");
+    forget(s);
+  } finally {
+    rm(dir);
+  }
+});
+
 test("switched off (AURORA_SQLITE=0): each store is handed back to its JSON file at the next start, whole", { skip }, () => {
   const dir = tmp();
   try {
