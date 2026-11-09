@@ -52,7 +52,8 @@ export default function ListRow({
           {title}
         </Text>
         {detail ? (
-          <Text style={s.detail} numberOfLines={3}>
+          // (3 lines cut settings notes short at 360 dp — "Tidy up after watching", "Space limit"; 6 leaves room)
+          <Text style={s.detail} numberOfLines={6}>
             {detail}
           </Text>
         ) : null}
