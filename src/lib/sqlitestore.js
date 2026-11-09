@@ -531,11 +531,11 @@ class Db {
     try {
       const { Worker } = require("worker_threads");
       this.worker = new Worker(path.join(__dirname, "sqlitestore-worker.js"), { workerData: { file: this.file, mod: __filename } });
-      this.worker.unref();
       this.worker.on("message", (m) => {
         const w = this.waiting.get(m.id);
         if (!w) return;
         this.waiting.delete(m.id);
+        if (!this.waiting.size && this.worker) this.worker.unref(); // idle: never what keeps a process alive
         if (m.ok) w.res(m); else w.rej(new Error(m.error));
       });
       const down = (why) => {
@@ -549,6 +549,8 @@ class Db {
       };
       this.worker.on("error", (e) => { console.error(`[sqlite] the checkpoint worker failed (${e && e.message}); SQLite checkpoints on its own from now on`); down("worker failed"); });
       this.worker.on("exit", () => down("worker exited"));
+      // (after the listeners: adding a "message" listener refs the worker again)
+      this.worker.unref();
     } catch (e) {
       this.workerFailed = true;
       try { if (this.db && !this.readOnly) this.db.exec("PRAGMA wal_autocheckpoint = 1000"); } catch {}
@@ -562,6 +564,7 @@ class Db {
     const id = ++this.seq;
     return new Promise((res, rej) => {
       this.waiting.set(id, { res, rej });
+      w.ref(); // an answer being waited for keeps the process up (a backup)
       w.postMessage({ ...msg, id });
     });
   }

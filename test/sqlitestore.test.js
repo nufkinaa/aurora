@@ -658,6 +658,27 @@ test("start empty on purpose (.start-empty) works for a store in SQLite too", { 
   }
 });
 
+test("a process that wrote a SQLite store, and whose checkpoint worker ran, still exits by itself", { skip, timeout: 60000 }, () => {
+  const dir = tmp();
+  try {
+    const t0 = Date.now();
+    const r = spawnSync(process.execPath, ["-e", `
+      const { JsonStore } = require(${JSON.stringify(JSONSTORE)});
+      const s = new JsonStore(${JSON.stringify(path.join(dir, "requests.json"))}, []);
+      s.data.push({ id: 1 }); s.flush();
+      setTimeout(() => { s.data.push({ id: 2 }); s.flush(); }, ${Q.CHECKPOINT_EVERY_MS + 1500}); // after the worker's first checkpoint
+    `], { encoding: "utf8", timeout: 30000 });
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(Date.now() - t0 < 25000, "it did not hang");
+    sq.closeAll();
+    const s = open(path.join(dir, "requests.json"), []);
+    assert.deepEqual(s.data, [{ id: 1 }, { id: 2 }]);
+    forget(s);
+  } finally {
+    rm(dir);
+  }
+});
+
 // ------------------------------------------------------------ backups
 
 test("a backup holds each SQLite store as data/<name>.json (from one consistent copy) and the copy itself; the drill and the boot's restore read them", { skip }, async () => {

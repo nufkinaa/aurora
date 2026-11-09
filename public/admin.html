@@ -4075,11 +4075,12 @@
       const kept = (d.stores || []).filter((x) => x.kind !== "cache");
       const unsaved = (d.stores || []).filter((x) => x.unsavedSince);
       const safe = (d.stores || []).filter((x) => x.safeMode);
+      const inSql = kept.filter((x) => x.backend === "sqlite");
       $("#ds-state").innerHTML = safe.length
         ? `<span class="pill bad">safe mode</span> ${safe.length} file${safe.length === 1 ? "" : "s"} could not be read and had no good copy — nothing is written to ${safe.length === 1 ? "it" : "them"} until you decide below.`
         : unsaved.length
           ? `<span class="pill bad">not saved</span> ${esc(unsaved.map((x) => x.name).join(", "))} cannot be written right now — Aurora keeps trying; do not restart until this clears.`
-          : `<span class="pill live">all saved</span> ${kept.length} files, each written atomically with a last-good copy beside it.`;
+          : `<span class="pill live">all saved</span> ${kept.length} files, each written atomically with a last-good copy beside it${inSql.length ? ` (${inSql.length} of them kept in SQLite, data/aurora.db)` : ""}.`;
       $("#ds-safe").innerHTML = safe.map((x) => `<div class="hl-find fail" style="margin-top:0">
         <div class="hl-f-title">${esc(x.name)} — safe mode</div>
         <div class="hl-f-line">It was ${esc(x.safeMode.problem || "damaged")} when Aurora started, and there was no last-good copy and no backup to restore it from. Aurora is showing its defaults and saves nothing to this file${x.name === "profiles.json" ? ": people see an empty house, and what they watch now is not kept" : x.name === "settings.json" ? "; the sign-in wall is closed meanwhile" : "; everyone has to sign in again"}.</div>
@@ -7158,7 +7159,7 @@
         copy: async () => {
           const d = await json("/api/admin/stores");
           const st = d.stores || [];
-          return MD.list([["files", st.filter((x) => x.kind !== "cache").length], ["in safe mode", st.filter((x) => x.safeMode).map((x) => x.name).join(", ") || "none"], ["not saved", st.filter((x) => x.unsavedSince).map((x) => x.name).join(", ") || "none"]]) +
+          return MD.list([["files", st.filter((x) => x.kind !== "cache").length], ["in safe mode", st.filter((x) => x.safeMode).map((x) => x.name).join(", ") || "none"], ["not saved", st.filter((x) => x.unsavedSince).map((x) => x.name).join(", ") || "none"], ["in SQLite", st.filter((x) => x.backend === "sqlite").map((x) => `${x.name} (${x.rows} rows)`).join(", ") || (d.sqlite && d.sqlite.problem) || "none"]]) +
             ((d.recoveries || []).length ? "\n\nRecoveries:\n" + d.recoveries.slice(0, 8).map((r) => `- ${ago(new Date(r.at).toISOString())} ${r.sentence || r.store}${r.acknowledged ? "" : " (new)"}`).join("\n") : "\nNo file has ever needed recovering.");
         },
       },
