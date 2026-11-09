@@ -49,6 +49,7 @@ const MENU = [
   ["movies", "Movies", "#/movies"],
   ["shows", "Shows", "#/shows"],
   ["list", "My List", "#/list"],
+  ["calendar", "Calendar", "#/calendar"],
   ["pick", "AI", "#/pick"],
   ["new", "What's new", "#/new"],
   ["saved", "Saved on this device", "#/saved"],
@@ -178,7 +179,6 @@ for (const look of ["glass", "legacy"]) {
       await shot(page, `${look}-${name}-more`);
       const words = await page.$$eval(".nav-more-item .nav-more-label", (ls) => ls.map((l) => l.textContent));
       assert.deepEqual(words, MENU.map(([, w]) => w || me.name), "the menu's lines, in order");
-      assert.equal(await page.locator('.nav-more-item[data-more="calendar"]').count(), 0, "Calendar waits for its screen");
       for (const [id, wordsOf, to] of MENU) {
         const want = wordsOf || me.name;
         if (!(await page.locator(".nav-more-sheet").isVisible())) await openSheet(page);
