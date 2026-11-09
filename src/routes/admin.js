@@ -101,6 +101,17 @@ router.get("/api/admin/logs", (req, res) => {
   });
 });
 
+// The progress bar's preview pictures (media/scrubsprites.js): what they cost
+// on disk and in CPU so far, and "make them now" for the whole library — at
+// once instead of in the quiet hours (still background work: never while a
+// viewer is being encoded for, at the lowest priority).
+router.get("/api/admin/scrub", (req, res) => {
+  res.json(require("../media/scrubsprites").summary());
+});
+router.post("/api/admin/scrub/run", (req, res) => {
+  res.json({ queued: require("../media/scrubsprites").runAll() });
+});
+
 router.post("/api/admin/logs/clear", (req, res) => {
   logbuffer.clear();
   console.log("[admin] log buffer cleared");

@@ -3,7 +3,9 @@
 // gestures as the full player). Where you are is kept on the phone and sent to
 // your profile when the server answers (store.ts noteOfflineProgress), so the
 // TV and the website pick up where the phone left off. Up next is the next
-// saved episode of the show.
+// saved episode of the show: it starts at the end when the person's "play the
+// next episode" setting is on; off, the end says what is next and waits for
+// Play now.
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {AppState, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import Video, {SelectedTrackType, TextTrackType, VideoRef} from 'react-native-video';
@@ -18,7 +20,9 @@ import {reportActivity} from '../../realtime';
 import {createWatchClock} from '../../watchClock';
 import {nextSaved} from '../offline/rules';
 import {personNow} from '../../personSync';
+import {loadPrefs} from '../../storage';
 import {showToast} from '../../toast';
+import Tap from '../ui/Tap';
 import {colors} from '../theme';
 
 type Params = {OfflinePlayer: {id: string}};
@@ -42,6 +46,16 @@ export default function OfflinePlayer() {
   const curRef = useRef(0);
   const lastSave = useRef(0);
   const next = it ? nextSaved(listOffline(), it) : null;
+  // the person's "play the next episode" (personSync when the server was
+  // heard this run, else the setting kept on the phone)
+  const autoplayKept = useRef(true);
+  useEffect(() => {
+    loadPrefs()
+      .then(p => (autoplayKept.current = p.autoplayNext !== false))
+      .catch(() => {});
+  }, []);
+  // the end of an episode with autoplay off: what is next, and Play now
+  const [endCard, setEndCard] = useState(false);
 
   // Real watch time (docs/watch-time.md): what this copy really played. With
   // the server there it is reported live, like the streaming player; without,
@@ -159,8 +173,12 @@ export default function OfflinePlayer() {
         onEnd={() => {
           reportRef.current('ended');
           noteOfflineProgress(it.id, dur, dur);
-          if (next) replacePhone('OfflinePlayer', {id: next.id});
-          else navigation.goBack();
+          if (!next) navigation.goBack();
+          else if (personNow()?.autoplayNext ?? autoplayKept.current) replacePhone('OfflinePlayer', {id: next.id});
+          else {
+            setPaused(true);
+            setEndCard(true);
+          }
         }}
         onError={() => showToast("This copy didn't play — try saving it again", '⚠')}
       />
@@ -244,6 +262,17 @@ export default function OfflinePlayer() {
           onTouch={show}
         />
       ) : null}
+      {endCard && next ? (
+        <View style={s.card}>
+          <Text style={s.cardKicker}>NEXT EPISODE</Text>
+          <Text style={s.cardTitle} numberOfLines={2}>
+            {`S${next.season} E${next.episode}${next.title && !/^Episode \d+$/.test(next.title) ? ` · ${next.title}` : ''}`}
+          </Text>
+          <Tap uiId="player.upnext.play" onPress={() => replacePhone('OfflinePlayer', {id: next.id})} style={s.cardBtn} accessibilityRole="button">
+            <Text style={s.cardBtnText}>▶  Play now</Text>
+          </Tap>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -252,4 +281,10 @@ const s = StyleSheet.create({
   root: {flex: 1, backgroundColor: '#000'},
   center: {flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg},
   msg: {color: colors.text, fontSize: 16},
+  // the end card (the streaming player's Up next card, smaller)
+  card: {position: 'absolute', right: 16, bottom: 104, maxWidth: 360, padding: 16, borderRadius: 16, backgroundColor: 'rgba(13,14,24,0.97)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)'},
+  cardKicker: {color: colors.accent, fontSize: 13, fontWeight: '900', letterSpacing: 2},
+  cardTitle: {color: colors.text, fontSize: 17, fontWeight: '800', marginVertical: 8},
+  cardBtn: {alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 18, borderRadius: 999, backgroundColor: colors.accent, overflow: 'hidden'},
+  cardBtnText: {color: '#fff', fontSize: 15, fontWeight: '800'},
 });

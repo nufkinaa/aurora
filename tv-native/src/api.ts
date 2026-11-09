@@ -1952,6 +1952,10 @@ export const api = {
     post<{ok: boolean}>(`/api/intro/${encodeURIComponent(key)}`, {start, end, by}),
   introAuto: (id: string) =>
     request<Segments>(`/api/intro/auto/${encodeURIComponent(id)}`),
+  // The pictures above the scrub point, for a LIBRARY video (films and
+  // episodes; not a torrent stream, not a saved copy): {ready:false} until the
+  // server has cut them. playback/scrubPreview.ts readScrubIndex reads it.
+  scrubIndex: (id: string) => request<unknown>(`/api/scrub/${encodeURIComponent(id)}`),
   // The same answer for something that is NOT a library file — a streamed
   // episode has nothing to fingerprint, so its Skip intro / Skip recap and its
   // credits-timed Up next come from the public databases, asked by identity

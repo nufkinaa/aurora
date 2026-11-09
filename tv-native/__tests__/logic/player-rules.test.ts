@@ -50,16 +50,16 @@ describe('the Up next card', () => {
   const base = {next: lib, autoplayPref: true, inParty: false, guest: false, autoRun: 0};
 
   test('an episode on disk, autoplay on: Play now and a 15 s countdown', () => {
-    expect(planUpNext(base)).toEqual({card: 'upnext', countdown: 15, primary: 'play'});
+    expect(planUpNext(base)).toEqual({card: 'upnext', countdown: 15, primary: 'play', scene: false});
   });
 
   test('autoplay off (the person’s setting): offered, nothing starts by itself', () => {
-    expect(planUpNext({...base, autoplayPref: false})).toEqual({card: 'upnext', countdown: null, primary: 'play'});
+    expect(planUpNext({...base, autoplayPref: false})).toEqual({card: 'upnext', countdown: null, primary: 'play', scene: false});
   });
 
   test('not on disk: "Choose episode", never a countdown — a source is never picked for the viewer', () => {
-    expect(planUpNext({...base, next: str})).toEqual({card: 'upnext', countdown: null, primary: 'choose'});
-    expect(planUpNext({...base, next: str, autoRun: 9})).toEqual({card: 'upnext', countdown: null, primary: 'choose'});
+    expect(planUpNext({...base, next: str})).toEqual({card: 'upnext', countdown: null, primary: 'choose', scene: false});
+    expect(planUpNext({...base, next: str, autoRun: 9})).toEqual({card: 'upnext', countdown: null, primary: 'choose', scene: false});
   });
 
   test('a party guest gets the card with no countdown (the host carries the room); the host counts down', () => {
@@ -69,7 +69,7 @@ describe('the Up next card', () => {
 
   test('Still watching? after three episodes that started by themselves — and never in a party', () => {
     expect(planUpNext({...base, autoRun: STILL_WATCHING_AFTER - 1}).card).toBe('upnext');
-    expect(planUpNext({...base, autoRun: STILL_WATCHING_AFTER})).toEqual({card: 'still', countdown: null, primary: 'keep'});
+    expect(planUpNext({...base, autoRun: STILL_WATCHING_AFTER})).toEqual({card: 'still', countdown: null, primary: 'keep', scene: false});
     expect(planUpNext({...base, autoRun: 7, inParty: true}).card).toBe('upnext');
     // with autoplay off nothing was going to start anyway: the ordinary card
     expect(planUpNext({...base, autoRun: 7, autoplayPref: false}).card).toBe('upnext');
@@ -142,11 +142,17 @@ describe('Skip intro / Skip recap', () => {
     expect(skippableAt(55, {recap: {start: 40, end: 70}, intro})!.kind).toBe('recap');
   });
 
-  test('a scene after the credits: the card, no countdown — the next episode when this one ends (player.js the same)', () => {
+  test('a scene after the credits: the 15 s countdown runs as for any episode, and the card says a scene follows', () => {
     const o = {next: lib, autoplayPref: true, inParty: false, guest: false, autoRun: 0};
-    expect(planUpNext({...o, scene: true})).toEqual({card: 'upnext', countdown: null, primary: 'play', atEnd: true});
-    expect(planUpNext(o).countdown).not.toBeNull();
-    expect(planUpNext({...o, autoplayPref: false, scene: true}).atEnd).toBeUndefined();
+    expect(planUpNext({...o, scene: true})).toEqual({card: 'upnext', countdown: 15, primary: 'play', scene: true});
+    expect(planUpNext(o)).toEqual({card: 'upnext', countdown: 15, primary: 'play', scene: false});
+    // autoplay off: offered, nothing starts, the scene still said
+    expect(planUpNext({...o, autoplayPref: false, scene: true})).toEqual({card: 'upnext', countdown: null, primary: 'play', scene: true});
+    // a stream: never a countdown, scene or not
+    expect(planUpNext({...o, next: str, scene: true})).toEqual({card: 'upnext', countdown: null, primary: 'choose', scene: true});
+    // a party guest: no countdown (the host carries the room)
+    expect(planUpNext({...o, inParty: true, guest: true, scene: true}).countdown).toBeNull();
+    expect(planUpNext({...o, inParty: true, guest: false, scene: true}).countdown).toBe(15);
   });
 
   test('a range starting before the next once-a-second report is looked at again exactly then', () => {

@@ -45,6 +45,14 @@ export const FEATURES: Feature[] = [
   // ---- the 2026-11-09 round: the same cards, the same words, on the website ----
   {
     since: ROUND,
+    glyph: '🎚️',
+    title: "Pictures on the timeline",
+    what: "Drag or skip and you see the moment you will land on. On the TV, hold left or right to glide, faster the longer you hold. The Next episode countdown is back at the credits, with Watch credits to stay.",
+    how: "In the player: tap or hold left and right.",
+    go: {label: 'Go home', act: 'home'},
+  },
+  {
+    since: ROUND,
     glyph: '📅',
     title: "Calendar",
     what: "New episodes, season premieres and film release dates for everything in your list and the shows you follow, by day: Coming up and Recently out. It shows what is already on the server, with Play, and Save & watch for what is not.",

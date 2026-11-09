@@ -74,9 +74,9 @@ export type UpNextPlan = {
   countdown: number | null;
   /** the main button: Play now / Choose episode / Keep watching */
   primary: 'play' | 'choose' | 'keep';
-  /** a scene follows the credits: no countdown over it — the next episode
-   *  starts by itself when this one ends (player.js the same) */
-  atEnd?: boolean;
+  /** the server heard a scene after the credits: the card says so ("A scene
+   *  follows the credits"); the countdown runs as for every other episode */
+  scene: boolean;
 };
 
 /** What the card is, by the website's rule (player.js showUpNext):
@@ -98,11 +98,16 @@ export const planUpNext = (o: {
   /** the server heard a scene after the credits (/api/intro/auto credits.scene) */
   scene?: boolean;
 }): UpNextPlan => {
-  if (o.next.kind === 'stream') return {card: 'upnext', countdown: null, primary: 'choose'};
+  // A scene after the credits no longer holds the countdown back (elia,
+  // 2026-11-09: "bring back the 15-second Next episode countdown when the
+  // credits are detected, on all clients"): the card counts down from the
+  // credits as for any episode, and says a scene follows; "Watch credits"
+  // stops it for whoever wants to see the scene.
+  const scene = !!o.scene;
+  if (o.next.kind === 'stream') return {card: 'upnext', countdown: null, primary: 'choose', scene};
   const autoplay = o.autoplayPref && !(o.inParty && o.guest);
-  if (autoplay && !o.inParty && o.autoRun >= STILL_WATCHING_AFTER) return {card: 'still', countdown: null, primary: 'keep'};
-  if (autoplay && o.scene) return {card: 'upnext', countdown: null, primary: 'play', atEnd: true};
-  return {card: 'upnext', countdown: autoplay ? UPNEXT_COUNTDOWN_SEC : null, primary: 'play'};
+  if (autoplay && !o.inParty && o.autoRun >= STILL_WATCHING_AFTER) return {card: 'still', countdown: null, primary: 'keep', scene};
+  return {card: 'upnext', countdown: autoplay ? UPNEXT_COUNTDOWN_SEC : null, primary: 'play', scene};
 };
 
 /** The run of self-started episodes the NEXT player inherits: one more when

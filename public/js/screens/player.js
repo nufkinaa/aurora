@@ -29,6 +29,7 @@ import { readStyle, nextChoice, styleLabel, cueCss, cueShadow, cueBackdrop, CUE_
 import { audioFxFor, AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES } from "../audiofx.js";
 import { recommendButton, canRecommend } from "../recommend.js";
 import { entryAction } from "../franchise.js";
+import { readScrubIndex, thumbCss, thumbLeft } from "../scrubPreview.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -148,6 +149,8 @@ export const cuePreview = (cls = "sub-preview") => {
 // names, so a title opened by hand never inherits a stale run.
 const AUTO_RUN_KEY = "aurora-auto-run";
 const STILL_WATCHING_AFTER = 3;
+// The Next episode card's countdown (tv-native/src/playerRules.ts the same).
+const UPNEXT_COUNTDOWN_SEC = 15;
 const autoRun = {
   read: (id) => {
     try {
@@ -2898,7 +2901,50 @@ export const renderPlayer = async (root, { id }) => {
     class: "scrubber-buffer",
     style: { width: "0%" },
   });
-  const scrubTip = el("div", { class: "scrub-tip hidden" });
+  // The time under the pointer, and — once the server has made them
+  // (media/scrubsprites.js) — the picture at that second above it.
+  const scrubThumb = el("div", { class: "scrub-thumb", "aria-hidden": "true" });
+  const scrubTipTime = el("span", { class: "scrub-tip-time" });
+  const scrubTip = el("div", { class: "scrub-tip hidden" }, scrubThumb, scrubTipTime);
+  let scrubIdx = null;
+  // (its timers are cleared when the player goes: a timer holds the player)
+  const scrubTimers = [];
+  // (library files only: a stream, a saved copy and a file of this device have none)
+  if (item.id && !isTorrent && !item._offline && !item._local) {
+    const askScrub = () => api.scrubIndex(item.id).then((r) => {
+      if (exited) return null;
+      scrubIdx = readScrubIndex(r);
+      // the first sheet now, the rest a moment later: the first drag has a picture
+      if (scrubIdx) {
+        const warm = (u) => { const img = new Image(); img.decoding = "async"; img.src = u; };
+        scrubIdx.sheets.forEach((u, n) => { if (n) scrubTimers.push(setTimeout(() => { if (!exited) warm(u); }, 1500 + n * 300)); else warm(u); });
+      }
+      return scrubIdx;
+    }).catch(() => null);
+    // once at the start, and once more a minute in (a title that just landed
+    // may get its pictures while it plays)
+    askScrub().then((x) => { if (!x && !exited) scrubTimers.push(setTimeout(() => { if (!exited && !scrubIdx) askScrub(); }, 60 * 1000)); });
+  }
+  const THUMB_W = () => (window.innerWidth <= 560 ? 144 : 192);
+  // Show the tip at fraction `frac` of the bar (t seconds).
+  const showScrubTip = (frac, t) => {
+    scrubTipTime.textContent = fmtClock(t);
+    const css = scrubIdx ? thumbCss(scrubIdx, t, THUMB_W()) : null;
+    if (css) {
+      scrubThumb.style.width = `${css.width}px`;
+      scrubThumb.style.height = `${css.height}px`;
+      scrubThumb.style.backgroundImage = `url("${css.url}")`;
+      scrubThumb.style.backgroundSize = css.size;
+      scrubThumb.style.backgroundPosition = css.position;
+      scrubTip.classList.add("has-thumb");
+      const w = scrubber.getBoundingClientRect().width || 0;
+      scrubTip.style.left = w ? `${thumbLeft(frac, w, css.width + 8)}px` : `${frac * 100}%`;
+    } else {
+      scrubTip.classList.remove("has-thumb");
+      scrubTip.style.left = `${frac * 100}%`;
+    }
+    scrubTip.classList.remove("hidden");
+  };
   // Landmarks on the track — where the intro ends, where the credits start —
   // drawn as ticks, and felt as a tap on a phone when a drag crosses one.
   const scrubMarks = el("div", { class: "scrubber-marks", "aria-hidden": "true" });
@@ -3815,7 +3861,15 @@ export const renderPlayer = async (root, { id }) => {
     skipIndicator.classList.toggle("left", dir < 0);
     skipIndicator.classList.add("on");
     clearTimeout(skipHideTimer);
-    skipHideTimer = setTimeout(() => skipIndicator.classList.remove("on"), 700);
+    skipHideTimer = setTimeout(() => {
+      skipIndicator.classList.remove("on");
+      if (!scrubDragging && !scrubHover) scrubTip.classList.add("hidden");
+    }, 700);
+    // the picture where the skips are headed (when there are pictures)
+    if (scrubIdx && pendingSeek != null && !scrubDragging) {
+      const d = totalDuration();
+      if (d) showScrubTip(pendingSeek / d, pendingSeek);
+    }
 
     updateScrubber();
   };
@@ -4990,6 +5044,7 @@ export const renderPlayer = async (root, { id }) => {
   // the target live and commits on release — a tap still seeks via the click
   // handler below. Pointer events cover mouse + touch with one code path.
   let scrubDragging = false;
+  let scrubHover = false;
   let scrubDragMoved = false; // a real slide suppresses the click that follows it
   scrubber.addEventListener("pointerdown", (e) => {
     if (!e.isPrimary || (e.pointerType === "mouse" && e.button !== 0)) return;
@@ -5034,9 +5089,7 @@ export const renderPlayer = async (root, { id }) => {
     hapticAt(pendingSeek);
     clearTimeout(seekDebounce);
     updateScrubber();
-    scrubTip.textContent = fmtClock(frac * d);
-    scrubTip.style.left = `${frac * 100}%`;
-    scrubTip.classList.remove("hidden");
+    showScrubTip(frac, frac * d);
     showControls();
   });
   scrubber.addEventListener("pointerup", (e) => {
@@ -5078,13 +5131,13 @@ export const renderPlayer = async (root, { id }) => {
     if (!d) return;
     const rect = scrubber.getBoundingClientRect();
     const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-    scrubTip.textContent = fmtClock(frac * d);
-    scrubTip.style.left = `${frac * 100}%`;
-    scrubTip.classList.remove("hidden");
+    scrubHover = true;
+    showScrubTip(frac, frac * d);
   });
-  scrubber.addEventListener("mouseleave", () =>
-    scrubTip.classList.add("hidden"),
-  );
+  scrubber.addEventListener("mouseleave", () => {
+    scrubHover = false;
+    if (!scrubDragging) scrubTip.classList.add("hidden");
+  });
 
   // ---------- watch party ----------
   // Shared remote: our play / pause / seek goes to the others; theirs lands
@@ -5724,25 +5777,36 @@ export const renderPlayer = async (root, { id }) => {
       upNextEl.querySelector(".btn-primary").focus({ preventScroll: true });
       return; // no countdown: nothing starts until someone answers
     }
-    let remaining = 15;
-    // a scene after the credits: the card without a countdown, and the next
-    // episode when this one ends (playerRules.ts planUpNext atEnd)
-    const atEnd = autoplay && creditsScene;
-    nextAtEnd = atEnd ? next : null;
-    const counting = autoplay && !atEnd;
-    const counter = el(
-      "span",
-      { class: "ring" },
-      counting ? String(remaining) : "",
-    );
+    // The Next episode card: from the credits (or the runtime-scaled window
+    // near the end) a 15-second countdown, then the next episode by itself —
+    // where that is the person's setting and the episode is on disk. "Watch
+    // credits" stops it. A scene heard after the credits no longer takes the
+    // countdown away (it did from 1.14.0 to 1.15.16, and the countdown looked
+    // gone): the card says so instead, one press away from staying.
+    let remaining = UPNEXT_COUNTDOWN_SEC;
+    const counting = autoplay;
+    // (an episode that ends before the countdown does — short credits — goes
+    // on to this one at its end, as the countdown would have)
+    nextAtEnd = counting ? next : null;
+    const counter = el("span", { class: "ring" }, String(remaining));
+    const bar = el("i");
+    const label = `${next.epCode || `S${next.season} E${next.episode}`} · ${next.title}`;
+    // the next episode's own picture (a library file: its still frame)
+    const art = !next._stream && next.id && !next._savedCopy && !next._localFile
+      ? el("div", { class: "upnext-art" }, el("img", { src: `/img/still/${encodeURIComponent(next.id)}`, alt: "", decoding: "async", onerror: (e) => { const box = e.target.closest(".upnext"); if (box) box.classList.remove("has-art"); e.target.parentNode && e.target.parentNode.remove(); } }))
+      : null;
     upNextEl = el(
       "div",
-      { class: "upnext" },
-      el("div", { class: "k" }, "Up next"),
+      { class: `upnext upnext-card${art ? " has-art" : ""}` },
+      art,
       el(
         "div",
-        { class: "t" },
-        `${next.epCode || `S${next.season} E${next.episode}`} · ${next.title}`,
+        { class: "upnext-body" },
+        el("div", { class: "k" }, "Next episode"),
+        el("div", { class: "t" }, label),
+        counting ? el("div", { class: "upnext-count" }, "Starts in ", counter) : null,
+        counting && creditsScene ? el("div", { class: "upnext-scene" }, "A scene follows the credits") : null,
+        counting ? el("div", { class: "upnext-bar", "aria-hidden": "true" }, bar) : null,
       ),
       el(
         "div",
@@ -5756,9 +5820,8 @@ export const renderPlayer = async (root, { id }) => {
         }),
         el(
           "button",
-          { "data-ui": "player.upnext.dismiss", class: "btn focusable", onclick: dismissUpNext },
-          counting ? counter : null,
-          counting ? " Dismiss" : "Dismiss",
+          { "data-ui": "player.upnext.dismiss", class: "btn focusable", onclick: () => { noteInput(); dismissUpNext(); } },
+          "Watch credits",
         ),
       ),
     );
@@ -5766,9 +5829,12 @@ export const renderPlayer = async (root, { id }) => {
     upNextEl.querySelector(".btn-primary").focus({ preventScroll: true });
 
     if (counting) {
+      // the bar fills over the countdown (a transition: no work per frame)
+      bar.style.transitionDuration = `${UPNEXT_COUNTDOWN_SEC}s`;
+      requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transform = "scaleX(1)"; }));
       countdownTimer = setInterval(() => {
         remaining--;
-        counter.textContent = String(remaining);
+        counter.textContent = String(Math.max(0, remaining));
         if (remaining <= 0) {
           // started by itself: one more in the run the next player reads
           // (a party's episodes are never counted)
@@ -6520,8 +6586,8 @@ export const renderPlayer = async (root, { id }) => {
       return;
     }
     saveProgress();
-    // the scene after the credits has played: the next episode, as the
-    // countdown would have started it
+    // the episode ended while the Next episode card counted down: the next
+    // episode now, as the countdown would have started it
     if (nextAtEnd && !exited) {
       const next = nextAtEnd;
       if (inParty()) autoRun.write(0);
@@ -7805,6 +7871,8 @@ export const renderPlayer = async (root, { id }) => {
     exited = true;
     clearTimeout(startSteps.subsTimer);
     clearTimeout(startSteps.subsCheck);
+    for (const t of scrubTimers) clearTimeout(t);
+    clearTimeout(skipHideTimer);
     clearTimeout(startSteps.startupTimer);
     subsHeld.length = 0;
     try { if (subsAbort) subsAbort.abort(); } catch {}

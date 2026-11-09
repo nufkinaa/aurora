@@ -2883,6 +2883,8 @@ const finish = async (job, destPath) => {
   {
     const libId = scanner.idForPath(destPath);
     if (libId) require("./preconvert").consider(libId);
+    // …and the progress bar's preview pictures, in the background (media/scrubsprites.js)
+    if (libId) { try { require("./scrubsprites").landed(libId); } catch {} }
   }
   // No Hebrew subtitles anywhere, for somebody who watches with Hebrew ones:
   // one is translated in the background (media/subai.js; only with an AI key)

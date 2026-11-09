@@ -560,7 +560,8 @@ const createGate = (deps) => {
       // (prepared: the copy made overnight for a device that can't play the file — media/prepared.js)
       /^\/stream\/(?:video|download|hls|transcode|embedded|airplay|prepared)\/([^/]+)/.exec(p) ||
       /^\/offline\/file\/([^/]+)/.exec(p) ||
-      /^\/img\/(?:still|frame)\/([^/]+)/.exec(p) ||
+      /^\/img\/(?:still|frame|scrub)\/([^/]+)/.exec(p) ||
+      /^\/api\/scrub\/([^/]+)/.exec(p) ||
       /^\/api\/offline\/(?:options|prepare|status|cancel)\/([^/]+)/.exec(p);
     if (fileM) {
       let id = fileM[1];
