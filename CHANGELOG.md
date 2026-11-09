@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.19 — 2026-11-09
+
+- **Behind the scenes: a small database for the records that grow.** Viewing sessions, watch history, statistics, downloads, uploads, requests, reports and a few more now live in `data/aurora.db` (SQLite), writing only what changed instead of rewriting whole files. On the first start each one moves over inside a checked step (counts and contents compared both ways) and its old file is kept as `.migrated-<date>`; if anything goes wrong that record simply stays a file. Profiles, sign-ins and settings stay as files. Backups keep holding every record. Going back: `node scripts/sqlite-export.js`, or `"sqlite": false` in config.json.
+
 ## 1.15.18 — 2026-11-09
 
 - **Pick together — what do we watch tonight?** Start it on the TV (or the website or phone), everyone in the room joins with the code or QR on their phone and swipes yes, maybe or no at the same time. The deck is built from everyone's tastes, puts what's on the server first and skips what everyone has seen; anyone can add titles by search. The pick shows on the TV with a short why ("3 of 3 said yes"), and one press plays it; "Something else" shows the next. Household only, codes expire, a short tutorial the first time, and kids' age limits apply when a kids profile joins. On the website now; on the TV and phone apps with their next update.
