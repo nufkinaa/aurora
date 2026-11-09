@@ -148,10 +148,10 @@ let sqliteVersion = null;
 // ------------------------------------------------------------- the codec
 // Pure functions: data <-> { head, rows }. `state` carries what the last
 // write left on disk, so a write can be just the difference:
-//   { ids: Map(coll -> WeakMap(obj -> key)), v: Map(ck -> json), pos: Map(ck -> pos), head, nextKey }
-const SEP = "\u0001";
-const ck = (coll, k) => `${coll}${SEP}${k}`;
-const newState = () => ({ ids: new Map(), v: new Map(), pos: new Map(), head: null, nextKey: 1, bytes: 0 });
+//   { ids: Map(coll -> WeakMap(obj -> key)), rows: Map(coll -> Map(key -> { v: json, pos })),
+//     head, nextKey, count, bytes }
+const ck = (coll, k) => `${coll}\u0001${k}`;
+const newState = () => ({ ids: new Map(), rows: new Map(), head: null, nextKey: 1, count: 0, bytes: 0 });
 
 // Positions that keep the order exactly while moving as few rows as
 // possible: rows whose old position still fits the order keep it; the
@@ -188,12 +188,11 @@ const positions = (known) => {
   return { pos, renumbered: false };
 };
 
-// What `data` is as rows. Returns { head, rows: [{ coll, k, pos, v }], ops } where
-// ops (against `state`) = { up: [row], move: [row], del: [{coll,k}], headChanged }.
-// `fresh`: ignore state (a whole new copy: migration, import).
+// What `data` is as rows, against `state`: { head, nextKey, count, ops, changed }
+// with ops = { up: [{ coll, k, pos, v }], move: [{ coll, k, pos }], del: [{ coll, k }], headChanged }.
+// `fresh`: as a whole new copy (migration, import): every row is in `up`.
+// Nothing in `state` changes here except the identity keys of new elements.
 const plan = (data, colls, state, { fresh = false } = {}) => {
-  const st = fresh ? { ...newState(), ids: state.ids, nextKey: state.nextKey } : state;
-  const rows = [];
   const kinds = {};
   let headObj = null;
   let order = null;
@@ -215,17 +214,21 @@ const plan = (data, colls, state, { fresh = false } = {}) => {
       order = null;
     }
   }
-  let nextKey = st.nextKey;
-  for (const coll of Object.keys(kinds)) {
-    const kind = kinds[coll];
-    if (kind === "none") continue;
+  let nextKey = state.nextKey;
+  let count = 0;
+  const up = [];
+  const move = [];
+  const del = [];
+  const live = new Set(Object.keys(kinds).filter((c) => kinds[c] !== "none"));
+  for (const coll of live) {
     const val = coll === "" ? data : data[coll];
-    const items = []; // [k, json]
-    if (kind === "array") {
-      const identity = val.every((el) => el !== null && typeof el === "object");
-      if (identity) {
-        let wm = st.ids.get(coll);
-        if (!wm) { wm = new WeakMap(); st.ids.set(coll, wm); }
+    const old = fresh ? null : state.rows.get(coll) || null;
+    const keys = [];
+    const vals = [];
+    if (Array.isArray(val)) {
+      if (val.every((el) => el !== null && typeof el === "object")) {
+        let wm = state.ids.get(coll);
+        if (!wm) { wm = new WeakMap(); state.ids.set(coll, wm); }
         const seen = new Set();
         for (const el of val) {
           let k = wm.get(el);
@@ -234,53 +237,67 @@ const plan = (data, colls, state, { fresh = false } = {}) => {
             if (!seen.has(el)) wm.set(el, k);
           }
           seen.add(el);
-          items.push([k, JSON.stringify(el)]);
+          keys.push(k);
+          vals.push(JSON.stringify(el));
         }
       } else {
         for (let i = 0; i < val.length; i++) {
-          const s = JSON.stringify(val[i]);
-          items.push([`#${i}`, s === undefined ? "null" : s]);
+          const v = JSON.stringify(val[i]);
+          keys.push(`#${i}`);
+          vals.push(v === undefined ? "null" : v);
         }
       }
     } else {
       for (const k of Object.keys(val)) {
-        const s = JSON.stringify(val[k]);
-        if (s === undefined) continue;
-        items.push([k, s]);
+        const v = JSON.stringify(val[k]);
+        if (v === undefined) continue;
+        keys.push(k);
+        vals.push(v);
       }
     }
-    const known = items.map(([k]) => (fresh ? undefined : st.pos.get(ck(coll, k))));
+    const n = keys.length;
+    count += n;
+    const known = new Array(n);
+    const entries = new Array(n);
+    let hits = 0;
+    if (old) for (let i = 0; i < n; i++) { const e = old.get(keys[i]); entries[i] = e; if (e) { known[i] = e.pos; hits++; } }
     const { pos } = positions(known);
-    for (let i = 0; i < items.length; i++) rows.push({ coll, k: items[i][0], pos: pos[i], v: items[i][1] });
+    for (let i = 0; i < n; i++) {
+      const e = entries[i];
+      if (!e || e.v !== vals[i]) up.push({ coll, k: keys[i], pos: pos[i], v: vals[i] });
+      else if (e.pos !== pos[i]) move.push({ coll, k: keys[i], pos: pos[i] });
+    }
+    if (old && hits < old.size) {
+      const here = new Set(keys);
+      for (const k of old.keys()) if (!here.has(k)) del.push({ coll, k });
+    }
   }
+  // a collection that is gone (or no longer an array or a map): all its rows
+  if (!fresh) for (const [coll, old] of state.rows) if (!live.has(coll)) for (const k of old.keys()) del.push({ coll, k });
   const head = JSON.stringify({ v: 1, kinds, order, h: headObj });
-  // the difference
-  const up = [];
-  const move = [];
-  const seen = new Set();
-  for (const r of rows) {
-    const key = ck(r.coll, r.k);
-    seen.add(key);
-    const oldV = fresh ? undefined : st.v.get(key);
-    if (oldV !== r.v) up.push(r);
-    else if (st.pos.get(key) !== r.pos) move.push(r);
-  }
-  const del = [];
-  if (!fresh) for (const key of st.v.keys()) if (!seen.has(key)) { const at = key.indexOf(SEP); del.push({ coll: key.slice(0, at), k: key.slice(at + 1), key }); }
-  const headChanged = fresh || head !== st.head;
-  return { head, rows, nextKey, ops: { up, move, del, headChanged }, changed: headChanged || up.length > 0 || move.length > 0 || del.length > 0 };
+  const headChanged = fresh || head !== state.head;
+  return { head, nextKey, count, ops: { up, move, del, headChanged }, changed: headChanged || up.length > 0 || move.length > 0 || del.length > 0 };
 };
 
-// The state after a plan has been written.
-const applied = (state, p) => {
-  const v = new Map();
-  const pos = new Map();
-  let bytes = p.head.length;
-  for (const r of p.rows) { const key = ck(r.coll, r.k); v.set(key, r.v); pos.set(key, r.pos); bytes += r.v.length; }
-  state.v = v;
-  state.pos = pos;
+// `state` once a plan has been written (`fresh`: it replaced everything).
+const applied = (state, p, { fresh = false } = {}) => {
+  if (fresh) { state.rows = new Map(); state.bytes = 0; state.head = null; }
+  const mapOf = (coll) => { let m = state.rows.get(coll); if (!m) { m = new Map(); state.rows.set(coll, m); } return m; };
+  let bytes = state.bytes - (state.head ? state.head.length : 0) + p.head.length;
+  for (const r of p.ops.up) {
+    const m = mapOf(r.coll);
+    const e = m.get(r.k);
+    if (e) { bytes += r.v.length - e.v.length; e.v = r.v; e.pos = r.pos; } else { bytes += r.v.length; m.set(r.k, { v: r.v, pos: r.pos }); }
+  }
+  for (const r of p.ops.move) { const e = mapOf(r.coll).get(r.k); if (e) e.pos = r.pos; }
+  for (const r of p.ops.del) {
+    const m = state.rows.get(r.coll);
+    const e = m && m.get(r.k);
+    if (e) { bytes -= e.v.length; m.delete(r.k); if (!m.size) state.rows.delete(r.coll); }
+  }
   state.head = p.head;
   state.nextKey = p.nextKey;
+  state.count = p.count;
   state.bytes = bytes;
 };
 
@@ -630,7 +647,13 @@ class Backend {
     state.nextKey = reg.next_key;
     state.head = reg.head;
     let bytes = reg.head.length;
-    for (const r of rows) { const key = ck(r.coll, r.k); state.v.set(key, r.v); state.pos.set(key, r.pos); bytes += r.v.length; }
+    for (const r of rows) {
+      let m = state.rows.get(r.coll);
+      if (!m) { m = new Map(); state.rows.set(r.coll, m); }
+      m.set(r.k, { v: r.v, pos: r.pos });
+      bytes += r.v.length;
+    }
+    state.count = rows.length;
     state.bytes = bytes;
     this.state = state;
     this.reg = reg;
@@ -654,22 +677,23 @@ class Backend {
     const text = JSON.stringify(data);
     if (typeof text !== "string") return { ok: false, problem: "nothing serialisable" };
     const want = md5(text);
-    const state = { ...newState(), ids: new Map() };
+    const state = newState();
     const p = plan(data, this.colls, state, { fresh: true });
+    const rowsIn = p.ops.up;
     const s = this.db.stmts;
     const now = Date.now();
     try {
       this.db.tx(() => {
         s.clear.run(this.name);
-        s.register.run(this.name, p.head, p.nextKey, p.rows.length, now, from, sourceText != null ? md5(sourceText) : null, want, now);
-        for (let i = 0; i < p.rows.length; i++) {
-          const r = p.rows[i];
+        s.register.run(this.name, p.head, p.nextKey, rowsIn.length, now, from, sourceText != null ? md5(sourceText) : null, want, now);
+        for (let i = 0; i < rowsIn.length; i++) {
+          const r = rowsIn[i];
           s.up.run(this.name, r.coll, r.k, r.pos, r.v);
           if (hooks.row) hooks.row(i, this.name);
         }
         // read back, inside the same transaction
         const n = s.count.get(this.name).n;
-        if (n !== p.rows.length) throw new Error(`${p.rows.length} rows written, ${n} read back`);
+        if (n !== rowsIn.length) throw new Error(`${rowsIn.length} rows written, ${n} read back`);
         const back = this.db.readRows(this.name);
         for (const r of back) r.val = JSON.parse(r.v);
         const reg = s.reg.get(this.name);
@@ -679,10 +703,10 @@ class Backend {
     } catch (e) {
       return { ok: false, problem: (e && e.message) || String(e) };
     }
-    applied(state, p);
+    applied(state, p, { fresh: true });
     this.state = state;
     this.failures = 0;
-    return { ok: true, rows: p.rows.length, ms: Number(process.hrtime.bigint() - t0) / 1e6, md5: want };
+    return { ok: true, rows: rowsIn.length, ms: Number(process.hrtime.bigint() - t0) / 1e6, md5: want };
   }
 
   // One write: only the difference. Returns "written" | "unchanged"; throws
@@ -697,7 +721,7 @@ class Backend {
       for (const r of up) s.up.run(this.name, r.coll, r.k, r.pos, r.v);
       for (const r of move) s.move.run(r.pos, this.name, r.coll, r.k);
       for (const r of del) s.del.run(this.name, r.coll, r.k);
-      const res = s.head.run(p.head, p.nextKey, p.rows.length, Date.now(), this.name);
+      const res = s.head.run(p.head, p.nextKey, p.count, Date.now(), this.name);
       if (!res || res.changes !== 1) throw new Error("the store is not registered in the database");
     });
     applied(this.state, p);
@@ -706,7 +730,7 @@ class Backend {
     return "written";
   }
 
-  rows() { return this.state.v.size; }
+  rows() { return this.state.count; }
   bytes() { return this.state.bytes; }
 }
 

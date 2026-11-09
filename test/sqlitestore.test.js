@@ -95,9 +95,9 @@ test("the codec: rebuilding the rows gives exactly the data, under random unshif
       if (fresh) db.clear();
       for (const r of p.ops.up) db.set(Q.ck(r.coll, r.k), { ...r });
       for (const r of p.ops.move) db.get(Q.ck(r.coll, r.k)).pos = r.pos;
-      for (const r of p.ops.del) db.delete(r.key);
+      for (const r of p.ops.del) db.delete(Q.ck(r.coll, r.k));
       head = p.head;
-      Q.applied(state, p);
+      Q.applied(state, p, { fresh });
     };
     const readBack = () => Q.rebuild(head, [...db.values()].sort((a, b) => (a.coll < b.coll ? -1 : a.coll > b.coll ? 1 : a.pos - b.pos)).map((r) => ({ ...r, val: JSON.parse(r.v) })));
     writeOnce(true);
