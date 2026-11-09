@@ -149,7 +149,7 @@ jobs:
         run: >-
           node tools/ci/ci-tests.js changed
           --match tv-native/ --match .github/workflows/
-          --match public/js/screens/player.js --match public/js/replaceCopy.js
+          --match public/js/screens/player.js --match public/js/replaceCopy.js --match public/js/groupwords.js
           --match src/media/household.js --match src/media/badreleases.js --match src/lib/tvtuning.js
           --match test/home-merge-cases.json --match test/fixtures/party-sync-cases.json
           --match tools/home-merge-cases.js --match docs/qa/household-recs/
