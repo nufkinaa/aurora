@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.21 — 2026-11-09
+
+- **Watch franchises in order.** 165 franchises, each film checked: the Marvel Cinematic Universe, DC, Star Wars with its series, the Wizarding World, Middle-earth, Bond, Fast & Furious, Alien and Predator, the Conjuring universe, MonsterVerse and many more, plus TMDB collections where the server has a TMDB key. A film's page says where it sits ("Part of the Marvel Cinematic Universe · 12 of 34"); Watch in order lists every entry with what's on the server and what you've seen, in release or story order (your choice follows you to every device). Missing films are saved from their own page — nothing downloads by itself. At the end of a film the next one is offered (a countdown only when it's on the server), and Home has Continue the franchise. On the website now; on the TV and phone apps with their next update.
+
 ## 1.15.20 — 2026-11-09
 
 **Aurora for Android phones 1.1.0** (phones offer the update by themselves) — and Play on TV on the website.
