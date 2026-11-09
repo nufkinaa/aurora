@@ -24,7 +24,13 @@ const lastProgress = (out) => {
 };
 
 // -> Promise<{ ok, result } | { ok: false, error } | { ok: false, timeout: true, pid, progress } | { ok: false, busy: true }>
-const ask = (op, args = {}, { timeoutMs = 8000, key = null, env = process.env } = {}) =>
+// low: the child gets the lowest CPU and I/O priority (moving a title must
+// never slow a stream down; Linux: nice 19 + ionice idle class)
+const lower = (pid) => {
+  try { require("os").setPriority(pid, 19); } catch {}
+  if (process.platform === "linux") { try { require("child_process").execFile("ionice", ["-c", "3", "-p", String(pid)], { timeout: 3000 }, () => {}); } catch {} }
+};
+const ask = (op, args = {}, { timeoutMs = 8000, key = null, env = process.env, low = false } = {}) =>
   new Promise((resolve) => {
     const k = key || null;
     if (k && outstanding.has(k)) {
@@ -36,6 +42,7 @@ const ask = (op, args = {}, { timeoutMs = 8000, key = null, env = process.env } 
     try { child = deps.spawn({ op, ...args }, env); } catch (e) {
       return resolve({ ok: false, error: `could not start the drive check: ${(e && e.message) || e}` });
     }
+    if (low && child.pid) lower(child.pid);
     const rec = { child, since: Date.now(), timedOut: false };
     if (k) outstanding.set(k, rec);
     let out = "";

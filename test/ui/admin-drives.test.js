@@ -20,14 +20,16 @@ const { suite, openDetails, DESKTOP, PHONE } = require("./helpers");
 const SCRATCH = fs.mkdtempSync(path.join(os.tmpdir(), "aurora-drives-ui-"));
 const EXTRA = path.join(SCRATCH, "extra-drive"); // a local folder: "Use this drive too" for real
 const NET = path.join(SCRATCH, "net-drive"); // a "network" folder that can stop answering
+const ROOMY = path.join(SCRATCH, "roomy-drive"); // a local folder that says it has room (this machine's disk may not)
 const SWITCH = path.join(SCRATCH, "hang-now");
 fs.mkdirSync(EXTRA, { recursive: true });
 fs.mkdirSync(NET, { recursive: true });
+fs.mkdirSync(ROOMY, { recursive: true });
 
 const ui = suite({
   server: {
     env: {
-      AURORA_DRIVES_EXTRA: JSON.stringify([{ path: EXTRA, label: "Extra drive" }, { path: NET, network: true, label: "Net drive" }]),
+      AURORA_DRIVES_EXTRA: JSON.stringify([{ path: EXTRA, label: "Extra drive" }, { path: NET, network: true, label: "Net drive" }, { path: ROOMY, label: "Roomy drive", space: { total: 2e12, free: 1.5e12 } }]),
       AURORA_DRIVES_FAKE_HANG: NET,
       AURORA_DRIVES_FAKE_HANG_SWITCH: SWITCH,
     },
@@ -184,6 +186,95 @@ ui.test("a network drive's score says what it serves; a share as big as all that
   await shot(page, "drives-network-score", "#drives-card");
 });
 
+ui.test("Stop using this drive: moves the titles first, removes an empty one, and warns for one that does not answer; the fast-drive switch and Moved recently", { permissions: ["clipboard-read", "clipboard-write"] }, async ({ page, srv }) => {
+  await stubDisk(page);
+  const withTitles = { ...NFS, inUse: true, newDownloads: true, holds: ["movies", "shows"], titles: 37, aurora: { bytes: 300 * GIB, files: 40, partial: false, at: Date.now() } };
+  const moving = { ...withTitles, newDownloads: false, evacuating: { since: Date.now(), left: 36, moved: 1, why: null } };
+  const empty = { ...withTitles, titles: 0, aurora: { bytes: 0, files: 0, partial: false, at: Date.now() } };
+  const gone = { ...withTitles, answering: false, gone: true, downSince: Date.now() - 600e3, total: null, free: null, used: null, fstype: "gone" };
+  const notInUse = { ...NFS };
+  const moves = {
+    keepFast: true,
+    current: { title: "Old Film", kind: "movie", from: "/opt/aurora/media/Movies", to: "/mnt/storagespace/Aurora/Movies", reason: "cold", bytes: 20 * GIB, copied: 5 * GIB, phase: "copying", paused: null, startedAt: Date.now() },
+    recent: [{ title: "Older Film", kind: "movie", from: "/opt/aurora/media/Movies", to: "/mnt/storagespace/Aurora/Movies", bytes: 8 * GIB, reason: "cold", result: "moved", at: Date.now() - 3600e3 }],
+  };
+  const with_ = (list, extra = {}) => ({ ...answer(list), keepFast: true, moves, ...extra });
+  await stubDrives(page, [with_([NVME, withTitles]), with_([NVME, moving]), with_([NVME, empty]), with_([NVME, gone]), with_([NVME, notInUse])]);
+  const posts = [];
+  await page.route((u) => /^\/api\/admin\/drives\/(stop-using|keep-fast)$/.test(u.pathname), (route) => {
+    const body = JSON.parse(route.request().postData() || "{}");
+    const what = new URL(route.request().url()).pathname.split("/").pop();
+    posts.push([what, body]);
+    if (what === "keep-fast") return route.fulfill({ json: { ok: true, keepFast: body.on } });
+    step++;
+    return route.fulfill({ json: body.how === "move" ? { ok: true, moving: true, titles: 37 } : { ok: true, removed: true } });
+  });
+  await enter(page, srv);
+  await openDisk(page);
+  const c = () => card(page, "/mnt/storagespace");
+
+  // the switch and the move under way
+  const box = page.locator("#drives-moves");
+  await box.waitFor();
+  assert.equal(await box.locator("#drv-keepfast").isChecked(), true);
+  assert.match(await box.innerText(), /Keep the fast drive for new and 4K titles/);
+  assert.match(await box.innerText(), /Moving: “Old Film” \(20\.0 GB\) from \/opt\/aurora\/media\/Movies to \/mnt\/storagespace\/Aurora\/Movies — 25%\./);
+  await box.locator("summary").click();
+  assert.match(await box.innerText(), /Moved recently \(1\)[\s\S]*Older Film — moved to \/mnt\/storagespace\/Aurora\/Movies · 8\.0 GB/);
+  await box.locator("#drv-keepfast").uncheck();
+  await toastSays(page, /New downloads go where there is most room/);
+  assert.deepEqual(posts.shift(), ["keep-fast", { on: false }]);
+  await shot(page, "drives-moves", "#drives-moves");
+
+  // 37 titles there: "Move them to the other drives first"
+  await c().locator('[data-drv-act="remove"]').click();
+  const dlg = page.locator("dialog.ask");
+  await dlg.waitFor();
+  assert.match(await dlg.innerText(), /Move 37 titles off \/mnt\/storagespace first\?[\s\S]*one at a time — never while one is playing/);
+  await shot(page, "drives-stop-move", "dialog.ask");
+  await dlg.locator(".ask-yes").click();
+  await toastSays(page, /Moving 37 titles off \/mnt\/storagespace — it is removed when empty/);
+  assert.deepEqual(posts.shift(), ["stop-using", { id: "/mnt/storagespace", how: "move" }]);
+  await page.waitForFunction(() => /Moving off/.test(document.querySelector('#drives-card .drv[data-drive="/mnt/storagespace"]').innerText));
+  assert.match(await c().innerText(), /Moving its titles to the other drives — 36 left, 1 moved\./);
+  await shot(page, "drives-moving-off", "#drives-card");
+  // "Stop moving — keep using it"
+  await c().locator('[data-drv-act="cancel-move"]').click();
+  await toastSays(page, /Stopped moving titles off/);
+  assert.deepEqual(posts.shift(), ["stop-using", { id: "/mnt/storagespace", how: "cancel" }]);
+
+  // empty: one question, removed
+  await page.waitForFunction(() => !/Moving off/.test(document.querySelector('#drives-card .drv[data-drive="/mnt/storagespace"]').innerText));
+  await c().locator('[data-drv-act="remove"]').click();
+  await dlg.waitFor();
+  assert.match(await dlg.innerText(), /Stop using \/mnt\/storagespace\?[\s\S]*Aurora keeps no titles there[\s\S]*Nothing on the drive is deleted\./);
+  await dlg.locator(".ask-yes").click();
+  await toastSays(page, /Aurora no longer uses \/mnt\/storagespace/);
+  assert.deepEqual(posts.shift(), ["stop-using", { id: "/mnt/storagespace", how: "remove" }]);
+
+  // (the next answer:) a cancelled share, not mounted any more — the warning that its titles leave the library
+  await page.waitForFunction(() => /Not mounted/.test(document.querySelector('#drives-card .drv[data-drive="/mnt/storagespace"]').innerText));
+  await c().locator('[data-drv-act="remove"]').click();
+  await dlg.waitFor();
+  assert.match(await dlg.innerText(), /Stop using \/mnt\/storagespace anyway\?[\s\S]*is not mounted any more[\s\S]*Its 37 titles will disappear from the library/);
+  await shot(page, "drives-stop-gone", "dialog.ask");
+  await dlg.locator(".ask-yes").click();
+  await page.waitForFunction(() => /Not in use/.test(document.querySelector('#drives-card .drv[data-drive="/mnt/storagespace"]').innerText));
+  assert.deepEqual(posts.shift(), ["stop-using", { id: "/mnt/storagespace", how: "force" }]);
+  await page.waitForFunction(() => /Not in use/.test(document.querySelector('#drives-card .drv[data-drive="/mnt/storagespace"]').innerText));
+
+  // Copy for Claude: the switch and the moves
+  await page.click('details.more[data-more="d-disk"] [data-copy-for="d-disk"]');
+  let text = "";
+  for (const end = Date.now() + 15000; Date.now() < end; await page.waitForTimeout(100)) {
+    text = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
+    if (/Moved recently/.test(text)) break;
+  }
+  assert.match(text, /Keep the fast drive for new and 4K titles: on/);
+  assert.match(text, /Moving now: Old Film \(20\.0 GB\) from \/opt\/aurora\/media\/Movies to \/mnt\/storagespace\/Aurora\/Movies, copying/);
+  assert.match(text, /Moved recently:\n\| title \| from \| to \| size \| result \| when \|\n[\s\S]*\| Older Film \| \/opt\/aurora\/media\/Movies \| \/mnt\/storagespace\/Aurora\/Movies \| 8\.0 GB \| moved \|/);
+});
+
 ui.test("a drive that is not answering: said on its card and in the headline", async ({ page, srv }) => {
   await stubDisk(page);
   const since = new Date(); since.setHours(15, 42, 0, 0);
@@ -251,6 +342,72 @@ ui.test("for real: Use this drive too makes the folders, updates config.json, an
   const list = await srv.api.adminGet("/api/admin/drives");
   assert.equal(list.drives.find((d) => d.id === id).newDownloads, false);
   await shot(page, "drives-real", "#drives-card");
+});
+
+ui.test("for real: Stop using this drive — its film moves to the other drive (same id, still plays), then the drive is removed", { timeout: 120000 }, async ({ page, srv }) => {
+  const id = path.resolve(EXTRA);
+  // (the test before set it to "no new downloads"; it is in use)
+  const before = (await srv.api.adminGet("/api/admin/drives")).drives.find((d) => d.id === id);
+  assert.equal(before.inUse, true);
+  // a drive with room to take it (the test machine's own disk may be too full for its reserve)
+  assert.equal((await srv.api.adminPost("/api/admin/drives/use", { id: path.resolve(ROOMY) })).ok, true);
+  const src = path.join(srv.library.movies, "Test Film One (2020)");
+  const onExtra = path.join(EXTRA, "Aurora", "Movies", "Moving Film (2018)");
+  fs.mkdirSync(onExtra, { recursive: true });
+  fs.copyFileSync(path.join(src, "Test Film One (2020).mp4"), path.join(onExtra, "Moving Film (2018).mp4"));
+  await srv.api.rescan();
+  let filmId = null;
+  for (let i = 0; i < 40 && !filmId; i++) {
+    const m = (await srv.api.library()).movies.find((x) => x.title === "Moving Film");
+    filmId = m && m.id;
+    if (!filmId) await new Promise((r) => setTimeout(r, 500));
+  }
+  assert.ok(filmId, "the film on the extra drive is in the library");
+  // with a title there, a plain remove is refused
+  const plain = await srv.api.call("POST", "/api/admin/drives/stop-using", { id, how: "remove" }, srv.api.admin);
+  assert.equal(plain.status, 409);
+  assert.equal(plain.body.needsMove, true);
+  // through the page: Stop using this drive → Move them to the other drives first
+  await enter(page, srv);
+  await openDisk(page);
+  const c = card(page, id.replace(/\\/g, "\\\\"));
+  await c.locator('[data-drv-act="remove"]').click();
+  await page.locator("dialog.ask .ask-yes").click();
+  await toastSays(page, /Moving 1 title off/);
+  // the mover: copied, checked, put in place, the original deleted — then the drive is removed
+  let drv = null;
+  for (const end = Date.now() + 90000; Date.now() < end; await new Promise((r) => setTimeout(r, 1000))) {
+    drv = (await srv.api.adminGet("/api/admin/drives")).drives.find((d) => d.id === id);
+    if (!drv.inUse) break;
+  }
+  assert.equal(drv.inUse, false, srv.log().filter((l) => /drives/.test(l)).slice(-15).join("\n"));
+  const landed = path.join(ROOMY, "Aurora", "Movies", "Moving Film (2018)", "Moving Film (2018).mp4");
+  assert.ok(fs.existsSync(landed), "the film is on the other drive");
+  assert.equal(fs.existsSync(onExtra), false, "and no longer on the one that was removed");
+  assert.deepEqual(fs.readdirSync(path.join(ROOMY, "Aurora", "Movies")).filter((n) => n.startsWith(".aurora-moving-")), [], "no temp folder left");
+  const cfg = JSON.parse(fs.readFileSync(path.join(srv.root, "config.json"), "utf8"));
+  assert.ok(!cfg.libraries.movies.some((d) => d.startsWith(EXTRA)), "its folders left config.json");
+  // the same film, the same id, and it plays
+  let m = null;
+  for (let i = 0; i < 40; i++) {
+    m = (await srv.api.library()).movies.find((x) => x.title === "Moving Film");
+    if (m) break;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  assert.equal(m && m.id, filmId, "it keeps its id");
+  const r = await fetch(`${srv.url}/stream/video/${filmId}`, { headers: { Range: "bytes=0-1023" } });
+  assert.equal(r.status, 206);
+  await r.arrayBuffer();
+  const log = srv.log().join("\n");
+  assert.match(log, /\[drives\] moved "Moving Film" \(\d+ MB\) from .*extra-drive.* to /);
+  assert.match(log, /\[drives\] stopped using .*extra-drive.* after moving 1 title to the other drives/);
+  // the page: Not in use, and Moved recently says so
+  await enter(page, srv);
+  await openDisk(page);
+  await page.waitForFunction((d) => /Not in use/.test(document.querySelector(`#drives-card .drv[data-drive="${CSS.escape(d)}"]`).innerText), id);
+  await page.locator("#drives-moves summary").click();
+  assert.match(await page.locator("#drives-moves").innerText(), /Moving Film — moved to/);
+  await shot(page, "drives-real-moved", "#drives-card");
 });
 
 ui.test("for real: a network drive stops answering — viewers told at once, other titles play, Needs you, then back by itself", { timeout: 150000 }, async ({ srv }) => {

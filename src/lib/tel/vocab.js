@@ -113,7 +113,7 @@ const SEGMENTS = new Set((
   "latest " + // a release's file by name (/download/:id/latest — lib/releases.js)
   "phone phone-app .well-known " + // the phone app (/download/phone, /api/admin/phone-app, /.well-known/assetlinks.json)
   "caps play " + // what a device can play (/api/caps, /api/caps/:id/play/:itemId — routes/avcaps.js)
-  "drives use new-downloads test " + // storage drives (/api/admin/drives, …/use, …/new-downloads, …/test — lib/drives)
+  "drives use new-downloads test keep-fast stop-using " + // storage drives (/api/admin/drives, …/use, …/new-downloads, …/test — lib/drives)
   "uploads chunk retry " +
   "reset request code check complete reset-requests reset-code app-start app-finish " + // sign-in round: password reset, the phone's Google (routes/auth.js) // admin "Add your own file" (/api/admin/uploads, …/link, …/:id/chunk, …/cancel, …/retry, …/dismiss)
   ".m3u8 .ts .m4s .mp4 .mkv .webm .vtt .srt .jpg .jpeg .png .webp .avif .svg .gif .ico .js .css .json .html .txt .apk .woff2 .webmanifest " +

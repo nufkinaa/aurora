@@ -144,7 +144,9 @@ router.get("/api/admin/drives", async (req, res) => {
   const drives = require("../lib/drives");
   try {
     const list = await drives.list({ fresh: req.query.fresh === "1" });
-    res.json({ drives: list, reservePct: require("../lib/drives/rules").RESERVE_PCT, reserveMaxBytes: require("../lib/drives/rules").RESERVE_MAX });
+    let moves = null;
+    try { moves = drives.moverView(); } catch {}
+    res.json({ drives: list, reservePct: require("../lib/drives/rules").RESERVE_PCT, reserveMaxBytes: require("../lib/drives/rules").RESERVE_MAX, keepFast: moves ? moves.keepFast : true, moves });
   } catch (err) {
     res.status(500).json({ error: `Could not list the drives: ${(err && err.message) || err}` });
   }
@@ -176,6 +178,24 @@ router.post("/api/admin/drives/test", (req, res) => {
   if (!id) return res.status(400).json({ error: "Which drive?" });
   const r = require("../lib/drives").testAgain(id);
   res.status(r.error ? 409 : 200).json(r);
+});
+
+// "Keep the fast drive for new and 4K titles" { on } (lib/drives/mover.js)
+router.post("/api/admin/drives/keep-fast", (req, res) => {
+  if (typeof (req.body && req.body.on) !== "boolean") return res.status(400).json({ error: "On or off?" });
+  res.json(require("../lib/drives").setKeepFast(req.body.on));
+});
+// "Stop using this drive" { id, how: "remove" | "move" | "force" | "cancel" }
+router.post("/api/admin/drives/stop-using", async (req, res) => {
+  const id = driveId(req);
+  const how = req.body && req.body.how;
+  if (!id || !["remove", "move", "force", "cancel"].includes(how)) return res.status(400).json({ error: "Which drive, and how?" });
+  try {
+    const r = await require("../lib/drives").stopUsing(id, how);
+    res.status(r.error ? 409 : 200).json(r);
+  } catch (err) {
+    res.status(500).json({ error: `Could not stop using the drive: ${(err && err.message) || err}` });
+  }
 });
 
 // Every title with its on-disk size, for the "free up space" list.
