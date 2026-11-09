@@ -120,8 +120,18 @@ export function dropKey<T>(o: Record<string, T>, key: string): Record<string, T>
   return next;
 }
 // `id` and `mine`: a person can cancel their own from the title's page.
-export type JobMark = {status: string; progress: number; id?: string; mine?: boolean};
-// "The same" as far as a card can show: its status and a whole percent (and the job).
+// `phase`: the server's stage of a running job (finding / starting / copying…),
+// which is what tells "Starting download…" and "Almost there…" apart.
+export type JobMark = {status: string; progress: number; id?: string; mine?: boolean; phase?: string | null};
+/** A job from the list or the socket, as the title page keeps it. */
+export const jobMark = (j: {status: string; progress?: number; id?: string; mine?: boolean; phase?: string | null}): JobMark => ({
+  status: j.status,
+  progress: j.progress || 0,
+  id: j.id,
+  mine: !!j.mine,
+  phase: j.phase || null,
+});
+// "The same" as far as a card can show: its status, its stage and a whole percent (and the job).
 export const sameJob = (a: JobMark | null | undefined, b: JobMark | null | undefined) =>
   a === b ||
   (!!a &&
@@ -129,6 +139,7 @@ export const sameJob = (a: JobMark | null | undefined, b: JobMark | null | undef
     a.id === b.id &&
     !!a.mine === !!b.mine &&
     a.status === b.status &&
+    (a.phase || null) === (b.phase || null) &&
     Math.round((a.progress || 0) * 100) === Math.round((b.progress || 0) * 100));
 export const sameJobs = (a: Record<string, JobMark>, b: Record<string, JobMark>) => {
   const ka = Object.keys(a);
@@ -136,11 +147,40 @@ export const sameJobs = (a: Record<string, JobMark>, b: Record<string, JobMark>)
   for (const k of ka) if (!b[k] || !sameJob(a[k], b[k])) return false;
   return true;
 };
+// THE WEBSITE'S WORDS while a title downloads, word for word (its Save & watch
+// button, saveState in public/js/screens/discover-detail.js; the root test
+// test/download-words-parity.test.js holds the two together). The TV's and the
+// phone's Play button say these, and nothing under it while the download runs
+// (the website has no line there either: its button fills as it goes, as the
+// strip under the TV's and the phone's does).
+export const SAVE_WORDS = {
+  pending: 'Waiting for approval',
+  approved: 'Queued to download',
+  finishing: 'Almost there…',
+  starting: 'Starting download…',
+  downloading: (pct: number) => `Downloading · ${pct}%`,
+};
+/** The Play button's words for a download on its way (the website's saveState). */
+export const saveText = (job: {status: string; progress?: number; phase?: string | null}) => {
+  if (job.status === 'pending') return SAVE_WORDS.pending;
+  if (job.status === 'approved') return SAVE_WORDS.approved;
+  if (job.phase === 'copying') return SAVE_WORDS.finishing;
+  if (job.phase === 'finding' || job.phase === 'starting' || !((job.progress || 0) > 0)) return SAVE_WORDS.starting;
+  return SAVE_WORDS.downloading(Math.round((job.progress || 0) * 100));
+};
+// An episode card's word for its download — the website's (epJobText in
+// discover-detail.js): Requested / Starting / Downloading 34%. The TV's
+// card prints it in capitals, as the rest of its line.
+export const CARD_WORDS = {
+  pending: 'Requested',
+  starting: 'Starting',
+  downloading: (pct: number) => `Downloading ${pct}%`,
+};
 export const dlText = (dl: {status: string; progress: number}) => {
-  if (dl.status === 'pending') return 'REQUESTED';
+  if (dl.status === 'pending') return CARD_WORDS.pending;
   const pct = Math.round((dl.progress || 0) * 100);
-  if (dl.status !== 'downloading' || !(pct > 0)) return 'STARTING';
-  return `SAVING ${pct}%`;
+  if (dl.status !== 'downloading' || !(pct > 0)) return CARD_WORDS.starting;
+  return CARD_WORDS.downloading(pct);
 };
 // The Play button's download story, past what a job carries (see dlNote):
 //   finding — pressed, the best source is being looked up / requested
@@ -154,8 +194,6 @@ export const dlName = (key: string, title: string) => {
   const m = /^(\d+)x(\d+)$/.exec(key);
   return m ? `S${m[1]} E${m[2]}` : unescapeHtml(title);
 };
-export const fmtRate = (bps?: number) =>
-  !bps || bps < 30000 ? '' : bps >= 1e6 ? `${(bps / 1e6).toFixed(1)} MB/s` : `${Math.round(bps / 1024)} KB/s`;
 // A "Get another version" download (MyDownload.replaces): the title's copy is
 // owned and stays playable, so it is never the Play button's job.
 export const isReplacement = (j: DownloadJob) => !!(j as MyDownload).replaces;
@@ -169,43 +207,36 @@ export const endedText = (name: string, status: string) =>
       ? `${name}'s download was removed  ·  press Play to try again`
       : `Couldn't get ${name}  ·  hold Play for other sources`;
 // Everything the Play button and the line under it say, from the job, the
-// note and whether the copy is on disk. `busy` puts the spinner on the button.
+// note and whether the copy is on disk. `label`: the button's words while it
+// saves (the website's, SAVE_WORDS — null: the button says what it always
+// does); `line`: the one muted sentence under it, only when the download is
+// NOT running (no copy to pick, failed, ready, the hint) — while it runs the
+// button says it all and `pct` fills the strip under it. `busy` puts the
+// spinner on the button.
+export type DlStatus = {busy: boolean; label: string | null; line: string | null; pct: number | null; tone: 'hint' | 'live' | 'ok' | 'warn'};
 export const dlStatus = (
   name: string,
   job: JobMark | null | undefined,
   note: DlNote | null,
   owned: boolean,
-  live: {speed: number; phase: string | null} | null,
-): {busy: boolean; line: string | null; pct: number | null; tone: 'hint' | 'live' | 'ok' | 'warn'} => {
+  live: {phase: string | null} | null,
+): DlStatus => {
   if (job) {
-    const pre = note?.kind === 'already' ? 'Already on its way  ·  ' : '';
-    if (job.status === 'pending') {
-      return {busy: true, line: `${pre}Requested ${name}  ·  waiting for approval`, pct: null, tone: 'live'};
-    }
-    const pct = Math.round((job.progress || 0) * 100);
-    if (live?.phase === 'copying') {
-      return {busy: true, line: `${pre}${name} is moving into the library…`, pct: job.progress || 0, tone: 'live'};
-    }
-    const rate = job.status === 'downloading' ? fmtRate(live?.speed) : '';
-    return {
-      busy: true,
-      line: `${pre}Downloading ${name}  ·  best source  ·  ${pct}%${rate ? `  ·  ${rate}` : ''}`,
-      pct: job.progress || 0,
-      tone: 'live',
-    };
+    const label = saveText({...job, phase: job.phase || live?.phase || null});
+    return {busy: true, label, line: null, pct: job.status === 'pending' ? null : job.progress || 0, tone: 'live'};
   }
   if (note) {
-    if (note.kind === 'finding') return {busy: true, line: `Getting ${name}  ·  finding the best source…`, pct: null, tone: 'live'};
-    if (note.kind === 'already') return {busy: true, line: `${name} is already on its way…`, pct: null, tone: 'live'};
+    // pressed: the best source is being looked up and asked for
+    if (note.kind === 'finding' || note.kind === 'already') return {busy: true, label: SAVE_WORDS.starting, line: null, pct: null, tone: 'live'};
     if (note.kind === 'ended' || note.kind === 'ready') {
       return owned
-        ? {busy: false, line: 'Ready — press Play', pct: null, tone: 'ok'}
-        : {busy: true, line: `Finishing ${name}…`, pct: 1, tone: 'live'};
+        ? {busy: false, label: null, line: 'Ready — press Play', pct: null, tone: 'ok'}
+        : {busy: true, label: SAVE_WORDS.finishing, line: null, pct: 1, tone: 'live'};
     }
-    if (note.kind === 'failed') return {busy: false, line: note.text || `Couldn't get ${name}  ·  hold Play for other sources`, pct: null, tone: 'warn'};
+    if (note.kind === 'failed') return {busy: false, label: null, line: note.text || `Couldn't get ${name}  ·  hold Play for other sources`, pct: null, tone: 'warn'};
   }
-  if (!owned) return {busy: false, line: 'Press Play to save the best source  ·  hold for the list', pct: null, tone: 'hint'};
-  return {busy: false, line: null, pct: null, tone: 'hint'};
+  if (!owned) return {busy: false, label: null, line: 'Press Play to save the best source  ·  hold for the list', pct: null, tone: 'hint'};
+  return {busy: false, label: null, line: null, pct: null, tone: 'hint'};
 };
 // ui.js fmtAirDate, ported — by hand rather than toLocaleDateString, so it does
 // not depend on the TV's Intl data. Same-year dates drop the year.

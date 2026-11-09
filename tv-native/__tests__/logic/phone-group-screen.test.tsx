@@ -80,8 +80,9 @@ jest.mock('../../src/api', () => {
       this.status = status;
     }
   }
-  return {ApiError};
+  return {ApiError, getBaseUrl: () => 'https://nufurora.com'};
 });
+jest.mock('react-native-qrcode-svg', () => ({__esModule: true, default: 'QRCode'}));
 jest.mock('../../src/phone/native', () => ({
   phoneNative: {haptic: () => {}},
 }));
@@ -363,6 +364,11 @@ test('no session: join with a code (checked here first) or start with the choice
   expect(mockApi.create).toHaveBeenCalledWith({kind: 'movie', mood: 'funny', length: 'any', limitSec: 180}, 'voter');
   // the lobby: the code to read out, the starter's Start swiping
   expect(has(r, 'K7QM')).toBe(true);
+  // the website's code block: Join in, the code, the QR code another phone reads, the line, the address
+  expect(has(r, WORDS.joinTitle)).toBe(true);
+  expect(r.root.find(n => (n.type as unknown) === 'QRCode').props.value).toBe('https://nufurora.com/#/group/K7QM');
+  expect(has(r, WORDS.joinLine)).toBe(true);
+  expect(has(r, 'nufurora.com')).toBe(true);
   expect(byUi(r, 'group.deal')).toHaveLength(1);
   expect(byUi(r, 'group.end')).toHaveLength(1);
 });

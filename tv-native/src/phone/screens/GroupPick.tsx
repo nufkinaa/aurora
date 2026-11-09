@@ -37,7 +37,8 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import {useRoute} from '@react-navigation/native';
-import {ApiError} from '../../api';
+import QRCode from 'react-native-qrcode-svg';
+import {ApiError, getBaseUrl} from '../../api';
 import {
   addedLine,
   cardMeta,
@@ -51,7 +52,9 @@ import {
   GroupSettings,
   GroupVerdict,
   hasNextPick,
+  hostOf,
   joinedLine,
+  joinUrl,
   limitLabel,
   peopleOf,
   playLabel,
@@ -886,12 +889,21 @@ export default function GroupPick() {
     body = (
       <>
         <Text style={s.kicker}>{WORDS.feature}</Text>
+        {/* the website's code block (screens/group.js codeBlock) and the TV's join
+            panel: Join in, the code, the QR code another phone's camera reads,
+            how to join, and the server's address */}
         <Glass style={[s.card, s.centered]}>
-          <Text style={s.label}>{WORDS.codeLabel}</Text>
+          <Text style={s.label}>{WORDS.joinTitle}</Text>
           <Text style={s.bigCode} accessibilityLabel={code.split('').join(' ')} selectable>
             {code}
           </Text>
+          <View style={s.qr} accessibilityLabel={`QR code for ${joinUrl(getBaseUrl(), code)}`}>
+            <QRCode value={joinUrl(getBaseUrl(), code)} size={QR_SIZE} backgroundColor="#ffffff" color="#0b0c14" />
+          </View>
           <Text style={s.help}>{WORDS.joinLine}</Text>
+          <Text style={s.hostLine} numberOfLines={1}>
+            {hostOf(getBaseUrl())}
+          </Text>
         </Glass>
         <Text style={s.h2}>{joinedLine(shown)}</Text>
         <People session={shown} />
@@ -1070,6 +1082,8 @@ export default function GroupPick() {
   );
 }
 
+const QR_SIZE = 196;
+
 const s = StyleSheet.create({
   root: {flex: 1},
   page: {width: '100%', maxWidth: 560, alignSelf: 'center'},
@@ -1097,6 +1111,9 @@ const s = StyleSheet.create({
   modeTextOn: {color: '#ffffff'},
   codeField: {textAlign: 'center', fontSize: 28, fontWeight: '900', letterSpacing: 10, height: 62},
   bigCode: {color: colors.text, fontSize: 52, fontWeight: '900', letterSpacing: 12, marginVertical: 4, fontVariant: ['tabular-nums']},
+  // .gp-qr: a white square with 12 of air round the code (196 + 24 = the website's 220)
+  qr: {padding: 12, marginTop: 6, marginBottom: 6, borderRadius: radius.m, backgroundColor: '#ffffff'},
+  hostLine: {color: colors.text, fontSize: 15.2, fontWeight: '700', marginTop: 6}, // .gp-host
   choiceRow: {marginBottom: 14},
   chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 8},
   choiceLine: {color: colors.text, fontSize: 15.68, fontWeight: '700', textAlign: 'center'},

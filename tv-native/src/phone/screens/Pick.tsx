@@ -21,6 +21,7 @@ import {useMe} from '../../navSection';
 import {openItem} from '../../openItem';
 import {registerProfileCache} from '../../profileScope';
 import {showToast} from '../../toast';
+import {WORDS as GROUP} from '../../groupPick'; // [group-pick]
 import {usePNav} from '../nav';
 import {aiEnabled, aiKnown} from '../aiStatus';
 import {PosterCard} from '../ui/Cards';
@@ -327,6 +328,11 @@ export default function Pick() {
         {W.title}
       </Text>
       <Text style={s.sub}>{W.sub}</Text>
+      {/* [group-pick] a few people deciding together — the website's AI page and the TV's have the same card */}
+      <Tap uiId="group.open" accessibilityRole="button" flat onPress={() => navigation.push('GroupPick')} style={s.together}>
+        <Text style={s.togetherTitle}>{GROUP.entry}</Text>
+        <Text style={s.togetherLine}>{GROUP.entryLine}</Text>
+      </Tap>
       {enabled === null ? (
         <ActivityIndicator color={colors.text} style={s.loading} />
       ) : enabled === false ? (
@@ -390,6 +396,10 @@ const s = StyleSheet.create({
   h1: {color: colors.text, fontSize: 32, fontWeight: '900', letterSpacing: -0.7, lineHeight: 36},
   sub: {color: colors.textDim, fontSize: 16.3, lineHeight: 25, marginTop: 12},
   loading: {marginTop: 30},
+  // ---- .gp-entry: the violet-tinted card to Pick together ----
+  together: {marginTop: 22, paddingVertical: 14, paddingHorizontal: 18, gap: 4, borderRadius: 16, backgroundColor: 'rgba(139,123,255,0.12)', borderWidth: 1, borderColor: 'rgba(139,123,255,0.35)'},
+  togetherTitle: {color: colors.text, fontSize: 16.8, fontWeight: '800'},
+  togetherLine: {color: colors.textDim, fontSize: 14.7, lineHeight: 20},
   // ---- .pfm-box: one calm glass panel ----
   box: {marginTop: 26, padding: 22, borderRadius: 24, gap: 12},
   input: {
