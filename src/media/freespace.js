@@ -16,6 +16,12 @@
 // One being played right now is listed (so the admin sees why) but marked
 // inUse: never counted, never deleted.
 //
+// gather() also carries the 45-day rule's groups (media/untouched.js): titles
+// nobody touched for 45 days ("idle"), never played ("never"), and what is
+// never offered — kept for someone who is away, pinned Keep by the admin,
+// held (on its way, being moved, drive not answering) — plus Removed
+// recently. Those it keeps out are kept out of the list above too.
+//
 // The watch state is each profile's progress as the app shows it
 // (profiles.getProgressView: the raw rows plus library ids filled in from the
 // title history, so a film watched as a stream before it was downloaded
@@ -68,13 +74,16 @@ const onListOf = (people, id) => people.filter((p) => p.list && p.list.has(id)).
 //     watchedBy: [names], ageDays, lastWatched, inUse, why }
 // A show's row holds its safe episodes only (each one checked on its own);
 // the show folder goes only if every episode in it does.
-const safeTitles = ({ movies = [], shows = [], people = [], now = Date.now(), days = DEFAULT_DAYS } = {}) => {
+// `exclude`: library ids never offered here (the admin's Keep pins, the last
+// title of someone who is away, uploads — media/untouched.js — and what that
+// module already offers in its own groups).
+const safeTitles = ({ movies = [], shows = [], people = [], now = Date.now(), days = DEFAULT_DAYS, exclude = new Set() } = {}) => {
   const minAge = Math.max(0, days) * DAY;
   const oldEnough = (addedAt) => addedAt > 0 && now - addedAt >= minAge;
   const ageDays = (addedAt) => Math.max(0, Math.floor((now - addedAt) / DAY));
   const rows = [];
   for (const m of movies) {
-    if (!(m.sizeBytes > 0) || !oldEnough(m.addedAt)) continue;
+    if (!(m.sizeBytes > 0) || !oldEnough(m.addedAt) || exclude.has(m.id)) continue;
     const w = watchOf(people, m.id);
     if (!w.finishers.length || w.midway) continue;
     if (onListOf(people, m.id).length) continue;
@@ -93,7 +102,7 @@ const safeTitles = ({ movies = [], shows = [], people = [], now = Date.now(), da
     const who = new Set();
     let last = 0;
     for (const se of s.seasons || []) for (const e of se.episodes || []) {
-      if (!(e.sizeBytes > 0) || !oldEnough(e.addedAt)) continue;
+      if (!(e.sizeBytes > 0) || !oldEnough(e.addedAt) || exclude.has(e.id)) continue;
       const w = watchOf(people, e.id);
       if (!w.finishers.length || w.midway) continue;
       if (onListOf(people, e.id).length) continue;
@@ -165,7 +174,9 @@ const cleanDays = (v) => {
   return Number.isFinite(n) && n >= 0 && n <= 3650 ? Math.floor(n) : DEFAULT_DAYS;
 };
 
-// The live answer: { days, safe, duplicates, totals: { safe, duplicates, all } }.
+// The live answer: { days, safe, duplicates, idle, never, away, pinned, held,
+// removed, untouched, totals: { safe, duplicates, idle, never, all } } — the
+// last groups from media/untouched.js ("nobody touched it for 45 days").
 const gather = ({ days = DEFAULT_DAYS, now = Date.now() } = {}) => {
   const scanner = require("./scanner");
   const profiles = require("../profiles");
@@ -191,7 +202,12 @@ const gather = ({ days = DEFAULT_DAYS, now = Date.now() } = {}) => {
       })),
     })),
   }));
-  const safe = safeTitles({ movies, shows, people, now, days });
+  let u = null;
+  try { u = require("./untouched").gather(); } catch (e) {
+    console.warn("[freespace] the 45-day rule failed:", e && e.message ? e.message : e);
+  }
+  const exclude = u ? new Set([...u.keepIds, ...u.suggestIds]) : new Set();
+  const safe = safeTitles({ movies, shows, people, now, days, exclude });
   let groups = [];
   try { groups = require("./copies").view(); } catch (e) {
     console.warn("[freespace] copies view failed:", e && e.message ? e.message : e);
@@ -200,7 +216,19 @@ const gather = ({ days = DEFAULT_DAYS, now = Date.now() } = {}) => {
   const duplicates = spareCopies(groups, skip);
   const a = totalsOf(safe);
   const b = totalsOf(duplicates);
-  return { days, safe, duplicates, totals: { safe: a, duplicates: b, all: { count: a.count + b.count, bytes: a.bytes + b.bytes } } };
+  const idle = u ? u.idle : [];
+  const never = u ? u.never : [];
+  const c = totalsOf(idle);
+  const n = totalsOf(never);
+  const untouched = u
+    ? { ok: true, days: u.days, settings: u.settings, defaults: require("./untouched")._internals.DEFAULTS, limits: require("./untouched")._internals.LIMITS, exempt: u.exempt, since: u.since || null }
+    : { ok: false };
+  return {
+    days, safe, duplicates, idle, never,
+    away: u ? u.away : [], pinned: u ? u.pinned : [], held: u ? u.held : [], removed: u ? u.removed : [],
+    untouched,
+    totals: { safe: a, duplicates: b, idle: c, never: n, all: { count: a.count + b.count + c.count + n.count, bytes: a.bytes + b.bytes + c.bytes + n.bytes } },
+  };
 };
 
 module.exports = { safeTitles, spareCopies, gather, cleanDays, names, totalsOf, DEFAULT_DAYS, STARTED_SEC };

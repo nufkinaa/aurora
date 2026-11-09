@@ -55,6 +55,8 @@ const get = (sid) => {
   }
   if (now - row.lastSeenAt > TOUCH_EVERY_MS) {
     row.lastSeenAt = now;
+    // a signed-in device is connected (media/untouched.js)
+    try { require("../media/untouched").seen(row.profileId, now); } catch {}
     row.expiresAt = now + TTL_MS;
     store.save();
   }

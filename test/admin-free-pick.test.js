@@ -114,6 +114,11 @@ before(async () => {
   finished("p-ann", ids.e2, 90);
   finished("p-ann", ids.e3, 80);
   partway("p-kid", ids.e3);
+  // everyone has been on Aurora since their last play (an away person's last
+  // title is kept for them and never suggested — media/untouched.js)
+  pstore.data.access = pstore.data.access || {};
+  pstore.data.access["p-ann"] = [{ key: "test", ip: "127.0.0.1", device: null, first: Date.now(), last: Date.now(), count: 1, fails: 0 }];
+  pstore.data.access["p-kid"] = [{ key: "test", ip: "127.0.0.1", device: null, first: Date.now(), last: Date.now(), count: 1, fails: 0 }];
 });
 
 after(async () => {

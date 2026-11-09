@@ -123,6 +123,11 @@ before(async () => {
   finished("p-ben", ids.safe);
   partway("p-ben", ids.midway);
   onList("p-ben", ids.listed);
+  // everyone has been on Aurora since their last play (an away person's last
+  // title is kept for them and never suggested — media/untouched.js)
+  pstore.data.access = pstore.data.access || {};
+  pstore.data.access["p-ann"] = [{ key: "test", ip: "127.0.0.1", device: null, first: Date.now(), last: Date.now(), count: 1, fails: 0 }];
+  pstore.data.access["p-ben"] = [{ key: "test", ip: "127.0.0.1", device: null, first: Date.now(), last: Date.now(), count: 1, fails: 0 }];
 });
 
 after(async () => {
@@ -158,7 +163,11 @@ test("the list: finished by everyone who started it, on nobody's My List, old en
   assert.equal(d.duplicates.length, 1);
   assert.equal(d.duplicates[0].fileName, "B Twice Film 720p.mkv");
   assert.match(d.duplicates[0].why, /^an extra 720p copy — the 1080p copy \(.+\) stays and is the one the app plays$/);
-  assert.equal(d.totals.all.count, 4);
+  // …and the 45-day rule's own group (media/untouched.js): Twice Film, 94 days
+  // in the library and never played, is "Never played"
+  assert.deepEqual(d.never.map((x) => x.id), [ids.twiceA]);
+  assert.match(d.never[0].why, /^Never played · arrived /);
+  assert.equal(d.totals.all.count, 5);
   // the forecast: 9 GB in the 3 days recorded so far
   assert.equal(d.forecast.state, "filling");
   assert.match(d.forecast.line, /until full at the pace of the 3 days recorded so far$/);

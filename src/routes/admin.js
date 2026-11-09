@@ -269,6 +269,12 @@ const deleteLibraryFile = async (id, { rescan = true } = {}) => {
     console.warn(`[admin] file delete refused (someone is playing it): ${entry.path}`);
     return { status: 409, body: { error: inUse.MESSAGE, code: "streaming" } };
   }
+  // ...nor from under the drive mover or anything else working on it (lib/busyfiles.js)
+  const busyWhy = require("../lib/busyfiles").busyWhy(entry.path);
+  if (busyWhy) {
+    console.warn(`[admin] file delete refused (${busyWhy}): ${entry.path}`);
+    return { status: 503, body: { error: `This file is ${busyWhy} — try again when that is done.`, code: "busy" } };
+  }
   const roots = [...config.LIBRARIES.movies, ...config.LIBRARIES.shows];
   let result;
   // Windows: a file another process has open can't be unlinked — usually the
@@ -337,6 +343,11 @@ const deleteLibraryTitle = (type, id, { rescan = true } = {}) => {
     console.warn(`[admin] ${type} delete refused (someone is playing a file in it): ${folder}`);
     return R(409, { error: inUse.FOLDER_MESSAGE, code: "streaming" });
   }
+  const busyWhy = require("../lib/busyfiles").busyWhy(folder);
+  if (busyWhy) {
+    console.warn(`[admin] ${type} delete refused (${busyWhy}): ${folder}`);
+    return R(503, { error: `This title is ${busyWhy} — try again when that is done.`, code: "busy" });
+  }
 
   try {
     fs.rmSync(folder, { recursive: true, force: true });
@@ -383,8 +394,21 @@ router.get("/api/admin/library/suggest", (req, res) => {
   const gb = parseFloat(req.query.gb);
   if (!(gb > 0) || gb > 100000) return res.status(400).json({ error: "How many GB should be freed?" });
   const freeup = require("../media/freeup");
-  res.json(freeup.suggest(freeup.tree(), gb * 1024 ** 3));
+  res.json(freeup.suggest(freeup.tree(), gb * 1024 ** 3, Date.now(), untouchedOpts()));
 });
+// The 45-day rule's rows and what is never offered (media/untouched.js), for
+// "Suggest what to delete". Without them (the rule failed) the list is as before.
+const untouchedOpts = () => {
+  try {
+    const u = require("../media/untouched").gather();
+    return { extra: [...u.idle, ...u.never], exclude: u.keepIds };
+  } catch (e) {
+    console.warn("[admin] the 45-day rule failed:", e && e.message ? e.message : e);
+    return {};
+  }
+};
+// "Removed recently": what the admin removed through the suggestions, and why.
+const noteRemoved = (rows) => { if (rows.length) require("../media/untouched").noteRemoved(rows); };
 
 // Delete what the admin kept ticked: { ids: [...] }. Each id is deleted only
 // if it is STILL a suggestion right now (somebody may have started it since
@@ -399,7 +423,8 @@ router.post("/api/admin/library/suggest/delete", async (req, res) => {
   if (ids.length > 5000) return res.status(400).json({ error: "Too many at once" });
   const freeup = require("../media/freeup");
   const t = freeup.tree();
-  const byId = new Map(freeup.candidates(t).map((c) => [c.id, c]));
+  const byId = new Map(freeup.candidates(t, Date.now(), untouchedOpts()).map((c) => [c.id, c]));
+  const removed = [];
   const deleted = [];
   const skipped = [];
   let freedBytes = 0;
@@ -423,6 +448,7 @@ router.post("/api/admin/library/suggest/delete", async (req, res) => {
       const bytes = typeof r.body.freedBytes === "number" ? r.body.freedBytes : c.sizeBytes;
       freedBytes += bytes;
       deleted.push({ id, name: c.name, sizeBytes: bytes });
+      removed.push({ name: c.name, kind: c.kind, sizeBytes: bytes, why: c.why, group: c.reason });
     } else if (r.status === 409) {
       skipped.push({ id, name: c.name, reason: "in-use", why: "Being watched right now — kept" });
     } else {
@@ -433,6 +459,7 @@ router.post("/api/admin/library/suggest/delete", async (req, res) => {
     scanner.scan();
     realtime.libraryUpdated();
   }
+  noteRemoved(removed);
   console.log(`[admin] suggestions: deleted ${deleted.length} of ${ids.length} (${freedBytes} bytes)${skipped.length ? `; skipped ${skipped.map((x) => `${x.id} (${x.reason})`).join(", ")}` : ""}`);
   res.json({ ok: true, deleted, skipped, freedBytes });
 });
@@ -542,14 +569,20 @@ router.post("/api/admin/library/freeup/delete", async (req, res) => {
     console.warn("[admin] free up space check failed:", err && err.message ? err.message : err);
     return res.status(500).json({ error: "Could not check what is safe to remove — nothing was removed." });
   }
-  const byKey = new Map([...fresh.safe, ...fresh.duplicates].map((r) => [r.key, r]));
+  // `a:` keys are titles kept for someone who is away: removed only when the
+  // admin answered the stronger question for them (confirmAway).
+  const confirmAway = req.body.confirmAway === true;
+  const byKey = new Map([...fresh.safe, ...fresh.duplicates, ...(fresh.idle || []), ...(fresh.never || []), ...(confirmAway ? fresh.away || [] : [])].map((r) => [r.key, r]));
   const deleted = [];
   const skipped = [];
+  const removed = [];
   let freedBytes = 0;
   for (const key of keys) {
     const row = byKey.get(key);
     if (!row) {
-      skipped.push({ key, name: null, reason: "not-safe", why: "Not safe to remove any more — somebody started it, put it on My List, or it is gone. Reload the list." });
+      skipped.push(key.startsWith("a:") && !confirmAway
+        ? { key, name: null, reason: "away", why: "Kept for someone who is away — remove it on its own, from its row." }
+        : { key, name: null, reason: "not-safe", why: "Not suggested any more — somebody watched it, asked for it, pinned it to keep, or it is gone. Reload the list." });
       continue;
     }
     if (row.inUse) {
@@ -558,7 +591,11 @@ router.post("/api/admin/library/freeup/delete", async (req, res) => {
     }
     let bytes = 0;
     let fail = null;
-    if (row.kind === "movie") {
+    if (row.group === "idle" || row.group === "never" || row.group === "away") {
+      const r = row.kind === "movie" ? deleteLibraryTitle("movie", row.id, { rescan: false }) : await deleteLibraryFile(row.id, { rescan: false });
+      if (r.status === 200) bytes = typeof r.body.freedBytes === "number" ? r.body.freedBytes : row.fileBytes;
+      else fail = r;
+    } else if (row.kind === "movie") {
       const r = deleteLibraryTitle("movie", row.ids[0], { rescan: false });
       if (r.status === 200) bytes = row.sizeBytes;
       else fail = r;
@@ -581,14 +618,46 @@ router.post("/api/admin/library/freeup/delete", async (req, res) => {
     } else {
       freedBytes += bytes;
       deleted.push({ key, name: row.name, sizeBytes: bytes });
+      removed.push({
+        name: row.kind === "copy" && row.quality ? `${row.name} · ${row.quality} copy` : row.name, kind: row.kind, sizeBytes: bytes,
+        why: row.group === "away" ? `${row.why} — removed anyway` : row.why, group: row.group || (row.kind === "copy" ? "copy" : "finished"), drive: row.drive || null,
+      });
     }
   }
   if (deleted.length) {
     scanner.scan();
     realtime.libraryUpdated();
   }
+  noteRemoved(removed);
   console.log(`[admin] free up space: removed ${deleted.length} of ${keys.length} (${freedBytes} bytes)${skipped.length ? `; kept ${skipped.map((x) => `${x.key} (${x.reason})`).join(", ")}` : ""}`);
   res.json({ ok: true, deleted, skipped, freedBytes });
+});
+
+// The admin's Keep pin on a title: { id, on } — a film's or a show's library
+// id (an episode's too). A pinned title is never suggested (media/untouched.js).
+router.post("/api/admin/library/keep", (req, res) => {
+  const b = req.body || {};
+  const id = typeof b.id === "string" ? b.id : "";
+  if (!id || typeof b.on !== "boolean") return res.status(400).json({ error: "Which title, and keep or not?" });
+  let about = null;
+  const m = scanner.index.movies.find((x) => x.id === id);
+  if (m) about = { name: m.title + (m.year ? ` (${m.year})` : ""), kind: "movie" };
+  const sh = !about && scanner.index.shows.find((x) => x.id === id);
+  if (sh) about = { name: sh.title, kind: "show" };
+  if (!about) {
+    for (const s2 of scanner.index.shows) for (const se of s2.seasons || []) for (const e of se.episodes || []) {
+      if (e.id === id) about = { name: `${s2.title} S${String(e.season).padStart(2, "0")}E${String(e.episode).padStart(2, "0")}`, kind: "episode" };
+    }
+  }
+  const r = require("../media/untouched").pin(id, b.on, about || {});
+  if (r.error) return res.status(b.on ? 404 : 409).json(r);
+  res.json(r);
+});
+// The 45-day rule's settings: { untouchedDays, untouchedUploads, untouchedKeepMyList } — only the keys sent.
+router.post("/api/admin/library/freeup/settings", (req, res) => {
+  const r = require("../media/untouched").setSettings(req.body || {});
+  if (r.error) return res.status(400).json({ error: r.error });
+  res.json(r);
 });
 
 // ---------- left over from My List downloads (media/mylistdl.js) ----------

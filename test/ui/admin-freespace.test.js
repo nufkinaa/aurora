@@ -63,22 +63,25 @@ const stubList = async (page, lists) => {
   const asked = [];
   await page.route((u) => u.pathname === "/api/admin/library/freeup", (route) => {
     asked.push(new URL(route.request().url()).searchParams.get("days"));
-    return route.fulfill({ json: lists[Math.min(asked.length - 1, lists.length - 1)] });
+    // (a function: the answer for what has happened so far — a list asked
+    // again after a "library changed" broadcast must not jump ahead)
+    return route.fulfill({ json: typeof lists === "function" ? lists() : lists[Math.min(asked.length - 1, lists.length - 1)] });
   });
   return asked;
 };
 const openFree = async (page) => {
   await page.click('.tab[data-tab="downloads"]');
   await openDetails(page, "d-free");
-  await page.waitForFunction(() => /safe to remove/.test(document.getElementById("fs-line").textContent));
+  await page.waitForFunction(() => /Suggested to delete|Nothing to suggest/.test(document.getElementById("fs-line").textContent));
 };
 const check = (page, key) => page.locator(`#fs-card .fs-check[data-key="${key}"]`);
 
 for (const [name, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
   ui.test(`the forecast on top, the calm line, Details, why per row, one question for the ticked ones (${name})`, { viewport }, async ({ page, srv }) => {
     await stubDisk(page);
-    const asked = await stubList(page, [fixture(), fixture({ safe: fixture().safe.slice(1), totals: { safe: { count: 1, bytes: 4 * GB }, duplicates: { count: 0, bytes: 0 }, all: { count: 1, bytes: 4 * GB } }, duplicates: [] })]);
     const posts = [];
+    const afterRemove = fixture({ safe: fixture().safe.slice(1), totals: { safe: { count: 1, bytes: 4 * GB }, duplicates: { count: 0, bytes: 0 }, all: { count: 1, bytes: 4 * GB } }, duplicates: [] });
+    const asked = await stubList(page, () => (posts.length ? afterRemove : fixture()));
     await page.route("**/api/admin/library/freeup/delete", async (route) => {
       const body = JSON.parse(route.request().postData());
       posts.push(body);
@@ -94,7 +97,7 @@ for (const [name, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
 
     await openFree(page);
     assert.deepEqual(asked, ["60"]);
-    assert.equal(await page.innerText("#fs-line"), "3 items safe to remove — 14.0 GB · about 40 days until full at this week's pace");
+    assert.equal(await page.innerText("#fs-line"), "Suggested to delete: 3 items · 14.0 GB · about 40 days until full at this week's pace");
     assert.equal(await page.textContent("#fs-count"), "3");
     // the list is behind Details
     assert.equal(await page.locator("#fs-body").isVisible(), false);
@@ -143,7 +146,7 @@ for (const [name, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
     assert.deepEqual(posts[0], { keys: ["m:f1", "c:movies:0:Twice/b.mkv"], days: 60 });
     assert.match(await page.innerText("#fs-result"), /Removed 2 of 2 — 10\.0 GB freed\./);
     await page.waitForFunction(() => !document.querySelector('#fs-card [data-fs-key="m:f1"]'));
-    assert.equal(await page.innerText("#fs-line"), "1 item safe to remove — 4.0 GB · about 40 days until full at this week's pace");
+    assert.equal(await page.innerText("#fs-line"), "Suggested to delete: 1 item · 4.0 GB · about 40 days until full at this week's pace");
     assert.match(await page.innerText("#fs-dups"), /No title is on the disk twice/);
   });
 }
@@ -185,7 +188,7 @@ ui.test("Copy for Claude: the forecast and every candidate with why, as plain te
   await page.waitForFunction(async () => (await navigator.clipboard.readText()).startsWith("## Free up space"), null, { timeout: 15000 });
   const text = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
   assert.match(text, /^## Free up space\n_Aurora admin · .+_\n\n- forecast: about 40 days until full at this week's pace\n- behind it: 70\.0 GB added in the last 7 days/);
-  assert.match(text, /- free: 400\.0 GB of 512\.0 GB\n- safe to remove: 3 items, 14\.0 GB \(titles in the library at least 60 days\)/);
+  assert.match(text, /- free: 400\.0 GB of 512\.0 GB\n- suggested to delete: 3 items, 14\.0 GB\n- nobody touched for: 45 days \(uploads never suggested; My List does not keep a title\)\n- watched by everyone: titles in the library at least 60 days/);
   assert.match(text, /\| Old Film \(2001\) \| 8\.0 GB \| watched by Dor and jn, nobody's My List, 94 days old \|/);
   assert.match(text, /\| Playing Film \(2003\) \| 3\.0 GB \| BEING WATCHED NOW, kept · watched by Anna/);
   assert.match(text, /Extra copies:\n\| title \| copy \| size \| why it is safe \|\n\|---\|---\|---\|---\|\n\| Twice Film \(2010\) \| 720p · Twice\.Film\.720p\.mkv \| 2\.0 GB \|/);
@@ -197,11 +200,14 @@ ui.test("Copy for Claude: the forecast and every candidate with why, as plain te
 ui.test("the real thing: a film Anna finished and the extra copy are offered and removed under one question; the rest stays", async ({ page, srv, api, lib, profiles }) => {
   const anna = profiles.anna;
   await api.setProgress(anna, lib.film2.id, 59, 60);
+  // …and last she started film one (her last title is kept for her while she
+  // is away and never suggested — media/untouched.js; film one is not finished)
+  await api.setProgress(anna, lib.film1.id, 5, 60);
   await enter(page, srv);
   await page.click('.tab[data-tab="downloads"]');
   await openDetails(page, "d-free");
   await page.click("#fs-toggle");
-  await page.waitForFunction(() => /safe to remove/.test(document.getElementById("fs-line").textContent));
+  await page.waitForFunction(() => /Suggested to delete|Nothing to suggest/.test(document.getElementById("fs-line").textContent));
   await page.fill("#fs-days", "0");
   await page.press("#fs-days", "Enter");
   await page.waitForSelector(`#fs-card .fs-check[data-key="m:${lib.film2.id}"]`);
