@@ -273,9 +273,19 @@ const proveProfile = (client, claimed, token) => {
   } catch {}
   return null;
 };
+// A TV on its profile wall ("Play on TV" to a TV nobody is signed in to yet):
+// never a must-reset socket; a signed-in one always; on a "closed" server
+// nothing else (there is no wall there — the sign-in screen is the way in).
+const proveWall = (client) => {
+  const ws = client && client.ws;
+  if (!ws || ws.restricted) return false;
+  if (ws.authed) return true;
+  try { return authmodeLib().get() !== "closed"; } catch { return false; }
+};
 devices.configure({
   send: (clientId, data) => sendTo(clientId, data),
   prove: proveProfile,
+  proveWall,
   profile: (id) => {
     try {
       const p = profilesLib().list().find((x) => x.id === id);
@@ -620,7 +630,8 @@ const handleMessage = (client, data, ws) => {
     // ---------- [phone-remote] the devices channel (lib/devices.js has the protocol) ----------
     case "device_announce": {
       const r = devices.announce(client, data);
-      send(ws, JSON.stringify(r.error ? { type: "device_error", error: r.error } : { type: "device_ok", ...r.device }));
+      // (`now`: the server's clock, so the TV can tell a command that reached it too late)
+      send(ws, JSON.stringify(r.error ? { type: "device_error", error: r.error } : { type: "device_ok", ...r.device, now: Date.now() }));
       break;
     }
     case "device_state":
@@ -889,7 +900,7 @@ module.exports = {
   devices, // [phone-remote]
   bye,
   presenceOf,
-  _internals: { proveProfile, stampSocket, handleMessage, soon, clock, coalesced, QUIET_MS, MAX_MS, send, hygiene, heartbeat, missedBeats, beatDeadlineMs, ADMIN_EVERY_MS },
+  _internals: { proveProfile, proveWall, stampSocket, handleMessage, soon, clock, coalesced, QUIET_MS, MAX_MS, send, hygiene, heartbeat, missedBeats, beatDeadlineMs, ADMIN_EVERY_MS },
   connectionLog,
   stats,
   bans,

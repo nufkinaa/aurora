@@ -69,7 +69,9 @@ export function AuthShell({children, footer}: {children: React.ReactNode; footer
   const small = width < 360;
   return (
     <View style={s.root}>
-      <Sky dim />
+      {/* the app's own night sky, stars and all (elia 2026-11-06: the dimmed one read as a
+          plain dark page); the panel's glass keeps the form readable over it */}
+      <Sky />
       <KeyboardAvoidingView behavior="height" style={s.root}>
         <ScrollView
           keyboardShouldPersistTaps="handled"

@@ -16,6 +16,9 @@ import {imgSrc} from '../../api';
 import {openActions} from '../../overlay';
 import {showToast} from '../../toast';
 import {command, Device, useDevices, useDeviceState} from '../remote/controller';
+import {useRoute} from '@react-navigation/native';
+import {continueHere} from '../remote/playOnTv'; // [play-on-tv]
+import {PLAY_ON} from '../../remote/playOnWords'; // [play-on-tv]
 import {BackBar, useColumn, useSolidBar} from '../ui/PageHead';
 import {ChipButton} from '../ui/Buttons';
 import Tap from '../ui/Tap';
@@ -45,7 +48,9 @@ export default function Remote() {
   const column = useColumn();
   const insets = useSafeAreaInsets();
   const list = useDevices();
-  const [pick, setPick] = useState<string | null>(null);
+  // [play-on-tv] opened by Play on TV: that TV
+  const asked = (useRoute().params as {deviceId?: string} | undefined)?.deviceId || null;
+  const [pick, setPick] = useState<string | null>(asked);
   const dev: Device | null = list.find(d => d.deviceId === pick) || list[0] || null;
   const st = useDeviceState(dev ? dev.deviceId : null);
   useEffect(() => {
@@ -119,9 +124,11 @@ export default function Remote() {
                     {now.audios.length > 1 ? <ChipButton uiId="phone.remote.audio" icon="volume" label="Audio" onPress={() => tracks('audio')} /> : null}
                     <ChipButton uiId="phone.remote.stop" icon="close" label="Stop" onPress={() => go('stop')} />
                   </View>
+                  {/* [play-on-tv] the reverse: what the TV plays, on this phone, at its second */}
+                  <ChipButton uiId="phone.remote.continuehere" icon="play" label={PLAY_ON.continueHere('phone')} onPress={() => continueHere(dev, now)} style={{alignSelf: 'center', marginTop: 12}} />
                 </>
               ) : (
-                <Text style={s.nowSub}>{dev ? `${dev.name} · ${st?.screen ? `on ${st.screen}` : 'nothing playing'}` : ''}</Text>
+                <Text style={s.nowSub}>{dev ? `${dev.name} · ${dev.wall ? PLAY_ON.onWall : st?.screen ? `on ${st.screen}` : 'nothing playing'}` : ''}</Text>
               )}
             </View>
 

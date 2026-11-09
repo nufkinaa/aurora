@@ -31,6 +31,13 @@ const until = async (what, fn, ms = 10000) => {
   }
 };
 const lastCmd = (tv, cmd) => [...tv.log].reverse().find((l) => l.cmd === cmd) || null;
+// [play-on-tv] one TV on: Play on TV asks once — "Play “X” on Living room TV?" — and the row confirms
+const confirmOn = async (page, tvName, what) => {
+  const row = page.locator(".rm-sheet-wrap.on .rm-sheet-row", { hasText: tvName }).first();
+  await row.waitFor({ timeout: 10000 });
+  if (what) assert.equal(await page.locator(".rm-sheet-wrap.on .rm-sheet-title").textContent(), `Play “${what}” on ${tvName}?`);
+  await row.click();
+};
 const goto = async (page, srv, hash, selector) => {
   if (!page.url().startsWith(srv.url)) await page.goto(`${srv.url}/${hash}`, { waitUntil: "domcontentloaded" });
   else await page.evaluate((h) => { location.hash = h; }, hash);
@@ -72,6 +79,7 @@ for (const look of ["glass", "legacy"]) {
       assert.equal(await page.locator("#nav-remote").isVisible(), true);
 
       await page.locator(".rm-playon").click();
+      await confirmOn(page, "Living room TV", "Test Film Two");
       await until("the TV to be told", () => lastCmd(tv, "play_item"));
       const play = lastCmd(tv, "play_item");
       assert.equal(play.args.item.id, lib.film2.id);
@@ -212,6 +220,7 @@ ui.test("phone: an episode plays on the TV from the show's page, Next episode mo
     const epBtn = page.locator(".episode-wrap .rm-playon").first();
     assert.match(await epBtn.getAttribute("aria-label"), /Play on Bedroom TV — episode 1/);
     await epBtn.click();
+    await confirmOn(page, "Bedroom TV", "Test Show · S1 E1");
     await until("episode 1 on the TV", () => lastCmd(tv, "play_item"));
     const p = lastCmd(tv, "play_item").args.item;
     assert.equal(p.id, lib.e1.id);
@@ -392,6 +401,7 @@ ui.test("desktop: the remote side by side; the web player hands its film to the 
     const tvBtn = page.locator(".player .tv-btn");
     await until("the Play on TV button in the player", async () => !(await tvBtn.evaluate((n) => n.classList.contains("hidden"))));
     await tvBtn.click();
+    await confirmOn(page, "Living room TV", "Test Film One");
     await until("handed over", () => lastCmd(tv, "play_item"));
     const at = lastCmd(tv, "play_item").args.position;
     assert.equal(lastCmd(tv, "play_item").args.item.id, lib.film1.id);
@@ -421,6 +431,7 @@ ui.test("Continue Watching on Home: the peek sheet of a card offers Play on <TV>
     assert.match(await btn.innerText(), /Play on Living room TV/);
     await shot(page, "desktop-glass-peek-play-on-tv");
     await btn.click();
+    await confirmOn(page, "Living room TV");
     await until("the episode on the TV", () => lastCmd(tv, "play_item"));
     const a = lastCmd(tv, "play_item").args;
     assert.equal(a.item.id, lib.e1.id);

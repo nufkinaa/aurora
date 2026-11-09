@@ -11,8 +11,20 @@
 //                                 otherwise at most every few seconds
 //                device_leave     the profile is left
 //                remote_ack       the answer to EVERY command, exactly once
-//   server → TV  remote_command   {ref, cmd, args, from, first}
+//   server → TV  remote_command   {ref, cmd, args, from, first, at, ttl}
 //                remote_watch     {on}: a remote screen opened / closed on it
+//                device_ok        {deviceId, name, now}: the announce went in
+//                                 (`now`: the server's clock — expiry below)
+//
+// ON THE PROFILE WALL (remote/wall.ts) the TV announces itself `wall: true`,
+// with no profile: any profile of the house may send it a title
+// (`from.profileId` says whose, proven by the server), and the TV opens that
+// profile the way its own wall would — never past a password, the household
+// PIN or a kids lock (it asks: "Enter your PIN to play Arrival").
+//
+// EXPIRY: a command carries `at` (the server's clock when it was sent) and
+// `ttl`; one that reaches the TV later than that (a socket that sat in a
+// sleeping box) is not carried out (handler.ts expired()).
 //
 // This file is the shapes only (no imports): the pure parts (handler.ts,
 // state.ts, playItem.ts) and the glue (target.ts) share them.
@@ -86,7 +98,8 @@ export type PlayItemArgs = {
 
 // `id`: the remote's own id (its browser's device id), the same across its
 // reconnects — what "once per remote" is counted by; the words are the fallback.
-export type From = {label?: string | null; profileName?: string | null; id?: string | null};
+// `profileId`: who asks, as the SERVER proved it (what a TV on its wall opens).
+export type From = {label?: string | null; profileName?: string | null; id?: string | null; profileId?: string | null};
 export type CommandMsg = {
   type: 'remote_command';
   ref: string;
@@ -94,11 +107,16 @@ export type CommandMsg = {
   args?: Record<string, unknown> | null;
   from?: From | null;
   first?: boolean;
+  /** the server's clock when it was sent, and how long it is good for (ms) */
+  at?: number;
+  ttl?: number;
 };
 
+/** How a play_item went: playing, or the TV asks for the profile's PIN / password first. */
+export type PlayStatus = 'playing' | 'needs-pin' | 'needs-password';
 /** The answer: `message` is short, viewer-facing English (the phone shows it). */
-export type Ack = {type: 'remote_ack'; ref: string; ok: boolean; error?: string; message?: string};
-export type Outcome = {ok: boolean; error?: string; message?: string};
+export type Ack = {type: 'remote_ack'; ref: string; ok: boolean; error?: string; message?: string; status?: PlayStatus};
+export type Outcome = {ok: boolean; error?: string; message?: string; status?: PlayStatus};
 
 // The words the TV answers with — the website's (public/js/remote.js) where
 // both say the same thing, so the phone reads the same either way.
@@ -116,4 +134,13 @@ export const MSG = {
   openingApp: 'Opening Aurora on the TV',
   failed: "That didn't work on the TV",
   badCommand: "That command isn't known",
+  // [play-on-tv]
+  expired: 'That reached the TV too late — try again',
+  profileLocked: 'That profile has been locked by an admin',
+  noProfile: "That profile isn't on this TV",
+  wallFailed: "The TV couldn't open your profile",
 } as const;
+
+/** The TV's prompt when Play on TV needs the profile's door first (ProfileGate.tsx). */
+export const askToPlay = (kind: 'pin' | 'password', title: string) =>
+  `Enter your ${kind === 'pin' ? 'PIN' : 'password'} to play ${title || 'this'}`;

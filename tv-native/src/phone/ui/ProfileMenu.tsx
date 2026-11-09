@@ -1,8 +1,13 @@
 // The website's profile menu on a phone (glass.css .nav-menu): a 220 dp glass
 // panel under the avatar, 20 round — the name at the top over a hairline, then
 // one 44 dp line per place — over a dimmed page. A tap outside or Back closes it.
+// With the phone's font turned up the panel grows wider (to the screen's edge), a
+// long line wraps instead of ending in "…", and the lines scroll when they are
+// taller than the screen (the 2026-11-06 small-phone audit: 320 dp at the largest
+// font cut "Report a prob…" and ran the last line under the tab bar).
 import React, {useEffect, useRef} from 'react';
-import {Animated, BackHandler, Pressable, StyleSheet, Text, View} from 'react-native';
+import {Animated, BackHandler, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {closeProfileMenu, useProfileMenu} from '../profileMenu';
 import {useBarTop} from './TopBar';
 import Tap from './Tap';
@@ -11,6 +16,11 @@ import {colors, G_EDGE, G_FILL, GUTTER} from '../theme';
 export default function ProfileMenu() {
   const {shown, name, items} = useProfileMenu();
   const top = useBarTop();
+  const {width, height, fontScale} = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  // the site's 220, growing with the font, never past the screen's gutters
+  const panelW = Math.min(width - 2 * GUTTER, Math.round(220 * Math.max(1, Math.min(fontScale || 1, 1.6))));
+  const maxH = height - (top + 52) - insets.bottom - 16;
   const a = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (!shown) return;
@@ -28,12 +38,13 @@ export default function ProfileMenu() {
       <Pressable style={[StyleSheet.absoluteFill, s.dim]} onPress={closeProfileMenu} accessibilityLabel="Close the menu" />
       <Animated.View
         accessibilityViewIsModal
-        style={[s.panel, {top: top + 52, transform: [{translateY: a.interpolate({inputRange: [0, 1], outputRange: [-6, 0]})}]}]}>
+        style={[s.panel, {top: top + 52, width: panelW, maxHeight: maxH, transform: [{translateY: a.interpolate({inputRange: [0, 1], outputRange: [-6, 0]})}]}]}>
         <View style={s.head}>
           <Text style={s.name} numberOfLines={1}>
             {name}
           </Text>
         </View>
+        <ScrollView bounces={false} style={{flexGrow: 0}}>
         {items.map(it => (
           <Tap
             key={it.uiId}
@@ -45,11 +56,12 @@ export default function ProfileMenu() {
               setTimeout(it.onPress, 0);
             }}
             style={s.item}>
-            <Text style={s.itemText} numberOfLines={1}>
+            <Text style={s.itemText} numberOfLines={2}>
               {it.label}
             </Text>
           </Tap>
         ))}
+        </ScrollView>
       </Animated.View>
     </Animated.View>
   );
@@ -62,7 +74,6 @@ const s = StyleSheet.create({
   panel: {
     position: 'absolute',
     right: GUTTER + 2,
-    width: 220,
     padding: 8,
     borderRadius: 20,
     backgroundColor: 'rgba(14,16,30,0.94)',
@@ -73,6 +84,6 @@ const s = StyleSheet.create({
   },
   head: {paddingTop: 8, paddingHorizontal: 12, paddingBottom: 10, marginBottom: 6, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)'},
   name: {color: colors.text, fontSize: 16, fontWeight: '800', lineHeight: 24},
-  item: {height: 44, borderRadius: 12, paddingHorizontal: 12, justifyContent: 'center', overflow: 'hidden'},
+  item: {minHeight: 44, paddingVertical: 6, borderRadius: 12, paddingHorizontal: 12, justifyContent: 'center', overflow: 'hidden'},
   itemText: {color: 'rgba(243,244,248,0.9)', fontSize: 14.88, lineHeight: 22.3},
 });

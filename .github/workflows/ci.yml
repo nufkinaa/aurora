@@ -132,12 +132,14 @@ jobs:
         with:
           fetch-depth: 0
           sparse-checkout-cone-mode: false
-          # (household-recs.test.ts reads its DESIGN.md; the screenshots stay out)
+          # (household-recs.test.ts reads its DESIGN.md, phone-nav.test.ts the More list in
+          # docs/android-phone/NAV.md; the screenshots stay out)
           sparse-checkout: |
             /*
             !/docs/qa/
             /docs/qa/household-recs/*.md
             !/docs/android-phone/
+            /docs/android-phone/NAV.md
       - uses: actions/setup-node@v6
         with:
           node-version: 22
@@ -153,6 +155,7 @@ jobs:
           --match src/media/household.js --match src/media/badreleases.js --match src/lib/tvtuning.js
           --match test/home-merge-cases.json --match test/fixtures/party-sync-cases.json
           --match tools/home-merge-cases.js --match docs/qa/household-recs/
+          --match docs/android-phone/NAV.md
       - name: Cache npm (tv-native)
         if: steps.changed.outputs.run == 'true'
         uses: actions/cache@v5

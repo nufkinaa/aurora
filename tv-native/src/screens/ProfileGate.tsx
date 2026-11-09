@@ -26,6 +26,11 @@ import theme, {useTvMetrics} from '../theme';
 // password, the household PIN, the kids lock
 import {useProfileWall} from '../profileWall';
 import {ResetScreen} from './Reset';
+// [play-on-tv] a phone's "Play on TV" while this wall is up (remote/wall.ts)
+import {connect, disconnect} from '../realtime';
+import {startWallTarget, stopWallTarget} from '../remote/wall';
+import {clearPendingPlay} from '../remote/handoff';
+import {askToPlay} from '../remote/protocol';
 
 const {colors, radius, fontSize, spacing} = theme;
 
@@ -52,6 +57,7 @@ export default function ProfileGate({
   notice?: string;
 }) {
   const {width, safeBottom} = useTvMetrics();
+  const wall = useProfileWall(onChosen);
   const {
     profiles,
     ordered,
@@ -73,9 +79,50 @@ export default function ProfileGate({
     onTile,
     submitPin,
     retry,
-  } = useProfileWall(onChosen);
+  } = wall;
   // [auth-round] "Forgot password?" on the password prompt: the reset, on its own screen
   const [forgot, setForgot] = React.useState(false);
+
+  // ---------- [play-on-tv] "Play on TV" from a phone while the wall is up ----------
+  // This wall is a target too (remote/wall.ts): a phone sends a title, and the
+  // wall opens the sender's profile exactly as its tile would (onTile) — straight
+  // in, or the password / PIN prompt, which then says what it is for. Never
+  // past a password or a PIN. `ask`: the title waiting behind the prompt.
+  const [ask, setAsk] = React.useState<{profileId: string; title: string; who: string} | null>(null);
+  const wallRef = React.useRef(wall);
+  wallRef.current = wall;
+  React.useEffect(() => {
+    connect();
+    startWallTarget(async (profileId, a) => {
+      // the profiles may still be on their way (a TV just woken onto its wall)
+      for (let i = 0; i < 30 && !wallRef.current.profiles; i++) await new Promise<void>(r => setTimeout(r, 100));
+      const w = wallRef.current;
+      const p = (w.profiles || []).find(x => x.id === profileId);
+      if (!p) return 'missing';
+      if (p.locked) return 'locked';
+      setForgot(false);
+      w.setPwFor(null);
+      w.setPinFor(null);
+      setAsk({profileId, ...a});
+      return w.onTile(p);
+    });
+    return () => {
+      // (stops being a target; the profile's own socket opens with SessionWiring)
+      stopWallTarget();
+      disconnect();
+    };
+  }, []);
+  const clearAsk = React.useRef<(() => void) | null>(null);
+  clearAsk.current = () => {
+    clearPendingPlay();
+    setAsk(null);
+  };
+  // a tile pressed by hand: whatever a phone sent is not what is wanted
+  const pressTile = (p: Profile) => {
+    clearAsk.current?.();
+    onTile(p);
+  };
+  // ---------- [/play-on-tv] ----------
 
   const cols = Math.max(
     3,
@@ -92,7 +139,7 @@ export default function ProfileGate({
       scaleTo={1.07}
       // index 0 is the profile this TV used last, so the remote starts there.
       hasTVPreferredFocus={index === 0}
-      onPress={() => onTile(p)}
+      onPress={() => pressTile(p)}
       style={[styles.tile, p.locked && styles.tileLocked]}
       highlightColor={colors.surface}>
       <View style={[styles.avatar, {backgroundColor: p.color || colors.surfaceHover}]}>
@@ -125,9 +172,10 @@ export default function ProfileGate({
   // system keyboard (numeric), OK on the remote submits.
   if (pinFor) {
     const from = lock && pinFor.mode === 'exit' ? (profiles || []).find(x => x.id === lock.id) : null;
+    const playing = ask && ask.profileId === pinFor.profile.id ? ask : null; // [play-on-tv]
     return (
       <View style={styles.root}>
-        <Text style={styles.heading}>Grown-ups only</Text>
+        <Text style={styles.heading}>{playing ? askToPlay('pin', playing.title) : 'Grown-ups only'}</Text>
         <Text style={styles.sub}>
           {pinFor.mode === 'exit'
             ? `Enter the household PIN to leave ${from ? `“${from.name}”` : 'the kids profile'}.`
@@ -156,6 +204,7 @@ export default function ProfileGate({
           <Focusable
             round
             onPress={() => {
+              clearAsk.current?.();
               setPinFor(null);
               setPin('');
               setPinError('');
@@ -185,10 +234,11 @@ export default function ProfileGate({
 
   // Password entry sub-view for a protected profile.
   if (pwFor) {
+    const playing = ask && ask.profileId === pwFor.id ? ask : null; // [play-on-tv]
     return (
       <View style={styles.root}>
-        <Text style={styles.heading}>Enter password</Text>
-        <Text style={styles.sub}>{pwFor.name}</Text>
+        <Text style={styles.heading}>{playing ? askToPlay('password', playing.title) : 'Enter password'}</Text>
+        <Text style={styles.sub}>{playing ? `${pwFor.name} · sent from ${playing.who}` : pwFor.name}</Text>
         <TextInput
           style={styles.input}
           value={password}
@@ -215,7 +265,13 @@ export default function ProfileGate({
               <Text style={styles.btnPrimaryText}>Unlock</Text>
             )}
           </Focusable>
-          <Focusable round onPress={() => setPwFor(null)} style={styles.btnGhost}>
+          <Focusable
+            round
+            onPress={() => {
+              clearAsk.current?.();
+              setPwFor(null);
+            }}
+            style={styles.btnGhost}>
             <Text style={styles.btnGhostText}>Back</Text>
           </Focusable>
           {/* [auth-round] reset it without the old one (ask #4) */}

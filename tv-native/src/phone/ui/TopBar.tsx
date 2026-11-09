@@ -1,5 +1,5 @@
 // The top bar of a tab screen (the website's glass look): the Aurora mark on
-// the left, settings and you on the right — round glass buttons floating over
+// the left, your TVs (while one is on), settings and you on the right — round glass buttons floating over
 // the page, the status bar's height clear of the top.
 import React from 'react';
 import {Image, StyleSheet, View} from 'react-native';
@@ -10,6 +10,8 @@ import {pushScreen} from '../../rootNav';
 import {IconCircle} from './Buttons';
 import Avatar from './Avatar';
 import {openProfileMenu} from '../profileMenu';
+import {useDevices} from '../remote/controller';
+import {pushPhone} from '../nav';
 import {setTab} from '../tabs';
 import {G_EDGE, G_FILL, GUTTER} from '../theme';
 import Tap from './Tap';
@@ -17,12 +19,16 @@ import {BarBand, StatusScrim} from './Scrims';
 
 const LOGO = require('../../assets/logo-mark.png');
 
-/** The right-hand pills (.nav-gear · .nav-profile): settings and you, 10 apart. */
-export function TopRight({noSettings}: {noSettings?: boolean}) {
+/** The right-hand pills (.nav-gear · .nav-profile): settings and you, 10 apart — and, while
+ *  one of your TVs is on, the TV button before them (Your TVs, one tap: docs/android-phone/NAV.md §3). */
+export function TopRight({noSettings, tv}: {noSettings?: boolean; tv?: boolean}) {
   const {profileId} = useApp();
   const me = useMe(profileId);
+  const tvs = useDevices();
+  // (on the tab screens' bar only: a pushed page's bar keeps its room for its title)
   return (
     <View style={s.right}>
+      {tv && tvs.length ? <IconCircle uiId="nav.remote" icon="tv" label="Your TVs" onPress={() => pushPhone('Remote')} /> : null}
       {noSettings ? null : <IconCircle uiId="nav.settings" icon="navGear" label="Settings" onPress={() => pushScreen('Settings', undefined)} />}
       <IconCircle uiId="nav.profile" label={`${me?.name || 'Profile'} — profile menu`} onPress={() => openProfileMenu()} size={40}>
         <Avatar p={me} size={30} round />
@@ -46,7 +52,7 @@ export default function TopBar({solid}: {transparent?: boolean; solid?: boolean}
         <Image source={LOGO} style={{width: 26, height: 26}} resizeMode="contain" />
       </Tap>
       <View style={{flex: 1}} />
-      <TopRight />
+      <TopRight tv />
     </View>
     </>
   );

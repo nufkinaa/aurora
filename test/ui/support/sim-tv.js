@@ -12,14 +12,24 @@
 //   tv.log                     // [{cmd, args, from, first, at}]
 //   tv.now                     // what it is "playing" (null: Home)
 //   await tv.stop();
+//
+// ON ITS PROFILE WALL ([play-on-tv]): `wall: true` — no profile, it says no
+// hello, announces `wall: true`, and answers a play_item with `wallDoor`
+// ("playing" = straight in, "needs-pin" / "needs-password" = it asks), the
+// title kept in `tv.pending`. tv.enterProfile(profile) is the PIN typed: the
+// socket closes, the box announces again as that profile's TV, the same
+// deviceId, and plays what was waiting.
 "use strict";
 const WebSocket = require("ws");
 const crypto = require("crypto");
 
 class SimTV {
-  constructor({ url, profile, token = null, session = null, name = "Living room TV", deviceId = null, caps = null, ackDelayMs = 25, silent = false }) {
+  constructor({ url, profile, token = null, session = null, name = "Living room TV", deviceId = null, caps = null, ackDelayMs = 25, silent = false, wall = false, wallDoor = "needs-pin" }) {
     this.url = url;
     this.profile = profile;
+    this.wall = wall;
+    this.wallDoor = wallDoor;
+    this.pending = null;
     this.token = token;
     this.session = session;
     this.name = name;
@@ -58,7 +68,7 @@ class SimTV {
     this.ws = ws;
     ws.on("open", () => {
       this.connects++;
-      this.send({ type: "hello", profile: this.profile.name, profileId: this.profile.id, app: "tv", build: "Aurora TV sim", model: "Sim TV" });
+      if (!this.wall) this.send({ type: "hello", profile: this.profile.name, profileId: this.profile.id, app: "tv", build: "Aurora TV sim", model: "Sim TV" });
       this.announce();
     });
     ws.on("message", (raw) => {
@@ -80,7 +90,22 @@ class SimTV {
   }
 
   announce() {
+    if (this.wall) {
+      this.send({ type: "device_announce", wall: true, deviceId: this.deviceId, name: this.name, kind: "tv", form: "tv", model: "Sim TV", caps: this.caps, state: { screen: "profiles", appState: "active", now: null, volume: null } });
+      return;
+    }
     this.send({ type: "device_announce", deviceId: this.deviceId, name: this.name, kind: "tv", form: "tv", model: "Sim TV", profileId: this.profile.id, token: this.token || undefined, caps: this.caps, state: this.state() });
+  }
+  /** On the wall: the profile comes in (its PIN typed) — the same box, now that profile's, playing what waited. */
+  async enterProfile(profile, { token = null } = {}) {
+    this.wall = false;
+    this.profile = profile;
+    this.token = token;
+    const p = this.pending;
+    this.pending = null;
+    if (p) await this.open_(p.item.id, p);
+    try { this.ws && this.ws.close(); } catch {}
+    return this.whenAnnounced();
   }
 
   position() {
@@ -195,9 +220,14 @@ class SimTV {
     const nothing = { ok: false, error: "nothing-playing", message: "Nothing is playing on the TV" };
     switch (m.cmd) {
       case "play_item":
+        if (this.wall) {
+          // who asks is the server's word, never the phone's
+          this.pending = { ...a, profileId: m.from && m.from.profileId };
+          return { ok: true, status: this.wallDoor };
+        }
         try {
           await this.open_(a.item.id, a);
-          return { ok: true };
+          return { ok: true, status: "playing" };
         } catch (e) {
           return { ok: false, error: "failed", message: `Couldn't open it on the TV (${e.message})` };
         }

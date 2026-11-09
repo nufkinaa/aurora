@@ -17,6 +17,7 @@ export default function ListRow({
   disabled,
   testID,
   uiId,
+  titleLines = 2,
 }: {
   uiId?: string;
   icon?: PhoneIconName;
@@ -28,6 +29,8 @@ export default function ListRow({
   chevron?: boolean;
   disabled?: boolean;
   testID?: string;
+  /** how many lines the title may take (a long place name at the largest font: 3) */
+  titleLines?: number;
 }) {
   return (
     <Tap
@@ -45,7 +48,7 @@ export default function ListRow({
         </View>
       ) : null}
       <View style={{flex: 1}}>
-        <Text style={[s.title, danger && {color: colors.danger}]} numberOfLines={2}>
+        <Text style={[s.title, danger && {color: colors.danger}]} numberOfLines={titleLines}>
           {title}
         </Text>
         {detail ? (

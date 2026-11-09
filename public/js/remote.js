@@ -19,6 +19,7 @@ import { state } from "./state.js";
 import { send, onMessage } from "./ws.js";
 import { el, toast } from "./ui.js";
 import { navigate } from "./router.js";
+import { PLAY_ON, playOnResult, playOnTitle } from "./playOnWords.js"; // [play-on-tv] the same words as the phone app
 
 // ---------------------------------------------------------------- this device
 const KEY_ID = "aurora-device-id";
@@ -165,7 +166,7 @@ onMessage("remote_ack", (d) => {
   if (!w) return;
   waiting.delete(d.id);
   clearTimeout(w.timer);
-  w.resolve({ ok: !!d.ok, error: d.error || null, message: d.message || null, ms: d.ms });
+  w.resolve({ ok: !!d.ok, error: d.error || null, message: d.message || null, status: d.status || null, ms: d.ms }); // [play-on-tv] status: playing / needs-pin / needs-password
 });
 /** -> Promise<{ok, error, message}> — never rejects */
 export const command = (deviceId_, cmd, args = {}) =>
@@ -409,6 +410,7 @@ export const deviceIcon = (d) => ICONS[d && d.kind === "tv" ? "tv" : d && d.form
 
 // A short line about what a device is doing ("Playing Arrival", "On Home").
 export const deviceLine = (d) => {
+  if (d && d.wall) return PLAY_ON.onWall; // [play-on-tv] nobody is signed in to it yet
   const s = (d && d.state) || {};
   if (s.appState === "background") return "Aurora is in the background";
   const n = s.now;
@@ -422,10 +424,14 @@ export const deviceLine = (d) => {
 // ---------------------------------------------------------------- pick a device
 // A sheet listing the devices (or straight through when there is one).
 // Resolves the chosen device, or null.
-export const chooseDevice = async (title = "Play on…", { always = false } = {}) => {
+// [play-on-tv] `confirm`: Play on TV — with one device on, the sheet still
+// comes up, as "Play “Arrival” on Living room TV?" with that one row: a
+// single press, and a confirmation (`what` is the title it names).
+export const chooseDevice = async (title = PLAY_ON.pick, { always = false, confirm = false, what = "" } = {}) => {
   const list = getDevices();
   if (!list.length) return null;
-  if (list.length === 1 && !always) return list[0];
+  if (list.length === 1 && !always && !confirm) return list[0];
+  if (list.length === 1 && confirm) title = PLAY_ON.confirm(list[0].name, what);
   await ensureRemoteCss();
   return new Promise((resolve) => {
     let done = false;
@@ -449,7 +455,7 @@ export const chooseDevice = async (title = "Play on…", { always = false } = {}
           el("span", { class: "rm-sheet-ico", html: deviceIcon(d) }),
           el("span", { class: "rm-sheet-text" },
             el("span", { class: "rm-sheet-name" }, d.name),
-            el("span", { class: "rm-sheet-sub" }, `${d.mine ? "" : `${d.profile && d.profile.name ? d.profile.name : "Someone"} · `}${deviceLine(d)}`)))),
+            el("span", { class: "rm-sheet-sub" }, `${d.mine || d.wall ? "" : `${d.profile && d.profile.name ? d.profile.name : "Someone"} · `}${deviceLine(d)}`)))),
       el("button", { class: "rm-sheet-row rm-sheet-cancel focusable", onclick: () => finish(null) }, "Cancel"),
     );
     const wrap = el("div", { class: "rm-sheet-wrap ui-overlay", onclick: (e) => e.target === wrap && finish(null) }, sheet);
@@ -485,6 +491,10 @@ export const wireItem = (it) => ({
 
 // Play it there: the command, a word on how it went, and (by default) the
 // remote screen for that device.
+// [play-on-tv] The answer says how it went: playing, or — a TV on "Who's
+// watching?" whose profile has a door — the TV asks for the PIN / password
+// ("Enter your PIN on Living room TV to play Arrival"). Either way the
+// remote screen is the next place: the TV comes into the profile there.
 export const playOn = async (device, item, { position = null, restart = false, subLang, audioLang, open = true } = {}) => {
   if (!device || !item) return { ok: false };
   const r = remembered();
@@ -495,13 +505,34 @@ export const playOn = async (device, item, { position = null, restart = false, s
     subLang: subLang !== undefined ? subLang : r.subLang,
     audioLang: audioLang !== undefined ? audioLang : r.audioLang,
   });
+  const words = playOnResult(res, device.name, playOnTitle(item));
   if (res.ok) {
-    toast(`Playing on ${device.name}`, "📺", null, { quiet: true });
+    const asks = res.status === "needs-pin" || res.status === "needs-password";
+    toast(words, asks ? "🔒" : "📺", null, { quiet: !asks });
     if (open) navigate(`#/remote/${encodeURIComponent(device.deviceId)}`);
   } else {
-    toast(res.message || `Couldn't play on ${device.name}`, "⚠️");
+    toast(words, "⚠️");
   }
   return res;
+};
+
+// [play-on-tv] "Continue on this phone": what the TV plays, here, at its
+// second — the TV is paused (not stopped: it waits where it was), and this
+// device's player opens with the TV's position, subtitles and audio.
+export const continueHere = async (device) => {
+  const n = device && device.state ? device.state.now : null;
+  if (!n) { toast(PLAY_ON.nothingThere(device ? device.name : "the TV"), "📺"); return { ok: false }; }
+  if (String(n.id).startsWith("torrent|")) { toast(PLAY_ON.streamHere, "ℹ️"); return { ok: false }; }
+  // where it is NOW: the last report, moved on by the time since
+  const since = device.heardAt ? Math.max(0, (performance.now() - device.heardAt) / 1000) : 0;
+  const position = Math.max(0, (n.position || 0) + (n.paused || n.buffering ? 0 : since));
+  const sub = n.sub == null ? "off" : ((n.subs || []).find((t) => t.id === n.sub) || {}).lang || null;
+  const audio = ((n.audios || []).find((t) => t.id === n.audio) || {}).lang || null;
+  if (!n.paused) await command(device.deviceId, "pause");
+  handoff = { id: n.id, position, subLang: sub, audioLang: audio, at: Date.now() };
+  toast(PLAY_ON.continued(device.name), "📱", null, { quiet: true });
+  navigate(`#/play/${encodeURIComponent(n.id)}`);
+  return { ok: true, position };
 };
 
 // The Play-on buttons on screen, painted on every change of the list. Held
@@ -529,7 +560,7 @@ if (typeof window !== "undefined") window.addEventListener("hashchange", () => s
 // while no device is on; says the device's name when there is one.
 // `getItem()` -> the library item to play (or null), `opts()` -> playOn options.
 export const playOnButton = ({ getItem, opts = () => ({}), compact = false, bare = false, className = "", ui = "detail.playontv", labelOf = (t) => t } = {}) => { // data-ui
-  const label = el("span", {}, "Play on TV");
+  const label = el("span", {}, PLAY_ON.button);
   const b = el("button", {
     class: `${bare ? "" : "btn "}focusable rm-playon ${compact && !bare ? "rm-playon-compact" : ""} ${className}`.replace(/\s+/g, " ").trim(),
     "data-ui": ui,
@@ -539,7 +570,7 @@ export const playOnButton = ({ getItem, opts = () => ({}), compact = false, bare
       e.stopPropagation();
       const item = getItem && getItem();
       if (!item) return;
-      const d = await chooseDevice("Play on…");
+      const d = await chooseDevice(PLAY_ON.pick, { confirm: true, what: playOnTitle(item) });
       if (d) await playOn(d, item, opts() || {});
     },
   });
@@ -547,7 +578,7 @@ export const playOnButton = ({ getItem, opts = () => ({}), compact = false, bare
   b._rmPaint = (list) => {
     const n = list.length;
     b.hidden = n === 0;
-    const text = n === 1 ? `Play on ${list[0].name}` : "Play on TV";
+    const text = n === 1 ? PLAY_ON.buttonFor(list[0].name) : PLAY_ON.button;
     label.textContent = text;
     b.setAttribute("aria-label", labelOf(text));
     b.title = labelOf(text);

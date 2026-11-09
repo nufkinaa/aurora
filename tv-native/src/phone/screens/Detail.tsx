@@ -83,8 +83,9 @@ import {phoneNative} from '../native';
 import {FADE_MS, LOW_END} from '../lowEnd';
 import {pushPhone} from '../nav';
 import {saveOffline, useOffline} from '../offline/store';
-import {chooseQuality} from '../offline/choose';
-import {Device, playOn, useDevices} from '../remote/controller';
+import {chooseQuality, confirmRoom} from '../offline/choose';
+import {useDevices} from '../remote/controller';
+import {sendToTv} from '../remote/playOnTv'; // [play-on-tv]
 import {colors, EP_W, G_EDGE, G_FILL, GUTTER, radius, SHELF_GAP} from '../theme';
 import {heroCover, showsPoster} from '../heroArt';
 
@@ -643,6 +644,7 @@ export default function Detail() {
       saveOffline(
         {id: ep.epId, title: ep.label, showId: full?.id || item.id, showTitle: title, season: ep.season, episode: ep.episode, year, cover: item.cover || item.poster || full?.cover || null, duration: ep.durationSec, subtitles: ep.subs},
         chooseQuality(`${title} · S${ep.season} E${ep.episode}`),
+        {confirmRoom: confirmRoom(`${title} · S${ep.season} E${ep.episode}`)},
       );
     },
     [full, item.id, item.cover, item.poster, title, year],
@@ -653,6 +655,7 @@ export default function Detail() {
     saveOffline(
       {id: ownedMovieId, title, year, cover: full?.cover || item.cover || item.poster || null, duration: full?.duration, subtitles: (full?.subtitles || []).filter(t => !!t.url).map(t => ({label: t.label, lang: t.lang, url: t.url}))},
       chooseQuality(title),
+      {confirmRoom: confirmRoom(title)},
     );
   };
 
@@ -665,9 +668,8 @@ export default function Detail() {
         ? {id: heroEp.epId, title: heroEp.label, showId: full?.id || item.id, showTitle: title, season: heroEp.season, episode: heroEp.episode, imdbId: imdb, cover: item.cover || item.poster || null, duration: heroEp.durationSec || null, position: nextUp?.at || null}
         : null;
     if (!target) return showToast('Only what is on the server plays on a TV — save it first', 'ℹ️');
-    const go = (d: Device) => playOn(d, target, {position: target.position});
-    if (tvs.length === 1) return go(tvs[0]);
-    openActions({title: 'Play on…', items: tvs.map(d => ({label: d.name, tag: d.mine === false && d.profile ? d.profile.name : undefined, onPress: () => go(d)}))});
+    // [play-on-tv] one TV: confirmed in one press; then the remote for it
+    sendToTv(tvs, target, {position: target.position});
   };
 
   // MARK WATCHED IS NOT WATCHING (the TV's rule): the server's mark route, and what
@@ -743,22 +745,32 @@ export default function Detail() {
     },
     [title, playEpisode, saveBest, openSources, setEpisodeWatched, saveEpisodeToPhone, profileId, torrentsOff],
   );
-  // one quality for the whole season (asked once), then each episode in turn
+  // the whole season in one tap: one quality (asked once), then each episode in turn, one
+  // toast for all of them; the space limit is asked about once, a full one stops the rest
   const saveSeasonToPhone = async (eps: UiEp[]) => {
     let q: string | null = null;
-    let stop = false;
+    let n = 0;
+    let said = false;
     for (const ep of eps) {
       if (!ep.epId) continue;
-      await saveOffline(
+      const r = await saveOffline(
         {id: ep.epId, title: ep.label, showId: full?.id || item.id, showTitle: title, season: ep.season, episode: ep.episode, year, cover: item.cover || item.poster || null, duration: ep.durationSec, subtitles: ep.subs},
         async options => {
           if (!q) q = await chooseQuality(`${title} · Season ${ep.season}`)(options);
-          if (!q) stop = true;
           return q;
         },
+        {quiet: true, confirmRoom: confirmRoom(`${title} · Season ${ep.season}`)},
       );
-      if (stop) break;
+      if (r === 'started') {
+        n++;
+        if (!said) {
+          said = true;
+          showToast(`Saving ${eps.length === 1 ? '1 episode' : `${eps.length} episodes`} of Season ${ep.season} to this phone`, '📱');
+        }
+      }
+      if (r === 'stopped' || r === 'full') break;
     }
+    return n;
   };
   const markSeason = () => {
     if (!season) return;

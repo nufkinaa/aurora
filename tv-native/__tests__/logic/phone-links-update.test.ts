@@ -91,7 +91,8 @@ describe('every address the website and the server hand out opens the right plac
     expect(parsePhoneLink('https://nufurora.com/#/taste')).toEqual({kind: 'screen', name: 'Taste'});
     expect(parsePhoneLink('https://nufurora.com/#/taste/list')).toEqual({kind: 'screen', name: 'TasteList'});
     expect(parsePhoneLink('aurora-phone://wrapped')).toEqual({kind: 'screen', name: 'Wrapped'});
-    expect(parsePhoneLink('https://nufurora.com/#/pick')).toEqual({kind: 'web', path: 'pick'});
+    expect(parsePhoneLink('https://nufurora.com/#/pick')).toEqual({kind: 'screen', name: 'Pick'});
+    expect(parsePhoneLink('aurora-phone://pick')).toEqual({kind: 'screen', name: 'Pick'});
     expect(parsePhoneLink('https://nufurora.com/#/requests')).toEqual({kind: 'web', path: 'requests'});
     expect(parsePhoneLink('https://nufurora.com/#/party/ABCD')).toEqual({kind: 'party', code: 'ABCD'});
   });

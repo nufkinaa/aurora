@@ -22,6 +22,10 @@
     <!-- Optional, granted by the viewer: lets Aurora open itself again after
          a "Restart now" update (Android refuses a background start without it). -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- [play-on-tv] "Play on TV" wakes the TV from its screensaver (RemoteModule.wake:
+         a short wake lock that turns the screen on, which ends a dream). A normal
+         permission: nothing is asked of the viewer. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- Voice search with the remote's microphone (VoiceModule.kt). Asked of the viewer the
          first time the mic is pressed; a TV without a microphone still installs the app. -->

@@ -6027,6 +6027,10 @@ export const renderPlayer = async (root, { id }) => {
     // no resume card for either)
     if (quietLoad || onAir()) {
       // nothing to resume
+    } else if (!usingTranscode && !restart && remoteStart && remoteStart.position > 0) {
+      // [play-on-tv] opened by a remote (Continue on this phone, Play on this
+      // computer): the second it was at wins over this profile's saved spot
+      video.currentTime = resumeAt;
     } else if (
       !usingTranscode &&
       !restart &&
@@ -7660,7 +7664,7 @@ export const renderPlayer = async (root, { id }) => {
   for (const ev of ["play", "pause", "seeked", "waiting", "playing", "volumechange"]) video.addEventListener(ev, () => playerChanged());
   const tvBtn = el("button", { class: "pbtn focusable tv-btn hidden", "data-ui": "player.playontv", "aria-label": "Play on TV", title: "Play on TV", html: REMOTE_ICONS.cast,
     onclick: async () => {
-      const d = await chooseDevice("Play on…");
+      const d = await chooseDevice("Play on…", { confirm: true, what: isEpisode && item.showTitle ? `${item.showTitle} · S${item.season} E${item.episode}` : item.title || "" }); // [play-on-tv]
       if (!d || exited) return;
       const t = activeTrack >= 0 ? (item.subtitles || [])[activeTrack] : null;
       const a = (item.audioTracks || []).find((x, i) => (x.index != null ? x.index : i) === audioIdx);

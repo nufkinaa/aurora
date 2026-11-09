@@ -15,7 +15,8 @@
 //   https://nufurora.com/#/play/<id>              play it (the website's "… is ready" push)
 //   https://nufurora.com/#/new, #/household[/sent], #/saved
 //   #/wrapped, #/taste[/list]                     Your Aurora Wrapped, Swipe your taste (its Edit list)
-//   #/pick, #/requests                            website-only pages: said so, nothing opened
+//   #/pick                                        AI pick (shown when the server has AI)
+//   #/requests                                    a website-only page: said so, nothing opened
 //   https://nufurora.com/#/downloads, #/list, #/movies, #/shows, #/preferences
 //   https://nufurora.com/link?code=<CODE>         a TV's sign-in QR: "Sign in this TV?"
 //   https://nufurora.com/link, #/pair[/<CODE>]    the same, or its type-the-code field
@@ -33,7 +34,7 @@ export type PhoneLink =
   | {kind: 'search'; q: string}
   | {kind: 'pair'; code: string | null}
   | {kind: 'play'; id: string}
-  | {kind: 'screen'; name: 'Remote' | 'Downloads' | 'Settings' | 'WhatsNew' | 'Household' | 'Wrapped' | 'Taste' | 'TasteList'; params?: Record<string, unknown>}
+  | {kind: 'screen'; name: 'Remote' | 'Downloads' | 'Settings' | 'WhatsNew' | 'Household' | 'Wrapped' | 'Taste' | 'TasteList' | 'Pick'; params?: Record<string, unknown>}
   | {kind: 'web'; path: string}
   | {kind: 'tab'; tab: 'home' | 'movies' | 'shows' | 'list' | 'search'}
   // [auth-round] the Custom Tab's way back after Google (aurora-phone://auth/google?code=… or
@@ -176,6 +177,7 @@ export function parsePhoneLink(url: string | null | undefined, hosts: string[] =
     case 'reset':
       return parts[1] && RESET_TOKEN.test(parts[1]) ? {kind: 'resetLink', token: parts[1]} : null;
     case 'pick':
+      return {kind: 'screen', name: 'Pick'};
     case 'requests':
       return {kind: 'web', path: parts[0]};
     case 'list':

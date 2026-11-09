@@ -72,7 +72,7 @@ function AddTile({onPress, size}: {onPress: () => void; size: number}) {
 function Door({insets, children}: {insets: {top: number; bottom: number}; children: React.ReactNode}) {
   return (
     <View style={s.root}>
-      <Sky dim />
+      <Sky />
       <KeyboardAvoidingView behavior="height" style={s.root}>
         <ScrollView
           keyboardShouldPersistTaps="handled"
@@ -222,7 +222,7 @@ export default function Gate({onChosen, notice}: {onChosen: OnChosen; notice: st
 
   return (
     <View style={s.root}>
-      <Sky dim />
+      <Sky />
       <ScrollView contentContainerStyle={[s.wall, {paddingTop: insets.top + 40, paddingBottom: insets.bottom + 40}]}>
         <Text style={s.heading} accessibilityRole="header">Who's watching?</Text>
         {notice ? <Text style={s.notice}>{notice}</Text> : null}

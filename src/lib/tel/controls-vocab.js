@@ -87,35 +87,35 @@ module.exports = {
   "nav.home": "wtp",
   "nav.movies": "wtp",
   "nav.mylist": "wtp",
-  "nav.more": "w", // the phone tab bar's More (js/navmore.js)
+  "nav.more": "wp", // the More of the phone website's tab bar (js/navmore.js) and of the phone app (docs/android-phone/NAV.md)
   "nav.new": "w",
   "nav.profile": "wtp",
-  "nav.remote": "w", // [phone-remote]
+  "nav.remote": "wp", // [phone-remote] (phone: the top bar's TV button while a TV is on)
   "nav.saved": "w",
   "nav.search": "wtp",
   "nav.settings": "wtp",
   "nav.shows": "wtp",
-  // more (the phone's side menu behind the tab bar's More, js/navmore.js; ids as in docs/android-phone/NAV.md)
-  "more.apps": "w",
-  "more.calendar": "w",
-  "more.downloads": "w",
-  "more.home": "w",
-  "more.household": "w",
-  "more.list": "w",
-  "more.movies": "w",
-  "more.new": "w",
-  "more.pair": "w",
-  "more.party": "w",
-  "more.pick": "w",
-  "more.profile": "w",
-  "more.remote": "w",
-  "more.report": "w",
-  "more.saved": "w",
-  "more.search": "w",
-  "more.settings": "w",
-  "more.shows": "w",
-  "more.taste": "w",
-  "more.wrapped": "w",
+  // more (the menu behind the tab bar's More: the phone website's side menu, js/navmore.js, and the phone app's More sheet — docs/android-phone/NAV.md, the same lines)
+  "more.apps": "wp",
+  "more.calendar": "wp",
+  "more.downloads": "wp",
+  "more.home": "wp",
+  "more.household": "wp",
+  "more.list": "wp",
+  "more.movies": "wp",
+  "more.new": "wp",
+  "more.pair": "wp",
+  "more.party": "wp",
+  "more.pick": "wp",
+  "more.profile": "wp",
+  "more.remote": "wp",
+  "more.report": "wp",
+  "more.saved": "wp",
+  "more.search": "wp",
+  "more.settings": "wp",
+  "more.shows": "wp",
+  "more.taste": "wp",
+  "more.wrapped": "wp",
   // newpassword
   "newpassword.signout": "tp",
   "newpassword.submit": "tp",
@@ -131,9 +131,9 @@ module.exports = {
   "peek.playontv": "w", // [phone-remote]
   "peek.remove": "w",
   // pick
-  "pick.example": "wt",
-  "pick.go": "wt",
-  "pick.option": "wt",
+  "pick.example": "wtp",
+  "pick.go": "wtp",
+  "pick.option": "wtp",
   "pick.retry": "t",
   "pick.unfold": "t",
   // picker
@@ -200,6 +200,7 @@ module.exports = {
   "remote.audio": "w",
   "remote.back": "w",
   "remote.close": "w",
+  "remote.continuehere": "w", // [play-on-tv] Continue on this phone
   "remote.device.open": "w",
   "remote.device.pick": "w",
   "remote.dpad": "w",
@@ -373,11 +374,13 @@ module.exports = {
   "phone.player.fit": "p", // the player: Fit the picture / Fill the screen
   "phone.player.lock": "p", // the player: Lock the controls
   "phone.player.pip": "p", // the player: Picture in picture
+  "phone.player.playontv": "p", // [play-on-tv] the player: Play on TV
   "phone.player.rotate": "p", // the player: Portrait / Landscape
   "phone.player.unlock": "p", // the player: Unlock the controls
   "phone.remote.arrow": "p", // the remote: an arrow of the pad
   "phone.remote.audio": "p", // the remote: audio track
   "phone.remote.back": "p", // the remote: Back
+  "phone.remote.continuehere": "p", // [play-on-tv] the remote: Continue on this phone
   "phone.remote.device": "p", // the remote: which TV
   "phone.remote.home": "p", // the remote: Home
   "phone.remote.next": "p", // the remote: next episode
@@ -399,6 +402,8 @@ module.exports = {
   "phone.settings.remote": "p", // Settings: Your TVs
   "phone.settings.whatsnew": "p", // Settings: What's new
   "phone.settings.saved": "p", // Settings: On this phone
+  "phone.settings.saveto": "p", // Saved on this phone: Save to (this phone / SD card)
+  "phone.settings.limit": "p", // Saved on this phone: Space limit
   "phone.settings.switch": "p", // Settings: Switch profile / Sign out
   "phone.settings.wrapped": "p", // Settings: Your Aurora Wrapped
   "phone.taste.retry": "p", // Swipe your taste / Edit list: Try again (titles did not load)
