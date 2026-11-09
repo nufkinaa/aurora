@@ -701,6 +701,25 @@ test("a process that wrote a SQLite store, and whose checkpoint worker ran, stil
   }
 });
 
+test("the checkpoint worker does not run the server's preloads (-r …): the probe's port was taken twice and checkpoints fell back onto the loop", { skip, timeout: 60000 }, () => {
+  const dir = tmp();
+  try {
+    const pre = path.join(dir, "preload.js");
+    fs.writeFileSync(pre, 'if (!require("worker_threads").isMainThread) throw new Error("a preload ran in the worker");');
+    const r = spawnSync(process.execPath, ["-r", pre, "-e", `
+      const { JsonStore } = require(${JSON.stringify(JSONSTORE)});
+      const sq = require(${JSON.stringify(SQLITESTORE)});
+      const s = new JsonStore(${JSON.stringify(path.join(dir, "requests.json"))}, []);
+      s.data.push({ id: 1 }); s.flush();
+      setTimeout(() => require("fs").writeFileSync(${JSON.stringify(path.join(dir, "out.txt"))}, sq.status().databases[0].checkpointer), ${Q.CHECKPOINT_EVERY_MS + 2000});
+    `], { encoding: "utf8", timeout: 30000 });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(fs.readFileSync(path.join(dir, "out.txt"), "utf8"), "worker", "checkpoints run in the worker");
+  } finally {
+    rm(dir);
+  }
+});
+
 // ------------------------------------------------------------ backups
 
 test("a backup holds each SQLite store as data/<name>.json (from one consistent copy) and the copy itself; the drill and the boot's restore read them", { skip }, async () => {

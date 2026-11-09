@@ -530,7 +530,8 @@ class Db {
     if (this.worker || this.workerFailed) return this.worker;
     try {
       const { Worker } = require("worker_threads");
-      this.worker = new Worker(path.join(__dirname, "sqlitestore-worker.js"), { workerData: { file: this.file, mod: __filename } });
+      // (no execArgv: a preload given to the server, -r …, must not run again in here)
+      this.worker = new Worker(path.join(__dirname, "sqlitestore-worker.js"), { workerData: { file: this.file, mod: __filename }, execArgv: [] });
       this.worker.on("message", (m) => {
         const w = this.waiting.get(m.id);
         if (!w) return;
@@ -548,7 +549,7 @@ class Db {
         try { if (this.db && !this.readOnly) this.db.exec("PRAGMA wal_autocheckpoint = 1000"); } catch {}
       };
       this.worker.on("error", (e) => { console.error(`[sqlite] the checkpoint worker failed (${e && e.message}); SQLite checkpoints on its own from now on`); down("worker failed"); });
-      this.worker.on("exit", () => down("worker exited"));
+      this.worker.on("exit", (code) => { if (this.worker && !this.closing) console.warn(`[sqlite] the checkpoint worker stopped (exit code ${code}); SQLite checkpoints on its own from now on`); down("worker exited"); });
       // (after the listeners: adding a "message" listener refs the worker again)
       this.worker.unref();
     } catch (e) {
