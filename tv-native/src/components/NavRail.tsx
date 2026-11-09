@@ -563,6 +563,7 @@ function Scrim({width}: {width: number}) {
 // [analytics] which control each rail item is — uiId (docs/analytics.md)
 const NAV_UI: Record<string, string> = {search: 'nav.search', home: 'nav.home', movies: 'nav.movies', shows: 'nav.shows', list: 'nav.mylist'}; // uiId
 Object.assign(NAV_UI, {ai: 'nav.ai', settings: 'nav.settings', profile: 'nav.profile'}); // uiId
+NAV_UI.calendar = 'nav.calendar'; // uiId (the Calendar, after AI)
 function NavItem({
   uiId,
   label,
@@ -751,7 +752,10 @@ const styles = StyleSheet.create({
     paddingLeft: 48,
     paddingRight: 16,
     paddingVertical: PAD_Y,
-    gap: 4,
+    // 3, and the rows' 44 floor below (were 4 and 48): with Calendar the panel holds
+    // nine rows, and 27+46+9x48+10x4+27 = 572dp ran off a 540dp panel — the gear and
+    // the profile pill went under its foot. 27+46+9x44+10x3+27 = 526.
+    gap: 3,
   },
   // 26dp icon box, P18 x1.0 (components.css:39-41). Centred in the 72dp strip,
   // so it spans x = 23-49.
@@ -789,7 +793,7 @@ const styles = StyleSheet.create({
   // site's own item computes to 38.8px, so the floor bites.
   item: {
     alignSelf: 'stretch',
-    minHeight: 48,
+    minHeight: 44, // (see panelInner's gap: nine rows on 540dp)
     justifyContent: 'center',
     paddingVertical: 8,
     paddingHorizontal: 16,
@@ -812,7 +816,7 @@ const styles = StyleSheet.create({
   // `.nav-profile { padding: 5px 14px 5px 6px; gap: 10px }` at x1.0.
   profile: {
     alignSelf: 'stretch',
-    minHeight: 48,
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,

@@ -30,6 +30,7 @@ import {
   loadCalendar,
   PLAY_WORD,
   RETRY_WORD,
+  SAVE_FAILED,
   SAVE_WORD,
   saveFromCalendar,
   SAVING_WORD,
@@ -50,7 +51,6 @@ import {useTabBarSpace} from '../ui/TabBar';
 import Tap from '../ui/Tap';
 import {colors, GUTTER, radius} from '../theme';
 
-const SAVE_FAILED = "Couldn't ask for that download right now.";
 const PIC_W = 52;
 // the site's .cal-badge.have / .partial / .saving / .waiting
 const BADGE: Partial<Record<CalendarEntry['state'], {pill: object; text: object}>> = {

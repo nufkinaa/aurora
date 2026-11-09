@@ -65,6 +65,7 @@ export const SAVING_WORD = 'Saving…';
 export const PLAY_WORD = 'Play';
 export const FAILED_LINE = "Couldn't load the calendar right now.";
 export const RETRY_WORD = 'Try again';
+export const SAVE_FAILED = "Couldn't ask for that download right now.";
 
 /** "Coming up · 12" — the count only when there is one. */
 export const tabLabel = (cal: Calendar | null, tab: CalendarTab) => {
