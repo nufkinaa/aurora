@@ -11,6 +11,10 @@ const http = require("http");
 const express = require("express");
 
 const config = require("./src/config");
+// A restore the admin asked for (Backups → Copies on every drive) is put in
+// place NOW, before any store reads its file (lib/restoreboot.js): the data
+// as it is is copied aside first. Nothing to do on an ordinary start.
+require("./src/lib/restoreboot").applyPendingSync({ dataDir: config.DATA_DIR, backupDir: config.BACKUP_DIR, version: (() => { try { return require("./package.json").version; } catch { return null; } })() });
 const scanner = require("./src/media/scanner");
 const ocr = require("./src/media/ocr");
 const online = require("./src/media/online");
@@ -657,6 +661,9 @@ require("./src/lib/health").start();
 // and — for a network drive — whether it answers (asked in a child process
 // with a deadline; a hung NFS mount never holds the server).
 require("./src/lib/drives").start();
+// …and, when the admin has switched it on, a copy of the household's data on
+// each of those drives once a day (lib/drivecopies.js; never while someone watches).
+require("./src/lib/drivecopies").start();
 // A store that could not be read at boot was restored from a good copy, or
 // put in safe mode (lib/jsonstore.js): say each such event ONCE, through the
 // health alerts (the log, ntfy / Telegram, the admin page).

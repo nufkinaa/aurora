@@ -965,7 +965,7 @@
       </div>
         </div>
       </details>
-      <details class="more" data-more="ac-backups" data-title="Backups" data-sub="the daily snapshots, the second location, the restore test">
+      <details class="more" data-more="ac-backups" data-title="Backups" data-sub="the daily snapshots, the second location, the restore test, copies on every drive">
         <div class="more-body">
       <div class="card">
         <h2>Backups <span class="note" id="ac-bk-note"></span></h2>
@@ -980,6 +980,44 @@
           <tbody id="ac-bk-rows"></tbody>
         </table></div>
         <div class="empty-note hidden" id="ac-bk-empty">No backups yet — press “Back up now” above.</div>
+      </div>
+      <!-- A copy of the household's data on every drive (lib/drivecopies.js) -->
+      <style>
+        .dc-switch { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-dim); }
+        .dc-switch input[type="checkbox"] { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--accent-strong); }
+        .dc-switch input[type="time"] { max-width: 120px; flex: none; }
+        .dc-about { font-size: 0.8rem; padding: 4px; }
+        .dc-h3 { font-size: 0.95rem; margin: 16px 0 8px; }
+        #dc-pick { flex: 1 1 220px; min-width: 0; max-width: 100%; }
+        .dc-drive { overflow-wrap: anywhere; }
+        .dc-drive small, .dc-why { display: block; color: var(--text-dim); font-size: 0.75rem; overflow-wrap: anywhere; }
+        .dc-look { margin-top: 10px; display: grid; gap: 6px; font-size: 0.85rem; overflow-wrap: anywhere; }
+        .dc-look ul { margin: 4px 0 0 18px; padding: 0; columns: 2 200px; font-size: 0.78rem; color: var(--text-dim); }
+      </style>
+      <div class="card" id="dc-card">
+        <h2>Copies on every drive <span class="note" id="dc-note">a copy of the household's data on each drive Aurora uses, once a day</span></h2>
+        <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:10px 16px">
+          <label class="dc-switch"><input type="checkbox" id="dc-enabled" /> <span id="dc-enabled-label">Keep a copy of the household's data on every drive</span></label>
+          <label class="dc-switch">Each day at <input type="time" id="dc-time" step="60" aria-label="Time of the daily copy" /></label>
+        </div>
+        <div class="muted dc-about">Profiles, progress and lists, sign-ins, watch history and viewing sessions, settings, reports, the drives and download history — not the films, not the caches. Each drive gets its own copy in a hidden <b>Aurora/.backups</b> folder: the last 7 days and 4 weeks. Every copy is read back and checked before it counts, a failed one never replaces a good one, and it waits while anyone is watching. The server's settings are in it without the passwords and keys.</div>
+        <div id="dc-state" class="empty-note" style="margin:8px 0">Checking…</div>
+        <div style="margin:0 0 10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="mini" id="dc-run">Make a copy now</button>
+          <button class="mini" id="dc-check">Check the copies</button>
+        </div>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Drive</th><th>Last copy</th><th>Size</th><th>State</th></tr></thead>
+          <tbody id="dc-rows"></tbody>
+        </table></div>
+        <div class="empty-note hidden" id="dc-empty">Aurora keeps no films on any drive yet — the copies go to the drives that hold the library.</div>
+        <h3 class="dc-h3">Restore</h3>
+        <div id="dc-last-restore" class="empty-note hidden" style="margin-bottom:8px"></div>
+        <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:8px">
+          <select id="dc-pick" aria-label="A copy to restore"></select>
+          <button class="mini" id="dc-look">See what it holds</button>
+        </div>
+        <div id="dc-look-out" class="hidden"></div>
       </div>
         </div>
       </details>
@@ -4124,6 +4162,171 @@
       } catch { toast("Couldn't download that backup"); }
       b.disabled = false;
     });
+    // ---------- copies on every drive (lib/drivecopies.js) ----------
+    // The switch and the time save as they change. Each drive: its last copy,
+    // the size, OK / skipped (with why) / failed. Restore: pick a copy, see
+    // what it holds, type RESTORE; the server restarts and puts it in place
+    // before anything reads its files — this card then says how it went.
+    let DC = null;
+    const dcWhen = (ms) => (ms ? fmtWhen(new Date(ms).toISOString()) : "—");
+    const dcState = (d) => {
+      if (d.covered) return `<span class="pill live">OK</span><span class="dc-why">${esc(d.note || "")}</span>`;
+      const n = (d.copies || []).length;
+      const bad = (d.copies || []).filter((c) => !c.ok).length;
+      const pill = d.status === "ok" ? '<span class="pill live">OK</span>'
+        : d.status === "failed" ? '<span class="pill bad">failed</span>'
+        : d.status === "skipped" ? `<span class="pill warn">${d.why === "full" ? "full" : "skipped"}</span>`
+        : '<span class="pill">no copy yet</span>';
+      const why = d.status === "failed" ? d.error : d.note;
+      return `${pill}${bad ? ` <span class="pill bad">${bad} damaged</span>` : ""}<span class="dc-why">${why ? esc(why) + " · " : ""}${n} cop${n === 1 ? "y" : "ies"} kept</span>`;
+    };
+    const dcSummary = (s) => {
+      if (!s) return "";
+      const n = (v, one, many) => (v == null ? `no ${many}` : `${Number(v).toLocaleString()} ${v === 1 ? one : many}`);
+      return `${n(s.profiles, "profile", "profiles")}, ${n(s.historyRows, "history row", "history rows")}, ${n(s.sessions, "sign-in", "sign-ins")}`;
+    };
+    function paintDriveCopies(d) {
+      DC = d;
+      const on = !!d.enabled;
+      $("#dc-enabled").checked = on;
+      if (d.label) $("#dc-enabled-label").textContent = d.label;
+      if (document.activeElement !== $("#dc-time")) $("#dc-time").value = d.time || "04:00";
+      const last = d.lastRun;
+      $("#dc-state").innerHTML = d.restoring
+        ? '<span class="pill warn">restoring</span> A restore is under way — no copies are made until it is done.'
+        : !on
+          ? `<span class="pill">off</span> Switched off — no copies are made until you switch it on. (Server clock: now ${esc(d.serverClock || "")}.)`
+          : d.running
+            ? '<span class="pill warn">copying…</span> Writing the copies to the drives.'
+            : `<span class="pill live">on</span> Daily at ${esc(d.time)} (server clock: now ${esc(d.serverClock || "")})` +
+              (d.waiting ? ` · <span class="pill warn">waiting</span> ${esc(d.waiting)}` : d.nextAt ? ` · next ${esc(dcWhen(d.nextAt))}` : "") +
+              (last ? ` · last round ${ago(new Date(last.at).toISOString())}: ${last.error ? `<span class="pill bad">failed</span> ${esc(last.error)}` : `${last.made} of ${last.drives} drive${last.drives === 1 ? "" : "s"} copied${last.skipped ? `, ${last.skipped} skipped` : ""}${last.failed ? `, <b>${last.failed} failed</b>` : ""}`}` : "");
+      const rows = d.drives || [];
+      $("#dc-empty").classList.toggle("hidden", rows.length > 0);
+      $("#dc-rows").innerHTML = rows.map((r) => `<tr data-dc-drive="${esc(r.id)}">
+        <td class="dc-drive"><b>${esc(r.name || r.mount)}</b>${r.network ? ' <span class="pill">network</span>' : ""}<small>${esc(r.dir)}</small></td>
+        <td>${r.lastOkAt ? esc(dcWhen(r.lastOkAt)) : "never"}</td>
+        <td>${r.lastSize ? fmtBytes(r.lastSize) : "—"}</td>
+        <td>${dcState(r)}</td>
+      </tr>`).join("");
+      // the restore picker: every copy, by drive, newest first
+      const pick = $("#dc-pick");
+      const was = pick.value;
+      const groups = rows.filter((r) => (r.copies || []).length).map((r) => `<optgroup label="${esc(r.name || r.mount)}">` +
+        r.copies.map((c) => `<option value="${esc(r.covered ? "main" : r.id)}|${esc(c.name)}"${c.ok ? "" : " disabled"}>${esc(dcWhen(c.createdAt))} · ${fmtBytes(c.size)}${c.ok ? "" : " — damaged"}</option>`).join("") + "</optgroup>").join("");
+      pick.innerHTML = groups || '<option value="">No copies yet</option>';
+      if (was && [...pick.options].some((o) => o.value === was && !o.disabled)) pick.value = was;
+      $("#dc-look").disabled = !groups;
+      const lr = d.lastRestore;
+      const lrBox = $("#dc-last-restore");
+      lrBox.classList.toggle("hidden", !lr);
+      if (lr) {
+        const when = lr.endedAt || lr.at;
+        lrBox.innerHTML = lr.status === "done"
+          ? `<span class="pill live">restored</span> ${ago(new Date(when).toISOString())}: the copy made ${esc(dcWhen(lr.createdAt))}${lr.locationName ? ` on ${esc(lr.locationName)}` : ""} is in place (${lr.files} files). The data from before is kept in data/${esc(lr.aside)}${lr.beforeSnapshot ? ` and in the daily backups as ${esc(lr.beforeSnapshot)}` : ""} — restore that one to undo.`
+          : lr.status === "expired"
+            ? `<span class="pill warn">not restored</span> ${ago(new Date(when).toISOString())}: ${esc(lr.error || "")}`
+            : lr.status === "applying"
+              ? '<span class="pill warn">restoring…</span>'
+              : `<span class="pill bad">restore failed</span> ${ago(new Date(when).toISOString())}: ${esc(lr.error || "")}`;
+      }
+    }
+    async function loadDriveCopies() {
+      let d;
+      try { d = await json("/api/admin/backups/drives"); } catch { return; }
+      if (!d || d.error) return;
+      paintDriveCopies(d);
+    }
+    const dcSave = async (patch) => {
+      try {
+        const d = await post("/api/admin/backups/drives/settings", patch);
+        if (d.error) { toast(d.error); loadDriveCopies(); return; }
+        paintDriveCopies(d);
+        toast(patch.enabled === true ? `On — a copy on every drive each day at ${d.time}` : patch.enabled === false ? "Off — no more copies on the drives" : `The daily copy is at ${d.time} now`);
+      } catch { toast("Could not save that"); }
+    };
+    $("#dc-enabled").addEventListener("change", (e) => dcSave({ enabled: e.target.checked }));
+    $("#dc-time").addEventListener("change", (e) => { if (/^\d\d:\d\d$/.test(e.target.value)) dcSave({ time: e.target.value }); });
+    $("#dc-run").onclick = async () => {
+      const b = $("#dc-run"); b.disabled = true; b.textContent = "Copying to the drives…";
+      try {
+        const r = await post("/api/admin/backups/drives/run");
+        if (r.error) toast(r.error);
+        else {
+          paintDriveCopies(r);
+          const x = r.run || {};
+          toast(x.drives ? `Copied to ${x.made} of ${x.drives} drive${x.drives === 1 ? "" : "s"}${x.skipped ? `, ${x.skipped} skipped` : ""}${x.failed ? `, ${x.failed} failed` : ""}` : "There is no drive to copy to");
+        }
+      } catch { toast("The copy could not be made"); }
+      b.disabled = false; b.textContent = "Make a copy now";
+    };
+    $("#dc-check").onclick = async () => {
+      const b = $("#dc-check"); b.disabled = true; b.textContent = "Reading the copies back…";
+      try {
+        const d = await post("/api/admin/backups/drives/check");
+        if (d.error) toast(d.error);
+        else {
+          paintDriveCopies(d);
+          const bad = (d.drives || []).reduce((a, r) => a + (r.copies || []).filter((c) => !c.ok).length, 0);
+          toast(bad ? `${bad} damaged cop${bad === 1 ? "y" : "ies"} found` : "Every copy reads back intact");
+        }
+      } catch { toast("The copies could not be checked"); }
+      b.disabled = false; b.textContent = "Check the copies";
+    };
+    $("#dc-look").onclick = async () => {
+      const [location, name] = String($("#dc-pick").value || "").split("|");
+      if (!name) return;
+      const out = $("#dc-look-out");
+      out.classList.remove("hidden");
+      out.innerHTML = '<div class="dc-look muted">Reading the copy back…</div>';
+      let r;
+      try { r = await post("/api/admin/backups/drives/summary", { location, name }); } catch { out.innerHTML = '<div class="dc-look">Could not read that copy.</div>'; return; }
+      if (r.error || !r.ok) { out.innerHTML = `<div class="dc-look"><span><span class="pill bad">${r.damaged ? "damaged" : "unreadable"}</span> ${esc(r.error || "")}</span></div>`; return; }
+      const stores = (r.files || []).filter((f) => /^data\/[^/]+\.json$/.test(f.path));
+      const others = (r.files || []).length - stores.length;
+      const supervised = DC && DC.supervised;
+      out.innerHTML = `<div class="dc-look">
+        <span><span class="pill live">intact</span> Made <b>${esc(dcWhen(r.createdAt))}</b> (${esc(new Date(r.createdAt).toLocaleString())}) on ${esc(r.locationName)}${r.version ? ` by Aurora ${esc(r.version)}` : ""} · ${fmtBytes(r.size)}</span>
+        <span>Holds ${esc(dcSummary(r.summary))} · ${(r.files || []).length} files</span>
+        ${r.secretsLeftOut && r.secretsLeftOut.length ? `<span class="muted">Left out of this copy: ${esc(r.secretsLeftOut.join(", "))}. A restore never changes the server's own settings.</span>` : '<span class="muted">A restore puts back the household\'s data only — never the server\'s own settings.</span>'}
+        <details><summary>The files in it</summary><ul>${stores.map((f) => `<li>${esc(f.path.slice(5))} · ${fmtBytes(f.size)}</li>`).join("")}${others ? `<li>…and ${others} more (usage logs, pictures, settings)</li>` : ""}</ul></details>
+        <div><button class="mini danger" id="dc-restore"${supervised ? "" : " disabled"}>Restore this copy…</button>${supervised ? "" : ' <span class="muted">Nothing supervises this server, so it could not start again after a restore — see docs/operations.md, or restore with the server stopped (node src/lib/backup.js restore-live).</span>'}</div>
+      </div>`;
+      const btn = $("#dc-restore");
+      if (btn) btn.onclick = () => dcRestore(location, name, r);
+    };
+    async function dcRestore(location, name, r) {
+      const word = (DC && DC.confirmWord) || "RESTORE";
+      const typed = await askBox(`Restore the household's data from ${dcWhen(r.createdAt)}? Everything since then goes back to how it was: progress, lists, sign-ins, settings, history (${dcSummary(r.summary)} in this copy).\n\nThe data as it is now is copied aside first, so this can be undone. The server restarts — anyone watching stops for a few seconds.\n\nType ${word} to go ahead.`, true, "Restore and restart");
+      if (typed == null) return;
+      if (typed.trim().toUpperCase() !== word) { toast(`Nothing was restored — type ${word} to confirm`); return; }
+      const out = $("#dc-look-out");
+      let res;
+      try { res = await post("/api/admin/backups/drives/restore", { location, name, confirm: typed.trim() }); } catch { toast("Nothing was restored — the server could not be reached"); return; }
+      if (res.error || !res.ok) { toast(res.error || "Nothing was restored"); return; }
+      RESTARTING = true;
+      paintRestarting();
+      out.innerHTML = '<div class="dc-look"><span><span class="pill warn">restoring…</span> The server is restarting to put the copy in place — this page waits for it.</span></div>';
+      const t0 = Date.now();
+      const poll = async () => {
+        try {
+          const d = await (await adminFetch("/api/admin/backups/drives")).json();
+          const lr = d && d.lastRestore;
+          if (lr && lr.requestedAt === res.requestedAt && lr.status !== "applying") {
+            RESTARTING = false;
+            paintDriveCopies(d);
+            out.classList.add("hidden");
+            toast(lr.status === "done" ? "Restored — the household's data is back to that copy" : `The restore did not happen: ${lr.error || lr.status}`);
+            loadSummary();
+            loadBackups();
+            return;
+          }
+        } catch {}
+        if (Date.now() - t0 < 180000) setTimeout(poll, 1500);
+        else { RESTARTING = false; out.innerHTML = '<div class="dc-look"><span><span class="pill bad">no answer</span> The server did not come back within three minutes — look at its supervisor on the box (docs/operations.md).</span></div>'; }
+      };
+      setTimeout(poll, 2000);
+    }
     async function loadAlerts() {
       let d;
       try { d = await json("/api/admin/alerts"); } catch { return; }
@@ -7163,11 +7366,16 @@
         },
       },
       "ac-backups": {
-        load: () => loadBackups(),
+        load: () => { loadBackups(); loadDriveCopies(); },
         copy: async () => {
           const d = await json("/api/admin/backups");
           return MD.list([["daily backup", d.enabled === false ? "off" : `into ${d.dir}`], ["second location", d.mirror ? d.mirror.dir : "not set"], ["restore test", d.drill ? `${d.drill.ok ? "works" : "failed"} ${ago(new Date(d.drill.at).toISOString())}${d.drill.error ? ` — ${d.drill.error}` : ""}` : "not run yet"], ["advice", d.advice]]) +
-            "\n" + MD.table(["snapshot", "made", "size", "check"], (d.snapshots || []).map((b) => [b.name, ago(new Date(b.createdAt).toISOString()), fmtBytes(b.size), b.verified ? "intact" : "broken"]), 10);
+            "\n" + MD.table(["snapshot", "made", "size", "check"], (d.snapshots || []).map((b) => [b.name, ago(new Date(b.createdAt).toISOString()), fmtBytes(b.size), b.verified ? "intact" : "broken"]), 10) +
+            await (async () => {
+              const c = await json("/api/admin/backups/drives").catch(() => null);
+              if (!c || c.error) return "";
+              return `\n\nCopies on every drive: ${c.enabled ? `on, daily at ${c.time}` : "off"}\n` + MD.table(["drive", "last copy", "size", "state"], (c.drives || []).map((r) => [r.mount, r.lastOkAt ? ago(new Date(r.lastOkAt).toISOString()) : "never", r.lastSize ? fmtBytes(r.lastSize) : "-", r.covered ? "OK (the daily backups)" : r.status === "failed" ? `failed: ${r.error || ""}` : r.status === "skipped" ? `skipped: ${r.note || ""}` : r.status]), 10);
+            })();
         },
       },
       "ac-alerts": {

@@ -1516,6 +1516,40 @@ router.post("/api/admin/backups/drill", async (req, res) => {
   }
 });
 
+// ---------- a copy of the household's data on every drive (lib/drivecopies.js) ----------
+// The switch (off until the admin allows it) and the time; per drive the last
+// copy, its size, OK / skipped / failed; "Make a copy now"; "Check the
+// copies"; one copy's contents; and the restore (typed RESTORE, then a restart
+// through the supervisor — the copy goes in place before anything is read).
+const driveCopiesReply = (res, r) => (r && r.error ? res.status(r.status || 400).json({ error: r.error }) : res.json(r));
+router.get("/api/admin/backups/drives", async (req, res) => {
+  try { res.json(await require("../lib/drivecopies").status()); } catch (e) { res.status(500).json({ error: String((e && e.message) || e) }); }
+});
+router.post("/api/admin/backups/drives/settings", async (req, res) => {
+  const dc = require("../lib/drivecopies");
+  const b = req.body || {};
+  const r = dc.setSettings({ enabled: b.enabled, time: b.time });
+  if (r.error) return res.status(400).json(r);
+  res.json(await dc.status());
+});
+router.post("/api/admin/backups/drives/run", async (req, res) => {
+  const dc = require("../lib/drivecopies");
+  const r = await dc.runNow();
+  if (r.error) return res.status(r.status || 500).json({ error: r.error });
+  res.json({ ok: true, run: r.run, ...(await dc.status()) });
+});
+router.post("/api/admin/backups/drives/check", async (req, res) => {
+  try { res.json(await require("../lib/drivecopies").check()); } catch (e) { res.status(500).json({ error: String((e && e.message) || e) }); }
+});
+router.post("/api/admin/backups/drives/summary", async (req, res) => {
+  const b = req.body || {};
+  driveCopiesReply(res, await require("../lib/drivecopies").inspect({ location: String(b.location || ""), name: String(b.name || "") }));
+});
+router.post("/api/admin/backups/drives/restore", async (req, res) => {
+  const b = req.body || {};
+  driveCopiesReply(res, await require("../lib/drivecopies").restore({ location: String(b.location || ""), name: String(b.name || ""), confirm: String(b.confirm || "") }));
+});
+
 // ---------- the encoder limit (media/encbudget.js) ----------
 // How many viewers may be encoded for at once: "Automatic (N now, because …)"
 // with the numbers it was worked out from, what is being encoded for whom

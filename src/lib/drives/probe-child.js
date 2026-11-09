@@ -25,6 +25,8 @@
 //   ends     { paths }                 length + hash of the first and last MB of each
 //   land     { temp, dst }             rename each file of temp into dst, then drop temp
 //   rmtree   { dir }                   delete a folder and everything in it
+//   backupCopy / backupList / backupInspect / backupFetch   the copies of the
+//            household's data on the drive (lib/drivecopies-ops.js)
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -507,6 +509,11 @@ const OPS = {
   ends,
   land,
   rmtree,
+  // the household's data on every drive (lib/drivecopies-ops.js)
+  backupCopy: (a) => require("../drivecopies-ops").backupCopy(a),
+  backupList: (a) => require("../drivecopies-ops").backupList(a),
+  backupInspect: (a) => require("../drivecopies-ops").backupInspect(a),
+  backupFetch: (a) => require("../drivecopies-ops").backupFetch(a),
 };
 
 if (require.main === module) {
