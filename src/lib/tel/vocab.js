@@ -106,6 +106,7 @@ const SEGMENTS = new Set((
   "js screens vendor ws " +
   "household sent " + // recommendations between the people of the household (/api/profiles/:id/household, …/sent, /recommend/people)
   "deck answer " + // the taste picker (/api/profiles/:id/taste/deck, /taste/answer)
+  "group join role vote add finish extend pick again choose leave end " + // "What do we watch tonight?" (/api/profiles/:id/group, …/join, …/:code/start, …/vote, …/search — routes/group.js)
   "metrics " + // /api/admin/metrics (lib/metrics.js)
   "remote " + // /api/admin/remote (lib/devices.js: phone as a remote, Play on TV)
   "resync undo " + // the subtitle Resync button (/api/subtitles/resync, …/status, …/undo — media/subaudio.js)

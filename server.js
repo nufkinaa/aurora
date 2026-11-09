@@ -270,6 +270,7 @@ app.use(require("./src/routes/auth"));
 app.use(require("./src/routes/api"));
 app.use(require("./src/routes/profiles"));
 app.use(require("./src/routes/household")); // recommendations between the people of the household (media/household.js)
+app.use(require("./src/routes/group")); // "What do we watch tonight?" (lib/grouppick.js, media/groupdeck.js)
 app.use(require("./src/routes/stream"));
 app.use(require("./src/routes/airplay"));
 app.use(require("./src/routes/ai"));
