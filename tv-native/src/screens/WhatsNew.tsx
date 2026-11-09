@@ -36,6 +36,14 @@ export const FEATURES: Feature[] = [
   // ---- the 2026-11-09 round: the same cards, the same words, on the website ----
   {
     since: ROUND,
+    glyph: '🍿',
+    title: "Pick together",
+    what: "What do we watch tonight? Start it on the TV, everyone joins with the code on their phone and swipes yes, maybe or no. Aurora shows what you all want, and one press plays it.",
+    how: "AI → Pick together, or Settings → Pick together.",
+    go: {label: 'Go home', act: 'home'},
+  },
+  {
+    since: ROUND,
     glyph: '🔤',
     title: "Hebrew subtitles for everything",
     what: "When a film or episode has no Hebrew subtitles, Aurora translates one with AI. It is called עברית (AI) in the subtitle menu and switches on by itself. Subtitles out of sync? Fix timing lines them up with what is said, and you can always go back to the file's own timing.",
