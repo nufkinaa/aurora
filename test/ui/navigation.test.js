@@ -48,6 +48,8 @@ const ROUTES = (lib) => ({
   // household recommendations: the Show all page, and its "You sent" tab
   "/household": { hash: "#/household", text: "Recommended by your household" },
   "/household/sent": { hash: "#/household/sent", text: "You sent" },
+  // the Calendar: a profile with nothing in its list says how to fill it
+  "/calendar": { hash: "#/calendar", text: "Add films and shows to My List" },
   // a pairing code nobody issued
   "/pair/:code": { hash: "#/pair/ABCD12", text: "That code expired" },
   // {host}/link with no code: the field to type the TV's code into
