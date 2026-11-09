@@ -98,6 +98,8 @@ const DEVICE: Record<string, Record<string, string>> = {
   'phone/auth/state.ts': {setupFor: 'which profile a sign-in just said has no password yet (keyed by that profile id; read by the set-a-password screen)'},
   'passRules.ts': {COMMON: 'a constant (the common passwords the strength hint calls weak)'},
   'phone/profileMenu.ts': {switchFn: "the app's one handler (AppContext's switchProfile)", nameOf: "the app's one handler (reads the current profile's name)", open: 'whether the menu panel is up (the screen’s; every line closes it first)', subs: 'listeners (the menu panel)'},
+  // "What do we watch tonight?": this box as a session member (person + device); a session itself lives on the server
+  'groupPickApi.ts': {deviceId: 'this box, as a member of a group-pick session (person + device)'},
   'party.ts': {deviceId: 'this TV, as a party member (person + device)', clockOffset: "the server's clock as this box sees it", samples: 'the clock pings behind it', rejoining: 'a rejoin in flight (the party itself is the profile’s and is left with it)'},
   'api.ts': {
     baseUrl: 'which server',
