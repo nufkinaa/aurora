@@ -346,6 +346,7 @@ export const renderGroup = async (root, params = {}) => {
       const focusKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : null;
       view = VIEWS[step]();
       body.replaceChildren(view.node);
+      window.scrollTo(0, 0); // a new step starts at its top (the last one may have been scrolled)
       if (view.update) view.update(s);
       const back = focusKey && body.querySelector(`[data-fk="${focusKey}"]`);
       const first = back || body.querySelector("[data-autofocus]") || null;

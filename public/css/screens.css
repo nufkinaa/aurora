@@ -1132,7 +1132,7 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
   .gp-qr { width: min(170px, 50vw); }
   .gp-swipe { height: calc(100dvh - var(--nav-h) - 40px); min-height: 460px; }
   .gp-swipe-tools .btn { padding: 7px 10px; font-size: 0.82rem; }
-  .gp-actions .btn { flex: 1 1 auto; }
+  .gp-actions .btn { flex: 1 1 auto; justify-content: center; text-align: center; }
   .gp-leave-row .gp-link { margin-left: 0; }
 }
 @media (max-width: 720px) {
