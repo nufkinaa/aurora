@@ -315,6 +315,7 @@ module.exports = {
   "phone.episode.more": "p", // a show's episode card: its round corner button (the choices)
   "phone.home.remove": "p", // the x on a Continue Watching card
   "phone.menu.apps": "p", // the profile menu: Get the apps (/install)
+  "phone.menu.calendar": "p", // the profile menu: Calendar
   "phone.menu.downloads": "p", // the profile menu: Downloads
   "phone.menu.party": "p", // the profile menu: Join a watch party
   "phone.menu.remote": "p", // the profile menu: Remote

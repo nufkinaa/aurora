@@ -573,6 +573,11 @@ export const api = {
     json(`/api/profiles/${encodeURIComponent(id)}/recommend/people?key=${encodeURIComponent(key || "")}${type ? `&type=${encodeURIComponent(type)}` : ""}`),
   //   recommend -> { sent: [{ to, name, updated }], refused: [{ to, name, reason, line }], line }
   recommend: (id, to, title, note) => post(`/api/profiles/${encodeURIComponent(id)}/recommend`, { to, title, note }),
+  // The Calendar (src/media/calendar.js): this person's upcoming and recent
+  // releases, the day names in this device's `locale`; and Save & watch for
+  // one of its entries (`save` is the entry's own { imdbId, type, season?, episode? }).
+  calendar: (id, locale) => json(`/api/profiles/${encodeURIComponent(id)}/calendar${locale ? `?locale=${encodeURIComponent(locale)}` : ""}`),
+  calendarSave: (id, save) => post(`/api/profiles/${encodeURIComponent(id)}/calendar/save`, save),
   household: (id, from = null) =>
     json(`/api/profiles/${encodeURIComponent(id)}/household${from ? `?from=${encodeURIComponent(from)}` : ""}`),
   householdFor: (id, key) => json(`/api/profiles/${encodeURIComponent(id)}/household/for?key=${encodeURIComponent(key)}`),
