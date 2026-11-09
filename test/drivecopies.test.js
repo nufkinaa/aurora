@@ -515,3 +515,23 @@ test("in its own process (lib/drives/run.js, the lowest priority): the copy land
   assert.ok(Date.now() - t0 < 6000);
   assert.equal(fs.existsSync(path.join(hung, "Aurora")), false);
 });
+
+test("the server's lock file (.aurora-owner.json) is never in a copy, and an older copy's is never put back", async () => {
+  const r = fakeRoot();
+  put(r.dataDir, ".aurora-owner.json", JSON.stringify({ pid: process.pid }));
+  const snap = await backup.createSnapshot({ dataDir: r.dataDir, backupDir: tmp("d"), configFiles: [] });
+  assert.ok(!snap.manifest.files.some((f) => f.path.includes(".aurora-owner")));
+  // an archive made before this rule, with the lock file in it
+  const { tarPack, sha256 } = backup._internals;
+  const lock = Buffer.from(JSON.stringify({ pid: 4242 }));
+  const prof = Buffer.from(profiles(["Old"]));
+  const files = [{ path: "data/.aurora-owner.json", size: lock.length, sha256: sha256(lock) }, { path: "data/profiles.json", size: prof.length, sha256: sha256(prof) }];
+  const manifest = { format: "aurora-backup", formatVersion: 1, files };
+  const old = path.join(tmp("old"), "aurora-backup-20261001-000000.tar.gz");
+  fs.writeFileSync(old, require("zlib").gzipSync(tarPack([{ name: "manifest.json", data: Buffer.from(JSON.stringify(manifest)) }, { name: "data/.aurora-owner.json", data: lock }, { name: "data/profiles.json", data: prof }])));
+  fs.unlinkSync(path.join(r.dataDir, ".aurora-owner.json"));
+  await stageRestore(r, old);
+  assert.equal(restoreboot.applyPendingSync({ dataDir: r.dataDir, backupDir: r.backupDir }).applied, true);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(r.dataDir, "profiles.json"), "utf8")).profiles[0].name, "Old");
+  assert.equal(fs.existsSync(path.join(r.dataDir, ".aurora-owner.json")), false);
+});

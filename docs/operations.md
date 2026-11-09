@@ -237,6 +237,33 @@ copied there, checked there, and kept there by the same rule; a copy that
 fails raises an alert. While every copy is on the data's disk the admin page
 says so (Actions → Backups, *one disk*), and the healer says it once.
 
+## A copy on every drive
+
+Actions → Backups → *Copies on every drive* (`src/lib/drivecopies.js`). Off
+until the admin switches on *Keep a copy of the household's data on every
+drive*; then once a day at the chosen time (server clock), never while
+someone watches, every drive that holds a library folder gets
+`<drive>/Aurora/.backups/aurora-backup-….tar.gz` (hidden; the last 7 days and
+4 weeks). The drive that already holds `data/backups` is listed as covered by
+it. Same format as the daily backup, but `config.json` is in it **without its
+secrets** and `.env` is not in it at all — set those again by hand after a
+total loss. Each copy is written under a temporary name, read back and
+checked (whole-file sha256, then every file inside), and only then named; a
+failed copy rotates nothing away. A drive that isn't answering is skipped and
+tried again every half hour; a full one is skipped with a note; a copy that
+keeps failing for 3 days raises one warning.
+
+*Restore* on that card: pick a copy, *See what it holds*, type `RESTORE`. The
+copy is fetched and checked into `data/.restore-pending/`, and the server
+restarts through its supervisor (keeper, pm2, systemd — not offered when
+nothing supervises it). At the start, before any store reads its file
+(`src/lib/restoreboot.js`), the data as it is is copied to
+`data/before-restore-<time>/` and packed as a snapshot in the backups folder
+(restore that one to undo), then the copy's data files are put in place. A
+failure half-way, or a crash half-way, puts the data from before back.
+`config.json` and `.env` are never touched. `data/restore-last.json` says how
+it went; the card shows it.
+
 ## Safe mode
 
 If `profiles.json`, `sessions.json` or `settings.json` cannot be read and

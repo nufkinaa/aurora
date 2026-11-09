@@ -482,8 +482,8 @@ const restore = async ({ location, name, confirm } = {}) => {
   if (live.running) return { error: "A copy is being written to the drives right now — try again in a minute.", status: 409 };
   if (backup._internals.live.running) return { error: "The daily backup is running right now — try again in a minute.", status: 409 };
   const look = await inspect({ location, name });
-  if (look.error) return look;
-  if (!look.ok) return { error: look.error, status: 409 };
+  if (look.status) return look; // (could not be read at all)
+  if (!look.ok) return { error: `Nothing was restored: ${look.error}`, status: 409 };
   const cfg = config();
   live.restoring = { at: deps.now(), name, location: look.location };
   const pendingDir = path.join(cfg.DATA_DIR, PENDING_DIR);

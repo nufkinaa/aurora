@@ -351,7 +351,9 @@ const collect = async (dataDir, configFiles = []) => {
   const first = (n) => (/-journal\.json$/i.test(n) ? 0 : 1);
   top.sort((a, b) => first(a.name) - first(b.name) || (a.name < b.name ? -1 : 1));
   for (const e of top) {
-    if (!e.isFile() || !e.name.toLowerCase().endsWith(".json")) continue;
+    // (a dot file is the machine's, not the household's: .aurora-owner.json is
+    // the running server's lock — put back by a restore it would name an old pid)
+    if (!e.isFile() || !e.name.toLowerCase().endsWith(".json") || e.name.startsWith(".")) continue;
     if (EXCLUDE_FILES.has(e.name.toLowerCase())) continue;
     out.push({ abs: path.join(dataDir, e.name), as: `data/${e.name}` });
   }
@@ -1059,6 +1061,7 @@ const restoreLive = async ({ archivePath, dataDir, backupDir, root, withConfig =
     const parts = f.path.split("/");
     if (parts.some((seg) => !seg || seg === "." || seg === "..") || f.path.includes("\\")) throw new Error(`unsafe path in the archive: ${f.path}`);
     const data = check.entries.get(f.path);
+    if (parts[0] === "data" && parts.length === 2 && parts[1].startsWith(".")) continue; // (the lock file an older backup took: never put back)
     if (parts[0] === "data") {
       const abs = path.join(dataDir, ...parts.slice(1));
       await fs.promises.mkdir(path.dirname(abs), { recursive: true });

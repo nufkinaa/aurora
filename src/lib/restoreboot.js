@@ -47,7 +47,7 @@ const householdFiles = (dataDir) => {
   let top = [];
   try { top = fs.readdirSync(dataDir, { withFileTypes: true }); } catch {}
   for (const e of top) {
-    if (e.isFile() && e.name.toLowerCase().endsWith(".json") && !EXCLUDE_FILES.has(e.name.toLowerCase())) out.push({ rel: e.name, abs: path.join(dataDir, e.name) });
+    if (e.isFile() && e.name.toLowerCase().endsWith(".json") && !e.name.startsWith(".") && !EXCLUDE_FILES.has(e.name.toLowerCase())) out.push({ rel: e.name, abs: path.join(dataDir, e.name) });
   }
   const walk = (abs, rel) => {
     let es = [];
@@ -176,6 +176,7 @@ const applyPendingSync = ({ dataDir, backupDir, version = null, now = Date.now()
         say(dataDir, { ...base, status: "failed", at: now, error: `unsafe path in the copy (${f.path}); nothing was changed` });
         return { failed: "unsafe path" };
       }
+      if (parts.length === 2 && parts[1].startsWith(".")) continue; // (an older backup's copy of the server's lock file: never put back)
       todo.push({ rel: parts.slice(1).join("/"), data: check.entries.get(f.path) });
     }
     const aside = putAside(dataDir, backupDir || path.join(dataDir, "backups"), now, version);

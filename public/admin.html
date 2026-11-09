@@ -990,6 +990,7 @@
         .dc-h3 { font-size: 0.95rem; margin: 16px 0 8px; }
         #dc-pick { flex: 1 1 220px; min-width: 0; max-width: 100%; }
         .dc-drive { overflow-wrap: anywhere; }
+        #dc-card th, #dc-card td:nth-child(2), #dc-card td:nth-child(3) { white-space: nowrap; }
         .dc-drive small, .dc-why { display: block; color: var(--text-dim); font-size: 0.75rem; overflow-wrap: anywhere; }
         .dc-look { margin-top: 10px; display: grid; gap: 6px; font-size: 0.85rem; overflow-wrap: anywhere; }
         .dc-look ul { margin: 4px 0 0 18px; padding: 0; columns: 2 200px; font-size: 0.78rem; color: var(--text-dim); }
@@ -2066,7 +2067,7 @@
     // but readable on a phone, with the destructive ones in red and the button
     // saying what it does ("Yes, delete") instead of "OK".
     const ASK_VERBS = /^(Delete|Ban|Clear|Remove|Decline|Cancel|Reject|Restart|Kick|Close|Send|Pull|Start|Reset|Suspend|Approve)\b/;
-    const ASK_DANGER = /^(Delete|Ban|Clear|Remove|Decline|Cancel|Reject|Restart|Kick|Close|Suspend)\b/;
+    const ASK_DANGER = /^(Delete|Ban|Clear|Remove|Decline|Cancel|Reject|Restart|Restore|Kick|Close|Suspend)\b/;
     const askBox = (message, withInput, yesLabel = null) => new Promise((resolve) => {
       const paras = String(message).split("\n\n");
       const cut = paras[0].indexOf("? ");
@@ -4177,7 +4178,7 @@
         : d.status === "failed" ? '<span class="pill bad">failed</span>'
         : d.status === "skipped" ? `<span class="pill warn">${d.why === "full" ? "full" : "skipped"}</span>`
         : '<span class="pill">no copy yet</span>';
-      const why = d.status === "failed" ? d.error : d.note;
+      const why = String((d.status === "failed" ? d.error : d.note) || "").replace(/\.$/, "");
       return `${pill}${bad ? ` <span class="pill bad">${bad} damaged</span>` : ""}<span class="dc-why">${why ? esc(why) + " · " : ""}${n} cop${n === 1 ? "y" : "ies"} kept</span>`;
     };
     const dcSummary = (s) => {
@@ -4246,7 +4247,7 @@
       } catch { toast("Could not save that"); }
     };
     $("#dc-enabled").addEventListener("change", (e) => dcSave({ enabled: e.target.checked }));
-    $("#dc-time").addEventListener("change", (e) => { if (/^\d\d:\d\d$/.test(e.target.value)) dcSave({ time: e.target.value }); });
+    $("#dc-time").addEventListener("change", (e) => { if (/^\d\d:\d\d$/.test(e.target.value) && !(DC && DC.time === e.target.value)) dcSave({ time: e.target.value }); });
     $("#dc-run").onclick = async () => {
       const b = $("#dc-run"); b.disabled = true; b.textContent = "Copying to the drives…";
       try {
