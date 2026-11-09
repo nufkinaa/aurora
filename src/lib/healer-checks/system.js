@@ -470,7 +470,7 @@ const fmtSkew = (sec) => (sec >= 120 ? `${Math.round(sec / 60)} minutes` : `${se
 // ------------------------------------------------------------ data growth
 
 // What is "big" for each kind of thing Aurora keeps.
-const SANE = { store: 25 * 1024 ** 2, usage: 120 * 1024 ** 2, log: 200 * 1024 ** 2, perf: 20 * 1024 ** 2 };
+const SANE = { store: 25 * 1024 ** 2, db: 250 * 1024 ** 2, usage: 120 * 1024 ** 2, log: 200 * 1024 ** 2, perf: 20 * 1024 ** 2 };
 const OLD_LOG_SAY_BYTES = 50 * 1024 ** 2; // an old set-aside log this big is named, with how to delete it
 
 // samples: [{ at, bytes }] oldest first. Fast = grew by half AND by 5 MB in a day.
@@ -522,7 +522,8 @@ const checkGrowth = async (ctx = {}) => {
       for (const f of names) {
         // (an old set-aside log — server-stdout.log.1 from before the keeper
         // rotated its own as .r1/.r2 — is named below, never touched)
-        const kind = /\.json$/.test(f) ? "store" : /\.log$/.test(f) ? "log" : /\.log\.\d+$/.test(f) ? "old-log" : null;
+        // (aurora.db and its WAL: the stores kept in SQLite, lib/sqlitestore.js)
+        const kind = /\.json$/.test(f) ? "store" : /\.db(-wal)?$/.test(f) ? "db" : /\.log$/.test(f) ? "log" : /\.log\.\d+$/.test(f) ? "old-log" : null;
         if (!kind) continue;
         const s = await fs.promises.stat(path.join(config.DATA_DIR, f)).catch(() => null);
         if (s && s.isFile()) items.push({ name: f, kind, bytes: s.size });
@@ -561,7 +562,9 @@ const checkGrowth = async (ctx = {}) => {
         ? `${it.name} has grown to ${fmtBytes(it.bytes)}. It is written by whatever starts Aurora (pm2 or a start script), not by Aurora — the healer does not touch it.`
         : it.kind === "usage"
           ? `The usage statistics folder holds ${fmtBytes(it.bytes)}. Each month is capped at 30 MB and only three months are kept, so this should not happen.`
-          : `${it.name} is ${fmtBytes(it.bytes)}. It is rewritten whole on every save, so saving gets slower as it grows.`,
+          : it.kind === "db"
+            ? `${it.name} is ${fmtBytes(it.bytes)}. It holds the stores kept in SQLite (viewing sessions, history, downloads, statistics); only changes are written, but this is far more than they should need.`
+            : `${it.name} is ${fmtBytes(it.bytes)}. It is rewritten whole on every save, so saving gets slower as it grows.`,
       evidence: fmtBytes(it.bytes),
       setting: it.kind === "log" ? "Stop Aurora, delete or rotate the file, start it again (pm2: pm2 flush)." : "Nothing to press — tell whoever maintains Aurora; this file should not get this big.",
     });

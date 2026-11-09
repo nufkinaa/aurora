@@ -46,7 +46,8 @@ for (const s of sessions.data) {
 // Written when something was closed (or when the file is not there yet, so a
 // fresh data folder still gets one): saving regardless rewrote the whole
 // viewing history at every boot to say nothing new.
-if (closedAtBoot || !require("fs").existsSync(sessions.filePath)) sessions.save();
+// (A store kept in SQLite has no file: lib/sqlitestore.js.)
+if (closedAtBoot || (sessions.backend !== "sqlite" && !require("fs").existsSync(sessions.filePath))) sessions.save();
 
 // The one-off repair of the watch time recorded the old way (lib/watchfix.js
 // has the rules): once per VERSION, marked in data/watch-time-fix.json, after
@@ -60,11 +61,13 @@ const runWatchFix = () => {
   if (done && done.version >= watchfix.VERSION) return null;
   const p = watchfix.plan(sessions.data);
   let backup = null;
-  if (p.changes.length && fs.existsSync(sessions.filePath)) {
+  const inSql = sessions.backend === "sqlite";
+  if (p.changes.length && (inSql || fs.existsSync(sessions.filePath))) {
     const dir = config.BACKUP_DIR || path.join(config.DATA_DIR, "backups");
     fs.mkdirSync(dir, { recursive: true });
     backup = path.join(dir, `watch-sessions.before-watch-fix-${watchfix.VERSION}-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
-    fs.copyFileSync(sessions.filePath, backup);
+    if (inSql) fs.writeFileSync(backup, JSON.stringify(sessions.data)); // (in SQLite: what it holds, as its file would)
+    else fs.copyFileSync(sessions.filePath, backup);
   }
   const changed = watchfix.apply(sessions.data, p);
   if (changed) sessions.save();

@@ -331,9 +331,15 @@ const checkData = () => slowly("data", async () => {
       }
     }
   }
+  // the stores kept in SQLite (lib/sqlitestore.js) are not files of their own
+  let inSql = "";
+  try {
+    const db = require("./sqlitestore").status().databases.find((d) => path.resolve(path.dirname(d.file)) === path.resolve(config.DATA_DIR));
+    if (db && db.stores) inSql = ` · ${db.stores.length} more in SQLite (${path.basename(db.file)} ${fmtBytes((db.bytes || 0) + (db.walBytes || 0))})`;
+  } catch {}
   if (broken.length) return { status: "fail", summary: `${broken.join(", ")} can't be read`, detail: "the file is not valid JSON — restore it from a backup before the server next saves over it" };
-  if (big.length) return { status: "warn", summary: `${files.length} data files, ${fmtBytes(total)}`, detail: `large: ${big.join(", ")} — every save rewrites the whole file` };
-  return { status: "ok", summary: `${files.length} data files, ${fmtBytes(total)}, all readable` };
+  if (big.length) return { status: "warn", summary: `${files.length} data files, ${fmtBytes(total)}${inSql}`, detail: `large: ${big.join(", ")} — every save rewrites the whole file` };
+  return { status: "ok", summary: `${files.length} data files, ${fmtBytes(total)}, all readable${inSql}` };
 });
 
 // The TV app: is the APK the server hands out the version the TVs are told
