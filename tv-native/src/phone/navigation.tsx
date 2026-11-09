@@ -26,6 +26,7 @@ export type PhoneStackParamList = RootStackParamList & {
   EditProfile: undefined; // Settings → Edit profile & password
   TasteList: undefined; // Edit list (#/taste/list); Taste itself is the TV's route name
   Wrapped: undefined;
+  GroupPick: {code?: string | null} | undefined; // "What do we watch tonight?" (a code from the TV's QR: joined at once)
 };
 
 const SCREENS = {
@@ -46,6 +47,7 @@ const SCREENS = {
   Taste: () => require('./screens/Taste').default,
   TasteList: () => require('./screens/Taste').TasteList,
   Wrapped: () => require('./screens/Wrapped').default,
+  GroupPick: () => require('./screens/GroupPick').default,
 } as const;
 
 // evaluated one at a time after Home has had its first seconds (the TV's warmScreens)
@@ -129,6 +131,7 @@ export default function PhoneNavigator() {
           <Stack.Screen name="Taste" getComponent={SCREENS.Taste} />
           <Stack.Screen name="TasteList" getComponent={SCREENS.TasteList} />
           <Stack.Screen name="Wrapped" getComponent={SCREENS.Wrapped} />
+          <Stack.Screen name="GroupPick" getComponent={SCREENS.GroupPick} />
           <Stack.Screen
             name="OfflinePlayer"
             getComponent={SCREENS.OfflinePlayer}

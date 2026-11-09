@@ -306,7 +306,11 @@ export const renderGroup = async (root, params = {}) => {
     let view = null; // { step, update(s) }
     let pressedPlay = false;
     let autoPlayed = false;
-    const local = new Map(); // key -> verdict this page has sent but the server has not echoed yet
+    // key -> the verdict this page sent that the server has not said back yet
+    // (null: taken back with Undo). A copy of the session that left the server
+    // before the vote — or the Undo — landed must not undo what was just done.
+    const local = new Map();
+    const answeredLocally = (x, key) => (local.has(key) ? local.get(key) != null : !!x.mine[key]);
     const answeredHere = []; // [{ key, verdict }] for Undo
     const act = async (what, extra = {}) => {
       try {
@@ -347,7 +351,12 @@ export const renderGroup = async (root, params = {}) => {
       const first = back || body.querySelector("[data-autofocus]") || null;
       if (first) first.focus({ preventScroll: true });
     }
-    const withLocal = (x) => (local.size ? { ...x, mine: { ...x.mine, ...Object.fromEntries(local) } } : x);
+    const withLocal = (x) => {
+      if (!local.size) return x;
+      const mine = { ...x.mine };
+      for (const [k, v] of local) { if (v == null) delete mine[k]; else mine[k] = v; }
+      return { ...x, mine };
+    };
     const isScreen = () => s.you && s.you.role === "screen";
     const isHost = () => !!(s.you && s.you.host);
 
@@ -624,10 +633,10 @@ export const renderGroup = async (root, params = {}) => {
         for (const c of x.deck) {
           if (known.has(c.key)) continue;
           known.add(c.key);
-          if (!x.mine[c.key] && !local.has(c.key)) queue.push(c);
+          if (!answeredLocally(x, c.key)) queue.push(c);
         }
         // a card answered elsewhere (this person's other device) leaves the queue
-        queue = queue.filter((c) => !x.mine[c.key] || local.has(c.key));
+        queue = queue.filter((c) => !answeredLocally(x, c.key));
       };
       const makeCard = (c) => {
         const meta = G.cardMeta(c);
@@ -716,7 +725,7 @@ export const renderGroup = async (root, params = {}) => {
       const undo = () => {
         const last = answeredHere.pop();
         if (!last) return;
-        local.delete(last.key);
+        local.set(last.key, null);
         queue.unshift(last.card);
         chain = chain.then(() => api.group.act(pid, code, "vote", { device: deviceId, key: last.key, verdict: null }).catch(() => {})).then(() => follow.refresh());
         if (view && view.step !== "swipe") paint();
@@ -794,12 +803,12 @@ export const renderGroup = async (root, params = {}) => {
         step: "swipe", node,
         update: (x) => {
           // the server's echo of our own answers: no longer only local
-          for (const [k, v] of [...local]) if (x.mine[k] === v) local.delete(k);
+          for (const [k, v] of [...local]) if (v == null ? !x.mine[k] : x.mine[k] === v) local.delete(k);
           takeDeck(x);
           time.textContent = G.timeLeft(x, Date.now() - follow.receivedAt());
           progress.textContent = G.progressLine(x);
           paintDeck();
-          if (!queue.length && !local.size) setTimeout(() => paint(), 0);
+          if (!queue.length && ![...local.values()].some((v) => v == null)) setTimeout(() => paint(), 0);
         },
       };
     }

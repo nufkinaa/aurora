@@ -1,8 +1,10 @@
 // "What do we watch tonight?" — the apps' pure half (src/groupPick.ts): the
 // steps, the lines, the code rules; and the website's copy
 // (public/js/groupwords.js) held to it word for word and rule for rule.
-import * as fs from 'fs';
-import * as path from 'path';
+// (node's own modules, without @types/node)
+declare const __dirname: string;
+const fs = require('fs');
+const path = require('path');
 import * as G from '../../src/groupPick';
 import type {GroupSession} from '../../src/groupPick';
 
@@ -133,5 +135,24 @@ test('an older answer never replaces a newer one', () => {
     expect(g.newer(session({rev: 5}), session({rev: 5}))).toBe(true);
     expect(g.newer(session({rev: 5}), session({code: 'ZZZZ', rev: 1}))).toBe(true);
     expect(g.newer(session(), null)).toBe(false);
+  }
+});
+
+test('Play: on the room screen when there is one; a screen starts the film itself', () => {
+  const withTv = session({phase: 'result'});
+  const noScreen = session({phase: 'result', members: withTv.members.filter(m => m.role !== 'screen')});
+  const webScreen = session({phase: 'result', members: withTv.members.map(m => (m.role === 'screen' ? {...m, app: 'web' as const} : m))});
+  const asScreen = session({phase: 'result', you: {id: 'elia|tv', profileId: 'elia', role: 'screen', host: true}});
+  for (const g of [G, web]) {
+    expect(g.screenOf(withTv)?.name).toBe('Elia');
+    expect(g.screenOf(noScreen)).toBe(null);
+    expect(g.playLabel(withTv)).toBe('Play on the TV');
+    expect(g.playLabel(webScreen)).toBe('Play on the big screen');
+    expect(g.playLabel(noScreen)).toBe('Play');
+    expect(g.playLabel(asScreen)).toBe('Play');
+    expect(g.playsHere(asScreen, false)).toBe(true);
+    expect(g.playsHere(withTv, true)).toBe(false);
+    expect(g.playsHere(noScreen, true)).toBe(true);
+    expect(g.playsHere(noScreen, false)).toBe(false);
   }
 });

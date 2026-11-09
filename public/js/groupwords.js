@@ -42,6 +42,11 @@ export const WORDS = {
   somethingElse: 'Something else',
   firstPick: 'Back to the first pick',
   play: 'Play',
+  playOnTv: 'Play on the TV',
+  playOnScreen: 'Play on the big screen',
+  startingOnTv: 'Starting on the TV',
+  startingOnScreen: 'Starting on the big screen',
+  pressedPlay: 'pressed Play',
   open: 'Open',
   noMatch: 'No match this time',
   noMatchLine: 'Nobody said yes to the same thing. Swipe another round?',
@@ -60,6 +65,14 @@ export const WORDS = {
   hostBadge: 'Started it',
   awayBadge: 'Away',
   doneBadge: 'Done',
+  // TV additions
+  leaveAsk: 'Leave this session?',
+  leaveLine: 'The others can carry on without this screen.',
+  stay: 'Stay',
+  change: 'Change',
+  close: 'Close',
+  // phone additions
+  noReach: "Couldn't reach Aurora — try again.",
 };
 
 // The first-time explanation: four steps, each a picture and a sentence.
@@ -162,6 +175,21 @@ export const currentPick = (s) => {
   return r.picks[Math.min(Math.max(0, r.index), r.picks.length - 1)] || null;
 };
 export const hasNextPick = (s) => !!s.result && s.result.index + 1 < s.result.picks.length;
+
+/** The room's big screen, if there is one (a TV first): Play on a phone starts it THERE. */
+export const screenOf = (s) =>
+  s.members.find(m => m.role === 'screen' && m.app === 'tv' && !m.away) || s.members.find(m => m.role === 'screen' && !m.away) || null;
+/** The Play button's words for this member: here, or on the room's screen. */
+export const playLabel = (s) => {
+  if (!s.you || s.you.role === 'screen') return WORDS.play;
+  const scr = screenOf(s);
+  return !scr ? WORDS.play : scr.app === 'tv' ? WORDS.playOnTv : WORDS.playOnScreen;
+};
+/** Does this device start the film when the pick is chosen? The screen does; with no screen, whoever pressed Play. */
+export const playsHere = (s, pressedHere) => {
+  if (s.you && s.you.role === 'screen') return true;
+  return pressedHere && !screenOf(s);
+};
 
 /** What the QR code holds: the website's join page for this code. */
 export const joinUrl = (base, code) => `${String(base || '').replace(/\/+$/, '')}/#/group/${encodeURIComponent(code)}`;
