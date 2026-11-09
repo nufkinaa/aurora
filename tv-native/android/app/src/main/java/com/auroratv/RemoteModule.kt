@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.os.PowerManager
 import android.provider.Settings
 import android.view.KeyEvent
@@ -30,9 +33,12 @@ import kotlin.math.roundToInt
  *  - bringToFront(): Aurora to the front when the TV is showing something else;
  *  - wake(): the screen on — "Play on TV" on a TV showing its screensaver (a dream). A short
  *    wake lock with ACQUIRE_CAUSES_WAKEUP makes the power manager wake the device, and waking
- *    ends a dream; Aurora, which the dream was drawn over, is in front again.
+ *    ends a dream; Aurora, which the dream was drawn over, is in front again. Answers whether
+ *    Aurora has the window focus within 1.5 s (waited for natively).
  */
 class RemoteModule(private val ctx: ReactApplicationContext) : ReactContextBaseJavaModule(ctx) {
+
+  private val WAKE_WAIT_MS = 1500L
 
   override fun getName() = "AuroraRemote"
 
@@ -169,7 +175,27 @@ class RemoteModule(private val ctx: ReactApplicationContext) : ReactContextBaseJ
         "aurora:playontv",
       )
       lock.acquire(3000L)
-      promise.resolve(true)
+      // The answer is whether Aurora is in front now — waited for HERE, on the main looper:
+      // React Native's JS timers stand still while the app is in the background, so a wait in
+      // JS never ends there (Mi TV 2026-11-09: the phone heard "didn't answer" instead of
+      // "open it there"). A dream drawn over Aurora ends within a few hundred ms of the wake;
+      // another app in front never gives Aurora the focus, and the answer is false.
+      val handler = Handler(Looper.getMainLooper())
+      val started = SystemClock.uptimeMillis()
+      val poll = object : Runnable {
+        override fun run() {
+          val act = ctx.currentActivity
+          val front = act != null && !act.isFinishing && act.hasWindowFocus()
+          if (front) {
+            promise.resolve(true)
+          } else if (SystemClock.uptimeMillis() - started >= WAKE_WAIT_MS) {
+            promise.resolve(false)
+          } else {
+            handler.postDelayed(this, 100L)
+          }
+        }
+      }
+      handler.postDelayed(poll, 100L)
     } catch (_: Throwable) {
       promise.resolve(false)
     }

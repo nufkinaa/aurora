@@ -14,7 +14,7 @@ import {nativeRemote} from './native';
 // before the phone is told it did not (both inside the handler's ANSWER_MS).
 // First the screensaver is woken (a dream over Aurora: waking it is all it
 // takes), then — still not in front — the start of the activity.
-const WAKE_WAIT_MS = 1200;
+// (the wake's own wait is RemoteModule.wake's, 1.5 s, on the main looper)
 const FRONT_WAIT_MS = 2800;
 
 // The wait is measured by the clock, not only by the timer: React Native
@@ -54,11 +54,9 @@ const dispatchPlayer = (a: PlayItemArgs) => {
  *  if that was not enough, the activity started. 'already' / 'woke' /
  *  'started' / false (Android would not let it come forward). */
 export const bringAuroraForward = async (): Promise<'already' | 'woke' | 'started' | false> => {
-  if (AppState.currentState === 'active') {
-    nativeRemote.wake(); // (a dream can sit over an app that still reads as active on some boxes)
-    return 'already';
-  }
-  if ((await nativeRemote.wake()) && (await waitActive(WAKE_WAIT_MS))) return 'woke';
+  if (AppState.currentState === 'active') return 'already';
+  // (the native side waits for the window itself: a JS timer stands still in the background)
+  if (await nativeRemote.wake()) return 'woke';
   // Android 10+ lets an app in the background start an activity only in
   // narrow cases (the "display over other apps" permission this app may
   // have been given for its updater is one): the start is asked for, and
