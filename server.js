@@ -588,6 +588,12 @@ const bgRescan = (() => {
     touched.set(video, source);
     bgRescan({ now: source === "resync" || source === "undo", after: tell });
   });
+  // A Hebrew track was translated for a title that had none (media/subai.js):
+  // the library lists it, and the players watching that title add it.
+  require("./src/media/subai").events.on("ready", ({ video }) => {
+    touched.set(video, "ai");
+    bgRescan({ now: true, after: tell });
+  });
 }
 // A file's tracks were just named from their text: the library learns the names.
 require("./src/media/sublang").events.on("detected", () => bgRescan());

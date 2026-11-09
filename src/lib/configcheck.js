@@ -49,6 +49,7 @@ const SCHEMA = {
   tmdbApiKey: [T.str, "none (or TMDB_API_KEY in .env)", true],
   openrouterApiKey: [T.str, "none: AI picks stay off (or OPENROUTER_API_KEY in .env)", true],
   aiModel: [T.str, '"google/gemini-2.5-flash"'],
+  subtitleAi: [T.obj, "Hebrew subtitles translated when a title has none, when an AI key is set (media/subai.js budgets)"],
   torrents: [T.bool, "true"],
   preconvert: [T.bool, "true"],
   offlineCacheGb: [T.num(0.1, 100000), "8"],

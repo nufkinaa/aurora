@@ -12,6 +12,7 @@ const { EventEmitter } = require("events");
 const config = require("../config");
 const metadata = require("./metadata");
 const subnames = require("./subnames");
+const subtrans = require("./subtrans");
 const sublang = require("./sublang");
 // (loaded with the scanner, as sublang is: its store is read once, at start —
 // not in the middle of a scan)
@@ -319,6 +320,8 @@ const externalSubtitleLabel = (subFile, videoFile) => {
   const base = path.basename(subFile, path.extname(subFile));
   const videoBase = path.basename(videoFile, path.extname(videoFile));
   if (base === videoBase) return "Subtitles";
+  // the Hebrew track Aurora translated (media/subai.js): one name everywhere
+  if (subtrans.isAiFile(subFile)) return subtrans.AI_LABEL;
 
   const known = KNOWN_LANGUAGE_WORDS;
 
@@ -450,7 +453,8 @@ const buildSubtitleTracks = (videoAbs, videoRel, videoFile, dir, extraDirs) => {
       relTo(config.ROOT, subAbs),
     );
     let label = externalSubtitleLabel(sub.file, videoFile);
-    let lang = labelLang(label);
+    const ai = subtrans.isAiFile(sub.file);
+    let lang = ai ? "he" : labelLang(label);
     let sdh = /\b(?:sdh|cc)\b/i.test(sub.file);
     let forced = /\bforced\b/i.test(sub.file);
     if (!lang) {
@@ -474,6 +478,7 @@ const buildSubtitleTracks = (videoAbs, videoRel, videoFile, dir, extraDirs) => {
       ...(lang ? { lang } : {}),
       ...(sdh ? { sdh: true } : {}),
       ...(forced ? { forced: true } : {}),
+      ...(ai ? { ai: true } : {}),
     });
     sidecarPaths.set(tracks[tracks.length - 1], subAbs);
     const timing = timingOfSidecar(subAbs);
@@ -484,7 +489,9 @@ const buildSubtitleTracks = (videoAbs, videoRel, videoFile, dir, extraDirs) => {
   // ones it could, so the automatic pick — the first full track in the
   // viewer's language (lang.js bestTrackIndex) — lands on one in time.
   // Stable: everything else keeps its order (and its name).
-  const rank = (t) => (sublang.syncVerdict(sidecarPaths.get(t)) === "unmatched" ? 1 : 0);
+  // The translated Hebrew track (media/subai.js) goes after the sidecars
+  // people made, and before those that matched nothing.
+  const rank = (t) => (sublang.syncVerdict(sidecarPaths.get(t)) === "unmatched" ? 2 : t.ai ? 1 : 0);
   tracks.sort((a, b) => rank(a) - rank(b));
 
   const meta = metadata.getCached(videoAbs);
@@ -588,9 +595,13 @@ const starBest = (tracks) => {
   for (const idx of byLang.values()) {
     const rank = Math.min(...idx.map((i) => trackRankOf(tracks[i])));
     if (rank >= 2) continue;
+    // a translated track (media/subai.js) has the ★ only where it is its
+    // language's one full track: a person's translation is preferred
+    const people = idx.some((i) => !tracks[i].ai && trackRankOf(tracks[i]) === rank);
     let best = null;
     for (const i of idx) {
       if (trackRankOf(tracks[i]) !== rank) continue;
+      if (people && tracks[i].ai) continue;
       const k = matchClass(tracks[i]);
       if (k == null) continue;
       const r = (tracks[i].timing && tracks[i].timing.r) || 0;

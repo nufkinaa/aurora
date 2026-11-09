@@ -506,6 +506,10 @@ router.post("/api/profiles/:id/progress", gate, (req, res) => {
   profiles.setProgress(req.params.id, itemId, position, duration, item);
   res.json({ ok: true });
   untouchedLib().notePlay(req.params.id, itemId, prev, position, item);
+  // a title with no Hebrew subtitles played by somebody who watches with
+  // Hebrew ones: one is translated (media/subai.js; only with an AI key — a
+  // cheap check otherwise, and a title is queued once)
+  try { require("../media/subai").played(req.params.id, itemId); } catch {}
   // Most of the way through an episode? Queue the next one (media/smartdl.js).
   // After the response, never on its critical path.
   smartdlLib()

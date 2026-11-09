@@ -175,16 +175,22 @@ import {Cue, cueBottom, cueTextAt, parseVtt} from './cues';
 import {delaysForItem, loadDelays, roundDelay, saveDelay} from './subDelay';
 import {audioName, autoPick, buildTracks, followPick, hasLang, langName, Track as SubTrack} from './subTracks';
 import {
+  aiPendingToast,
+  foundToast,
   mergeSubInfo,
+  ORIGINAL_TIMING,
   reloadAfterSync,
   reloadDue,
   resyncBody,
   resyncMode,
+  resyncRowLabel,
   runResync,
   switchedToast,
   syncPlan,
   takesServerTiming,
   toastFor,
+  undoable,
+  UNDO_LABEL,
 } from './resync';
 import {afterClaim, claimFirst, SERVER_BUSY, whenRoom} from '../serverManners';
 import {playerError, seekResumed, seekStarted, seeking} from '../telemetry'; // [analytics]
@@ -1912,7 +1918,12 @@ export default function Player({
     api
       .subtitlesFetch(id, want)
       .then(r => {
-        console.log(`[player] subtitle fetch: ${r?.tracks?.length || 0} track(s)`);
+        console.log(`[player] subtitle fetch: ${r?.tracks?.length || 0} track(s)${r?.ai ? ` — the server translates one (${r.ai})` : ''}`);
+        // none from the providers: the server translates one with AI
+        // (src/media/subai.js); it arrives with `subtitle_sync` below and the
+        // auto pick, still waiting for this language, switches it on
+        const pending = !exited.current ? aiPendingToast(r) : null;
+        if (pending) toast(pending);
         if (exited.current || !r?.tracks?.length) return;
         // tagged with the language asked for, so the auto pick (which waits
         // for it: autoPick upgradeTo) knows it when it lands
@@ -2364,7 +2375,7 @@ export default function Player({
       toast(moved);
     } else if (step.announce && p.index >= 0) {
       const name = langName(usable[p.index].lang) || langName(langOf(usable[p.index]));
-      toast(name ? `${name} subtitles found — switched on` : 'Subtitles found — switched on');
+      toast(foundToast(usable[p.index], name));
     }
   }, [tracks, prefsLoaded, prefs.subsDefault, prefs.subLang, prefs.lastSubSet, prefs.lastSubLang, profileId, badTick, toast]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2626,6 +2637,28 @@ export default function Player({
       toast(toastFor(o, takesServerTiming(o) ? delayWas : 0));
     });
   }, [subKey, subUrl, subMode, id, reloadOnly, reloadCues, setSubDelay, showControls, toast]);
+  // Back to the file's own timing, for everyone (POST /api/subtitles/resync/undo).
+  const undoResync = useCallback(() => {
+    if (!subKey || !subUrl || subMode !== 'audio') return;
+    const url = subUrl;
+    const it = itemRef.current;
+    const body = resyncBody(it?.id || id, url, it?.audioTracks, audioIdxRef.current);
+    closeMenu();
+    api
+      .subtitleResyncUndo(body)
+      .then(() => {
+        if (exited.current) return;
+        console.log(`[player] resync undone: ${body.track}`);
+        setSubs(prev => prev.map(t => (t.url === url ? {...t, timing: ORIGINAL_TIMING} : t)));
+        setSubDelay(url, 0);
+        reloadCues(url, true);
+        toast("Back to the file's own timing");
+      })
+      .catch(e => {
+        console.log('[player] resync undo failed:', (e as Error).message);
+        if (!exited.current) toast("Couldn't reach the server — nothing changed");
+      });
+  }, [subKey, subUrl, subMode, id, reloadCues, setSubDelay, toast]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // `subtitle_sync` (server): a subtitle of THIS title was lined up with the
   // audio — by a Resync here or on another device, by the server's own
@@ -4992,10 +5025,20 @@ export default function Player({
                 and I don't want to fiddle with ±0.5s". */}
             {subKey ? (
               <MenuItem uiId="player.subtitles.resync"
-                label={subMode === 'audio' ? (resyncLine ? '⟲  Resyncing…' : '⟲  Resync subtitles') : '⟲  Reload subtitles'}
+                label={resyncRowLabel(subMode, !!resyncLine)}
                 tag={resyncLine ? resyncLine.replace(/^Listening to the film… /, '') : undefined}
                 onFocusChange={markZone('menu')}
                 onPress={resyncSubs}
+              />
+            ) : null}
+            {/* the track is served moved (a Fix timing, or the server's own
+                sure correction): its file's own timing stays a choice — the
+                website's row, same words */}
+            {subKey && undoable(subMode, tracks.find(t => t.key === subKey)?.timing) ? (
+              <MenuItem uiId="player.subtitles.undo"
+                label={UNDO_LABEL}
+                onFocusChange={markZone('menu')}
+                onPress={undoResync}
               />
             ) : null}
             <MenuItem uiId="player.subtitles.pick"

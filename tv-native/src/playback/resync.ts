@@ -99,6 +99,32 @@ export const resyncBody = (
   return {id, track: trackPath(url), audio: at > 0 ? at : 0};
 };
 
+// ---------------------------------------------------------------- the menu's rows
+/** The first row of the subtitle menu, in the website's words
+ *  (public/js/screens/player.js): "Fix timing" lines the track up with what
+ *  is said (2026-11-09 — it was "Resync subtitles"); a stream's track can only
+ *  be reloaded. */
+export const resyncRowLabel = (mode: 'audio' | 'reload' | 'none', busy: boolean): string =>
+  mode === 'audio' ? (busy ? '⟲  Listening to the film…' : '⟲  Fix timing') : '⟲  Reload subtitles';
+
+/** The track is served moved — by a Fix timing here or elsewhere, or by the
+ *  server's own check that found it off and was sure — so the file's own
+ *  timing is offered as a choice ("↺ Use the file's own timing"). */
+export const undoable = (mode: 'audio' | 'reload' | 'none', timing: SubTiming | null | undefined): boolean =>
+  mode === 'audio' && !!timing && (timing.verdict === 'moved' || timing.verdict === 'parts');
+export const UNDO_LABEL = "↺  Use the file's own timing";
+export const ORIGINAL_TIMING: SubTiming = {verdict: 'original', by: 'audio', words: "The file's own timing"};
+
+/** What the subtitle fetch answered when the providers had no Hebrew and the
+ *  server translates one with AI (src/media/subai.js): the toast, or null. */
+export const aiPendingToast = (r: {tracks?: unknown[]; ai?: string | null} | null | undefined): string | null =>
+  r && r.ai && !(r.tracks && r.tracks.length) ? 'No Hebrew subtitles yet — translating with AI, ready in a few minutes' : null;
+
+/** The toast when a track the viewer was waiting for switched on by itself:
+ *  the AI translation says its own name, the website's words. */
+export const foundToast = (t: {label: string; ai?: boolean} | null | undefined, langName: string | null | undefined): string =>
+  t && t.ai ? `“${t.label}” is ready — switched on` : langName ? `${langName} subtitles found — switched on` : 'Subtitles found — switched on';
+
 // ---------------------------------------------------------------- while it runs
 /** The line shown while the server works: it listens first (the long part —
  *  the film's whole audio, cached afterwards), then matches. */
