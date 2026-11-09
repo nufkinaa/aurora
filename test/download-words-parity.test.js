@@ -67,6 +67,10 @@ test("the TV's and the phone's title pages say only those words, with no line un
     assert.doesNotMatch(src, /SAVING|`Saving \$\{(?:pct\}|p\}|Math\.round)/, `${f}: no "Saving N%"`);
     assert.doesNotMatch(src, /Getting it…|Finding the best source…/, `${f}: pressed, it says the website's "Starting download…"`);
   }
+  // finished, the copy not read yet: the website keeps its last words ("Almost there…") until the
+  // page turns into Play; the apps say the same (TV: the "ended" note; phone: `landing`)
+  assert.match(read("tv-native/src/phone/screens/Detail.tsx"), /if \(landing\.film\) return SAVE_WORDS\.finishing;/);
+  assert.match(apps, /: \{busy: true, label: SAVE_WORDS\.finishing, line: null, pct: 1, tone: 'live'\}/);
   // the old shared line is gone
   assert.doesNotMatch(apps, /best source  ·  \$\{pct\}%|SAVING \$\{pct\}%/);
 });

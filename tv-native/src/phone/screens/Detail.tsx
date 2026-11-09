@@ -207,6 +207,16 @@ export default function Detail() {
   const [libraryTick, setLibraryTick] = useState(0);
   const [jobs, setJobs] = useState<Record<string, JobMark>>({});
   const [jobsRead, setJobsRead] = useState(false);
+  // A download that finished, its copy not read from the library yet: Play says the website's
+  // "Almost there…" (its button keeps that until the page turns into Play) instead of going back
+  // to Save & watch for a moment. By key; let go after 30 s whatever happens.
+  const [landing, setLanding] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const keys = Object.keys(landing);
+    if (!keys.length) return;
+    const t = setTimeout(() => setLanding({}), 30000);
+    return () => clearTimeout(t);
+  }, [landing]);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [heroRel, setHeroRel] = useState<ReleaseStatus | null>(null);
   const [filmBest, setFilmBest] = useState<boolean | null>(null); // [franchise] a best source? (what `save` waits for)
@@ -394,8 +404,12 @@ export default function Detail() {
         if (!next[k] || j.mine) next[k] = jobMark(j);
       }
       setJobs(prev => {
-        const ended = Object.keys(prev).some(k => !next[k]);
-        if (ended) setTimeout(() => setLibraryTick(t => t + 1), 1500);
+        const gone = Object.keys(prev).filter(k => !next[k]);
+        if (gone.length) {
+          // gone from the list: taken as landed until the library says otherwise (the TV's rule)
+          setLanding(m => ({...m, ...Object.fromEntries(gone.map(k => [k, Date.now()]))}));
+          setTimeout(() => setLibraryTick(t => t + 1), 1500);
+        }
         return next;
       });
       setJobsRead(true);
@@ -424,7 +438,10 @@ export default function Detail() {
           delete n[k];
           return n;
         });
-        if (j.status === 'done') setTimeout(() => setLibraryTick(t => t + 1), 1200);
+        if (j.status === 'done') {
+          setLanding(m => ({...m, [k]: Date.now()}));
+          setTimeout(() => setLibraryTick(t => t + 1), 1200);
+        } else setLanding(m => (m[k] ? Object.fromEntries(Object.entries(m).filter(([x]) => x !== k)) : m));
         return;
       }
       setJobs(prev => ({...prev, [k]: jobMark(j)}));
@@ -967,11 +984,13 @@ export default function Detail() {
       if (!heroEp) return loading ? 'Loading…' : 'No episodes yet';
       if (nextUp?.resume) return `Continue S${heroEp.season} E${heroEp.episode}${nextUp.at ? ` · ${fmtClock(nextUp.at)}` : ''}`;
       if (!heroEp.owned && heroJob) return `${saveText(heroJob)}${epOf(heroEp.key)}`;
+      if (!heroEp.owned && landing[heroEp.key]) return `${SAVE_WORDS.finishing}${epOf(heroEp.key)}`;
       return heroEp.owned ? `Play S${heroEp.season} E${heroEp.episode}` : `${SAVE_WATCH} S${heroEp.season} E${heroEp.episode}`;
     }
     if (ownedMovieId) return movieResume ? `Resume ${fmtClock(movieResume)}` : 'Play';
     // on its way: what it is doing (never a stream of it — playBest.ts)
     if (filmJob) return saveText(filmJob);
+    if (landing.film) return SAVE_WORDS.finishing;
     if (heroRel) return 'See the sources';
     return SAVE_WATCH;
   })();
