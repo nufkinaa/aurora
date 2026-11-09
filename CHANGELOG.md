@@ -3,6 +3,16 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.17 — 2026-11-09
+
+- **Hebrew subtitles for everything.** A film or episode with no Hebrew subtitles gets one translated with AI for people whose subtitles are Hebrew, listed as "עברית (AI)": every line keeps its timing, reads right to left and stays short. It needs the server's AI key and keeps to a daily budget. "Resync subtitles" is now **Fix timing**, and "Use the file's own timing" puts a track back, on the website, TV and phone.
+- **Search in Hebrew.** Type a title the way you say it (פרנדס, ספיידרמן) or its Hebrew name (שובר שורות) and it's found; the wrong keyboard language is worked out too. Hebrew searches are also faster.
+- **Tonight's episodes, ready tomorrow.** The next episode of every show someone is watching downloads ahead, and at night, while nobody watches, Aurora prepares what your devices can't play as it is, so it starts faster with no live conversion. It pauses the moment someone starts watching. Admin → Downloads → Overnight.
+- **Every screen on small phones.** On the phone website, More opens a menu like the TV's, with every screen in it; tab names never get cut. The pictures you can see now load first (the hero on a slow line in about half the time).
+- **Copies of the household's data on every drive** (Admin → Backups, off until you switch it on): checked daily copies, 7 daily and 4 weekly per drive, and a restore that puts the current data aside first.
+- The website's posters and backdrops come as AVIF where the browser supports it: about a sixth fewer bytes, the same picture. The TV and phone apps get their usual format.
+- On the TV and phone apps, the subtitle menu, prepared copies and the rest arrive with their next update.
+
 ## 1.15.16 — 2026-11-09
 
 - **Admin: what to delete, suggested clearly.** Admin → Downloads → Free up space now suggests every film and episode nobody has touched for 45 days ("Nobody watched for 52 days · last played by Niso on Sep 18", "Never played · arrived Sep 10"), beside the titles everyone has finished and the extra copies. Each row shows its size, drive and who asked for it; select a group, see the total, confirm once. Nothing is ever removed unless you choose it.
