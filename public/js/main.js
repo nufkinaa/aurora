@@ -157,6 +157,7 @@ route("/new", lazy("./screens/whatsnew.js", "renderWhatsNew"));
 route("/group", lazy("./screens/group.js", "renderGroup")); // "What do we watch tonight?" — start or join
 route("/group/:code", (root, p) => import("./screens/group.js").then((m) => m.renderGroup(root, p))); // where the TV's QR code lands a phone
 route("/franchise/:id", lazy("./screens/franchise.js", "renderFranchise")); // a franchise in order (js/franchise.js)
+route("/calendar", lazy("./screens/calendar.js", "renderCalendar")); // releases of what is in your list (src/media/calendar.js)
 route("/household", lazy("./screens/household.js", "renderHousehold")); // "Show all recommended" (js/recommend.js)
 route("/household/sent", withSkeleton((root) => import("./screens/household.js").then((m) => m.renderHousehold(root, { tab: "sent" })))); // …on its "You sent" tab
 route("/pair/:code", (root, p) => import("./screens/pair.js").then((m) => m.renderPair(root, p)));
@@ -745,6 +746,9 @@ const showProfileMenu = () => {
       downloadCountLine(myDownloads()) ? el("span", { class: "nav-menu-count" }, downloadCountLine(myDownloads())) : null),
     // saved titles, saves under way, a video from this device (screens/saved.js)
     item("On this device", () => { close(); navigate("#/saved"); }),
+    // what is coming up for this person's list (screens/calendar.js) — the
+    // phone's way there (the nav link is a desktop one)
+    item("Calendar", () => { close(); navigate("#/calendar"); }),
     item("What's new", () => { close(); navigate("#/new"); }),
     // the product page with every Aurora app (same words as the sign-in card)
     el("a", { href: "/install", class: "nav-menu-item focusable", "data-ui": "nav.getapps" }, "Get the apps"),

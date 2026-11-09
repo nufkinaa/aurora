@@ -50,6 +50,8 @@ const ROUTES = (lib) => ({
   "/household/sent": { hash: "#/household/sent", text: "You sent" },
   // a franchise in order (the curated list ships with the server)
   "/franchise/:id": { hash: "#/franchise/toy-story", selector: ".screen .fr-entries", text: "Toy Story 2" },
+  // the Calendar: a profile with nothing in its list says how to fill it
+  "/calendar": { hash: "#/calendar", text: "Add films and shows to My List" },
   // a pairing code nobody issued
   "/pair/:code": { hash: "#/pair/ABCD12", text: "That code expired" },
   // {host}/link with no code: the field to type the TV's code into

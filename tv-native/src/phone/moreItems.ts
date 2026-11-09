@@ -51,5 +51,5 @@ const ALL: MoreEntry[] = [
 
 /** The lines, in order. AI only when the server has AI (GET /api/ai/status); Calendar
  *  only once its screen exists; the profile line wears your name. */
-export const moreEntries = ({ai, calendar = false, name = ''}: {ai: boolean; calendar?: boolean; name?: string}): MoreEntry[] =>
+export const moreEntries = ({ai, calendar = true, name = ''}: {ai: boolean; calendar?: boolean; name?: string}): MoreEntry[] =>
   ALL.filter(e => (e.key !== 'pick' || ai) && (e.key !== 'calendar' || calendar)).map(e => (e.key === 'profile' && name ? {...e, label: name} : e));

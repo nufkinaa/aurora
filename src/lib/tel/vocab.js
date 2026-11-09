@@ -119,6 +119,7 @@ const SEGMENTS = new Set((
   "uploads chunk retry " +
   "restore " + // a copy of the household's data on every drive (/api/admin/backups/drives, …/settings, …/run, …/check, …/summary, …/restore — lib/drivecopies.js)
   "franchises next order " + // franchise order (/api/franchises/for/:id, /api/franchises/next/:id, /api/franchises/:id, …/:id/order — routes/franchises.js)
+  "calendar save " + // the Calendar (/api/profiles/:id/calendar, …/calendar/save — media/calendar.js)
   "reset request code check complete reset-requests reset-code app-start app-finish " + // sign-in round: password reset, the phone's Google (routes/auth.js) // admin "Add your own file" (/api/admin/uploads, …/link, …/:id/chunk, …/cancel, …/retry, …/dismiss)
   ".m3u8 .ts .m4s .mp4 .mkv .webm .vtt .srt .jpg .jpeg .png .webp .avif .svg .gif .ico .js .css .json .html .txt .apk .woff2 .webmanifest " +
   "?a ?blur ?caps ?from ?key ?category ?code ?days ?duration ?episode ?error ?fmt ?force ?genre ?head ?hevc ?imdbid ?intent ?itemid ?k ?kb ?keys ?limit ?order ?page ?profile ?pw " +

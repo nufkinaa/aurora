@@ -392,6 +392,21 @@ const createGate = (deps) => {
         // what the household recommended to it, and what it sent (media/household.js
         // already leaves out what it may not see; this is the gate's own word)
         if (method === "GET" && (rest === "/household" || rest === "/household/sent")) return fields("items");
+        // the Calendar (media/calendar.js): each day keeps what it may see; a
+        // day left empty goes. Save & watch: only a title it may see.
+        if (method === "GET" && rest === "/calendar") {
+          return rewrite((body) => {
+            const days = (list) => (Array.isArray(list) ? list.map((d) => ({ ...d, items: keep(d.items) || [] })).filter((d) => d.items.length > 0) : list);
+            const upcoming = days(body.upcoming);
+            const recent = days(body.recent);
+            const n = (g) => (Array.isArray(g) ? g.reduce((t, d) => t + d.items.length, 0) : 0);
+            return { ...body, upcoming, recent, counts: { ...(body.counts || {}), upcoming: n(upcoming), recent: n(recent) } };
+          });
+        }
+        if (method === "POST" && rest === "/calendar/save") {
+          const b = req.body || {};
+          if (!ok({ imdbId: b.imdbId, type: b.type === "show" || b.type === "series" ? "show" : "movie" })) return tooOld();
+        }
       }
       return next();
     }

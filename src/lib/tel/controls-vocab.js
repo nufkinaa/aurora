@@ -16,6 +16,12 @@ module.exports = {
   "browse.sort.open": "w",
   "browse.surprise": "wtp",
   "browse.unwatched": "wtp",
+  // calendar (the Calendar screen: public/js/screens/calendar.js, tv-native screens/Calendar.tsx, phone/screens/Calendar.tsx)
+  "calendar.open": "wtp",
+  "calendar.play": "wtp",
+  "calendar.retry": "wtp",
+  "calendar.save": "wtp",
+  "calendar.tab": "wtp",
   // card
   "card.open": "wtp",
   "card.remove": "w",
@@ -88,6 +94,7 @@ module.exports = {
   "mylist.filter": "tp",
   // nav
   "nav.ai": "wt",
+  "nav.calendar": "wt", // the Calendar: the website's nav, the TV's rail (phones: More)
   "nav.downloads": "w",
   "nav.getapps": "w", // the profile menu's "Get the apps" (/install)
   "nav.home": "wtp",
@@ -363,6 +370,7 @@ module.exports = {
   "phone.episode.more": "p", // a show's episode card: its round corner button (the choices)
   "phone.home.remove": "p", // the x on a Continue Watching card
   "phone.menu.apps": "p", // the profile menu: Get the apps (/install)
+  "phone.menu.calendar": "p", // the profile menu: Calendar
   "phone.menu.downloads": "p", // the profile menu: Downloads
   "phone.menu.party": "p", // the profile menu: Join a watch party
   "phone.menu.remote": "p", // the profile menu: Remote

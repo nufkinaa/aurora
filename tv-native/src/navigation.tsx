@@ -50,6 +50,7 @@ const SCREENS = {
   Household: () => require('./screens/Household').default, // [household] Show all recommended
   GroupPick: () => require('./screens/GroupPick').default, // [group-pick] What do we watch tonight?
   Franchise: () => require('./screens/Franchise').default, // [franchise] Watch in order
+  Calendar: () => require('./screens/Calendar').default, // the rail's Calendar
 } as const;
 
 const WARM_FIRST_MS = 6000; // after Home's own first seconds (its rows, its pictures, the trailer lookup)
@@ -93,6 +94,8 @@ export type RootStackParamList = {
   Household: {tab?: 'forYou' | 'sent'} | undefined;
   // [group-pick] "What do we watch tonight?" — `code`: join that session as the room's screen
   GroupPick: {code?: string} | undefined;
+  // the Calendar (calendar.ts): what is coming up and just out for this person's list
+  Calendar: undefined;
   // `play`: the page presses its own Play once it knows what that means (Home's
   // hero — one press from the sofa to the film; playBest.ts autoPlayStep).
   // [franchise] `save`: the page presses its own Save & watch once, for a film
@@ -196,6 +199,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Household" getComponent={SCREENS.Household} />
         <Stack.Screen name="GroupPick" getComponent={SCREENS.GroupPick} />
         <Stack.Screen name="Franchise" getComponent={SCREENS.Franchise} />
+        <Stack.Screen name="Calendar" getComponent={SCREENS.Calendar} />
         {/* No fade for the player: cross-fading a video surface is expensive
             on a TV GPU and reads as a flicker rather than a transition. */}
         <Stack.Screen name="Player" getComponent={SCREENS.Player} options={{animation: 'none'}} />

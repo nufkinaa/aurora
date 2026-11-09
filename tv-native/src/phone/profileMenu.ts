@@ -26,6 +26,7 @@ export const menuItems = (closed: boolean): MenuItem[] => [
   {label: 'Settings', uiId: 'phone.menu.settings', onPress: () => pushScreen('Settings', undefined)},
   {label: 'My downloads', uiId: 'phone.menu.downloads', onPress: () => pushScreen('Downloads', undefined)},
   {label: 'Your TVs', uiId: 'phone.menu.remote', onPress: () => pushPhone('Remote')},
+  {label: 'Calendar', uiId: 'phone.menu.calendar', onPress: () => pushScreen('Calendar', undefined)},
   {label: "What's new", uiId: 'phone.menu.whatsnew', onPress: () => pushPhone('WhatsNew')},
   {label: 'Get the apps', uiId: 'phone.menu.apps', onPress: () => Linking.openURL(`${getBaseUrl() || 'https://nufurora.com'}/install`).catch(() => {})},
   {label: 'Report a problem', uiId: 'phone.menu.report', onPress: () => openReport()},

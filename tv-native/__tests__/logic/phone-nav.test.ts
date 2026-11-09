@@ -85,7 +85,9 @@ describe('the More sheet (moreItems.ts) is docs/android-phone/NAV.md §2 — the
     expect(moreEntries({ai: false}).some(e => e.key === 'pick')).toBe(false);
     expect(moreEntries({ai: true}).some(e => e.key === 'pick')).toBe(true);
     expect(moreEntries({ai: true}).find(e => e.key === 'pick')?.label).toBe('AI');
-    expect(moreEntries({ai: true}).some(e => e.key === 'calendar')).toBe(false);
+    expect(moreEntries({ai: true, calendar: false}).some(e => e.key === 'calendar')).toBe(false);
+    // (the Calendar screen exists since 1.15.24: listed by default)
+    expect(moreEntries({ai: true}).some(e => e.key === 'calendar')).toBe(true);
     expect(moreEntries({ai: true, calendar: true}).some(e => e.key === 'calendar')).toBe(true);
   });
   test('the profile line wears your name', () => {

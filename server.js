@@ -638,6 +638,10 @@ require("./src/media/introdetect");
   // counted and capped (recs/index.js BUDGET); without a key it still learns
   // the catalogue's own genres and plots.
   daily.register("recommendations", () => require("./src/media/recs").sync());
+  // The Calendar's dates (media/calendar.js): every title on anyone's
+  // calendar — My List, followed and watched shows — has its episode list
+  // and release dates asked again (a show quiet for half a year: weekly).
+  daily.register("calendar", () => require("./src/media/calendar").refresh());
   daily.start();
 }
 // Search: the well-known titles (the catalogue's popularity list, kept on

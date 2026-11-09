@@ -45,6 +45,14 @@ export const FEATURES: Feature[] = [
   // ---- the 2026-11-09 round: the same cards, the same words, on the website ----
   {
     since: ROUND,
+    glyph: '📅',
+    title: "Calendar",
+    what: "New episodes, season premieres and film release dates for everything in your list and the shows you follow, by day: Coming up and Recently out. It shows what is already on the server, with Play, and Save & watch for what is not.",
+    how: "Press Left for the menu → Calendar.",
+    go: {label: 'Go home', act: 'home'},
+  },
+  {
+    since: ROUND,
     glyph: '🎞️',
     title: "Watch franchises in order",
     what: "A film's page now says where it sits in its franchise. Watch in order lists every film and series in order, with what's on the server and what you've seen, in release or story order. At the end of a film the next one is offered, and Home has Continue the franchise.",
