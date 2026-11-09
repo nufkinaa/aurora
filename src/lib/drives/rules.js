@@ -1,6 +1,7 @@
 // The drives feature's decisions, all PURE (test/drives-rules.test.js):
 //   reserveFor(total)        the room a drive keeps free
-//   score(measured)          0–100 and a word, from the speed check
+//   score(measured, {network}) 0–100 and a word, from the speed check (a
+//                            network drive: by the films it serves at once)
 //   pick(candidates, ask)    which library folder a new download goes to
 //   alertStep(state, obs)    when the admin is told a drive stopped answering
 "use strict";
@@ -31,7 +32,8 @@ const logPart = (v, lo, hi) => {
   const x = Math.log10(v / lo) / Math.log10(hi / lo);
   return Math.max(0, Math.min(1, x));
 };
-const score = (m) => {
+const score = (m, { network = false } = {}) => {
+  if (network) return networkScore(m);
   if (!m || !(m.readMBps > 0 || m.writeMBps > 0)) return null;
   const r = logPart(m.readMBps, 5, 1000);
   const w = logPart(m.writeMBps, 5, 500);
@@ -42,6 +44,53 @@ const score = (m) => {
     value,
     word: value >= 70 ? "Fast" : value >= 40 ? "Good" : "Slow",
     streams: m.readMBps > 0 ? Math.floor(m.readMBps / STREAM_MBPS) : 0,
+  };
+};
+
+// ---------- the score of a NETWORK drive ----------
+// A network drive is never as fast as an NVMe, and need not be: what matters
+// is whether the house can watch from it. So its score says how many films
+// it serves at once.
+//   - the figure: several readers at once (the speed check's 4 together,
+//     each with the system's read-ahead — how viewers really read), else one
+//     buffered reader, else one direct reader, else the write speed
+//   - 30% of it is kept back for seeking, a download landing, the scanner
+//   - a 1080p web copy is about 1.5 MB/s, a 4K remux up to about 10 MB/s
+// Words (what it is good for, not how it compares with a local disk):
+//   Fast            10 or more 4K streams at once
+//   Good            3 or more 4K streams at once
+//   Fine for 1080p  3 or more 1080p streams, fewer than 3 4K
+//   Too slow        fewer than 3 1080p streams
+// The number: the usable MB/s on a log scale, 1.5 MB/s → 0, 150 MB/s → 100
+// (Good starts near 65, Fast near 91).
+const HD_MBPS = 1.5;
+const UHD_MBPS = 10;
+const NET_HEADROOM = 0.7;
+const networkScore = (m) => {
+  if (!m) return null;
+  const pick = [["parallelMBps", "readers at once"], ["bufferedMBps", "one reader"], ["directMBps", "one direct reader"], ["readMBps", "one reader"], ["writeMBps", "the write speed (no read was measured)"]]
+    .find(([k]) => m[k] > 0);
+  if (!pick) return null;
+  const basisMBps = m[pick[0]];
+  const usable = basisMBps * NET_HEADROOM;
+  const hd = Math.floor(usable / HD_MBPS);
+  const uhd = Math.floor(usable / UHD_MBPS);
+  const value = Math.round(100 * logPart(usable, HD_MBPS, 150));
+  const word = uhd >= 10 ? "Fast" : uhd >= 3 ? "Good" : hd >= 3 ? "Fine for 1080p" : "Too slow";
+  const plural = (n, one) => `${n} ${one} stream${n === 1 ? "" : "s"}`;
+  const meaning = word === "Too slow"
+    ? `Too slow to watch from — ${hd ? `about ${plural(hd, "1080p")}` : "not even one 1080p stream"} at once.`
+    : `About ${plural(hd, "1080p")} and ${plural(uhd, "4K")} at once${word === "Fine for 1080p" ? " — fine for 1080p, tight for 4K" : " — good enough to watch from"}.`;
+  return {
+    value,
+    word,
+    scale: "network",
+    streams: uhd, // (4K, as on a local drive's card)
+    streams1080: hd,
+    streams4k: uhd,
+    basis: pick[1],
+    basisMBps,
+    meaning,
   };
 };
 
@@ -136,4 +185,4 @@ const alertStep = (prev, obs) => {
   return { state: s, send: told ? { type: "back", minutes, viewers } : null };
 };
 
-module.exports = { reserveFor, score, pick, alertStep, freshAlert, DOWN_AFTER_MS, REPEAT_MS, STREAM_MBPS, RESERVE_MAX, RESERVE_PCT };
+module.exports = { reserveFor, score, networkScore, HD_MBPS, UHD_MBPS, NET_HEADROOM, pick, alertStep, freshAlert, DOWN_AFTER_MS, REPEAT_MS, STREAM_MBPS, RESERVE_MAX, RESERVE_PCT };

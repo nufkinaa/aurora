@@ -5175,17 +5175,36 @@
     const drvParts = (d) => {
       const total = d.total || 0;
       const used = d.used != null ? d.used : total - (d.free || 0);
-      const aurora = Math.min(d.aurora ? d.aurora.bytes : 0, Math.max(0, used));
-      return { total, used, aurora, other: Math.max(0, used - aurora), free: d.free || 0 };
+      // Aurora's count at or above everything used on the drive is impossible
+      // (the system takes some): said plainly instead of a wrong "Other 0 B"
+      const unsure = !!(d.aurora && used > 0 && d.aurora.bytes >= used);
+      const aurora = unsure ? 0 : Math.min(d.aurora ? d.aurora.bytes : 0, Math.max(0, used));
+      return { total, used, aurora, other: Math.max(0, used - aurora), free: d.free || 0, unsure };
     };
+    const UNSURE_SHARE = "Aurora's share could not be measured exactly";
+    // a network drive's score says what it serves; a local one's, how fast it is
+    const drvStreams = (sc) => (sc.scale === "network" && sc.streams1080 != null
+      ? `about ${sc.streams1080} 1080p and ${sc.streams4k} 4K stream${sc.streams4k === 1 ? "" : "s"} at once`
+      : sc.streams ? `about ${sc.streams} 4K streams at once` : "");
+    const drvPartly = (m) => (m && m.partial ? `partly measured (${(m.cut || []).join(", ") || "time limit"})` : "");
     const drvSpeedLine = (d) => {
       const sc = d.score;
-      if (d.testing === "running") return "Speed check: running now (about 20 seconds)…";
+      if (d.testing === "running") return `Speed check: running now (about ${d.network ? "a minute" : "20 seconds"})…`;
       if (d.testing) return `Speed check: ${d.testing === "queued" ? "next in line" : esc(d.testing)}.`;
       if (sc) {
         const m = sc.measured || {};
-        const bits = [m.readMBps != null ? `read ${Math.round(m.readMBps)} MB/s` : "", m.writeMBps != null ? `write ${Math.round(m.writeMBps)} MB/s` : "", m.iops ? `${m.iops} small reads/s` : "", sc.streams ? `about ${sc.streams} 4K streams at once` : ""].filter(Boolean);
-        return `<span class="drv-score" title="${esc(`Read: ${m.readMethod || "?"}. Small reads: ${m.randomMethod || "?"}. Median small-read time ${m.latencyMs != null ? m.latencyMs + " ms" : "?"}. Tested ${sc.at ? fmtWhen(sc.at) : "?"}.`)}">Speed <b>${sc.value}</b> ${esc(sc.word)}</span> · ${esc(bits.join(" · "))}`;
+        const net = sc.scale === "network";
+        const bits = (net
+          ? [m.parallelMBps != null ? `read ${Math.round(m.parallelMBps)} MB/s for ${m.parallelReaders || 4} viewers` : m.readMBps != null ? `read ${Math.round(m.bufferedMBps != null ? m.bufferedMBps : m.readMBps)} MB/s` : "", m.writeMBps != null ? `write ${Math.round(m.writeMBps)} MB/s` : "", drvStreams(sc), drvPartly(m)]
+          : [m.readMBps != null ? `read ${Math.round(m.readMBps)} MB/s` : "", m.writeMBps != null ? `write ${Math.round(m.writeMBps)} MB/s` : "", m.iops ? `${m.iops} small reads/s` : "", drvStreams(sc), drvPartly(m)]).filter(Boolean);
+        const tip = [
+          net && sc.meaning ? sc.meaning + " (30% is kept back for seeking and downloads landing; 1080p ≈ 1.5 MB/s, 4K ≈ 10 MB/s.)" : "",
+          m.bufferedMBps != null ? `One viewer: ${m.bufferedMBps} MB/s (${m.bufferedMethod || "?"}).` : "",
+          m.directMBps != null ? `One direct read (no read-ahead): ${m.directMBps} MB/s.` : `Read: ${m.readMethod || "?"}.`,
+          `Small reads: ${m.iops || 0}/s, ${m.randomMethod || "?"}. Median small-read time ${m.latencyMs != null ? m.latencyMs + " ms" : "?"}.`,
+          `Tested ${sc.at ? fmtWhen(sc.at) : "?"}.`,
+        ].filter(Boolean).join(" ");
+        return `<span class="drv-score" title="${esc(tip)}">Speed <b>${sc.value}</b> ${esc(sc.word)}</span> · ${esc(bits.join(" · "))}`;
       }
       if (d.scoreError) return `Speed check: ${esc(d.scoreError)}.`;
       return d.inUse ? "Speed: not tested yet." : "Speed: tested when you start using it.";
@@ -5200,13 +5219,16 @@
         d.readOnly ? `<span class="pill">Read-only</span>` : "",
       ].join("");
       const bar = p.total
-        ? `<div class="drv-bar" role="img" aria-label="${esc(`${drvPct(p.used, p.total)}% used, ${drvPct(p.aurora, p.total)}% by Aurora, ${fmtDrive(p.free)} free`)}"><i class="a" style="width:${(p.aurora / p.total) * 100}%"></i><i class="o" style="width:${(p.other / p.total) * 100}%"></i></div>
+        ? `<div class="drv-bar" role="img" aria-label="${esc(p.unsure ? `${drvPct(p.used, p.total)}% used, ${UNSURE_SHARE}, ${fmtDrive(p.free)} free` : `${drvPct(p.used, p.total)}% used, ${drvPct(p.aurora, p.total)}% by Aurora, ${fmtDrive(p.free)} free`)}"><i class="a" style="width:${(p.aurora / p.total) * 100}%"></i><i class="o" style="width:${(p.other / p.total) * 100}%"></i></div>
            <div class="drv-legend">
-             <span><i class="k a"></i>Aurora <b>${d.aurora ? `${fmtDrive(p.aurora)} · ${drvPct(p.aurora, p.total)}%` : d.inUse ? "counting…" : "none"}</b></span>
-             <span><i class="k o"></i>Other <b>${fmtDrive(p.other)} · ${drvPct(p.other, p.total)}%</b></span>
+             ${p.unsure
+               ? `<span><i class="k o"></i>Used <b>${fmtDrive(p.used)} · ${drvPct(p.used, p.total)}%</b></span>`
+               : `<span><i class="k a"></i>Aurora <b>${d.aurora ? `${fmtDrive(p.aurora)} · ${drvPct(p.aurora, p.total)}%` : d.inUse ? "counting…" : "none"}</b></span>
+             <span><i class="k o"></i>Other <b>${fmtDrive(p.other)} · ${drvPct(p.other, p.total)}%</b></span>`}
              <span><i class="k f"></i>Free <b>${fmtDrive(p.free)} · ${drvPct(p.free, p.total)}%</b></span>
            </div>
-           <div class="drv-line">Used ${fmtDrive(p.used)} of ${fmtDrive(p.total)} (${drvPct(p.used, p.total)}%)${d.inUse && d.reserve ? ` · keeps ${fmtDrive(d.reserve)} free` : ""}</div>`
+           <div class="drv-line">Used ${fmtDrive(p.used)} of ${fmtDrive(p.total)} (${drvPct(p.used, p.total)}%)${d.inUse && d.reserve ? ` · keeps ${fmtDrive(d.reserve)} free` : ""}</div>
+           ${p.unsure ? `<div class="drv-line drv-unsure">${UNSURE_SHARE} — its count (${fmtDrive(d.aurora.bytes)}) came to all that is used on the drive, so it is not shown.</div>` : ""}`
         : `<div class="drv-line">${down ? "No numbers while it does not answer." : "Size not measured yet."}</div>`;
       const state = down
         ? `<div class="drv-line bad">Not answering since ${d.downSince ? hhmmShort(d.downSince) : "a moment ago"} — ${d.titles} title${d.titles === 1 ? "" : "s"} can't play. New downloads go to the other drives; everything resumes by itself when it answers.</div>`
@@ -5277,9 +5299,11 @@
           d.mount, d.network ? "network" : "local", d.fstype || "",
           d.inUse ? (!d.answering ? `NOT ANSWERING since ${d.downSince ? hhmmShort(d.downSince) : "?"}${d.why ? ` (${d.why})` : ""}` : d.newDownloads ? "in use" : "in use, no new downloads") : "not in use",
           p.total ? `${fmtDrive(p.used)} of ${fmtDrive(p.total)} (${drvPct(p.used, p.total)}%)` : "?",
-          d.aurora ? `${fmtDrive(p.aurora)} (${drvPct(p.aurora, p.total)}%)` : d.inUse ? "counting" : "-",
+          d.aurora ? (p.unsure ? `${UNSURE_SHARE} (counted ${fmtDrive(d.aurora.bytes)}${d.aurora.apparent != null ? `, ${fmtDrive(d.aurora.apparent)} by file length` : ""})` : `${fmtDrive(p.aurora)} (${drvPct(p.aurora, p.total)}%)`) : d.inUse ? "counting" : "-",
           p.total ? fmtDrive(p.free) : "?",
-          d.score ? `${d.score.value} ${d.score.word} (read ${Math.round(m.readMBps || 0)} MB/s, write ${Math.round(m.writeMBps || 0)} MB/s, ${m.iops || 0} small reads/s; read ${m.readMethod || "?"})` : d.testing ? `testing (${d.testing})` : d.scoreError || "not tested",
+          d.score ? (d.score.scale === "network"
+            ? `${d.score.value} ${d.score.word}: ${drvStreams(d.score)} (${m.parallelReaders || 4} readers together ${Math.round(m.parallelMBps || 0)} MB/s, one reader ${Math.round(m.bufferedMBps || 0)} MB/s, one direct ${m.directMBps != null ? Math.round(m.directMBps) + " MB/s" : "?"}, write ${Math.round(m.writeMBps || 0)} MB/s, ${m.iops || 0} small reads/s${m.partial ? `; ${drvPartly(m)}` : ""})`
+            : `${d.score.value} ${d.score.word} (read ${Math.round(m.readMBps || 0)} MB/s, write ${Math.round(m.writeMBps || 0)} MB/s, ${m.iops || 0} small reads/s; read ${m.readMethod || "?"}${m.partial ? `; ${drvPartly(m)}` : ""})`) : d.testing ? `testing (${d.testing})` : d.scoreError || "not tested",
           d.network ? (d.hardMount ? "hard" : "soft") + (d.options && d.options.length ? ` [${d.options.join(",")}]` : "") : "",
         ];
       });

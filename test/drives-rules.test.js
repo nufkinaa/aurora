@@ -117,3 +117,31 @@ test("alerts: a short outage says nothing; a flapping drive at most once per 30 
   assert.equal(step(true, t0 + 32 * 60e3), null);
   assert.equal(step(true, t0 + 33 * 60e3 + 1).type, "down");
 });
+
+test("score of a NETWORK drive: what it serves at once, not how it compares with an NVMe", () => {
+  // nufurora's NFS volume: 22 MB/s for one direct reader is latency-bound;
+  // several buffered readers together are what viewers get
+  const good = r.score({ parallelMBps: 60, bufferedMBps: 40, directMBps: 22, writeMBps: 45 }, { network: true });
+  assert.equal(good.word, "Good", "several 4K streams at once is Good, however far from an NVMe");
+  assert.equal(good.scale, "network");
+  assert.equal(good.streams4k, 4); // 60 × 0.7 = 42 usable / 10
+  assert.equal(good.streams1080, 28); // 42 / 1.5
+  assert.equal(good.basis, "readers at once");
+  assert.match(good.meaning, /^About 28 1080p streams and 4 4K streams at once — good enough to watch from\.$/);
+  assert.equal(r.score({ parallelMBps: 150 }, { network: true }).word, "Fast");
+  const hd = r.score({ parallelMBps: 22 }, { network: true });
+  assert.equal(hd.word, "Fine for 1080p");
+  assert.match(hd.meaning, /About 10 1080p streams and 1 4K stream at once — fine for 1080p, tight for 4K\./);
+  const slow = r.score({ parallelMBps: 5 }, { network: true });
+  assert.equal(slow.word, "Too slow");
+  assert.match(slow.meaning, /^Too slow to watch from — about 2 1080p streams at once\.$/);
+  // the number climbs with the word: Good near 65, Fast near 91
+  assert.ok(slow.value < hd.value && hd.value < good.value && good.value < r.score({ parallelMBps: 150 }, { network: true }).value);
+  // without the readers-at-once figure: one reader, then the write speed (a partial check)
+  assert.equal(r.score({ bufferedMBps: 60 }, { network: true }).basis, "one reader");
+  assert.match(r.score({ writeMBps: 60 }, { network: true }).basis, /write speed/);
+  assert.equal(r.score({}, { network: true }), null);
+  // a local drive's score is as it always was
+  assert.deepEqual(r.score({ readMBps: 2300, writeMBps: 1500, iops: 21000, latencyMs: 0.08 }), r.score({ readMBps: 2300, writeMBps: 1500, iops: 21000, latencyMs: 0.08 }, { network: false }));
+  assert.equal(r.score({ readMBps: 2300, writeMBps: 1500, iops: 21000, latencyMs: 0.08 }).word, "Fast");
+});

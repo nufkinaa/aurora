@@ -36,12 +36,16 @@ const NET_IDLE_CHECK_MS = 60 * SEC; // one not in use
 const LOCAL_CHECK_MS = 60 * SEC;
 const MOUNTS_MS = 30 * SEC;
 // (an object, so a test can shorten them)
-const limits = { checkTimeoutMs: 6 * SEC, guardTimeoutMs: 3 * SEC };
+// The speed check: a local disk writes 256 MB in 18 s at most; a network
+// drive 128 MB in about a minute (each step stops on its share of the time
+// and keeps what it measured), and the server waits 90 s for it.
+const limits = {
+  checkTimeoutMs: 6 * SEC, guardTimeoutMs: 3 * SEC,
+  speed: { local: { sizeMB: 256, budgetMs: 18 * SEC, timeoutMs: 45 * SEC }, network: { sizeMB: 128, budgetMs: 65 * SEC, timeoutMs: 90 * SEC } },
+};
 const USAGE_EVERY_MS = 6 * 3600 * SEC;
 const USAGE_TIMEOUT_MS = 3 * MIN;
-const SPEED_TIMEOUT_MS = 45 * SEC;
 const SPEED_RETRY_MS = 5 * MIN;
-const SPEED_MB = 256;
 const PREPARE_TIMEOUT_MS = 20 * SEC;
 
 // The words viewers see on the website, the TV and the phone (one sentence,
@@ -147,6 +151,7 @@ const live = {
   speedQueue: [],
   speedWaiting: null, // why the queue waits
   usageRunning: new Set(),
+  swept: new Set(), // drives whose leftover test files were looked for since the start
   titles: { at: 0, by: new Map() },
 };
 const stateOf = (id) => {
@@ -292,17 +297,32 @@ const titlesOn = (drive, now = deps.now()) => {
 };
 
 // ---------- what Aurora keeps there ----------
+const isUnderDir = (child, parent) => {
+  const rel = path.relative(normDir(parent), normDir(child));
+  return rel === "" || (!!rel && !rel.startsWith("..") && !path.isAbsolute(rel));
+};
+// the folders of `dirs` that are not inside another one of them (each once)
+const topDirs = (dirs) => {
+  const out = [];
+  for (const d of dirs) {
+    if (out.some((o) => isUnderDir(d, o))) continue;
+    for (let i = out.length - 1; i >= 0; i--) if (isUnderDir(out[i], d)) out.splice(i, 1);
+    out.push(d);
+  }
+  return out;
+};
 const measureUsage = async (drive) => {
   if (live.usageRunning.has(drive.id)) return;
   const dirs = dirsOn(drive).map((d) => d.dir);
   if (!dirs.length) return;
-  // (nested folders — the staging folder inside the data folder — once)
-  const top = dirs.filter((d) => !dirs.some((o) => o !== d && normDir(d).startsWith(normDir(o) + path.sep)));
+  // (nested folders — the staging folder inside the data folder — and the
+  // same folder twice, once; the child also counts every file once)
+  const top = topDirs(dirs);
   live.usageRunning.add(drive.id);
   try {
     const res = await deps.ask("usage", { paths: top, budgetMs: USAGE_TIMEOUT_MS - 20 * SEC }, { timeoutMs: USAGE_TIMEOUT_MS, key: `${drive.id}:usage` });
     if (res && res.ok) {
-      data().usage[drive.id] = { bytes: res.result.bytes, files: res.result.files, partial: !!res.result.partial, at: deps.now() };
+      data().usage[drive.id] = { bytes: res.result.bytes, apparent: res.result.apparent, files: res.result.files, partial: !!res.result.partial, at: deps.now() };
       save();
     } else if (res && res.timeout && drive.network) markDown(drive, "counting Aurora's files did not finish");
   } finally {
@@ -322,6 +342,26 @@ const queueSpeed = (id) => {
   live.speedQueue.push(id);
   setImmediate(pumpSpeed);
 };
+// the measured figures kept with a score
+const measuredOf = (m) => ({
+  writeMBps: round1(m.writeMBps), readMBps: round1(m.readMBps), directMBps: round1(m.directMBps), bufferedMBps: round1(m.bufferedMBps),
+  parallelMBps: round1(m.parallelMBps), parallelReaders: m.parallelReaders || null,
+  iops: Math.round(m.iops || 0), latencyMs: round2(m.latencyMs), readMethod: m.readMethod || null, bufferedMethod: m.bufferedMethod || null, randomMethod: m.randomMethod || null,
+  writtenMB: m.writtenMB, seconds: round1(m.seconds), partial: !!m.partial, cut: m.cut || [],
+});
+// the folders a check may leave a test file in, on this drive
+const testDirsOf = (drive) => {
+  const out = dirsOn(drive).filter((d) => d.kind !== "staging").map((d) => d.dir);
+  out.push(path.join(drive.mount, "Aurora"));
+  return [...new Set(out)];
+};
+// delete what a killed check left (by the child, with a deadline)
+const sweepDrive = async (drive, pids = []) => {
+  const res = await deps.ask("sweep", { dirs: testDirsOf(drive), pids }, { timeoutMs: limits.checkTimeoutMs * 2, key: `${drive.id}:sweep` });
+  const n = res && res.ok ? res.result.removed.length : 0;
+  if (n) console.log(`[drives] ${drive.mount}: removed ${n} test file${n === 1 ? "" : "s"} an earlier check left behind`);
+  return res;
+};
 const pumpSpeed = async () => {
   if (live.speedRunning || !live.speedQueue.length) return;
   // never while somebody is watching: the test reads and writes the drive flat out
@@ -337,18 +377,29 @@ const pumpSpeed = async () => {
   const dir = drive && testDirFor(drive);
   if (!drive || !dir || stateOf(id).answering === false) return setImmediate(pumpSpeed);
   live.speedRunning = id;
+  const lim = drive.network ? limits.speed.network : limits.speed.local;
+  const key = `${id}:speed`;
   try {
-    const res = await deps.ask("speed", { dir, sizeMB: SPEED_MB, budgetMs: 18000 }, { timeoutMs: SPEED_TIMEOUT_MS, key: `${id}:speed` });
-    if (res && res.ok) {
-      const m = res.result;
-      const sc = rules.score(m);
-      data().scores[id] = { ...sc, measured: { writeMBps: round1(m.writeMBps), readMBps: round1(m.readMBps), iops: Math.round(m.iops || 0), latencyMs: round2(m.latencyMs), readMethod: m.readMethod, randomMethod: m.randomMethod, writtenMB: m.writtenMB, seconds: round1(m.seconds) }, at: deps.now() };
+    const res = await deps.ask("speed", { dir, sizeMB: lim.sizeMB, budgetMs: lim.budgetMs, network: !!drive.network }, { timeoutMs: lim.timeoutMs, key });
+    // stopped on its deadline: what it measured before still counts
+    const m = res && res.ok ? res.result
+      : res && res.timeout && res.progress ? { ...res.progress, partial: true, cut: [...new Set([...(res.progress.cut || []), "stopped at the time limit"])] }
+        : null;
+    const sc = m ? rules.score(m, { network: !!drive.network }) : null;
+    if (sc) {
+      data().scores[id] = { ...sc, measured: measuredOf(m), at: deps.now() };
       save();
-      console.log(`[drives] speed of ${drive.mount}: ${sc ? `${sc.value} (${sc.word})` : "?"} — write ${round1(m.writeMBps)} MB/s, read ${round1(m.readMBps)} MB/s (${m.readMethod}), ${Math.round(m.iops || 0)} random reads/s`);
+      console.log(`[drives] speed of ${drive.mount}: ${sc.value} (${sc.word})${m.partial ? " [partly measured]" : ""} — write ${round1(m.writeMBps)} MB/s, read ${round1(m.readMBps)} MB/s (${m.readMethod || "?"}), ${m.parallelReaders || "?"} readers together ${round1(m.parallelMBps)} MB/s, ${Math.round(m.iops || 0)} random reads/s`);
     } else {
-      data().scores[id] = { ...(data().scores[id] || {}), error: res && res.timeout ? "the speed check did not finish in time" : (res && res.error) || "the speed check failed", errorAt: deps.now() };
+      data().scores[id] = { ...(data().scores[id] || {}), error: res && res.timeout ? "the speed check ran out of time before it could measure anything" : (res && res.error) || "the speed check failed", errorAt: deps.now() };
       save();
-      if (res && res.timeout && drive.network) markDown(drive, "the speed check did not finish");
+    }
+    if (res && res.timeout) {
+      // the killed check's test file goes once the child has; then the drive
+      // is asked whether it answers — a slow check is not a drive that is down
+      await run.settled(key).catch(() => {});
+      await sweepDrive(drive, res.pid ? [res.pid] : []).catch(() => {});
+      await check(drive).catch(() => {});
     }
   } finally {
     live.speedRunning = null;
@@ -371,6 +422,8 @@ const round = async ({ all = false } = {}) => {
     // a drive that is down is asked again at the in-use pace (its answer is what resumes everything)
     if (all || !s.at || now - s.at >= every || s.answering === false) await check(d);
     if (inUse && s.answering !== false) {
+      // once per start: test files a check killed before the restart left
+      if (!live.swept.has(d.id)) { live.swept.add(d.id); sweepDrive(d).catch(() => {}); }
       const u = data().usage[d.id];
       if (!u || now - u.at >= USAGE_EVERY_MS) measureUsage(d).catch(() => {});
       const sc = data().scores[d.id];
@@ -644,8 +697,8 @@ const list = async ({ fresh = false } = {}) => {
       holds: on.map((x) => x.kind),
       folders: on.map((x) => ({ kind: x.kind, dir: x.dir })),
       newDownloads: inUse ? acceptsNew(drive.id) : false,
-      aurora: u ? { bytes: u.bytes, files: u.files, partial: u.partial, at: u.at } : null,
-      score: sc && sc.value != null ? { value: sc.value, word: sc.word, streams: sc.streams, measured: sc.measured, at: sc.at } : null,
+      aurora: u ? { bytes: u.bytes, apparent: u.apparent != null ? u.apparent : null, files: u.files, partial: u.partial, at: u.at } : null,
+      score: sc && sc.value != null ? { value: sc.value, word: sc.word, streams: sc.streams, scale: sc.scale || "local", streams1080: sc.streams1080, streams4k: sc.streams4k, meaning: sc.meaning || null, basis: sc.basis || null, measured: sc.measured, at: sc.at } : null,
       scoreError: sc && sc.error ? sc.error : null,
       testing: live.speedRunning === drive.id ? "running" : live.speedQueue.includes(drive.id) ? (live.speedWaiting || "queued") : null,
       titles: inUse ? titlesOn(drive) : 0,
@@ -666,5 +719,5 @@ module.exports = {
   start, stop, list, use, setNewDownloads, testAgain, pickRoot, candidatesFor, onPath, confirm, isDown, spaceOf, rootReadable, guard, unavailableFor, summaryFacts,
   VIEWER_MESSAGE, CODE,
   deps, limits,
-  _internals: { live, data, round, check, refreshMounts, addLibrariesToConfig, stepAlert, pumpSpeed, queueSpeed, measureUsage, reset: () => { live.drives = []; live.state.clear(); live.mountsAt = 0; live.lazyAt = 0; live.speedQueue = []; live.speedRunning = null; live.titles.by.clear(); pending.clear(); for (const k of Object.keys(mem)) mem[k] = {}; store = null; } },
+  _internals: { live, data, round, check, refreshMounts, addLibrariesToConfig, stepAlert, pumpSpeed, queueSpeed, measureUsage, topDirs, sweepDrive, reset: () => { live.drives = []; live.state.clear(); live.mountsAt = 0; live.lazyAt = 0; live.speedQueue = []; live.speedRunning = null; live.swept.clear(); live.titles.by.clear(); pending.clear(); for (const k of Object.keys(mem)) mem[k] = {}; store = null; } },
 };

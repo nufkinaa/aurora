@@ -160,6 +160,30 @@ for (const [name, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
   });
 }
 
+ui.test("a network drive's score says what it serves; a share as big as all that is used is not shown as fact", async ({ page, srv }) => {
+  await stubDisk(page);
+  // nufurora 2026-11-09: the system disk's count came to all of its used space
+  const sys = { ...NVME, used: 386 * GIB, free: 116.6 * GIB, total: 502.6 * GIB, aurora: { bytes: 386 * GIB, apparent: 401 * GIB, files: 2100, partial: false, at: Date.now() } };
+  const net = {
+    ...NFS, inUse: true, newDownloads: true, holds: ["movies", "shows"], aurora: { bytes: 2 * GIB, files: 3, partial: false, at: Date.now() },
+    score: { value: 72, word: "Good", scale: "network", streams: 4, streams1080: 28, streams4k: 4, meaning: "About 28 1080p streams and 4 4K streams at once — good enough to watch from.", measured: { readMBps: 22, directMBps: 22, bufferedMBps: 41, parallelMBps: 60, parallelReaders: 4, writeMBps: 45, iops: 300, latencyMs: 3.1, partial: true, cut: ["readers at once"] }, at: Date.now() },
+  };
+  await stubDrives(page, [answer([sys, net])]);
+  await enter(page, srv);
+  await openDisk(page);
+  const n = await card(page, "/mnt/storagespace").innerText();
+  assert.match(n, /Speed 72 Good · read 60 MB\/s for 4 viewers · write 45 MB\/s · about 28 1080p and 4 4K streams at once · partly measured \(readers at once\)/);
+  assert.match(await card(page, "/mnt/storagespace").locator(".drv-score").getAttribute("title"), /good enough to watch from[\s\S]*One viewer: 41 MB\/s[\s\S]*One direct read \(no read-ahead\): 22 MB\/s/);
+  const d = await card(page, "/").innerText();
+  assert.doesNotMatch(d, /Other 0 B/);
+  assert.doesNotMatch(d, /Aurora 386/);
+  assert.match(d, /Aurora's share could not be measured exactly/);
+  assert.match(d, /Used 386\.0 GB of 502\.6 GB/);
+  const widths = await card(page, "/").locator(".drv-bar i").evaluateAll((els) => els.map((e) => e.style.width));
+  assert.equal(widths[0], "0%");
+  await shot(page, "drives-network-score", "#drives-card");
+});
+
 ui.test("a drive that is not answering: said on its card and in the headline", async ({ page, srv }) => {
   await stubDisk(page);
   const since = new Date(); since.setHours(15, 42, 0, 0);

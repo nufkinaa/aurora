@@ -15,7 +15,15 @@ const deps = {
   spawn: (args, env) => spawn(process.execPath, [SCRIPT, JSON.stringify(args)], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"], env }),
 };
 
-// -> Promise<{ ok, result } | { ok: false, error } | { ok: false, timeout: true } | { ok: false, busy: true }>
+const lastProgress = (out) => {
+  const lines = String(out || "").split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try { const o = JSON.parse(lines[i]); if (o && o.progress) return o.progress; } catch {}
+  }
+  return null;
+};
+
+// -> Promise<{ ok, result } | { ok: false, error } | { ok: false, timeout: true, pid, progress } | { ok: false, busy: true }>
 const ask = (op, args = {}, { timeoutMs = 8000, key = null, env = process.env } = {}) =>
   new Promise((resolve) => {
     const k = key || null;
@@ -42,7 +50,10 @@ const ask = (op, args = {}, { timeoutMs = 8000, key = null, env = process.env } 
     const timer = setTimeout(() => {
       rec.timedOut = true;
       try { child.kill("SIGKILL"); } catch {}
-      finish({ ok: false, timeout: true });
+      // what the child measured before its deadline (a speed check writes
+      // progress lines as it goes), and its pid (the test files it leaves
+      // carry it: the caller sweeps them)
+      finish({ ok: false, timeout: true, pid: child.pid, progress: lastProgress(out) });
     }, timeoutMs);
     timer.unref?.();
     child.stdout.on("data", (c) => { out += c; if (out.length > 1e6) out = out.slice(-1e6); });
@@ -60,4 +71,10 @@ const ask = (op, args = {}, { timeoutMs = 8000, key = null, env = process.env } 
     });
   });
 
-module.exports = { ask, deps, _internals: { outstanding, SCRIPT } };
+// until the last child for `key` has gone (a killed one can take a moment)
+const settled = async (key, ms = 10000) => {
+  for (const end = Date.now() + ms; outstanding.has(key) && Date.now() < end;) await new Promise((r) => setTimeout(r, 100));
+  return !outstanding.has(key);
+};
+
+module.exports = { ask, settled, deps, _internals: { outstanding, SCRIPT, lastProgress } };

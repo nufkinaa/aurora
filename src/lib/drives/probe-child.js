@@ -16,12 +16,17 @@
 //   usage    { paths: [dir], budgetMs } bytes under them (hard links once)
 //   writable { dir }                   create, write, fsync, rename, delete a test file
 //   prepare  { dirs: [dir], test }     mkdir -p each, then `writable` in test
-//   speed    { dir, sizeMB, budgetMs } sequential write + read, random 4K reads
+//   speed    { dir, sizeMB, budgetMs, network }  sequential write; reads: one
+//            direct, one buffered, several at once; random 4K reads (progress
+//            lines before the answer, so a check stopped on its deadline still counts)
+//   sweep    { dirs, pids, maxAgeMs }  delete the test files a killed check left
 "use strict";
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const { execFileSync } = require("child_process");
+const { execFileSync, spawnSync } = require("child_process");
+// (the speed check reads with several readers at once: enough pool threads)
+if (!process.env.UV_THREADPOOL_SIZE) process.env.UV_THREADPOOL_SIZE = "8";
 
 const statfs = (p) => {
   const s = fs.statfsSync(p);
@@ -39,38 +44,61 @@ const readable = (dir) => {
   } catch { return false; }
 };
 
+// Aurora's share of a drive: the bytes its files take ON THE DISK (allocated
+// blocks, as `df` counts them: a torrent left half-done in staging is
+// mostly holes, and its full length is not on the disk). Each file is
+// counted once however it is reached — a hard link between staging and
+// the library, a folder inside another folder in `paths`, the same folder
+// twice under two spellings — and the walk never leaves the file system its
+// folder is on (a drive mounted inside a library folder is that drive's).
+// Aurora's own test files (`.aurora-speedtest-*`, `.aurora-check-*`) are
+// not Aurora's share.
 const usage = ({ paths = [], budgetMs = 60000 }) => {
   const until = Date.now() + budgetMs;
-  const seen = new Set();
+  const seenFiles = new Set();
+  const seenDirs = new Set();
+  const key = (st) => (st.ino ? `${st.dev}:${st.ino}` : null);
   let bytes = 0;
+  let apparent = 0;
   let files = 0;
   let partial = false;
-  const stack = [...paths];
+  const stack = [];
+  for (const p of paths) {
+    try { const st = fs.statSync(p, { bigint: true }); if (st.isDirectory()) stack.push({ dir: p, dev: st.dev, st }); } catch {}
+  }
+  stack.reverse();
   while (stack.length) {
     if (Date.now() > until) { partial = true; break; }
-    const dir = stack.pop();
+    const { dir, dev, st: dst } = stack.pop();
+    const dk = key(dst);
+    if (dk) { if (seenDirs.has(dk)) continue; seenDirs.add(dk); }
     let list;
     try { list = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
     for (const e of list) {
       const abs = path.join(dir, e.name);
       if (e.isSymbolicLink()) continue;
-      if (e.isDirectory()) { stack.push(abs); continue; }
-      if (!e.isFile()) continue;
+      if (e.isDirectory()) {
+        try {
+          const st = fs.statSync(abs, { bigint: true });
+          if (st.dev === dev) stack.push({ dir: abs, dev, st });
+        } catch {}
+        continue;
+      }
+      if (!e.isFile() || TEST_FILE.test(e.name)) continue;
       try {
-        const st = fs.statSync(abs, { bigint: false });
-        // a hard-linked file (a download landed from staging on the same
-        // volume) is counted once
-        if (st.nlink > 1) {
-          const k = `${st.dev}:${st.ino}`;
-          if (seen.has(k)) continue;
-          seen.add(k);
-        }
-        bytes += st.size;
+        const st = fs.statSync(abs, { bigint: true });
+        const k = key(st);
+        if (k) { if (seenFiles.has(k)) continue; seenFiles.add(k); }
+        const size = Number(st.size);
+        // (Windows gives no block count: the length there)
+        const onDisk = typeof st.blocks === "bigint" && st.blocks > 0n ? Number(st.blocks) * 512 : st.blocks === 0n ? 0 : size;
+        bytes += onDisk;
+        apparent += size;
         files++;
       } catch {}
     }
   }
-  return { bytes, files, partial };
+  return { bytes, apparent, files, partial };
 };
 
 const testName = (dir, what) => path.join(dir, `.aurora-${what}-${process.pid}-${crypto.randomBytes(3).toString("hex")}`);
@@ -131,74 +159,214 @@ const ddSeconds = (stderr) => {
   return m ? parseFloat(m[1].replace(",", ".")) : null;
 };
 
-const speed = ({ dir, sizeMB = 256, budgetMs = 18000 }) => {
-  const file = testName(dir, "speedtest");
+// The file calls the speed check makes, in one place — so a test can make
+// the drive slow (AURORA_DRIVES_FAKE_SLOW_MS_PER_MB: every MB written or read
+// takes that much longer) and see the check stop on its budget.
+const slowMsPerMB = () => Number(process.env.AURORA_DRIVES_FAKE_SLOW_MS_PER_MB || 0) || 0;
+const nap = (ms) => { if (ms > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); };
+const io = {
+  write: (fd, buf) => { nap((slowMsPerMB() * buf.length) / MB); return fs.writeSync(fd, buf, 0, buf.length); },
+  sync: (fd) => (fs.fdatasyncSync || fs.fsyncSync)(fd),
+  readSync: (fd, buf, at) => { const n = fs.readSync(fd, buf, 0, buf.length, at); nap((slowMsPerMB() * n) / MB); return n; },
+  read: async (fh, buf, at) => {
+    const { bytesRead } = await fh.read(buf, 0, buf.length, at);
+    const ms = (slowMsPerMB() * bytesRead) / MB;
+    if (ms > 0) await new Promise((r) => setTimeout(r, ms));
+    return bytesRead;
+  },
+};
+// A line the parent keeps while the check runs: if the check is stopped on
+// its deadline, what was measured so far still counts (run.js `progress`).
+const emit = (o) => { if (require.main !== module) return; try { fs.writeSync(1, JSON.stringify({ progress: o }) + "\n"); } catch {} };
+const hr = () => process.hrtime.bigint();
+const secSince = (t) => Number(hr() - t) / 1e9;
+
+// The test files a check leaves when it is killed mid-way (a speed check on a
+// slow network drive past its deadline): `.aurora-<what>-<pid>-<hex>`.
+const TEST_FILE = /^\.aurora-(speedtest|check)-(\d+)-[0-9a-f]+(\.renamed)?$/;
+const alive = (pid) => {
+  if (pid === process.pid) return true;
+  try { process.kill(pid, 0); return true; } catch (e) { return !!(e && e.code === "EPERM"); }
+};
+// Delete them in `dirs` (not recursive): those of a process that is gone (or
+// in `pids`: the parent killed it), and any older than maxAgeMs.
+const sweep = ({ dirs = [], pids = [], maxAgeMs = 10 * 60 * 1000 }) => {
+  const removed = [];
+  const now = Date.now();
+  for (const dir of dirs) {
+    let names;
+    try { names = fs.readdirSync(dir); } catch { continue; }
+    for (const name of names) {
+      const m = TEST_FILE.exec(name);
+      if (!m) continue;
+      const abs = path.join(dir, name);
+      const pid = Number(m[2]);
+      let old = false;
+      try { old = now - fs.statSync(abs).mtimeMs > maxAgeMs; } catch { continue; }
+      if (!(pids.includes(pid) || !alive(pid) || old)) continue;
+      try { fs.unlinkSync(abs); removed.push(abs); } catch {}
+    }
+  }
+  return { removed };
+};
+
+// One reader, by dd with O_DIRECT (no page cache, no read-ahead), in pieces
+// so it stops on its budget. On a network drive this is bound by round trips.
+const directRead = (file, bytes, until) => {
+  const PIECE = 16; // MB
+  const total = Math.floor(bytes / MB);
+  let mb = 0;
+  let sec = 0;
+  while (mb < total) {
+    const left = until - Date.now();
+    if (left <= 0) break;
+    const count = Math.min(PIECE, total - mb);
+    const r = spawnSync("dd", [`if=${file}`, "of=/dev/null", "bs=1M", `skip=${mb}`, `count=${count}`, "iflag=direct"], { encoding: "utf8", timeout: left + 2000 });
+    const s = r.status === 0 ? ddSeconds(r.stderr) : null;
+    if (s == null) break;
+    sec += s;
+    mb += count;
+  }
+  return { mb, MBps: mb && sec > 0 ? mb / sec : null, cut: mb > 0 && mb < total };
+};
+// One reader through the page cache (what a viewer's stream gets: the system
+// reads ahead).
+const bufferedRead = (file, bytes, until) => {
+  const buf = Buffer.allocUnsafe(MB);
+  const fd = fs.openSync(file, "r");
+  let read = 0;
+  const t = hr();
+  try {
+    while (read < bytes && Date.now() < until) { const n = io.readSync(fd, buf, read); if (!n) break; read += n; }
+  } finally { fs.closeSync(fd); }
+  const s = secSince(t);
+  return { mb: read / MB, MBps: read && s > 0 ? read / MB / s : null, cut: read < bytes };
+};
+// N readers at once, each on its own part of the file with its own handle
+// (its own read-ahead) — several people watching at the same time. The
+// figure is all of them together.
+const parallelRead = async (file, bytes, until, readers) => {
+  const part = Math.floor(bytes / readers / MB) * MB;
+  if (part < MB) return { mb: 0, MBps: null, cut: false };
+  let total = 0;
+  let cut = false;
+  const t = hr();
+  await Promise.all(Array.from({ length: readers }, async (_, i) => {
+    const fh = await fs.promises.open(file, "r");
+    const buf = Buffer.allocUnsafe(MB);
+    let at = i * part;
+    const end = at + part;
+    try {
+      while (at < end) {
+        if (Date.now() >= until) { cut = true; break; }
+        const n = await io.read(fh, buf, at);
+        if (!n) break;
+        at += n;
+        total += n;
+      }
+    } finally { await fh.close(); }
+  }));
+  const s = secSince(t);
+  return { mb: total / MB, MBps: total && s > 0 ? total / MB / s : null, cut };
+};
+
+// sizeMB    the most it writes (it stops earlier when its time is used)
+// budgetMs  the time the whole check may take; each step has its share and
+//           stops when that is used, keeping what it measured (`partial`, `cut`)
+// network   a network drive: synced every 8 MB (a sync never waits on much)
+const speed = async ({ dir, sizeMB = 256, budgetMs = 18000, network = false, readers = 4 }) => {
   const started = Date.now();
-  const phaseBudget = Math.max(2000, Math.floor(budgetMs * 0.4));
-  const out = { sizeMB, readMethod: null };
+  const left = () => budgetMs - (Date.now() - started);
+  // (a share of the budget, at least a second, never past the end)
+  const share = (f) => Date.now() + Math.max(1000, Math.min(budgetMs * f, left() - 1500));
+  sweep({ dirs: [dir] }); // what an earlier check that was killed left here
+  const file = testName(dir, "speedtest");
+  const out = { sizeMB, network: !!network, partial: false, cut: [], readMethod: null };
+  const cut = (step) => { out.partial = true; if (!out.cut.includes(step)) out.cut.push(step); };
+  const syncEvery = (network ? 8 : 16) * MB;
   const chunk = crypto.randomBytes(4 * MB); // random: a compressing file system cannot cheat
   const dd = hasDd();
   try {
-    // 1. sequential write, fsync at the end (what landing a film costs)
+    // 1. sequential write, synced every few MB, so the time is what reached
+    //    the drive (unsynced writes land in memory at once: a time check
+    //    between them let the whole file through, then one long sync waited)
     let written = 0;
-    const t0 = process.hrtime.bigint();
+    let unsynced = 0;
+    let lastEmit = 0;
+    const until = share(0.35);
+    const t0 = hr();
+    const note = () => {
+      const s = secSince(t0);
+      out.writtenMB = Math.round(written / MB);
+      out.writeMBps = written && s > 0 ? written / MB / s : null;
+    };
     const fd = fs.openSync(file, "w");
     try {
       while (written < sizeMB * MB) {
         chunk.writeUInt32LE(written / MB, 0); // no two chunks alike (no dedupe)
-        fs.writeSync(fd, chunk, 0, chunk.length);
+        io.write(fd, chunk);
         written += chunk.length;
-        if (Date.now() - started > phaseBudget) break;
+        unsynced += chunk.length;
+        if (unsynced >= syncEvery) {
+          io.sync(fd);
+          unsynced = 0;
+          note();
+          if (Date.now() - lastEmit > 1000) { emit(out); lastEmit = Date.now(); }
+        }
+        if (Date.now() >= until && written < sizeMB * MB) { cut("write"); break; }
       }
-      fs.fsyncSync(fd);
+      if (unsynced) io.sync(fd);
     } finally { fs.closeSync(fd); }
-    const wSec = Number(process.hrtime.bigint() - t0) / 1e9;
-    out.writtenMB = Math.round(written / MB);
-    out.writeMBps = wSec > 0 ? written / MB / wSec : null;
+    note();
+    emit(out);
 
-    // 2. sequential read — from the drive, not from memory where that can be arranged
-    let rMBps = null;
+    // 2. one reader, O_DIRECT (Linux): a detail
     if (dd) {
-      try {
-        const r = require("child_process").spawnSync("dd", [`if=${file}`, "of=/dev/null", "bs=1M", "iflag=direct"], { encoding: "utf8", timeout: phaseBudget + 5000 });
-        const s = r.status === 0 ? ddSeconds(r.stderr) : null;
-        if (s && s > 0) { rMBps = written / MB / s; out.readMethod = "direct (O_DIRECT, page cache bypassed)"; }
-      } catch {}
-      if (rMBps == null && dropCache(file)) out.readMethod = "cache dropped first (fadvise)";
+      dropCache(file);
+      const r = directRead(file, written, share(0.15));
+      if (r.MBps != null) {
+        out.directMBps = r.MBps;
+        if (r.cut) cut("direct read");
+      }
+      emit(out);
     }
-    if (rMBps == null) {
-      if (!out.readMethod) out.readMethod = process.platform === "win32"
-        ? "Windows: read right after writing — partly from memory, so this figure can be high"
+    // 3. one reader through the page cache, its cache dropped first
+    const dropped = dd && dropCache(file);
+    const b = bufferedRead(file, written, share(0.15));
+    out.bufferedMBps = b.MBps;
+    out.bufferedMethod = dropped ? "cache dropped first (fadvise), the system reads ahead"
+      : process.platform === "win32" ? "Windows: read right after writing — partly from memory, so this figure can be high"
         : "read right after writing — partly from memory, so this figure can be high";
-      const buf = Buffer.allocUnsafe(4 * MB);
-      const t1 = process.hrtime.bigint();
-      const rfd = fs.openSync(file, "r");
-      let read = 0;
-      try {
-        for (;;) { const n = fs.readSync(rfd, buf, 0, buf.length, read); if (!n) break; read += n; }
-      } finally { fs.closeSync(rfd); }
-      const rSec = Number(process.hrtime.bigint() - t1) / 1e9;
-      rMBps = rSec > 0 ? read / MB / rSec : null;
-    }
-    out.readMBps = rMBps;
+    if (b.cut) cut("read");
+    // the figure the local score has always used: the direct one where there is one
+    out.readMBps = out.directMBps != null ? out.directMBps : out.bufferedMBps;
+    out.readMethod = out.directMBps != null ? "direct (O_DIRECT, page cache bypassed)" : out.bufferedMethod;
+    emit(out);
+    // 4. several readers at once (a house watching together)
+    if (dd) dropCache(file);
+    const p = await parallelRead(file, written, share(0.15), readers);
+    out.parallelMBps = p.MBps;
+    out.parallelReaders = readers;
+    if (p.cut) cut("readers at once");
+    emit(out);
 
-    // 3. small random reads (4 KB at random places: seeking about in a film)
+    // 5. small random reads (4 KB at random places: seeking about in a film)
     if (dd) dropCache(file);
     const small = Buffer.allocUnsafe(4096);
     const blocks = Math.max(1, Math.floor(written / 4096));
     const lat = [];
     const rfd = fs.openSync(file, "r");
-    const until = Date.now() + Math.min(4000, Math.max(1000, budgetMs - (Date.now() - started) - 1000));
+    const rUntil = Date.now() + Math.min(4000, Math.max(1000, left() - 1000));
     try {
-      while (lat.length < 400 && Date.now() < until) {
+      while (lat.length < 400 && Date.now() < rUntil) {
         const at = Math.floor(Math.random() * blocks) * 4096;
-        const t = process.hrtime.bigint();
+        const t = hr();
         fs.readSync(rfd, small, 0, 4096, at);
-        lat.push(Number(process.hrtime.bigint() - t) / 1e6);
+        lat.push(Number(hr() - t) / 1e6);
       }
     } finally { fs.closeSync(rfd); }
     const total = lat.reduce((n, x) => n + x, 0);
-    lat.sort((a, b) => a - b);
+    lat.sort((a, c) => a - c);
     out.randomReads = lat.length;
     out.iops = total > 0 ? lat.length / (total / 1000) : null;
     out.latencyMs = lat.length ? lat[Math.floor(lat.length / 2)] : null;
@@ -222,6 +390,7 @@ const OPS = {
   writable,
   prepare,
   speed,
+  sweep,
 };
 
 if (require.main === module) {
@@ -234,16 +403,15 @@ if (require.main === module) {
   if (process.env.AURORA_DRIVES_FAKE_HANG && String(args.path || args.dir || (args.paths || [])[0] || (args.dirs || [])[0] || "").startsWith(process.env.AURORA_DRIVES_FAKE_HANG) && hangOn()) {
     setInterval(() => {}, 1 << 30);
   } else {
-    let res;
-    try {
+    const fail = (e) => ({ ok: false, error: `${(e && e.code) || ""} ${(e && e.message) || e}`.trim() });
+    // (the answer is the LAST line: `speed` writes progress lines before it)
+    const say = (res) => { try { fs.writeSync(1, JSON.stringify(res) + "\n"); } catch { process.stdout.write(JSON.stringify(res) + "\n"); } };
+    Promise.resolve().then(() => {
       const fn = OPS[args.op];
       if (!fn) throw new Error(`unknown op ${args.op}`);
-      res = { ok: true, result: fn(args) };
-    } catch (e) {
-      res = { ok: false, error: `${(e && e.code) || ""} ${(e && e.message) || e}`.trim() };
-    }
-    process.stdout.write(JSON.stringify(res) + "\n");
+      return fn(args);
+    }).then((result) => say({ ok: true, result }), (e) => say(fail(e)));
   }
 }
 
-module.exports = { OPS, ddSeconds };
+module.exports = { OPS, ddSeconds, io, TEST_FILE };
