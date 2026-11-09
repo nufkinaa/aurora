@@ -12,6 +12,8 @@
 // frame, a hero backdrop) is drawn to a tiny canvas and the region under the
 // surface averaged. The result is the --g-under custom property (0–1) on
 // the element; glass.css turns it into the layer and animates the change.
+import { afterPictures } from "./ui.js";
+
 const W = 48;
 const H = 27;
 let canvas = null;
@@ -142,7 +144,8 @@ export const toneNavFromImage = (url) => {
     applyNav();
   };
   img.onerror = () => {};
-  img.src = url;
+  // (nothing on screen depends on it: after the pictures on screen — ui.js)
+  afterPictures(() => { if (token === navToken) img.src = url; });
 };
 export const clearNavTone = () => toneNavFromImage(null);
 

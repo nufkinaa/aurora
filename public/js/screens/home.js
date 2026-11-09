@@ -1,5 +1,5 @@
 // Home: rotating hero billboard + shelves (Continue Watching, My List, ...)
-import { el, icons, fmtDuration, fmtClock, formatRow, artUrl, heroArtWidth, heroCover, heroShowsPoster, restoreScrollY, holdWhileOffscreen } from "../ui.js";
+import { el, icons, fmtDuration, fmtClock, formatRow, artUrl, heroArtWidth, heroCover, heroShowsPoster, restoreScrollY, holdWhileOffscreen, pictureWait, afterPictures, releaseInView } from "../ui.js";
 import { upgradeArt } from "../artUpgrade.js";
 import { blurOf } from "../blur.js";
 import { api } from "../api.js";
@@ -176,6 +176,7 @@ export const renderHome = async (root) => {
         const pre = new Image();
         pre.fetchPriority = "high";
         pre.src = src;
+        pictureWait(pre); // the cards out of view wait for it (ui.js)
       }
     } catch {}
     // TWO backdrop layers, cross-faded by opacity. A single layer had to swap
@@ -283,8 +284,15 @@ export const renderHome = async (root) => {
       // The glass look hides the poster card (display:none still downloads
       // an <img>'s src) — only the classic look pays for it.
       if (!glass()) {
-        heroPoster.src = artUrl(item.cover, 240);
-        heroPoster.style.visibility = "visible";
+        const setPoster = () => {
+          heroPoster.src = artUrl(item.cover, 240);
+          heroPoster.style.visibility = "visible";
+        };
+        // (a screen up to 900px wide hides the card — screens.css — so on the
+        // first slide its picture waits for the ones on screen: ui.js)
+        if (dir !== 0) setPoster();
+        else if (matchMedia("(max-width: 900px)").matches) afterPictures(() => { if (idx === i) setPoster(); });
+        else { setPoster(); pictureWait(heroPoster); }
       }
       // Slide the text + poster in from the direction of travel.
       if (dir !== 0) {
@@ -607,6 +615,9 @@ export const renderHome = async (root) => {
     const token = ++renderToken;
     rowsHost.innerHTML = "";
     rows.slice(0, EAGER_ROWS).forEach((r, i) => place(buildRow(r, i), r));
+    // (the cards of these that are in view are asked for now; the rest wait
+    // until the pictures on screen are in — ui.js)
+    releaseInView(rowsHost);
 
     let i = EAGER_ROWS;
     const pump = () => {
