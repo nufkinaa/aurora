@@ -152,13 +152,17 @@ const main = async () => {
     const streamReqs = [];
     page.on("request", (r) => { const u = r.url(); if (/\/stream\//.test(u)) streamReqs.push(u.replace(srv.url, "")); });
     await signIn(page, srv, viewer);
-    await goto(page, srv, `#/movie/${lib.film.id}`);
-    await goto(page, srv, `#/show/${lib.show.id}`);
+    await goto(page, srv, "#/");
+    // (the page's own report goes out once per load; a title read after it
+    // carries ?caps= and the profile — a film's page, opened again until seen)
     const caps = await until(async () => {
+      await goto(page, srv, `#/movie/${lib.film.id}`);
+      await sleep(1000);
+      await goto(page, srv, "#/");
       const st = await api.adminGet("/api/admin/overnight");
       const mine = (st.devices || []).find((d) => d.person === "Rig Viewer");
       return mine && mine.devices.length ? mine.devices : null;
-    }, "this Chrome seen with the person (a title read with ?caps=&profile=)", 30000, 500);
+    }, "this Chrome seen with the person (a title read with ?caps=&profile=)", 60000, 500);
     say(`the person's devices: ${caps.join(", ")}`);
 
     // ---------- the start-up, measured ----------
@@ -221,10 +225,13 @@ const main = async () => {
     const tFrame = Date.now();
     const paused = await until(async () => { const s = await api.adminGet("/api/admin/overnight"); return s.state === "paused" ? s : null; }, "the run paused", 30000, 200);
     const tPaused = Date.now();
-    const p1 = paused.making.progress;
-    await sleep(4000);
+    // (the pause itself: SIGSTOP on Linux; on Windows a PowerShell call that
+    // takes a moment — the progress is read once it has had time to land)
+    await sleep(3000);
+    const p1 = (await api.adminGet("/api/admin/overnight")).making.progress;
+    await sleep(6000);
     const p2 = (await api.adminGet("/api/admin/overnight")).making.progress;
-    say(`paused ${tPaused - tFrame} ms after the film's first frame (${tPaused - tPlay} ms after Play) — progress ${Math.round(p1 * 100)}% → ${Math.round(p2 * 100)}% over 4 s: ${paused.line}`);
+    say(`paused ${tPaused - tFrame} ms after the film's first frame (${tPaused - tPlay} ms after Play) — progress ${(p1 * 100).toFixed(1)}% → ${(p2 * 100).toFixed(1)}% over the next 6 s: ${paused.line}`);
     await goto(page, srv, "#/");
     const tLeft = Date.now();
     const resumed = await until(async () => { const s = await api.adminGet("/api/admin/overnight"); return s.state === "running" ? s : null; }, "the run going on", 60000, 200);
@@ -250,10 +257,9 @@ const main = async () => {
 
     say("AFTER: the same titles");
     results.after.film = await trials(lib.film, "Rig Film — after");
-    results.after.e1 = await trials(lib.e1, "Rig Show E01 — after");
     const lib2 = await api.item(lib.show.id);
     const e3 = lib2.seasons[0].episodes.find((e) => Number(e.episode) === 3);
-    if (e3) results.after.e3 = await trials(e3, "Rig Show E03 (downloaded ahead) — after", 1);
+    if (e3) results.after.e3 = await trials(e3, "Rig Show E03 (downloaded ahead) — after");
     // a dub other than the prepared one would go the way it always did; a
     // device that plays the file as it is never gets the prepared one
     const item = await api.get(`/api/item/${lib.film.id}`);
@@ -268,12 +274,17 @@ const main = async () => {
   }
   // ---------- the table ----------
   const med = (xs) => { const s = xs.map((x) => x.ms).sort((a, b) => a - b); return s[Math.floor((s.length - 1) / 2)]; };
-  console.log("\n  start-up (first frame, ms; median of trials)   before → after");
-  for (const k of ["film", "e1"]) {
-    const b = results.before[k] || [];
-    const a = results.after[k] || [];
-    console.log(`  ${k.padEnd(6)} ${String(med(b)).padStart(6)} → ${String(med(a)).padStart(6)}   live streams before: ${b.some((x) => x.liveStreams.length) ? "yes" : "no"}, after: ${a.some((x) => x.liveStreams.length) ? "YES (wrong)" : "none"}; viewer encoders after: ${Math.max(0, ...a.map((x) => x.encoders))}`);
-  }
+  console.log("\n  start-up: first frame, ms           cold (first play)   warm (median of the rest)   live conversion / viewer encoders");
+  const row = (name, list) => {
+    if (!list || !list.length) return;
+    const rest = list.slice(1).map((x) => x.ms).sort((a, b) => a - b);
+    const warm = rest.length ? rest[Math.floor((rest.length - 1) / 2)] : "—";
+    console.log(`  ${name.padEnd(34)} ${String(list[0].ms).padStart(8)}   ${String(warm).padStart(12)}              ${list.some((x) => x.liveStreams.length) ? "yes" : "none"} / ${Math.max(0, ...list.map((x) => x.encoders))}`);
+  };
+  row("film (MPEG-2), live", results.before.film);
+  row("film (MPEG-2), prepared h264", results.after.film);
+  row("episode E01 (HEVC/E-AC-3), live", results.before.e1);
+  row("episode E03 (same format), prep.", results.after.e3);
   console.log(`\n  written: ${path.join(OUT_DIR, `${LABEL}.json`)}`);
 };
 

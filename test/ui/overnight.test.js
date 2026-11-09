@@ -93,9 +93,14 @@ ui.test("the real thing: Run now prepares a copy for this Chrome, and the next s
   const streams = [];
   page.on("request", (r) => { const u = r.url(); if (/\/stream\//.test(u)) streams.push(u.replace(srv.url, "")); });
   // the title read carries this browser's report and the profile: the device is seen with the person
-  await goto(page, srv, `#/movie/${film.id}`);
+  await goto(page, srv, "#/");
   const until = async (fn, what, ms = 60000) => { const end = Date.now() + ms; for (;;) { const v = await fn(); if (v) return v; if (Date.now() > end) throw new Error(`timed out: ${what}`); await new Promise((r) => setTimeout(r, 300)); } };
+  // (the page's report goes out once per load; a title read after it carries
+  // ?caps= and the profile — the film's page, opened again until it is seen)
   await until(async () => {
+    await goto(page, srv, `#/movie/${film.id}`);
+    await page.waitForTimeout(800);
+    await goto(page, srv, "#/");
     const st = await api.adminGet("/api/admin/overnight");
     return (st.devices || []).some((d) => d.person === viewer.name && d.devices.some((x) => /^web/.test(x)));
   }, "this Chrome seen with the person");
@@ -106,7 +111,7 @@ ui.test("the real thing: Run now prepares a copy for this Chrome, and the next s
   const st = await until(async () => {
     const s = await api.adminGet("/api/admin/overnight");
     return s.prepared.some((p) => p.id === film.id) && !s.making ? s : null;
-  }, "the copy prepared", 90000);
+  }, "the copy prepared (the lowest priority there is: on a loaded machine it waits for idle cores)", 300000);
   const prep = st.prepared.find((p) => p.id === film.id);
   assert.equal(prep.kind, "copy", "the picture copied, the sound made AAC: Chrome decodes H.264");
   assert.equal(prep.reason, "continue");

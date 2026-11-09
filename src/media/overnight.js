@@ -427,6 +427,7 @@ const tidyWith = (wantedKeys, now) => {
   return { removed: gone, freed };
 };
 
+let lastPlanSig = null;
 /** Make tonight's plan (and tidy up). → the plan's summary */
 const replan = async (now = deps.now()) => {
   const s = settings();
@@ -460,7 +461,10 @@ const replan = async (now = deps.now()) => {
     notes: g.notes,
     considered: g.considered.length,
   };
-  console.log(`[overnight] plan: ${g.considered.length} title${g.considered.length === 1 ? "" : "s"} looked at, ${f.make.length} to prepare, ${f.keep.length} already prepared, ${f.skip.length} over the budget (${(budget / 1e9).toFixed(1)} GB budget, ${(used / 1e9).toFixed(1)} GB used)`);
+  // (said when it changes: it is made again every quarter of an hour)
+  const sig = `${g.considered.length}|${f.make.map((w) => w.key).join(",")}|${f.keep.length}|${f.skip.length}`;
+  if (sig !== lastPlanSig) console.log(`[overnight] plan: ${g.considered.length} title${g.considered.length === 1 ? "" : "s"} looked at, ${f.make.length} to prepare, ${f.keep.length} already prepared, ${f.skip.length} over the budget (${(budget / 1e9).toFixed(1)} GB budget, ${(used / 1e9).toFixed(1)} GB used)`);
+  lastPlanSig = sig;
   return run.lastPlan;
 };
 
