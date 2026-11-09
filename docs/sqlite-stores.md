@@ -51,11 +51,15 @@ If anything fails, the store stays a JSON file and the log says so plainly: `[st
 
 The switch happens while the stores load, which is before the server listens, so no request ever sees a half-moved store.
 
-**Timings** (this PC, loaded by other agents):
+**Timings.** These are from copies of this PC's real data files, measured in a fresh process, on a machine shared with other agents.
 
-- First start on today's real data: about 120 ms for all 14 stores.
-- At the stores' caps (8,000 sessions, 8.3 MB of JSON): about 1.5 s on a quiet machine. watch-sessions alone takes 0.55 s of that.
-- Later starts: about 100 ms today, about 0.8 s at the caps.
+| | Today's data (0.85 MB of JSON) | At the stores' caps (8.3 MB: 8,000 sessions, 2,160 hours, 2,000 history rows) |
+| --- | --- | --- |
+| First start of the new build (the switch, once) | 215 ms for all 14 stores (JSON alone: 135 ms) | 2.5 s, once (JSON alone: 0.5 s) |
+| Every later start | 120 ms | 0.34 s |
+| One write of watch-sessions (a new session) | 1.4 ms (JSON flush: 5.5 ms) | 19 ms (JSON flush: 42 ms) |
+| Memory | +1.3 MB of heap | +10.6 MB of heap (each row's last-written JSON is kept, to write only the difference) |
+| data/aurora.db | 1.4 MB | 11.6 MB |
 
 ## A JSON file that comes back
 
