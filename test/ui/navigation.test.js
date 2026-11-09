@@ -56,12 +56,16 @@ const ROUTES = (lib) => ({
   // same profile, so the other walk's desktop page can be a device in the
   // list — the remote then picks it and names it in the address: no fixed
   // landing and no fixed words.)
+  // "What do we watch tonight?": start or join; a code nobody issued goes back to the start
+  // (the first-time explanation may be over the page: the screen is what is checked)
+  "/group": { hash: "#/group", selector: ".screen.gp" },
+  "/group/:code": { hash: "#/group/ZZZZ", lands: null, selector: ".screen.gp" },
   "/remote": { hash: "#/remote", lands: null, selector: ".remote-screen .rm-picker" },
   "/remote/:id": { hash: "#/remote/tv-gone-000000", lands: null, selector: ".remote-screen .rm-picker" },
 });
 // The browser's own "Failed to load resource" line for the answers above
 // that are SUPPOSED to be a 404.
-const EXPECTED_404 = [/Failed to load resource.*404.*\/api\/(party|auth\/device\/describe)\//];
+const EXPECTED_404 = [/Failed to load resource.*404.*\/api\/(party|auth\/device\/describe)\//, /Failed to load resource.*404.*\/api\/profiles\/[^/]+\/group\/join/];
 
 test("the route table covers every route in public/js/main.js", () => {
   const src = fs.readFileSync(path.join(__dirname, "..", "..", "public", "js", "main.js"), "utf-8");
