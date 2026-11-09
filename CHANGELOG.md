@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.24 — 2026-11-09
+
+- **Calendar.** New episodes, season premieres and film release dates (cinema, and out to stream or buy) for everything in your My List, the shows you follow and the shows you've been watching — by day, in Coming up (next 60 days) and Recently out (last 14). It shows what's already on the server, with Play, and Save & watch for what isn't (only when you press it). In the menu on the computer, in More on phones, and on the TV with its next update. Kids see only what they're allowed.
+
 ## 1.15.23 — 2026-11-09
 
 - Admin → On disk: a film that just landed on a drive is counted as Aurora's within about half a minute (it showed as "Other" until the six-hourly count). The same after a title is moved between drives or deleted.
