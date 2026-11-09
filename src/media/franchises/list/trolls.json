@@ -1,0 +1,13 @@
+{
+  "id": "trolls",
+  "name": "Trolls",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1679335","tmdbId":136799,"type":"movie","title":"Trolls","year":2016,"date":"2016-11-04"},
+    {"imdbId":"tt6587640","tmdbId":446893,"type":"movie","title":"Trolls World Tour","year":2020,"date":"2020-04-10"},
+    {"imdbId":"tt14362112","tmdbId":901362,"type":"movie","title":"Trolls Band Together","year":2023,"date":"2023-11-17"}
+  ],
+  "tmdbCollections": [489724],
+  "sources": ["https://en.wikipedia.org/wiki/Trolls_(franchise)","https://www.themoviedb.org/collection/489724","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

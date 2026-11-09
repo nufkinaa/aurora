@@ -1111,3 +1111,18 @@ test("gate: a suggest heading never names a title that was filtered out", () => 
   ] }));
   assert.equal(ok.body.suggestions[1].relatedTo, "Cartoon");
 });
+
+test("gate: a franchise page lists only what a kids profile may see, and its end card never offers more", () => {
+  const { run } = makeGate(KID);
+  const cards = [{ title: "A", imdbId: "tt0000010" }, { title: "B", imdbId: "tt0000011" }, { title: "?", imdbId: "tt0000999" }];
+  const page = run({ path: "/api/franchises/saga" }, (q, res) => res.json({ id: "saga", name: "Saga", summary: "3 films · 0 on the server", entries: cards }));
+  assert.deepEqual(page.body.entries.map((i) => i.title), ["A"]);
+  assert.equal(page.body.summary, null, "the summary counted titles that are not shown");
+  const ok = run({ path: "/api/franchises/next/tt0000001" }, (q, res) => res.json({ next: { kicker: "Next in the Saga", entry: cards[0] } }));
+  assert.equal(ok.body.next.entry.title, "A");
+  const old = run({ path: "/api/franchises/next/tt0000001" }, (q, res) => res.json({ next: { kicker: "Next in the Saga", entry: cards[1] } }));
+  assert.equal(old.body.next, null);
+  // the title page's line is about the title the page already shows
+  const line = { franchise: { id: "saga", line: "Part of the Saga · 1 of 3" }, others: [] };
+  assert.deepEqual(run({ path: "/api/franchises/for/tt0000010" }, (q, res) => res.json(line)).body, line);
+});

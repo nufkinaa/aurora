@@ -1,0 +1,17 @@
+{
+  "id": "monsters-inc",
+  "name": "Monsters, Inc.",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0198781","tmdbId":585,"type":"movie","title":"Monsters, Inc.","year":2001,"date":"2001-11-02"},
+    {"imdbId":"tt1453405","tmdbId":62211,"type":"movie","title":"Monsters University","year":2013,"date":"2013-06-21"}
+  ],
+  "story": [
+    "tt1453405",
+    "tt0198781"
+  ],
+  "tmdbCollections": [137696],
+  "sources": ["https://en.wikipedia.org/wiki/Monsters,_Inc._(franchise)","https://www.themoviedb.org/collection/137696","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order: Monsters University (Mike and Sulley at college) first."
+}

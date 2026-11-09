@@ -1,0 +1,12 @@
+{
+  "id": "horrible-bosses",
+  "name": "Horrible Bosses",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1499658","tmdbId":51540,"type":"movie","title":"Horrible Bosses","year":2011,"date":"2011-07-08"},
+    {"imdbId":"tt2170439","tmdbId":227159,"type":"movie","title":"Horrible Bosses 2","year":2014,"date":"2014-11-26"}
+  ],
+  "tmdbCollections": [280588],
+  "sources": ["https://en.wikipedia.org/wiki/Horrible_Bosses_2","https://www.themoviedb.org/collection/280588","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

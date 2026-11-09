@@ -51,6 +51,7 @@ const SCREENS = {
   Settings: () => require('./screens/Settings').default,
   Downloads: () => require('./screens/Downloads').default,
   Household: () => require('./screens/Household').default,
+  Franchise: () => require('./screens/Franchise').default, // [franchise] Watch in order
   Remote: () => require('./screens/Remote').default,
   Browse: () => require('./screens/Browse').default,
   Search: () => require('./screens/Search').SearchRoute,
@@ -138,6 +139,7 @@ export default function PhoneNavigator() {
           <Stack.Screen name="Settings" getComponent={SCREENS.Settings} />
           <Stack.Screen name="Downloads" getComponent={SCREENS.Downloads} />
           <Stack.Screen name="Household" getComponent={SCREENS.Household} />
+          <Stack.Screen name="Franchise" getComponent={SCREENS.Franchise} />
           <Stack.Screen name="Remote" getComponent={SCREENS.Remote} />
           <Stack.Screen name="Browse" getComponent={SCREENS.Browse} />
           <Stack.Screen name="Search" getComponent={SCREENS.Search} />

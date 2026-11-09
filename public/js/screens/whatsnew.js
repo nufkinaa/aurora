@@ -34,6 +34,13 @@ const FEATURES = [
   },
   // ---- the 2026-11-09 round: the same cards, the same words, on the TV ----
   {
+    since: ROUND, cue: "tap", glyph: "🎞️",
+    title: "Watch franchises in order",
+    what: "A film's page now says where it sits in its franchise. Watch in order lists every film and series in order, with what's on the server and what you've seen, in release or story order. At the end of a film the next one is offered, and Home has Continue the franchise.",
+    how: "Open a film from a franchise → Part of … → Watch in order.",
+    go: { label: "Go home", to: "#/" },
+  },
+  {
     since: ROUND, cue: "tap", glyph: "🍿",
     title: "Pick together",
     what: "What do we watch tonight? Start it on the TV, everyone joins with the code on their phone and swipes yes, maybe or no. Aurora shows what you all want, and one press plays it.",

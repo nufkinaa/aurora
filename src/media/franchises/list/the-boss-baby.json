@@ -1,0 +1,12 @@
+{
+  "id": "the-boss-baby",
+  "name": "The Boss Baby",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt3874544","tmdbId":295693,"type":"movie","title":"The Boss Baby","year":2017,"date":"2017-03-31"},
+    {"imdbId":"tt6932874","tmdbId":459151,"type":"movie","title":"The Boss Baby: Family Business","year":2021,"date":"2021-07-02"}
+  ],
+  "tmdbCollections": [519457],
+  "sources": ["https://en.wikipedia.org/wiki/The_Boss_Baby:_Family_Business","https://www.themoviedb.org/collection/519457","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

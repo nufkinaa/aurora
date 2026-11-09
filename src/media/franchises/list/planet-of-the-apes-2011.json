@@ -1,0 +1,15 @@
+{
+  "id": "planet-of-the-apes-2011",
+  "name": "Planet of the Apes (2011 series)",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1318514","tmdbId":61791,"type":"movie","title":"Rise of the Planet of the Apes","year":2011,"date":"2011-08-05"},
+    {"imdbId":"tt2103281","tmdbId":119450,"type":"movie","title":"Dawn of the Planet of the Apes","year":2014,"date":"2014-07-11"},
+    {"imdbId":"tt3450958","tmdbId":281338,"type":"movie","title":"War for the Planet of the Apes","year":2017,"date":"2017-07-14"},
+    {"imdbId":"tt11389872","tmdbId":653346,"type":"movie","title":"Kingdom of the Planet of the Apes","year":2024,"date":"2024-05-10"}
+  ],
+  "tmdbCollections": [173710],
+  "sources": ["https://en.wikipedia.org/wiki/Planet_of_the_Apes","https://en.wikipedia.org/wiki/Kingdom_of_the_Planet_of_the_Apes","https://www.themoviedb.org/collection/173710","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The reboot series: Rise, Dawn, War and Kingdom (set generations after Caesar)."
+}

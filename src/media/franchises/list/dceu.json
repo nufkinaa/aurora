@@ -1,0 +1,28 @@
+{
+  "id": "dceu",
+  "name": "DC Extended Universe",
+  "the": true,
+  "priority": 100,
+  "entries": [
+    {"imdbId":"tt0770828","tmdbId":49521,"type":"movie","title":"Man of Steel","year":2013,"date":"2013-06-14"},
+    {"imdbId":"tt2975590","tmdbId":209112,"type":"movie","title":"Batman v Superman: Dawn of Justice","year":2016,"date":"2016-03-25"},
+    {"imdbId":"tt1386697","tmdbId":297761,"type":"movie","title":"Suicide Squad","year":2016,"date":"2016-08-05"},
+    {"imdbId":"tt0451279","tmdbId":297762,"type":"movie","title":"Wonder Woman","year":2017,"date":"2017-06-02"},
+    {"imdbId":"tt0974015","tmdbId":141052,"type":"movie","title":"Justice League","year":2017,"date":"2017-11-17"},
+    {"imdbId":"tt1477834","tmdbId":297802,"type":"movie","title":"Aquaman","year":2018,"date":"2018-12-21"},
+    {"imdbId":"tt0448115","tmdbId":287947,"type":"movie","title":"Shazam!","year":2019,"date":"2019-04-05"},
+    {"imdbId":"tt7713068","tmdbId":495764,"type":"movie","title":"Birds of Prey and the Fantabulous Emancipation of One Harley Quinn","year":2020,"date":"2020-02-07"},
+    {"imdbId":"tt7126948","tmdbId":464052,"type":"movie","title":"Wonder Woman 1984","year":2020,"date":"2020-12-25"},
+    {"imdbId":"tt12361974","tmdbId":791373,"type":"movie","title":"Zack Snyder's Justice League","year":2021,"date":"2021-03-18","optional":true,"note":"the director's cut of Justice League"},
+    {"imdbId":"tt6334354","tmdbId":436969,"type":"movie","title":"The Suicide Squad","year":2021,"date":"2021-08-05"},
+    {"imdbId":"tt13146488","tmdbId":110492,"type":"series","title":"Peacemaker","year":2022,"date":"2022-01-13","optional":true,"note":"season 1 follows The Suicide Squad; season 2 belongs to the new DC Universe"},
+    {"imdbId":"tt6443346","tmdbId":436270,"type":"movie","title":"Black Adam","year":2022,"date":"2022-10-21"},
+    {"imdbId":"tt10151854","tmdbId":594767,"type":"movie","title":"Shazam! Fury of the Gods","year":2023,"date":"2023-03-17"},
+    {"imdbId":"tt0439572","tmdbId":298618,"type":"movie","title":"The Flash","year":2023,"date":"2023-06-16"},
+    {"imdbId":"tt9362930","tmdbId":565770,"type":"movie","title":"Blue Beetle","year":2023,"date":"2023-08-18"},
+    {"imdbId":"tt9663764","tmdbId":572802,"type":"movie","title":"Aquaman and the Lost Kingdom","year":2023,"date":"2023-12-22"}
+  ],
+  "tmdbCollections": [468552,573693,724848,531242],
+  "sources": ["https://en.wikipedia.org/wiki/DC_Extended_Universe","https://www.themoviedb.org/collection/468552","https://www.themoviedb.org/collection/573693","https://www.themoviedb.org/collection/724848","https://www.themoviedb.org/collection/531242","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Man of Steel (2013) to Aquaman and the Lost Kingdom (2023), the end of the shared universe. Zack Snyder's Justice League is optional (a recut of Justice League). Release order only: the DCEU has no official timeline order beyond Wonder Woman's 1918 setting."
+}

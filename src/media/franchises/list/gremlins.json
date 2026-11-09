@@ -1,0 +1,13 @@
+{
+  "id": "gremlins",
+  "name": "Gremlins",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0087363","tmdbId":927,"type":"movie","title":"Gremlins","year":1984,"date":"1984-06-08"},
+    {"imdbId":"tt0099700","tmdbId":928,"type":"movie","title":"Gremlins 2: The New Batch","year":1990,"date":"1990-06-15"}
+  ],
+  "tmdbCollections": [89151],
+  "sources": ["https://en.wikipedia.org/wiki/Gremlins_(franchise)","https://www.themoviedb.org/collection/89151","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The two films; the animated series are left out."
+}

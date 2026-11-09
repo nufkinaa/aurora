@@ -1,0 +1,13 @@
+{
+  "id": "national-treasure",
+  "name": "National Treasure",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0368891","tmdbId":2059,"type":"movie","title":"National Treasure","year":2004,"date":"2004-11-19"},
+    {"imdbId":"tt0465234","tmdbId":6637,"type":"movie","title":"National Treasure: Book of Secrets","year":2007,"date":"2007-12-21"}
+  ],
+  "tmdbCollections": [52984],
+  "sources": ["https://en.wikipedia.org/wiki/National_Treasure_(franchise)","https://www.themoviedb.org/collection/52984","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The two films; the series Edge of History is left out."
+}

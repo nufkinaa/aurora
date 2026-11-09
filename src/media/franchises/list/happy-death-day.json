@@ -1,0 +1,12 @@
+{
+  "id": "happy-death-day",
+  "name": "Happy Death Day",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt5308322","tmdbId":440021,"type":"movie","title":"Happy Death Day","year":2017,"date":"2017-10-13"},
+    {"imdbId":"tt8155288","tmdbId":512196,"type":"movie","title":"Happy Death Day 2U","year":2019,"date":"2019-02-13"}
+  ],
+  "tmdbCollections": [526380],
+  "sources": ["https://en.wikipedia.org/wiki/Happy_Death_Day_2U","https://www.themoviedb.org/collection/526380","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

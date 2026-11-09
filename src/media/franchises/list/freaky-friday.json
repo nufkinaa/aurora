@@ -1,0 +1,13 @@
+{
+  "id": "freaky-friday",
+  "name": "Freaky Friday",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0322330","tmdbId":10330,"type":"movie","title":"Freaky Friday","year":2003,"date":"2003-08-06"},
+    {"imdbId":"tt31956415","tmdbId":1125257,"type":"movie","title":"Freakier Friday","year":2025,"date":"2025-08-08"}
+  ],
+  "tmdbCollections": [1125292],
+  "sources": ["https://en.wikipedia.org/wiki/Freakier_Friday","https://www.themoviedb.org/collection/1125292","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The 2003 film and its sequel Freakier Friday (2025). The 1976 and 2018 versions are left out."
+}

@@ -406,6 +406,24 @@ export const api = {
     const q = [tmdbId ? `tmdbId=${tmdbId}` : "", profileId ? `profile=${encodeURIComponent(profileId)}` : ""].filter(Boolean).join("&");
     return json(`/api/discover/similar/${type}/${encodeURIComponent(id)}${q ? `?${q}` : ""}`);
   },
+  // Franchise order (src/routes/franchises.js — one set of answers for the
+  // website, the TV and the phone): the title page's "Part of …" line, the
+  // franchise page, the end card's next film, the person's order switch.
+  franchiseFor: (imdbId, { type = "movie", tmdbId = null, profileId = null } = {}) => {
+    const q = new URLSearchParams({ type });
+    if (tmdbId) q.set("tmdbId", tmdbId);
+    if (profileId) q.set("profile", profileId);
+    return json(`/api/franchises/for/${encodeURIComponent(imdbId)}?${q}`);
+  },
+  franchise: (id, { profileId = null, order = null } = {}) => {
+    const q = new URLSearchParams();
+    if (profileId) q.set("profile", profileId);
+    if (order) q.set("order", order);
+    return json(`/api/franchises/${encodeURIComponent(id)}${q.toString() ? `?${q}` : ""}`);
+  },
+  franchiseNext: (imdbId, profileId = null) =>
+    json(`/api/franchises/next/${encodeURIComponent(imdbId)}${profileId ? `?profile=${encodeURIComponent(profileId)}` : ""}`),
+  setFranchiseOrder: (id, profileId, order) => post(`/api/franchises/${encodeURIComponent(id)}/order`, { profile: profileId, order }),
   // One page of a Browse category (see /api/catalog). Paged per genre, so a
   // niche genre has a deep list of its own rather than a slice of trending.
   catalog: ({ type, category, genre, page = 0, low = false }) =>

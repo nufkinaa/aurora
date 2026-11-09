@@ -1,0 +1,13 @@
+{
+  "id": "taken",
+  "name": "Taken",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0936501","tmdbId":8681,"type":"movie","title":"Taken","year":2009,"date":"2009-01-30"},
+    {"imdbId":"tt1397280","tmdbId":82675,"type":"movie","title":"Taken 2","year":2012,"date":"2012-10-05"},
+    {"imdbId":"tt2446042","tmdbId":260346,"type":"movie","title":"Taken 3","year":2015,"date":"2015-01-09"}
+  ],
+  "tmdbCollections": [135483],
+  "sources": ["https://en.wikipedia.org/wiki/Taken_(franchise)","https://www.themoviedb.org/collection/135483","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

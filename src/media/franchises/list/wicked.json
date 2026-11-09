@@ -1,0 +1,12 @@
+{
+  "id": "wicked",
+  "name": "Wicked",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1262426","tmdbId":402431,"type":"movie","title":"Wicked","year":2024,"date":"2024-11-22"},
+    {"imdbId":"tt19847976","tmdbId":967941,"type":"movie","title":"Wicked: For Good","year":2025,"date":"2025-11-21"}
+  ],
+  "tmdbCollections": [968080],
+  "sources": ["https://en.wikipedia.org/wiki/Wicked_(film_series)","https://www.themoviedb.org/collection/968080","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "venom",
+  "name": "Venom",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1270797","tmdbId":335983,"type":"movie","title":"Venom","year":2018,"date":"2018-10-05"},
+    {"imdbId":"tt7097896","tmdbId":580489,"type":"movie","title":"Venom: Let There Be Carnage","year":2021,"date":"2021-10-01"},
+    {"imdbId":"tt16366836","tmdbId":912649,"type":"movie","title":"Venom: The Last Dance","year":2024,"date":"2024-10-25"}
+  ],
+  "tmdbCollections": [558216],
+  "sources": ["https://en.wikipedia.org/wiki/Venom_(film_series)","https://www.themoviedb.org/collection/558216","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Sony's Venom trilogy. Kept apart from Spider-Man; Morbius, Madame Web and Kraven the Hunter (the rest of Sony's Spider-Man Universe) are left out."
+}

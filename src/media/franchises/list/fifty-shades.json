@@ -1,0 +1,13 @@
+{
+  "id": "fifty-shades",
+  "name": "Fifty Shades",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt2322441","tmdbId":216015,"type":"movie","title":"Fifty Shades of Grey","year":2015,"date":"2015-02-13"},
+    {"imdbId":"tt4465564","tmdbId":341174,"type":"movie","title":"Fifty Shades Darker","year":2017,"date":"2017-02-10"},
+    {"imdbId":"tt4477536","tmdbId":337167,"type":"movie","title":"Fifty Shades Freed","year":2018,"date":"2018-02-09"}
+  ],
+  "tmdbCollections": [344830],
+  "sources": ["https://en.wikipedia.org/wiki/Fifty_Shades_(film_series)","https://www.themoviedb.org/collection/344830","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

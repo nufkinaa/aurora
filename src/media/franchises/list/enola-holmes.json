@@ -1,0 +1,13 @@
+{
+  "id": "enola-holmes",
+  "name": "Enola Holmes",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt7846844","tmdbId":497582,"type":"movie","title":"Enola Holmes","year":2020,"date":"2020-09-23"},
+    {"imdbId":"tt14641788","tmdbId":829280,"type":"movie","title":"Enola Holmes 2","year":2022,"date":"2022-11-04"},
+    {"imdbId":"tt32278481","tmdbId":1202033,"type":"movie","title":"Enola Holmes 3","year":2026,"date":"2026-07-01"}
+  ],
+  "tmdbCollections": [829314],
+  "sources": ["https://en.wikipedia.org/wiki/Enola_Holmes_(film)","https://www.whats-on-netflix.com/what-to-watch/enola-holmes-3-netflix-review/","https://www.themoviedb.org/collection/829314","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

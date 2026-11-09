@@ -1,0 +1,23 @@
+{
+  "id": "underworld",
+  "name": "Underworld",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0320691","tmdbId":277,"type":"movie","title":"Underworld","year":2003,"date":"2003-09-19"},
+    {"imdbId":"tt0401855","tmdbId":834,"type":"movie","title":"Underworld: Evolution","year":2006,"date":"2006-01-20"},
+    {"imdbId":"tt0834001","tmdbId":12437,"type":"movie","title":"Underworld: Rise of the Lycans","year":2009,"date":"2009-01-23"},
+    {"imdbId":"tt1496025","tmdbId":52520,"type":"movie","title":"Underworld: Awakening","year":2012,"date":"2012-01-20"},
+    {"imdbId":"tt3717252","tmdbId":346672,"type":"movie","title":"Underworld: Blood Wars","year":2017,"date":"2017-01-06"}
+  ],
+  "story": [
+    "tt0834001",
+    "tt0320691",
+    "tt0401855",
+    "tt1496025",
+    "tt3717252"
+  ],
+  "tmdbCollections": [2326],
+  "sources": ["https://en.wikipedia.org/wiki/Underworld_(film_series)","https://en.wikipedia.org/wiki/Underworld:_Rise_of_the_Lycans","https://www.themoviedb.org/collection/2326","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order: Rise of the Lycans (the Middle Ages prequel) first."
+}

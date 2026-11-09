@@ -1,0 +1,35 @@
+{
+  "id": "fast-and-furious",
+  "name": "Fast & Furious",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0232500","tmdbId":9799,"type":"movie","title":"The Fast and the Furious","year":2001,"date":"2001-06-22"},
+    {"imdbId":"tt0322259","tmdbId":584,"type":"movie","title":"2 Fast 2 Furious","year":2003,"date":"2003-06-06"},
+    {"imdbId":"tt0463985","tmdbId":9615,"type":"movie","title":"The Fast and the Furious: Tokyo Drift","year":2006,"date":"2006-06-16"},
+    {"imdbId":"tt1013752","tmdbId":13804,"type":"movie","title":"Fast & Furious","year":2009,"date":"2009-04-03"},
+    {"imdbId":"tt1596343","tmdbId":51497,"type":"movie","title":"Fast Five","year":2011,"date":"2011-04-29"},
+    {"imdbId":"tt1905041","tmdbId":82992,"type":"movie","title":"Fast & Furious 6","year":2013,"date":"2013-05-24"},
+    {"imdbId":"tt2820852","tmdbId":168259,"type":"movie","title":"Furious 7","year":2015,"date":"2015-04-03"},
+    {"imdbId":"tt4630562","tmdbId":337339,"type":"movie","title":"The Fate of the Furious","year":2017,"date":"2017-04-14"},
+    {"imdbId":"tt6806448","tmdbId":384018,"type":"movie","title":"Fast & Furious Presents: Hobbs & Shaw","year":2019,"date":"2019-08-02","optional":true,"note":"spin-off"},
+    {"imdbId":"tt5433138","tmdbId":385128,"type":"movie","title":"F9: The Fast Saga","year":2021,"date":"2021-06-25"},
+    {"imdbId":"tt5433140","tmdbId":385687,"type":"movie","title":"Fast X","year":2023,"date":"2023-05-19"}
+  ],
+  "story": [
+    "tt0232500",
+    "tt0322259",
+    "tt1013752",
+    "tt1596343",
+    "tt1905041",
+    "tt0463985",
+    "tt2820852",
+    "tt4630562",
+    "tt6806448",
+    "tt5433138",
+    "tt5433140"
+  ],
+  "tmdbCollections": [9485],
+  "sources": ["https://en.wikipedia.org/wiki/Fast_%26_Furious","https://en.wikipedia.org/wiki/The_Fast_and_the_Furious:_Tokyo_Drift","https://en.wikipedia.org/wiki/Furious_7","https://www.themoviedb.org/collection/9485","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order moves Tokyo Drift after Fast & Furious 6: Han's death in Tokyo Drift happens in 6's mid-credits scene, and Furious 7 continues from it. Hobbs & Shaw (optional spin-off) comes after The Fate of the Furious. The short Los Bandoleros is left out."
+}

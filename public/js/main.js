@@ -144,7 +144,9 @@ route("/discover/:type/:id", (root, p) => {
   const qs = new URLSearchParams(q);
   const s = parseInt(qs.get("s") || "", 10);
   const e = parseInt(qs.get("e") || "", 10);
-  return renderDetailLazy(root, { source: "discover", type: p.type, id, jump: s > 0 && e > 0 ? { season: s, episode: e } : null });
+  // `?save=1`: opened from a franchise page's Save & watch — the page presses
+  // its own Save & watch once (that press, carried over; discover-detail.js)
+  return renderDetailLazy(root, { source: "discover", type: p.type, id, jump: s > 0 && e > 0 ? { season: s, episode: e } : null, save: qs.get("save") === "1" });
 });
 route("/preferences", (root, p) => import("./screens/preferences.js").then((m) => m.renderPreferences(root, p)));
 route("/wrapped", lazy("./screens/wrapped.js", "renderWrapped"));
@@ -154,6 +156,7 @@ route("/pick", lazy("./screens/pickforme.js", "renderPickForMe"));
 route("/new", lazy("./screens/whatsnew.js", "renderWhatsNew"));
 route("/group", lazy("./screens/group.js", "renderGroup")); // "What do we watch tonight?" — start or join
 route("/group/:code", (root, p) => import("./screens/group.js").then((m) => m.renderGroup(root, p))); // where the TV's QR code lands a phone
+route("/franchise/:id", lazy("./screens/franchise.js", "renderFranchise")); // a franchise in order (js/franchise.js)
 route("/household", lazy("./screens/household.js", "renderHousehold")); // "Show all recommended" (js/recommend.js)
 route("/household/sent", withSkeleton((root) => import("./screens/household.js").then((m) => m.renderHousehold(root, { tab: "sent" })))); // …on its "You sent" tab
 route("/pair/:code", (root, p) => import("./screens/pair.js").then((m) => m.renderPair(root, p)));

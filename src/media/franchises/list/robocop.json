@@ -1,0 +1,14 @@
+{
+  "id": "robocop",
+  "name": "RoboCop",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0093870","tmdbId":5548,"type":"movie","title":"RoboCop","year":1987,"date":"1987-07-17"},
+    {"imdbId":"tt0100502","tmdbId":5549,"type":"movie","title":"RoboCop 2","year":1990,"date":"1990-06-22"},
+    {"imdbId":"tt0107978","tmdbId":5550,"type":"movie","title":"RoboCop 3","year":1993,"date":"1993-11-05"}
+  ],
+  "tmdbCollections": [5547],
+  "sources": ["https://en.wikipedia.org/wiki/RoboCop_(franchise)","https://www.themoviedb.org/collection/5547","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The original trilogy (1987-1993). The 2014 remake is left out."
+}

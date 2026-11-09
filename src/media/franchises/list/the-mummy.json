@@ -1,0 +1,21 @@
+{
+  "id": "the-mummy",
+  "name": "The Mummy",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0120616","tmdbId":564,"type":"movie","title":"The Mummy","year":1999,"date":"1999-05-07"},
+    {"imdbId":"tt0209163","tmdbId":1734,"type":"movie","title":"The Mummy Returns","year":2001,"date":"2001-05-04"},
+    {"imdbId":"tt0277296","tmdbId":9334,"type":"movie","title":"The Scorpion King","year":2002,"date":"2002-04-19","optional":true,"note":"prequel spin-off"},
+    {"imdbId":"tt0859163","tmdbId":1735,"type":"movie","title":"The Mummy: Tomb of the Dragon Emperor","year":2008,"date":"2008-08-01"}
+  ],
+  "story": [
+    "tt0277296",
+    "tt0120616",
+    "tt0209163",
+    "tt0859163"
+  ],
+  "tmdbCollections": [1733],
+  "sources": ["https://en.wikipedia.org/wiki/The_Mummy_(1999_film_series)","https://www.themoviedb.org/collection/1733","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Stephen Sommers' 1999 trilogy (Tomb of the Dragon Emperor completes it). The Scorpion King (optional) is a prequel spin-off set thousands of years earlier, first in the story order; its direct-to-video sequels, the 2017 Dark Universe film and the 1932 Universal series are left out."
+}

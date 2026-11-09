@@ -1,0 +1,13 @@
+{
+  "id": "rush-hour",
+  "name": "Rush Hour",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0120812","tmdbId":2109,"type":"movie","title":"Rush Hour","year":1998,"date":"1998-09-18"},
+    {"imdbId":"tt0266915","tmdbId":5175,"type":"movie","title":"Rush Hour 2","year":2001,"date":"2001-08-03"},
+    {"imdbId":"tt0293564","tmdbId":5174,"type":"movie","title":"Rush Hour 3","year":2007,"date":"2007-08-10"}
+  ],
+  "tmdbCollections": [90863],
+  "sources": ["https://en.wikipedia.org/wiki/Rush_Hour_(franchise)","https://www.themoviedb.org/collection/90863","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

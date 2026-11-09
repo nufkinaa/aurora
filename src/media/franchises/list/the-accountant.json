@@ -1,0 +1,12 @@
+{
+  "id": "the-accountant",
+  "name": "The Accountant",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt2140479","tmdbId":302946,"type":"movie","title":"The Accountant","year":2016,"date":"2016-10-14"},
+    {"imdbId":"tt7068946","tmdbId":870028,"type":"movie","title":"The Accountant 2","year":2025,"date":"2025-04-25"}
+  ],
+  "tmdbCollections": [870339],
+  "sources": ["https://en.wikipedia.org/wiki/The_Accountant_2","https://www.themoviedb.org/collection/870339","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "night-at-the-museum",
+  "name": "Night at the Museum",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0477347","tmdbId":1593,"type":"movie","title":"Night at the Museum","year":2006,"date":"2006-12-22"},
+    {"imdbId":"tt1078912","tmdbId":18360,"type":"movie","title":"Night at the Museum: Battle of the Smithsonian","year":2009,"date":"2009-05-22"},
+    {"imdbId":"tt2692250","tmdbId":181533,"type":"movie","title":"Night at the Museum: Secret of the Tomb","year":2014,"date":"2014-12-19"}
+  ],
+  "tmdbCollections": [85943],
+  "sources": ["https://en.wikipedia.org/wiki/Night_at_the_Museum","https://www.themoviedb.org/collection/85943","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The three live-action films; the 2022 animated Kahmunrah Rises Again is left out."
+}

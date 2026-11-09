@@ -1,0 +1,15 @@
+{
+  "id": "lego-movie",
+  "name": "The LEGO Movie",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1490017","tmdbId":137106,"type":"movie","title":"The Lego Movie","year":2014,"date":"2014-02-07"},
+    {"imdbId":"tt4116284","tmdbId":324849,"type":"movie","title":"The Lego Batman Movie","year":2017,"date":"2017-02-10","optional":true,"note":"spin-off"},
+    {"imdbId":"tt3014284","tmdbId":274862,"type":"movie","title":"The Lego Ninjago Movie","year":2017,"date":"2017-09-22","optional":true,"note":"spin-off"},
+    {"imdbId":"tt3513498","tmdbId":280217,"type":"movie","title":"The Lego Movie 2: The Second Part","year":2019,"date":"2019-02-08"}
+  ],
+  "tmdbCollections": [325470],
+  "sources": ["https://en.wikipedia.org/wiki/The_Lego_Movie_(franchise)","https://www.themoviedb.org/collection/325470","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The two LEGO Movie films; The LEGO Batman Movie and The LEGO Ninjago Movie are optional spin-offs."
+}

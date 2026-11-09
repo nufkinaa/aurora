@@ -1,0 +1,12 @@
+{
+  "id": "cloudy-with-a-chance-of-meatballs",
+  "name": "Cloudy with a Chance of Meatballs",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0844471","tmdbId":22794,"type":"movie","title":"Cloudy with a Chance of Meatballs","year":2009,"date":"2009-09-18"},
+    {"imdbId":"tt1985966","tmdbId":109451,"type":"movie","title":"Cloudy with a Chance of Meatballs 2","year":2013,"date":"2013-09-27"}
+  ],
+  "tmdbCollections": [177467],
+  "sources": ["https://en.wikipedia.org/wiki/Cloudy_with_a_Chance_of_Meatballs_2","https://www.themoviedb.org/collection/177467","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

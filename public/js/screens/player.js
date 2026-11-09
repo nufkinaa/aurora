@@ -28,6 +28,7 @@ import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, se
 import { readStyle, nextChoice, styleLabel, cueCss, cueShadow, cueBackdrop, CUE_VW, CUE_MIN_PX, RAISED_PCT, SUB_STYLE_KEYS, SUB_STYLE_NAMES, SUB_COLORS } from "../subStyle.js";
 import { audioFxFor, AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES } from "../audiofx.js";
 import { recommendButton, canRecommend } from "../recommend.js";
+import { entryAction } from "../franchise.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -6070,27 +6071,129 @@ export const renderPlayer = async (root, { id }) => {
   // taking the focus from the film; Dismiss or seeking back takes it away.
   let filmEndEl = null;
   let filmEndShown = false;
-  const filmEnd = () => {
-    const d = totalDuration();
-    if (!d || !state.profile || item._offline || item._local) return;
+  let filmEndSeq = 0;
+  // A FILM in a franchise (js/franchise.js, src/media/franchises): the end
+  // card offers the next one in the person's order instead — "Next in the
+  // Marvel Cinematic Universe" — like Up next for episodes. On the server:
+  // Play now, counting down (autoplayNext, never a party guest, "Still
+  // watching?" honoured); not on the server: Save & watch (its title page,
+  // which presses its own Save & watch once) and nothing starts by itself.
+  let franchiseNextP = null;
+  let franchiseAtEnd = null; // the countdown's start, when the film ends first
+  let filmEndTimer = null;
+  const franchiseNext = () => {
+    if (!franchiseNextP) {
+      const fid = item.imdbId;
+      franchiseNextP = fid && /^tt\d+$/.test(String(fid)) && !isEpisode && !isStreamEpisode && !localEpisode && !item._local
+        ? api.franchiseNext(fid, state.profile ? state.profile.id : null).then((r) => (r && r.next) || null).catch(() => { franchiseNextP = null; return null; })
+        : Promise.resolve(null);
+    }
+    return franchiseNextP;
+  };
+  const hideFilmEnd = () => {
+    clearInterval(filmEndTimer);
+    franchiseAtEnd = null;
+    if (filmEndEl) filmEndEl.remove();
+    filmEndEl = null;
+  };
+  const showRecommendEnd = () => {
+    if (!state.profile) return;
     const recItem = { ...item, type: "movie", title: item.title };
     if (!canRecommend(recItem)) return;
+    const rb = recommendButton(recItem, { ui: "player.recommend", className: "btn btn-primary focusable" }); // data-ui
+    if (!rb) return;
+    filmEndEl = el("div", { class: "upnext film-end" },
+      el("div", { class: "k" }, "Enjoyed it?"),
+      el("div", { class: "t" }, `Recommend “${item.title}” to someone in your household`),
+      el("div", { class: "upnext-actions" },
+        rb,
+        el("button", { "data-ui": "player.upnext.dismiss", class: "btn focusable", onclick: hideFilmEnd }, "Dismiss")));
+    overlay.append(filmEndEl);
+  };
+  const showFranchiseNext = (next) => {
+    const e = next.entry;
+    const owned = !!(e.onServer && e.onServer.id && e.onServer.type !== "show");
+    const autoplay = owned && prefs.get("autoplayNext", true) && !(inParty() && party.role === "guest");
+    const counting = autoplay && !(!inParty() && autoRunN >= STILL_WATCHING_AFTER);
+    let remaining = 15;
+    const ring = el("span", { class: "ring" }, counting ? String(remaining) : "");
+    let going = false;
+    const play = async (auto) => {
+      if (going) return;
+      going = true;
+      clearInterval(filmEndTimer);
+      franchiseAtEnd = null;
+      const it = await api.item(e.onServer.id).catch(() => null);
+      if (exited) return;
+      if (!it || !it.id) {
+        going = false;
+        toast("Couldn't open the next film — try again", "⚠️");
+        return;
+      }
+      track("feat", { f: auto ? "franchise_next_auto" : "franchise_next_play" });
+      // started by itself: one more in the run the next player reads
+      if (auto) {
+        if (inParty()) autoRun.write(0);
+        else autoRun.write(autoRunN + 1, it.id);
+      }
+      hideFilmEnd();
+      goNext(it);
+    };
+    filmEndEl = el("div", { class: "upnext film-end franchise-next" },
+      el("div", { class: "k" }, next.kicker),
+      el("div", { class: "t" }, `${e.title} · ${next.position} of ${next.total}`),
+      el("div", { class: "upnext-actions" },
+        owned
+          ? el("button", { "data-ui": "player.franchise.play", class: "btn btn-primary focusable", html: icons.play + "<span>Play now</span>", onclick: () => { noteInput(); play(false); } })
+          : (() => {
+              // not on the server: Save & watch (a film — its page presses its
+              // own Save & watch once); a show: its page (Open / Choose episode)
+              const act = entryAction(e);
+              const save = act.kind === "save";
+              return el("button", { "data-ui": save ? "player.franchise.save" : "player.franchise.open", class: "btn btn-primary focusable",
+                html: (save ? icons.download : icons.play) + `<span>${act.label.replace(/&/g, "&amp;")}</span>`,
+                onclick: () => {
+                  noteInput();
+                  track("feat", { f: save ? "franchise_next_save" : "franchise_next_open" });
+                  hideFilmEnd();
+                  saveProgress();
+                  navigate(act.href);
+                } });
+            })(),
+        el("button", { "data-ui": "player.franchise.dismiss", class: "btn focusable", onclick: () => { noteInput(); hideFilmEnd(); } },
+          counting ? ring : null, counting ? " Dismiss" : "Dismiss")));
+    overlay.append(filmEndEl);
+    filmEndEl.querySelector(".btn-primary").focus({ preventScroll: true });
+    if (counting) {
+      franchiseAtEnd = () => play(true);
+      filmEndTimer = setInterval(() => {
+        if (exited) return hideFilmEnd();
+        remaining--;
+        ring.textContent = String(Math.max(0, remaining));
+        if (remaining <= 0) play(true);
+      }, 1000);
+    }
+  };
+  // asked a while into the film, so the card is ready the moment it is due
+  const franchiseAsk = setTimeout(() => { if (!exited) franchiseNext(); }, 20000);
+  const filmEnd = () => {
+    const d = totalDuration();
+    if (!d || item._offline || item._local) return;
     const remaining = d - effTime();
     const win = creditsStart && creditsStart < d - 5 ? d - creditsStart : upNextWindow(d);
     if (remaining <= win && !video.paused && !filmEndShown) {
       filmEndShown = true;
-      const rb = recommendButton(recItem, { ui: "player.recommend", className: "btn btn-primary focusable" }); // data-ui
-      if (!rb) return;
-      filmEndEl = el("div", { class: "upnext film-end" },
-        el("div", { class: "k" }, "Enjoyed it?"),
-        el("div", { class: "t" }, `Recommend “${item.title}” to someone in your household`),
-        el("div", { class: "upnext-actions" },
-          rb,
-          el("button", { "data-ui": "player.upnext.dismiss", class: "btn focusable", onclick: () => { if (filmEndEl) filmEndEl.remove(); filmEndEl = null; } }, "Dismiss")));
-      overlay.append(filmEndEl);
+      const turn = ++filmEndSeq;
+      franchiseNext().then((next) => {
+        if (exited || !filmEndShown || turn !== filmEndSeq || filmEndEl) return;
+        if (next && next.entry) showFranchiseNext(next);
+        else showRecommendEnd();
+      });
     } else if (remaining > win + 15 && filmEndShown) {
-      if (filmEndEl) filmEndEl.remove();
-      filmEndEl = null;
+      // seeked back out of the credits: the card goes (its countdown with it)
+      // and comes back when the credits do
+      filmEndSeq++;
+      hideFilmEnd();
       filmEndShown = false;
     }
   };
@@ -6424,6 +6527,13 @@ export const renderPlayer = async (root, { id }) => {
       if (inParty()) autoRun.write(0);
       else autoRun.write(autoRunN + 1, next.id);
       goNext(next);
+      return;
+    }
+    // a film whose end card was counting down to the next in its franchise
+    if (franchiseAtEnd && !exited) {
+      const go = franchiseAtEnd;
+      franchiseAtEnd = null;
+      go();
       return;
     }
     if (!isEpisode && !localEpisode) exit();
@@ -7722,6 +7832,9 @@ export const renderPlayer = async (root, { id }) => {
     clearTimeout(seekDebounce);
     clearTimeout(hlsRecoverTimer);
     clearTimeout(controlsTimer);
+    clearTimeout(franchiseAsk); // (a timer holds the whole player until it fires)
+    clearInterval(filmEndTimer);
+    franchiseAtEnd = null;
     try {
       if (prefetchCtrl) prefetchCtrl.abort();
     } catch {}

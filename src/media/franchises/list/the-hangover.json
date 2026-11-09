@@ -1,0 +1,13 @@
+{
+  "id": "the-hangover",
+  "name": "The Hangover",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1119646","tmdbId":18785,"type":"movie","title":"The Hangover","year":2009,"date":"2009-06-05"},
+    {"imdbId":"tt1411697","tmdbId":45243,"type":"movie","title":"The Hangover Part II","year":2011,"date":"2011-05-26"},
+    {"imdbId":"tt1951261","tmdbId":109439,"type":"movie","title":"The Hangover Part III","year":2013,"date":"2013-05-23"}
+  ],
+  "tmdbCollections": [86119],
+  "sources": ["https://en.wikipedia.org/wiki/The_Hangover_(film_series)","https://www.themoviedb.org/collection/86119","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

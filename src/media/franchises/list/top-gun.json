@@ -1,0 +1,12 @@
+{
+  "id": "top-gun",
+  "name": "Top Gun",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0092099","tmdbId":744,"type":"movie","title":"Top Gun","year":1986,"date":"1986-05-16"},
+    {"imdbId":"tt1745960","tmdbId":361743,"type":"movie","title":"Top Gun: Maverick","year":2022,"date":"2022-05-27"}
+  ],
+  "tmdbCollections": [531330],
+  "sources": ["https://en.wikipedia.org/wiki/Top_Gun_(franchise)","https://www.themoviedb.org/collection/531330","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

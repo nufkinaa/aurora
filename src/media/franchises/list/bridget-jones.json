@@ -1,0 +1,14 @@
+{
+  "id": "bridget-jones",
+  "name": "Bridget Jones",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0243155","tmdbId":634,"type":"movie","title":"Bridget Jones's Diary","year":2001,"date":"2001-04-13"},
+    {"imdbId":"tt0317198","tmdbId":9801,"type":"movie","title":"Bridget Jones: The Edge of Reason","year":2004,"date":"2004-11-19"},
+    {"imdbId":"tt1473832","tmdbId":95610,"type":"movie","title":"Bridget Jones's Baby","year":2016,"date":"2016-09-16"},
+    {"imdbId":"tt32063050","tmdbId":1272149,"type":"movie","title":"Bridget Jones: Mad About the Boy","year":2025,"date":"2025-02-13"}
+  ],
+  "tmdbCollections": [8936],
+  "sources": ["https://en.wikipedia.org/wiki/Bridget_Jones","https://www.themoviedb.org/collection/8936","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

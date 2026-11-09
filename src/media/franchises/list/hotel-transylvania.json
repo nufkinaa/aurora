@@ -1,0 +1,14 @@
+{
+  "id": "hotel-transylvania",
+  "name": "Hotel Transylvania",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0837562","tmdbId":76492,"type":"movie","title":"Hotel Transylvania","year":2012,"date":"2012-09-28"},
+    {"imdbId":"tt2510894","tmdbId":159824,"type":"movie","title":"Hotel Transylvania 2","year":2015,"date":"2015-09-25"},
+    {"imdbId":"tt5220122","tmdbId":400155,"type":"movie","title":"Hotel Transylvania 3: Summer Vacation","year":2018,"date":"2018-07-13"},
+    {"imdbId":"tt9848626","tmdbId":585083,"type":"movie","title":"Hotel Transylvania 4: Transformania","year":2022,"date":"2022-01-14"}
+  ],
+  "tmdbCollections": [185103],
+  "sources": ["https://en.wikipedia.org/wiki/Hotel_Transylvania","https://www.themoviedb.org/collection/185103","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

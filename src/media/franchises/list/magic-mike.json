@@ -1,0 +1,13 @@
+{
+  "id": "magic-mike",
+  "name": "Magic Mike",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1915581","tmdbId":77930,"type":"movie","title":"Magic Mike","year":2012,"date":"2012-06-29"},
+    {"imdbId":"tt2268016","tmdbId":264999,"type":"movie","title":"Magic Mike XXL","year":2015,"date":"2015-07-01"},
+    {"imdbId":"tt16280138","tmdbId":906221,"type":"movie","title":"Magic Mike's Last Dance","year":2023,"date":"2023-02-10"}
+  ],
+  "tmdbCollections": [328247],
+  "sources": ["https://en.wikipedia.org/wiki/Magic_Mike_(franchise)","https://www.themoviedb.org/collection/328247","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

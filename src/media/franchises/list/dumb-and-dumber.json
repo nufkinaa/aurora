@@ -1,0 +1,13 @@
+{
+  "id": "dumb-and-dumber",
+  "name": "Dumb and Dumber",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0109686","tmdbId":8467,"type":"movie","title":"Dumb and Dumber","year":1994,"date":"1994-12-16"},
+    {"imdbId":"tt2096672","tmdbId":100042,"type":"movie","title":"Dumb and Dumber To","year":2014,"date":"2014-11-14"}
+  ],
+  "tmdbCollections": [],
+  "sources": ["https://en.wikipedia.org/wiki/Dumb_and_Dumber_To","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The two Farrelly brothers films; the 2003 prequel Dumb and Dumberer (other cast) is left out (so the TMDB collection, which holds it, is not claimed)."
+}

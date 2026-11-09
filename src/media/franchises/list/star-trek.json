@@ -1,0 +1,24 @@
+{
+  "id": "star-trek",
+  "name": "Star Trek",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0079945","tmdbId":152,"type":"movie","title":"Star Trek: The Motion Picture","year":1979,"date":"1979-12-08"},
+    {"imdbId":"tt0084726","tmdbId":154,"type":"movie","title":"Star Trek II: The Wrath of Khan","year":1982,"date":"1982-06-04"},
+    {"imdbId":"tt0088170","tmdbId":157,"type":"movie","title":"Star Trek III: The Search for Spock","year":1984,"date":"1984-06-01"},
+    {"imdbId":"tt0092007","tmdbId":168,"type":"movie","title":"Star Trek IV: The Voyage Home","year":1986,"date":"1986-11-26"},
+    {"imdbId":"tt0098382","tmdbId":172,"type":"movie","title":"Star Trek V: The Final Frontier","year":1989,"date":"1989-06-09"},
+    {"imdbId":"tt0102975","tmdbId":174,"type":"movie","title":"Star Trek VI: The Undiscovered Country","year":1991,"date":"1991-12-06"},
+    {"imdbId":"tt0111280","tmdbId":193,"type":"movie","title":"Star Trek: Generations","year":1994,"date":"1994-11-18"},
+    {"imdbId":"tt0117731","tmdbId":199,"type":"movie","title":"Star Trek: First Contact","year":1996,"date":"1996-11-22"},
+    {"imdbId":"tt0120844","tmdbId":200,"type":"movie","title":"Star Trek: Insurrection","year":1998,"date":"1998-12-11"},
+    {"imdbId":"tt0253754","tmdbId":201,"type":"movie","title":"Star Trek: Nemesis","year":2002,"date":"2002-12-13"},
+    {"imdbId":"tt0796366","tmdbId":13475,"type":"movie","title":"Star Trek","year":2009,"date":"2009-05-08"},
+    {"imdbId":"tt1408101","tmdbId":54138,"type":"movie","title":"Star Trek Into Darkness","year":2013,"date":"2013-05-16"},
+    {"imdbId":"tt2660888","tmdbId":188927,"type":"movie","title":"Star Trek Beyond","year":2016,"date":"2016-07-22"}
+  ],
+  "tmdbCollections": [151,115570,115575],
+  "sources": ["https://en.wikipedia.org/wiki/List_of_Star_Trek_films_and_television_series","https://www.themoviedb.org/collection/151","https://www.themoviedb.org/collection/115570","https://www.themoviedb.org/collection/115575","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The thirteen theatrical films: six with the original cast, four with The Next Generation cast, three in the Kelvin timeline (2009-2016). The series and the streaming film Section 31 are left out."
+}

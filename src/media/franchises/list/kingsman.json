@@ -1,0 +1,19 @@
+{
+  "id": "kingsman",
+  "name": "Kingsman",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt2802144","tmdbId":207703,"type":"movie","title":"Kingsman: The Secret Service","year":2015,"date":"2015-02-13"},
+    {"imdbId":"tt4649466","tmdbId":343668,"type":"movie","title":"Kingsman: The Golden Circle","year":2017,"date":"2017-09-22"},
+    {"imdbId":"tt6856242","tmdbId":476669,"type":"movie","title":"The King's Man","year":2021,"date":"2021-12-22"}
+  ],
+  "story": [
+    "tt6856242",
+    "tt2802144",
+    "tt4649466"
+  ],
+  "tmdbCollections": [391860],
+  "sources": ["https://en.wikipedia.org/wiki/Kingsman_(franchise)","https://en.wikipedia.org/wiki/The_King%27s_Man","https://www.themoviedb.org/collection/391860","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order: The King's Man (the First World War origin of the agency) first."
+}

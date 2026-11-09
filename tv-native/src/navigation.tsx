@@ -49,6 +49,7 @@ const SCREENS = {
   Taste: () => require('./screens/Taste').default,
   Household: () => require('./screens/Household').default, // [household] Show all recommended
   GroupPick: () => require('./screens/GroupPick').default, // [group-pick] What do we watch tonight?
+  Franchise: () => require('./screens/Franchise').default, // [franchise] Watch in order
 } as const;
 
 const WARM_FIRST_MS = 6000; // after Home's own first seconds (its rows, its pictures, the trailer lookup)
@@ -94,7 +95,12 @@ export type RootStackParamList = {
   GroupPick: {code?: string} | undefined;
   // `play`: the page presses its own Play once it knows what that means (Home's
   // hero — one press from the sofa to the film; playBest.ts autoPlayStep).
-  Detail: {item: HeroItem; play?: boolean};
+  // [franchise] `save`: the page presses its own Save & watch once, for a film
+  // not on the server, when it knows the best source (the franchise page's or
+  // the end card's Save & watch, carried over — franchiseRules.ts autoSaveStep).
+  Detail: {item: HeroItem; play?: boolean; save?: boolean};
+  // [franchise] a franchise's titles in order (Watch in order)
+  Franchise: {id: string; name?: string};
   Sources: {
     type: 'movie' | 'series';
     imdbId: string;
@@ -189,6 +195,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Taste" getComponent={SCREENS.Taste} />
         <Stack.Screen name="Household" getComponent={SCREENS.Household} />
         <Stack.Screen name="GroupPick" getComponent={SCREENS.GroupPick} />
+        <Stack.Screen name="Franchise" getComponent={SCREENS.Franchise} />
         {/* No fade for the player: cross-fading a video surface is expensive
             on a TV GPU and reads as a flicker rather than a transition. */}
         <Stack.Screen name="Player" getComponent={SCREENS.Player} options={{animation: 'none'}} />

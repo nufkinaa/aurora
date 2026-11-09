@@ -1,0 +1,13 @@
+{
+  "id": "legally-blonde",
+  "name": "Legally Blonde",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0250494","tmdbId":8835,"type":"movie","title":"Legally Blonde","year":2001,"date":"2001-07-13"},
+    {"imdbId":"tt0333780","tmdbId":10327,"type":"movie","title":"Legally Blonde 2: Red, White & Blonde","year":2003,"date":"2003-07-02"}
+  ],
+  "tmdbCollections": [],
+  "sources": ["https://en.wikipedia.org/wiki/Legally_Blonde_2:_Red,_White_%26_Blonde","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The two theatrical films; the direct-to-video Legally Blondes is left out (so the TMDB collection, which holds it, is not claimed)."
+}

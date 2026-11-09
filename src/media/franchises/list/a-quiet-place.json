@@ -1,0 +1,19 @@
+{
+  "id": "a-quiet-place",
+  "name": "A Quiet Place",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt6644200","tmdbId":447332,"type":"movie","title":"A Quiet Place","year":2018,"date":"2018-04-06"},
+    {"imdbId":"tt8332922","tmdbId":520763,"type":"movie","title":"A Quiet Place Part II","year":2021,"date":"2021-05-28"},
+    {"imdbId":"tt13433802","tmdbId":762441,"type":"movie","title":"A Quiet Place: Day One","year":2024,"date":"2024-06-28"}
+  ],
+  "story": [
+    "tt13433802",
+    "tt6644200",
+    "tt8332922"
+  ],
+  "tmdbCollections": [521226],
+  "sources": ["https://en.wikipedia.org/wiki/A_Quiet_Place_(franchise)","https://en.wikipedia.org/wiki/A_Quiet_Place:_Day_One","https://www.themoviedb.org/collection/521226","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order: Day One (the invasion's first day in New York) first."
+}

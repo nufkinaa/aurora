@@ -1,0 +1,13 @@
+{
+  "id": "ace-ventura",
+  "name": "Ace Ventura",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0109040","tmdbId":3049,"type":"movie","title":"Ace Ventura: Pet Detective","year":1994,"date":"1994-02-04"},
+    {"imdbId":"tt0112281","tmdbId":9273,"type":"movie","title":"Ace Ventura: When Nature Calls","year":1995,"date":"1995-11-10"}
+  ],
+  "tmdbCollections": [],
+  "sources": ["https://en.wikipedia.org/wiki/Ace_Ventura:_When_Nature_Calls","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The two Jim Carrey films; the 2009 direct-to-video Ace Ventura Jr. is left out (so the TMDB collection, which holds it, is not claimed)."
+}

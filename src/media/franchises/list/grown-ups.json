@@ -1,0 +1,12 @@
+{
+  "id": "grown-ups",
+  "name": "Grown Ups",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1375670","tmdbId":38365,"type":"movie","title":"Grown Ups","year":2010,"date":"2010-06-25"},
+    {"imdbId":"tt2191701","tmdbId":109418,"type":"movie","title":"Grown Ups 2","year":2013,"date":"2013-07-12"}
+  ],
+  "tmdbCollections": [180546],
+  "sources": ["https://en.wikipedia.org/wiki/Grown_Ups_2","https://www.themoviedb.org/collection/180546","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

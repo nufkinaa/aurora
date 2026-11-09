@@ -1,0 +1,14 @@
+{
+  "id": "bad-boys",
+  "name": "Bad Boys",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0112442","tmdbId":9737,"type":"movie","title":"Bad Boys","year":1995,"date":"1995-04-07"},
+    {"imdbId":"tt0172156","tmdbId":8961,"type":"movie","title":"Bad Boys II","year":2003,"date":"2003-07-18"},
+    {"imdbId":"tt1502397","tmdbId":38700,"type":"movie","title":"Bad Boys for Life","year":2020,"date":"2020-01-17"},
+    {"imdbId":"tt4919268","tmdbId":353262,"type":"movie","title":"Bad Boys: Ride or Die","year":2024,"date":"2024-06-07"}
+  ],
+  "tmdbCollections": [14890],
+  "sources": ["https://en.wikipedia.org/wiki/Bad_Boys_(franchise)","https://www.themoviedb.org/collection/14890","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

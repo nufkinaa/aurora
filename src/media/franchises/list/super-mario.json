@@ -1,0 +1,13 @@
+{
+  "id": "super-mario",
+  "name": "Super Mario",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt6718170","tmdbId":502356,"type":"movie","title":"The Super Mario Bros. Movie","year":2023,"date":"2023-04-05"},
+    {"imdbId":"tt28650488","tmdbId":1226863,"type":"movie","title":"The Super Mario Galaxy Movie","year":2026,"date":"2026-04-01"}
+  ],
+  "tmdbCollections": [1434561],
+  "sources": ["https://en.wikipedia.org/wiki/The_Super_Mario_Galaxy_Movie","https://www.themoviedb.org/collection/1434561","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Illumination's films: The Super Mario Bros. Movie (2023) and The Super Mario Galaxy Movie (2026). The 1993 live-action film is left out."
+}

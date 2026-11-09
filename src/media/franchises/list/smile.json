@@ -1,0 +1,12 @@
+{
+  "id": "smile",
+  "name": "Smile",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt15474916","tmdbId":882598,"type":"movie","title":"Smile","year":2022,"date":"2022-09-30"},
+    {"imdbId":"tt29268110","tmdbId":1100782,"type":"movie","title":"Smile 2","year":2024,"date":"2024-10-18"}
+  ],
+  "tmdbCollections": [1100788],
+  "sources": ["https://en.wikipedia.org/wiki/Smile_(franchise)","https://www.themoviedb.org/collection/1100788","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

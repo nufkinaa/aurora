@@ -1,0 +1,14 @@
+{
+  "id": "tron",
+  "name": "Tron",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0084827","tmdbId":97,"type":"movie","title":"Tron","year":1982,"date":"1982-07-09"},
+    {"imdbId":"tt1104001","tmdbId":20526,"type":"movie","title":"Tron: Legacy","year":2010,"date":"2010-12-17"},
+    {"imdbId":"tt6604188","tmdbId":533533,"type":"movie","title":"Tron: Ares","year":2025,"date":"2025-10-10"}
+  ],
+  "tmdbCollections": [63043],
+  "sources": ["https://en.wikipedia.org/wiki/Tron","https://www.themoviedb.org/collection/63043","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Tron (1982), Tron: Legacy (2010) and Tron: Ares (2025). The animated Tron: Uprising is left out."
+}

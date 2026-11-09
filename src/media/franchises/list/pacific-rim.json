@@ -1,0 +1,12 @@
+{
+  "id": "pacific-rim",
+  "name": "Pacific Rim",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1663662","tmdbId":68726,"type":"movie","title":"Pacific Rim","year":2013,"date":"2013-07-12"},
+    {"imdbId":"tt2557478","tmdbId":268896,"type":"movie","title":"Pacific Rim: Uprising","year":2018,"date":"2018-03-23"}
+  ],
+  "tmdbCollections": [363369],
+  "sources": ["https://en.wikipedia.org/wiki/Pacific_Rim_(franchise)","https://www.themoviedb.org/collection/363369","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

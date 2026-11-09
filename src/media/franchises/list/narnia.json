@@ -1,0 +1,14 @@
+{
+  "id": "narnia",
+  "name": "The Chronicles of Narnia",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0363771","tmdbId":411,"type":"movie","title":"The Chronicles of Narnia: The Lion, the Witch and the Wardrobe","year":2005,"date":"2005-12-09"},
+    {"imdbId":"tt0499448","tmdbId":2454,"type":"movie","title":"The Chronicles of Narnia: Prince Caspian","year":2008,"date":"2008-05-16"},
+    {"imdbId":"tt0980970","tmdbId":10140,"type":"movie","title":"The Chronicles of Narnia: The Voyage of the Dawn Treader","year":2010,"date":"2010-12-10"}
+  ],
+  "tmdbCollections": [420],
+  "sources": ["https://en.wikipedia.org/wiki/The_Chronicles_of_Narnia_(film_series)","https://www.themoviedb.org/collection/420","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The three Walden Media films (2005-2010)."
+}

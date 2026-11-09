@@ -1,0 +1,17 @@
+{
+  "id": "terminator",
+  "name": "Terminator",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0088247","tmdbId":218,"type":"movie","title":"The Terminator","year":1984,"date":"1984-10-26"},
+    {"imdbId":"tt0103064","tmdbId":280,"type":"movie","title":"Terminator 2: Judgment Day","year":1991,"date":"1991-07-03"},
+    {"imdbId":"tt0181852","tmdbId":296,"type":"movie","title":"Terminator 3: Rise of the Machines","year":2003,"date":"2003-07-02"},
+    {"imdbId":"tt0438488","tmdbId":534,"type":"movie","title":"Terminator Salvation","year":2009,"date":"2009-05-21"},
+    {"imdbId":"tt1340138","tmdbId":87101,"type":"movie","title":"Terminator Genisys","year":2015,"date":"2015-07-01"},
+    {"imdbId":"tt6450804","tmdbId":290859,"type":"movie","title":"Terminator: Dark Fate","year":2019,"date":"2019-11-01"}
+  ],
+  "tmdbCollections": [528],
+  "sources": ["https://en.wikipedia.org/wiki/Terminator_(franchise)","https://www.themoviedb.org/collection/528","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Release order only: Genisys and Dark Fate each reset the timeline after Terminator 2. The Sarah Connor Chronicles series and the anime are left out."
+}

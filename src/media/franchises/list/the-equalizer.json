@@ -1,0 +1,14 @@
+{
+  "id": "the-equalizer",
+  "name": "The Equalizer",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0455944","tmdbId":156022,"type":"movie","title":"The Equalizer","year":2014,"date":"2014-09-26"},
+    {"imdbId":"tt3766354","tmdbId":345887,"type":"movie","title":"The Equalizer 2","year":2018,"date":"2018-07-20"},
+    {"imdbId":"tt17024450","tmdbId":926393,"type":"movie","title":"The Equalizer 3","year":2023,"date":"2023-09-01"}
+  ],
+  "tmdbCollections": [523855],
+  "sources": ["https://en.wikipedia.org/wiki/The_Equalizer_(film)","https://www.themoviedb.org/collection/523855","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The three Denzel Washington films; the TV series are left out."
+}

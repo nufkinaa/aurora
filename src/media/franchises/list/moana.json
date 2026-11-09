@@ -1,0 +1,13 @@
+{
+  "id": "moana",
+  "name": "Moana",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt3521164","tmdbId":277834,"type":"movie","title":"Moana","year":2016,"date":"2016-11-23"},
+    {"imdbId":"tt13622970","tmdbId":1241982,"type":"movie","title":"Moana 2","year":2024,"date":"2024-11-27"}
+  ],
+  "tmdbCollections": [1241984],
+  "sources": ["https://en.wikipedia.org/wiki/Moana_(franchise)","https://www.themoviedb.org/collection/1241984","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The animated films; the 2026 live-action remake retells the first film and is left out."
+}

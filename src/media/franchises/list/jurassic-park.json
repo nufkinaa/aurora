@@ -1,0 +1,18 @@
+{
+  "id": "jurassic-park",
+  "name": "Jurassic Park",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0107290","tmdbId":329,"type":"movie","title":"Jurassic Park","year":1993,"date":"1993-06-11"},
+    {"imdbId":"tt0119567","tmdbId":330,"type":"movie","title":"The Lost World: Jurassic Park","year":1997,"date":"1997-05-22"},
+    {"imdbId":"tt0163025","tmdbId":331,"type":"movie","title":"Jurassic Park III","year":2001,"date":"2001-07-18"},
+    {"imdbId":"tt0369610","tmdbId":135397,"type":"movie","title":"Jurassic World","year":2015,"date":"2015-06-12"},
+    {"imdbId":"tt4881806","tmdbId":351286,"type":"movie","title":"Jurassic World: Fallen Kingdom","year":2018,"date":"2018-06-22"},
+    {"imdbId":"tt8041270","tmdbId":507086,"type":"movie","title":"Jurassic World: Dominion","year":2022,"date":"2022-06-10"},
+    {"imdbId":"tt31036941","tmdbId":1234821,"type":"movie","title":"Jurassic World: Rebirth","year":2025,"date":"2025-07-02"}
+  ],
+  "tmdbCollections": [328],
+  "sources": ["https://en.wikipedia.org/wiki/Jurassic_Park","https://en.wikipedia.org/wiki/Jurassic_World_Rebirth","https://www.themoviedb.org/collection/328","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The Jurassic Park trilogy and the Jurassic World films in one line, through Jurassic World Rebirth (2025). The animated series Camp Cretaceous and Chaos Theory are left out."
+}

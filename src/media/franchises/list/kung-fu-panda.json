@@ -1,0 +1,14 @@
+{
+  "id": "kung-fu-panda",
+  "name": "Kung Fu Panda",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0441773","tmdbId":9502,"type":"movie","title":"Kung Fu Panda","year":2008,"date":"2008-06-06"},
+    {"imdbId":"tt1302011","tmdbId":49444,"type":"movie","title":"Kung Fu Panda 2","year":2011,"date":"2011-05-26"},
+    {"imdbId":"tt2267968","tmdbId":140300,"type":"movie","title":"Kung Fu Panda 3","year":2016,"date":"2016-01-29"},
+    {"imdbId":"tt21692408","tmdbId":1011985,"type":"movie","title":"Kung Fu Panda 4","year":2024,"date":"2024-03-08"}
+  ],
+  "tmdbCollections": [77816],
+  "sources": ["https://en.wikipedia.org/wiki/Kung_Fu_Panda","https://www.themoviedb.org/collection/77816","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

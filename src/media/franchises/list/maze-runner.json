@@ -1,0 +1,13 @@
+{
+  "id": "maze-runner",
+  "name": "The Maze Runner",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1790864","tmdbId":198663,"type":"movie","title":"The Maze Runner","year":2014,"date":"2014-09-19"},
+    {"imdbId":"tt4046784","tmdbId":294254,"type":"movie","title":"Maze Runner: The Scorch Trials","year":2015,"date":"2015-09-18"},
+    {"imdbId":"tt4500922","tmdbId":336843,"type":"movie","title":"Maze Runner: The Death Cure","year":2018,"date":"2018-01-26"}
+  ],
+  "tmdbCollections": [295130],
+  "sources": ["https://en.wikipedia.org/wiki/The_Maze_Runner_(film_series)","https://www.themoviedb.org/collection/295130","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

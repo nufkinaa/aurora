@@ -1,0 +1,13 @@
+{
+  "id": "mortal-kombat",
+  "name": "Mortal Kombat (2021 series)",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0293429","tmdbId":460465,"type":"movie","title":"Mortal Kombat","year":2021,"date":"2021-04-23"},
+    {"imdbId":"tt17490712","tmdbId":931285,"type":"movie","title":"Mortal Kombat II","year":2026,"date":"2026-05-08"}
+  ],
+  "tmdbCollections": [931431],
+  "sources": ["https://en.wikipedia.org/wiki/Mortal_Kombat_II_(2026_film)","https://www.themoviedb.org/collection/931431","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The 2021 reboot and Mortal Kombat II (2026). The 1995 and 1997 films are a separate continuity and are left out."
+}

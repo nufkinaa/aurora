@@ -1,0 +1,14 @@
+{
+  "id": "santa-clause",
+  "name": "The Santa Clause",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0111070","tmdbId":11395,"type":"movie","title":"The Santa Clause","year":1994,"date":"1994-11-11"},
+    {"imdbId":"tt0304669","tmdbId":9021,"type":"movie","title":"The Santa Clause 2","year":2002,"date":"2002-11-01"},
+    {"imdbId":"tt0452681","tmdbId":13767,"type":"movie","title":"The Santa Clause 3: The Escape Clause","year":2006,"date":"2006-11-03"}
+  ],
+  "tmdbCollections": [53159],
+  "sources": ["https://en.wikipedia.org/wiki/The_Santa_Clause_(franchise)","https://www.themoviedb.org/collection/53159","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The three films; the series The Santa Clauses is left out."
+}

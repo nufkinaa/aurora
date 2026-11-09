@@ -1,0 +1,15 @@
+{
+  "id": "die-hard",
+  "name": "Die Hard",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0095016","tmdbId":562,"type":"movie","title":"Die Hard","year":1988,"date":"1988-07-20"},
+    {"imdbId":"tt0099423","tmdbId":1573,"type":"movie","title":"Die Hard 2","year":1990,"date":"1990-07-03"},
+    {"imdbId":"tt0112864","tmdbId":1572,"type":"movie","title":"Die Hard with a Vengeance","year":1995,"date":"1995-05-19"},
+    {"imdbId":"tt0337978","tmdbId":1571,"type":"movie","title":"Live Free or Die Hard","year":2007,"date":"2007-06-27"},
+    {"imdbId":"tt1606378","tmdbId":47964,"type":"movie","title":"A Good Day to Die Hard","year":2013,"date":"2013-02-14"}
+  ],
+  "tmdbCollections": [1570],
+  "sources": ["https://en.wikipedia.org/wiki/Die_Hard","https://www.themoviedb.org/collection/1570","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

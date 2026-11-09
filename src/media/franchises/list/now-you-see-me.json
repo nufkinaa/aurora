@@ -1,0 +1,13 @@
+{
+  "id": "now-you-see-me",
+  "name": "Now You See Me",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1670345","tmdbId":75656,"type":"movie","title":"Now You See Me","year":2013,"date":"2013-05-31"},
+    {"imdbId":"tt3110958","tmdbId":291805,"type":"movie","title":"Now You See Me 2","year":2016,"date":"2016-06-10"},
+    {"imdbId":"tt4712810","tmdbId":425274,"type":"movie","title":"Now You See Me: Now You Don't","year":2025,"date":"2025-11-14"}
+  ],
+  "tmdbCollections": [382685],
+  "sources": ["https://en.wikipedia.org/wiki/Now_You_See_Me_(film_series)","https://www.themoviedb.org/collection/382685","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

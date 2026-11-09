@@ -1,0 +1,12 @@
+{
+  "id": "sinister",
+  "name": "Sinister",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1922777","tmdbId":82507,"type":"movie","title":"Sinister","year":2012,"date":"2012-10-12"},
+    {"imdbId":"tt2752772","tmdbId":283445,"type":"movie","title":"Sinister 2","year":2015,"date":"2015-08-21"}
+  ],
+  "tmdbCollections": [357173],
+  "sources": ["https://en.wikipedia.org/wiki/Sinister_2","https://www.themoviedb.org/collection/357173","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

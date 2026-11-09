@@ -1,0 +1,15 @@
+{
+  "id": "oceans",
+  "name": "Ocean's",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0240772","tmdbId":161,"type":"movie","title":"Ocean's Eleven","year":2001,"date":"2001-12-07"},
+    {"imdbId":"tt0349903","tmdbId":163,"type":"movie","title":"Ocean's Twelve","year":2004,"date":"2004-12-10"},
+    {"imdbId":"tt0496806","tmdbId":298,"type":"movie","title":"Ocean's Thirteen","year":2007,"date":"2007-06-08"},
+    {"imdbId":"tt5164214","tmdbId":402900,"type":"movie","title":"Ocean's Eight","year":2018,"date":"2018-06-08","optional":true,"note":"spin-off with Debbie Ocean"}
+  ],
+  "tmdbCollections": [304],
+  "sources": ["https://en.wikipedia.org/wiki/Ocean%27s_(film_series)","https://www.themoviedb.org/collection/304","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Steven Soderbergh's trilogy, with Ocean's 8 (2018) as an optional spin-off. The 1960 Ocean's 11 is left out."
+}

@@ -1,0 +1,23 @@
+{
+  "id": "hunger-games",
+  "name": "The Hunger Games",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1392170","tmdbId":70160,"type":"movie","title":"The Hunger Games","year":2012,"date":"2012-03-23"},
+    {"imdbId":"tt1951264","tmdbId":101299,"type":"movie","title":"The Hunger Games: Catching Fire","year":2013,"date":"2013-11-22"},
+    {"imdbId":"tt1951265","tmdbId":131631,"type":"movie","title":"The Hunger Games: Mockingjay - Part 1","year":2014,"date":"2014-11-21"},
+    {"imdbId":"tt1951266","tmdbId":131634,"type":"movie","title":"The Hunger Games: Mockingjay - Part 2","year":2015,"date":"2015-11-20"},
+    {"imdbId":"tt10545296","tmdbId":695721,"type":"movie","title":"The Hunger Games: The Ballad of Songbirds & Snakes","year":2023,"date":"2023-11-17"}
+  ],
+  "story": [
+    "tt10545296",
+    "tt1392170",
+    "tt1951264",
+    "tt1951265",
+    "tt1951266"
+  ],
+  "tmdbCollections": [131635],
+  "sources": ["https://en.wikipedia.org/wiki/The_Hunger_Games_(film_series)","https://en.wikipedia.org/wiki/The_Hunger_Games:_The_Ballad_of_Songbirds_%26_Snakes","https://www.themoviedb.org/collection/131635","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order: The Ballad of Songbirds & Snakes (the 10th Games, 64 years before Katniss) first. Sunrise on the Reaping is not out until November 20, 2026."
+}

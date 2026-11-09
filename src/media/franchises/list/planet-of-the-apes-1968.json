@@ -1,0 +1,16 @@
+{
+  "id": "planet-of-the-apes-1968",
+  "name": "Planet of the Apes (1968 series)",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0063442","tmdbId":871,"type":"movie","title":"Planet of the Apes","year":1968,"date":"1968-04-03"},
+    {"imdbId":"tt0065462","tmdbId":1685,"type":"movie","title":"Beneath the Planet of the Apes","year":1970,"date":"1970-05-26"},
+    {"imdbId":"tt0067065","tmdbId":1687,"type":"movie","title":"Escape from the Planet of the Apes","year":1971,"date":"1971-07-09"},
+    {"imdbId":"tt0068408","tmdbId":1688,"type":"movie","title":"Conquest of the Planet of the Apes","year":1972,"date":"1972-06-30"},
+    {"imdbId":"tt0069768","tmdbId":1705,"type":"movie","title":"Battle for the Planet of the Apes","year":1973,"date":"1973-06-15"}
+  ],
+  "tmdbCollections": [1709],
+  "sources": ["https://en.wikipedia.org/wiki/Planet_of_the_Apes","https://www.themoviedb.org/collection/1709","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The original five films (1968-1973). The time-loop of Escape onward makes a story order a matter of taste, so release order only. Tim Burton's 2001 remake stands alone and is left out; the 2011 series is its own franchise."
+}

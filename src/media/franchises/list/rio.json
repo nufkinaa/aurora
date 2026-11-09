@@ -1,0 +1,12 @@
+{
+  "id": "rio",
+  "name": "Rio",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1436562","tmdbId":46195,"type":"movie","title":"Rio","year":2011,"date":"2011-04-15"},
+    {"imdbId":"tt2357291","tmdbId":172385,"type":"movie","title":"Rio 2","year":2014,"date":"2014-04-11"}
+  ],
+  "tmdbCollections": [229932],
+  "sources": ["https://en.wikipedia.org/wiki/Rio_2","https://www.themoviedb.org/collection/229932","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

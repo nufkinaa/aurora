@@ -1,0 +1,16 @@
+{
+  "id": "evil-dead",
+  "name": "Evil Dead",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0083907","tmdbId":764,"type":"movie","title":"The Evil Dead","year":1983,"date":"1983-04-15"},
+    {"imdbId":"tt0092991","tmdbId":765,"type":"movie","title":"Evil Dead II","year":1987,"date":"1987-03-13"},
+    {"imdbId":"tt0106308","tmdbId":766,"type":"movie","title":"Army of Darkness","year":1993,"date":"1993-02-19"},
+    {"imdbId":"tt1288558","tmdbId":109428,"type":"movie","title":"Evil Dead","year":2013,"date":"2013-04-05"},
+    {"imdbId":"tt13345606","tmdbId":713704,"type":"movie","title":"Evil Dead Rise","year":2023,"date":"2023-04-21"}
+  ],
+  "tmdbCollections": [1960],
+  "sources": ["https://en.wikipedia.org/wiki/Evil_Dead","https://www.themoviedb.org/collection/1960","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The five films; Ash vs Evil Dead (TV) is left out."
+}

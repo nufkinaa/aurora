@@ -1,0 +1,20 @@
+{
+  "id": "rocky",
+  "name": "Rocky",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0075148","tmdbId":1366,"type":"movie","title":"Rocky","year":1976,"date":"1976-12-03"},
+    {"imdbId":"tt0079817","tmdbId":1367,"type":"movie","title":"Rocky II","year":1979,"date":"1979-06-15"},
+    {"imdbId":"tt0084602","tmdbId":1371,"type":"movie","title":"Rocky III","year":1982,"date":"1982-05-28"},
+    {"imdbId":"tt0089927","tmdbId":1374,"type":"movie","title":"Rocky IV","year":1985,"date":"1985-11-27"},
+    {"imdbId":"tt0100507","tmdbId":1375,"type":"movie","title":"Rocky V","year":1990,"date":"1990-11-16"},
+    {"imdbId":"tt0479143","tmdbId":1246,"type":"movie","title":"Rocky Balboa","year":2006,"date":"2006-12-20"},
+    {"imdbId":"tt3076658","tmdbId":312221,"type":"movie","title":"Creed","year":2015,"date":"2015-11-25"},
+    {"imdbId":"tt6343314","tmdbId":480530,"type":"movie","title":"Creed II","year":2018,"date":"2018-11-21"},
+    {"imdbId":"tt11145118","tmdbId":677179,"type":"movie","title":"Creed III","year":2023,"date":"2023-03-03"}
+  ],
+  "tmdbCollections": [1575,553717],
+  "sources": ["https://en.wikipedia.org/wiki/Rocky_(franchise)","https://www.themoviedb.org/collection/1575","https://www.themoviedb.org/collection/553717","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The six Rocky films and the three Creed films in one line."
+}

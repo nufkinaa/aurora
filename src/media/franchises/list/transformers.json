@@ -1,0 +1,29 @@
+{
+  "id": "transformers",
+  "name": "Transformers",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0418279","tmdbId":1858,"type":"movie","title":"Transformers","year":2007,"date":"2007-07-03"},
+    {"imdbId":"tt1055369","tmdbId":8373,"type":"movie","title":"Transformers: Revenge of the Fallen","year":2009,"date":"2009-06-24"},
+    {"imdbId":"tt1399103","tmdbId":38356,"type":"movie","title":"Transformers: Dark of the Moon","year":2011,"date":"2011-06-29"},
+    {"imdbId":"tt2109248","tmdbId":91314,"type":"movie","title":"Transformers: Age of Extinction","year":2014,"date":"2014-06-27"},
+    {"imdbId":"tt3371366","tmdbId":335988,"type":"movie","title":"Transformers: The Last Knight","year":2017,"date":"2017-06-21"},
+    {"imdbId":"tt4701182","tmdbId":424783,"type":"movie","title":"Bumblebee","year":2018,"date":"2018-12-21"},
+    {"imdbId":"tt5090568","tmdbId":667538,"type":"movie","title":"Transformers: Rise of the Beasts","year":2023,"date":"2023-06-09"},
+    {"imdbId":"tt8864596","tmdbId":698687,"type":"movie","title":"Transformers One","year":2024,"date":"2024-09-20","optional":true,"note":"animated, on Cybertron"}
+  ],
+  "story": [
+    "tt8864596",
+    "tt4701182",
+    "tt5090568",
+    "tt0418279",
+    "tt1055369",
+    "tt1399103",
+    "tt2109248",
+    "tt3371366"
+  ],
+  "tmdbCollections": [8650],
+  "sources": ["https://en.wikipedia.org/wiki/Transformers_(film_series)","https://en.wikipedia.org/wiki/Transformers:_Rise_of_the_Beasts","https://www.themoviedb.org/collection/8650","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order: Transformers One (optional, animated origin on Cybertron), Bumblebee (1987), Rise of the Beasts (1994), then the five Michael Bay films (2007-2017)."
+}

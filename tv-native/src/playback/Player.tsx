@@ -144,6 +144,8 @@ import {
   upNextState,
   deadSource,
 } from '../playerRules';
+import {FranchiseEndCard, FrEndCard, useFranchiseEnd} from './FranchiseEnd'; // [franchise] the end of a film
+import {entryItem, planFranchiseEnd} from '../franchiseRules'; // [franchise]
 import {openReplace, openReport, overlayOpen} from '../overlay';
 import {replaceOffered, WORDS as REPLACE_WORDS} from '../replaceLogic';
 import {onPersonPrefs, setPersonPref} from '../personSync';
@@ -741,6 +743,11 @@ export default function Player({
     /** a scene follows the credits: the next episode starts when this one ends */
     atEnd?: boolean;
   } | null>(null);
+  // [franchise] the end of a FILM: "Next in …" (FranchiseEnd.tsx) — up from the
+  // window's start until it is answered, dismissed or seeked back out of
+  const [frEnd, setFrEnd] = useState<FrEndCard | null>(null);
+  const frEndRef = useRef<FrEndCard | null>(null);
+  frEndRef.current = frEnd;
   // Skip intro / Skip recap: inside a known range right now (the button
   // shows), and which of the two it would skip.
   const [inIntro, setInIntro] = useState(false);
@@ -1088,7 +1095,7 @@ export default function Player({
     hideTimer.current = setTimeout(() => {
       // The web's hideControls: never while a menu is open, and never while
       // paused — a paused player with no chrome is just a frozen frame.
-      if (menuOpen || pausedRef.current || upNext) return;
+      if (menuOpen || pausedRef.current || upNext || frEndRef.current) return;
       setControls(false);
     }, HIDE_NOW_MS);
   }, [menuOpen, upNext]);
@@ -1147,6 +1154,7 @@ export default function Player({
     if (countdownTimer.current) clearInterval(countdownTimer.current);
     countdownTimer.current = null;
     setUpNext(null);
+    setFrEnd(null); // [franchise] Back / Dismiss on the film's end card too
     showControls();
     setTimeout(() => pauseBtnRef.current?.requestTVFocus?.(), 0);
   }, [showControls]);
@@ -2959,7 +2967,7 @@ export default function Player({
       }
       if (t === 'fastForward') return skip(1);
       if (t === 'rewind') return skip(-1);
-      if (menuOpen || upNext || slowStart || stopCard) return; // the overlay's own focusables handle it
+      if (menuOpen || upNext || frEnd || slowStart || stopCard) return; // the overlay's own focusables handle it
       if (!controls) {
         if (t === 'left') return skip(-1);
         if (t === 'right') return skip(1);
@@ -2987,7 +2995,7 @@ export default function Player({
       }
       showControls(); // any activity keeps the chrome alive
     },
-    [controls, menuOpen, upNext, slowStart, stopCard, skip, togglePlay, showControls, navigation],
+    [controls, menuOpen, upNext, frEnd, slowStart, stopCard, skip, togglePlay, showControls, navigation],
   );
   useTVEventHandler(onTV);
 
@@ -3001,7 +3009,7 @@ export default function Player({
       const act = backAction({
         onTop: navigation.isFocused(),
         menuOpen,
-        upNext: !!upNext,
+        upNext: !!upNext || !!frEnd,
         chrome: PHONE ? false : controls,
         playing: !!uri && !error,
       });
@@ -3043,7 +3051,7 @@ export default function Player({
       return false; // picture is clean — let navigation pop
     });
     return () => sub.remove();
-  }, [menuOpen, upNext, controls, uri, error, closeMenu, dismissUpNext, toast, navigation]);
+  }, [menuOpen, upNext, frEnd, controls, uri, error, closeMenu, dismissUpNext, toast, navigation]);
   const hostBackAt = useRef(0);
 
   // ------------------------------------------------------- progress + keepalive
@@ -3740,6 +3748,43 @@ export default function Player({
     if (upNext && upNext.countdown != null && upNext.countdown <= 0) goNext(upNext.next, true);
   }, [upNext, goNext]);
 
+  // [franchise] THE END OF A FILM — "Next in …" at Up next's moment (FranchiseEnd.tsx;
+  // the rules: franchiseRules.ts planFranchiseEnd). A film on the server plays the
+  // way Up next plays an episode (goNext: the party, "Still watching?"'s count);
+  // anything else goes to its title page.
+  const frItem = meta?.item;
+  const frTick = useFranchiseEnd({
+    film: !!frItem && !frItem.showId && frItem.type === 'movie' && !(stream?.season && stream?.episode),
+    imdbId: stream?.imdbId || frItem?.imdbId || null,
+    title: frItem?.title || title,
+    year: frItem?.year ?? stream?.year ?? null,
+    profileId,
+    onShow: next => {
+      const inParty = !!party.current;
+      const plan = planFranchiseEnd({next, autoplayPref: prefsRef.current.autoplayNext, inParty, guest: inParty && party.role !== 'host', autoRun: autoRun.current});
+      setFrEnd({next, plan});
+      setControls(true);
+    },
+    onRetract: () => setFrEnd(null),
+  });
+  const playFranchiseNext = useCallback(
+    (byCountdown: boolean) => {
+      const c = frEndRef.current;
+      const lib = c?.next.entry.onServer;
+      if (!c || !lib) return;
+      setFrEnd(null);
+      goNext({kind: 'library', id: lib.id, season: 0, episode: 0, name: '', label: c.next.entry.title}, byCountdown);
+    },
+    [goNext],
+  );
+  const leaveForFranchise = useCallback(() => {
+    const c = frEndRef.current;
+    if (!c) return;
+    setFrEnd(null);
+    saveProgress();
+    navigation.replace('Detail', {item: entryItem(c.next.entry), ...(c.plan.primary === 'save' ? {save: true} : {})});
+  }, [navigation, saveProgress]);
+
   // ---------- [phone-remote] this player, as the phone remote sees it ----------
   // (remote/player.ts; remote/handler.ts decides what each command does). The
   // remote reads and acts through `remoteLive`, refreshed on every render, so
@@ -4092,6 +4137,7 @@ export default function Player({
       if (s === 'show' && !pausedRef.current) showUpNext();
       else if (s === 'retract') retractUpNext();
     }
+    frTick(content, durRef.current, creditsStart.current, pausedRef.current); // [franchise] a film's end card
     if (d.currentTime > 0) noteFirstFrame();
   };
 
@@ -4101,6 +4147,13 @@ export default function Player({
   // stays up and waits to be answered — the end of an episode used to start
   // the next one whatever the card said, the setting included.
   const endOnCard = () => {
+    // [franchise] the film's end card: a countdown plays the next film now; one
+    // that starts nothing by itself stays up and waits to be answered
+    if (!upNext && frEndRef.current) {
+      if (frEndRef.current.plan.countdown != null) playFranchiseNext(true);
+      else setPaused(true);
+      return true;
+    }
     if (!upNext) return false;
     if (upNext.countdown != null || upNext.atEnd) goNext(upNext.next, true);
     else setPaused(true);
@@ -4813,7 +4866,7 @@ export default function Player({
             <Focusable uiId="player.scrub"
               noScale
               ref={scrubRef as never}
-              hasTVPreferredFocus={!menuOpen && !upNext}
+              hasTVPreferredFocus={!menuOpen && !upNext && !frEnd}
               onFocusChange={f => {
                 setScrubFocused(f);
                 if (f) zone.current = 'scrub';
@@ -5487,6 +5540,11 @@ export default function Player({
             </Focusable>
           </View>
         </TVFocusGuideView>
+      ) : null}
+
+      {/* [franchise] the end of a film: "Next in …" (FranchiseEnd.tsx) */}
+      {frEnd && !upNext ? (
+        <FranchiseEndCard card={frEnd} onPlay={playFranchiseNext} onLeave={leaveForFranchise} onDismiss={dismissUpNext} onFocusChange={markZone('menu')} />
       ) : null}
 
       {/* The film stopped and did not come back by itself (the recovery

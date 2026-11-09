@@ -1,0 +1,33 @@
+{
+  "id": "conjuring",
+  "name": "Conjuring Universe",
+  "the": true,
+  "priority": 100,
+  "entries": [
+    {"imdbId":"tt1457767","tmdbId":138843,"type":"movie","title":"The Conjuring","year":2013,"date":"2013-07-19"},
+    {"imdbId":"tt3322940","tmdbId":250546,"type":"movie","title":"Annabelle","year":2014,"date":"2014-10-03"},
+    {"imdbId":"tt3065204","tmdbId":259693,"type":"movie","title":"The Conjuring 2","year":2016,"date":"2016-06-10"},
+    {"imdbId":"tt5140878","tmdbId":396422,"type":"movie","title":"Annabelle: Creation","year":2017,"date":"2017-08-11"},
+    {"imdbId":"tt5814060","tmdbId":439079,"type":"movie","title":"The Nun","year":2018,"date":"2018-09-07"},
+    {"imdbId":"tt4913966","tmdbId":480414,"type":"movie","title":"The Curse of La Llorona","year":2019,"date":"2019-04-19"},
+    {"imdbId":"tt8350360","tmdbId":521029,"type":"movie","title":"Annabelle Comes Home","year":2019,"date":"2019-06-26"},
+    {"imdbId":"tt7069210","tmdbId":423108,"type":"movie","title":"The Conjuring: The Devil Made Me Do It","year":2021,"date":"2021-06-04"},
+    {"imdbId":"tt10160976","tmdbId":968051,"type":"movie","title":"The Nun II","year":2023,"date":"2023-09-08"},
+    {"imdbId":"tt22898462","tmdbId":1038392,"type":"movie","title":"The Conjuring: Last Rites","year":2025,"date":"2025-09-05"}
+  ],
+  "story": [
+    "tt5814060",
+    "tt10160976",
+    "tt5140878",
+    "tt3322940",
+    "tt1457767",
+    "tt8350360",
+    "tt4913966",
+    "tt3065204",
+    "tt7069210",
+    "tt22898462"
+  ],
+  "tmdbCollections": [313086,402074,968052],
+  "sources": ["https://www.fandango.com/movie-news/all-the-conjuring-movies-in-chronological-order-754905 (timeline from the filmmakers' featurette)","https://en.wikipedia.org/wiki/The_Conjuring_Universe","https://www.themoviedb.org/collection/313086","https://www.themoviedb.org/collection/402074","https://www.themoviedb.org/collection/968052","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order from the filmmakers' timeline (via Fandango): The Nun (1952), The Nun II, Annabelle: Creation, Annabelle, The Conjuring (1971), Annabelle Comes Home (1972), The Curse of La Llorona (1973), The Conjuring 2 (1977), The Devil Made Me Do It (1981), then Last Rites (1986)."
+}

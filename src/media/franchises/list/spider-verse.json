@@ -1,0 +1,13 @@
+{
+  "id": "spider-verse",
+  "name": "Spider-Verse",
+  "the": true,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt4633694","tmdbId":324857,"type":"movie","title":"Spider-Man: Into the Spider-Verse","year":2018,"date":"2018-12-14"},
+    {"imdbId":"tt9362722","tmdbId":569094,"type":"movie","title":"Spider-Man: Across the Spider-Verse","year":2023,"date":"2023-06-02"}
+  ],
+  "tmdbCollections": [573436],
+  "sources": ["https://en.wikipedia.org/wiki/Spider-Man:_Across_the_Spider-Verse","https://www.themoviedb.org/collection/573436","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The animated Miles Morales films. Beyond the Spider-Verse is not out until 2027."
+}

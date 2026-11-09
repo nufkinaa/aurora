@@ -1,0 +1,13 @@
+{
+  "id": "avatar",
+  "name": "Avatar",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0499549","tmdbId":19995,"type":"movie","title":"Avatar","year":2009,"date":"2009-12-18"},
+    {"imdbId":"tt1630029","tmdbId":76600,"type":"movie","title":"Avatar: The Way of Water","year":2022,"date":"2022-12-16"},
+    {"imdbId":"tt1757678","tmdbId":83533,"type":"movie","title":"Avatar: Fire and Ash","year":2025,"date":"2025-12-19"}
+  ],
+  "tmdbCollections": [87096],
+  "sources": ["https://en.wikipedia.org/wiki/Avatar_(franchise)","https://www.themoviedb.org/collection/87096","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

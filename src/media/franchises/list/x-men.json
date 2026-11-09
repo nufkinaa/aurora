@@ -1,0 +1,25 @@
+{
+  "id": "x-men",
+  "name": "X-Men",
+  "the": false,
+  "priority": 50,
+  "entries": [
+    {"imdbId":"tt0120903","tmdbId":36657,"type":"movie","title":"X-Men","year":2000,"date":"2000-07-14"},
+    {"imdbId":"tt0290334","tmdbId":36658,"type":"movie","title":"X2: X-Men United","year":2003,"date":"2003-05-02"},
+    {"imdbId":"tt0376994","tmdbId":36668,"type":"movie","title":"X-Men: The Last Stand","year":2006,"date":"2006-05-26"},
+    {"imdbId":"tt0458525","tmdbId":2080,"type":"movie","title":"X-Men Origins: Wolverine","year":2009,"date":"2009-05-01"},
+    {"imdbId":"tt1270798","tmdbId":49538,"type":"movie","title":"X-Men: First Class","year":2011,"date":"2011-06-03"},
+    {"imdbId":"tt1430132","tmdbId":76170,"type":"movie","title":"The Wolverine","year":2013,"date":"2013-07-26"},
+    {"imdbId":"tt1877832","tmdbId":127585,"type":"movie","title":"X-Men: Days of Future Past","year":2014,"date":"2014-05-23"},
+    {"imdbId":"tt1431045","tmdbId":293660,"type":"movie","title":"Deadpool","year":2016,"date":"2016-02-12"},
+    {"imdbId":"tt3385516","tmdbId":246655,"type":"movie","title":"X-Men: Apocalypse","year":2016,"date":"2016-05-27"},
+    {"imdbId":"tt3315342","tmdbId":263115,"type":"movie","title":"Logan","year":2017,"date":"2017-03-03"},
+    {"imdbId":"tt5463162","tmdbId":383498,"type":"movie","title":"Deadpool 2","year":2018,"date":"2018-05-18"},
+    {"imdbId":"tt6565702","tmdbId":320288,"type":"movie","title":"X-Men: Dark Phoenix","year":2019,"date":"2019-06-07"},
+    {"imdbId":"tt4682266","tmdbId":340102,"type":"movie","title":"The New Mutants","year":2020,"date":"2020-08-28"},
+    {"imdbId":"tt6263850","tmdbId":533535,"type":"movie","title":"Deadpool & Wolverine","year":2024,"date":"2024-07-26"}
+  ],
+  "tmdbCollections": [748,453993,448150],
+  "sources": ["https://en.wikipedia.org/wiki/X-Men_(film_series)","https://www.themoviedb.org/collection/748","https://www.themoviedb.org/collection/453993","https://www.themoviedb.org/collection/448150","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The 20th Century Fox films (2000-2020) with the Deadpool films and Logan; Deadpool & Wolverine (2024) closes the Fox line and is shown under the MCU, which outranks this list. No story order: the series rewrote its own timeline (Days of Future Past) and no agreed chronology exists."
+}

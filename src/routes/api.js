@@ -917,6 +917,7 @@ router.get("/api/search", heavy.middleware(), async (req, res) => {
 const ROW_ORDER = [
   "continue",
   "new-episodes",
+  "franchise", // Continue the franchise (media/franchises)
   "recommended",
   "new-movies",
   "trending-stream",
@@ -1160,6 +1161,18 @@ router.get("/api/home", homeWho, heavy.middleware(), keptMeanwhile, (req, res) =
       streamItems: profiles.getStreamItems(profileId),
     });
     if (fresh.length > 0) rows.push({ id: "new-episodes", title: "New Episodes", items: fresh });
+
+    // Continue the franchise — a person mid-way through a franchise (the MCU,
+    // Bond, a TMDB collection) gets the next film in their order: on the
+    // server it plays from its card, otherwise it opens its page (nothing is
+    // downloaded by itself). Cache only (media/franchises/service.js).
+    try {
+      const used = new Set(cw.flatMap((i) => [i.imdbId, i.id]).filter(Boolean));
+      const items = require("../media/franchises/service").homeRow(profileId, { used });
+      if (items.length) rows.push({ id: "franchise", title: "Continue the franchise", items });
+    } catch (e) {
+      console.warn("[franchises] home row failed:", e && e.message ? e.message : e);
+    }
 
     // Recommended for You, Because you finished X, More <theme>, From the
     // director of X, Something Different — the recommender (media/recs):

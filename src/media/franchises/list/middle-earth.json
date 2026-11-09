@@ -1,0 +1,29 @@
+{
+  "id": "middle-earth",
+  "name": "Middle-earth",
+  "the": false,
+  "priority": 100,
+  "entries": [
+    {"imdbId":"tt0120737","tmdbId":120,"type":"movie","title":"The Lord of the Rings: The Fellowship of the Ring","year":2001,"date":"2001-12-19"},
+    {"imdbId":"tt0167261","tmdbId":121,"type":"movie","title":"The Lord of the Rings: The Two Towers","year":2002,"date":"2002-12-18"},
+    {"imdbId":"tt0167260","tmdbId":122,"type":"movie","title":"The Lord of the Rings: The Return of the King","year":2003,"date":"2003-12-17"},
+    {"imdbId":"tt0903624","tmdbId":49051,"type":"movie","title":"The Hobbit: An Unexpected Journey","year":2012,"date":"2012-12-14"},
+    {"imdbId":"tt1170358","tmdbId":57158,"type":"movie","title":"The Hobbit: The Desolation of Smaug","year":2013,"date":"2013-12-13"},
+    {"imdbId":"tt2310332","tmdbId":122917,"type":"movie","title":"The Hobbit: The Battle of the Five Armies","year":2014,"date":"2014-12-17"},
+    {"imdbId":"tt7631058","tmdbId":84773,"type":"series","title":"The Lord of the Rings: The Rings of Power","year":2022,"date":"2022-09-01","optional":true},
+    {"imdbId":"tt14824600","tmdbId":839033,"type":"movie","title":"The Lord of the Rings: The War of the Rohirrim","year":2024,"date":"2024-12-13"}
+  ],
+  "story": [
+    "tt7631058",
+    "tt14824600",
+    "tt0903624",
+    "tt1170358",
+    "tt2310332",
+    "tt0120737",
+    "tt0167261",
+    "tt0167260"
+  ],
+  "tmdbCollections": [119,121938],
+  "sources": ["https://en.wikipedia.org/wiki/The_Lord_of_the_Rings_(film_series)","https://en.wikipedia.org/wiki/The_Lord_of_the_Rings:_The_War_of_the_Rohirrim","https://www.themoviedb.org/collection/119","https://www.themoviedb.org/collection/121938","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order by Tolkien's ages: The Rings of Power (Second Age, optional series), The War of the Rohirrim (183 years before The Hobbit), The Hobbit trilogy, then The Lord of the Rings trilogy. Left out: the 1977/1978/1980 animated films (a separate continuity)."
+}

@@ -58,6 +58,7 @@ import { copyProblemButton, canOfferReplace } from "../replaceCopy.js";
 import { EARLY_CONFIRM, earlyOk } from "../releaseWords.js";
 import { recommendButton, recBanner } from "../recommend.js";
 import { fallbackSources } from "../playstart.js";
+import { franchiseLine } from "../franchise.js";
 
 // "My List" toggle for a streamable (Discover) title — stores a stream ref.
 import * as surprise from "../surprise.js";
@@ -1146,7 +1147,7 @@ const mergeSeasons = (lib, meta) => {
   });
 };
 
-export const renderDetail = async (root, { source, type, id, jump = null }) => {
+export const renderDetail = async (root, { source, type, id, jump = null, save = false }) => {
   const screen = el("div", { class: "screen" });
   root.append(screen);
   const entryHash = location.hash;
@@ -1900,6 +1901,12 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
     const banner = recBanner(recItem);
     if (banner) (screen.querySelector(".detail-hero") || screen.lastElementChild).after(banner);
   }
+  // Part of a franchise: "Part of the Marvel Cinematic Universe · 12 of 34 —
+  // Watch in order", which opens the franchise page (js/franchise.js)
+  if (imdbId) {
+    (screen.querySelector(".detail-hero") || screen.lastElementChild).after(
+      franchiseLine({ imdbId, type: isShow ? "series" : "movie", tmdbId: meta && meta.tmdbId }));
+  }
   if (keepY) restoreScrollY(keepY);
 
   // Who is in it and who made it, each name a press away from that person's
@@ -2124,6 +2131,20 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
         const note = releaseNote(r.release, "release-note hero-release");
         saveBtn.replaceWith(note);
         saveBtn = null;
+        return;
+      }
+      // Opened from a franchise page's Save & watch (`?save=1`): that press,
+      // carried over — the page presses its own Save & watch ONCE, now that it
+      // knows the ★ Best (the same handler, approvals and all). Never twice:
+      // the history entry remembers it (Back, a reload); no Best → nothing,
+      // the button is left for the person.
+      if (save && saveBtn && !saveBtn.disabled) {
+        let done = false;
+        try { done = !!(history.state && history.state.franchiseSaved); } catch {}
+        if (done) return;
+        try { history.replaceState({ ...(history.state || {}), franchiseSaved: true }, ""); } catch {}
+        if (r.best) saveBtn.click();
+        else saveBtn.focus({ preventScroll: true });
       }
     }).catch(() => {});
 

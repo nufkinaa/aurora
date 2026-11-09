@@ -1,0 +1,15 @@
+{
+  "id": "halloween",
+  "name": "Halloween",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0077651","tmdbId":948,"type":"movie","title":"Halloween","year":1978,"date":"1978-10-27"},
+    {"imdbId":"tt1502407","tmdbId":424139,"type":"movie","title":"Halloween","year":2018,"date":"2018-10-19"},
+    {"imdbId":"tt10665338","tmdbId":610253,"type":"movie","title":"Halloween Kills","year":2021,"date":"2021-10-15"},
+    {"imdbId":"tt10665342","tmdbId":616820,"type":"movie","title":"Halloween Ends","year":2022,"date":"2022-10-14"}
+  ],
+  "tmdbCollections": [],
+  "sources": ["https://en.wikipedia.org/wiki/Halloween_(franchise)","https://en.wikipedia.org/wiki/Halloween_(2018_film)","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "One continuity: John Carpenter's Halloween (1978) and its direct sequels Halloween (2018), Halloween Kills and Halloween Ends, which ignore every other film. The other timelines (II-VI, H20/Resurrection, Rob Zombie's remakes) are left out, and so is the TMDB Halloween collection, which mixes them all."
+}

@@ -1,0 +1,12 @@
+{
+  "id": "happy-gilmore",
+  "name": "Happy Gilmore",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0116483","tmdbId":9614,"type":"movie","title":"Happy Gilmore","year":1996,"date":"1996-02-16"},
+    {"imdbId":"tt31868189","tmdbId":1263256,"type":"movie","title":"Happy Gilmore 2","year":2025,"date":"2025-07-25"}
+  ],
+  "tmdbCollections": [1263259],
+  "sources": ["https://en.wikipedia.org/wiki/Happy_Gilmore_2","https://www.themoviedb.org/collection/1263259","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "blade-runner",
+  "name": "Blade Runner",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0083658","tmdbId":78,"type":"movie","title":"Blade Runner","year":1982,"date":"1982-06-25"},
+    {"imdbId":"tt1856101","tmdbId":335984,"type":"movie","title":"Blade Runner 2049","year":2017,"date":"2017-10-06"}
+  ],
+  "tmdbCollections": [422837],
+  "sources": ["https://en.wikipedia.org/wiki/Blade_Runner_(franchise)","https://www.themoviedb.org/collection/422837","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

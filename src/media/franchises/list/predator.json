@@ -1,0 +1,27 @@
+{
+  "id": "predator",
+  "name": "Predator",
+  "the": false,
+  "priority": 50,
+  "entries": [
+    {"imdbId":"tt0093773","tmdbId":106,"type":"movie","title":"Predator","year":1987,"date":"1987-06-12"},
+    {"imdbId":"tt0100403","tmdbId":169,"type":"movie","title":"Predator 2","year":1990,"date":"1990-11-21"},
+    {"imdbId":"tt1424381","tmdbId":34851,"type":"movie","title":"Predators","year":2010,"date":"2010-07-09"},
+    {"imdbId":"tt3829266","tmdbId":346910,"type":"movie","title":"The Predator","year":2018,"date":"2018-09-14"},
+    {"imdbId":"tt11866324","tmdbId":766507,"type":"movie","title":"Prey","year":2022,"date":"2022-08-05"},
+    {"imdbId":"tt36463894","tmdbId":1376434,"type":"movie","title":"Predator: Killer of Killers","year":2025,"date":"2025-06-06","optional":true,"note":"animated anthology"},
+    {"imdbId":"tt31227572","tmdbId":1242898,"type":"movie","title":"Predator: Badlands","year":2025,"date":"2025-11-07"}
+  ],
+  "story": [
+    "tt11866324",
+    "tt36463894",
+    "tt0093773",
+    "tt0100403",
+    "tt1424381",
+    "tt3829266",
+    "tt31227572"
+  ],
+  "tmdbCollections": [399],
+  "sources": ["https://en.wikipedia.org/wiki/Predator_(franchise)","https://en.wikipedia.org/wiki/Predator:_Badlands","https://www.themoviedb.org/collection/399","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order: Prey (1719); Predator: Killer of Killers (optional, animated: tales from 841, 1609 and 1942 brought together in a closing chapter, placed after Prey); Predator (1987), Predator 2 (1997), Predators, The Predator (2018); Predator: Badlands (the future). The two Alien vs. Predator films are their own franchise."
+}

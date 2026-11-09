@@ -1,0 +1,12 @@
+{
+  "id": "zombieland",
+  "name": "Zombieland",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1156398","tmdbId":19908,"type":"movie","title":"Zombieland","year":2009,"date":"2009-10-02"},
+    {"imdbId":"tt1560220","tmdbId":338967,"type":"movie","title":"Zombieland: Double Tap","year":2019,"date":"2019-10-18"}
+  ],
+  "tmdbCollections": [537982],
+  "sources": ["https://en.wikipedia.org/wiki/Zombieland_(franchise)","https://www.themoviedb.org/collection/537982","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

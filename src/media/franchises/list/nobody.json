@@ -1,0 +1,12 @@
+{
+  "id": "nobody",
+  "name": "Nobody",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt7888964","tmdbId":615457,"type":"movie","title":"Nobody","year":2021,"date":"2021-03-26"},
+    {"imdbId":"tt28996126","tmdbId":1007734,"type":"movie","title":"Nobody 2","year":2025,"date":"2025-08-15"}
+  ],
+  "tmdbCollections": [1129084],
+  "sources": ["https://en.wikipedia.org/wiki/Nobody_2","https://www.themoviedb.org/collection/1129084","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

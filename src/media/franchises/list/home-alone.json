@@ -1,0 +1,13 @@
+{
+  "id": "home-alone",
+  "name": "Home Alone",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0099785","tmdbId":771,"type":"movie","title":"Home Alone","year":1990,"date":"1990-11-16"},
+    {"imdbId":"tt0104431","tmdbId":772,"type":"movie","title":"Home Alone 2: Lost in New York","year":1992,"date":"1992-11-20"}
+  ],
+  "tmdbCollections": [],
+  "sources": ["https://en.wikipedia.org/wiki/Home_Alone_(franchise)","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Only the two films with Kevin McCallister. Home Alone 3 and the later TV films tell unrelated stories and are left out (so the TMDB Home Alone collection, which holds 1-4, is not claimed)."
+}

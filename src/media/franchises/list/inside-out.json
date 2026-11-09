@@ -1,0 +1,12 @@
+{
+  "id": "inside-out",
+  "name": "Inside Out",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt2096673","tmdbId":150540,"type":"movie","title":"Inside Out","year":2015,"date":"2015-06-19"},
+    {"imdbId":"tt22022452","tmdbId":1022789,"type":"movie","title":"Inside Out 2","year":2024,"date":"2024-06-14"}
+  ],
+  "tmdbCollections": [1022790],
+  "sources": ["https://en.wikipedia.org/wiki/Inside_Out_(franchise)","https://www.themoviedb.org/collection/1022790","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

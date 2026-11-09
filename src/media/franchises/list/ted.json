@@ -1,0 +1,13 @@
+{
+  "id": "ted",
+  "name": "Ted",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1637725","tmdbId":72105,"type":"movie","title":"Ted","year":2012,"date":"2012-06-29"},
+    {"imdbId":"tt2637276","tmdbId":214756,"type":"movie","title":"Ted 2","year":2015,"date":"2015-06-26"}
+  ],
+  "tmdbCollections": [266672],
+  "sources": ["https://en.wikipedia.org/wiki/Ted_2","https://www.themoviedb.org/collection/266672","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The two films; the prequel TV series is left out."
+}

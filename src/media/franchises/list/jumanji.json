@@ -1,0 +1,14 @@
+{
+  "id": "jumanji",
+  "name": "Jumanji",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0113497","tmdbId":8844,"type":"movie","title":"Jumanji","year":1995,"date":"1995-12-15"},
+    {"imdbId":"tt2283362","tmdbId":353486,"type":"movie","title":"Jumanji: Welcome to the Jungle","year":2017,"date":"2017-12-20"},
+    {"imdbId":"tt7975244","tmdbId":512200,"type":"movie","title":"Jumanji: The Next Level","year":2019,"date":"2019-12-13"}
+  ],
+  "tmdbCollections": [495527],
+  "sources": ["https://en.wikipedia.org/wiki/Jumanji_(franchise)","https://www.themoviedb.org/collection/495527","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Zathura (2005), a spiritual follow-up from another book, is left out."
+}

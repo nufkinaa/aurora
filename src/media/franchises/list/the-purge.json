@@ -1,0 +1,23 @@
+{
+  "id": "the-purge",
+  "name": "The Purge",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt2184339","tmdbId":158015,"type":"movie","title":"The Purge","year":2013,"date":"2013-06-07"},
+    {"imdbId":"tt2975578","tmdbId":238636,"type":"movie","title":"The Purge: Anarchy","year":2014,"date":"2014-07-18"},
+    {"imdbId":"tt4094724","tmdbId":316727,"type":"movie","title":"The Purge: Election Year","year":2016,"date":"2016-07-01"},
+    {"imdbId":"tt6133466","tmdbId":442249,"type":"movie","title":"The First Purge","year":2018,"date":"2018-07-04"},
+    {"imdbId":"tt10327252","tmdbId":602223,"type":"movie","title":"The Forever Purge","year":2021,"date":"2021-07-02"}
+  ],
+  "story": [
+    "tt6133466",
+    "tt2184339",
+    "tt2975578",
+    "tt4094724",
+    "tt10327252"
+  ],
+  "tmdbCollections": [256322],
+  "sources": ["https://en.wikipedia.org/wiki/The_Purge","https://en.wikipedia.org/wiki/The_First_Purge","https://www.themoviedb.org/collection/256322","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order by in-universe year: The First Purge (the Staten Island experiment), The Purge (2022), Anarchy (2023), Election Year (2040), The Forever Purge. The TV series is left out."
+}

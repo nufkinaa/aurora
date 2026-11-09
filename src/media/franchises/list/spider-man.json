@@ -1,0 +1,20 @@
+{
+  "id": "spider-man",
+  "name": "Spider-Man",
+  "the": false,
+  "priority": 50,
+  "entries": [
+    {"imdbId":"tt0145487","tmdbId":557,"type":"movie","title":"Spider-Man","year":2002,"date":"2002-05-03"},
+    {"imdbId":"tt0316654","tmdbId":558,"type":"movie","title":"Spider-Man 2","year":2004,"date":"2004-06-30"},
+    {"imdbId":"tt0413300","tmdbId":559,"type":"movie","title":"Spider-Man 3","year":2007,"date":"2007-05-04"},
+    {"imdbId":"tt0948470","tmdbId":1930,"type":"movie","title":"The Amazing Spider-Man","year":2012,"date":"2012-07-03"},
+    {"imdbId":"tt1872181","tmdbId":102382,"type":"movie","title":"The Amazing Spider-Man 2","year":2014,"date":"2014-05-02"},
+    {"imdbId":"tt2250912","tmdbId":315635,"type":"movie","title":"Spider-Man: Homecoming","year":2017,"date":"2017-07-07"},
+    {"imdbId":"tt6320628","tmdbId":429617,"type":"movie","title":"Spider-Man: Far from Home","year":2019,"date":"2019-07-02"},
+    {"imdbId":"tt10872600","tmdbId":634649,"type":"movie","title":"Spider-Man: No Way Home","year":2021,"date":"2021-12-17"},
+    {"imdbId":"tt22084616","tmdbId":969681,"type":"movie","title":"Spider-Man: Brand New Day","year":2026,"date":"2026-07-31"}
+  ],
+  "tmdbCollections": [556,125574],
+  "sources": ["https://en.wikipedia.org/wiki/Spider-Man_in_film","https://www.themoviedb.org/collection/556","https://www.themoviedb.org/collection/125574","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The live-action Spider-Man films: Sam Raimi's trilogy, Marc Webb's two Amazing Spider-Man films and the Tom Holland films (also in the MCU, which outranks this list for them). Three separate continuities, so release order only. Sony's Venom films and the animated Spider-Verse films are their own franchises."
+}

@@ -1,0 +1,12 @@
+{
+  "id": "the-croods",
+  "name": "The Croods",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0481499","tmdbId":49519,"type":"movie","title":"The Croods","year":2013,"date":"2013-03-22"},
+    {"imdbId":"tt2850386","tmdbId":529203,"type":"movie","title":"The Croods: A New Age","year":2020,"date":"2020-11-25"}
+  ],
+  "tmdbCollections": [464577],
+  "sources": ["https://en.wikipedia.org/wiki/The_Croods:_A_New_Age","https://www.themoviedb.org/collection/464577","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

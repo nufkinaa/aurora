@@ -309,7 +309,7 @@ const ROW_NAMES = {
   mylist: "My List", "next-watch": "Your Next Watch", "trending-stream": "Trending to Stream",
   "top-rated": "Top Rated by You", "new-movies": "New Movies", upcoming: "Upcoming",
   "recent-movies": "Recently Added", movies: "All Movies", shows: "All Shows",
-  household: "Recommended by your household",
+  household: "Recommended by your household", franchise: "Continue the franchise",
 };
 const rowName = (id, title) => title || ROW_NAMES[id] || (id.startsWith("liked-") ? "More " + id.slice(6) : id);
 

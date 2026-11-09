@@ -1,0 +1,13 @@
+{
+  "id": "paddington",
+  "name": "Paddington",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1109624","tmdbId":116149,"type":"movie","title":"Paddington","year":2015,"date":"2015-01-16"},
+    {"imdbId":"tt4468740","tmdbId":346648,"type":"movie","title":"Paddington 2","year":2018,"date":"2018-01-12"},
+    {"imdbId":"tt5822536","tmdbId":516729,"type":"movie","title":"Paddington in Peru","year":2025,"date":"2025-02-14"}
+  ],
+  "tmdbCollections": [488924],
+  "sources": ["https://en.wikipedia.org/wiki/Paddington_(film_series)","https://www.themoviedb.org/collection/488924","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

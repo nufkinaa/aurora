@@ -1,0 +1,12 @@
+{
+  "id": "frozen",
+  "name": "Frozen",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt2294629","tmdbId":109445,"type":"movie","title":"Frozen","year":2013,"date":"2013-11-27"},
+    {"imdbId":"tt4520988","tmdbId":330457,"type":"movie","title":"Frozen II","year":2019,"date":"2019-11-22"}
+  ],
+  "tmdbCollections": [386382],
+  "sources": ["https://en.wikipedia.org/wiki/Frozen_(franchise)","https://www.themoviedb.org/collection/386382","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

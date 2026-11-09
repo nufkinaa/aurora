@@ -1,0 +1,13 @@
+{
+  "id": "the-dark-knight-trilogy",
+  "name": "The Dark Knight Trilogy",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0372784","tmdbId":272,"type":"movie","title":"Batman Begins","year":2005,"date":"2005-06-15"},
+    {"imdbId":"tt0468569","tmdbId":155,"type":"movie","title":"The Dark Knight","year":2008,"date":"2008-07-18"},
+    {"imdbId":"tt1345836","tmdbId":49026,"type":"movie","title":"The Dark Knight Rises","year":2012,"date":"2012-07-20"}
+  ],
+  "tmdbCollections": [263],
+  "sources": ["https://en.wikipedia.org/wiki/The_Dark_Knight_Trilogy","https://www.themoviedb.org/collection/263","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

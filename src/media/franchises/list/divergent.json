@@ -1,0 +1,14 @@
+{
+  "id": "divergent",
+  "name": "Divergent",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1840309","tmdbId":157350,"type":"movie","title":"Divergent","year":2014,"date":"2014-03-21"},
+    {"imdbId":"tt2908446","tmdbId":262500,"type":"movie","title":"The Divergent Series: Insurgent","year":2015,"date":"2015-03-20"},
+    {"imdbId":"tt3410834","tmdbId":262504,"type":"movie","title":"The Divergent Series: Allegiant","year":2016,"date":"2016-03-18"}
+  ],
+  "tmdbCollections": [283579],
+  "sources": ["https://en.wikipedia.org/wiki/The_Divergent_Series","https://www.themoviedb.org/collection/283579","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The planned fourth film (Ascendant) was never made."
+}
