@@ -115,6 +115,7 @@ const SEGMENTS = new Set((
   "caps play " + // what a device can play (/api/caps, /api/caps/:id/play/:itemId — routes/avcaps.js)
   "drives use new-downloads test keep-fast stop-using tune preview revert " + // storage drives (/api/admin/drives, …/use, …/new-downloads, …/test, …/keep-fast, …/stop-using, …/tune, …/tune/preview, …/tune/revert — lib/drives)
   "uploads chunk retry " +
+  "calendar save " + // the Calendar (/api/profiles/:id/calendar, …/calendar/save — media/calendar.js)
   "reset request code check complete reset-requests reset-code app-start app-finish " + // sign-in round: password reset, the phone's Google (routes/auth.js) // admin "Add your own file" (/api/admin/uploads, …/link, …/:id/chunk, …/cancel, …/retry, …/dismiss)
   ".m3u8 .ts .m4s .mp4 .mkv .webm .vtt .srt .jpg .jpeg .png .webp .avif .svg .gif .ico .js .css .json .html .txt .apk .woff2 .webmanifest " +
   "?a ?blur ?caps ?from ?key ?category ?code ?days ?duration ?episode ?error ?fmt ?force ?genre ?head ?hevc ?imdbid ?intent ?itemid ?k ?kb ?keys ?limit ?page ?profile ?pw " +
