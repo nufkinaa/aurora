@@ -99,6 +99,15 @@ describe('the franchise page: one action per entry', () => {
       expect(src).toContain('if (!have.current) setError(FR_WORDS.loadError);');
     }
   });
+  test("the phone's entry: the action sits under it, from the poster's edge (the website's phone layout)", () => {
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(path.join(__dirname, '../../src/phone/screens/Franchise.tsx'), 'utf8');
+    // the number, poster and text in one row; the action in a row of its own after it
+    expect(src).toMatch(/<View style=\{s\.top\}>[\s\S]*?<\/View>\s*<\/View>[\s\S]*?<View style=\{s\.actRow\}>[\s\S]*?franchise\.play/);
+    expect(src).toMatch(/actRow: \{flexDirection: 'row', paddingLeft: ACT_LEFT\}/);
+    expect(src).toMatch(/const ACT_LEFT = NUM_W \+ 10;/);
+  });
   test('focus starts on the first main entry not watched', () => {
     expect(firstFocusIndex([{state: 'watched', optional: false}, {state: null, optional: true}, {state: 'started', optional: false}])).toBe(2);
     expect(firstFocusIndex([{state: 'watched', optional: false}])).toBe(0);

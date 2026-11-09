@@ -30,6 +30,8 @@ import {colors, GUTTER, radius} from '../theme';
 
 const THUMB_W = 56;
 const THUMB_H = 84;
+const NUM_W = 26;
+const ACT_LEFT = NUM_W + 10; // the number's width and the row's gap: the action starts at the poster
 
 const EntryRow = React.memo(function PhoneFranchiseRow({e, onOpen, onAct}: {e: FranchiseEntry; onOpen: (e: FranchiseEntry) => void; onAct: (e: FranchiseEntry) => void}) {
   const art = artSrc(entryArt(e), THUMB_W).src;
@@ -39,32 +41,40 @@ const EntryRow = React.memo(function PhoneFranchiseRow({e, onOpen, onAct}: {e: F
   const act = entryAction(e);
   return (
     <Tap uiId="franchise.entry" flat onPress={() => onOpen(e)} style={s.row} accessibilityRole="button" accessibilityLabel={[num, e.title, e.year, ...tags, state].filter(Boolean).join(', ')}>
-      <Text style={[s.num, !num && s.numNone]}>{num || '·'}</Text>
-      <View style={s.thumb}>{art ? <Image source={art} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}</View>
-      <View style={s.text}>
-        <Text style={s.title} numberOfLines={2}>
-          {e.title}
-          {e.year ? <Text style={s.year}>{`  ${e.year}`}</Text> : null}
-        </Text>
-        <View style={s.tags}>
-          {tags.map(t => (
-            <Text key={t} style={s.tag}>
-              {t}
-            </Text>
-          ))}
-          {state ? <Text style={[s.state, e.state === 'watched' ? s.watched : s.started]}>{e.state === 'watched' ? `✓ ${state}` : state}</Text> : null}
-        </View>
-        {e.note ? (
-          <Text style={s.note} numberOfLines={2}>
-            {e.note}
+      <View style={s.top}>
+        <Text style={[s.num, !num && s.numNone]}>{num || '·'}</Text>
+        <View style={s.thumb}>{art ? <Image source={art} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}</View>
+        <View style={s.text}>
+          <Text style={s.title} numberOfLines={2}>
+            {e.title}
+            {e.year ? <Text style={s.year}>{`  ${e.year}`}</Text> : null}
           </Text>
-        ) : null}
+          <View style={s.tags}>
+            {tags.map(t => (
+              <Text key={t} style={s.tag}>
+                {t}
+              </Text>
+            ))}
+            {state ? <Text style={[s.state, e.state === 'watched' ? s.watched : s.started]}>{e.state === 'watched' ? `✓ ${state}` : state}</Text> : null}
+          </View>
+          {e.note ? (
+            <Text style={s.note} numberOfLines={2}>
+              {e.note}
+            </Text>
+          ) : null}
+        </View>
       </View>
-      {act.kind === 'play' ? (
-        <PrimaryButton uiId="franchise.play" icon="play" label={act.label} onPress={() => onAct(e)} style={s.act} />
-      ) : (
-        <GlassButton uiId={act.kind === 'save' ? 'franchise.save' : 'franchise.entry'} small label={act.label} onPress={() => onAct(e)} style={s.actGlass} />
-      )}
+      {/* the action under the entry, from the poster's edge — the website's phone
+          layout (components.css .fr-entry under 600 px: .fr-act in column 2). Beside
+          the text it squeezed the title to a few letters at 360 dp ("Light / year 2…",
+          "Toy Story 4…" with no year — emulator 2026-11-09). */}
+      <View style={s.actRow}>
+        {act.kind === 'play' ? (
+          <PrimaryButton uiId="franchise.play" icon="play" label={act.label} onPress={() => onAct(e)} style={s.act} />
+        ) : (
+          <GlassButton uiId={act.kind === 'save' ? 'franchise.save' : 'franchise.entry'} small label={act.label} onPress={() => onAct(e)} style={s.actGlass} />
+        )}
+      </View>
     </Tap>
   );
 });
@@ -186,8 +196,10 @@ const s = StyleSheet.create({
   chips: {flexDirection: 'row', alignItems: 'center', paddingHorizontal: GUTTER, paddingVertical: 12, gap: 8},
   error: {paddingHorizontal: GUTTER, paddingVertical: 12, gap: 10},
   errorText: {color: '#ff7a7a', fontSize: 15, fontWeight: '700'},
-  row: {flexDirection: 'row', gap: 10, alignItems: 'center', marginHorizontal: GUTTER, marginBottom: 8, padding: 10, borderRadius: radius.l, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassEdge},
-  num: {width: 26, textAlign: 'center', color: colors.text, fontSize: 17, fontWeight: '900'},
+  row: {gap: 8, marginHorizontal: GUTTER, marginBottom: 8, padding: 10, borderRadius: radius.l, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassEdge},
+  top: {flexDirection: 'row', gap: 10, alignItems: 'center'},
+  actRow: {flexDirection: 'row', paddingLeft: ACT_LEFT},
+  num: {width: NUM_W, textAlign: 'center', color: colors.text, fontSize: 17, fontWeight: '900'},
   numNone: {color: colors.textFaint},
   thumb: {width: THUMB_W, height: THUMB_H, borderRadius: 8, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.06)'},
   text: {flex: 1, minWidth: 0, gap: 4},
