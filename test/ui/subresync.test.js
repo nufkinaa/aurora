@@ -230,7 +230,7 @@ ui.test("the menu says Fix timing; after a fix the file's own timing is a choice
   // and Fix timing lines it up again
   const { words } = await resync(page, "Hebrew");
   assert.match(words, /^Moved 2\.[456] s earlier$/);
-  await page.waitForFunction(() => { const t = [...document.querySelector(".player video").textTracks].find((x) => x.label === "Hebrew"); return t && t.cues && Math.abs(t.cues[0].startTime - 4) < 0.25; }, null, { timeout: 30000 });
+  await page.waitForFunction(() => { const t = [...document.querySelector(".player video").textTracks].find((x) => x.label === "Hebrew"); return t && t.cues && t.cues.length > 0 && Math.abs(t.cues[0].startTime - 4) < 0.25; }, null, { timeout: 30000 });
 });
 
 ui.test("Resync of a subtitle that matches nothing says so and leaves it exactly as it was", async ({ page, srv, signIn, freshProfile }) => {
