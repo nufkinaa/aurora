@@ -24,6 +24,21 @@ import { showReportSheet } from "../report.js";
 export const ROUND = "1.15.12";
 const NEW_FROM = ROUND;
 const FEATURES = [
+  // ---- tv-reports-nov (2026-11-09: Bigmakdaddy's and Jesse's reports): the same cards, the same words, on the TV ----
+  {
+    since: ROUND, cue: "tap", glyph: "⬇️",
+    title: "Save & watch saves, then plays",
+    what: "On a title that isn't on the server yet, Save & watch downloads the best copy and the page shows how far it has got; Play plays it once it is in. Nothing streams from a torrent by itself, and the Home billboard never starts a download for you.",
+    how: "Open a title you don't have → Save & watch. My downloads shows it too.",
+    go: { label: "My downloads", to: "#/downloads" },
+  },
+  {
+    since: ROUND, cue: "tap", glyph: "✍️",
+    title: "Say what's wrong with a copy",
+    what: "Pick Other under Problem with this copy and Aurora asks what is wrong first. Then you choose: get another version, or just send your words to the admin and keep the copy you have.",
+    how: "In the player: ⚙ → Problem with this copy? → Other. Or on a film you own: Problem with this copy? under its buttons.",
+    go: { label: "My downloads", to: "#/downloads" },
+  },
   // ---- downloads-next (2026-11-06): the same cards, the same words, on the TV ----
   {
     since: ROUND, cue: "tap", glyph: "🎧",

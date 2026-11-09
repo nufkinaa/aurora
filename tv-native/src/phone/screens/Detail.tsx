@@ -3,8 +3,8 @@
 //   the picture       the title's key art across the top, the kicker (FILM /
 //                     SERIES), the name, ★ score, year · length · genres, badges
 //   the one button    white, full width: Play / Resume 0:42 (a film you hold),
-//                     Save & watch (one you don't: the best source is saved AND
-//                     played while it downloads — playBest.ts), Continue S1 E3 ·
+//                     Save & watch (one you don't: the best source is saved —
+//                     never streamed meanwhile, playBest.ts), Continue S1 E3 ·
 //                     12:04 (a show); the line under it tells the download's story
 //   the actions       round glass buttons with their word: Stream instead, Start
 //                     over, My List, Recommend, X-Ray, Mark watched, Follow,
@@ -45,7 +45,7 @@ import {replaceOffered} from '../../replaceLogic';
 import {cancelQuestion} from '../../downloadsLogic';
 import StarRating from '../ui/StarRating';
 import {onDiskLines} from '../words';
-import {autoPlayStep, fallbackSources, jobSource, pickBest, runningJobFor, streamPlayItem} from '../../playBest';
+import {autoPlayStep, pickBest, playPress, SAVE_WATCH} from '../../playBest';
 import {heroRelease, ReleaseStatus} from '../../releaseWords';
 import {pickUp, startSeason} from '../../episodeRules';
 import {bannerLine, ltr, notesShown, titleKey, WORDS as HH} from '../../householdRecs';
@@ -548,34 +548,8 @@ export default function Detail() {
     },
     [sayTorrentsOff, imdb, navigation, isShow, title, year, meta?.runtime, meta?.poster, item.cover, item.poster],
   );
-  const streamNow = useCallback(
-    (src: Parameters<typeof streamPlayItem>[0], s?: number, e?: number, list?: Stream[] | null) => {
-      if (!navigation.isFocused() || !imdb) return false;
-      const ctx = {type: (s && e ? 'series' : 'movie') as 'series' | 'movie', imdbId: imdb, title, year, season: s, episode: e, runtime: meta?.runtime ?? null, poster: item.cover ?? item.poster ?? null};
-      const pi = streamPlayItem(src, ctx);
-      pi.alts = fallbackSources(list, src as Stream).map(a => streamPlayItem(a, ctx));
-      navigation.push('Player', {id: pi.id, title, stream: pi});
-      return true;
-    },
-    [navigation, imdb, title, year, meta?.runtime, item.cover, item.poster],
-  );
-  const streamRunning = useCallback(
-    async (s?: number, e?: number) => {
-      if (!imdb) return false;
-      try {
-        const job = runningJobFor(await api.downloads(), imdb, s, e);
-        if (!job) return false;
-        const list = await api
-          .torrentSources(s && e ? {type: 'series', title: imdb, year: year ?? undefined, season: s, episode: e} : {type: 'movie', title: imdb, year: year ?? undefined})
-          .catch(() => ({streams: [] as Stream[]}));
-        return streamNow(jobSource(job, list.streams), s, e, list.streams);
-      } catch {
-        return false;
-      }
-    },
-    [imdb, year, streamNow],
-  );
-  // ONE PRESS (playBest.ts): save the best source; with `play`, play it while it downloads
+  // ONE PRESS (playBest.ts): save the best source (Save & watch) — never streamed
+  // meanwhile; `play`: pressed on the primary button, whose line carries the download
   const saveBest = useCallback(
     async (s: number | null, e: number | null, play: boolean, air: Air = 'aired') => {
       const key = s && e ? `${s}x${e}` : 'film';
@@ -586,7 +560,6 @@ export default function Detail() {
       }
       if (sayTorrentsOff()) return;
       if (jobs[key] || inflight.current.has(key)) {
-        if (play && jobs[key] && (await streamRunning(s || undefined, e || undefined))) return;
         showToast(`${name} is already on its way${jobs[key] ? ` · ${dlText(jobs[key]).toLowerCase()}` : ''} — long-press for its sources`, '⏳');
         return;
       }
@@ -615,7 +588,6 @@ export default function Detail() {
           }
           return;
         }
-        const playing = play && streamNow(pick, s || undefined, e || undefined, streams);
         const res = await api.requestDownload({
           infoHash: pick.infoHash,
           fileIdx: pick.fileIdx,
@@ -640,7 +612,7 @@ export default function Detail() {
         }
         if (res.duplicate) showToast(`${name} is already on its way`, '⏳');
         else if (res.needsApproval) showToast(`Requested ${pick.quality} · ${pick.sizeString || ''} — waiting for approval`, '⬇');
-        else showToast(`Saving ${pick.quality} · ${pick.sizeString || ''} — ${playing ? 'playing it while it downloads' : 'the card shows the progress'}`, '⬇');
+        else showToast(`Saving ${pick.quality} · ${pick.sizeString || ''} — ${play ? 'Play shows the progress' : 'the card shows the progress'}`, '⬇');
         setNote(null);
         setJobs(prev => (prev[key] ? prev : {...prev, [key]: {status: res.needsApproval ? 'pending' : 'approved', progress: 0}}));
         setTimeout(loadJobs, 1500);
@@ -652,7 +624,7 @@ export default function Detail() {
         setBusyKey(null);
       }
     },
-    [title, sayTorrentsOff, jobs, streamRunning, imdb, year, streamNow, profileId, loadJobs],
+    [title, sayTorrentsOff, jobs, imdb, year, profileId, loadJobs],
   );
   const onEpisode = useCallback(
     (ep: UiEp) => {
@@ -754,7 +726,7 @@ export default function Detail() {
         body: ep.overview ? unescapeHtml(ep.overview) : undefined,
         items: [
           ...(running?.mine ? [{label: 'Cancel the download', tag: 'it asks first', onPress: () => askCancelRef.current(running, `${title} · S${ep.season} E${ep.episode}`)}] : []),
-          ...(ep.owned ? [{label: 'Play', onPress: () => playEpisode(ep)}] : [{label: 'Save and play', tag: 'the best source, played while it downloads', onPress: () => saveBest(ep.season, ep.episode, true, ep.air)}]),
+          ...(ep.owned ? [{label: 'Play', onPress: () => playEpisode(ep)}] : [{label: SAVE_WATCH, tag: 'the best source, saved to the server', onPress: () => saveBest(ep.season, ep.episode, true, ep.air)}]),
           ...(ep.owned ? [{label: ep.phone === 'done' ? 'Play the copy on this phone' : ep.phone ? 'Saving to this phone…' : 'Save to this phone', tag: ep.phone ? undefined : 'watch it with no connection', onPress: () => saveEpisodeToPhone(ep)}] : []),
           ...(!ep.owned ? [{label: 'Sources', tag: 'streams and downloads', onPress: () => openSources(ep.season, ep.episode)}] : []),
           ...(ep.owned && ep.epId && replaceOffered({libraryId: ep.epId, kids: peekMe(profileId)?.kids, torrentsOff}) ? [{label: 'Get another version', tag: 'a problem with this copy', uiId: 'detail.replace', onPress: () => openReplace({libraryId: ep.epId!, title: `${title} · S${ep.season} E${ep.episode}`, context: {title, itemId: ep.epId}})}] : []),
@@ -850,6 +822,9 @@ export default function Detail() {
   };
 
   // ---- the page presses its own Play (Home's billboard: one press from the couch) ----
+  // Only a copy on disk is played for you; a title not on disk is left on Save &
+  // watch — nothing downloads, nothing streams, without the person's own press
+  // (playBest.ts playPress).
   const autoT0 = useRef(Date.now());
   const autoDone = useRef(!autoPlay);
   const [, setAutoTick] = useState(0);
@@ -868,7 +843,7 @@ export default function Detail() {
       return () => clearTimeout(t);
     }
     autoDone.current = true;
-    if (step === 'press') primary();
+    if (step === 'press') primary(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   });
 
@@ -902,7 +877,8 @@ export default function Detail() {
       ],
     });
   };
-  const primary = () => {
+  const primary = (auto = false) => {
+    if (auto && playPress({owned: isShow ? !!heroEp?.owned : !!ownedMovieId, onItsWay: false, auto}) !== 'play') return;
     phoneNative.haptic('tick');
     if (isShow) {
       if (!heroEp) return;
@@ -922,14 +898,15 @@ export default function Detail() {
     if (isShow) {
       if (!heroEp) return loading ? 'Loading…' : 'No episodes yet';
       if (nextUp?.resume) return `Continue S${heroEp.season} E${heroEp.episode}${nextUp.at ? ` · ${fmtClock(nextUp.at)}` : ''}`;
-      return heroEp.owned ? `Play S${heroEp.season} E${heroEp.episode}` : `Save & watch S${heroEp.season} E${heroEp.episode}`;
+      return heroEp.owned ? `Play S${heroEp.season} E${heroEp.episode}` : `${SAVE_WATCH} S${heroEp.season} E${heroEp.episode}`;
     }
     if (ownedMovieId) return movieResume ? `Resume ${fmtClock(movieResume)}` : 'Play';
-    if (filmJob) return 'Watch while it downloads';
+    // on its way: what it is doing (never a stream of it — playBest.ts)
+    if (filmJob) return dlText(filmJob).toLowerCase().replace(/^\w/, c => c.toUpperCase());
     if (heroRel) return 'See the sources';
-    return 'Save & watch';
+    return SAVE_WATCH;
   })();
-  const primaryIcon = isShow ? (heroEp && !heroEp.owned ? 'download' : 'play') : ownedMovieId || filmJob ? 'play' : heroRel ? 'search' : 'download';
+  const primaryIcon = isShow ? (heroEp && !heroEp.owned ? 'download' : 'play') : ownedMovieId ? 'play' : heroRel && !filmJob ? 'search' : 'download';
   const heroJob = (isShow ? heroEp?.key : 'film') ? jobs[(isShow ? heroEp?.key : 'film') as string] || null : null;
   const statusLine = (() => {
     const job = heroJob;
@@ -1043,7 +1020,7 @@ export default function Detail() {
             icon={primaryIcon as never}
             label={primaryLabel}
             busy={!!busyKey}
-            onPress={primary}
+            onPress={() => primary()}
             onLongPress={() => {
               phoneNative.haptic('long');
               if (isShow && heroEp && !heroEp.owned) openSources(heroEp.season, heroEp.episode);

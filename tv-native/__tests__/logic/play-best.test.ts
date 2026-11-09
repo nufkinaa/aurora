@@ -6,11 +6,17 @@ import {
   autoPlayStep,
   jobSource,
   pickBest,
+  playPress,
   runningJobFor,
   runtimeToSeconds,
+  SAVE_WATCH,
   streamPlayItem,
 } from '../../src/playBest';
 import type {Stream} from '../../src/api';
+
+declare const __dirname: string;
+const fs = require('fs');
+const path = require('path');
 
 const st = (o: Partial<Stream>): Stream =>
   ({infoHash: 'h'.repeat(40), fileIdx: 0, filename: '', release: '', provider: null, quality: '1080p', qualityLabel: '', tags: [], cam: false, dubbed: false, seeders: 10, sizeString: '2 GB', sizeBytes: 2e9, languages: [], ...o}) as Stream;
@@ -129,5 +135,33 @@ describe('the title page pressing Play for you', () => {
   });
   test('gives up — leaving the page as it is — rather than guess', () => {
     expect(autoPlayStep({...all, libraryKnown: false, elapsed: AUTO_PLAY_GIVE_UP_MS})).toBe('drop');
+  });
+});
+
+// Bigmakdaddy's report (2026-11-09, "stream opened when it shouldn't have"): a plain Play
+// on a title not on the server streamed it from the torrent while it downloaded. elia
+// (2026-10-28): that streaming is unused — Play saves (Save & watch), as on the website.
+describe('Play on a title page never streams from a torrent', () => {
+  test('playPress: a copy on disk plays; anything else is saved, or said to be on its way', () => {
+    expect(playPress({owned: true, onItsWay: false})).toBe('play');
+    expect(playPress({owned: true, onItsWay: true})).toBe('play');
+    expect(playPress({owned: false, onItsWay: false})).toBe('save');
+    expect(playPress({owned: false, onItsWay: true})).toBe('onItsWay');
+  });
+  test('pressed for the person (the billboard): only a copy on disk; nothing downloads by itself', () => {
+    expect(playPress({owned: true, onItsWay: false, auto: true})).toBe('play');
+    expect(playPress({owned: false, onItsWay: false, auto: true})).toBe('leave');
+    expect(playPress({owned: false, onItsWay: true, auto: true})).toBe('leave');
+  });
+  test("the title pages (TV, phone) and Home build no torrent play item; the button says Save & watch", () => {
+    const read = (p: string): string => fs.readFileSync(path.join(__dirname, '../../src', p), 'utf8');
+    for (const f of ['screens/Detail.tsx', 'phone/screens/Detail.tsx', 'screens/Home.tsx', 'phone/screens/Home.tsx']) {
+      const src = read(f);
+      expect([f, /streamPlayItem|stream: pi\b|\/stream\/torrent\//.test(src)]).toEqual([f, false]);
+    }
+    expect(SAVE_WATCH).toBe('Save & watch');
+    expect(read('screens/Detail.tsx')).toContain('`⬇  ${SAVE_WATCH}`');
+    // the website's word
+    expect(fs.readFileSync(path.join(__dirname, '../../../public/js/screens/discover-detail.js'), 'utf8')).toContain('<span>Save &amp; watch</span>');
   });
 });

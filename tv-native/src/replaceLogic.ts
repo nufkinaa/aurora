@@ -1,11 +1,12 @@
 // "Problem with this copy? → Get another version" — the words and the small
 // decisions, PURE (no React, no network — its one import, releaseWords.ts, is
-// pure too): components/ReplaceSheet.tsx draws them, the
+// pure too, as is voiceLogic.ts): components/ReplaceSheet.tsx draws them, the
 // player, the title page and My downloads ask them, and the logic test runs
 // this file as it is. The rules themselves are the server's
 // (src/media/replace.js); the words are the website's, letter for letter.
 
 import {isEarly, pickable, sourceBadge} from './releaseWords';
+import {voiceActive, voiceMessage, VoiceState} from './voiceLogic';
 
 export type ReplaceReason = {id: string; label: string};
 
@@ -23,9 +24,11 @@ export const WORDS = {
   entry: 'Problem with this copy?',
   entrySub: 'Get another version',
   step1: "What's wrong with this copy?",
-  step1Body: 'Pick one. Another version replaces it — your place, My List and ratings stay.',
+  // (nothing downloads on step 1: a reason leads to the list — Other first asks what is
+  // wrong — and only a version picked there starts one: Jesse's report, 2026-11-08)
+  step1Body: 'Pick one. Nothing downloads until you pick another version — your place, My List and ratings stay.',
   step2: 'Get another version',
-  step2Body: 'Your copy stays playable until the new one is in.',
+  step2Body: 'Pick one and it starts downloading now. Your copy stays playable until the new one is in.',
   best: '★ BEST',
   none: 'No other versions found.',
   noProvider: "Couldn't reach the source provider.",
@@ -44,7 +47,53 @@ export const WORDS = {
   otherReason: 'Something else is wrong',
   keepCopy: 'Keep this copy',
   waitingJob: 'Ready — waiting for nobody to be playing the old copy',
+  // "Other" (Jesse's report, 2026-11-08: Other went straight on to a list of versions
+  // and gave no way to say what was wrong): a few words first, then a CHOICE
+  otherHeading: "What's wrong with it?",
+  otherBody: 'A few words, so the admin knows what you saw or heard. Nothing downloads yet.',
+  otherPlaceholder: 'What is wrong with this copy?',
+  otherNext: 'Next',
+  otherEmpty: "Say what's wrong first — a few words is enough.",
+  askHeading: 'Get another version?',
+  askBody: "Your words go to the admin either way. Another version downloads now and replaces this copy once it's in — or keep this copy and just send them.",
+  askYes: 'Yes — pick another version',
+  askNo: 'No — just send it',
+  sent: 'Sent — thank you. Your copy stays as it was.',
+  sayIt: 'Say it',
+  listening: 'Listening… say what is wrong',
+  stopListening: 'Stop',
 } as const;
+
+/** The reasons that ask for the person's own words before anything else. */
+export const asksForNote = (reason: string | null | undefined): boolean => reason === 'other';
+
+/** The longest note the server keeps (src/media/replace.js request: 300). */
+export const COPY_NOTE_MAX = 300;
+/** What the field holds: line breaks folded to spaces, cut at COPY_NOTE_MAX. */
+export const copyNote = (v: string | null | undefined): string =>
+  // eslint-disable-next-line no-control-regex
+  Array.from(String(v || '').replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ')).slice(0, COPY_NOTE_MAX).join('');
+/** Words the microphone heard, added to what is typed already. */
+export const addHeard = (note: string, heard: string): string => {
+  const h = String(heard || '').trim();
+  if (!h) return note;
+  const n = String(note || '').replace(/\s+$/, '');
+  return copyNote(n ? `${n} ${h}` : h);
+};
+
+/** The microphone button's word and the line under the field (useVoiceNote.ts). */
+export const voiceNoteWords = (s: VoiceState): {label: string; line: string} => {
+  if (voiceActive(s)) return {label: WORDS.stopListening, line: s.interim ? `“${s.interim}”` : s.phase === 'starting' ? voiceMessage(s, 'tv') : WORDS.listening};
+  if (s.phase === 'error' && s.error !== 'cancelled') return {label: WORDS.sayIt, line: voiceMessage(s, 'tv')};
+  return {label: WORDS.sayIt, line: ''};
+};
+
+/** The report for "Problem with this copy → Other → No, just send it": the first line
+ *  is the server's own for a replacement ("Problem with this copy: Other — …",
+ *  src/media/replace.js), so the admin reads both the same way; the context carries
+ *  the words too (`note`). The website's replaceCopy.js says the same. */
+export const copyReport = (o: {reasonLabel?: string | null; note: string}): string =>
+  `Problem with this copy: ${o.reasonLabel || 'Other'} — ${String(o.note || '').replace(/\s+/g, ' ').trim()}\nNo other version asked for — the copy stays.`;
 
 /** A replacement on its way, as GET /api/replace/:id says (publicOf). */
 export type ReplacementLike = {

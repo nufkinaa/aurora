@@ -209,6 +209,12 @@ module.exports = {
   "replace.early": "tp", // "Download it anyway" on a pre-release copy (the site asks with its shared confirm sheet)
   "replace.next": "wtp", // the last try ended: Pick another version
   "replace.other": "wtp", // the last try ended: Something else is wrong
+  // "Other": a few words first, then the question (Jesse's report, 2026-11-08)
+  "replace.other.another": "wtp", // Yes — pick another version
+  "replace.other.next": "wtp", // the words are in: Next
+  "replace.other.note": "w", // the field (the TV's and the phone's is a TextInput, not tagged)
+  "replace.other.send": "wtp", // No — just send it (a report, nothing downloads)
+  "replace.other.voice": "tp", // Say it: the microphone
   "replace.pick": "wtp",
   "replace.reason": "wtp",
   // row

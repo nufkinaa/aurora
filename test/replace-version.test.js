@@ -321,11 +321,28 @@ test("the report lands in Problem reports with the reason", async () => {
   const rep = list.find((x) => x.id === e.reportId);
   assert.ok(rep, "the report is in the admin's list");
   assert.match(rep.text, /^Problem with this copy: Wrong language — it's dubbed/);
+  // the person's words travel in the report's context too (Jesse's report, 2026-11-08)
+  assert.equal(rep.context.note, "it's dubbed");
   assert.equal(rep.profile, "Grown Up");
   assert.equal(rep.kind, "replace");
   assert.equal(rep.replace.reason, "language");
   assert.ok(["queued", "downloading", "pending"].includes(rep.replace.status), `the report says where it stands (${rep.replace.status})`);
   downloads.cancel(r.body.job.id);
+});
+
+test("a report's context keeps the person's words (\"Other → No, just send it\" files one with no replacement)", () => {
+  const rep = reports.add({
+    text: "Problem with this copy: Other — the picture freezes\nNo other version asked for — the copy stays.",
+    profile: "Grown Up",
+    context: { route: "tv:Player", title: "Test Film", itemId: "abc123", note: "  the picture\n freezes   at 20 min " },
+    quiet: true,
+  });
+  assert.equal(rep.context.note, "the picture freezes at 20 min");
+  assert.equal(rep.context.title, "Test Film");
+  // none given: none kept
+  assert.equal(reports.add({ text: "x", context: { route: "tv:Player" }, quiet: true }).context.note, null);
+  // the server keeps 300 characters of it, as it does for a replacement's note
+  assert.equal(reports.add({ text: "x", context: { note: "y".repeat(400) }, quiet: true }).context.note.length, 300);
 });
 
 test("an episode: same container, same name, same id — the old sidecar goes, its neighbour is untouched", async () => {

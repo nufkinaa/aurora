@@ -33,6 +33,23 @@ export const isNewCard = (f: {since?: string}) => !!f.since && cmpVersion(f.sinc
 
 type Feature = {since?: string; glyph: string; title: string; what: string; how: string; go?: {label: string; act: string}};
 export const FEATURES: Feature[] = [
+  // ---- tv-reports-nov (2026-11-09: Bigmakdaddy's and Jesse's reports): the same cards, the same words, on the website ----
+  {
+    since: ROUND,
+    glyph: '⬇️',
+    title: "Save & watch saves, then plays",
+    what: "On a title that isn't on the server yet, Save & watch downloads the best copy and the page shows how far it has got; Play plays it once it is in. Nothing streams from a torrent by itself, and the Home billboard never starts a download for you.",
+    how: "Title page → Save & watch. My downloads shows it too.",
+    go: {label: 'My downloads', act: 'downloads'},
+  },
+  {
+    since: ROUND,
+    glyph: '✍️',
+    title: "Say what's wrong with a copy",
+    what: "Pick Other under Problem with this copy and Aurora asks what is wrong first. Then you choose: get another version, or just send your words to the admin and keep the copy you have.",
+    how: "In the player: the menu → Problem with this copy? → Other. Type it, or press Say it and speak.",
+    go: {label: 'My downloads', act: 'downloads'},
+  },
   // ---- downloads-next (2026-11-06): the same cards, the same words, on the website ----
   {
     since: ROUND,

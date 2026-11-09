@@ -1624,6 +1624,10 @@ html[data-look="glass"] .peek-close { background: rgba(6, 8, 16, 0.6); box-shado
   background: rgba(255, 255, 255, 0.06); color: var(--text); font: inherit;
 }
 .rc-note:focus { outline: none; box-shadow: var(--focus-ring); }
+/* "Other": the person's own words, then the question (replaceCopy.js showOther / showAsk) */
+.rc-other-note { display: block; min-height: 84px; resize: vertical; box-sizing: border-box; }
+.rc-quote { margin: 4px 0 0; text-align: center; font-style: italic; color: var(--text); overflow-wrap: anywhere; }
+.rc-error { margin-top: 8px; text-align: center; color: #ff9b7a; font-size: 0.86rem; font-weight: 600; }
 .rc-back { margin-right: auto; }
 .rc-status { text-align: center; font-weight: 700; margin-top: 4px; }
 .rc-bar { height: 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.12); overflow: hidden; margin: 12px 0 4px; }

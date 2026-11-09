@@ -4,20 +4,22 @@
 //
 // Dor (2026-10-17): "on Android TV if we can get on a click to play the first
 // download with the default subtitle of the user that would be amazing".
-// Until then, Play on a title not on disk SAVED the best source and stopped
-// there (a toast, a progress line); watching it meant waiting for the
-// download, or holding Play for the list and pressing Stream on a row. Now
-// the one press does both: the best source is saved AND played at once,
-// streamed from the swarm while the download runs (the server streams any
-// torrent it is asked for — /stream/torrent — independently of the download
-// engine; the website's "Stream it meanwhile" is the same thing). The
-// subtitle is the player's own choice, made the way it always is
-// (Player.tsx autoTrack: the person's last pick / default language) — this
-// path only hands the player a source and changes nothing about subtitles.
+// From then until TV 5.8.6 Play on a title not on disk saved the best source
+// AND streamed it from the swarm (/stream/torrent) while it downloaded.
+//
+// elia (2026-10-28): streaming from a torrent without downloading it to the
+// server first is UNUSED in Aurora. Bigmakdaddy's report (2026-11-09, "stream
+// opened when it shouldn't have", Tenacious D on the Mi TV) was that stream,
+// opened by a plain Play. So, as on the website ("Save & watch",
+// screens/discover-detail.js): Play on a title not on disk SAVES the best
+// source and the page carries the download; Play plays once the copy is in
+// (playPress below). Streaming stays only where a person picks it by name:
+// a source's own "Stream" (Sources.tsx, which still builds its play item
+// with streamPlayItem here).
 //
 // Unchanged, by the owner's ruling (2026-10-10): pressing an EPISODE CARD you
 // don't hold downloads its best source and opens its sources in place,
-// without moving focus. Only the Play button plays as well.
+// without moving focus.
 import type {Stream, TorrentPlayItem} from './api';
 import {readPlay, streamPlan} from './avCaps';
 import {pickable} from './releaseWords';
@@ -154,6 +156,24 @@ export const jobSource = (job: JobLike, streams: Stream[] | null | undefined) =>
     tags: null,
     ...(job.release ? {release: job.release} : {}),
   };
+
+/** What Play on a title page does (TV screens/Detail.tsx, phone
+ *  phone/screens/Detail.tsx — the website's title page does the same):
+ *  - 'play'      the copy is on disk: it plays;
+ *  - 'onItsWay'  a download of it is already on its way: say so (never a
+ *                stream of what it is fetching);
+ *  - 'save'      save the best source — the page shows the download, and
+ *                Play plays when it is in;
+ *  - 'leave'     pressed FOR the person (Home's billboard, `play`) on
+ *                something not on disk: nothing starts by itself — the page
+ *                is left with Save & watch focused, so nobody downloads
+ *                anything without knowing it. */
+export type PlayPress = 'play' | 'onItsWay' | 'save' | 'leave';
+export const playPress = (o: {owned: boolean; onItsWay: boolean; auto?: boolean}): PlayPress =>
+  o.owned ? 'play' : o.auto ? 'leave' : o.onItsWay ? 'onItsWay' : 'save';
+
+/** The primary button's word for a title not on disk — the website's. */
+export const SAVE_WATCH = 'Save & watch';
 
 // ---- the title page pressing Play for you ---------------------------------
 // Home's hero and a title opened with `play` (navigation.tsx Detail.play):

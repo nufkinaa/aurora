@@ -1,6 +1,8 @@
 // "Problem with this copy? → Get another version" (elia, 2026-10-26): the
-// sheet. One tap says what is wrong with the copy in the library, the next
-// picks another version of the same title, and the server swaps it in when
+// sheet. One tap says what is wrong with the copy in the library ("Other" first
+// asks for a few words, then asks whether to get another version at all —
+// Jesse's report, 2026-11-08), the next picks another version of the same
+// title (only that pick starts a download), and the server swaps it in when
 // it has landed — the copy you have plays until then, and your place, My
 // List and ratings stay (src/media/replace.js has the rules). The TV app has
 // the same sheet with the same words (tv-native ReplaceSheet).
@@ -22,6 +24,26 @@ import { appVersion } from "./report.js";
 export const COPY_PROBLEM = "Problem with this copy?";
 export const GET_ANOTHER = "Get another version";
 const GET_ANOTHER_NEXT = "Pick another version";
+// The sheet's words, the TV's and the phone's letter for letter (tv-native replaceLogic.ts WORDS)
+export const RC_WORDS = {
+  step1Body: "Pick one. Nothing downloads until you pick another version — your place, My List and ratings stay.",
+  step2Body: "Pick one and it starts downloading now. Your copy stays playable until the new one is in.",
+  otherHeading: "What's wrong with it?",
+  otherBody: "A few words, so the admin knows what you saw or heard. Nothing downloads yet.",
+  otherPlaceholder: "What is wrong with this copy?",
+  otherNext: "Next",
+  otherEmpty: "Say what's wrong first — a few words is enough.",
+  askHeading: "Get another version?",
+  askBody: "Your words go to the admin either way. Another version downloads now and replaces this copy once it's in — or keep this copy and just send them.",
+  askYes: "Yes — pick another version",
+  askNo: "No — just send it",
+  sent: "Sent — thank you. Your copy stays as it was.",
+};
+export const COPY_NOTE_MAX = 300;
+// The report "No — just send it" files: the first line is the server's own for a
+// replacement (src/media/replace.js), the TV's copyReport word for word.
+export const copyReport = ({ reasonLabel, note }) =>
+  `Problem with this copy: ${reasonLabel || "Other"} — ${String(note || "").replace(/\s+/g, " ").trim()}\nNo other version asked for — the copy stays.`;
 
 // The words for a replacement on its way — the TV says the same (tv-native).
 export const replaceStatusText = (r) => {
@@ -90,8 +112,9 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
   const body = el("div", { class: "rc-body" });
   const card = el("div", { class: "look-notice sheet replace-copy", role: "dialog", "aria-modal": "true", "aria-label": COPY_PROBLEM, tabindex: "-1" }, body);
   const wrap = el("div", { class: "look-notice-wrap ui-overlay replace-wrap", onclick: (e) => e.target === wrap && close() }, card);
-  let step = "load"; // load | reasons | sources | active | ended | refused
+  let step = "load"; // load | reasons | other | ask | sources | active | ended | refused
   let reason = null;
+  let otherNote = ""; // "Other": the person's own words (asked for before anything else)
   let unsub = null;
   let info = null;
   let asking = false; // the "not the real release" question is up over the sheet (its own Back closes it)
@@ -107,7 +130,9 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
   const onBack = (e) => {
     if (asking) return;
     e.preventDefault();
-    if (step === "sources") return showReasons();
+    if (step === "sources") return reason === "other" ? showAsk() : showReasons();
+    if (step === "ask") return showOther();
+    if (step === "other") return showReasons();
     close();
   };
   const focusFirst = () => setTimeout(() => (body.querySelector(".rc-first") || body.querySelector(".focusable") || card).focus({ preventScroll: true }), 40);
@@ -204,7 +229,7 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
       el("p", { class: "look-notice-text" }, "Pick the next one, or keep this copy."),
       el("div", { class: "look-notice-actions" },
         el("button", { "data-ui": "replace.next", type: "button", class: "btn btn-primary focusable rc-first", onclick: () => { reason = last.reason; showSources(); } }, GET_ANOTHER_NEXT),
-        el("button", { "data-ui": "replace.other", type: "button", class: "btn focusable", onclick: showReasons }, "Something else is wrong"),
+        el("button", { "data-ui": "replace.other", type: "button", class: "btn focusable", onclick: () => { otherNote = ""; showReasons(); } }, "Something else is wrong"),
         closeBtn("Keep this copy")),
     );
   };
@@ -215,16 +240,85 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
     const reasons = (info && info.reasons) || [];
     paint(
       el("div", { class: "sheet-icon" }, "🎞️"),
-      ...head("What's wrong with this copy?", "Pick one. Another version replaces it — your place, My List and ratings stay."),
+      ...head("What's wrong with this copy?", RC_WORDS.step1Body),
       title ? el("div", { class: "rc-title" }, title) : null,
       el("div", { class: "rc-reasons" }, ...reasons.map((r, i) =>
         el("button", {
           "data-ui": "replace.reason",
           type: "button",
           class: `rc-reason-btn focusable${i === 0 ? " rc-first" : ""}${reason === r.id ? " on" : ""}`,
-          onclick: () => { reason = r.id; showSources(); },
+          onclick: () => { reason = r.id; if (r.id === "other") showOther(); else showSources(); },
         }, r.label))),
       el("div", { class: "look-notice-actions" }, closeBtn("Cancel")),
+    );
+  };
+
+  // ---- "Other": a few words first — nothing downloads ----
+  const showOther = () => {
+    step = "other";
+    const field = el("textarea", {
+      "data-ui": "replace.other.note",
+      class: "rc-note rc-other-note focusable rc-first",
+      placeholder: RC_WORDS.otherPlaceholder,
+      maxlength: String(COPY_NOTE_MAX),
+      rows: "3",
+    });
+    field.value = otherNote;
+    const err = el("div", { class: "rc-error", role: "alert", hidden: true });
+    const next = () => {
+      const t = field.value.replace(/\s+/g, " ").trim();
+      if (!t) {
+        err.textContent = RC_WORDS.otherEmpty;
+        err.hidden = false;
+        field.focus({ preventScroll: true });
+        return;
+      }
+      otherNote = t;
+      showAsk();
+    };
+    field.addEventListener("input", () => { otherNote = field.value; err.hidden = true; });
+    field.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); next(); } });
+    paint(
+      el("div", { class: "sheet-icon" }, "✍️"),
+      ...head(RC_WORDS.otherHeading, RC_WORDS.otherBody),
+      title ? el("div", { class: "rc-title" }, title) : null,
+      field,
+      err,
+      el("div", { class: "look-notice-actions" },
+        el("button", { "data-ui": "replace.other.next", type: "button", class: "btn btn-primary focusable", onclick: next }, RC_WORDS.otherNext),
+        el("button", { type: "button", class: "btn focusable", onclick: showReasons }, "‹ Back")),
+    );
+  };
+
+  // ---- "Other", then: another version, or just the words ----
+  const showAsk = () => {
+    step = "ask";
+    const err = el("div", { class: "rc-error", role: "alert", hidden: true });
+    const send = async (btn) => {
+      btn.disabled = true;
+      try {
+        const label = ((info && info.reasons) || []).find((r) => r.id === "other")?.label || "Other";
+        await api.report(copyReport({ reasonLabel: label, note: otherNote }),
+          { ...(await contextNow()), title: title || null, itemId: libraryId, note: otherNote },
+          state.profile ? state.profile.name : null);
+        toast(RC_WORDS.sent, "🛠️");
+        track("feat", { f: "replace-note-only" });
+        close();
+      } catch (e) {
+        btn.disabled = false;
+        err.textContent = (e && e.message) || "Couldn't send it — try again in a moment";
+        err.hidden = false;
+      }
+    };
+    paint(
+      el("div", { class: "sheet-icon" }, "🎞️"),
+      ...head(RC_WORDS.askHeading, RC_WORDS.askBody),
+      el("p", { class: "rc-quote" }, `“${otherNote}”`),
+      err,
+      el("div", { class: "look-notice-actions" },
+        el("button", { "data-ui": "replace.other.another", type: "button", class: "btn btn-primary focusable rc-first", onclick: () => { reason = "other"; showSources(); } }, RC_WORDS.askYes),
+        el("button", { "data-ui": "replace.other.send", type: "button", class: "btn focusable", onclick: (ev) => send(ev.currentTarget) }, RC_WORDS.askNo),
+        el("button", { type: "button", class: "btn focusable", onclick: showOther }, "‹ Back")),
     );
   };
 
@@ -232,13 +326,14 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
   let expanded = false;
   const showSources = async () => {
     step = "sources";
-    const note = el("input", { class: "rc-note focusable", placeholder: "Anything else? (optional)", maxlength: "300" });
+    // (Other: the words were asked for already and go with the request)
+    const note = reason === "other" ? null : el("input", { class: "rc-note focusable", placeholder: "Anything else? (optional)", maxlength: "300" });
     const listHost = el("div", { class: "rc-list" }, el("div", { class: "sources-loading" }, el("span", { class: "mini-spinner" }), "Finding other versions…"));
-    const back = el("button", { type: "button", class: "btn small focusable rc-back", onclick: showReasons }, "‹ Back");
+    const back = el("button", { type: "button", class: "btn small focusable rc-back", onclick: () => (reason === "other" ? showAsk() : showReasons()) }, "‹ Back");
     const cur = info && info.current;
     const noteLine = el("div", { class: "rc-now rc-lang-note", hidden: true });
     paint(
-      ...head(GET_ANOTHER, "Your copy stays playable until the new one is in."),
+      ...head(GET_ANOTHER, RC_WORDS.step2Body),
       cur ? el("div", { class: "rc-now" }, `Now: ${[cur.quality, cur.sizeBytes ? fmtBytes(cur.sizeBytes) : null, cur.release].filter(Boolean).join(" · ")}`) : null,
       noteLine,
       listHost,
@@ -268,7 +363,7 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
           "data-ui": "replace.pick",
           type: "button",
           class: `rc-src focusable${i === 0 ? " rc-first" : ""}${s.badHere ? " bad" : ""}${isEarly(s) ? " early" : ""}`,
-          onclick: (ev) => pick(s, ev.currentTarget, note.value),
+          onclick: (ev) => pick(s, ev.currentTarget, note ? note.value : otherNote),
         },
         el("span", { class: "rc-src-q" }, s.quality || "?"),
         el("span", { class: "rc-src-main" },
@@ -301,10 +396,11 @@ export const openReplaceSheet = ({ libraryId, title = "" } = {}) => {
     for (const b of body.querySelectorAll(".rc-src")) b.disabled = true;
     btn.classList.add("busy");
     try {
+      const cleanNote = String(noteText || "").trim() || undefined;
       const r = await api.replaceCopy(libraryId, {
-        profile, reason, note: String(noteText || "").trim() || undefined,
+        profile, reason, note: cleanNote,
         source: { infoHash: s.infoHash, fileIdx: s.fileIdx || 0 },
-        context: await contextNow(),
+        context: { ...(await contextNow()), note: cleanNote || null },
       });
       toast("Getting another version — your copy stays playable until it's in.", "🎞️");
       track("feat", { f: "replace" });

@@ -19,6 +19,7 @@ const EXEMPT: Record<string, string> = {
   'focus.ts': 'the hook itself',
   'playback/Player.tsx': 'acts on what was pressed, never on where focus is',
   'components/RecommendSheet.tsx': "the note field's own DOWN / UP (to Send / the faces): acts on what was pressed while the field held focus — Android searches from the cursor of a long note and picks the wrong button",
+  'components/ReplaceSheet.tsx': "Other's words field: its own DOWN (to Next), the RecommendSheet rule — acts on what was pressed while the field held focus",
 };
 
 const walk = (dir: string): string[] =>

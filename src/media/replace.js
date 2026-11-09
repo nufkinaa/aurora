@@ -383,7 +383,7 @@ const request = async (libraryId, viewer, { reason, note, source, context, ip, k
         `Getting another version: ${src.release || src.provider || hash.slice(0, 8)}${src.quality ? ` (${src.quality}${gb(src.sizeBytes)})` : ""}` +
         `\nReplacing: ${cur.release || cur.fileName}`,
       profile: viewer.name || viewer.id,
-      context: { ...(context && typeof context === "object" ? context : {}), title: s.display, itemId: s.libraryId },
+      context: { ...(context && typeof context === "object" ? context : {}), title: s.display, itemId: s.libraryId, note: cleanNote },
       ip,
       extra: { kind: "replace", replace: { id, reason, libraryId: s.libraryId } },
       // (the download's own notification already says who asked, and why)
