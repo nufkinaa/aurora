@@ -773,12 +773,14 @@
 .nav-more-foot { flex: none; display: flex; flex-direction: column; gap: 4px; padding-top: 10px; }
 .nav-more-rule { flex: none; height: 1px; margin: 6px 16px; background: rgba(255, 255, 255, 0.09); }
 /* a row: the TV's `.nav-item` — 15/600, near-white with a cast shadow over
-   the hues, 48 tall, a round pill; lit = --surface; focused = inverted */
+   the hues, 48 tall, a round pill; lit = --surface; focused = inverted.
+   Each row leads with its icon (js/navicons.js, the phone app's glyphs) in a
+   22 px column, so every row's words start at the same line. */
 .nav-more-item {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   width: 100%;
   min-height: 48px;
   padding: 8px 16px;
@@ -791,7 +793,7 @@
   font-size: 15px;
   font-weight: 600;
   line-height: 1.25;
-  text-align: left;
+  text-align: start;
   text-decoration: none;
   text-shadow: 0 1px 6px rgba(8, 9, 16, 0.9);
   cursor: pointer;
@@ -807,7 +809,19 @@
   text-shadow: none;
   box-shadow: var(--focus-ring);
 }
-.nav-more-icon { flex: none; display: inline-flex; }
+/* the icon: one box for all of them, drawn in the row's colour (lit, focused
+   and plain alike) */
+.nav-more-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+}
+.nav-more-icon svg { display: block; width: 20px; height: 20px; }
+/* a page read right to left: the paper plane flies the other way (the app's MIRRORED) */
+[dir="rtl"] .nav-more-icon.flip svg { transform: scaleX(-1); }
 .nav-more-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .nav-more-sub { font-size: 12px; font-weight: 600; color: rgba(243, 244, 248, 0.66); }
 .nav-more-item.live .nav-more-sub { color: #8cffbe; }
@@ -816,7 +830,9 @@
 /* you: the TV's profile pill — the avatar and your name on --surface */
 .nav-more-profile {
   gap: 10px;
-  padding: 5px 14px 5px 6px;
+  /* the avatar (30) and its gap end where the other rows' icon column does */
+  padding-block: 5px;
+  padding-inline: 10px 14px;
   background: var(--surface);
   font-size: 14px;
   text-shadow: none;
