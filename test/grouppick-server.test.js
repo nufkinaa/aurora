@@ -60,6 +60,13 @@ test("group pick, end to end", { skip: !haveFfmpeg() && "ffmpeg not found", time
       assert.deepEqual(o.lengths.map((l) => l.id), ["any", "90", "120", "150"]);
       assert.deepEqual(o.kinds.map((k) => k.id), ["movie", "both", "show"]);
       assert.deepEqual(o.limits, [120, 180, 300]);
+      // the first-time explanation: once per person, on any device
+      assert.equal(o.tutorialSeen, false);
+      assert.deepEqual(await api.post(G(dana, "/tutorial"), { seen: true }), { tutorialSeen: true });
+      assert.equal((await api.get(G(dana, "/options"))).tutorialSeen, true);
+      assert.equal((await api.get(G(avi, "/options"))).tutorialSeen, false, "Avi has not seen it");
+      const prof = (await api.profiles()).find((p) => p.id === dana.id);
+      assert.equal(prof.prefs.groupTutorialSeen, true, "it rides on the profile");
     });
 
     await t.test("household only, as yourself: no profile 404, a protected one needs its token, a locked one is refused", async () => {

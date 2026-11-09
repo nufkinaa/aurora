@@ -8,7 +8,8 @@
 // as themselves. `device` (body or query) tells one device of a person from
 // another; `app` is "tv" | "phone" | "web".
 //
-//   GET  /api/profiles/:id/group/options                 -> { moods, lengths, kinds, limits }
+//   GET  /api/profiles/:id/group/options                 -> { tutorialSeen, moods, lengths, kinds, limits }
+//   POST /api/profiles/:id/group/tutorial { seen }       -> { tutorialSeen }   the first-time explanation, once per person
 //   POST /api/profiles/:id/group        { settings, device, role, app }  -> { session }   start one
 //   POST /api/profiles/:id/group/join   { code, device, role, app }      -> { session }
 //   GET  /api/profiles/:id/group/:code?device=                           -> { session }
@@ -311,12 +312,21 @@ const titleCard = (raw, req, voters) => {
 
 // ---------- the routes ----------
 router.get("/api/profiles/:id/group/options", gate, (req, res) => {
+  const p = profiles.list().find((x) => x.id === req.params.id);
   res.json({
+    tutorialSeen: !!(p && p.prefs && p.prefs.groupTutorialSeen),
     moods: groupdeck.MOODS.map((m) => ({ id: m.id, label: m.label })),
     lengths: groupdeck.LENGTHS.map((l) => ({ id: l.id, label: l.label })),
     kinds: groupdeck.KINDS,
     limits: grouppick.LIMITS,
   });
+});
+
+// The first-time explanation was seen (or skipped): not again, on any device.
+router.post("/api/profiles/:id/group/tutorial", gate, (req, res) => {
+  const seen = !(req.body && req.body.seen === false);
+  try { profiles.update(req.params.id, { prefs: { groupTutorialSeen: seen } }); } catch {}
+  res.json({ tutorialSeen: seen });
 });
 
 router.post("/api/profiles/:id/group", gate, (req, res) => {
