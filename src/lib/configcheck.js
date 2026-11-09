@@ -92,6 +92,7 @@ const SCHEMA = {
   pushHosts: [T.strList, "the built-in push services only"],
   authMode: [T.oneOf("open", "transition", "closed", "hybrid", "required"), '"open" (the admin page\'s setting wins once saved)'],
   serveFaststart: [T.bool, "true"],
+  imgAvif: [T.bool, "true (AVIF pictures for the browsers that ask for them)"],
   tvPlayer: [T.objOrNull, "the TV app's own values"],
   tvRender: [T.objOrNull, "all off"],
   aria2Path: [T.str, "found on PATH / winget"],

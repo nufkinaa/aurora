@@ -86,9 +86,17 @@ self.addEventListener("message", (e) => {
 // ---- the poster cache's housekeeping ----
 const IMG_TTL_MS = 7 * 24 * 3600 * 1000;
 const IMG_MAX = 800; // about 25 MB of posters at the sizes the app draws
+// A short-lived answer is kept only as long as the server said: the WebP sent
+// while the AVIF is being made (5 minutes) and the original sent when the
+// variant queue was full (a minute) — kept here for the week, the better
+// picture would not have been asked for again for a week.
+const IMG_SHORT_S = 3600;
 const imgStale = (res) => {
   const t = Date.parse(res.headers.get("date") || "");
-  return Number.isFinite(t) && Date.now() - t > IMG_TTL_MS;
+  if (!Number.isFinite(t)) return false;
+  const m = /max-age=(\d+)/.exec(res.headers.get("cache-control") || "");
+  const ttl = m && Number(m[1]) < IMG_SHORT_S ? Number(m[1]) * 1000 : IMG_TTL_MS;
+  return Date.now() - t > ttl;
 };
 // Every poster ever seen used to stay on the phone. Past the cap, the oldest
 // entries go (keys come back in insertion order) — a few at a time, off the

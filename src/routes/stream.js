@@ -288,16 +288,34 @@ const fetchExtImage = (url, file) => {
 const { variant: imgVariant } = require("../lib/imgvariant");
 // ?blur=<px>: pre-blurred (the TV's billboard layers — see imgvariant.js).
 // ?fmt=webp: that blurred variant as WebP (opt-in; ignored otherwise).
+// AVIF for a browser whose Accept says image/avif, or ?fmt=avif (imgvariant.js
+// wantsAvif): the same address answers by the Accept header, so it says
+// `Vary: Accept`, and the WebP sent while the AVIF is still being made is
+// kept for AVIF_PENDING_S only, so the AVIF is what the next look gets.
+const { wantsAvif, hasAvif, blurOf: imgBlurOf } = require("../lib/imgvariant");
+const AVIF_PENDING_S = 300;
 // Who is asking, for the variant queue's per-client limit (lib/admission.js).
 const artClient = (res) => { try { return admissionLib().heavy.clientKey(res.req); } catch { return null; } };
+// The variant options of a request, and the headers its answer needs.
+const artOpts = (req, res) => {
+  const q = req.query || {};
+  const opts = { blur: q.blur, fmt: q.fmt, client: artClient(res), avif: false };
+  if (q.w && hasAvif() && !imgBlurOf(q.blur)) {
+    res.vary("Accept");
+    opts.avif = wantsAvif(q, req.get("accept"));
+  }
+  return opts;
+};
+const artCache = (opts, long) =>
+  // (the original sent because the variant queue was full is kept for a
+  // minute only: the variant is asked for again once the rush is over)
+  opts.shed ? "public, max-age=60" : opts.avifPending ? `public, max-age=${AVIF_PENDING_S}` : `public, max-age=${long}`;
 const sendArt = async (res, file, width, blur, fmt) => {
-  const opts = { blur, fmt, client: artClient(res) };
+  const opts = artOpts(res.req, res);
   const v = width || blur ? await imgVariant(file, width, opts) : null;
   const out = v || file;
   res.setHeader("Content-Type", mimeOfFile(out) || "image/jpeg");
-  // (the original sent because the variant queue was full is kept for a
-  // minute only: the variant is asked for again once the rush is over)
-  res.setHeader("Cache-Control", opts.shed ? "public, max-age=60" : "public, max-age=604800");
+  res.setHeader("Cache-Control", artCache(opts, 604800));
   res.sendFile(out);
 };
 router.get("/img/ext", async (req, res) => {
@@ -397,9 +415,11 @@ router.get("/img/:id", async (req, res) => {
   // blocking call per picture was paid for nothing; server round 2026-10-18)
   if (!entry) return res.status(404).send("Not found");
   try {
-    const opts = { blur: req.query.blur, fmt: req.query.fmt, client: artClient(res) };
+    const opts = artOpts(req, res);
     const v = req.query.w || req.query.blur ? await imgVariant(entry.path, req.query.w, opts) : null;
-    res.setHeader("Cache-Control", opts.shed ? "public, max-age=60" : "public, max-age=86400");
+    res.setHeader("Cache-Control", artCache(opts, 86400));
+    // (an .avif is typed here: the static file server's type table predates it)
+    if (v && v.endsWith(".avif")) res.setHeader("Content-Type", "image/avif");
     res.sendFile(v || entry.path);
   } catch (e) {
     console.warn(`[img] ${req.params.id} w=${req.query.w || "-"} blur=${req.query.blur || "-"} failed: ${(e && e.message) || e}`);
