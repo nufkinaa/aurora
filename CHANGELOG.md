@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.23 — 2026-11-09
+
+- Admin → On disk: a film that just landed on a drive is counted as Aurora's within about half a minute (it showed as "Other" until the six-hourly count). The same after a title is moved between drives or deleted.
+
 ## 1.15.22 — 2026-11-09
 
 **Aurora TV 5.9.0** (checked on the Mi TV) — everything the TV had been waiting for since 5.8.4:
