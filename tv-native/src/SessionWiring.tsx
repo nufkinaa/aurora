@@ -7,9 +7,10 @@ import {useApp} from './AppContext';
 import {MyDownload} from './api';
 import {api, getBaseUrl} from './api';
 import {reportCaps} from './av'; // what this box can play (TV round 2026-10-19)
-import {askNotificationPermission, onDownloadLanded, setDownloadNotices} from './homeScreen';
+import {askNotificationPermission, onDownloadLanded, setDownloadNotices, setPersonReadyNotice} from './homeScreen';
 import {patchMe, useMe} from './navSection';
-import {enterPerson, leavePerson, onPersonPrefs, refreshPerson, setProfileReadSink} from './personSync';
+import {enterPerson, leavePerson, onPersonPrefs, personNow, refreshPerson, setProfileReadSink} from './personSync';
+import {readyText} from './readyNotice';
 import {setPrefetchProfile, stopPrefetch} from './prefetch';
 import {connect, disconnect, onMessage, setIdentity} from './realtime';
 import {replaceEndedToast} from './replaceLogic';
@@ -39,7 +40,12 @@ export default function SessionWiring() {
     // seconds of a session, and one who said yes loses nothing of them.
     setProfileReadSink((id, prefs) => patchMe(id, {prefs: prefs as never}));
     enterPerson(profileId);
-    const offPerson = onPersonPrefs(p => setUsageEnabled(p.usageStats !== false));
+    const offPerson = onPersonPrefs(p => {
+      setUsageEnabled(p.usageStats !== false);
+      // "Tell me when it's ready" (the person's): the toast below and this
+      // box's notification (homeScreen.ts) both follow it
+      setPersonReadyNotice(p.readyNotice !== false);
+    });
     // back in front (the TV woke, another app was closed): ask again
     const offActive = AppState.addEventListener('change', s => {
       if (s === 'active') refreshPerson();
@@ -112,9 +118,10 @@ export default function SessionWiring() {
         showToast(ended, '↩️');
       }
       if (!job || job.status !== 'done') return;
-      if (job.mine && job.libraryId && !job.seenAt) {
-        showToast(`“${job.label || job.title}” is ready to play — Settings → My downloads`, '✅');
-      }
+      // the words are the server's (readyLine / langLine), the same as the
+      // website's; the person can switch the notice off (readyNotice.ts)
+      const said = readyText(job, personNow()?.readyNotice !== false);
+      if (said) showToast(said, '✅');
       // The TV's home-screen row follows ("New: …" in, or out once opened),
       // and a TV notification is posted when it is news (DownloadNotices.kt).
       onDownloadLanded(job);

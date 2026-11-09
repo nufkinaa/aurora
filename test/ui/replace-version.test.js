@@ -101,6 +101,9 @@ for (const look of ["glass", "legacy"]) {
       assert.match(await card.innerText(), /What's wrong with this copy\?/);
       const reasons = await page.locator(`${sheet} [data-ui="replace.reason"]`).allInnerTexts();
       assert.deepEqual(reasons, ["Burned-in subtitles", "Bad picture", "Bad sound", "Wrong language", "Other"]);
+      // (the sheet moves focus 40 ms after it paints — replaceCopy.js focusFirst — so wait for it:
+      // read at once, a loaded machine still had it on the opener now and then)
+      await page.waitForFunction(() => document.activeElement && document.activeElement.textContent === "Burned-in subtitles", null, { timeout: 3000 }).catch(() => {});
       assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.textContent), "Burned-in subtitles", "focus lands on the first reason");
       if (vp === "phone") await assertNoHorizontalOverflow(page, "the reasons sheet");
       await shot(page, `${vp}-${look}-2-reasons`);
@@ -210,6 +213,97 @@ for (const [vp, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
     assert.equal(calls.posts.length, 1);
     assert.deepEqual(calls.posts[0].body.source, { infoHash: HASH("p"), fileIdx: 0 });
     assert.equal(calls.posts[0].body.reason, "burned");
+  });
+}
+
+// "Other" (Jesse's report, 2026-11-08: Other went straight on to the versions and gave
+// no way to say what was wrong): the words first, then a choice. Nothing here downloads —
+// the request and the report are caught in the browser.
+for (const [vp, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
+  ui.test(`${vp}: Other asks what is wrong first — nothing downloads; "No — just send it" files a report with the words; "Yes" leads to the versions and the pick carries the words`, { viewport }, async ({ page, signIn, freshProfile, goto, lib }) => {
+    const calls = await stubReplace(page);
+    const reportsSent = [];
+    await page.route((url) => url.pathname === "/api/reports", (route) => {
+      reportsSent.push(JSON.parse(route.request().postData() || "{}"));
+      route.fulfill({ json: { ok: true, id: "rep1" } });
+    });
+    await signIn(await freshProfile());
+    await goto(`#/movie/${lib.film1.id}`);
+    await openFromTitle(page);
+    const card = page.locator(sheet);
+    assert.match(await card.innerText(), /Pick one\. Nothing downloads until you pick another version/);
+
+    // Other: the words first
+    await page.click(`${sheet} [data-ui="replace.reason"]:has-text("Other")`);
+    const field = page.locator(`${sheet} [data-ui="replace.other.note"]`);
+    await field.waitFor();
+    assert.match(await card.innerText(), /What's wrong with it\?/);
+    assert.match(await card.innerText(), /Nothing downloads yet\./);
+    await page.waitForFunction(() => document.activeElement && document.activeElement.dataset.ui === "replace.other.note");
+    assert.equal(await page.locator(`${sheet} [data-ui="replace.pick"]`).count(), 0, "no versions yet");
+    // Next with nothing typed says so, and stays
+    await page.click(`${sheet} [data-ui="replace.other.next"]`);
+    assert.match(await card.innerText(), /Say what's wrong first — a few words is enough\./);
+    await field.fill("The picture freezes after 20 minutes");
+    if (vp === "phone") await assertNoHorizontalOverflow(page, "the words sheet");
+    await shot(page, `${vp}-glass-11-other-words`);
+    await page.click(`${sheet} [data-ui="replace.other.next"]`);
+
+    // the question: a choice, nothing asked of the server yet
+    await page.waitForSelector(`${sheet} [data-ui="replace.other.send"]`);
+    let text = await card.innerText();
+    assert.match(text, /Get another version\?/);
+    assert.match(text, /“The picture freezes after 20 minutes”/);
+    assert.match(text, /Yes — pick another version/);
+    assert.match(text, /No — just send it/);
+    assert.equal(calls.posts.length, 0);
+    if (vp === "phone") await assertNoHorizontalOverflow(page, "the question");
+    await shot(page, `${vp}-glass-12-other-ask`);
+    // Back: the words are kept
+    await page.keyboard.press("Escape");
+    await field.waitFor();
+    assert.equal(await field.inputValue(), "The picture freezes after 20 minutes");
+    await page.click(`${sheet} [data-ui="replace.other.next"]`);
+    await page.waitForSelector(`${sheet} [data-ui="replace.other.another"]`);
+
+    // Yes → the versions (no optional field: the words are in); Back → the question
+    await page.click(`${sheet} [data-ui="replace.other.another"]`);
+    await page.waitForSelector(`${sheet} [data-ui="replace.pick"]`);
+    assert.match(await card.innerText(), /Pick one and it starts downloading now\./);
+    assert.equal(await page.locator(`${sheet} input.rc-note`).count(), 0);
+    await page.click(`${sheet} .rc-back`);
+    await page.waitForSelector(`${sheet} [data-ui="replace.other.send"]`);
+
+    // No — just send it: a report with the words; no download
+    await page.click(`${sheet} [data-ui="replace.other.send"]`);
+    await page.waitForSelector(".replace-wrap", { state: "detached" });
+    assert.equal(calls.posts.length, 0, "nothing was downloaded");
+    assert.equal(reportsSent.length, 1);
+    assert.equal(reportsSent[0].text, "Problem with this copy: Other — The picture freezes after 20 minutes\nNo other version asked for — the copy stays.");
+    assert.equal(reportsSent[0].context.note, "The picture freezes after 20 minutes");
+    assert.equal(reportsSent[0].context.itemId, lib.film1.id);
+    assert.ok(reportsSent[0].context.route && reportsSent[0].context.version !== undefined, "the usual report context");
+    assert.ok(reportsSent[0].profile, "who sent it");
+    await page.waitForFunction(() => /Sent — thank you\. Your copy stays as it was\./.test(document.body.innerText));
+
+    // Again, and Yes: the pick carries the words, in the request and its context
+    await page.click('[data-ui="detail.replace"]');
+    await page.waitForSelector(`${sheet} [data-ui="replace.reason"]`);
+    await page.click(`${sheet} [data-ui="replace.reason"]:has-text("Other")`);
+    await field.waitFor();
+    assert.equal(await field.inputValue(), "", "a new sheet starts with no words");
+    await field.fill("No sound in the second half");
+    await field.press("Enter");
+    await page.click(`${sheet} [data-ui="replace.other.another"]`);
+    const rows = page.locator(`${sheet} [data-ui="replace.pick"]`);
+    await rows.first().waitFor();
+    await rows.nth(0).click();
+    await page.waitForSelector(`${sheet} [data-ui="replace.cancel"]`);
+    assert.equal(calls.posts.length, 1);
+    assert.equal(calls.posts[0].body.reason, "other");
+    assert.equal(calls.posts[0].body.note, "No sound in the second half");
+    assert.equal(calls.posts[0].body.context.note, "No sound in the second half");
+    assert.equal(reportsSent.length, 1, "no second report: the request files its own");
   });
 }
 

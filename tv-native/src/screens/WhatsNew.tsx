@@ -21,7 +21,7 @@ const {colors, fontSize, spacing, radius} = theme;
 // one place to change: its cards say `since: ROUND`, and NEW_FROM = ROUND puts the New
 // ribbon on them alone. (The website has the same cards: public/js/screens/whatsnew.js,
 // ROUND there; its `webOnly` cards — AirPlay from an iPhone — have nothing to do on a TV.)
-export const ROUND = '5.8.3';
+export const ROUND = '5.9.0';
 const NEW_FROM = ROUND;
 const cmpVersion = (a: string, b: string) => {
   const pa = a.split('.').map(Number);
@@ -42,9 +42,68 @@ export const FEATURES: Feature[] = [
     how: "Leave this TV on, signed in or on Who's watching?. On your phone or computer: Play on TV.",
     go: {label: 'Home', act: 'home'},
   },
-  // ---- Niso's reports (2026-11-02): the same cards, the same words, on the website ----
+  // ---- the 2026-11-09 round: the same cards, the same words, on the website ----
   {
     since: ROUND,
+    glyph: '🔤',
+    title: "Hebrew subtitles for everything",
+    what: "When a film or episode has no Hebrew subtitles, Aurora translates one with AI. It is called עברית (AI) in the subtitle menu and switches on by itself. Subtitles out of sync? Fix timing lines them up with what is said, and you can always go back to the file's own timing.",
+    how: "In the player: Subtitles → עברית (AI), or Fix timing.",
+    go: {label: 'Go home', act: 'home'},
+  },
+  {
+    since: ROUND,
+    glyph: '🔎',
+    title: "Search in Hebrew",
+    what: "Type a title the way you say it, like פרנדס or ספיידרמן, or its Hebrew name, like שובר שורות, and Aurora finds it. Typed with the keyboard in the wrong language? It works that out too.",
+    how: "Search → type in Hebrew, or press the microphone on the remote.",
+    go: {label: 'Open Search', act: 'search'},
+  },
+  {
+    since: ROUND,
+    glyph: '🌙',
+    title: "Tonight's episodes, ready tomorrow",
+    what: "Aurora now downloads the next episode of the shows you are watching ahead of time, and at night makes it ready for your device, so it starts faster.",
+    how: "Nothing to do: keep watching a show and its next episode is waiting.",
+    go: {label: 'Go home', act: 'home'},
+  },
+  // ---- tv-reports-nov (2026-11-09: Bigmakdaddy's and Jesse's reports): the same cards, the same words, on the website ----
+  {
+    since: ROUND,
+    glyph: '⬇️',
+    title: "Save & watch saves, then plays",
+    what: "On a title that isn't on the server yet, Save & watch downloads the best copy and the page shows how far it has got; Play plays it once it is in. Nothing streams from a torrent by itself, and the Home billboard never starts a download for you.",
+    how: "Title page → Save & watch. My downloads shows it too.",
+    go: {label: 'My downloads', act: 'downloads'},
+  },
+  {
+    since: ROUND,
+    glyph: '✍️',
+    title: "Say what's wrong with a copy",
+    what: "Pick Other under Problem with this copy and Aurora asks what is wrong first. Then you choose: get another version, or just send your words to the admin and keep the copy you have.",
+    how: "In the player: the menu → Problem with this copy? → Other. Type it, or press Say it and speak.",
+    go: {label: 'My downloads', act: 'downloads'},
+  },
+  // ---- downloads-next (2026-11-06): the same cards, the same words, on the website ----
+  {
+    since: ROUND,
+    glyph: '🎧',
+    title: "Checked for the right language",
+    what: "When a copy you reported as Wrong language arrives, Aurora reads its sound tracks first. If it is in the wrong language again, it is not swapped in and the next version is fetched. If the copy doesn't say its language, it is swapped in and Aurora tells you so.",
+    how: "In the player: Report a problem → Problem with this copy → Wrong language. The new copy is checked before it replaces yours.",
+    go: {label: 'My downloads', act: 'downloads'},
+  },
+  {
+    since: ROUND,
+    glyph: '🔔',
+    title: "Tell me when it's ready",
+    what: "When something you asked for has downloaded, Aurora says so on the website, the TV and the phone. Switch it off once and it is off on every device you use.",
+    how: "Settings → Notifications → Tell me when it's ready.",
+    go: {label: 'Settings', act: 'settings'},
+  },
+  // ---- Niso's reports (2026-11-02): the same cards, the same words, on the website ----
+  {
+    since: '5.8.3',
     glyph: '⏹️',
     title: "Cancel a download, anywhere",
     what: "Cancel is on My downloads, on the title page and on the versions list, and it always asks first, so a stray press changes nothing. What is on its way now sits at the top of My downloads.",
@@ -52,7 +111,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'My downloads', act: 'downloads'},
   },
   {
-    since: ROUND,
+    since: '5.8.3',
     glyph: '🔢',
     title: "See how many downloads you have",
     what: "One line shows yours: how many are downloading, how many are waiting and how many are ready. It only counts them; there is no limit.",
@@ -60,7 +119,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'My downloads', act: 'downloads'},
   },
   {
-    since: ROUND,
+    since: '5.8.3',
     glyph: '🗣️',
     title: "Wrong language? It looks for the right one",
     what: "Report a copy as Wrong language and the list leaves out copies naming that language, with the language you want first. If a try is cancelled or fails, Aurora says who or why and offers the next version.",

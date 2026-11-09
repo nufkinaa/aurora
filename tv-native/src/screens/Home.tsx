@@ -603,11 +603,11 @@ export default function Home({
         navigation.push('Player', {id: copy, title: item.title});
         return;
       }
-      // Everything else is ONE press too (Dor, 2026-10-17): the title page
-      // opens and presses its own Play — the best source saved and streamed
-      // while it downloads, a show's next episode, a download already on its
-      // way played as it comes (Detail `play`, playBest.ts). Back from the
-      // film lands on the title page, where the download shows.
+      // Everything else opens the title page, which presses its own Play
+      // only for a copy on disk (a show's next episode you hold — Detail
+      // `play`, playBest.ts playPress); a title not on disk is left on Save &
+      // watch, focused: nothing downloads, and nothing streams, without the
+      // person's own press (the website's billboard opens the page too).
       navigation.push('Detail', {item, play: true});
     },
     [navigation],

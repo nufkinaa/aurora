@@ -1,0 +1,181 @@
+{
+ "a": [
+  "out/picprio-a1/shots"
+ ],
+ "b": [
+  "out/picprio-a2/shots"
+ ],
+ "pairs": 184,
+ "identical": 172,
+ "differing": [
+  {
+   "file": "desktop-1440/film.legacy.default.down1.png",
+   "exact": 23,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    798,
+    540,
+    993,
+    542
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__film.legacy.default.down1.png"
+  },
+  {
+   "file": "desktop-1440/list.glass.default.top.png",
+   "exact": 110,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    64,
+    542,
+    986,
+    834
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__list.glass.default.top.png"
+  },
+  {
+   "file": "desktop-1440/list.legacy.default.top.png",
+   "exact": 170,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    64,
+    288,
+    1376,
+    822
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__list.legacy.default.top.png"
+  },
+  {
+   "file": "desktop-1440/movies.glass.default.top.png",
+   "exact": 34,
+   "visible": 0,
+   "max": 2,
+   "box": [
+    64,
+    620,
+    1376,
+    900
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__movies.glass.default.top.png"
+  },
+  {
+   "file": "desktop-1440/movies.legacy.default.down1.png",
+   "exact": 97,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    261,
+    102,
+    1216,
+    124
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__movies.legacy.default.down1.png"
+  },
+  {
+   "file": "desktop-1440/movies.legacy.default.top.png",
+   "exact": 41,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    64,
+    374,
+    456,
+    662
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__movies.legacy.default.top.png"
+  },
+  {
+   "file": "desktop-1440/search.glass.default.typed.png",
+   "exact": 53,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    600,
+    640,
+    986,
+    643
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__search.glass.default.typed.png"
+  },
+  {
+   "file": "desktop-1440/search.legacy.default.typed.png",
+   "exact": 63,
+   "visible": 0,
+   "max": 7,
+   "box": [
+    64,
+    169,
+    726,
+    648
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__search.legacy.default.typed.png"
+  },
+  {
+   "file": "desktop-1440/shows.glass.default.top.png",
+   "exact": 228,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    74,
+    378,
+    1376,
+    670
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__shows.glass.default.top.png"
+  },
+  {
+   "file": "desktop-1440/shows.legacy.default.down1.png",
+   "exact": 25,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    1021,
+    122,
+    1216,
+    124
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__shows.legacy.default.down1.png"
+  },
+  {
+   "file": "desktop-1440/shows.legacy.default.top.png",
+   "exact": 49,
+   "visible": 0,
+   "max": 3,
+   "box": [
+    64,
+    316,
+    1376,
+    900
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__shows.legacy.default.top.png"
+  },
+  {
+   "file": "phone-390/libshow.glass.default.down1.png",
+   "exact": 2,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    660,
+    760,
+    661,
+    762
+   ],
+   "pixels": 2962440,
+   "sheet": "phone-390__libshow.glass.default.down1.png"
+  }
+ ],
+ "onlyInOne": []
+}

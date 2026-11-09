@@ -48,7 +48,8 @@
 }
 /* The Beam mark (docs/brand): a play triangle of three bands of light. The data URI is
    written by `python docs/brand/tools/build.py install` - do not hand-edit it. */
-.nav-logo .logo-mark {
+.nav-logo .logo-mark,
+.nav-more-logo .logo-mark {
   width: 26px;
   height: 26px;
   flex: none;
@@ -60,7 +61,8 @@
      the mark on top is now drawn straight, as sharp as the screen allows. */
   position: relative;
 }
-.nav-logo .logo-mark::before {
+.nav-logo .logo-mark::before,
+.nav-more-logo .logo-mark::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -1624,6 +1626,10 @@ html[data-look="glass"] .peek-close { background: rgba(6, 8, 16, 0.6); box-shado
   background: rgba(255, 255, 255, 0.06); color: var(--text); font: inherit;
 }
 .rc-note:focus { outline: none; box-shadow: var(--focus-ring); }
+/* "Other": the person's own words, then the question (replaceCopy.js showOther / showAsk) */
+.rc-other-note { display: block; min-height: 84px; resize: vertical; box-sizing: border-box; }
+.rc-quote { margin: 4px 0 0; text-align: center; font-style: italic; color: var(--text); overflow-wrap: anywhere; }
+.rc-error { margin-top: 8px; text-align: center; color: #ff9b7a; font-size: 0.86rem; font-weight: 600; }
 .rc-back { margin-right: auto; }
 .rc-status { text-align: center; font-weight: 700; margin-top: 4px; }
 .rc-bar { height: 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.12); overflow: hidden; margin: 12px 0 4px; }

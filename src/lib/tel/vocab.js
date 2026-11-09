@@ -101,6 +101,7 @@ const SEGMENTS = new Set((
   "air airplay " + // AirPlay links (/air/:token/stream/…, /api/airplay/link, /stream/airplay/:id/…)
   "stores accept ack drill encoding calibrate " +
   "copies delete " + // /api/admin/library/copies, …/copies/delete (media/copies.js)
+  "freeup " + // admin "Free up space": /api/admin/library/freeup, …/freeup/delete (media/freespace.js)
   "replace replacements " + // "Get another version" (/api/replace/:id, …/sources, …/cancel, /api/admin/replacements)
   "js screens vendor ws " +
   "household sent " + // recommendations between the people of the household (/api/profiles/:id/household, …/sent, /recommend/people)
@@ -112,7 +113,10 @@ const SEGMENTS = new Set((
   "latest " + // a release's file by name (/download/:id/latest — lib/releases.js)
   "phone phone-app .well-known " + // the phone app (/download/phone, /api/admin/phone-app, /.well-known/assetlinks.json)
   "caps play " + // what a device can play (/api/caps, /api/caps/:id/play/:itemId — routes/avcaps.js)
+  "drives use new-downloads test keep-fast stop-using tune preview revert " + // storage drives (/api/admin/drives, …/use, …/new-downloads, …/test, …/keep-fast, …/stop-using, …/tune, …/tune/preview, …/tune/revert — lib/drives)
+  "overnight prepared " + // the overnight preparation (/api/admin/overnight, …/settings, …/run, /stream/prepared/:id — media/overnight.js)
   "uploads chunk retry " +
+  "restore " + // a copy of the household's data on every drive (/api/admin/backups/drives, …/settings, …/run, …/check, …/summary, …/restore — lib/drivecopies.js)
   "reset request code check complete reset-requests reset-code app-start app-finish " + // sign-in round: password reset, the phone's Google (routes/auth.js) // admin "Add your own file" (/api/admin/uploads, …/link, …/:id/chunk, …/cancel, …/retry, …/dismiss)
   ".m3u8 .ts .m4s .mp4 .mkv .webm .vtt .srt .jpg .jpeg .png .webp .avif .svg .gif .ico .js .css .json .html .txt .apk .woff2 .webmanifest " +
   "?a ?blur ?caps ?from ?key ?category ?code ?days ?duration ?episode ?error ?fmt ?force ?genre ?head ?hevc ?imdbid ?intent ?itemid ?k ?kb ?keys ?limit ?page ?profile ?pw " +

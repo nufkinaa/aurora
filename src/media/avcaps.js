@@ -149,9 +149,19 @@ const lookup = (id) => {
   return hit && hit.caps ? hit.caps : null;
 };
 
+/** The reports seen since `sinceMs` (the devices of the house, for the
+ *  overnight preparation — media/overnight.js): [{ id, caps, at }], newest first. */
+const recent = (sinceMs = 0) => {
+  const out = [];
+  for (const [id, hit] of Object.entries(theStore().data || {})) {
+    if (hit && hit.caps && (hit.at || 0) >= sinceMs) out.push({ id, caps: hit.caps, at: hit.at || 0 });
+  }
+  return out.sort((a, b) => b.at - a.at);
+};
+
 /** (tests) swap the store for an in-memory one. */
 const _setStore = (s) => {
   store = s;
 };
 
-module.exports = { normalize, idOf, remember, lookup, VIDEO_CODECS, VIDEO_PROFILES, AUDIO_CODECS, HDR_TYPES, CONTAINERS, MAX_KEPT, _setStore };
+module.exports = { normalize, idOf, remember, lookup, recent, VIDEO_CODECS, VIDEO_PROFILES, AUDIO_CODECS, HDR_TYPES, CONTAINERS, MAX_KEPT, _setStore };

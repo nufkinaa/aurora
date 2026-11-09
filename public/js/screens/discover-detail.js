@@ -1220,6 +1220,9 @@ export const renderDetail = async (root, { source, type, id, jump = null }) => {
       if (libErr && /kids profile/i.test(libErr.message || "")) toast(libErr.message, "🧸");
       return navigate("#/");
     }
+    // its file is on a storage drive that is not answering (lib/drives):
+    // said at once, in the server's words — the page still opens
+    if (lib.unavailable && lib.unavailable.message) toast(lib.unavailable.message, "⚠️");
     // The server already knows most library titles' IMDb ids (identity.js
     // stamps them; librarywarm.js resolves the rest in the background), so
     // this is usually free. The round-trip is the fallback, not the rule.

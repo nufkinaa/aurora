@@ -155,6 +155,12 @@ module.exports = {
   // Flash wins on speed AND quality, at roughly half a cent per search. Override
   // with "aiModel" in config.json.
   AI_MODEL: userConfig.aiModel || "google/gemini-2.5-flash",
+  // Hebrew subtitles translated by that same provider and key when a title has
+  // none (media/subai.js). Off with no key; "subtitleAi": { "enabled": false }
+  // turns it off with one. The rest are budgets (media/subai.js DEFAULTS):
+  // model, maxCues, maxUsd per title, dailyTitles, dailyUsd, priceIn/priceOut
+  // (USD per million tokens, for the estimate before a title is started).
+  SUB_AI: userConfig.subtitleAi && typeof userConfig.subtitleAi === "object" ? userConfig.subtitleAi : {},
   TORRENTS: userConfig.torrents !== false,
   // These two were documented and read by their modules but never exported,
   // so the settings did nothing (found 2026-10-08). "preconvert": false stops
@@ -193,6 +199,10 @@ module.exports = {
   //                       excludeTrackers, fileAllocation, diskCache, peerSpeedTarget }
   DOWNLOAD_HEALTH: userConfig.downloadHealth,
   DOWNLOAD_PRIORITY: userConfig.downloadPriority,
+  // The overnight preparation's clock and thresholds (media/overnightplan.js
+  // TIMING, by name — the tests and tools/overnight-rig run on a short one).
+  // Its switch, hours and disk budget are the admin's (settings.json "overnight").
+  OVERNIGHT: userConfig.overnight && typeof userConfig.overnight === "object" ? userConfig.overnight : {},
   DOWNLOAD_ENGINE: userConfig.downloadEngine && typeof userConfig.downloadEngine === "object" ? userConfig.downloadEngine : {},
   NOTIFICATIONS: userConfig.notifications || {},
   // ---- password reset by email (auth-round; lib/mailer.js) — off unless set ----
@@ -248,6 +258,10 @@ module.exports = {
   // (media/faststart.js — nothing on disk changes). "serveFaststart": false
   // serves every file byte for byte as it is.
   SERVE_FASTSTART: userConfig.serveFaststart !== false,
+  // AVIF picture variants for the browsers that ask for them (lib/imgvariant.js;
+  // tools/avif-bench; crops in docs/qa/avif). Made in the background, WebP until then; the TV
+  // and phone apps never ask. false (or AURORA_IMG_AVIF=0): WebP for everyone.
+  IMG_AVIF: process.env.AURORA_IMG_AVIF !== "0" && userConfig.imgAvif !== false,
   // What kind of disk a library root is, when the OS's answer is wrong or
   // missing (lib/disktype.js): { "<path prefix>": "hdd" | "ssd" | "network" }.
   DISK_TYPES: userConfig.diskTypes && typeof userConfig.diskTypes === "object" ? userConfig.diskTypes : null,

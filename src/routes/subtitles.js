@@ -108,6 +108,14 @@ router.post("/api/subtitles/fetch", async (req, res) => {
   try {
     const r = await p;
     console.log(`[subs] fetch ${lang} for ${id.slice(0, 12)}: ${r.error ? r.error : `${(r.tracks || []).length} track(s)`}`);
+    // No Hebrew from the providers either: one is translated in the
+    // background when the server has an AI key (media/subai.js); the player
+    // is told, and hears "subtitle_sync" when it is ready.
+    if (lang === "he" && !(r.tracks && r.tracks.length)) {
+      let ai = null;
+      try { ai = require("../media/subai").asked(id); } catch {}
+      if (ai) return res.json({ tracks: [], ai });
+    }
     if (r.error) return res.status(404).json(r);
     res.json(r);
   } catch (e) {
@@ -213,3 +221,13 @@ router.post("/api/subtitles/resync/undo", (req, res) => {
 });
 
 module.exports = router;
+// (media/subai.js asks the providers the same way before it translates)
+module.exports.fetchFor = (id, lang) => {
+  const key = `${id}|${lang}`;
+  let p = inflight.get(key);
+  if (!p) {
+    p = fetchFor(id, lang).finally(() => inflight.delete(key));
+    inflight.set(key, p);
+  }
+  return p;
+};

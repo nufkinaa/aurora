@@ -113,3 +113,61 @@ test("missing inputs are not faults: an empty read still answers Everything work
   assert.equal(s.areas.length, 5);
   assert.equal(s.areas.find((a) => a.id === "disk").line, "not measured");
 });
+
+test("the Disk line carries the forecast's few words (media/diskforecast.js), and only when there are some", () => {
+  const line = (forecast) => decide(calm({ forecast })).areas.find((a) => a.id === "disk").line;
+  assert.equal(line({ state: "filling", short: "about 40 days until full" }), "812 GB free · about 40 days until full");
+  assert.equal(line({ state: "flat", short: "no growth this week" }), "812 GB free · no growth this week");
+  assert.equal(line({ state: "short-history", short: "" }), "812 GB free");
+  assert.equal(line(null), "812 GB free");
+});
+
+// ---- storage drives (lib/drives): several in use, one not answering ----
+test("drives: several in use — the Disk line counts the ones that take new downloads together", () => {
+  const s = decide(calm({
+    drives: [
+      { id: "/", mount: "/", free: 105 * GB, total: 502 * GB, answering: true, newDownloads: true },
+      { id: "/mnt/storagespace", mount: "/mnt/storagespace", network: true, free: 990 * GB, total: 1000 * GB, answering: true, newDownloads: true },
+      { id: "/mnt/old", mount: "/mnt/old", free: 2 * GB, total: 500 * GB, answering: true, newDownloads: false },
+    ],
+  }));
+  assert.equal(s.state, "works", "a full drive that takes no new downloads is nobody's emergency");
+  const line = Object.fromEntries(s.areas.map((a) => [a.id, a.line]));
+  assert.equal(line.disk, `${Math.round((1095 * GB) / GB)} GB free on 2 drives`);
+});
+
+test("drives: one not answering — Needs you, with when and how many titles", () => {
+  const since = new Date(2026, 10, 8, 15, 42).getTime();
+  const s = decide(calm({
+    drives: [
+      { id: "/", mount: "/", free: 105 * GB, total: 502 * GB, answering: true, newDownloads: true },
+      { id: "/mnt/storagespace", mount: "/mnt/storagespace", network: true, free: null, total: null, answering: false, downSince: since, newDownloads: true, titles: 37 },
+    ],
+  }));
+  assert.equal(s.state, "needs-you");
+  assert.equal(s.needs[0].id, "drive-down:/mnt/storagespace");
+  assert.equal(s.needs[0].title, "A storage drive isn't answering");
+  assert.equal(s.needs[0].why, "Storage drive /mnt/storagespace isn't answering since 15:42 — 37 titles can't play. New downloads go to the other drives until it answers again.");
+  assert.equal(s.reason, `A storage drive isn't answering: ${s.needs[0].why}`);
+  const disk = s.areas.find((a) => a.id === "disk");
+  assert.equal(disk.level, "bad");
+  assert.match(disk.line, /105 GB free · 1 drive not answering/);
+});
+
+test("the household's clock is the server's: its time zone, locale and hour cycle, for the admin's who-and-when (2026-11-08)", () => {
+  const { clock } = require("../src/lib/adminsummary");
+  const was = process.env.TZ;
+  try {
+    process.env.TZ = "Asia/Tokyo";
+    const c = clock();
+    assert.equal(c.tz, "Asia/Tokyo");
+    assert.ok(typeof c.locale === "string" && c.locale.length >= 2, "a locale");
+    assert.ok(c.hourCycle == null || /^h(11|12|23|24)$/.test(c.hourCycle), `an hour cycle Intl knows: ${c.hourCycle}`);
+    // what the page formats with works as it is
+    assert.doesNotThrow(() => new Intl.DateTimeFormat("en-US", { timeZone: c.tz, hourCycle: c.hourCycle || undefined, hour: "2-digit" }).format(new Date()));
+    process.env.TZ = "America/New_York";
+    assert.equal(clock().tz, "America/New_York");
+  } finally {
+    if (was === undefined) delete process.env.TZ; else process.env.TZ = was;
+  }
+});

@@ -778,7 +778,15 @@ router.get("/api/item/:id", (req, res) => {
     try {
       const playprep = require("../lib/playprep");
       const entry = scanner.resolve(id);
-      if (entry && entry.kind === "video") {
+      // a file on a network drive: never read on the way to this answer (a
+      // hung mount would hold the server); while its drive is not answering
+      // the record says so — every app shows that sentence instead of playing
+      let net = null;
+      try { net = entry && require("../lib/drives").onPath(entry.path); } catch {}
+      if (net && net.network) {
+        const down = require("../lib/drives").unavailableFor(entry.path);
+        if (down) out = { ...out, unavailable: down };
+      } else if (entry && entry.kind === "video") {
         // an MP4's index: how big, and whether it comes first (the player's "stream or file?")
         const index = playprep.indexInfo(entry.path);
         if (index) out = { ...out, index };
@@ -788,10 +796,28 @@ router.get("/api/item/:id", (req, res) => {
     // ?caps=<id>: the device that asks said what it can play (POST /api/caps)
     // — how THIS file plays on it: direct / remux / transcode (routes/avcaps.js,
     // media/playpath.js). Without ?caps= the answer is what it always was.
-    if (req.query.caps) {
+    if (req.query.caps && !out.unavailable) {
       const play = require("./avcaps").decisionFor(req, require("../media/playpath").factsOfItem(out), { label: out.title, key: id });
       if (play) out = { ...out, play };
+      // made overnight for a device like this one (media/overnight.js): a
+      // file it plays as it is, where this one would be converted live — the
+      // players open `prepared.url` in its place (when they start on its track)
+      if (play && play.mode !== "direct") {
+        try {
+          const prep = require("../media/overnight").preparedFor(id, String(req.query.caps), play);
+          if (prep) out = { ...out, prepared: prep };
+        } catch {}
+      }
     }
+  }
+  // a show's page: marked when its episodes are on a drive that is not answering
+  if (!out.videoUrl && Array.isArray(out.seasons)) {
+    try {
+      const ep = out.seasons.flatMap((se) => se.episodes || [])[0];
+      const e = ep && scanner.resolve(ep.id);
+      const down = e && require("../lib/drives").unavailableFor(e.path);
+      if (down) out = { ...out, unavailable: down };
+    } catch {}
   }
   res.json(out);
 });

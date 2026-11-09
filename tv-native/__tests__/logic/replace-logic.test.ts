@@ -15,7 +15,13 @@ import {
   replaceStatusText,
   replaceWho,
   sourcesError,
+  addHeard,
+  asksForNote,
+  copyNote,
+  copyReport,
+  voiceNoteWords,
 } from '../../src/replaceLogic';
+import {VOICE_IDLE} from '../../src/voiceLogic';
 
 const fs = require('fs');
 const path = require('path');
@@ -34,9 +40,9 @@ test('the words are the website\'s', () => {
   expect(WORDS.entry).toBe('Problem with this copy?');
   expect(WORDS.entrySub).toBe('Get another version');
   expect(WORDS.step1).toBe("What's wrong with this copy?");
-  expect(WORDS.step1Body).toBe('Pick one. Another version replaces it — your place, My List and ratings stay.');
+  expect(WORDS.step1Body).toBe('Pick one. Nothing downloads until you pick another version — your place, My List and ratings stay.');
   expect(WORDS.step2).toBe('Get another version');
-  expect(WORDS.step2Body).toBe('Your copy stays playable until the new one is in.');
+  expect(WORDS.step2Body).toBe('Pick one and it starts downloading now. Your copy stays playable until the new one is in.');
   expect(WORDS.none).toBe('No other versions found.');
   expect(WORDS.started).toBe("Getting another version — your copy stays playable until it's in.");
   expect(WORDS.activeHeading).toBe('Another version is on its way');
@@ -180,5 +186,40 @@ test('every entry point and the sheet carry the uiIds the server vocabulary know
   expect(read('screens/Detail.tsx')).toContain("uiId: 'detail.episode.replace'");
   expect(read('playback/Player.tsx')).toContain('uiId="player.replace"');
   const sheet = read('components/ReplaceSheet.tsx');
-  for (const id of ['replace.reason', 'replace.pick', 'replace.cancel']) expect(sheet).toContain(`uiId="${id}"`);
+  for (const id of ['replace.reason', 'replace.pick', 'replace.cancel', 'replace.other.next', 'replace.other.voice', 'replace.other.another', 'replace.other.send']) expect(sheet).toContain(`uiId="${id}"`);
+  const phone = read('phone/sheets/ReplaceSheet.tsx');
+  for (const id of ['replace.reason', 'replace.pick', 'replace.other.next', 'replace.other.voice', 'replace.other.another', 'replace.other.send']) expect(phone).toContain(`uiId="${id}"`);
+});
+
+// ---- "Other": the person's words first (Jesse's report, 2026-11-08) ----
+test('only Other asks for words; the five reasons are otherwise unchanged', () => {
+  expect(REASONS.filter(r => asksForNote(r.id)).map(r => r.id)).toEqual(['other']);
+  expect(asksForNote(null)).toBe(false);
+});
+
+test("the website's sheet has the same words, letter for letter", () => {
+  const web: string = fs.readFileSync(path.join(__dirname, '../../../public/js/replaceCopy.js'), 'utf8');
+  for (const k of ['step1Body', 'step2Body', 'otherHeading', 'otherBody', 'otherPlaceholder', 'otherNext', 'otherEmpty', 'askHeading', 'askBody', 'askYes', 'askNo', 'sent'] as const)
+    expect(web).toContain(JSON.stringify(WORDS[k]));
+});
+
+test('the note: line breaks folded, cut at 300; heard words added after what is typed', () => {
+  expect(copyNote('a\nb\tc')).toBe('a b c');
+  expect(Array.from(copyNote('é'.repeat(400)))).toHaveLength(300);
+  expect(addHeard('', '  the sound is late ')).toBe('the sound is late');
+  expect(addHeard('Picture is fine. ', 'the sound is late')).toBe('Picture is fine. the sound is late');
+  expect(addHeard('kept', '   ')).toBe('kept');
+});
+
+test("the report's text: the server's first line for a copy, then that nothing was asked for", () => {
+  expect(copyReport({reasonLabel: 'Other', note: '  Freezes\n at 20 min '})).toBe('Problem with this copy: Other — Freezes at 20 min\nNo other version asked for — the copy stays.');
+  // (that the server's line for a replacement starts the same way: test/save-watch-parity.test.js)
+});
+
+test("the microphone's word and line", () => {
+  expect(voiceNoteWords(VOICE_IDLE)).toEqual({label: 'Say it', line: ''});
+  expect(voiceNoteWords({...VOICE_IDLE, phase: 'listening'})).toEqual({label: 'Stop', line: 'Listening… say what is wrong'});
+  expect(voiceNoteWords({...VOICE_IDLE, phase: 'listening', interim: 'it freezes'})).toEqual({label: 'Stop', line: '“it freezes”'});
+  expect(voiceNoteWords({...VOICE_IDLE, phase: 'error', error: 'cancelled'})).toEqual({label: 'Say it', line: ''});
+  expect(voiceNoteWords({...VOICE_IDLE, phase: 'error', error: 'no-speech'}).line).toMatch(/Didn't hear anything/);
 });

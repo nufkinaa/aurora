@@ -244,6 +244,9 @@ ui.test("the real thing: finished items are suggested, one being played is greye
   await api.setProgress(anna, lib.film1.id, 59, 60);
   await api.setProgress(anna, lib.e1.id, 44, 45);
   await api.setProgress(anna, lib.e2.id, 44, 45);
+  // …and last she started film two (her last title is kept for her while she
+  // is away and never suggested — media/untouched.js; film two is not finished)
+  await api.setProgress(anna, lib.film2.id, 5, 60);
   // somebody is playing episode two right now (the stream route stamps it in use)
   const r = await fetch(`${srv.url}/stream/video/${lib.e2.id}`, { headers: { Range: "bytes=0-4095" } });
   await r.arrayBuffer();

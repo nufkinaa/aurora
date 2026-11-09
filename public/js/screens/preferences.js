@@ -17,6 +17,7 @@ import { dataMode, setDataMode, netInfo } from "../net.js";
 import * as push from "../push.js";
 import * as remote from "../remote.js"; // [phone-remote]
 import { iso } from "../recommend.js";
+import { READY_LABEL, READY_NOTE } from "../readyNotice.js";
 
 // One settings row: label + explanation on the left, a button cycling the value
 // on the right. Every row here drives behaviour that already exists in the
@@ -52,6 +53,7 @@ const ICONS = {
   "Trailers on the home page": '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 5v14M16 5v14M3 10h5M3 14h5M16 10h5M16 14h5"/>',
   "Play the next episode": '<path d="M5 5v14l10-7z"/><path d="M19 5v14"/>',
   "Tell me when it's ready": '<path d="M6 16V11a6 6 0 0112 0v5l1.500 2h-15z"/><path d="M10 20.500a2 2 0 004 0"/>',
+  "Notifications on this device": '<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>',
   "Get the next episode ready": '<path d="M12 4v11"/><path d="M7.500 11l4.500 4.500 4.500-4.500"/><path d="M5 20h14"/>',
   "Tidy up after watching": '<path d="M4 7h16M9 7V4.500h6V7M6.500 7l1 13h9l1-13"/>',
   "Internet use": '<path d="M5 20v-4M10 20v-8M15 20V8M20 20V4"/>',
@@ -927,9 +929,27 @@ export const renderPreferences = async (root) => {
         await householdSection(linkRow)),
       !kid && section("Downloads", "What Aurora fetches for you while you watch.",
         el("div", { class: "pref-list page-pad" },
+          // The person's: said in the app on every device (the TV and the phone
+          // have the same switch, tv-native/src/readyNotice.ts), and Web Push.
           prefRow(
-            "Tell me when it's ready",
-            "A notification when something you saved has finished, even if Aurora is in the background.",
+            READY_LABEL,
+            READY_NOTE,
+            () => ((state.profile.prefs || {}).readyNotice === false ? "Off" : "On"),
+            async () => {
+              const next = (state.profile.prefs || {}).readyNotice === false;
+              state.profile.prefs = { ...(state.profile.prefs || {}), readyNotice: next };
+              try {
+                await api.updateProfile(state.profile.id, { prefs: { readyNotice: next } });
+              } catch (e) {
+                state.profile.prefs = { ...(state.profile.prefs || {}), readyNotice: !next };
+                toast(e.message || "Couldn't save that", "⚠️");
+              }
+            }
+          ),
+          // This browser's: a notification even with Aurora in the background.
+          prefRow(
+            "Notifications on this device",
+            "Also as a notification on this device, even when Aurora is in the background.",
             () => {
               let on = false;
               try { on = localStorage.getItem("aurora-notify-ready") === "1"; } catch {}
@@ -1079,7 +1099,7 @@ export const renderPreferences = async (root) => {
             () => (remote.targetEnabled() ? "On" : "Off"),
             () => remote.setTargetEnabled(!remote.targetEnabled())
           ),
-          linkRow("Remote", "Control a TV that has Aurora open", () => navigate("#/remote"))
+          linkRow("Your TVs", "Control a TV that has Aurora open", () => navigate("#/remote"))
         )),
       // [/phone-remote]
       section("Privacy", "Nothing leaves this server.",

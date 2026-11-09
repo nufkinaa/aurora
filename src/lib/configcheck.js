@@ -49,6 +49,7 @@ const SCHEMA = {
   tmdbApiKey: [T.str, "none (or TMDB_API_KEY in .env)", true],
   openrouterApiKey: [T.str, "none: AI picks stay off (or OPENROUTER_API_KEY in .env)", true],
   aiModel: [T.str, '"google/gemini-2.5-flash"'],
+  subtitleAi: [T.obj, "Hebrew subtitles translated when a title has none, when an AI key is set (media/subai.js budgets)"],
   torrents: [T.bool, "true"],
   preconvert: [T.bool, "true"],
   offlineCacheGb: [T.num(0.1, 100000), "8"],
@@ -59,6 +60,7 @@ const SCHEMA = {
   downloadRace: [(v) => (v === false || v === true || isObj(v) ? null : "must be false or an object { … }"), "on, with its defaults"],
   downloadHealth: [T.objOrNull, "the built-in stall rules (docs/downloads-v2.md)"],
   downloadPriority: [T.objOrNull, "the built-in priority and pre-empting rules (docs/downloads-v2.md)"],
+  overnight: [T.objOrNull, "the overnight preparation's built-in clock (media/overnightplan.js TIMING)"],
   downloadEngine: [T.objOrNull, "aria2's options as Aurora sets them (docs/downloads-v2.md)"],
   notifications: [(v) => {
     if (!isObj(v)) return "must be an object { … }";
@@ -91,6 +93,7 @@ const SCHEMA = {
   pushHosts: [T.strList, "the built-in push services only"],
   authMode: [T.oneOf("open", "transition", "closed", "hybrid", "required"), '"open" (the admin page\'s setting wins once saved)'],
   serveFaststart: [T.bool, "true"],
+  imgAvif: [T.bool, "true (AVIF pictures for the browsers that ask for them)"],
   tvPlayer: [T.objOrNull, "the TV app's own values"],
   tvRender: [T.objOrNull, "all off"],
   aria2Path: [T.str, "found on PATH / winget"],

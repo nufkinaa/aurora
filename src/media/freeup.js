@@ -9,6 +9,9 @@
 //     file itself, so these come first (the oldest add first);
 //   * a film or an episode somebody FINISHED, with nobody part-way through
 //     it — the longest-ago watched first, the bigger first on a tie.
+//   * between the two, the 45-day rule's titles (media/untouched.js): nobody
+//     touched them for 45 days, or never played — and never the admin's Keep
+//     pins, an away person's last title, or an upload (`exclude`).
 // A file somebody is playing right now is still listed (so the admin sees
 // why it is not offered) but marked inUse, never counted, never deleted.
 //
@@ -107,12 +110,18 @@ const pad = (n) => String(n || 0).padStart(2, "0");
 // Every suggestion, in the order they are offered. Each: { id, kind: "movie" |
 // "episode", name, title, year?, cover, show?: { id, title, cover }, season?,
 // episode?, sizeBytes, reason: "mylist" | "finished", why, inUse }.
-const candidates = (t, now = Date.now()) => {
+// `extra`: the 45-day rule's rows (media/untouched.js: nobody watched it for
+// N days, or never played), offered after the stale My List copies and before
+// what was finished; `exclude`: library ids never offered (the admin's Keep
+// pins, the last title of someone who is away, uploads).
+const candidates = (t, now = Date.now(), { extra = [], exclude = new Set() } = {}) => {
   const stale = [];
   const done = [];
+  const extraIds = new Set(extra.map((x) => x.id));
   const isStale = (x) => x.mylist && x.mylist.state === "stale" && !x.midway && !x.watched && x.sizeBytes > 0;
   const isDone = (x) => x.watched > 0 && !x.midway && x.sizeBytes > 0;
   const add = (x, base) => {
+    if (exclude.has(x.id) || extraIds.has(x.id)) return;
     const inUse = !!x.streaming;
     if (isStale(x)) {
       stale.push({ ...base, reason: "mylist", why: `My List download — ${x.mylist.why}`, inUse, addedAt: x.mylist.addedAt || 0 });
@@ -133,13 +142,18 @@ const candidates = (t, now = Date.now()) => {
   }
   stale.sort((a, b) => a.addedAt - b.addedAt);
   done.sort((a, b) => a.lastWatched - b.lastWatched || b.sizeBytes - a.sizeBytes);
-  return [...stale, ...done];
+  const more = extra.filter((x) => !exclude.has(x.id)).map((x) => ({
+    id: x.id, kind: x.kind, name: x.name, title: x.title || "", ...(x.kind === "movie" ? { year: null } : {}),
+    cover: x.cover || null, ...(x.show ? { show: x.show, season: x.season, episode: x.episode } : {}),
+    sizeBytes: x.fileBytes || x.sizeBytes || 0, reason: x.group === "never" ? "never" : "untouched", why: x.why, inUse: !!x.inUse,
+  }));
+  return [...stale, ...more, ...done];
 };
 
 // Just enough of them, in order, to reach `targetBytes`. One being played
 // right now is listed where it falls, as inUse, and does not count.
-const suggest = (t, targetBytes, now = Date.now()) => {
-  const all = candidates(t, now);
+const suggest = (t, targetBytes, now = Date.now(), opts = {}) => {
+  const all = candidates(t, now, opts);
   const items = [];
   let totalBytes = 0;
   for (const c of all) {

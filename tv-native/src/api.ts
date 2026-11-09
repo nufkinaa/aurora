@@ -11,7 +11,7 @@ import {pickServerPatiently} from './serverPick';
 import type {TasteCard, Verdict} from './tasteSession';
 import type {ResyncAnswer, ResyncBody, SubTiming} from './playback/resync';
 // what this box can play, and the server's decision from it (TV round 2026-10-19)
-import type {Play} from './avCaps';
+import type {Play, Prepared} from './avCaps';
 import type {ReleaseStatus} from './releaseWords';
 import {currentCapsId} from './av';
 import {isPhone} from './formFactor';
@@ -285,6 +285,9 @@ export type SubtitleTrack = {
   // among equals (lang.ts bestTrackIndex).
   star?: boolean;
   starWhy?: string;
+  // The Hebrew track the server translated with AI for a title that had none
+  // (src/media/subai.js), labelled "עברית (AI)" everywhere.
+  ai?: boolean;
   // What the server knows about the track's timing against this file
   // (playback/resync.ts SubTiming): "in-time" | "moved" | "parts" |
   // "unmatched" | "original", by the audio or the track, in words.
@@ -360,6 +363,9 @@ export type VideoInfo = { codec?: string; bitDepth?: number; hdr?: string | null
 
 export type Item = HeroItem & {
   videoUrl?: string;
+  // Set by the server when the title's file is on a storage drive that is not
+  // answering (server lib/drives): `message` is the one sentence every app shows.
+  unavailable?: {code: string; message: string};
   downloadUrl?: string;
   transcodeBase?: string;
   // What the scanner recorded about the FILE. The detail page shows all three —
@@ -384,6 +390,9 @@ export type Item = HeroItem & {
   // carried ?caps= — avCaps.ts armPlan): direct / remux / transcode, the frame
   // rate (refresh-rate matching), every reason
   play?: Play;
+  // a file made overnight that THIS box plays as it is, where the title's own
+  // would be converted live (src/media/prepared.js — avCaps.ts preparedFor)
+  prepared?: Prepared;
 };
 
 // The toast for an add — the site's LIST_ADDED (public/js/ui.js), to the
@@ -673,6 +682,11 @@ export type MyDownload = DownloadJob & {
   retryAt?: string | null;
   heldBack?: {since: string; for: string} | null;
   etaSec?: number | null;
+  // "Tell me when it's ready" (readyNotice.ts): what is said when it lands,
+  // and what the language check found — the server's sentences, the same as
+  // the website's (null / absent on an older server)
+  readyLine?: string | null;
+  langLine?: string | null;
 };
 
 // "Problem with this copy? → Get another version" (src/routes/replace.js).
@@ -1963,13 +1977,18 @@ export const api = {
   },
   // A subtitle in the preferred language for a library file the server holds
   // no track for; it is written next to the file, for everyone.
+  // `ai`: the providers had no Hebrew and the server translates one with AI
+  // (src/media/subai.js) — "queued" | "translating"; it arrives with
+  // `subtitle_sync` as a new track, "עברית (AI)".
   subtitlesFetch: (id: string, lang: 'he' | 'en' | 'ru') =>
-    post<{tracks: SubtitleTrack[]}>('/api/subtitles/fetch', {id, lang}),
+    post<{tracks: SubtitleTrack[]; ai?: string | null}>('/api/subtitles/fetch', {id, lang}),
   // The Resync button (playback/resync.ts): start — or join — the server's
   // match of one library track against the playing audio track, then ask
   // how it goes about once a second. A server from before these answers 404.
   subtitleResync: (body: ResyncBody) => post<ResyncAnswer>('/api/subtitles/resync', body),
   subtitleResyncStatus: (body: ResyncBody) => post<ResyncAnswer>('/api/subtitles/resync/status', body),
+  // "↺ Use the file's own timing": the track served as its file has it again, for everyone
+  subtitleResyncUndo: (body: ResyncBody) => post<{ok: boolean}>('/api/subtitles/resync/undo', body),
   // "Problem with this copy? → Get another version": what the sheet needs,
   // the title's other sources, ask for one, take it back. Errors carry the
   // server's words and its `code` (kids, busy, provider, …) — ApiError.

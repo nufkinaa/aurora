@@ -37,7 +37,7 @@ const OWNED_UPNEXT_GLOW = require('../assets/owned-upnext-glow.png');
 import Card, {CARD_W, CARD_H} from '../components/Card';
 import NavRail from '../components/NavRail';
 import {api, ApiError, artSrc, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, LIST_ADDED, Progress, StreamRef, DiscoverMeta, DownloadJob, MarkEntry, Stream} from '../api';
-import {autoPlayStep, fallbackSources, jobSource, pickBest, runningJobFor, streamPlayItem} from '../playBest';
+import {autoPlayStep, pickBest, playPress, SAVE_WATCH} from '../playBest';
 import {heroRelease, ReleaseStatus} from '../releaseWords';
 import {isOpen, onMessage} from '../realtime';
 import {canNavigate} from '../navLock';
@@ -856,6 +856,8 @@ export default function Detail({
           const f = await api.item(libId, profileId);
           if (!live) return;
           setFull(f);
+          // its file is on a storage drive that is not answering (server lib/drives)
+          if (f.unavailable?.message) showToast(f.unavailable.message, '⚠️', 8000);
           if (f.seasons && f.seasons.length) {
             setSeason(prev => (prev == null ? f.seasons![0].number : prev));
           }
@@ -1940,49 +1942,6 @@ export default function Detail({
     },
     [ensureImdb, item.year],
   );
-  // ONE PRESS ON PLAY (playBest.ts): the source a press just saved - or the
-  // one a download already on its way is fetching - played now, streamed
-  // while it downloads. The player chooses the subtitle as it always does.
-  const streamNow = useCallback(
-    (src: Parameters<typeof streamPlayItem>[0], imdb: string, s?: number, e?: number, list?: Stream[] | null) => {
-      if (!navigation.isFocused()) return false;
-      const ctx = {
-        type: (s && e ? 'series' : 'movie') as 'series' | 'movie',
-        imdbId: imdb,
-        title: item.title,
-        year: item.year,
-        season: s,
-        episode: e,
-        runtime: streamMeta?.runtime ?? null,
-        poster: item.cover ?? item.poster ?? null,
-      };
-      const pi = streamPlayItem(src, ctx);
-      // the next sources, for the player to move on to when this one has nobody sharing it
-      pi.alts = fallbackSources(list, src as Stream).map(a => streamPlayItem(a, ctx));
-      console.log(`[play] one press: streaming ${s && e ? `S${s}E${e}` : 'the film'} while it downloads (${src.quality || '?'})`);
-      navigation.push('Player', {id: pi.id, title: item.title, stream: pi});
-      return true;
-    },
-    [navigation, item.title, item.year, item.cover, item.poster, streamMeta?.runtime],
-  );
-  // Play on something already on its way: play what that download fetches.
-  const streamRunning = useCallback(
-    async (s?: number, e?: number): Promise<boolean> => {
-      try {
-        const imdb = await ensureImdb();
-        if (!imdb) return false;
-        const job = runningJobFor(await api.downloads(), imdb, s, e);
-        if (!job) return false;
-        const list = await api
-          .torrentSources(s && e ? {type: 'series', title: imdb, year: item.year ?? undefined, season: s, episode: e} : {type: 'movie', title: imdb, year: item.year ?? undefined})
-          .catch(() => ({streams: [] as Stream[]}));
-        return streamNow(jobSource(job, list.streams), imdb, s, e, list.streams);
-      } catch {
-        return false;
-      }
-    },
-    [ensureImdb, item.year, streamNow],
-  );
   const downloadBest = useCallback(
     async (s: number, e: number, air: UiEp['air'], play = false) => {
       const key = `${s}x${e}`;
@@ -1998,11 +1957,7 @@ export default function Detail({
       // available all the same (the pill above the episodes — see epSrc).
       const running = epJobsRef.current[key];
       if (running || inflight.current.has(key)) {
-        // Play (not the card): play what is on its way
-        if (play && running && (await streamRunning(s, e))) {
-          offerSources(s, e, null);
-          return;
-        }
+        // (Play included: what is on its way is never streamed — playBest.ts playPress)
         setDlNote({key, kind: 'already'});
         showToast(
           running
@@ -2049,8 +2004,8 @@ export default function Detail({
         // it (or holding the card, as before) opens the list at once. Focus
         // stays on the card that was pressed.
         offerSources(s, e, {count: (alive.length ? alive : streams || []).length, best: [pick.quality, pick.sizeString].filter(Boolean).join(' · ')});
-        // Play: it starts now, from the swarm; the download below runs on
-        const playing = play && streamNow(pick, imdb, s, e, streams);
+        // Save & watch: saved, never streamed meanwhile (playBest.ts); the
+        // button and the line under it carry the download, Play plays it once it is in
         const res = await api.requestDownload({
           infoHash: pick.infoHash,
           fileIdx: pick.fileIdx,
@@ -2077,7 +2032,7 @@ export default function Detail({
         }
         if (res.duplicate) showToast(`${name} is already on its way`, '⏳');
         else if (res.needsApproval) showToast(`Requested ${pick.quality} · ${pick.sizeString || ''} — waiting for approval`, '⬇');
-        else showToast(`Saving ${pick.quality} · ${pick.sizeString || ''} — ${playing ? 'playing it while it downloads' : 'the card shows the progress'}`, '⬇');
+        else showToast(`Saving ${pick.quality} · ${pick.sizeString || ''} — ${play ? 'Play shows the progress' : 'the card shows the progress'}`, '⬇');
         // From here the job speaks for itself (dlStatus reads the job first);
         // a duplicate keeps its "already on its way".
         setDlNote(n => (n?.key === key ? (res.duplicate ? {key, kind: 'already'} : null) : n));
@@ -2098,20 +2053,19 @@ export default function Detail({
         if (keepFocus.current?.key === key) keepFocus.current = {key, until: Date.now() + 3000};
       }
     },
-    [ensureImdb, openEpisodeSources, item.title, item.year, profileId, bumpLibrarySoon, sayTorrentsOff, offerSources, streamNow, streamRunning],
+    [ensureImdb, openEpisodeSources, item.title, item.year, profileId, bumpLibrarySoon, sayTorrentsOff, offerSources],
   );
   const downloadBestRef = useRef<(s: number, e: number, air: UiEp['air'], play?: boolean) => void>(() => {});
   downloadBestRef.current = downloadBest;
-  // Press Play on a film you don't hold: save the server's best source
-  // (recommended, else best-seeded) and carry the job on the button. Hold
-  // Play for the list of sources. The line under Play tells the same story an
+  // Save & watch on a film you don't hold: save the server's best source
+  // (recommended, else best-seeded) and carry the job on the button; Play
+  // plays it once it is in (never streamed meanwhile — playBest.ts). Hold
+  // it for the list of sources. The line under it tells the same story an
   // episode's does (dlStatus, key "film").
-  const downloadBestMovie = useCallback(async (play = false) => {
+  const downloadBestMovie = useCallback(async () => {
     const key = 'film';
     if (sayTorrentsOff()) return;
     if (movieJobRef.current || inflight.current.has(key)) {
-      // Play on a film already on its way: play what it is fetching
-      if (play && movieJobRef.current && (await streamRunning())) return;
       setDlNote({key, kind: 'already'});
       showToast(
         movieJobRef.current
@@ -2153,8 +2107,6 @@ export default function Detail({
         setDlNote({key, kind: 'failed', text: 'No sources for this title yet  ·  try again later'});
         return;
       }
-      // Play: it starts now, from the swarm; the download below runs on
-      const playing = play && streamNow(pick, imdb, undefined, undefined, streams);
       const res = await api.requestDownload({
         infoHash: pick.infoHash,
         fileIdx: pick.fileIdx,
@@ -2176,7 +2128,7 @@ export default function Detail({
         setLibraryTick(t => t + 1);
       } else if (res.duplicate) showToast('Already on its way', '⏳');
       else if (res.needsApproval) showToast(`Requested ${pick.quality} · ${pick.sizeString || ''} — waiting for approval`, '⬇');
-      else showToast(`Saving ${pick.quality} · ${pick.sizeString || ''} — ${playing ? 'playing it while it downloads' : 'Play shows the progress'}`, '⬇');
+      else showToast(`Saving ${pick.quality} · ${pick.sizeString || ''} — Play shows the progress`, '⬇');
       if (!res.alreadyAvailable) {
         setDlNote(n => (n?.key === key ? (res.duplicate ? {key, kind: 'already'} : null) : n));
         setMovieJob(prev => prev || {status: res.needsApproval ? 'pending' : 'approved', progress: 0});
@@ -2191,7 +2143,7 @@ export default function Detail({
     } finally {
       inflight.current.delete(key);
     }
-  }, [ensureImdb, item.title, item.year, profileId, streamNow, streamRunning]);
+  }, [ensureImdb, item.title, item.year, profileId]);
   // Cancel your own download from the title's page: asked first, "Keep going" has
   // the focus (the My downloads rule). The server checks it is yours.
   const askCancelJob = useCallback(
@@ -2326,18 +2278,19 @@ export default function Detail({
 
   // PLAY, PRESSED FOR YOU (route param `play`: Home's hero). The page presses
   // its own Play once it knows what a person's press would do — on disk or
-  // not, already on its way or not, which episode — and never before
-  // (playBest.ts autoPlayStep); after 12 s of not knowing it leaves the page
-  // as it is. Once per page: coming back from the player does not start it
-  // again.
+  // not, which episode — and never before (playBest.ts autoPlayStep); after
+  // 12 s of not knowing it leaves the page as it is. Only a copy ON DISK is
+  // played for you: anything else is left on Save & watch, focused — no
+  // download (and never a stream) starts without the person's own press
+  // (playBest.ts playPress). Once per page: coming back from the player does
+  // not start it again.
   const pressPlay = () => {
-    if (item.type === 'show') {
-      if (!heroEp) return;
-      if (heroEp.owned) heroEp.onPlay();
-      else downloadBestRef.current(heroEp.season, heroEp.episode, heroEp.air, true);
-    } else if (ownedMovieId) {
-      if (navigation.isFocused()) navigation.push('Player', {id: ownedMovieId, title: item.title});
-    } else downloadBestMovie(true);
+    if (playPress({owned: heroOwned, onItsWay: false, auto: true}) !== 'play') {
+      console.log('[play] pressed for you: not on disk — left on Save & watch, nothing started');
+      return;
+    }
+    if (item.type === 'show') heroEp?.onPlay();
+    else if (ownedMovieId && navigation.isFocused()) navigation.push('Player', {id: ownedMovieId, title: item.title});
   };
   const pressPlayRef = useRef(pressPlay);
   pressPlayRef.current = pressPlay;
@@ -2375,7 +2328,7 @@ export default function Detail({
         console.log(`[play] the title page could not tell what Play means in time: left as it is (${Object.entries(facts).filter(([, v]) => !v).map(([k]) => k).join(',')}${target ? '' : ',target'})`);
         return;
       }
-      console.log(`[play] pressed for you: ${heroOwned ? 'the copy on disk' : 'the best source, streamed while it downloads'}`);
+      if (heroOwned) console.log('[play] pressed for you: the copy on disk');
       pressPlayRef.current();
     };
     step();
@@ -2746,10 +2699,12 @@ export default function Detail({
                 : nextUp?.resume
                   ? // the clock when it is part-way through (past 10 s), as the site's
                     `▶  Continue S${nextUp.season} E${nextUp.episode}${nextUp.at ? ` · ${fmtClock(nextUp.at)}` : ''}`
-                  : `▶  Play ${heroName}`
+                  : heroOwned
+                    ? `▶  Play ${heroName}`
+                    : `⬇  ${SAVE_WATCH} ${heroName}`
             }
-            // the Play button plays: an episode you don't hold is saved AND
-            // streamed at once (the card press keeps its own rule)
+            // an episode you hold plays; one you don't is saved (Save & watch —
+            // never streamed meanwhile, playBest.ts); the card press keeps its own rule
             onPress={() => heroEp && (heroEp.owned ? heroEp.onPlay() : downloadBestRef.current(heroEp.season, heroEp.episode, heroEp.air, true))}
             onLongPress={heroEp && !heroEp.owned ? () => openEpisodeSources(heroEp.season, heroEp.episode) : undefined}
           />
@@ -2930,12 +2885,13 @@ export default function Detail({
                   ? 'Getting it…'
                   : heroRel
                     ? '≡  Sources'
-                    : '▶  Play'
+                    : `⬇  ${SAVE_WATCH}`
           }
           // one press: a copy on disk plays; anything else saves the best
-          // source AND plays it while it downloads (playBest.ts) — unless
-          // there is no good copy yet: then it opens the marked list
-          onPress={ownedMovieId ? playMovie : heroRel && !movieJob ? openSources : () => downloadBestMovie(true)}
+          // source (Save & watch, the website's word — never streamed
+          // meanwhile, playBest.ts) — unless there is no good copy yet: then
+          // it opens the marked list
+          onPress={ownedMovieId ? playMovie : heroRel && !movieJob ? openSources : () => downloadBestMovie()}
           onLongPress={ownedMovieId ? undefined : openSources}
         />
         {heroRel && !ownedMovieId && !movieJob ? (

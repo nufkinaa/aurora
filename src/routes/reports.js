@@ -56,6 +56,9 @@ const add = ({ text, profile = null, context = {}, ip = null, extra = null, quie
       route: clean(ctx.route, 200),
       title: clean(ctx.title, 200) || null,
       itemId: clean(ctx.itemId, 80) || null,
+      // the person's own words about a copy ("Problem with this copy? → Other": the
+      // sheet asks for them first, Jesse's report 2026-11-08), kept apart from the text
+      note: clean(ctx.note, 300).replace(/\s+/g, " ") || null,
       look: clean(ctx.look, 20) || null,
       ua: clean(ctx.ua, 300),
       viewport: clean(ctx.viewport, 40),

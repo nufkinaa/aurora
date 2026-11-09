@@ -1,6 +1,7 @@
 # CI: run only the tests a change can reach
 
-`.github/workflows/ci.yml` runs the root suite (`node --test test/*.test.js`) on Node 22 only (elia, 2026-11-04).
+`.github/workflows/ci.yml` runs the root suite (`node --test test/*.test.js`) on Node 22 only (elia, 2026-11-04),
+and, when `tv-native/` changed, the apps' logic tests and type check (see "The tv-native job").
 Pushes and pull requests now run **only the test files a change can reach**. Everything runs
 whenever there is any doubt, every night, on a run started by hand, and on `server-*-stable` tags.
 
@@ -176,6 +177,33 @@ The "Say what failed" annotations are unchanged.
 
   The red docs-only run (66381959) was a `scanner-walk` flake, and it would now run nothing.
 
+## The tv-native job
+
+A second job, `tv-native logic + tsc (node 22)`, checks the TV and phone apps:
+`npx jest -c jest.logic.config.js` (the logic tests, plain node, no React Native runtime)
+and `npx tsc --noEmit -p .`, both in `tv-native/`, after `npm ci --legacy-peer-deps`
+(its postinstall applies `tv-native/patches`). npm's download cache (`~/.npm`) is kept in
+the Actions cache, keyed on `tv-native/package-lock.json`.
+
+It runs only when something under `tv-native/` or `.github/workflows/` changed, or one of
+the few files outside `tv-native/` that its tests read (the website/server parity checks:
+`public/js/screens/player.js`, `src/media/household.js`, `docs/qa/household-recs/` and
+others), in the same range the root tests compare: `node tools/ci/ci-tests.js changed
+--match tv-native/ --match …` writes `run=true|false`, and every later step is skipped on
+`false` (the job stays green, like "No affected tests"). `test/ci-changed.test.js` scans
+the TV tests for such reads and fails when one is missing from the list, or left out of
+the job's sparse checkout (it keeps `docs/qa/household-recs/*.md`, not the screenshots).
+
+- **push:** since the last green run of this workflow. The workflow is green only when both
+  jobs are, so a red or cancelled TV run keeps its changes in the next range.
+- **pull request:** the base branch.
+- **nightly:** also since the last green run (an unchanged app is not rerun every night).
+- **always runs:** a run by hand, a `server-*-stable` tag, a re-run, no green run to compare
+  with, a range git can't compare, or the check itself failing.
+
+Measured 2026-11-06 on Windows: 78 suites / 937 tests in about 30 s, tsc about 13 s;
+`npm ci` in `tv-native/` about 25 s with a warm cache.
+
 ## Local use
 
 ```sh
@@ -192,6 +220,4 @@ node tools/ci/ci-tests.js simulate --map /tmp/test-map.json --count 30 --full-ms
 - **Node 20: decided 2026-11-04, elia: "only test 22".** CI runs Node 22 alone, and `engines` says `>=22`. (The "Node.js 20 is deprecated" warning came from checkout/setup-node v4; they are v6 now.) If nufurora.com still runs Node 20, `npm ci` there only warns, but it should move to Node 22 since nothing tests 20 any more.
 - **Browser tests (`npm run test:ui`)**: not in CI. They need Chrome and ffmpeg, take minutes,
   and flake under load. A nightly-only job is possible later. Not worth it per push.
-- **tv-native jest (`jest.logic.config.js`)**: cheap to run, but `npm ci --legacy-peer-deps` plus
-  `patch-package` in `tv-native` costs a minute or two. It's worth a separate job gated on
-  `tv-native/**` changes (the same diff the chooser uses), when TV work picks up again.
+- **tv-native jest**: done 2026-11-06, see "The tv-native job" above.

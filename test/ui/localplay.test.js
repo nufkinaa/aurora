@@ -470,7 +470,7 @@ for (const [name, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
     // the menu: every track by language and file, no Resync, the timing row
     const items = await player.menu(page, "Subtitles");
     const texts = items.map((i) => i.text);
-    assert.ok(!texts.some((t) => /Resync/.test(t)), `no Resync for a local file: ${texts.join(" | ")}`);
+    assert.ok(!texts.some((t) => /Resync|Fix timing/.test(t)), `no Resync for a local file: ${texts.join(" | ")}`);
     assert.deepEqual(texts.filter((t) => / · /.test(t)), ["Hebrew · Holiday.Film.2024.he.srt", "Hebrew · Holiday.Film.2024.heb.srt", "English · Holiday.Film.2024.en.ass"]);
     await shot(page, `${name}-subtitle-menu`);
 

@@ -372,8 +372,14 @@
        So: every grid cell may be narrower than its content, long words break,
        what is wider than a phone scrolls inside its own box, the bar strip
        fits, and the page clips at its edge as a backstop (clip, not hidden:
-       hidden would make body a scroll box and end every position: sticky). */
-    html, .wrap { overflow-x: clip; }
+       hidden would make body a scroll box and end every position: sticky).
+       body too: base.css gives it overflow-x: hidden, and with html not
+       visible that no longer goes to the viewport — body became a box as
+       tall as the page that never scrolls, its overscroll-behavior: none
+       ate every mouse-wheel turn on a PC and the sticky title row stuck to
+       it instead of the window (elia 2026-11-08: "scroll in admin pc does
+       not work well"). */
+    html, body, .wrap { overflow-x: clip; }
     .wrap, .pane, .card, section, .now-card, .stat { min-width: 0; max-width: 100%; }
     .grid-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
     .grid-2 > *, .stats > *, .now-grid > *, .kv > * { min-width: 0; }
@@ -641,6 +647,16 @@
     .fl-nums .fl-size { min-width: 7.5ch; }
     .fl-nums .fl-speed { min-width: 9ch; }
     .fl-nums .fl-eta { min-width: 9ch; }
+    /* who asked, and when (2026-11-08): its own quiet line, fixed height */
+    .fl-who { font-size: 0.8rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; height: 1.3em; line-height: 1.3; }
+    .dl-who-chips { flex-wrap: wrap; margin: 0 0 12px; }
+    .dl-who-chips button .n { margin-left: 6px; opacity: 0.7; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .dl-who-lines { display: grid; gap: 6px; padding: 8px 4px 4px; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+    .dl-who-line { overflow-wrap: anywhere; }
+    .dl-who-zone { font-size: 0.8rem; padding: 4px 4px 2px; }
+    /* (wraps rather than cut: on a phone an episode row is narrow) */
+    .lib-dl { display: block; font-size: 0.76rem; color: var(--text-faint); font-weight: 500; white-space: normal; line-height: 1.3; }
+    .lib-dl > span + span { white-space: nowrap; }
     .fl-state { grid-area: state; justify-self: start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .fl-act { grid-area: act; justify-self: end; }
     .fl-note { grid-area: note; display: grid; gap: 2px; margin-top: 6px; font-size: 0.8rem; color: var(--text-faint); min-width: 0; }
@@ -850,6 +866,51 @@
       .fl-nums { gap: 10px; }
       .fl-nums .fl-eta { min-width: 7ch; }
     }
+
+    /* storage drives (lib/drives): one calm card per drive — what fills it,
+       Aurora's share, its speed, and the one button that matters */
+    .drv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 14px; margin-bottom: 14px; }
+    .drv { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 15px; min-width: 0; }
+    .drv[data-down="1"] { border-color: rgba(var(--bad-rgb), 0.55); }
+    .drv-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .drv-name { font-weight: 800; }
+    .drv-mount { font-size: 0.8rem; color: var(--text-faint); overflow-wrap: anywhere; }
+    .drv-tags { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 10px; }
+    .drv-bar { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: rgba(255,255,255,0.08); }
+    .drv-bar i { display: block; height: 100%; }
+    .drv-bar .a { background: var(--accent-strong, #7c6cff); }
+    .drv-bar .o { background: rgba(255,255,255,0.32); }
+    .drv-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 7px; font-size: 0.8rem; color: var(--text-dim); }
+    .drv-legend b { color: var(--text); font-weight: 700; }
+    .drv-legend .k { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+    .drv-legend .k.a { background: var(--accent-strong, #7c6cff); }
+    .drv-legend .k.o { background: rgba(255,255,255,0.32); }
+    .drv-legend .k.f { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); }
+    .drv-line { font-size: 0.84rem; color: var(--text-dim); margin-top: 9px; line-height: 1.45; overflow-wrap: anywhere; }
+    .drv-line.bad { color: var(--bad); font-weight: 700; }
+    .drv-score { white-space: nowrap; }
+    .drv-moves { margin: 2px 0 14px; padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.08); font-size: 0.86rem; color: var(--text-dim); }
+    .drv-moves label { display: flex; align-items: center; gap: 9px; color: var(--text); font-weight: 600; cursor: pointer; }
+    .drv-moves label input { width: 18px; height: 18px; flex: none; accent-color: var(--accent-strong); }
+    .drv-moves .drv-line { margin-top: 7px; }
+    .drv-moves details { margin-top: 8px; }
+    .drv-moves summary { cursor: pointer; color: var(--text); }
+    .drv-moves ul { margin: 6px 0 0; padding-left: 18px; }
+    .drv-moves li { margin: 3px 0; overflow-wrap: anywhere; }
+    .drv-score b { font-size: 1.05rem; }
+    .drv-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .drv-acts .mini.go { background: var(--accent-strong); color: #fff; }
+    @media (max-width: 640px) { .drv-acts .mini { flex: 1; } }
+    /* "Tune this network drive" (lib/drives/tune.js) */
+    .drv-tune { margin-top: 12px; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); }
+    .drv-tune-h { font-weight: 800; margin-bottom: 2px; }
+    .drv-tune code { font-size: 0.78rem; overflow-wrap: anywhere; color: var(--text); }
+    .drv-opts { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 5px; }
+    .drv-opt { font-size: 0.76rem; padding: 2px 7px; border-radius: 999px; overflow-wrap: anywhere; }
+    .drv-opt.add { background: rgba(80, 200, 120, 0.14); color: #6ee7a0; }
+    .drv-opt.rm { background: rgba(248, 113, 113, 0.12); color: #f9a3a3; text-decoration: line-through; }
+    .drv-cmd { margin: 8px 0 0; padding: 10px; border-radius: 10px; background: rgba(0,0,0,0.35); font: 0.76rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-all; color: var(--text); user-select: all; }
+    .drv-line.good { color: #6ee7a0; font-weight: 700; }
   </style>
 </head>
 <body>
@@ -904,7 +965,7 @@
       </div>
         </div>
       </details>
-      <details class="more" data-more="ac-backups" data-title="Backups" data-sub="the daily snapshots, the second location, the restore test">
+      <details class="more" data-more="ac-backups" data-title="Backups" data-sub="the daily snapshots, the second location, the restore test, copies on every drive">
         <div class="more-body">
       <div class="card">
         <h2>Backups <span class="note" id="ac-bk-note"></span></h2>
@@ -919,6 +980,45 @@
           <tbody id="ac-bk-rows"></tbody>
         </table></div>
         <div class="empty-note hidden" id="ac-bk-empty">No backups yet — press “Back up now” above.</div>
+      </div>
+      <!-- A copy of the household's data on every drive (lib/drivecopies.js) -->
+      <style>
+        .dc-switch { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-dim); }
+        .dc-switch input[type="checkbox"] { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--accent-strong); }
+        .dc-switch input[type="time"] { max-width: 120px; flex: none; }
+        .dc-about { font-size: 0.8rem; padding: 4px; }
+        .dc-h3 { font-size: 0.95rem; margin: 16px 0 8px; }
+        #dc-pick { flex: 1 1 220px; min-width: 0; max-width: 100%; }
+        .dc-drive { overflow-wrap: anywhere; }
+        #dc-card th, #dc-card td:nth-child(2), #dc-card td:nth-child(3) { white-space: nowrap; }
+        .dc-drive small, .dc-why { display: block; color: var(--text-dim); font-size: 0.75rem; overflow-wrap: anywhere; }
+        .dc-look { margin-top: 10px; display: grid; gap: 6px; font-size: 0.85rem; overflow-wrap: anywhere; }
+        .dc-look ul { margin: 4px 0 0 18px; padding: 0; columns: 2 200px; font-size: 0.78rem; color: var(--text-dim); }
+      </style>
+      <div class="card" id="dc-card">
+        <h2>Copies on every drive <span class="note" id="dc-note">a copy of the household's data on each drive Aurora uses, once a day</span></h2>
+        <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:10px 16px">
+          <label class="dc-switch"><input type="checkbox" id="dc-enabled" /> <span id="dc-enabled-label">Keep a copy of the household's data on every drive</span></label>
+          <label class="dc-switch">Each day at <input type="time" id="dc-time" step="60" aria-label="Time of the daily copy" /></label>
+        </div>
+        <div class="muted dc-about">Profiles, progress and lists, sign-ins, watch history and viewing sessions, settings, reports, the drives and download history — not the films, not the caches. Each drive gets its own copy in a hidden <b>Aurora/.backups</b> folder: the last 7 days and 4 weeks. Every copy is read back and checked before it counts, a failed one never replaces a good one, and it waits while anyone is watching. The server's settings are in it without the passwords and keys.</div>
+        <div id="dc-state" class="empty-note" style="margin:8px 0">Checking…</div>
+        <div style="margin:0 0 10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="mini" id="dc-run">Make a copy now</button>
+          <button class="mini" id="dc-check">Check the copies</button>
+        </div>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Drive</th><th>Last copy</th><th>Size</th><th>State</th></tr></thead>
+          <tbody id="dc-rows"></tbody>
+        </table></div>
+        <div class="empty-note hidden" id="dc-empty">Aurora keeps no films on any drive yet — the copies go to the drives that hold the library.</div>
+        <h3 class="dc-h3">Restore</h3>
+        <div id="dc-last-restore" class="empty-note hidden" style="margin-bottom:8px"></div>
+        <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:8px">
+          <select id="dc-pick" aria-label="A copy to restore"></select>
+          <button class="mini" id="dc-look">See what it holds</button>
+        </div>
+        <div id="dc-look-out" class="hidden"></div>
       </div>
         </div>
       </details>
@@ -1518,6 +1618,7 @@
     <!-- ================= DOWNLOADS (three zones: needs you / in flight / on disk) ================= -->
     <div class="pane" id="pane-downloads">
       <div class="fl-head" id="dl-headline"><span id="disk-headline">Measuring the disks…</span><span class="muted" id="dl-hold"></span></div>
+      <div class="range-chips dl-who-chips hidden" id="dl-who-chips" role="toolbar" aria-label="Show one person's downloads"></div>
       <section class="hidden" id="dl-needs">
         <h2>Needs you <span class="pill warn" id="dl-pending-count">0</span>
           <span class="note">held back because disk space is low — everything else runs by itself</span></h2>
@@ -1581,10 +1682,65 @@
       <details class="more" data-more="d-done" data-title="Finished" data-sub="done, declined or failed — remove rows you're done with" data-pill-id="dl-done-count">
         <div class="more-body">
           <div class="table-scroll"><table>
-            <thead><tr><th>Title</th><th>Quality</th><th>Size</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Title</th><th>Who</th><th>When</th><th>Quality</th><th>Size</th><th>Status</th><th></th></tr></thead>
             <tbody id="dl-done"></tbody>
           </table></div>
           <div class="empty-note hidden" id="dl-done-empty">Nothing finished yet.</div>
+        </div>
+      </details>
+      <details class="more" data-more="d-who" data-title="Who downloaded what" data-sub="per person: how many, how big, the last one — tap a name above to see only theirs" data-pill-id="dl-who-count">
+        <div class="more-body">
+          <div class="dl-who-lines" id="dl-who-lines"></div>
+          <div class="muted dl-who-zone" id="dl-who-zone"></div>
+        </div>
+      </details>
+      <!-- ================= OVERNIGHT (media/overnight.js) ================= -->
+      <style>
+        /* "Overnight": the next episodes downloaded ahead, made playable at night */
+        .on-top { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 8px 2px 2px; }
+        .on-line { flex: 1 1 260px; margin: 0; font-size: 0.92rem; line-height: 1.45; }
+        .on-body { margin-top: 8px; }
+        .on-h { font-size: 0.95rem; margin: 12px 0 2px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+        .on-h .muted { font-weight: 400; font-size: 0.82rem; }
+        .on-list { list-style: none; margin: 4px 0 0; padding: 0; border-top: 1px solid rgba(255,255,255,0.06); max-height: 44vh; overflow: auto; }
+        .on-list li { padding: 7px 4px; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 0.86rem; line-height: 1.4; overflow-wrap: anywhere; }
+        .on-list li.on-empty { color: var(--text-dim); border-bottom: 0; }
+        .on-meta { display: block; color: var(--text-faint); font-size: 0.78rem; }
+        .on-note { color: var(--text-dim); font-size: 0.84rem; margin: 4px 2px 0; line-height: 1.45; }
+        .on-set input[type="time"] { flex: none; min-width: 0; max-width: 120px; }
+        .on-set select { padding: 6px 8px; background: var(--bg-input, #1c1c24); color: inherit; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; max-width: 100%; }
+        @media (max-width: 640px) {
+          .on-top .mini { flex: 1 1 auto; min-height: 36px; }
+          .on-set label { width: 100%; flex-wrap: wrap; }
+        }
+      </style>
+      <details class="more" data-more="d-overnight" id="on-card" data-title="Overnight" data-sub="the next episodes downloaded ahead, and made playable at night without a live conversion">
+        <div class="more-body">
+          <div class="on-top">
+            <p class="on-line" id="on-line" role="status">Reading…</p>
+            <button type="button" class="mini" id="on-run">Run now</button>
+            <button type="button" class="mini" id="on-toggle" aria-expanded="false" aria-controls="on-body">Details</button>
+          </div>
+          <div class="on-body" id="on-body" hidden>
+            <p class="on-note" id="on-budget"></p>
+            <h3 class="on-h">Prepared <span class="muted" id="on-prep-sum"></span></h3>
+            <ul class="on-list" id="on-prepared"></ul>
+            <h3 class="on-h">Tonight's plan <span class="muted" id="on-plan-sum"></span></h3>
+            <ul class="on-list" id="on-plan"></ul>
+            <h3 class="on-h">Downloaded ahead <span class="muted" id="on-ahead-sum"></span></h3>
+            <ul class="on-list" id="on-ahead"></ul>
+            <h3 class="on-h">Last runs</h3>
+            <ul class="on-list" id="on-runs"></ul>
+            <div class="fs-set on-set">
+              <h3>Settings</h3>
+              <label><input type="checkbox" id="on-on" /> Prepare at night</label>
+              <label>Quiet hours from <input type="time" id="on-from" value="02:00" aria-label="Quiet hours start" /> to <input type="time" id="on-to" value="07:00" aria-label="Quiet hours end" /></label>
+              <label>Use at most <input type="number" id="on-pct" min="1" max="50" step="1" value="10" inputmode="numeric" aria-label="Disk budget, percent of the free space" /> % of the free space</label>
+              <label>Download ahead <select id="on-ahead-n" aria-label="Episodes downloaded ahead"><option value="2">the next two episodes</option><option value="1">the next episode</option><option value="0">nothing</option></select></label>
+              <button type="button" class="btn small btn-primary" id="on-save">Save</button>
+            </div>
+            <p class="on-note">Only for the devices people here really use, and only where one of them can't play a title as it is: a copy with the sound made AAC, or a 1080p H.264 copy. It pauses the moment somebody starts watching and goes on when it is quiet again. A prepared copy goes once everyone it was made for has watched it, or after a week nobody needed it. Downloads ahead are shows only: the next episodes of what each person is watching.</p>
+          </div>
         </div>
       </details>
       <details class="more hidden" data-more="d-mylist" id="ml-card" data-title="Left from My List downloads" data-sub="copies the old My List downloads fetched — still tidied up if nobody watches them">
@@ -1609,8 +1765,10 @@
         #lib-chips .chip-active { background: #7c5cff; border-color: #7c5cff; color: #fff; }
         #lib-tree summary::-webkit-details-marker { display: none; }
         #lib-tree details > summary .lib-row:hover { background: rgba(255,255,255,0.04); }
-        /* Controls stay put; only the catalog itself scrolls. */
-        #lib-tree { max-height: min(52vh, 560px); overflow-y: auto; overscroll-behavior: contain;
+        /* Controls stay put; only the catalog itself scrolls. (No
+           overscroll-behavior: contain — it held the mouse wheel even when the
+           catalog was short, and at its end the page would not go on.) */
+        #lib-tree { max-height: min(52vh, 560px); overflow-y: auto;
           border: 1px solid var(--line); border-radius: 10px; }
         @media (max-width: 640px) {
           #lib-tree { max-height: 58vh; }
@@ -1671,6 +1829,107 @@
           .fp-foot .fp-del { width: 100%; min-height: 44px; }
         }
       </style>
+      <style>
+        /* "Free up space": what is safe to remove, chosen by hand (media/freespace.js) */
+        .fs-top { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 8px 2px 2px; }
+        .fs-line { flex: 1 1 260px; margin: 0; font-size: 0.92rem; line-height: 1.45; }
+        .fs-line b { font-weight: 700; }
+        .fs-body { margin-top: 8px; }
+        .fs-forecast { margin: 2px 2px 8px; color: var(--text-dim); font-size: 0.85rem; line-height: 1.45; }
+        .fs-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 4px 0 8px; }
+        .fs-days { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.86rem; color: var(--text-dim); flex: 1 1 auto; }
+        .fs-days input { max-width: 76px; flex: none; min-width: 0; text-align: center; }
+        .fs-h { font-size: 0.95rem; margin: 12px 0 2px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+        .fs-h .muted { font-weight: 400; font-size: 0.82rem; }
+        .fs-list { border-top: 1px solid rgba(255,255,255,0.06); max-height: 52vh; overflow: auto; }
+        .fs-list .fp-row { flex-wrap: wrap; }
+        .fs-list .fp-lab { flex: 1 1 260px; }
+        .fs-one { flex: none; }
+        .fs-one:disabled { opacity: 0.4; cursor: not-allowed; }
+        .fs-empty { color: var(--text-dim); font-size: 0.86rem; padding: 8px 4px; }
+        .fs-note { color: var(--text-faint); font-size: 0.8rem; margin: 8px 2px 0; line-height: 1.45; }
+        /* the 45-day rule's groups (media/untouched.js) */
+        .fs-h .fs-gall { margin-left: auto; font-weight: 400; }
+        .fs-gnote { color: var(--text-dim); font-size: 0.82rem; line-height: 1.45; margin: 0 2px 4px; }
+        .fs-meta { color: var(--text-faint); font-size: 0.78rem; overflow-wrap: anywhere; }
+        .fs-acts { display: flex; gap: 6px; flex: none; }
+        .fs-show-row { background: rgba(255,255,255,0.02); }
+        .fs-eps { margin-left: 30px; }
+        .fs-kept .fp-lab { cursor: default; }
+        .fs-held { color: var(--text-dim); font-size: 0.84rem; margin: 2px 2px 0; padding-left: 18px; }
+        .fs-set { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 14px 0 4px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
+        .fs-set h3 { width: 100%; margin: 0; font-size: 0.95rem; }
+        .fs-set label { display: flex; align-items: center; gap: 8px; font-size: 0.86rem; color: var(--text-dim); }
+        .fs-set input[type="number"] { max-width: 76px; flex: none; min-width: 0; text-align: center; }
+        .fs-set input[type="checkbox"] { width: 18px; height: 18px; margin: 0; accent-color: var(--accent-strong); }
+        .fs-rm { list-style: none; margin: 4px 0 0; padding: 0; border-top: 1px solid rgba(255,255,255,0.06); max-height: 40vh; overflow: auto; }
+        .fs-rm li { padding: 7px 4px; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 0.86rem; line-height: 1.4; }
+        .fs-rm li .fs-meta { display: block; }
+        @media (max-width: 640px) {
+          .fs-top #fs-toggle { width: 100%; min-height: 36px; }
+          .fs-list .fp-lab { flex-basis: 100%; }
+          .fs-one { margin-left: 30px; min-height: 32px; }
+          .fs-acts { margin-left: 30px; }
+          .fs-acts .mini { min-height: 32px; }
+          .fs-eps { margin-left: 12px; }
+          .fs-set label { width: 100%; }
+          .fs-foot .fp-del { width: 100%; min-height: 44px; }
+        }
+      </style>
+      <details class="more" data-more="d-free" id="fs-card" data-title="Free up space" data-sub="suggested to delete: what nobody touched for 45 days, what everyone finished, extra copies — nothing goes without your yes" data-pill-id="fs-count">
+        <div class="more-body">
+          <div class="fs-top">
+            <p class="fs-line" id="fs-line" role="status">Looking for what to suggest…</p>
+            <button type="button" class="mini" id="fs-toggle" aria-expanded="false" aria-controls="fs-body">Details</button>
+          </div>
+          <div class="fs-body" id="fs-body" hidden>
+            <p class="fs-forecast" id="fs-forecast"></p>
+            <div class="fs-bar">
+              <span class="fs-days">Every group:</span>
+              <button type="button" class="mini" id="fs-all">Select all</button>
+              <button type="button" class="mini" id="fs-none">Select none</button>
+            </div>
+            <div id="fs-result" class="fp-result hidden" role="status"></div>
+            <h3 class="fs-h"><span>Nobody watched for <span class="fs-udays-t">45</span>+ days</span> <span class="muted" id="fs-idle-sum"></span><button type="button" class="mini fs-gall" data-fs-gall="idle">Select all</button></h3>
+            <p class="fs-gnote">Played before, then not touched since: nobody played it, asked for it or downloaded it again.</p>
+            <div class="fs-list" id="fs-idle"></div>
+            <h3 class="fs-h">Never played <span class="muted" id="fs-never-sum"></span><button type="button" class="mini fs-gall" data-fs-gall="never">Select all</button></h3>
+            <p class="fs-gnote">Nobody has played it since it arrived, <span class="fs-udays-t">45</span>+ days ago, and nobody asked for it since.</p>
+            <div class="fs-list" id="fs-never"></div>
+            <h3 class="fs-h">Watched by everyone who started it <span class="muted" id="fs-safe-sum"></span><button type="button" class="mini fs-gall" data-fs-gall="safe">Select all</button></h3>
+            <p class="fs-gnote"><label class="fs-days">Finished by everyone who started it, on nobody's My List, and in the library at least
+                <input type="number" id="fs-days" min="0" max="3650" step="1" value="60" inputmode="numeric" aria-label="Days in the library, at least" /> days</label></p>
+            <div class="fs-list" id="fs-safe"></div>
+            <h3 class="fs-h">Extra copies <span class="muted" id="fs-dup-sum"></span><button type="button" class="mini fs-gall" data-fs-gall="dups">Select all</button></h3>
+            <div class="fs-list" id="fs-dups"></div>
+            <div class="fp-foot fs-foot">
+              <span class="fp-total" id="fs-total" aria-live="polite"></span>
+              <button type="button" class="btn small btn-primary fp-del" id="fs-remove" disabled>Remove selected</button>
+            </div>
+            <h3 class="fs-h">Kept for people who are away <span class="muted" id="fs-away-sum"></span></h3>
+            <p class="fs-gnote">The last thing someone watched — and for a show the next episode on disk — stays while they have not been on Aurora since. When they are back, the usual <span class="fs-udays-t">45</span> days count from that day.</p>
+            <div class="fs-list" id="fs-away"></div>
+            <h3 class="fs-h">Kept by you <span class="muted" id="fs-pinned-sum"></span></h3>
+            <p class="fs-gnote">Titles you pinned with Keep. They are never suggested.</p>
+            <div class="fs-list" id="fs-pinned"></div>
+            <div id="fs-held-box" hidden>
+              <h3 class="fs-h">Not offered right now</h3>
+              <ul class="fs-held" id="fs-held"></ul>
+            </div>
+            <div class="fs-set" id="fs-set">
+              <h3>Settings</h3>
+              <label>Suggest titles nobody touched for
+                <input type="number" id="fs-udays" min="1" max="3650" step="1" value="45" inputmode="numeric" aria-label="Days nobody touched a title" /> days</label>
+              <label><input type="checkbox" id="fs-uploads" /> Suggest my own uploads too (Add your own file)</label>
+              <label><input type="checkbox" id="fs-mylist" /> Keep titles on someone's My List</label>
+              <button type="button" class="btn small btn-primary" id="fs-set-save">Save</button>
+            </div>
+            <h3 class="fs-h">Removed recently <span class="muted" id="fs-rm-sum"></span></h3>
+            <ul class="fs-rm" id="fs-removed"></ul>
+            <p class="fs-note">Nothing is ever removed by itself — only what you tick and confirm here. "Touched" means played (not just opened), arrived, or asked for. Files go for good; watch history is kept.</p>
+          </div>
+        </div>
+      </details>
       <details class="more hidden" data-more="d-copies" id="cp-card" data-title="More than one copy" data-sub="the same film or episode on disk more than once — keep one, delete the others" data-pill-id="cp-count" data-pill-class="warn">
         <div class="more-body">
           <div class="empty-note" id="cp-summary" style="font-size:0.88rem;padding:6px 4px 0"></div>
@@ -1679,6 +1938,8 @@
       </details>
       <details class="more" data-more="d-disk" data-title="On disk" data-sub="the drives and the whole library — find it, see who watched it, free up space">
         <div class="more-body">
+          <div class="drv-grid" id="drives-card" aria-live="polite"></div>
+          <div class="drv-moves hidden" id="drives-moves"></div>
           <div class="now-grid" id="disk-bars" style="margin-bottom:14px"></div>
           <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:8px;margin:8px 0 6px">
             <input type="text" id="lib-search" placeholder="Search titles &amp; episodes…" style="max-width:230px;flex:1;min-width:150px" />
@@ -1855,7 +2116,7 @@
     // but readable on a phone, with the destructive ones in red and the button
     // saying what it does ("Yes, delete") instead of "OK".
     const ASK_VERBS = /^(Delete|Ban|Clear|Remove|Decline|Cancel|Reject|Restart|Kick|Close|Send|Pull|Start|Reset|Suspend|Approve)\b/;
-    const ASK_DANGER = /^(Delete|Ban|Clear|Remove|Decline|Cancel|Reject|Restart|Kick|Close|Suspend)\b/;
+    const ASK_DANGER = /^(Delete|Ban|Clear|Remove|Decline|Cancel|Reject|Restart|Restore|Kick|Close|Suspend)\b/;
     const askBox = (message, withInput, yesLabel = null) => new Promise((resolve) => {
       const paras = String(message).split("\n\n");
       const cut = paras[0].indexOf("? ");
@@ -3268,6 +3529,99 @@
     const fixBtn = (fix, cls = "mini") => fix
       ? `<button class="${cls}" data-fix='${esc(JSON.stringify(fix))}'>${esc(fix.label)}</button>` : "";
 
+    // ================= who asked for a download, and when (elia 2026-11-08) =================
+    // "I need to see on downloads which user has downloaded what … and when":
+    // every download names WHO — the person, "Automatic" (smart downloads, a
+    // followed show's new episode, the old My List downloads) with whose it
+    // was, or "Unknown" for old records that never kept one — and WHEN, in the
+    // household's clock: the server's time zone and locale (GET
+    // /api/admin/summary `clock`), this browser's until that answers. Nothing
+    // is guessed: a time that was never recorded is "Unknown".
+    let HOUSE_CLOCK = null;
+    function houseDate(t, withTime = true) {
+      if (t == null || t === "") return null;
+      const d = new Date(t);
+      if (Number.isNaN(d.getTime())) return null;
+      const c = HOUSE_CLOCK || {};
+      // (this page is English: a server in another language — he-IL on the
+      // household's PC — still gives its time zone and 24-hour clock, the
+      // words stay English: "Nov 6, 21:14")
+      const want = c.locale || navigator.language || "";
+      const loc = /^en(-|$)/i.test(want) ? want : "en-US";
+      const fmt = (o) => {
+        try { return new Intl.DateTimeFormat(loc, { timeZone: c.tz || undefined, ...o }).format(d); }
+        catch { return new Intl.DateTimeFormat(undefined, o).format(d); }
+      };
+      const yearOf = (x) => { try { return new Intl.DateTimeFormat("en", { timeZone: c.tz || undefined, year: "numeric" }).format(x); } catch { return String(x.getFullYear()); } };
+      const o = { month: "short", day: "numeric" };
+      if (yearOf(d) !== yearOf(new Date())) o.year = "numeric";
+      if (withTime) Object.assign(o, c.hourCycle ? { hourCycle: c.hourCycle, hour: /^h2[34]$/.test(c.hourCycle) ? "2-digit" : "numeric" } : { hour: "2-digit" }, { minute: "2-digit" });
+      return fmt(o);
+    }
+    const AUTO_FOR = { next: (n) => `${n}'s next episode`, follow: (n) => `a new episode of a show ${n} follows` };
+    // { key: "p" | "auto" | "unknown", words, people } — people: the names it counts for
+    function dlWho(j) {
+      const auto = j.autoFor || (j.smart ? "next" : null);
+      if (auto) {
+        const f = AUTO_FOR[auto];
+        return { key: "auto", words: "Automatic" + (j.by ? ` · ${f ? f(j.by) : `for ${j.by}`}` : ""), people: j.by ? [j.by] : [] };
+      }
+      const people = [...new Set([j.by, ...(j.alsoBy || [])].filter(Boolean))];
+      return people.length ? { key: "p", words: people.join(" + "), people } : { key: "unknown", words: "Unknown", people: [] };
+    }
+    // "asked 2h ago" with the date as its tooltip (rel), or "landed Nov 6, 21:14" with how long ago as its tooltip
+    function dlWhenHTML(word, t, rel = false, more = "") {
+      const day = houseDate(t);
+      if (!day) return `<span class="dl-when"${more ? ` title="${esc(more)}"` : ""}>${esc(word)}: Unknown</span>`;
+      const tip = (rel ? day : ago(new Date(t).toISOString())) + (more ? ` · ${more}` : "");
+      return `<span class="dl-when" title="${esc(tip)}">${esc(word)} ${esc(rel ? ago(new Date(t).toISOString()) : day)}</span>`;
+    }
+    function dlWhenText(word, t) {
+      const day = houseDate(t);
+      return day ? `${word} ${day} (${ago(new Date(t).toISOString())})` : `${word}: Unknown`;
+    }
+    // when a finished (or given-up) download ended, and the word for it
+    function dlEnd(j) {
+      const word = { done: "landed", error: "failed", failed: "failed", declined: "declined", canceled: "canceled", cancelled: "canceled", removed: "removed" }[j.status] || "ended";
+      return { word, at: j.status === "done" ? j.doneAt || null : j.resolvedAt || j.doneAt || null };
+    }
+    // One line per person (and "Automatic", "Unknown"): how many downloads,
+    // how big the ones that landed are, and when the last was asked for —
+    // newest first. A person's automatic downloads count for them too.
+    function dlPeople(jobs) {
+      const m = new Map();
+      const add = (key, name, j, auto) => {
+        let r = m.get(key);
+        if (!r) m.set(key, (r = { key, name, n: 0, auto: 0, bytes: 0, last: null, done: 0, live: 0, waiting: 0, ended: 0 }));
+        r.n++;
+        if (auto) r.auto++;
+        if (j.status === "done") { r.done++; r.bytes += j.sizeBytes || 0; }
+        else if (j.status === "pending") r.waiting++;
+        else if (DL_FINISHED.has(j.status)) r.ended++;
+        else r.live++;
+        const t = j.at ? new Date(j.at).getTime() : NaN;
+        if (Number.isFinite(t) && (r.last == null || t > r.last)) r.last = t;
+      };
+      for (const j of jobs) {
+        const w = dlWho(j);
+        for (const p of w.people) add("p:" + p, p, j, w.key === "auto");
+        if (w.key === "auto") add("auto", "Automatic", j, false);
+        if (w.key === "unknown") add("unknown", "Unknown", j, false);
+      }
+      // (a tie: the people before "Automatic" and "Unknown")
+      const person = (r) => (r.key.startsWith("p:") ? 0 : 1);
+      return [...m.values()].sort((a, b) => (b.last ?? -Infinity) - (a.last ?? -Infinity) || person(a) - person(b) || a.name.localeCompare(b.name));
+    }
+    function dlPersonLine(r) {
+      const bits = [`${r.n} download${r.n === 1 ? "" : "s"}${r.key.startsWith("p:") && r.auto ? ` (${r.auto} automatic)` : ""}`];
+      if (r.bytes) bits.push(fmtBytes(r.bytes));
+      bits.push(r.last != null ? `last ${houseDate(r.last, false)}` : "last: Unknown");
+      return `${r.name} — ${bits.join(" · ")}`;
+    }
+    const dlPersonDetail = (r) => [[r.done, "finished"], [r.live, "in flight"], [r.waiting, "waiting for approval"], [r.ended, "failed, declined or canceled"]]
+      .filter(([n]) => n).map(([n, w]) => `${n} ${w}`).join(" · ");
+    const houseZone = () => (HOUSE_CLOCK && HOUSE_CLOCK.tz) || (Intl.DateTimeFormat().resolvedOptions().timeZone || "this device's time");
+
     async function loadSummary() {
       clearTimeout(sumRetry);
       if (!ADMIN_PW) return null;
@@ -3281,6 +3635,12 @@
       } catch {}
       if (d && d.state) {
         SUM = d; SUM_FAILS = 0; SUM_DOWN_SINCE = null;
+        const ck = d.clock;
+        if (ck && ck.tz && (!HOUSE_CLOCK || ck.tz !== HOUSE_CLOCK.tz || ck.locale !== HOUSE_CLOCK.locale || ck.hourCycle !== HOUSE_CLOCK.hourCycle)) {
+          HOUSE_CLOCK = { tz: ck.tz, locale: ck.locale || null, hourCycle: ck.hourCycle || null };
+          // (the downloads were written in this browser's clock until now)
+          if (DL_LOADED) paintDownloads(DL_JOBS);
+        }
         if (!RESTARTING) paintSummary(d);
         return d;
       }
@@ -3375,7 +3735,7 @@
         <div><b>${esc(r.name)} asked for a new password</b><small>${esc(r.requestedAt ? "asked " + when(r.requestedAt) : "")}</small></div>
         <div class="acts"><button class="mini" data-reset-ok="${esc(r.id)}" data-reset-name="${esc(r.name)}">Approve</button><button class="mini danger" data-reset-no="${esc(r.id)}" data-reset-name="${esc(r.name)}">Decline</button></div></div>`);
       for (const j of w.downloads || []) rows.push(`<div class="wait-row"><span class="ic">${WAIT_ICO.dl}</span>
-        <div><b>${esc(j.label)} waits for your approval</b><small>${esc([j.by, j.sizeBytes ? fmtBytes(j.sizeBytes) : "", j.holdReason].filter(Boolean).join(" · "))}</small></div>
+        <div><b>${esc(j.label)} waits for your approval</b><small>${esc([dlWho(j).words, j.at ? "asked " + when(j.at) : "asked: Unknown", j.sizeBytes ? fmtBytes(j.sizeBytes) : "", j.holdReason].filter(Boolean).join(" · "))}</small></div>
         <div class="acts"><button class="mini" data-dl-approve="${esc(j.id)}">Approve anyway</button><button class="mini danger" data-dl-decline="${esc(j.id)}">Decline</button></div></div>`);
       const inbox = [w.reports ? `${w.reports} problem report${w.reports === 1 ? "" : "s"} open` : "", w.requests ? `${w.requests} title request${w.requests === 1 ? "" : "s"}` : ""].filter(Boolean);
       if (inbox.length) rows.push(`<div class="wait-row"><span class="ic">${WAIT_ICO.inbox}</span>
@@ -3852,6 +4212,171 @@
       } catch { toast("Couldn't download that backup"); }
       b.disabled = false;
     });
+    // ---------- copies on every drive (lib/drivecopies.js) ----------
+    // The switch and the time save as they change. Each drive: its last copy,
+    // the size, OK / skipped (with why) / failed. Restore: pick a copy, see
+    // what it holds, type RESTORE; the server restarts and puts it in place
+    // before anything reads its files — this card then says how it went.
+    let DC = null;
+    const dcWhen = (ms) => (ms ? fmtWhen(new Date(ms).toISOString()) : "—");
+    const dcState = (d) => {
+      if (d.covered) return `<span class="pill live">OK</span><span class="dc-why">${esc(d.note || "")}</span>`;
+      const n = (d.copies || []).length;
+      const bad = (d.copies || []).filter((c) => !c.ok).length;
+      const pill = d.status === "ok" ? '<span class="pill live">OK</span>'
+        : d.status === "failed" ? '<span class="pill bad">failed</span>'
+        : d.status === "skipped" ? `<span class="pill warn">${d.why === "full" ? "full" : "skipped"}</span>`
+        : '<span class="pill">no copy yet</span>';
+      const why = String((d.status === "failed" ? d.error : d.note) || "").replace(/\.$/, "");
+      return `${pill}${bad ? ` <span class="pill bad">${bad} damaged</span>` : ""}<span class="dc-why">${why ? esc(why) + " · " : ""}${n} cop${n === 1 ? "y" : "ies"} kept</span>`;
+    };
+    const dcSummary = (s) => {
+      if (!s) return "";
+      const n = (v, one, many) => (v == null ? `no ${many}` : `${Number(v).toLocaleString()} ${v === 1 ? one : many}`);
+      return `${n(s.profiles, "profile", "profiles")}, ${n(s.historyRows, "history row", "history rows")}, ${n(s.sessions, "sign-in", "sign-ins")}`;
+    };
+    function paintDriveCopies(d) {
+      DC = d;
+      const on = !!d.enabled;
+      $("#dc-enabled").checked = on;
+      if (d.label) $("#dc-enabled-label").textContent = d.label;
+      if (document.activeElement !== $("#dc-time")) $("#dc-time").value = d.time || "04:00";
+      const last = d.lastRun;
+      $("#dc-state").innerHTML = d.restoring
+        ? '<span class="pill warn">restoring</span> A restore is under way — no copies are made until it is done.'
+        : !on
+          ? `<span class="pill">off</span> Switched off — no copies are made until you switch it on. (Server clock: now ${esc(d.serverClock || "")}.)`
+          : d.running
+            ? '<span class="pill warn">copying…</span> Writing the copies to the drives.'
+            : `<span class="pill live">on</span> Daily at ${esc(d.time)} (server clock: now ${esc(d.serverClock || "")})` +
+              (d.waiting ? ` · <span class="pill warn">waiting</span> ${esc(d.waiting)}` : d.nextAt ? ` · next ${esc(dcWhen(d.nextAt))}` : "") +
+              (last ? ` · last round ${ago(new Date(last.at).toISOString())}: ${last.error ? `<span class="pill bad">failed</span> ${esc(last.error)}` : `${last.made} of ${last.drives} drive${last.drives === 1 ? "" : "s"} copied${last.skipped ? `, ${last.skipped} skipped` : ""}${last.failed ? `, <b>${last.failed} failed</b>` : ""}`}` : "");
+      const rows = d.drives || [];
+      $("#dc-empty").classList.toggle("hidden", rows.length > 0);
+      $("#dc-rows").innerHTML = rows.map((r) => `<tr data-dc-drive="${esc(r.id)}">
+        <td class="dc-drive"><b>${esc(r.name || r.mount)}</b>${r.network ? ' <span class="pill">network</span>' : ""}<small>${esc(r.dir)}</small></td>
+        <td>${r.lastOkAt ? esc(dcWhen(r.lastOkAt)) : "never"}</td>
+        <td>${r.lastSize ? fmtBytes(r.lastSize) : "—"}</td>
+        <td>${dcState(r)}</td>
+      </tr>`).join("");
+      // the restore picker: every copy, by drive, newest first
+      const pick = $("#dc-pick");
+      const was = pick.value;
+      const groups = rows.filter((r) => (r.copies || []).length).map((r) => `<optgroup label="${esc(r.name || r.mount)}">` +
+        r.copies.map((c) => `<option value="${esc(r.covered ? "main" : r.id)}|${esc(c.name)}"${c.ok ? "" : " disabled"}>${esc(dcWhen(c.createdAt))} · ${fmtBytes(c.size)}${c.ok ? "" : " — damaged"}</option>`).join("") + "</optgroup>").join("");
+      pick.innerHTML = groups || '<option value="">No copies yet</option>';
+      if (was && [...pick.options].some((o) => o.value === was && !o.disabled)) pick.value = was;
+      $("#dc-look").disabled = !groups;
+      const lr = d.lastRestore;
+      const lrBox = $("#dc-last-restore");
+      lrBox.classList.toggle("hidden", !lr);
+      if (lr) {
+        const when = lr.endedAt || lr.at;
+        lrBox.innerHTML = lr.status === "done"
+          ? `<span class="pill live">restored</span> ${ago(new Date(when).toISOString())}: the copy made ${esc(dcWhen(lr.createdAt))}${lr.locationName ? ` on ${esc(lr.locationName)}` : ""} is in place (${lr.files} files). The data from before is kept in data/${esc(lr.aside)}${lr.beforeSnapshot ? ` and in the daily backups as ${esc(lr.beforeSnapshot)}` : ""} — restore that one to undo.`
+          : lr.status === "expired"
+            ? `<span class="pill warn">not restored</span> ${ago(new Date(when).toISOString())}: ${esc(lr.error || "")}`
+            : lr.status === "applying"
+              ? '<span class="pill warn">restoring…</span>'
+              : `<span class="pill bad">restore failed</span> ${ago(new Date(when).toISOString())}: ${esc(lr.error || "")}`;
+      }
+    }
+    async function loadDriveCopies() {
+      let d;
+      try { d = await json("/api/admin/backups/drives"); } catch { return; }
+      if (!d || d.error) return;
+      paintDriveCopies(d);
+    }
+    const dcSave = async (patch) => {
+      try {
+        const d = await post("/api/admin/backups/drives/settings", patch);
+        if (d.error) { toast(d.error); loadDriveCopies(); return; }
+        paintDriveCopies(d);
+        toast(patch.enabled === true ? `On — a copy on every drive each day at ${d.time}` : patch.enabled === false ? "Off — no more copies on the drives" : `The daily copy is at ${d.time} now`);
+      } catch { toast("Could not save that"); }
+    };
+    $("#dc-enabled").addEventListener("change", (e) => dcSave({ enabled: e.target.checked }));
+    $("#dc-time").addEventListener("change", (e) => { if (/^\d\d:\d\d$/.test(e.target.value) && !(DC && DC.time === e.target.value)) dcSave({ time: e.target.value }); });
+    $("#dc-run").onclick = async () => {
+      const b = $("#dc-run"); b.disabled = true; b.textContent = "Copying to the drives…";
+      try {
+        const r = await post("/api/admin/backups/drives/run");
+        if (r.error) toast(r.error);
+        else {
+          paintDriveCopies(r);
+          const x = r.run || {};
+          toast(x.drives ? `Copied to ${x.made} of ${x.drives} drive${x.drives === 1 ? "" : "s"}${x.skipped ? `, ${x.skipped} skipped` : ""}${x.failed ? `, ${x.failed} failed` : ""}` : "There is no drive to copy to");
+        }
+      } catch { toast("The copy could not be made"); }
+      b.disabled = false; b.textContent = "Make a copy now";
+    };
+    $("#dc-check").onclick = async () => {
+      const b = $("#dc-check"); b.disabled = true; b.textContent = "Reading the copies back…";
+      try {
+        const d = await post("/api/admin/backups/drives/check");
+        if (d.error) toast(d.error);
+        else {
+          paintDriveCopies(d);
+          const bad = (d.drives || []).reduce((a, r) => a + (r.copies || []).filter((c) => !c.ok).length, 0);
+          toast(bad ? `${bad} damaged cop${bad === 1 ? "y" : "ies"} found` : "Every copy reads back intact");
+        }
+      } catch { toast("The copies could not be checked"); }
+      b.disabled = false; b.textContent = "Check the copies";
+    };
+    $("#dc-look").onclick = async () => {
+      const [location, name] = String($("#dc-pick").value || "").split("|");
+      if (!name) return;
+      const out = $("#dc-look-out");
+      out.classList.remove("hidden");
+      out.innerHTML = '<div class="dc-look muted">Reading the copy back…</div>';
+      let r;
+      try { r = await post("/api/admin/backups/drives/summary", { location, name }); } catch { out.innerHTML = '<div class="dc-look">Could not read that copy.</div>'; return; }
+      if (r.error || !r.ok) { out.innerHTML = `<div class="dc-look"><span><span class="pill bad">${r.damaged ? "damaged" : "unreadable"}</span> ${esc(r.error || "")}</span></div>`; return; }
+      const stores = (r.files || []).filter((f) => /^data\/[^/]+\.json$/.test(f.path));
+      const others = (r.files || []).length - stores.length;
+      const supervised = DC && DC.supervised;
+      out.innerHTML = `<div class="dc-look">
+        <span><span class="pill live">intact</span> Made <b>${esc(dcWhen(r.createdAt))}</b> (${esc(new Date(r.createdAt).toLocaleString())}) on ${esc(r.locationName)}${r.version ? ` by Aurora ${esc(r.version)}` : ""} · ${fmtBytes(r.size)}</span>
+        <span>Holds ${esc(dcSummary(r.summary))} · ${(r.files || []).length} files</span>
+        ${r.secretsLeftOut && r.secretsLeftOut.length ? `<span class="muted">Left out of this copy: ${esc(r.secretsLeftOut.join(", "))}. A restore never changes the server's own settings.</span>` : '<span class="muted">A restore puts back the household\'s data only — never the server\'s own settings.</span>'}
+        <details><summary>The files in it</summary><ul>${stores.map((f) => `<li>${esc(f.path.slice(5))} · ${fmtBytes(f.size)}</li>`).join("")}${others ? `<li>…and ${others} more (usage logs, pictures, settings)</li>` : ""}</ul></details>
+        <div><button class="mini danger" id="dc-restore"${supervised ? "" : " disabled"}>Restore this copy…</button>${supervised ? "" : ' <span class="muted">Nothing supervises this server, so it could not start again after a restore — see docs/operations.md, or restore with the server stopped (node src/lib/backup.js restore-live).</span>'}</div>
+      </div>`;
+      const btn = $("#dc-restore");
+      if (btn) btn.onclick = () => dcRestore(location, name, r);
+    };
+    async function dcRestore(location, name, r) {
+      const word = (DC && DC.confirmWord) || "RESTORE";
+      const typed = await askBox(`Restore the household's data from ${dcWhen(r.createdAt)}? Everything since then goes back to how it was: progress, lists, sign-ins, settings, history (${dcSummary(r.summary)} in this copy).\n\nThe data as it is now is copied aside first, so this can be undone. The server restarts — anyone watching stops for a few seconds.\n\nType ${word} to go ahead.`, true, "Restore and restart");
+      if (typed == null) return;
+      if (typed.trim().toUpperCase() !== word) { toast(`Nothing was restored — type ${word} to confirm`); return; }
+      const out = $("#dc-look-out");
+      let res;
+      try { res = await post("/api/admin/backups/drives/restore", { location, name, confirm: typed.trim() }); } catch { toast("Nothing was restored — the server could not be reached"); return; }
+      if (res.error || !res.ok) { toast(res.error || "Nothing was restored"); return; }
+      RESTARTING = true;
+      paintRestarting();
+      out.innerHTML = '<div class="dc-look"><span><span class="pill warn">restoring…</span> The server is restarting to put the copy in place — this page waits for it.</span></div>';
+      const t0 = Date.now();
+      const poll = async () => {
+        try {
+          const d = await (await adminFetch("/api/admin/backups/drives")).json();
+          const lr = d && d.lastRestore;
+          if (lr && lr.requestedAt === res.requestedAt && lr.status !== "applying") {
+            RESTARTING = false;
+            paintDriveCopies(d);
+            out.classList.add("hidden");
+            toast(lr.status === "done" ? "Restored — the household's data is back to that copy" : `The restore did not happen: ${lr.error || lr.status}`);
+            loadSummary();
+            loadBackups();
+            return;
+          }
+        } catch {}
+        if (Date.now() - t0 < 180000) setTimeout(poll, 1500);
+        else { RESTARTING = false; out.innerHTML = '<div class="dc-look"><span><span class="pill bad">no answer</span> The server did not come back within three minutes — look at its supervisor on the box (docs/operations.md).</span></div>'; }
+      };
+      setTimeout(poll, 2000);
+    }
     async function loadAlerts() {
       let d;
       try { d = await json("/api/admin/alerts"); } catch { return; }
@@ -4711,8 +5236,8 @@
       }
       return j.phase;
     };
-    // who started a download, after its name (elia 2026-10-11)
-    const byTag = (j) => (j.by ? ` <span class="muted" style="font-size:0.8rem;font-weight:600">· by ${esc(j.by)}</span>` : "") +
+    // (who started it has its own column now: dlWho, 2026-11-08)
+    const byTag = (j) =>
       (j.replaces ? ` <span class="pill warn" title="Replaces the copy in the library when it lands">replaces · ${esc(j.replaces.reasonLabel || j.replaces.reason || "")}</span>` : "");
     // What a download in hand is doing, in one word for its pill — the ONE
     // place a new state goes (downloads-v2, docs/downloads-v2.md "For the
@@ -4790,13 +5315,14 @@
       el.setAttribute("role", "listitem");
       el.dataset.dlId = id;
       el.innerHTML = `<div class="fl-main"><div class="fl-name"><b class="fl-title"></b><span class="fl-by"></span></div>
+        <div class="fl-who"></div>
         <div class="fl-track"><i></i></div>
         <div class="fl-nums"><span class="fl-pct"></span><span class="fl-size"></span><span class="fl-speed"></span><span class="fl-eta"></span></div></div>
         <span class="pill fl-state"></span>
         <button class="mini danger fl-act" data-dl-cancel="${esc(id)}">Cancel</button>
         <div class="fl-note"></div>`;
       el._r = {
-        title: el.querySelector(".fl-title"), by: el.querySelector(".fl-by"), bar: el.querySelector(".fl-track i"),
+        title: el.querySelector(".fl-title"), by: el.querySelector(".fl-by"), who: el.querySelector(".fl-who"), bar: el.querySelector(".fl-track i"),
         pct: el.querySelector(".fl-pct"), size: el.querySelector(".fl-size"), speed: el.querySelector(".fl-speed"),
         eta: el.querySelector(".fl-eta"), state: el.querySelector(".fl-state"), note: el.querySelector(".fl-note"),
       };
@@ -4807,7 +5333,9 @@
       const label = j.label || j.title || "—";
       setText(r.title, label);
       if (r.title.title !== label) r.title.title = label;
-      setHTML(r.by, `${j.by ? `by ${esc(j.by)}` : ""}${prioTag(j)}${j.replaces ? ` <span class="pill warn" title="Replaces the copy in the library when it lands">replaces · ${esc(j.replaces.reasonLabel || j.replaces.reason || "")}</span>` : ""}`);
+      // who asked, and when: "Anna · asked 2h ago" (the date as its tooltip)
+      setHTML(r.who, `${esc(dlWho(j).words)} · ${dlWhenHTML("asked", j.at, true)}`);
+      setHTML(r.by, `${prioTag(j)}${j.replaces ? ` <span class="pill warn" title="Replaces the copy in the library when it lands">replaces · ${esc(j.replaces.reasonLabel || j.replaces.reason || "")}</span>` : ""}`);
       const p = Math.max(0, Math.min(1, j.progress || 0));
       const tf = `scaleX(${p.toFixed(4)})`;
       if (r.bar.style.transform !== tf) r.bar.style.transform = tf;
@@ -4825,6 +5353,18 @@
       setHTML(r.note, flightNote(j));
     };
     let DL_JOBS = [];
+    let DL_LOADED = false;
+    // the person chips: "all", "p:<name>", "auto" or "unknown"
+    let DL_WHO = "all";
+    const dlShown = (j) => {
+      if (DL_WHO === "all") return true;
+      const w = dlWho(j);
+      if (DL_WHO === "auto" || DL_WHO === "unknown") return w.key === DL_WHO;
+      return w.people.includes(DL_WHO.slice(2));
+    };
+    // ON DISK: library id -> the finished downloads that wrote it (newest first)
+    let DL_BY_LIB = new Map();
+    let dlLibSig = "";
     function renderFlight(active) {
       const host = $("#dl-jobs");
       const ids = new Set(active.map((j) => j.id));
@@ -4844,8 +5384,27 @@
       if (b) cancelDownload(b.dataset.dlCancel);
     });
     async function loadDownloads() {
-      const jobs = await json("/api/downloads");
-      DL_JOBS = jobs;
+      paintDownloads(await json("/api/downloads"));
+    }
+    function paintDownloads(all) {
+      DL_JOBS = all;
+      DL_LOADED = true;
+      // WHO: one chip per person (newest first), plus Automatic and Unknown;
+      // a chip shows only that person's downloads in the three lists below
+      const people = dlPeople(all);
+      if (DL_WHO !== "all" && !people.some((r) => r.key === DL_WHO)) DL_WHO = "all";
+      $("#dl-who-chips").classList.toggle("hidden", all.length === 0);
+      setHTML($("#dl-who-chips"), [{ key: "all", name: "Everyone", n: all.length }, ...people].map((r) =>
+        `<button type="button" data-dl-who="${esc(r.key)}" class="${r.key === DL_WHO ? "active" : ""}" aria-pressed="${r.key === DL_WHO}">${esc(r.name)}<span class="n">${r.n}</span></button>`).join(""));
+      setText($("#dl-who-count"), people.filter((r) => r.key.startsWith("p:")).length);
+      setHTML($("#dl-who-lines"), people.length
+        ? people.map((r) => `<div class="dl-who-line" data-who="${esc(r.key)}" title="${esc(dlPersonDetail(r))}">${esc(dlPersonLine(r))}</div>`).join("")
+        : `<div class="empty-note">No downloads yet.</div>`);
+      setText($("#dl-who-zone"), `Times are in ${houseZone()}, the server's clock. Counted from the last ${all.length} download${all.length === 1 ? "" : "s"} the server keeps.`);
+      const jobs = all.filter(dlShown);
+      const filtered = DL_WHO !== "all";
+      setText($("#dl-jobs-empty"), filtered ? "Nothing of theirs is downloading right now." : "Nothing is downloading right now.");
+      setText($("#dl-done-empty"), filtered ? "Nothing of theirs has finished." : "Nothing finished yet.");
       const pending = jobs.filter((j) => j.status === "pending");
       setText($("#dl-pending-count"), pending.length);
       $("#dl-needs").classList.toggle("hidden", pending.length === 0);
@@ -4856,7 +5415,8 @@
             <div class="avatar">${j.type === "show" ? "📺" : "🎬"}</div>
             <div>
               <div class="name">${esc(j.label || j.title)}</div>
-              <div class="meta">${j.by ? esc(j.by) + " · " : ""}${esc(j.quality || "?")} · ${fmtBytes(j.sizeBytes)}${j.provider ? " · " + esc(j.provider) : ""} · ${ago(j.at)}</div>
+              <div class="meta dl-whowhen">${esc(dlWho(j).words)} · ${dlWhenHTML("asked", j.at, true)}</div>
+              <div class="meta">${esc(j.quality || "?")} · ${fmtBytes(j.sizeBytes)}${j.provider ? " · " + esc(j.provider) : ""}</div>
               ${j.holdReason ? `<div class="meta" style="color:#f87171">${esc(j.holdReason)}</div>` : ""}
             </div>
           </div>
@@ -4874,9 +5434,11 @@
       const finished = jobs.filter((j) => DL_FINISHED.has(j.status));
       setText($("#dl-done-count"), finished.length);
       $("#dl-done-empty").classList.toggle("hidden", finished.length > 0);
-      setHTML($("#dl-done"), finished.map((j) => `
-        <tr>
+      setHTML($("#dl-done"), finished.map((j) => { const end = dlEnd(j); const who = dlWho(j).words; return `
+        <tr data-dl-id="${esc(j.id)}">
           <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(j.label || j.title)}">${esc(j.label || j.title)}${byTag(j)}</td>
+          <td class="dl-who" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(who)}">${esc(who)}</td>
+          <td class="dl-end" style="white-space:nowrap">${dlWhenHTML(end.word, end.at, false, `asked ${houseDate(j.at) || "Unknown"}`)}</td>
           <td>${esc(j.quality || "—")}</td>
           <td class="num">${fmtBytes(j.sizeBytes)}</td>
           <td><span class="pill ${DL_STATUS_PILL[j.status] || ""}">${esc(j.status)}</span>${j.error ? " <span class='muted' title='" + esc(j.error) + "'>" + esc(j.error.slice(0, 40)) + "</span>" : ""}</td>
@@ -4884,23 +5446,396 @@
             ${j.status === "error" ? `<button class="mini" onclick="approveDownload('${esc(j.id)}')">Retry</button>` : ""}
             <button class="mini" onclick="removeDownload('${esc(j.id)}')">Remove</button>
           </td>
-        </tr>`).join(""));
+        </tr>`; }).join(""));
+
+      // ON DISK: which download wrote each title — repainted only when that changes
+      const byLib = new Map();
+      for (const j of all) {
+        if (j.status !== "done" || !j.libraryId) continue;
+        if (!byLib.has(j.libraryId)) byLib.set(j.libraryId, []);
+        byLib.get(j.libraryId).push(j);
+      }
+      for (const list of byLib.values()) list.sort((a, b) => String(b.doneAt || "").localeCompare(String(a.doneAt || "")));
+      const sig = [...byLib].map(([id, l]) => id + ":" + l.map((j) => `${j.id}/${j.doneAt || ""}/${dlWho(j).words}`).join(",")).join("|") + "@" + houseZone();
+      DL_BY_LIB = byLib;
+      if (sig !== dlLibSig) { dlLibSig = sig; if (libTreeData) renderLibTree(); }
     }
+    $("#dl-who-chips").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-dl-who]");
+      if (!b || b.dataset.dlWho === DL_WHO) return;
+      DL_WHO = b.dataset.dlWho;
+      paintDownloads(DL_JOBS);
+    });
+    // "↓ Anna · Nov 6" under an On-disk row that came from a download (the
+    // newest, when it was downloaded twice; "Automatic (Dor)" for one queued
+    // by itself); a show: who, and the last one. The tooltip says it in full.
+    const libWho = (j) => { const w = dlWho(j); return w.key === "auto" ? `Automatic${j.by ? ` (${j.by})` : ""}` : w.words; };
+    const libDlLine = (ids) => {
+      const jobs = ids.flatMap((id) => DL_BY_LIB.get(id) || []);
+      if (!jobs.length) return "";
+      jobs.sort((a, b) => String(b.doneAt || "").localeCompare(String(a.doneAt || "")));
+      const top = jobs[0];
+      const names = [...new Set(jobs.map((j) => { const w = dlWho(j); return w.key === "p" ? w.words : w.key === "auto" ? "Automatic" : "Unknown"; }))];
+      const who = ids.length > 1 ? (names.length > 2 ? `${names.slice(0, 2).join(", ")} +${names.length - 2}` : names.join(", ")) : libWho(top);
+      const day = houseDate(top.doneAt, false);
+      const tip = jobs.slice(0, 6).map((j) => `${j.label || j.title}: downloaded by ${dlWho(j).words} — ${dlWhenText("landed", j.doneAt)}`).join("\n");
+      return `<small class="lib-dl" title="${esc(tip)}"><span><span aria-label="downloaded by">↓</span>&nbsp;${esc(who)}</span> <span>· ${ids.length > 1 ? "last " : ""}${day ? esc(day) : "Unknown"}</span></small>`;
+    };
+
 
     // ---------- disk + library management ----------
+    // ---------- storage drives (lib/drives, docs/storage-drives.md) ----------
+    // One card per drive the server can see: how full it is in general and
+    // with Aurora's own files, how fast it is (the speed check's score), and
+    // the button that matters: "Use this drive too" on a drive Aurora does not
+    // use yet; "Stop using for new downloads" / "Test again" on one it does.
+    let DRIVES = null;
+    const fmtDrive = (b) => (b >= 1000 * 2 ** 30 ? (b / 2 ** 40).toFixed(b >= 10 * 2 ** 40 ? 0 : 1) + " TB" : fmtBytes(b));
+    const drvPct = (x, total) => (total > 0 ? Math.round((x / total) * 100) : 0);
+    const drvParts = (d) => {
+      const total = d.total || 0;
+      const used = d.used != null ? d.used : total - (d.free || 0);
+      // Aurora's count at or above everything used on the drive is impossible
+      // (the system takes some): said plainly instead of a wrong "Other 0 B"
+      const unsure = !!(d.aurora && used > 0 && d.aurora.bytes >= used);
+      const aurora = unsure ? 0 : Math.min(d.aurora ? d.aurora.bytes : 0, Math.max(0, used));
+      return { total, used, aurora, other: Math.max(0, used - aurora), free: d.free || 0, unsure };
+    };
+    const UNSURE_SHARE = "Aurora's share could not be measured exactly";
+    // a network drive's score says what it serves; a local one's, how fast it is
+    const drvStreams = (sc) => (sc.scale === "network" && sc.streams1080 != null
+      ? `about ${sc.streams1080} 1080p and ${sc.streams4k} 4K stream${sc.streams4k === 1 ? "" : "s"} at once`
+      : sc.streams ? `about ${sc.streams} 4K streams at once` : "");
+    const drvPartly = (m) => (m && m.partial ? `partly measured (${(m.cut || []).join(", ") || "time limit"})` : "");
+    const drvSpeedLine = (d) => {
+      const sc = d.score;
+      if (d.testing === "running") return `Speed check: running now (about ${d.network ? "a minute" : "20 seconds"})…`;
+      if (d.testing) return `Speed check: ${d.testing === "queued" ? "next in line" : esc(d.testing)}.`;
+      if (sc) {
+        const m = sc.measured || {};
+        const net = sc.scale === "network";
+        const bits = (net
+          ? [m.parallelMBps != null ? `read ${Math.round(m.parallelMBps)} MB/s for ${m.parallelReaders || 4} viewers` : m.readMBps != null ? `read ${Math.round(m.bufferedMBps != null ? m.bufferedMBps : m.readMBps)} MB/s` : "", m.writeMBps != null ? `write ${Math.round(m.writeMBps)} MB/s` : "", drvStreams(sc), drvPartly(m)]
+          : [m.readMBps != null ? `read ${Math.round(m.readMBps)} MB/s` : "", m.writeMBps != null ? `write ${Math.round(m.writeMBps)} MB/s` : "", m.iops ? `${m.iops} small reads/s` : "", drvStreams(sc), drvPartly(m)]).filter(Boolean);
+        const tip = [
+          net && sc.meaning ? sc.meaning + " (30% is kept back for seeking and downloads landing; 1080p ≈ 1.5 MB/s, 4K ≈ 10 MB/s.)" : "",
+          m.bufferedMBps != null ? `One viewer: ${m.bufferedMBps} MB/s (${m.bufferedMethod || "?"}).` : "",
+          m.directMBps != null ? `One direct read (no read-ahead): ${m.directMBps} MB/s.` : `Read: ${m.readMethod || "?"}.`,
+          `Small reads: ${m.iops || 0}/s, ${m.randomMethod || "?"}. Median small-read time ${m.latencyMs != null ? m.latencyMs + " ms" : "?"}.`,
+          `Tested ${sc.at ? fmtWhen(sc.at) : "?"}.`,
+        ].filter(Boolean).join(" ");
+        return `<span class="drv-score" title="${esc(tip)}">Speed <b>${sc.value}</b> ${esc(sc.word)}</span> · ${esc(bits.join(" · "))}`;
+      }
+      if (d.scoreError) return `Speed check: ${esc(d.scoreError)}.`;
+      return d.inUse ? "Speed: not tested yet." : "Speed: tested when you start using it.";
+    };
+    // "Tune this network drive" (lib/drives/tune.js, docs/storage-drives.md):
+    // the preview opens inside the card; the run follows the drives list.
+    let DRV_TUNE = null; // { id, loading, p } — the open preview
+    const drvTuneOn = (d) => !!(d.tune && d.tune.supported && d.inUse);
+    // (a break allowed after each comma: the options wrap between words, not inside one)
+    const drvOptsCode = (o) => esc(o || "").replace(/,/g, ",<wbr>");
+    const drvOptChips = (list, cls, sign) => list.map((o) => `<span class="drv-opt ${cls}">${sign} ${esc(o)}</span>`).join("");
+    const drvTuneLine = (d) => {
+      const t = d.tune;
+      if (!t) return "";
+      if (t.running) return `<div class="drv-line" data-drv-tune-state="running">${t.running.action === "revert" ? "Putting the old mount options back" : "Tuning the mount"}: ${esc(t.running.words || "")}… Nobody can watch from this drive until it is done (about three minutes).</div>`;
+      const l = t.last;
+      if (!l) return "";
+      const when = l.at ? hhmmShort(l.at) : "";
+      const cls = !l.ok ? "bad" : l.action === "apply" && l.better ? "good" : "";
+      return `<div class="drv-line${cls ? " " + cls : ""}" data-drv-tune-state="${l.ok ? (l.action === "apply" && !l.better ? "not-better" : "done") : "failed"}">${l.action === "revert" ? "Put back" : "Tuned"}${when ? ` at ${esc(when)}` : ""}${l.ok ? "" : " — did not work"}: ${esc(l.message || "")}</div>`;
+    };
+    const drvTunePanel = (d) => {
+      if (!DRV_TUNE || DRV_TUNE.id !== d.id) return "";
+      const id = esc(d.id);
+      const close = `<button class="mini" data-drv-act="tune-close" data-id="${id}">Cancel</button>`;
+      if (DRV_TUNE.loading) return `<div class="drv-tune"><div class="drv-tune-h">Tune this network drive</div><div class="drv-line">Asking the server…</div></div>`;
+      const p = DRV_TUNE.p || {};
+      if (p.error) return `<div class="drv-tune"><div class="drv-tune-h">Tune this network drive</div><div class="drv-line bad">${esc(p.error)}</div><div class="drv-acts">${close}</div></div>`;
+      if (p.installed === false || p.outdated) {
+        const cmds = (p.setup && p.setup.commands) || [];
+        return `<div class="drv-tune" data-drv-tune="setup">
+          <div class="drv-tune-h">${p.outdated ? "Update the mount helper" : "One-time setup on the server"}</div>
+          <div class="drv-line">${p.outdated
+            ? "A newer mount helper is in Aurora's folder. Run these once more on the server to update it."
+            : `${p.missing === "sudo" ? "The mount helper is there, but Aurora isn't allowed to run it yet." : "The mount helper isn't installed on this server yet."} Run these two commands once on the server (over SSH). After that, Aurora tunes the drive by itself — no SSH again.`}</div>
+          <pre class="drv-cmd">${esc(cmds.join("\n"))}</pre>
+          <div class="drv-line" style="font-size:0.78rem;color:var(--text-faint)">The first copies the helper to /usr/local/sbin, owned by root (Aurora can't change it there). The second lets Aurora's user run that one file with sudo — nothing else — and is checked by visudo before it goes in. To remove it: docs/storage-drives.md.</div>
+          <div class="drv-acts"><button class="mini go" data-drv-act="tune-copy" data-id="${id}">Copy</button>${close}</div>
+        </div>`;
+      }
+      if (p.problem) return `<div class="drv-tune"><div class="drv-tune-h">Tune this network drive</div><div class="drv-line bad">${esc(p.problem)}</div><div class="drv-acts">${close}</div></div>`;
+      const watching = p.watching ? `<div class="drv-line bad">Someone is watching a title from this drive right now — try again when nobody is.</div>` : "";
+      if (p.already) {
+        return `<div class="drv-tune" data-drv-tune="already">
+          <div class="drv-tune-h">Tune this network drive</div>
+          <div class="drv-line">This drive already has the tuned options.</div>
+          <div class="drv-line">In /etc/fstab: <code>${drvOptsCode(p.fstabOptions)}</code></div>
+          ${p.liveOptions ? `<div class="drv-line">In force: <code>${drvOptsCode(p.liveOptions)}</code></div>` : ""}
+          ${p.canRevert ? `<div class="drv-line">Before: <code>${drvOptsCode(p.originalOptions)}</code></div>${watching}` : ""}
+          <div class="drv-acts">${p.canRevert ? `<button class="mini" data-drv-act="revert" data-id="${id}"${p.watching ? " disabled" : ""}>Put back the old options</button>` : ""}${close}</div>
+        </div>`;
+      }
+      return `<div class="drv-tune" data-drv-tune="preview">
+        <div class="drv-tune-h">Tune this network drive</div>
+        <div class="drv-line">Now in /etc/fstab: <code>${drvOptsCode(p.fstabOptions)}</code></div>
+        ${p.liveOptions ? `<div class="drv-line">In force: <code>${drvOptsCode(p.liveOptions)}</code></div>` : `<div class="drv-line">Not mounted right now.</div>`}
+        <div class="drv-line">What changes: bigger reads and writes (1 MiB), 4 connections, and the safety options (the server boots without it; a call that gets no answer gives up after about 30 s).</div>
+        <div class="drv-opts">${drvOptChips(p.remove || [], "rm", "−")}${drvOptChips(p.add || [], "add", "+")}</div>
+        <div class="drv-line">${esc(p.pauseNote || "")}</div>
+        ${watching}
+        <div class="drv-acts"><button class="mini go" data-drv-act="tune-run" data-id="${id}"${p.watching ? " disabled" : ""}>Tune it now</button>${close}</div>
+      </div>`;
+    };
+    const driveCard = (d) => {
+      const p = drvParts(d);
+      const down = d.inUse && !d.answering;
+      const tags = [
+        `<span class="pill">${d.network ? "Network" : "Local"}</span>`,
+        down ? `<span class="pill bad">Not answering</span>` : d.inUse ? `<span class="pill live">In use</span>` : `<span class="pill">Not in use</span>`,
+        d.inUse && !d.newDownloads ? `<span class="pill warn">No new downloads</span>` : "",
+        d.readOnly ? `<span class="pill">Read-only</span>` : "",
+        d.gone ? `<span class="pill bad">Not mounted</span>` : "",
+        d.evacuating ? `<span class="pill warn">Moving off</span>` : "",
+      ].join("");
+      const bar = p.total
+        ? `<div class="drv-bar" role="img" aria-label="${esc(p.unsure ? `${drvPct(p.used, p.total)}% used, ${UNSURE_SHARE}, ${fmtDrive(p.free)} free` : `${drvPct(p.used, p.total)}% used, ${drvPct(p.aurora, p.total)}% by Aurora, ${fmtDrive(p.free)} free`)}"><i class="a" style="width:${(p.aurora / p.total) * 100}%"></i><i class="o" style="width:${(p.other / p.total) * 100}%"></i></div>
+           <div class="drv-legend">
+             ${p.unsure
+               ? `<span><i class="k o"></i>Used <b>${fmtDrive(p.used)} · ${drvPct(p.used, p.total)}%</b></span>`
+               : `<span><i class="k a"></i>Aurora <b>${d.aurora ? `${fmtDrive(p.aurora)} · ${drvPct(p.aurora, p.total)}%` : d.inUse ? "counting…" : "none"}</b></span>
+             <span><i class="k o"></i>Other <b>${fmtDrive(p.other)} · ${drvPct(p.other, p.total)}%</b></span>`}
+             <span><i class="k f"></i>Free <b>${fmtDrive(p.free)} · ${drvPct(p.free, p.total)}%</b></span>
+           </div>
+           <div class="drv-line">Used ${fmtDrive(p.used)} of ${fmtDrive(p.total)} (${drvPct(p.used, p.total)}%)${d.inUse && d.reserve ? ` · keeps ${fmtDrive(d.reserve)} free` : ""}</div>
+           ${p.unsure ? `<div class="drv-line drv-unsure">${UNSURE_SHARE} — its count (${fmtDrive(d.aurora.bytes)}) came to all that is used on the drive, so it is not shown.</div>` : ""}`
+        : `<div class="drv-line">${down ? "No numbers while it does not answer." : "Size not measured yet."}</div>`;
+      const ev = d.evacuating;
+      const evLine = ev
+        ? `<div class="drv-line">Moving its titles to the other drives${ev.left != null ? ` — ${ev.left} left` : ""}${ev.moved ? `, ${ev.moved} moved` : ""}. One at a time, never while one is playing; Aurora stops using the drive when none is left.${ev.why ? ` Waiting: ${esc(ev.why)}.` : ""}</div>`
+        : "";
+      const state = down
+        ? `<div class="drv-line bad">Not answering since ${d.downSince ? hhmmShort(d.downSince) : "a moment ago"} — ${d.titles} title${d.titles === 1 ? "" : "s"} can't play. New downloads go to the other drives; everything resumes by itself when it answers.</div>`
+        : d.inUse
+          ? `<div class="drv-line">${d.newDownloads ? "New downloads can go here." : "New downloads go to the other drives. What is here stays and plays."}${d.titles ? ` ${d.titles} title${d.titles === 1 ? "" : "s"} here.` : ""}</div>`
+          : `<div class="drv-line">Aurora keeps no films or shows here${d.holds && d.holds.length ? ` (only its ${d.holds.includes("data") ? "own data" : "download staging"})` : ""}.</div>`;
+      const hint = d.network && d.hardMount
+        ? `<div class="drv-line" style="font-size:0.78rem;color:var(--text-faint)">Mounted “hard”: a drive that stops answering makes file calls wait for ever. Aurora keeps itself out of the way — ${drvTuneOn(d) ? "“Tune this network drive” sets the safer options too" : "the safer mount line is in docs/storage-drives.md"}.</div>`
+        : "";
+      const tuning = !!(d.tune && (d.tune.running || d.tune.elsewhere));
+      const tuneLast = d.tune && d.tune.last;
+      const acts = d.inUse
+        ? `<button class="mini" data-drv-act="${d.newDownloads ? "stop" : "resume"}" data-id="${esc(d.id)}"${tuning ? " disabled" : ""}>${d.newDownloads ? "Stop using for new downloads" : "Use for new downloads again"}</button>` +
+          `<button class="mini" data-drv-act="test" data-id="${esc(d.id)}"${down || d.testing || tuning ? " disabled" : ""}>Test again</button>` +
+          (d.evacuating
+            ? `<button class="mini" data-drv-act="cancel-move" data-id="${esc(d.id)}">Stop moving — keep using it</button>`
+            : `<button class="mini" data-drv-act="remove" data-id="${esc(d.id)}"${tuning ? " disabled" : ""}${d.holds && d.holds.includes("data") ? ' disabled title="Aurora\'s own data is on this drive"' : ""}>Stop using this drive</button>`) +
+          (drvTuneOn(d) ? `<button class="mini" data-drv-act="tune" data-id="${esc(d.id)}"${down || tuning || d.evacuating || d.testing === "running" ? " disabled" : ""}>Tune this network drive</button>` : "") +
+          (drvTuneOn(d) && tuneLast && tuneLast.ok && tuneLast.action === "apply" && !tuneLast.better && !tuning ? `<button class="mini" data-drv-act="revert" data-id="${esc(d.id)}"${down ? " disabled" : ""}>Put it back</button>` : "")
+        : `<button class="mini go" data-drv-act="use" data-id="${esc(d.id)}"${d.readOnly || !d.answering ? " disabled" : ""}>Use this drive too</button>`;
+      return `<div class="drv" data-drive="${esc(d.id)}"${down ? ' data-down="1"' : ""}>
+        <div class="drv-head"><span class="drv-name">${esc(d.name || d.mount)}</span><span class="drv-mount" title="${esc(d.source || "")}">${esc(d.mount)}${d.fstype ? ` · ${esc(d.fstype)}` : ""}</span></div>
+        <div class="drv-tags">${tags}</div>
+        ${bar}
+        ${state}
+        ${evLine}
+        <div class="drv-line">${drvSpeedLine(d)}</div>
+        ${drvTuneOn(d) ? drvTuneLine(d) : ""}
+        ${hint}
+        <div class="drv-acts">${acts}</div>
+        ${drvTuneOn(d) ? drvTunePanel(d) : ""}
+      </div>`;
+    };
+    // the drives that take new downloads, together (the headline's number)
+    const drivesPool = (list) => (list || []).filter((d) => d.inUse && d.answering && d.newDownloads && d.free != null);
+    function paintDrives(list) {
+      DRIVES = list;
+      const box = $("#drives-card");
+      if (!box) return;
+      // in use first, then the rest, by mount
+      const sorted = list.slice().sort((a, b) => (b.inUse - a.inUse) || String(a.mount).localeCompare(String(b.mount)));
+      setHTML(box, sorted.map(driveCard).join(""));
+      // a tune running: the card follows it, and says the result when it ends
+      const running = list.filter((d) => d.tune && d.tune.running).map((d) => d.id);
+      for (const id of DRV_TUNING) {
+        if (running.includes(id)) continue;
+        const d = list.find((x) => x.id === id);
+        const l = d && d.tune && d.tune.last;
+        if (l && l.message) toast(l.message);
+      }
+      DRV_TUNING = new Set(running);
+      clearTimeout(DRV_TUNE_TIMER);
+      if (running.length) DRV_TUNE_TIMER = setTimeout(() => { if (activeTab === "downloads") loadDisk(); }, 4000);
+    }
+    let DRV_TUNING = new Set();
+    let DRV_TUNE_TIMER = null;
+    const repaintDrives = () => { if (DRIVES) paintDrives(DRIVES); };
+    async function driveTune(act, id) {
+      const d = (DRIVES || []).find((x) => x.id === id);
+      if (!d) return;
+      if (act === "tune-close") { DRV_TUNE = null; repaintDrives(); return; }
+      if (act === "tune-copy") {
+        const p = DRV_TUNE && DRV_TUNE.id === id && DRV_TUNE.p;
+        const cmds = (p && p.setup && p.setup.commands) || [];
+        if (cmds.length) await copyText(cmds.join("\n") + "\n", "Copied the setup commands — paste them in an SSH session on the server");
+        return;
+      }
+      if (act === "tune") {
+        DRV_TUNE = { id, loading: true };
+        repaintDrives();
+        const p = await post("/api/admin/drives/tune/preview", { id }).catch(() => ({ error: "The server did not answer." }));
+        if (!DRV_TUNE || DRV_TUNE.id !== id) return;
+        DRV_TUNE = { id, p: p || { error: "The server did not answer." } };
+        repaintDrives();
+        return;
+      }
+      let r;
+      if (act === "tune-run") {
+        r = await post("/api/admin/drives/tune", { id }).catch(() => null);
+        if (r && r.ok) toast(`Tuning ${d.mount} — about three minutes`);
+      } else if (act === "revert") {
+        const ok = await askBox(`Put the old mount options back on ${d.mount}?\n\nThe line in /etc/fstab goes back to what it was before the first tune, and the drive is mounted again. Aurora pauses this drive for about three minutes: nobody can watch from it meanwhile and new downloads wait. It measures the speed before and after.`, false, "Yes, put it back");
+        if (!ok) return;
+        r = await post("/api/admin/drives/tune/revert", { id }).catch(() => null);
+        if (r && r.ok) toast(`Putting the old options back on ${d.mount} — about three minutes`);
+      }
+      if (r && r.ok) DRV_TUNE = null;
+      else if (r && r.setup) { DRV_TUNE = { id, p: { installed: false, missing: r.missing, setup: r.setup } }; }
+      if (r && r.error) toast(r.error);
+      if (!r) toast("The server did not answer.");
+      loadDisk();
+    }
+    // "Keep the fast drive for new and 4K titles" and "Moved recently" (lib/drives/mover.js)
+    let MOVES = null;
+    const fmtMoveWhen = (t) => (t ? fmtWhen(t) : "");
+    function paintMoves(drv) {
+      const box = $("#drives-moves");
+      if (!box) return;
+      MOVES = drv && drv.moves ? drv.moves : null;
+      const inUse = (DRIVES || []).filter((d) => d.inUse).length;
+      const m = MOVES || { keepFast: drv ? drv.keepFast !== false : true, current: null, recent: [] };
+      const show = inUse > 1 || m.current || (m.recent && m.recent.length);
+      box.classList.toggle("hidden", !show);
+      if (!show) return;
+      const c = m.current;
+      const cur = c
+        ? `<div class="drv-line" id="drives-moving">${c.paused ? "Paused" : "Moving"}: “${esc(c.title)}” ${c.bytes ? `(${fmtDrive(c.bytes)}) ` : ""}from ${esc(c.from)} to ${esc(c.to)}${c.phase === "copying" && c.bytes ? ` — ${Math.round((c.copied / c.bytes) * 100)}%` : c.phase === "removing" ? " — in place; the original goes next" : ""}${c.paused ? ` — ${esc(c.paused)}` : ""}.</div>`
+        : "";
+      const rec = (m.recent || []).slice(0, 12);
+      const recent = rec.length
+        ? `<details class="drv-recent"><summary>Moved recently (${rec.length})</summary><ul>${rec.map((x) => `<li>${esc(x.title)} — ${x.result === "moved" ? `moved to ${esc(x.to)}` : esc(x.result)}${x.bytes ? ` · ${fmtDrive(x.bytes)}` : ""} · ${esc(fmtMoveWhen(x.at))}</li>`).join("")}</ul></details>`
+        : "";
+      setHTML(box, `${inUse > 1 ? `<label><input type="checkbox" id="drv-keepfast"${m.keepFast !== false ? " checked" : ""} /> Keep the fast drive for new and 4K titles</label>
+        <div class="drv-line">New downloads someone asked for, the next episode of what is being watched, and top-quality 4K go to the fastest drive while it has room; the rest goes where there is most room. When the fast drive runs low, titles nobody has played for 60 days move to a slower drive, one at a time, never while someone is watching.</div>` : ""}${cur}${recent}`);
+    }
+    document.addEventListener("change", async (e) => {
+      if (!e.target || e.target.id !== "drv-keepfast") return;
+      const on = e.target.checked;
+      const r = await post("/api/admin/drives/keep-fast", { on }).catch(() => null);
+      if (r && r.ok) toast(on ? "The fast drive is kept for new and 4K titles" : "New downloads go where there is most room");
+      else { e.target.checked = !on; toast((r && r.error) || "That did not work — try again"); }
+    });
+    function movesText(m) {
+      if (!m) return "";
+      const lines = [`Keep the fast drive for new and 4K titles: ${m.keepFast !== false ? "on" : "off"}`];
+      if (m.current) lines.push(`Moving now: ${m.current.title} (${fmtDrive(m.current.bytes || 0)}) from ${m.current.from} to ${m.current.to}, ${m.current.phase}${m.current.paused ? `, paused: ${m.current.paused}` : ""}`);
+      if (m.recent && m.recent.length) lines.push("Moved recently:\n" + MD.table(["title", "from", "to", "size", "result", "when"], m.recent.map((x) => [x.title, x.from, x.to, fmtDrive(x.bytes || 0), x.result, fmtMoveWhen(x.at)])));
+      return lines.join("\n");
+    }
+    async function driveAction(act, id) {
+      const d = (DRIVES || []).find((x) => x.id === id);
+      if (!d) return;
+      let r;
+      if (act === "use") {
+        const sep = /\\/.test(d.mount) ? "\\" : "/";
+        const base = d.mount.replace(/[\\/]+$/, "") + sep + "Aurora";
+        const ok = await askBox(`Use ${d.mount} for Aurora too?\n\nAurora checks it can write there, makes the folders ${base}${sep}Movies and ${base}${sep}Shows (unless they exist), adds them to the library in config.json (a copy of the old file is kept) and rescans. New downloads then go to whichever drive has the most room. Nothing already on the drive is moved or deleted.`, false, "Yes, use this drive");
+        if (!ok) return;
+        toast("Setting the drive up…");
+        r = await post("/api/admin/drives/use", { id }).catch(() => null);
+        if (r && r.ok) toast(`Now using ${d.mount} — new downloads can go there`);
+      } else if (act === "stop" || act === "resume") {
+        r = await post("/api/admin/drives/new-downloads", { id, on: act === "resume" }).catch(() => null);
+        if (r && r.ok) toast(act === "stop" ? `No new downloads to ${d.mount} — what is there stays` : `${d.mount} takes new downloads again`);
+      } else if (act === "remove") {
+        const n = d.titles || 0;
+        let how = "remove";
+        let ok;
+        if ((!d.answering || d.gone) && n) {
+          how = "force";
+          ok = await askBox(`Stop using ${d.mount} anyway? It ${d.gone ? "is not mounted any more" : "isn't answering"}, so its titles can't be moved.\n\nIts ${n} title${n === 1 ? "" : "s"} will disappear from the library. Its library folders are taken out of config.json (a copy of the old file is kept). Nothing on the drive is deleted — if it comes back, "Use this drive too" brings them back.`, false, "Stop using it anyway");
+        } else if (n) {
+          how = "move";
+          ok = await askBox(`Move ${n} title${n === 1 ? "" : "s"} off ${d.mount} first? Aurora keeps ${n} title${n === 1 ? "" : "s"} there.\n\nThey move to the other drives one at a time — never while one is playing, carefully copied and checked before the original goes. New downloads stop going there now. When none is left, Aurora stops using the drive by itself.`, false, "Move them to the other drives first");
+        } else {
+          ok = await askBox(`Stop using ${d.mount}? Aurora keeps no titles there.\n\nIts library folders are taken out of config.json (a copy of the old file is kept) and the library is rescanned. Nothing on the drive is deleted.`, false, "Stop using it");
+        }
+        if (!ok) return;
+        r = await post("/api/admin/drives/stop-using", { id, how }).catch(() => null);
+        if (r && r.ok) toast(r.moving ? `Moving ${r.titles} title${r.titles === 1 ? "" : "s"} off ${d.mount} — it is removed when empty` : `Aurora no longer uses ${d.mount}`);
+      } else if (act === "cancel-move") {
+        r = await post("/api/admin/drives/stop-using", { id, how: "cancel" }).catch(() => null);
+        if (r && r.ok) toast(`Stopped moving titles off ${d.mount} — it stays in use`);
+      } else if (act === "test") {
+        r = await post("/api/admin/drives/test", { id }).catch(() => null);
+        if (r && r.ok) toast(r.waiting ? `Speed check queued — ${r.waiting}` : "Speed check started — about 20 seconds");
+      }
+      if (r && r.error) toast(r.error);
+      loadDisk();
+      if (act === "test" || act === "use") setTimeout(() => { if (activeTab === "downloads") loadDisk(); }, 25000);
+    }
+    document.addEventListener("click", (e) => {
+      const b = e.target.closest && e.target.closest("[data-drv-act]");
+      if (!b || b.disabled) return;
+      if (/^(tune|tune-run|tune-close|tune-copy|revert)$/.test(b.dataset.drvAct)) return driveTune(b.dataset.drvAct, b.dataset.id);
+      driveAction(b.dataset.drvAct, b.dataset.id);
+    });
+    function drivesText(list) {
+      if (!list) return "Drives: the server did not answer.";
+      const rows = list.map((d) => {
+        const p = drvParts(d);
+        const m = (d.score && d.score.measured) || {};
+        return [
+          d.mount, d.network ? "network" : "local", d.fstype || "",
+          d.evacuating ? `moving off (${d.evacuating.left != null ? d.evacuating.left : "?"} left${d.evacuating.why ? `; ${d.evacuating.why}` : ""})` : d.inUse ? (!d.answering ? `NOT ANSWERING${d.gone ? " (not mounted)" : ""} since ${d.downSince ? hhmmShort(d.downSince) : "?"}${d.why ? ` (${d.why})` : ""}` : d.newDownloads ? "in use" : "in use, no new downloads") : "not in use",
+          p.total ? `${fmtDrive(p.used)} of ${fmtDrive(p.total)} (${drvPct(p.used, p.total)}%)` : "?",
+          d.aurora ? (p.unsure ? `${UNSURE_SHARE} (counted ${fmtDrive(d.aurora.bytes)}${d.aurora.apparent != null ? `, ${fmtDrive(d.aurora.apparent)} by file length` : ""})` : `${fmtDrive(p.aurora)} (${drvPct(p.aurora, p.total)}%)`) : d.inUse ? "counting" : "-",
+          p.total ? fmtDrive(p.free) : "?",
+          d.score ? (d.score.scale === "network"
+            ? `${d.score.value} ${d.score.word}: ${drvStreams(d.score)} (${m.parallelReaders || 4} readers together ${Math.round(m.parallelMBps || 0)} MB/s, one reader ${Math.round(m.bufferedMBps || 0)} MB/s, one direct ${m.directMBps != null ? Math.round(m.directMBps) + " MB/s" : "?"}, write ${Math.round(m.writeMBps || 0)} MB/s, ${m.iops || 0} small reads/s${m.partial ? `; ${drvPartly(m)}` : ""})`
+            : `${d.score.value} ${d.score.word} (read ${Math.round(m.readMBps || 0)} MB/s, write ${Math.round(m.writeMBps || 0)} MB/s, ${m.iops || 0} small reads/s; read ${m.readMethod || "?"}${m.partial ? `; ${drvPartly(m)}` : ""})`) : d.testing ? `testing (${d.testing})` : d.scoreError || "not tested",
+          d.network ? (d.hardMount ? "hard" : "soft") + (d.options && d.options.length ? ` [${d.options.join(",")}]` : "") + (d.tune && d.tune.last ? `; last ${d.tune.last.action === "revert" ? "put back" : "tune"}: ${d.tune.last.message || "?"}` : "") : "",
+        ];
+      });
+      return "Drives:\n" + MD.table(["drive", "kind", "fs", "state", "used", "Aurora", "free", "speed", "mount options"], rows);
+    }
+
     async function loadDisk() {
+      // the drives card (a server from before it answers 404: the old bars stay)
+      const drvP = json("/api/admin/drives").catch(() => null);
       // The endpoint used to return a bare array; tolerate both so this page
       // works against a server that hasn't been restarted yet.
       const res = await json("/api/admin/disk");
+      const drv = await drvP;
+      const drivesList = drv && Array.isArray(drv.drives) ? drv.drives : null;
+      if (drivesList) { paintDrives(drivesList); paintMoves(drv); }
+      $("#disk-bars").classList.toggle("hidden", !!drivesList);
       const disks = Array.isArray(res) ? res : res.disks || [];
       const minFreePct = Array.isArray(res) ? 0 : res.minFreePct || 0;
+      // "about 40 days until full at this week's pace" (media/diskforecast.js)
+      const fc = Array.isArray(res) ? null : res.forecast;
       // The headline number this page exists for (the ENOSPC lesson): free
       // space, always visible, red under 50GB.
-      const minFree = disks.reduce((m, d) => (d.free != null && (m == null || d.free < m) ? d.free : m), null);
+      // several drives in use: the ones that take new downloads count together
+      const pool = drivesList ? drivesPool(drivesList) : [];
+      const pooled = !!drivesList && drivesList.filter((d) => d.inUse).length > 1 && pool.length > 0;
+      const downN = drivesList ? drivesList.filter((d) => d.inUse && !d.answering).length : 0;
+      const minFree = pooled ? pool.reduce((n, d) => n + d.free, 0) : disks.reduce((m, d) => (d.free != null && (m == null || d.free < m) ? d.free : m), null);
       if (minFree != null) {
         const low = minFree < 50e9;
         setHTML($("#disk-headline"),
-          `<b style="${low ? "color:#f87171" : ""}">${fmtBytes(minFree)} free</b>${disks.length > 1 ? " on the fullest drive" : ""}${low ? " — running low: On disk → Suggest what to delete" : ""}${minFreePct > 0 ? ` · downloads start by themselves above ${minFreePct}% free` : ""}`);
+          `<b style="${low ? "color:#f87171" : ""}">${pooled ? fmtDrive(minFree) : fmtBytes(minFree)} free</b>${pooled ? ` on ${pool.length} drive${pool.length === 1 ? "" : "s"}` : disks.length > 1 ? " on the fullest drive" : ""}${downN ? ` · <b style="color:var(--bad)">${downN} drive${downN === 1 ? "" : "s"} not answering</b>` : ""}${fc && fc.line ? ` · <span id="disk-forecast" title="${esc(fc.detail || "")}">${esc(fc.line)}</span>` : ""}${low ? " — running low: On disk → Suggest what to delete" : ""}${minFreePct > 0 ? ` · downloads start by themselves above ${minFreePct}% free` : ""}`);
       }
       const merged = [];
       for (const d of disks) {
@@ -5010,7 +5945,7 @@
       const epRow = (e) => libRow(
         `<input type="checkbox" class="lib-ep-check" data-id="${esc(e.id)}" data-size="${e.sizeBytes}" data-name="${esc(e.fileName)}" data-watched="${e.watched ? 1 : 0}" style="margin:0" />` +
         `<span class="muted num" style="min-width:52px">S${String(e.season).padStart(2, "0")}E${String(e.episode || 0).padStart(2, "0")}</span>` +
-        `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.fileName)}">${esc(e.title)}</span>` +
+        `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.fileName)}">${esc(e.title)}${libDlLine([e.id])}</span>` +
         watchedBadge(e.watched) + myListBadge(e.mylist) + copyPill(e.id) +
         `<span class="num muted">${fmtBytes(e.sizeBytes)}</span>` +
         `<button class="mini danger" data-file-id="${esc(e.id)}" data-file-name="${esc(e.fileName)}" data-file-size="${e.sizeBytes}">Delete</button>`, 26);
@@ -5024,7 +5959,7 @@
         if (it.kind === "movie") {
           return libRow(
             libThumb(it.cover, "🎬") +
-            `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)}${it.year ? ` <span class="muted">(${it.year})</span>` : ""}</span>` +
+            `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)}${it.year ? ` <span class="muted">(${it.year})</span>` : ""}${libDlLine([it.id])}</span>` +
             watchedBadge(it.watched) + myListBadge(it.mylist) + copyPill(it.id) +
             `<span class="num muted">${fmtBytes(it.sizeBytes)}</span>` +
             `<button class="mini danger" data-del-type="movie" data-del-id="${esc(it.id)}" data-del-title="${esc(it.title)}">Delete</button>`);
@@ -5050,7 +5985,7 @@
         return `<details class="lib-show" data-key="${esc(it.id)}"${open}>
           <summary style="list-style:none;cursor:pointer">${libRow(
             libThumb(it.cover, "📺") +
-            `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)} <span class="muted">${it.epCount} ep${it.epWatched ? ` · ${it.epWatched} watched` : ""}</span></span>` +
+            `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)} <span class="muted">${it.epCount} ep${it.epWatched ? ` · ${it.epWatched} watched` : ""}</span>${libDlLine(it.seasons.flatMap((se) => se.episodes.map((e) => e.id)))}</span>` +
             `<span class="num muted">${fmtBytes(it.sizeBytes)}</span>` +
             `<button class="mini danger" data-del-type="show" data-del-id="${esc(it.id)}" data-del-title="${esc(it.title)}">Delete</button>`)}</summary>
           ${seasons}
@@ -5438,6 +6373,454 @@
       await loadFreePick(fpGb);
       libRefresh();
     });
+
+    // ---------- free up space: what is SAFE to remove (media/freespace.js) ----------
+    // The server lists (GET /api/admin/library/freeup?days=N): titles every
+    // profile that started has finished, on nobody's My List, at least N days
+    // in the library — and the extra copies of a title held twice. Nothing is
+    // ticked at first and nothing goes without a yes: a row's Remove asks once
+    // for that row, "Remove N (X GB)" asks once for the ticked ones. The
+    // server checks every key again before it removes anything, through the
+    // same deletes as On disk and More than one copy.
+    let fsData = null;
+    const FS_DAYS_KEY = "aurora-admin-fs-days";
+    try { const v = localStorage.getItem(FS_DAYS_KEY); if (v != null && /^\d{1,4}$/.test(v)) $("#fs-days").value = v; } catch {}
+    const fsDays = () => { const n = parseInt($("#fs-days").value, 10); return n >= 0 && n <= 3650 ? n : 60; };
+    const fsChecks = () => [...document.querySelectorAll("#fs-card .fs-check")];
+    const fsChosen = () => fsChecks().filter((c) => c.checked && !c.disabled);
+    const fsRows = () => (fsData ? [...fsData.safe, ...fsData.duplicates, ...(fsData.idle || []), ...(fsData.never || []), ...(fsData.away || [])] : []);
+    const fsRowOf = (key) => fsRows().find((r) => r.key === key);
+    const fsBusy = `<span class="pill live">▶ being watched</span>`;
+    const fsRow = (r) => {
+      const label = r.kind === "copy" ? `${esc(r.name)}${r.quality ? ` · ${esc(r.quality)}` : ""}` : esc(r.name);
+      const sub = r.kind === "copy" && r.fileName ? `<span class="fp-sub">${esc(r.fileName)}</span>` : "";
+      return `<div class="fp-row fs-row${r.inUse ? " fp-busy" : ""}" data-fs-key="${esc(r.key)}">
+        <label class="fp-lab">
+          <input type="checkbox" class="fs-check" data-key="${esc(r.key)}" data-group="${r.kind === "copy" ? "dups" : "safe"}" data-size="${r.sizeBytes}" data-name="${esc(r.name)}"${r.inUse ? " disabled" : ""} />
+          ${libThumb(r.cover, r.kind === "movie" ? "🎬" : "📺")}
+          <span class="fp-text"><b>${label}</b>${sub}<span class="fp-why">${r.inUse ? `${fsBusy} right now — kept, and not counted · ` : ""}${esc(r.why)}</span></span>
+          <span class="fp-size">${fmtBytes(r.fileBytes)}</span>
+        </label>
+        <button type="button" class="mini danger fs-one" data-fs-one="${esc(r.key)}"${r.inUse ? " disabled" : ""} aria-label="Remove ${esc(r.name)}">Remove</button>
+      </div>`;
+    };
+    // the calm line: what is suggested, why in a word, and how long the disk lasts
+    const fsUDays = (d) => (d.untouched && d.untouched.days) || 45;
+    const fsLine = (d) => {
+      const t = d.totals.all;
+      const f = d.forecast && d.forecast.line ? ` · ${esc(d.forecast.line)}` : "";
+      const n = ((d.totals.idle || {}).count || 0) + ((d.totals.never || {}).count || 0);
+      const away = (d.away || []).length;
+      const why = n ? ` — ${n === t.count ? (n === 1 ? "nobody touched it" : "nobody touched them") : `${n}`} for ${fsUDays(d)} days` : "";
+      const kept = away ? ` · ${away} kept for people who are away` : "";
+      return t.count
+        ? `<b>Suggested to delete: ${t.count} item${t.count === 1 ? "" : "s"} · ${fmtBytes(t.bytes)}</b>${n && n !== t.count ? ` — ${n} nobody touched for ${fsUDays(d)} days` : why}${kept}${f}`
+        : `Nothing to suggest right now${kept}${f}`;
+    };
+    // a 45-day row: a film, or one episode under its show
+    const fsMeta = (r) => [fmtBytes(r.fileBytes), r.drive ? `on ${r.drive}` : "", r.askedBy ? `asked for by ${r.askedBy}` : r.upload ? "your own upload" : ""].filter(Boolean).map(esc).join(" · ");
+    const fsURow = (r, inShow) => {
+      const label = inShow ? `S${fpPad(r.season)}E${fpPad(r.episode)}${r.title ? ` · ${esc(r.title)}` : ""}` : esc(r.name);
+      return `<div class="fp-row fs-row${r.inUse ? " fp-busy" : ""}" data-fs-key="${esc(r.key)}">
+        <label class="fp-lab">
+          <input type="checkbox" class="fs-check" data-key="${esc(r.key)}" data-group="${esc(r.group)}" data-size="${r.sizeBytes}" data-name="${esc(r.name)}"${r.show ? ` data-show="${esc(r.group + "|" + r.show.id)}"` : ""}${r.inUse ? " disabled" : ""} />
+          ${inShow ? "" : libThumb(r.cover, r.kind === "movie" ? "🎬" : "📺")}
+          <span class="fp-text"><b>${label}</b><span class="fp-why">${r.inUse ? `${fsBusy} right now — kept, and not counted · ` : ""}${esc(r.why)}</span><span class="fs-meta">${fsMeta(r)}</span></span>
+        </label>
+        ${!inShow && r.kind === "movie" ? `<span class="fs-acts"><button type="button" class="mini" data-fs-keep="${esc(r.id)}" aria-label="Keep ${esc(r.name)}: never suggest it">Keep</button></span>` : ""}
+      </div>`;
+    };
+    // films alone; episodes under their show (where the show first comes up)
+    const fsUList = (rows, group) => {
+      const out = [];
+      const shows = new Map();
+      for (const r of rows) {
+        if (r.kind !== "episode" || !r.show) { out.push({ r }); continue; }
+        let g = shows.get(r.show.id);
+        if (!g) { g = { show: r.show, eps: [] }; shows.set(r.show.id, g); out.push(g); }
+        g.eps.push(r);
+      }
+      return out.map((g) => {
+        if (g.r) return fsURow(g.r, false);
+        g.eps.sort((a, b) => (a.season - b.season) || (a.episode - b.episode));
+        const size = g.eps.reduce((n, e) => n + (e.inUse ? 0 : e.sizeBytes), 0);
+        const showKey = `${group}|${g.show.id}`;
+        return `<div class="fs-show" data-fs-show="${esc(showKey)}">
+          <div class="fp-row fs-show-row">
+            <label class="fp-lab">
+              <input type="checkbox" class="fs-show-check" data-show="${esc(showKey)}"${g.eps.every((e) => e.inUse) ? " disabled" : ""} aria-label="Every episode of ${esc(g.show.title)} here" />
+              ${libThumb(g.show.cover, "📺")}
+              <span class="fp-text"><b>${esc(g.show.title)}</b><span class="fp-sub">${g.eps.length} episode${g.eps.length === 1 ? "" : "s"} · ${fmtBytes(size)}</span></span>
+            </label>
+            <span class="fs-acts"><button type="button" class="mini" data-fs-keep="${esc(g.show.id)}" aria-label="Keep ${esc(g.show.title)}: never suggest it">Keep</button></span>
+          </div>
+          <div class="fs-eps" role="group" aria-label="Episodes of ${esc(g.show.title)}">${g.eps.map((e) => fsURow(e, true)).join("")}</div>
+        </div>`;
+      }).join("");
+    };
+    const fsAwayRow = (r) => `<div class="fp-row fs-row fs-kept" data-fs-key="${esc(r.key)}">
+        <span class="fp-lab">
+          ${libThumb(r.cover, r.kind === "movie" ? "🎬" : "📺")}
+          <span class="fp-text"><b>${esc(r.name)}</b><span class="fp-why">${esc(r.why)}</span><span class="fs-meta">${esc(r.reason || "")}${r.reason ? " · " : ""}${fsMeta(r)}</span></span>
+        </span>
+        <span class="fs-acts"><button type="button" class="mini danger" data-fs-away="${esc(r.key)}"${r.inUse ? " disabled" : ""} aria-label="Remove ${esc(r.name)} anyway">Remove anyway</button></span>
+      </div>`;
+    const fsPinRow = (r) => `<div class="fp-row fs-row fs-kept" data-fs-pin="${esc(r.id)}">
+        <span class="fp-lab">
+          ${libThumb(r.cover, r.kind === "movie" ? "🎬" : "📺")}
+          <span class="fp-text"><b>${esc(r.name)}</b><span class="fp-why">${esc(r.why)}</span><span class="fs-meta">${r.onDisk ? `${r.episodes ? `${r.episodes} episode${r.episodes === 1 ? "" : "s"} · ` : ""}${fmtBytes(r.sizeBytes)}` : "not on the disk now"}</span></span>
+        </span>
+        <span class="fs-acts"><button type="button" class="mini" data-fs-unpin="${esc(r.id)}" aria-label="Stop keeping ${esc(r.name)}">Unpin</button></span>
+      </div>`;
+    const fsRmDay = (t) => { try { return new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch { return ""; } };
+    function renderFreeSpace() {
+      const d = fsData;
+      if (!d) return;
+      setText($("#fs-count"), d.totals.all.count);
+      $("#fs-line").innerHTML = fsLine(d);
+      const f = d.forecast;
+      $("#fs-forecast").textContent = f ? `Forecast: ${f.line}. ${f.detail || ""}`.trim() : "Forecast: not measured.";
+      const sum = (t) => (t.count ? `${t.count} · ${fmtBytes(t.bytes)}` : "");
+      setText($("#fs-safe-sum"), sum(d.totals.safe));
+      setText($("#fs-dup-sum"), sum(d.totals.duplicates));
+      // the 45-day rule's groups
+      const days = fsUDays(d);
+      for (const el of document.querySelectorAll("#fs-card .fs-udays-t")) setText(el, days);
+      setText($("#fs-idle-sum"), sum(d.totals.idle || { count: 0 }));
+      setText($("#fs-never-sum"), sum(d.totals.never || { count: 0 }));
+      $("#fs-idle").innerHTML = (d.idle || []).length ? fsUList(d.idle, "idle")
+        : `<div class="fs-empty">Nothing: everything played before was touched in the last ${days} days.</div>`;
+      $("#fs-never").innerHTML = (d.never || []).length ? fsUList(d.never, "never")
+        : `<div class="fs-empty">Nothing: every title that arrived ${days}+ days ago has been played or asked for since.</div>`;
+      const away = d.away || [];
+      setText($("#fs-away-sum"), away.length ? String(away.length) : "");
+      $("#fs-away").innerHTML = away.length ? away.map(fsAwayRow).join("") : `<div class="fs-empty">Nobody's last title is being kept right now.</div>`;
+      const pinned = d.pinned || [];
+      setText($("#fs-pinned-sum"), pinned.length ? String(pinned.length) : "");
+      $("#fs-pinned").innerHTML = pinned.length ? pinned.map(fsPinRow).join("") : `<div class="fs-empty">Nothing pinned. Press Keep on a title above to never have it suggested.</div>`;
+      const held = d.held || [];
+      $("#fs-held-box").hidden = held.length === 0;
+      $("#fs-held").innerHTML = held.map((h) => `<li>${esc(h.name)} — ${esc(h.why)}</li>`).join("");
+      const removed = d.removed || [];
+      setText($("#fs-rm-sum"), removed.length ? String(removed.length) : "");
+      $("#fs-removed").innerHTML = removed.length
+        ? removed.slice(0, 30).map((r) => `<li><b>${esc(r.name)}</b> · ${fmtBytes(r.sizeBytes || 0)}<span class="fs-meta">${esc(fsRmDay(r.at))}${r.why ? ` — ${esc(r.why)}` : ""}</span></li>`).join("")
+        : `<li class="fs-empty">Nothing removed through these suggestions yet.</li>`;
+      const st = (d.untouched && d.untouched.settings) || null;
+      if (st && !$("#fs-set").contains(document.activeElement)) {
+        $("#fs-udays").value = st.untouchedDays;
+        $("#fs-uploads").checked = !!st.untouchedUploads;
+        $("#fs-mylist").checked = !!st.untouchedKeepMyList;
+      }
+      try { const sub = $("#sub-d-free"); if (sub) sub.textContent = $("#fs-line").textContent; } catch {}
+      $("#fs-safe").innerHTML = d.safe.length ? d.safe.map(fsRow).join("")
+        : `<div class="fs-empty">Nothing yet: no title in the library ${d.days}+ days has been finished by everyone who started it while on nobody's My List.</div>`;
+      $("#fs-dups").innerHTML = d.duplicates.length ? d.duplicates.map(fsRow).join("")
+        : `<div class="fs-empty">No title is on the disk twice.</div>`;
+      $("#fs-all").disabled = $("#fs-none").disabled = d.totals.all.count === 0;
+      fsUpdate();
+    }
+    // a show's tick follows its episodes: all, none, or some (mixed)
+    function fsSyncShows() {
+      for (const box of document.querySelectorAll("#fs-card .fs-show-check")) {
+        const eps = fsChecks().filter((c) => c.dataset.show === box.dataset.show && !c.disabled);
+        const on = eps.filter((c) => c.checked).length;
+        box.checked = eps.length > 0 && on === eps.length;
+        box.indeterminate = on > 0 && on < eps.length;
+      }
+    }
+    function fsUpdate() {
+      fsSyncShows();
+      for (const b of document.querySelectorAll("#fs-card [data-fs-gall]")) {
+        const boxes = fsChecks().filter((c) => c.dataset.group === b.dataset.fsGall && !c.disabled);
+        b.disabled = boxes.length === 0;
+        b.textContent = boxes.length && boxes.every((c) => c.checked) ? "Select none" : "Select all";
+      }
+      const chosen = fsChosen();
+      const bytes = chosen.reduce((n, c) => n + (+c.dataset.size || 0), 0);
+      setText($("#fs-total"), chosen.length ? `${chosen.length} ticked · ${fmtBytes(bytes)}` : "Nothing ticked");
+      const btn = $("#fs-remove");
+      if (!btn.dataset.busy) btn.textContent = chosen.length ? `Remove ${chosen.length} (${fmtBytes(bytes)})` : "Remove selected";
+      btn.disabled = chosen.length === 0 || !!btn.dataset.busy;
+    }
+    async function loadFreeSpace() {
+      let d = null;
+      try { d = await json(`/api/admin/library/freeup?days=${fsDays()}`); } catch { return; }
+      if (!d || !Array.isArray(d.safe) || !Array.isArray(d.duplicates)) {
+        $("#fs-line").textContent = (d && d.error) || "Could not read what to suggest.";
+        return;
+      }
+      // keep what was ticked, where it is still offered
+      const ticked = new Set(fsChosen().map((c) => c.dataset.key));
+      fsData = d;
+      renderFreeSpace();
+      for (const c of fsChecks()) if (ticked.has(c.dataset.key) && !c.disabled) c.checked = true;
+      fsUpdate();
+    }
+    // Remove these keys — after the one question has been answered yes.
+    async function fsRemove(keys, { confirmAway = false } = {}) {
+      const btn = $("#fs-remove");
+      btn.dataset.busy = "1";
+      btn.disabled = true;
+      btn.textContent = `Removing ${keys.length}…`;
+      let res = null;
+      try {
+        const r = await adminFetch("/api/admin/library/freeup/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(confirmAway ? { keys, days: fsDays(), confirmAway: true } : { keys, days: fsDays() }) });
+        res = await r.json().catch(() => ({}));
+        if (!r.ok || res.error) throw new Error(res.error || "Remove failed");
+      } catch (err) {
+        delete btn.dataset.busy;
+        fsUpdate();
+        return toast(err.message);
+      }
+      delete btn.dataset.busy;
+      const done = res.deleted.length;
+      const skipped = res.skipped || [];
+      const head = done ? `Removed ${done} of ${keys.length} — ${fmtBytes(res.freedBytes)} freed.` : "Nothing was removed.";
+      const out = $("#fs-result");
+      out.classList.remove("hidden");
+      out.classList.toggle("fp-some", skipped.length > 0);
+      out.innerHTML = `<b>${esc(head)}</b>` + (skipped.length
+        ? ` ${skipped.length} kept:<ul>${skipped.map((x) => `<li>${esc(x.name || (fsRowOf(x.key) || {}).name || x.key)} — ${esc(x.why)}</li>`).join("")}</ul>`
+        : "");
+      toast(skipped.length ? `${head} ${skipped.length} kept` : head);
+      for (const c of fsChecks()) c.checked = false;
+      await loadFreeSpace();
+      libRefresh();
+    }
+    $("#fs-toggle").addEventListener("click", () => {
+      const b = $("#fs-toggle");
+      const open = b.getAttribute("aria-expanded") !== "true";
+      b.setAttribute("aria-expanded", String(open));
+      b.textContent = open ? "Hide details" : "Details";
+      $("#fs-body").hidden = !open;
+    });
+    $("#fs-days").addEventListener("change", () => {
+      try { localStorage.setItem(FS_DAYS_KEY, String(fsDays())); } catch {}
+      $("#fs-result").classList.add("hidden");
+      loadFreeSpace();
+    });
+    $("#fs-days").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); e.target.dispatchEvent(new Event("change")); } });
+    $("#fs-card").addEventListener("change", (e) => {
+      const box = e.target.closest(".fs-show-check");
+      if (box) fsChecks().forEach((c) => { if (c.dataset.show === box.dataset.show && !c.disabled) c.checked = box.checked; });
+      if (box || e.target.closest(".fs-check")) fsUpdate();
+    });
+    $("#fs-all").addEventListener("click", () => { fsChecks().forEach((c) => { if (!c.disabled) c.checked = true; }); fsUpdate(); });
+    $("#fs-none").addEventListener("click", () => { fsChecks().forEach((c) => { c.checked = false; }); fsUpdate(); });
+    // Keep / Unpin a title (POST /api/admin/library/keep)
+    async function fsKeep(id, on, btn) {
+      if (btn) btn.disabled = true;
+      let res = {};
+      try {
+        const r = await adminFetch("/api/admin/library/keep", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, on }) });
+        res = await r.json().catch(() => ({}));
+        if (!r.ok || res.error) throw new Error(res.error || "That did not work");
+      } catch (err) {
+        if (btn) btn.disabled = false;
+        return toast(err.message);
+      }
+      toast(on ? "Kept — it will never be suggested" : "No longer kept — it can be suggested again");
+      await loadFreeSpace();
+    }
+    $("#fs-card").addEventListener("click", async (e) => {
+      const gall = e.target.closest("[data-fs-gall]");
+      if (gall) {
+        const g = gall.dataset.fsGall;
+        const boxes = fsChecks().filter((c) => c.dataset.group === g && !c.disabled);
+        const all = boxes.length > 0 && boxes.every((c) => c.checked);
+        boxes.forEach((c) => { c.checked = !all; });
+        fsUpdate();
+        return;
+      }
+      const keep = e.target.closest("[data-fs-keep]");
+      if (keep) return fsKeep(keep.dataset.fsKeep, true, keep);
+      const unpin = e.target.closest("[data-fs-unpin]");
+      if (unpin) return fsKeep(unpin.dataset.fsUnpin, false, unpin);
+      const awayBtn = e.target.closest("[data-fs-away]");
+      if (awayBtn) {
+        const r = fsRowOf(awayBtn.dataset.fsAway);
+        if (!r || r.inUse) return;
+        const who = (r.people || []).join(" and ") || "someone";
+        if (!await askTyped(`Remove "${r.name}" — ${fmtBytes(r.sizeBytes)}?\n\n${r.why}. ${who} has not been on Aurora since, and this is kept so it is there when they come back.\n\nThe file is removed for good and this cannot be undone. Watch history is kept.\n\nType REMOVE to remove it anyway.`, "REMOVE", "Remove anyway")) return;
+        awayBtn.disabled = true;
+        await fsRemove([r.key], { confirmAway: true });
+        return;
+      }
+      const one = e.target.closest("[data-fs-one]");
+      if (!one) return;
+      const r = fsRowOf(one.dataset.fsOne);
+      if (!r || r.inUse) return;
+      const nEp = r.kind === "show" ? r.episodes.filter((x) => !x.inUse).length : 0;
+      const what = r.kind === "show" ? `${nEp} episode file${nEp === 1 ? "" : "s"} of "${r.name}"` : r.kind === "copy" ? `this extra copy of "${r.name}"` : `"${r.name}"`;
+      if (!await ask(`Remove ${what} — ${fmtBytes(r.sizeBytes)}?\n\nSafe because: ${r.why}.\n\nThe file${nEp > 1 ? "s are" : " is"} removed for good and this cannot be undone. Watch history is kept.`)) return;
+      one.disabled = true;
+      await fsRemove([r.key]);
+    });
+    $("#fs-remove").addEventListener("click", async () => {
+      const chosen = fsChosen();
+      if (!chosen.length) return;
+      const bytes = chosen.reduce((n, c) => n + (+c.dataset.size || 0), 0);
+      const n = chosen.length;
+      const list = chosen.slice(0, 8).map((c) => `• ${c.dataset.name} — ${fmtBytes(+c.dataset.size)}`).join("\n");
+      if (!await ask(`Remove ${n} item${n === 1 ? "" : "s"} — ${fmtBytes(bytes)}?\n\n${list}${n > 8 ? `\n…and ${n - 8} more` : ""}\n\nEach one was suggested for the reason beside it. The files are removed for good and this cannot be undone. Watch history is kept.`)) return;
+      await fsRemove(chosen.map((c) => c.dataset.key));
+    });
+    $("#fs-set-save").addEventListener("click", async () => {
+      const n = parseInt($("#fs-udays").value, 10);
+      if (!(n >= 1 && n <= 3650)) return toast("Days: a whole number from 1 to 3650");
+      const btn = $("#fs-set-save");
+      btn.disabled = true;
+      try {
+        const r = await adminFetch("/api/admin/library/freeup/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ untouchedDays: n, untouchedUploads: $("#fs-uploads").checked, untouchedKeepMyList: $("#fs-mylist").checked }) });
+        const res = await r.json().catch(() => ({}));
+        if (!r.ok || res.error) throw new Error(res.error || "Could not save");
+        toast("Saved");
+      } catch (err) { toast(err.message); }
+      btn.disabled = false;
+      await loadFreeSpace();
+    });
+    // ---------- Overnight (media/overnight.js) ----------
+    // The calm line (also the section's own sub-line, so it reads closed), and
+    // behind Details: what is prepared and why, tonight's plan, the downloads
+    // ahead, the last runs, the settings.
+    const ON_KIND = { copy: "copy, sound made AAC", h264: "1080p H.264" };
+    const ON_REASON = { next: "next episode", continue: "Continue watching", landed: "asked for, not watched yet" };
+    const ON_STATUS = { done: "landed", downloading: "downloading", approved: "waiting its turn", pending: "waiting for your approval", error: "failed", canceled: "cancelled", declined: "declined", gone: "no longer in the list" };
+    const onWhen = (t) => (t ? fmtWhen(new Date(t).toISOString()) : "—");
+    const onLi = (main, meta) => `<li>${esc(main)}${meta ? `<span class="on-meta">${esc(meta)}</span>` : ""}</li>`;
+    const onEmpty = (text) => `<li class="on-empty">${esc(text)}</li>`;
+    async function loadOvernight() {
+      let d;
+      try { d = await json("/api/admin/overnight"); } catch { return; }
+      if (!d || d.error || !d.settings) return;
+      $("#on-line").textContent = d.line;
+      const sub = $("#sub-d-overnight");
+      if (sub) sub.textContent = d.line;
+      const b = d.budget || {};
+      $("#on-budget").textContent = `Disk budget ${fmtBytes(b.bytes)} (${b.pct}% of the free space) · ${fmtBytes(b.usedBytes)} used${b.freeBytes != null ? ` · ${fmtBytes(b.freeBytes)} free` : ""}.` +
+        (d.making ? ` Now: ${d.making.label}, ${Math.round((d.making.progress || 0) * 100)}%${d.making.paused ? " — paused while someone watches" : ""}.` : "") +
+        (d.state === "waiting" && d.busyWhy ? ` Waiting: ${d.busyWhy}.` : "");
+      const prep = d.prepared || [];
+      $("#on-prep-sum").textContent = prep.length ? `${prep.length} · ${fmtBytes(prep.reduce((n, r) => n + (r.bytes || 0), 0))}` : "";
+      $("#on-prepared").innerHTML = prep.length
+        ? prep.map((r) => onLi(`${r.label || r.id} — ${ON_KIND[r.kind] || r.kind} · ${fmtBytes(r.bytes)}`,
+          `for ${(r.people || []).join(", ") || "the house"} · ${ON_REASON[r.reason] || r.reason || ""} · made ${onWhen(r.madeAt)}${r.ms ? ` in ${fmtDur(r.ms / 1000)}` : ""} · ${r.usedAt ? `played ${onWhen(r.usedAt)}` : "not played yet"}`)).join("")
+        : onEmpty("Nothing prepared right now.");
+      const p = d.plan;
+      $("#on-plan-sum").textContent = p ? `made ${onWhen(p.at)} · ${p.make.length} to prepare, ${(p.keep || []).length} ready, ${p.skip.length} over the budget, ${p.considered} looked at` : "";
+      $("#on-plan").innerHTML = !p
+        ? onEmpty(`No plan yet — it is made when the quiet hours begin (${d.settings.from}), or with Run now.`)
+        : [...p.make.map((w) => onLi(`${w.label} — ${ON_KIND[w.kind] || w.kind}, about ${fmtBytes(w.bytes)}`, `${ON_REASON[w.reason] || w.reason} · for ${(w.people || []).join(", ")} · needed by ${(w.devices || []).join(", ") || "the house's devices"}`)),
+          ...p.skip.map((w) => onLi(`Not tonight: ${w.label} — ${ON_KIND[w.kind] || w.kind}`, w.why)),
+          ...(p.notes || []).slice(0, 12).map((n) => onLi(`Nothing needed: ${n.label}`, n.why)),
+          ...(p.removed || []).map((x) => onLi(`Removed: ${x.key.split("|")[0]}`, x.why))].join("") || onEmpty("Nothing to prepare: every device here plays what is coming up as it is.");
+      const a = d.ahead || {};
+      $("#on-ahead-sum").textContent = `${a.landedDay || 0} landed in the last day${a.onTheWay ? `, ${a.onTheWay} on the way` : ""}`;
+      $("#on-ahead").innerHTML = [
+        ...(a.last && a.last.why ? [onLi(a.last.why)] : []),
+        ...(a.recent || []).map((r) => onLi(`${r.label} — ${ON_STATUS[r.status] || r.status}`, `for ${r.name || r.profile} · ${r.nth === 0 ? "the next episode" : "the one after"} · asked ${onWhen(r.at)}`)),
+      ].join("") || onEmpty(d.settings.aheadEpisodes ? "Nothing downloaded ahead yet." : "Downloading ahead is off.");
+      $("#on-runs").innerHTML = (d.runs || []).length
+        ? d.runs.map((r) => onLi(`${onWhen(r.startedAt)} – ${onWhen(r.endedAt)}: ${r.made.length} prepared (${fmtBytes(r.made.reduce((n, m) => n + (m.bytes || 0), 0))})${r.stopped.length ? `, ${r.stopped.length} stopped` : ""}${r.failed.length ? `, ${r.failed.length} failed` : ""}`,
+          [r.end, ...r.failed.slice(0, 3).map((f) => `${f.label}: ${f.why}`)].filter(Boolean).join(" · "))).join("")
+        : onEmpty("No run yet.");
+      const s = d.settings;
+      const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest(".on-set");
+      if (!typing) {
+        $("#on-on").checked = !!s.on;
+        $("#on-from").value = s.from;
+        $("#on-to").value = s.to;
+        $("#on-pct").value = s.budgetPct;
+        $("#on-ahead-n").value = String(s.aheadEpisodes);
+      }
+    }
+    $("#on-toggle").addEventListener("click", () => {
+      const b = $("#on-toggle");
+      const open = b.getAttribute("aria-expanded") !== "true";
+      b.setAttribute("aria-expanded", String(open));
+      b.textContent = open ? "Hide details" : "Details";
+      $("#on-body").hidden = !open;
+    });
+    $("#on-save").addEventListener("click", async () => {
+      const pct = parseInt($("#on-pct").value, 10);
+      if (!(pct >= 1 && pct <= 50)) return toast("Disk budget: a whole number from 1 to 50 (% of the free space)");
+      const btn = $("#on-save");
+      btn.disabled = true;
+      try {
+        const r = await adminFetch("/api/admin/overnight/settings", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ on: $("#on-on").checked, from: $("#on-from").value, to: $("#on-to").value, budgetPct: pct, aheadEpisodes: parseInt($("#on-ahead-n").value, 10) }) });
+        const res = await r.json().catch(() => ({}));
+        if (!r.ok || res.error) throw new Error(res.error || "Could not save");
+        toast("Saved");
+      } catch (err) { toast(err.message); }
+      btn.disabled = false;
+      await loadOvernight();
+    });
+    $("#on-run").addEventListener("click", async () => {
+      const btn = $("#on-run");
+      btn.disabled = true;
+      try {
+        const r = await adminFetch("/api/admin/overnight/run", { method: "POST" });
+        const res = await r.json().catch(() => ({}));
+        if (!r.ok || res.error) throw new Error(res.error || "Could not start it");
+        toast(res.waiting || "Started — tonight's run, now");
+      } catch (err) { toast(err.message); }
+      btn.disabled = false;
+      setTimeout(loadOvernight, 1500);
+    });
+    // Copy for Claude: the line, the settings, and every list behind Details.
+    const overnightText = async () => {
+      const d = await json("/api/admin/overnight");
+      const s = d.settings || {};
+      const b = d.budget || {};
+      const p = d.plan;
+      return [
+        d.line,
+        MD.list([["switch", s.on ? "on" : "off"], ["quiet hours", `${s.from}–${s.to} (server time)`], ["state", d.state + (d.busyWhy ? ` — ${d.busyWhy}` : "")],
+          ["disk budget", `${fmtBytes(b.bytes)} (${b.pct}% of the free space), ${fmtBytes(b.usedBytes)} used, ${b.freeBytes != null ? fmtBytes(b.freeBytes) + " free" : "free space not read"}`],
+          ["downloaded ahead", `${s.aheadEpisodes === 0 ? "off" : s.aheadEpisodes === 1 ? "the next episode" : "the next two episodes"}${d.ahead && d.ahead.last && d.ahead.last.why ? ` — ${d.ahead.last.why}` : ""}`],
+          ["now", d.making ? `${d.making.label} ${Math.round((d.making.progress || 0) * 100)}%${d.making.paused ? " (paused)" : ""}` : ""]]),
+        "\nPrepared:", MD.table(["title", "kind", "size", "for", "why", "made", "last played"], (d.prepared || []).map((r) => [r.label || r.id, ON_KIND[r.kind] || r.kind, fmtBytes(r.bytes), (r.people || []).join(", "), ON_REASON[r.reason] || r.reason || "", onWhen(r.madeAt), r.usedAt ? onWhen(r.usedAt) : "not yet"])),
+        "\nTonight's plan" + (p ? ` (made ${onWhen(p.at)}, ${p.considered} titles looked at):` : ": none yet"),
+        p ? MD.table(["title", "kind", "about", "why", "for", "devices"], p.make.map((w) => [w.label, ON_KIND[w.kind] || w.kind, fmtBytes(w.bytes), ON_REASON[w.reason] || w.reason, (w.people || []).join(", "), (w.devices || []).join(", ")])) : "",
+        p && p.skip.length ? "\nNot tonight:\n" + MD.table(["title", "kind", "why"], p.skip.map((w) => [w.label, w.kind, w.why])) : "",
+        p && (p.notes || []).length ? "\nNothing needed:\n" + MD.table(["title", "why"], p.notes.map((n) => [n.label, n.why])) : "",
+        "\nDownloaded ahead:", MD.table(["episode", "for", "which", "status", "asked"], ((d.ahead && d.ahead.recent) || []).map((r) => [r.label, r.name || r.profile, r.nth === 0 ? "next" : "the one after", ON_STATUS[r.status] || r.status, onWhen(r.at)])),
+        "\nLast runs:", MD.table(["began", "ended", "prepared", "stopped", "failed", "why it ended"], (d.runs || []).map((r) => [onWhen(r.startedAt), onWhen(r.endedAt), `${r.made.length} (${fmtBytes(r.made.reduce((n, m) => n + (m.bytes || 0), 0))})`, r.stopped.length, r.failed.length, r.end || ""])),
+        "\nDevices by person:\n" + ((d.devices || []).map((x) => `- ${x.person}: ${x.devices.join(", ")}`).join("\n") || "(none seen yet — the house's devices are used)"),
+      ].filter((x) => x !== "").join("\n");
+    };
+    // Copy for Claude: the forecast and every candidate with why, as plain text.
+    const freeSpaceText = async () => {
+      const d = await json(`/api/admin/library/freeup?days=${fsDays()}`);
+      const f = d.forecast || {};
+      const t = (d.totals && d.totals.all) || { count: 0, bytes: 0 };
+      return [
+        MD.list([["forecast", f.line || "not measured"], ["behind it", f.detail || ""],
+          ["free", d.disk && d.disk.free != null ? `${fmtBytes(d.disk.free)} of ${fmtBytes(d.disk.total)}` : "not measured"],
+          ["suggested to delete", `${t.count} item${t.count === 1 ? "" : "s"}, ${fmtBytes(t.bytes)}`],
+          ["nobody touched for", `${fsUDays(d)} days (uploads ${d.untouched && d.untouched.settings && d.untouched.settings.untouchedUploads ? "suggested too" : "never suggested"}; My List ${d.untouched && d.untouched.settings && d.untouched.settings.untouchedKeepMyList ? "keeps a title" : "does not keep a title"})`],
+          ["watched by everyone", `titles in the library at least ${d.days} days`]]),
+        `\nNobody watched for ${fsUDays(d)}+ days:`,
+        MD.table(["title", "size", "drive", "why"], (d.idle || []).map((r) => [r.name, fmtBytes(r.fileBytes), r.drive || "", (r.inUse ? "BEING WATCHED NOW, kept · " : "") + r.why]), 40),
+        "\nNever played:",
+        MD.table(["title", "size", "drive", "why"], (d.never || []).map((r) => [r.name, fmtBytes(r.fileBytes), r.drive || "", (r.inUse ? "BEING WATCHED NOW, kept · " : "") + r.why]), 40),
+        "\nKept for people who are away (never suggested):",
+        MD.table(["title", "size", "why"], (d.away || []).map((r) => [r.name, fmtBytes(r.fileBytes), r.why]), 40),
+        "\nKept by you (never suggested):",
+        MD.table(["title", "size", "pinned"], (d.pinned || []).map((r) => [r.name, fmtBytes(r.sizeBytes), r.why]), 40),
+        "\nNot offered right now:",
+        MD.table(["title", "why"], (d.held || []).map((r) => [r.name, r.why]), 40),
+        "\nWatched by everyone who started it, on nobody's My List:",
+        MD.table(["title", "size", "why it is safe"], (d.safe || []).map((r) => [r.name, fmtBytes(r.fileBytes), (r.inUse ? "BEING WATCHED NOW, kept · " : "") + r.why]), 40),
+        "\nExtra copies:",
+        MD.table(["title", "copy", "size", "why it is safe"], (d.duplicates || []).map((r) => [r.name, [r.quality, r.fileName].filter(Boolean).join(" · "), fmtBytes(r.fileBytes), (r.inUse ? "BEING WATCHED NOW, kept · " : "") + r.why]), 40),
+        "\nRemoved recently:",
+        MD.table(["when", "title", "size", "why"], (d.removed || []).map((r) => [new Date(r.at).toISOString().slice(0, 16).replace("T", " "), r.name, fmtBytes(r.sizeBytes || 0), r.why || ""]), 40),
+        "\nNothing is removed automatically; every removal is confirmed in the admin.",
+      ].join("\n");
+    };
 
     $("#lib-batch-delete").addEventListener("click", async () => {
       const checked = [...document.querySelectorAll(".lib-ep-check:checked")];
@@ -5925,9 +7308,10 @@
           const act = jobs.filter(inFlight);
           const pend = jobs.filter((j) => j.status === "pending");
           return [
-            MD.table(["title", "by", "state", "done", "size", "speed", "left", "note"], act.map((j) => [j.label || j.title, [j.by, j.priority && j.priority.label].filter(Boolean).join(" · "), flightState(j).word + (j.sources && j.sources.tried ? ` (copy ${j.sources.tried} of ${j.sources.max})` : ""), `${Math.round((j.progress || 0) * 100)}%`, fmtBytes(j.sizeBytes), j.status === "downloading" ? fmtSpeed(j.downloadSpeed) : "", dlEta(j), j.note || (j.health && j.health.state !== "ok" && j.health.why) || ""])),
+            MD.table(["title", "by", "asked", "state", "done", "size", "speed", "left", "note"], act.map((j) => [j.label || j.title, [dlWho(j).words, j.priority && j.priority.label].filter(Boolean).join(" · "), dlWhenText("asked", j.at), flightState(j).word + (j.sources && j.sources.tried ? ` (copy ${j.sources.tried} of ${j.sources.max})` : ""), `${Math.round((j.progress || 0) * 100)}%`, fmtBytes(j.sizeBytes), j.status === "downloading" ? fmtSpeed(j.downloadSpeed) : "", dlEta(j), j.note || (j.health && j.health.state !== "ok" && j.health.why) || ""])),
             ...act.filter((j) => j.race || j.raceNote).map((j) => `- ${j.label || j.title}: ${j.race ? `trying a second source (${j.race.state})${j.race.why ? ` — ${j.race.why}` : ""}; ` + (j.race.attempts || []).map((a) => `${a.role} ${a.provider || ""} ${Math.round((a.progress || 0) * 100)}% ${fmtSpeed(a.downloadSpeed)}`).join(" / ") : j.raceNote}`),
-            pend.length ? "\nWaiting for approval:\n" + MD.table(["title", "by", "size", "why held"], pend.map((j) => [j.label || j.title, j.by || "", fmtBytes(j.sizeBytes), j.holdReason || ""])) : "",
+            pend.length ? "\nWaiting for approval:\n" + MD.table(["title", "by", "asked", "size", "why held"], pend.map((j) => [j.label || j.title, dlWho(j).words, dlWhenText("asked", j.at), fmtBytes(j.sizeBytes), j.holdReason || ""])) : "",
+            `\nBy person (times in ${houseZone()}):\n` + (dlPeople(jobs).map((r) => `- ${dlPersonLine(r)}`).join("\n") || "(no downloads)"),
           ].filter(Boolean).join("\n");
         },
       },
@@ -5944,7 +7328,15 @@
         },
       },
       "d-done": {
-        copy: async () => MD.table(["title", "quality", "size", "status", "error"], (await json("/api/downloads")).filter((j) => DL_FINISHED.has(j.status)).map((j) => [j.label || j.title, j.quality || "", fmtBytes(j.sizeBytes), j.status, j.error || ""])),
+        copy: async () => MD.table(["title", "by", "asked", "ended", "quality", "size", "status", "error"], (await json("/api/downloads")).filter((j) => DL_FINISHED.has(j.status)).map((j) => { const end = dlEnd(j); return [j.label || j.title, dlWho(j).words, dlWhenText("asked", j.at), dlWhenText(end.word, end.at), j.quality || "", fmtBytes(j.sizeBytes), j.status, j.error || ""]; })) + `\n\nTimes are in ${houseZone()}.`,
+      },
+      "d-who": {
+        copy: async () => {
+          const rows = dlPeople(await json("/api/downloads"));
+          return rows.length
+            ? rows.map((r) => `- ${dlPersonLine(r)}${dlPersonDetail(r) ? ` (${dlPersonDetail(r)})` : ""}`).join("\n") + `\n\nTimes are in ${houseZone()}. "Automatic" is smart downloads and followed shows; a person's automatic downloads count for them too.`
+            : "No downloads yet.";
+        },
       },
       "d-copies": {
         load: () => loadCopies(),
@@ -5962,16 +7354,25 @@
             "\n" + MD.table(["title", "for", "added", "state", "why"], (m.records || []).map((r) => [r.label, r.by || "", mlDay(r.addedAt), (ML_STATE[r.state] || [r.state])[0], r.why || ""]));
         },
       },
+      "d-free": {
+        load: () => loadFreeSpace(),
+        copy: () => freeSpaceText(),
+      },
+      "d-overnight": {
+        load: () => loadOvernight(),
+        copy: () => overnightText(),
+      },
       "d-disk": {
         load: () => { loadDisk(); loadLibraryTree(); },
         copy: async () => {
-          const [dk, t] = await Promise.all([json("/api/admin/disk"), json("/api/admin/library/tree")]);
+          const [dk, t, dv] = await Promise.all([json("/api/admin/disk"), json("/api/admin/library/tree"), json("/api/admin/drives").catch(() => null)]);
           const disks = Array.isArray(dk) ? dk : dk.disks || [];
+          const drivesPart = dv && Array.isArray(dv.drives) ? drivesText(dv.drives) + "\n\n" + (dv.moves ? movesText(dv.moves) + "\n\n" : "") : "";
           const movies = t.movies || [], shows = t.shows || [];
           const big = [...movies.map((m) => [m.title + (m.year ? ` (${m.year})` : ""), m.sizeBytes || 0, m.watched || 0]),
             ...shows.map((s) => [s.title, s.sizeBytes || (s.seasons || []).reduce((n, se) => n + (se.episodes || []).reduce((x, e) => x + (e.sizeBytes || 0), 0), 0), s.watched || 0])]
             .sort((a, b) => b[1] - a[1]);
-          return MD.table(["drive", "free", "size"], disks.map((d) => [d.root, d.free == null ? "?" : fmtBytes(d.free), d.total == null ? "?" : fmtBytes(d.total)])) +
+          return drivesPart + "Library folders:\n" + MD.table(["drive", "free", "size"], disks.map((d) => [d.root, d.free == null ? "?" : fmtBytes(d.free), d.total == null ? "?" : fmtBytes(d.total)])) +
             `\n\nLibrary: ${movies.length} movies, ${shows.length} shows.\nBiggest:\n` + MD.table(["title", "size", "finished by"], big.slice(0, 15).map(([n, b, w]) => [n, fmtBytes(b), w]));
         },
       },
@@ -6130,11 +7531,16 @@
         },
       },
       "ac-backups": {
-        load: () => loadBackups(),
+        load: () => { loadBackups(); loadDriveCopies(); },
         copy: async () => {
           const d = await json("/api/admin/backups");
           return MD.list([["daily backup", d.enabled === false ? "off" : `into ${d.dir}`], ["second location", d.mirror ? d.mirror.dir : "not set"], ["restore test", d.drill ? `${d.drill.ok ? "works" : "failed"} ${ago(new Date(d.drill.at).toISOString())}${d.drill.error ? ` — ${d.drill.error}` : ""}` : "not run yet"], ["advice", d.advice]]) +
-            "\n" + MD.table(["snapshot", "made", "size", "check"], (d.snapshots || []).map((b) => [b.name, ago(new Date(b.createdAt).toISOString()), fmtBytes(b.size), b.verified ? "intact" : "broken"]), 10);
+            "\n" + MD.table(["snapshot", "made", "size", "check"], (d.snapshots || []).map((b) => [b.name, ago(new Date(b.createdAt).toISOString()), fmtBytes(b.size), b.verified ? "intact" : "broken"]), 10) +
+            await (async () => {
+              const c = await json("/api/admin/backups/drives").catch(() => null);
+              if (!c || c.error) return "";
+              return `\n\nCopies on every drive: ${c.enabled ? `on, daily at ${c.time}` : "off"}\n` + MD.table(["drive", "last copy", "size", "state"], (c.drives || []).map((r) => [r.mount, r.lastOkAt ? ago(new Date(r.lastOkAt).toISOString()) : "never", r.lastSize ? fmtBytes(r.lastSize) : "-", r.covered ? "OK (the daily backups)" : r.status === "failed" ? `failed: ${r.error || ""}` : r.status === "skipped" ? `skipped: ${r.note || ""}` : r.status]), 10);
+            })();
         },
       },
       "ac-alerts": {
@@ -6167,7 +7573,7 @@
       server: () => { loadUpdateCheck(); loadOpen("server"); },
       // (copies and My List decide whether their card is there at all; the
       // limits feed the "holding while someone watches" line over the list)
-      downloads: () => { loadDownloads(); loadDisk(); loadCopies(); loadMyList(); loadLimits(); loadOpen("downloads"); },
+      downloads: () => { loadDownloads(); loadDisk(); loadCopies(); loadMyList(); loadLimits(); loadOvernight(); loadOpen("downloads"); },
       moderation: () => { loadReports(); loadRequests(); loadOpen("moderation"); },
       logs: () => loadLogs(),
       actions: () => { loadActions(); loadOpen("actions"); },
@@ -6336,7 +7742,7 @@
           } else if (data.type === "library_updated") {
             // A delete (possibly from another admin tab) changed the disk —
             // keep the ON DISK zone honest.
-            if (activeTab === "downloads") { if (isOpen("d-disk")) loadLibraryTree(); loadDisk(); loadCopies(); }
+            if (activeTab === "downloads") { if (isOpen("d-disk")) loadLibraryTree(); if (isOpen("d-free")) loadFreeSpace(); loadDisk(); loadCopies(); }
           }
         };
         ws.onclose = () => { conn(false); soonSummary(800); setTimeout(connectWs, 5000); };
@@ -6364,7 +7770,7 @@
     setInterval(() => {
       if (!ADMIN_PW || document.hidden || RESTARTING) return;
       if (activeTab === "server") refreshOpen("server", ["sv-machine"]);
-      if (activeTab === "downloads") { loadDownloads(); loadLimits(); refreshOpen("downloads", ["d-upload"]); } // (the "holding" line follows who is watching)
+      if (activeTab === "downloads") { loadDownloads(); loadLimits(); refreshOpen("downloads", ["d-upload", "d-overnight"]); } // (the "holding" line follows who is watching)
     }, 8000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden && ADMIN_PW) loadSummary(); });
 

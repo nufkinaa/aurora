@@ -1,0 +1,90 @@
+# Settings for scripts/nufurora/update.sh (the auto-updater).
+#
+# Copy to one of these (the first that exists is read):
+#   $AURORA_UPDATE_CONF            a path you choose
+#   /etc/aurora-update.conf        for the whole machine
+#   <Aurora folder>/data/auto-update.conf
+# Every line is optional: each key below shows its default. The file is read
+# by bash, so it is KEY=value with no spaces around "=", and quotes around a
+# value that has spaces. A key set in the environment wins over this file
+# (e.g. `DRY_RUN=1 scripts/nufurora/update.sh`).
+
+# The Aurora folder (a git clone). Default: the folder this script is in, two
+# levels up.
+#AURORA_DIR=/opt/aurora
+
+# stable = only commits tagged server-<version>-stable (the release tool tags
+#          them); the newest such tag by version.
+# master = the newest commit on origin/master, tagged or not.
+#MODE=stable
+
+# The git remote and the branch the folder must be on. The branch is moved
+# forward with `git merge --ff-only`, so the admin page's own "Update and
+# restart" (git pull --ff-only origin master) keeps working.
+#REMOTE=origin
+#BRANCH=master
+
+# Aurora's port on this machine. Default: "port" in config.json, else 4000.
+# The server is asked at http://127.0.0.1:<port>.
+#PORT=4000
+
+# Seconds to wait, after the restart, for /healthz to answer ok with the new
+# version from a freshly started process. Past that: roll back.
+#HEALTH_TIMEOUT=300
+
+# How to restart Aurora. auto = find out each time:
+#   1. a keeper is running (data/keeper-state.json names a live keeper pid):
+#      node scripts/keeper.js --restart  (no root needed). When the update
+#      changes the keeper's own code (scripts/keeper.js, src/lib/keeper.js)
+#      and the systemd unit is active, `systemctl restart aurora` instead, if
+#      this user may (root, or the sudoers line in the docs); otherwise the
+#      keeper restart, and the keeper's own code loads at its next restart.
+#   2. the systemd unit is active: systemctl restart aurora (sudo -n if not root)
+#   3. pm2 is running and knows a process "aurora": pm2 restart aurora
+#   none of these: nothing is changed, and the log says why.
+# Anything else is run with `bash -c` in the Aurora folder. It must ask a
+# supervisor to restart Aurora, not start the server itself: under the timer,
+# whatever the run leaves behind is ended when the run ends.
+#RESTART_CMD=auto
+
+# Run only when package-lock.json differs between the old and the new commit.
+#NPM_CI_CMD="npm ci --omit=dev --no-audit --no-fund"
+
+# yes = a paused player counts as someone watching (the update waits).
+#COUNT_PAUSED=yes
+
+# required = if the number watching cannot be read (no admin password, a
+#            refused password, a strange answer), do not update; the log says why.
+# skip     = do not ask; update even if someone is watching.
+# The password is read like the server reads it: AURORA_ADMIN_PASSWORD in the
+# environment, else in the Aurora folder's .env, else "adminPassword" in
+# config.json. It is sent only to 127.0.0.1 and never logged.
+#WATCH_CHECK=required
+
+# A server that started less than this many seconds ago is left alone: its
+# viewers may not have reconnected yet, so "nobody watching" is not yet true.
+#MIN_SERVER_UPTIME=120
+
+# The log (moved to .1 when it passes 5 MB) and the small state file (the
+# release that failed, the last update, messages already said).
+#LOG_FILE=/opt/aurora/data/auto-update.log
+#STATE_FILE=/opt/aurora/data/auto-update.state
+
+# Empty = never tell anyone. When set, run with bash after a rollback, and
+# after 3 runs in a row that could not update; the message is in "$1".
+# Example (email; needs a working `mail` command):
+#ALERT_CMD='printf "%s\n" "$1" | mail -s "Aurora auto-update" you@example.com'
+#ALERT_CMD=
+
+# 1 = decide and log what would be done; change nothing (it still fetches).
+#DRY_RUN=0
+
+# node, when it is not on the PATH the timer gives (e.g. installed with nvm).
+#NODE_BIN=node
+
+# Names, for an unusual set-up. Leave them alone otherwise.
+#SYSTEMD_UNIT=aurora
+#PM2_NAME=aurora
+#SYSTEMCTL_BIN=systemctl
+#SUDO_BIN=sudo
+#PM2_BIN=pm2

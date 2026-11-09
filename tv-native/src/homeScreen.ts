@@ -282,12 +282,26 @@ export function onDownloadLanded(job: MyDownload) {
   writeChannel(lastRows, cont);
 }
 
-// The Settings switch "Tell me when a download lands" (storage.ts downloadNotices).
+// The Settings switch "Tell me when a download lands" (storage.ts downloadNotices,
+// this box's) AND the person's "Tell me when it's ready" (personPrefs.ts
+// readyNotice, follows them): a TV / phone notification only with both on.
+let deviceNotices = true;
+let personNotices = true;
 let noticesOn = true;
+const applyNotices = () => {
+  noticesOn = deviceNotices && personNotices;
+  native?.setDownloadNotices?.(noticesOn).catch(() => {});
+};
 /** The Settings switch: kept here for the socket path, and mirrored natively for the background job. */
 export const setDownloadNotices = (on: boolean) => {
-  noticesOn = on;
-  native?.setDownloadNotices?.(on).catch(() => {});
+  deviceNotices = on;
+  applyNotices();
+};
+/** The person's "Tell me when it's ready" (SessionWiring.tsx, from personSync). */
+export const setPersonReadyNotice = (on: boolean) => {
+  if (personNotices === on) return;
+  personNotices = on;
+  applyNotices();
 };
 
 /** Android 13+: ask once (or again when `force`) to post notifications. Resolves whether they are allowed. */
@@ -302,6 +316,12 @@ export function clearHomeScreen() {
   lastRows = null;
   lastProfile = null;
   lastJobs = [];
+  // the person's "Tell me when it's ready" leaves with them (the next one's
+  // arrives with their settings: SessionWiring.tsx)
+  if (!personNotices) {
+    personNotices = true;
+    applyNotices();
+  }
   // native clear() also forgets what configure() stored and cancels the job
   native?.clear().catch(() => {});
 }

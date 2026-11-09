@@ -3,6 +3,10 @@
 // same steps, the same words (replaceLogic.ts), the same server rules (src/media/replace.js).
 //
 //   step 1  What's wrong with this copy?   five reasons
+//   other   What's wrong with it?          "Other": a few words first (typed, or said:
+//                                          the microphone), Next — nothing downloads
+//     …ask   Get another version?           a choice: Yes → step 2 (the words go with the
+//                                          request), No → the words go as a report
 //   step 2  Get another version            the title's other sources, BEST first, each
 //                                          marked as the title page marks it
 //   asked   This is not the real release   a pre-release copy picked: asked first
@@ -17,6 +21,7 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, StyleSheet, Text, View} from 'react-native';
 import Sheet from '../ui/Sheet';
 import ListRow from '../ui/Row';
+import Field from '../ui/Field';
 import {GlassButton, PrimaryButton} from '../ui/Buttons';
 import {Bar} from '../ui/Cards';
 import {api, ReplaceStream, ReplaceView} from '../../api';
@@ -24,7 +29,8 @@ import {clientContext} from '../../clientContext';
 import {currentRouteName, rootNav} from '../../rootNav';
 import {showToast} from '../../toast';
 import {track} from '../../usage';
-import {reasonsOf, replaceAsksFirst, replaceFace, replaceReasonText, replaceRowText, replaceStatusText, replaceWho, sourcesError, WORDS} from '../../replaceLogic';
+import {addHeard, asksForNote, copyNote, copyReport, COPY_NOTE_MAX, reasonsOf, replaceAsksFirst, replaceFace, replaceReasonText, replaceRowText, replaceStatusText, replaceWho, sourcesError, WORDS} from '../../replaceLogic';
+import {useVoiceNote} from '../../useVoiceNote';
 import {EARLY_CONFIRM} from '../../releaseWords';
 import {colors, GUTTER} from '../theme';
 
@@ -44,6 +50,12 @@ export default function ReplaceSheet({libraryId, title, context, onClose}: {libr
   const [cancelErr, setCancelErr] = useState<string | null>(null);
   const [askCancel, setAskCancel] = useState(false);
   const [skipEnded, setSkipEnded] = useState(false);
+  // "Other": the person's own words first, then the question (the TV's sheet)
+  const [other, setOther] = useState<'write' | 'ask' | null>(null);
+  const [note, setNote] = useState('');
+  const [noteErr, setNoteErr] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const voice = useVoiceNote(heard => setNote(n => addHeard(n, heard)));
   const live = useRef(true);
   useEffect(
     () => () => {
@@ -67,7 +79,7 @@ export default function ReplaceSheet({libraryId, title, context, onClose}: {libr
     load();
   }, [load]);
 
-  const face = viewErr ? 'error' : replaceFace(view, skipEnded || !!step2);
+  const face = viewErr ? 'error' : replaceFace(view, skipEnded || !!step2 || !!other);
   const active = view?.active || null;
   useEffect(() => {
     if (face !== 'active') return;
@@ -85,10 +97,54 @@ export default function ReplaceSheet({libraryId, title, context, onClose}: {libr
       setSkipEnded(true);
       return;
     }
+    if (other === 'ask') return setOther('write');
+    if (other === 'write') {
+      if (voice.listening) return voice.cancel();
+      setOther(null);
+      setNoteErr(null);
+      setSkipEnded(true);
+      return;
+    }
     onClose();
   };
 
+  // A reason: its versions — "Other" first asks what is wrong (nothing downloads yet)
   const pickReason = (reason: string) => {
+    if (asksForNote(reason)) {
+      setNoteErr(null);
+      setOther('write');
+      return;
+    }
+    loadSources(reason);
+  };
+  const toAsk = () => {
+    if (!note.trim()) return setNoteErr(WORDS.otherEmpty);
+    voice.cancel();
+    setNoteErr(null);
+    setOther('ask');
+  };
+  const reportCtx = () => ({...clientContext(), route: `phone:${currentRouteName()}`, ...(context || {}), note: note.trim() || null});
+  // No — just send it: the words go to the admin as a report; nothing downloads
+  const sendOnly = () => {
+    if (sending) return;
+    setSending(true);
+    setNoteErr(null);
+    const label = reasonsOf(view).find(r => r.id === 'other')?.label || 'Other';
+    api
+      .report(copyReport({reasonLabel: label, note}), reportCtx(), rootNav().profileName || null)
+      .then(() => {
+        track('feat', {f: 'replace_note_only'});
+        onClose();
+        showToast(WORDS.sent, '🛠️');
+      })
+      .catch(e => {
+        if (!live.current) return;
+        setNoteErr((e as Error)?.message || "Couldn't send it — try again in a moment");
+        setSending(false);
+      });
+  };
+
+  const loadSources = (reason: string) => {
     if (asking) return;
     setAsking(reason);
     setPickErr(null);
@@ -110,8 +166,9 @@ export default function ReplaceSheet({libraryId, title, context, onClose}: {libr
       .replaceRequest(libraryId, {
         profile: profileId,
         reason: step2.reason,
+        ...(note.trim() ? {note: note.trim()} : {}),
         source: {infoHash: s.infoHash, fileIdx: s.fileIdx || 0},
-        context: {...clientContext(), route: `phone:${currentRouteName()}`, ...(context || {})},
+        context: reportCtx(),
       })
       .then(() => {
         track('feat', {f: 'replace_pick', reason: step2.reason});
@@ -173,7 +230,7 @@ export default function ReplaceSheet({libraryId, title, context, onClose}: {libr
         {last.release ? <Text style={s.faint}>{`That was: ${last.release}${last.quality ? ` (${last.quality})` : ''}`}</Text> : null}
         <Text style={s.faint}>{`Reason: ${last.reasonLabel}`}</Text>
         <Text style={s.body}>{WORDS.endedNext}</Text>
-        <PrimaryButton uiId="replace.next" label={WORDS.pickNext} onPress={() => pickReason(last.reason)} busy={asking === last.reason} style={s.btn} />
+        <PrimaryButton uiId="replace.next" label={WORDS.pickNext} onPress={() => loadSources(last.reason)} busy={asking === last.reason} style={s.btn} />
         <GlassButton uiId="replace.other" label={WORDS.otherReason} onPress={() => setSkipEnded(true)} style={s.btn} />
         <GlassButton label={WORDS.keepCopy} onPress={onClose} style={s.btn} />
       </>
@@ -234,6 +291,42 @@ export default function ReplaceSheet({libraryId, title, context, onClose}: {libr
         <GlassButton label="‹  Back" onPress={back} style={s.btn} />
       </>
     );
+  } else if (other === 'ask') {
+    heading = WORDS.askHeading;
+    body = (
+      <>
+        <Text style={s.body}>{WORDS.askBody}</Text>
+        <Text style={s.quote} numberOfLines={4}>{`“${note.trim()}”`}</Text>
+        {noteErr ? <Text style={s.error}>{noteErr}</Text> : null}
+        <PrimaryButton uiId="replace.other.another" label={WORDS.askYes} onPress={() => loadSources('other')} busy={asking === 'other'} style={s.btn} />
+        <GlassButton uiId="replace.other.send" label={sending ? 'Sending…' : WORDS.askNo} onPress={sendOnly} style={s.btn} />
+        <GlassButton label="‹  Back" onPress={back} style={s.btn} />
+      </>
+    );
+  } else if (other === 'write') {
+    heading = WORDS.otherHeading;
+    body = (
+      <>
+        <Text style={s.body}>{WORDS.otherBody}</Text>
+        <Field
+          style={s.input}
+          value={note}
+          onChangeText={v => {
+            setNote(copyNote(v));
+            if (noteErr) setNoteErr(null);
+          }}
+          autoFocus
+          multiline
+          maxLength={COPY_NOTE_MAX * 2}
+          placeholder={WORDS.otherPlaceholder}
+        />
+        {voice.line ? <Text style={s.faint}>{voice.line}</Text> : null}
+        {noteErr ? <Text style={s.error}>{noteErr}</Text> : null}
+        <PrimaryButton uiId="replace.other.next" label={WORDS.otherNext} onPress={toAsk} style={s.btn} />
+        {voice.available ? <GlassButton uiId="replace.other.voice" icon={'mic' as never} label={voice.listening ? WORDS.stopListening : WORDS.sayIt} onPress={voice.press} style={s.btn} /> : null}
+        <GlassButton label="‹  Back" onPress={back} style={s.btn} />
+      </>
+    );
   } else {
     body = (
       <>
@@ -261,4 +354,7 @@ const s = StyleSheet.create({
   error: {color: colors.danger, fontSize: 15, lineHeight: 21, marginTop: 8},
   list: {marginTop: 8, marginHorizontal: -(GUTTER + 4)},
   btn: {alignSelf: 'stretch', marginTop: 12},
+  quote: {color: colors.text, fontSize: 15, lineHeight: 22, fontStyle: 'italic', marginTop: 10},
+  // the phone's Report a problem field (SmallSheets.tsx)
+  input: {height: 120, textAlignVertical: 'top', paddingTop: 14, marginTop: 12},
 });

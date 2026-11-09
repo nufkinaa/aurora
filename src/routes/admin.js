@@ -129,7 +129,99 @@ router.get("/api/admin/disk", async (req, res) => {
     const s = await disk.space(root);
     out.push(s ? { root, free: s.free, total: s.total } : { root, free: null, total: null });
   }
-  res.json({ disks: out, minFreePct: config.DOWNLOAD_MIN_FREE_PERCENT });
+  // "about 40 days until full at this week's pace" for the fullest drive (media/diskforecast.js)
+  const minFree = out.reduce((m, d) => (d.free != null && (m == null || d.free < m) ? d.free : m), null);
+  let forecast = null;
+  try { forecast = require("../media/diskforecast").measure(minFree); } catch {}
+  res.json({ disks: out, minFreePct: config.DOWNLOAD_MIN_FREE_PERCENT, forecast });
+});
+
+// ---------- storage drives (lib/drives, docs/storage-drives.md) ----------
+// Every drive the server can see: its numbers, what Aurora keeps there, its
+// speed score, and whether new downloads go there. ?fresh=1 asks every drive
+// again first (each network drive in a child process with a deadline).
+router.get("/api/admin/drives", async (req, res) => {
+  const drives = require("../lib/drives");
+  try {
+    const list = await drives.list({ fresh: req.query.fresh === "1" });
+    let moves = null;
+    try { moves = drives.moverView(); } catch {}
+    res.json({ drives: list, reservePct: require("../lib/drives/rules").RESERVE_PCT, reserveMaxBytes: require("../lib/drives/rules").RESERVE_MAX, keepFast: moves ? moves.keepFast : true, moves });
+  } catch (err) {
+    res.status(500).json({ error: `Could not list the drives: ${(err && err.message) || err}` });
+  }
+});
+const driveId = (req) => (req.body && typeof req.body.id === "string" && req.body.id.length <= 1024 ? req.body.id : null);
+// "Use this drive too": checks Aurora can write there, makes <drive>/Aurora/
+// Movies and Shows, adds them to config.json's libraries, rescans.
+router.post("/api/admin/drives/use", async (req, res) => {
+  const id = driveId(req);
+  if (!id) return res.status(400).json({ error: "Which drive?" });
+  try {
+    const r = await require("../lib/drives").use(id);
+    if (r.error) return res.status(409).json(r);
+    res.json(r);
+  } catch (err) {
+    res.status(500).json({ error: `Could not set the drive up: ${(err && err.message) || err}` });
+  }
+});
+// { id, on }: on false = "Stop using for new downloads" (nothing on it moves)
+router.post("/api/admin/drives/new-downloads", (req, res) => {
+  const id = driveId(req);
+  if (!id || typeof req.body.on !== "boolean") return res.status(400).json({ error: "Which drive, and on or off?" });
+  const r = require("../lib/drives").setNewDownloads(id, req.body.on);
+  res.status(r.error ? 409 : 200).json(r);
+});
+// "Test again": the speed check (runs when nobody is watching)
+router.post("/api/admin/drives/test", (req, res) => {
+  const id = driveId(req);
+  if (!id) return res.status(400).json({ error: "Which drive?" });
+  const r = require("../lib/drives").testAgain(id);
+  res.status(r.error ? 409 : 200).json(r);
+});
+// "Tune this network drive" (lib/drives/tune.js): what would change, or the
+// one-time setup commands when the root helper isn't installed
+router.post("/api/admin/drives/tune/preview", async (req, res) => {
+  const id = driveId(req);
+  if (!id) return res.status(400).json({ error: "Which drive?" });
+  try {
+    const r = await require("../lib/drives/tune").preview(id);
+    res.status(r.error ? 409 : 200).json(r);
+  } catch (err) {
+    res.status(500).json({ error: `Could not ask about the drive: ${(err && err.message) || err}` });
+  }
+});
+// …and the run (in the background: the card follows /api/admin/drives)
+const tuneRun = (action) => async (req, res) => {
+  const id = driveId(req);
+  if (!id) return res.status(400).json({ error: "Which drive?" });
+  try {
+    const r = await require("../lib/drives/tune").start(id, action);
+    res.status(r.error ? 409 : 200).json(r);
+  } catch (err) {
+    res.status(500).json({ error: `Could not start: ${(err && err.message) || err}` });
+  }
+};
+router.post("/api/admin/drives/tune", tuneRun("apply"));
+// "Put it back": the line as it was before the helper's first change
+router.post("/api/admin/drives/tune/revert", tuneRun("revert"));
+
+// "Keep the fast drive for new and 4K titles" { on } (lib/drives/mover.js)
+router.post("/api/admin/drives/keep-fast", (req, res) => {
+  if (typeof (req.body && req.body.on) !== "boolean") return res.status(400).json({ error: "On or off?" });
+  res.json(require("../lib/drives").setKeepFast(req.body.on));
+});
+// "Stop using this drive" { id, how: "remove" | "move" | "force" | "cancel" }
+router.post("/api/admin/drives/stop-using", async (req, res) => {
+  const id = driveId(req);
+  const how = req.body && req.body.how;
+  if (!id || !["remove", "move", "force", "cancel"].includes(how)) return res.status(400).json({ error: "Which drive, and how?" });
+  try {
+    const r = await require("../lib/drives").stopUsing(id, how);
+    res.status(r.error ? 409 : 200).json(r);
+  } catch (err) {
+    res.status(500).json({ error: `Could not stop using the drive: ${(err && err.message) || err}` });
+  }
 });
 
 // Every title with its on-disk size, for the "free up space" list.
@@ -176,6 +268,12 @@ const deleteLibraryFile = async (id, { rescan = true } = {}) => {
   if (inUse.fileInUse(entry.path)) {
     console.warn(`[admin] file delete refused (someone is playing it): ${entry.path}`);
     return { status: 409, body: { error: inUse.MESSAGE, code: "streaming" } };
+  }
+  // ...nor from under the drive mover or anything else working on it (lib/busyfiles.js)
+  const busyWhy = require("../lib/busyfiles").busyWhy(entry.path);
+  if (busyWhy) {
+    console.warn(`[admin] file delete refused (${busyWhy}): ${entry.path}`);
+    return { status: 503, body: { error: `This file is ${busyWhy} — try again when that is done.`, code: "busy" } };
   }
   const roots = [...config.LIBRARIES.movies, ...config.LIBRARIES.shows];
   let result;
@@ -245,6 +343,11 @@ const deleteLibraryTitle = (type, id, { rescan = true } = {}) => {
     console.warn(`[admin] ${type} delete refused (someone is playing a file in it): ${folder}`);
     return R(409, { error: inUse.FOLDER_MESSAGE, code: "streaming" });
   }
+  const busyWhy = require("../lib/busyfiles").busyWhy(folder);
+  if (busyWhy) {
+    console.warn(`[admin] ${type} delete refused (${busyWhy}): ${folder}`);
+    return R(503, { error: `This title is ${busyWhy} — try again when that is done.`, code: "busy" });
+  }
 
   try {
     fs.rmSync(folder, { recursive: true, force: true });
@@ -291,8 +394,21 @@ router.get("/api/admin/library/suggest", (req, res) => {
   const gb = parseFloat(req.query.gb);
   if (!(gb > 0) || gb > 100000) return res.status(400).json({ error: "How many GB should be freed?" });
   const freeup = require("../media/freeup");
-  res.json(freeup.suggest(freeup.tree(), gb * 1024 ** 3));
+  res.json(freeup.suggest(freeup.tree(), gb * 1024 ** 3, Date.now(), untouchedOpts()));
 });
+// The 45-day rule's rows and what is never offered (media/untouched.js), for
+// "Suggest what to delete". Without them (the rule failed) the list is as before.
+const untouchedOpts = () => {
+  try {
+    const u = require("../media/untouched").gather();
+    return { extra: [...u.idle, ...u.never], exclude: u.keepIds };
+  } catch (e) {
+    console.warn("[admin] the 45-day rule failed:", e && e.message ? e.message : e);
+    return {};
+  }
+};
+// "Removed recently": what the admin removed through the suggestions, and why.
+const noteRemoved = (rows) => { if (rows.length) require("../media/untouched").noteRemoved(rows); };
 
 // Delete what the admin kept ticked: { ids: [...] }. Each id is deleted only
 // if it is STILL a suggestion right now (somebody may have started it since
@@ -307,7 +423,8 @@ router.post("/api/admin/library/suggest/delete", async (req, res) => {
   if (ids.length > 5000) return res.status(400).json({ error: "Too many at once" });
   const freeup = require("../media/freeup");
   const t = freeup.tree();
-  const byId = new Map(freeup.candidates(t).map((c) => [c.id, c]));
+  const byId = new Map(freeup.candidates(t, Date.now(), untouchedOpts()).map((c) => [c.id, c]));
+  const removed = [];
   const deleted = [];
   const skipped = [];
   let freedBytes = 0;
@@ -331,6 +448,7 @@ router.post("/api/admin/library/suggest/delete", async (req, res) => {
       const bytes = typeof r.body.freedBytes === "number" ? r.body.freedBytes : c.sizeBytes;
       freedBytes += bytes;
       deleted.push({ id, name: c.name, sizeBytes: bytes });
+      removed.push({ name: c.name, kind: c.kind, sizeBytes: bytes, why: c.why, group: c.reason });
     } else if (r.status === 409) {
       skipped.push({ id, name: c.name, reason: "in-use", why: "Being watched right now — kept" });
     } else {
@@ -341,6 +459,7 @@ router.post("/api/admin/library/suggest/delete", async (req, res) => {
     scanner.scan();
     realtime.libraryUpdated();
   }
+  noteRemoved(removed);
   console.log(`[admin] suggestions: deleted ${deleted.length} of ${ids.length} (${freedBytes} bytes)${skipped.length ? `; skipped ${skipped.map((x) => `${x.id} (${x.reason})`).join(", ")}` : ""}`);
   res.json({ ok: true, deleted, skipped, freedBytes });
 });
@@ -360,23 +479,25 @@ router.get("/api/admin/library/copies", (req, res) => {
 // one of a title's copies right now. A copy someone is playing is refused;
 // the last copy on disk needs confirmLast. The download jobs that wrote it
 // go with it; watch history stays (it is per title).
-router.post("/api/admin/library/copies/delete", (req, res) => {
+// The delete itself, shared with "Free up space" below: { status, body } —
+// the answer the route sends. `rescan: false` leaves the rescan to the caller.
+const deleteCopy = (ref, confirmLast, { rescan = true } = {}) => {
   const copies = require("../media/copies");
-  const { ref, confirmLast } = req.body || {};
+  const R = (status, body) => ({ status, body });
   const where = copies.resolveRef(ref, config.LIBRARIES, config.VIDEO_EXTENSIONS);
   if (where.error) {
     console.warn(`[admin] copy delete refused (${where.error}): ${String(ref || "").slice(0, 200)}`);
-    return res.status(where.notFound ? 404 : 400).json({ error: where.error });
+    return R(where.notFound ? 404 : 400, { error: where.error });
   }
   const hit = copies.findCopy(where.abs);
   if (!hit) {
     console.warn(`[admin] copy delete refused (not a copy of a title with more than one): ${where.abs}`);
-    return res.status(409).json({ error: "This file is not one of several copies of a title any more — reload the list.", code: "not-a-copy" });
+    return R(409, { error: "This file is not one of several copies of a title any more — reload the list.", code: "not-a-copy" });
   }
   const may = copies.deletable(hit.grp, hit.copy, { confirmLast: confirmLast === true });
   if (!may.ok) {
     console.warn(`[admin] copy delete refused (${may.code}): ${where.abs}`);
-    return res.status(409).json({ error: may.error, code: may.code });
+    return R(409, { error: may.error, code: may.code });
   }
   const roots = [...config.LIBRARIES.movies, ...config.LIBRARIES.shows];
   let result;
@@ -385,7 +506,7 @@ router.post("/api/admin/library/copies/delete", (req, res) => {
   } catch (err) {
     const refusal = /outside the library/.test(err.message);
     console.warn(`[admin] copy delete failed: ${where.abs}: ${err.message}`);
-    return res.status(refusal ? 400 : 500).json({ error: refusal ? err.message : `Delete failed: ${err.message}` });
+    return R(refusal ? 400 : 500, { error: refusal ? err.message : `Delete failed: ${err.message}` });
   }
   // The jobs that wrote this file are history about a file that is gone.
   const downloads = require("../media/downloads");
@@ -393,10 +514,171 @@ router.post("/api/admin/library/copies/delete", (req, res) => {
   for (const j of hit.copy.jobs) {
     if (!downloads.remove(j.id).error) jobsRemoved.push(j.id);
   }
-  scanner.scan();
-  realtime.libraryUpdated();
+  if (rescan) {
+    scanner.scan();
+    realtime.libraryUpdated();
+  }
   console.log(`[admin] deleted copy of "${hit.grp.title}"${hit.grp.kind === "episode" ? ` S${hit.grp.season}E${hit.grp.episode}` : ""} → ${result.deleted.join(", ")} (${result.freedBytes} bytes)${hit.grp.files <= 1 ? " — it was the last copy" : ""}${jobsRemoved.length ? `; removed download ${jobsRemoved.join(", ")}` : ""}`);
-  res.json({ ok: true, ...result, jobsRemoved, wasLast: hit.grp.files <= 1 });
+  return R(200, { ok: true, ...result, jobsRemoved, wasLast: hit.grp.files <= 1 });
+};
+router.post("/api/admin/library/copies/delete", (req, res) => {
+  const { ref, confirmLast } = req.body || {};
+  const r = deleteCopy(ref, confirmLast);
+  res.status(r.status).json(r.body);
+});
+
+// ---------- Overnight (media/overnight.js) ----------
+// The line ("Overnight: 6 episodes prepared, 3 downloaded ahead · next run
+// 02:00"), what is prepared and why, tonight's plan, the downloads ahead and
+// the last runs; the switch, the hours and the disk budget; Run now.
+router.get("/api/admin/overnight", (req, res) => {
+  try { res.json(require("../media/overnight").status()); } catch (err) {
+    console.warn("[admin] overnight status failed:", err && err.message ? err.message : err);
+    res.status(500).json({ error: "Could not read the overnight preparation." });
+  }
+});
+router.post("/api/admin/overnight/settings", (req, res) => {
+  const r = require("../media/overnight").setSettings(req.body || {});
+  if (r.error) return res.status(400).json(r);
+  res.json(r);
+});
+router.post("/api/admin/overnight/run", (req, res) => {
+  const r = require("../media/overnight").runNow();
+  if (r.error) return res.status(409).json(r);
+  res.json(r);
+});
+
+// ---------- "Free up space" (media/freespace.js + media/diskforecast.js) ----------
+// What is SAFE to remove, for the admin to choose from: titles everyone who
+// started has finished, on nobody's My List, at least `days` days in the
+// library — and the extra copies of a title held twice. With the disk
+// forecast, so one answer paints the section. Nothing is deleted here.
+router.get("/api/admin/library/freeup", async (req, res) => {
+  const freespace = require("../media/freespace");
+  let out;
+  // (Express 4 does not catch a throw in an async route: answer it here)
+  try { out = freespace.gather({ days: req.query.days }); } catch (err) {
+    console.warn("[admin] free up space list failed:", err && err.message ? err.message : err);
+    return res.status(500).json({ error: "Could not read what is safe to remove." });
+  }
+  const roots = [...new Set([...config.LIBRARIES.movies, ...config.LIBRARIES.shows])];
+  let free = null;
+  let total = null;
+  for (const root of roots) {
+    const s = await disk.space(root);
+    if (s && (free == null || s.free < free)) { free = s.free; total = s.total; }
+  }
+  let forecast = null;
+  try { forecast = require("../media/diskforecast").measure(free); } catch {}
+  res.json({ ...out, disk: { free, total }, forecast });
+});
+
+// Remove what the admin confirmed: { keys: [...], days }. Each key is removed
+// only if it is STILL on the safe list right now (for the same days) — a film
+// somebody started since, or put on their My List, is kept — and only
+// through the deletes the On disk and More-than-one-copy buttons use (a
+// film's folder, an episode's file, one extra copy). One rescan at the end.
+router.post("/api/admin/library/freeup/delete", async (req, res) => {
+  const raw = req.body && req.body.keys;
+  if (!Array.isArray(raw)) return res.status(400).json({ error: "keys must be a list" });
+  const keys = [...new Set(raw.filter((x) => typeof x === "string" && x && x.length <= 600))];
+  if (!keys.length) return res.status(400).json({ error: "Nothing was chosen." });
+  if (keys.length > 2000) return res.status(400).json({ error: "Too many at once" });
+  const freespace = require("../media/freespace");
+  let fresh;
+  try { fresh = freespace.gather({ days: req.body.days }); } catch (err) {
+    console.warn("[admin] free up space check failed:", err && err.message ? err.message : err);
+    return res.status(500).json({ error: "Could not check what is safe to remove — nothing was removed." });
+  }
+  // `a:` keys are titles kept for someone who is away: removed only when the
+  // admin answered the stronger question for them (confirmAway).
+  const confirmAway = req.body.confirmAway === true;
+  const byKey = new Map([...fresh.safe, ...fresh.duplicates, ...(fresh.idle || []), ...(fresh.never || []), ...(confirmAway ? fresh.away || [] : [])].map((r) => [r.key, r]));
+  const deleted = [];
+  const skipped = [];
+  const removed = [];
+  let freedBytes = 0;
+  for (const key of keys) {
+    const row = byKey.get(key);
+    if (!row) {
+      skipped.push(key.startsWith("a:") && !confirmAway
+        ? { key, name: null, reason: "away", why: "Kept for someone who is away — remove it on its own, from its row." }
+        : { key, name: null, reason: "not-safe", why: "Not suggested any more — somebody watched it, asked for it, pinned it to keep, or it is gone. Reload the list." });
+      continue;
+    }
+    if (row.inUse) {
+      skipped.push({ key, name: row.name, reason: "in-use", why: "Being watched right now — kept" });
+      continue;
+    }
+    let bytes = 0;
+    let fail = null;
+    if (row.group === "idle" || row.group === "never" || row.group === "away") {
+      const r = row.kind === "movie" ? deleteLibraryTitle("movie", row.id, { rescan: false }) : await deleteLibraryFile(row.id, { rescan: false });
+      if (r.status === 200) bytes = typeof r.body.freedBytes === "number" ? r.body.freedBytes : row.fileBytes;
+      else fail = r;
+    } else if (row.kind === "movie") {
+      const r = deleteLibraryTitle("movie", row.ids[0], { rescan: false });
+      if (r.status === 200) bytes = row.sizeBytes;
+      else fail = r;
+    } else if (row.kind === "show") {
+      let any = false;
+      for (const ep of row.episodes) {
+        if (ep.inUse) continue;
+        const r = await deleteLibraryFile(ep.id, { rescan: false });
+        if (r.status === 200) { any = true; bytes += typeof r.body.freedBytes === "number" ? r.body.freedBytes : ep.sizeBytes; }
+        else fail = fail || r;
+      }
+      if (any) fail = null;
+    } else if (row.kind === "copy") {
+      const r = deleteCopy(row.ref, false, { rescan: false });
+      if (r.status === 200) bytes = typeof r.body.freedBytes === "number" ? r.body.freedBytes : row.sizeBytes;
+      else fail = r;
+    }
+    if (fail) {
+      skipped.push({ key, name: row.name, reason: fail.status === 409 ? "in-use" : "failed", why: (fail.body && fail.body.error) || "Delete failed" });
+    } else {
+      freedBytes += bytes;
+      deleted.push({ key, name: row.name, sizeBytes: bytes });
+      removed.push({
+        name: row.kind === "copy" && row.quality ? `${row.name} · ${row.quality} copy` : row.name, kind: row.kind, sizeBytes: bytes,
+        why: row.group === "away" ? `${row.why} — removed anyway` : row.why, group: row.group || (row.kind === "copy" ? "copy" : "finished"), drive: row.drive || null,
+      });
+    }
+  }
+  if (deleted.length) {
+    scanner.scan();
+    realtime.libraryUpdated();
+  }
+  noteRemoved(removed);
+  console.log(`[admin] free up space: removed ${deleted.length} of ${keys.length} (${freedBytes} bytes)${skipped.length ? `; kept ${skipped.map((x) => `${x.key} (${x.reason})`).join(", ")}` : ""}`);
+  res.json({ ok: true, deleted, skipped, freedBytes });
+});
+
+// The admin's Keep pin on a title: { id, on } — a film's or a show's library
+// id (an episode's too). A pinned title is never suggested (media/untouched.js).
+router.post("/api/admin/library/keep", (req, res) => {
+  const b = req.body || {};
+  const id = typeof b.id === "string" ? b.id : "";
+  if (!id || typeof b.on !== "boolean") return res.status(400).json({ error: "Which title, and keep or not?" });
+  let about = null;
+  const m = scanner.index.movies.find((x) => x.id === id);
+  if (m) about = { name: m.title + (m.year ? ` (${m.year})` : ""), kind: "movie" };
+  const sh = !about && scanner.index.shows.find((x) => x.id === id);
+  if (sh) about = { name: sh.title, kind: "show" };
+  if (!about) {
+    for (const s2 of scanner.index.shows) for (const se of s2.seasons || []) for (const e of se.episodes || []) {
+      if (e.id === id) about = { name: `${s2.title} S${String(e.season).padStart(2, "0")}E${String(e.episode).padStart(2, "0")}`, kind: "episode" };
+    }
+  }
+  const r = require("../media/untouched").pin(id, b.on, about || {});
+  if (r.error) return res.status(b.on ? 404 : 409).json(r);
+  res.json(r);
+});
+// The 45-day rule's settings: { untouchedDays, untouchedUploads, untouchedKeepMyList } — only the keys sent.
+router.post("/api/admin/library/freeup/settings", (req, res) => {
+  const r = require("../media/untouched").setSettings(req.body || {});
+  if (r.error) return res.status(400).json({ error: r.error });
+  res.json(r);
 });
 
 // ---------- left over from My List downloads (media/mylistdl.js) ----------
@@ -1253,6 +1535,40 @@ router.post("/api/admin/backups/drill", async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: String((e && e.message) || e) });
   }
+});
+
+// ---------- a copy of the household's data on every drive (lib/drivecopies.js) ----------
+// The switch (off until the admin allows it) and the time; per drive the last
+// copy, its size, OK / skipped / failed; "Make a copy now"; "Check the
+// copies"; one copy's contents; and the restore (typed RESTORE, then a restart
+// through the supervisor — the copy goes in place before anything is read).
+const driveCopiesReply = (res, r) => (r && r.error ? res.status(r.status || 400).json({ error: r.error }) : res.json(r));
+router.get("/api/admin/backups/drives", async (req, res) => {
+  try { res.json(await require("../lib/drivecopies").status()); } catch (e) { res.status(500).json({ error: String((e && e.message) || e) }); }
+});
+router.post("/api/admin/backups/drives/settings", async (req, res) => {
+  const dc = require("../lib/drivecopies");
+  const b = req.body || {};
+  const r = dc.setSettings({ enabled: b.enabled, time: b.time });
+  if (r.error) return res.status(400).json(r);
+  res.json(await dc.status());
+});
+router.post("/api/admin/backups/drives/run", async (req, res) => {
+  const dc = require("../lib/drivecopies");
+  const r = await dc.runNow();
+  if (r.error) return res.status(r.status || 500).json({ error: r.error });
+  res.json({ ok: true, run: r.run, ...(await dc.status()) });
+});
+router.post("/api/admin/backups/drives/check", async (req, res) => {
+  try { res.json(await require("../lib/drivecopies").check()); } catch (e) { res.status(500).json({ error: String((e && e.message) || e) }); }
+});
+router.post("/api/admin/backups/drives/summary", async (req, res) => {
+  const b = req.body || {};
+  driveCopiesReply(res, await require("../lib/drivecopies").inspect({ location: String(b.location || ""), name: String(b.name || "") }));
+});
+router.post("/api/admin/backups/drives/restore", async (req, res) => {
+  const b = req.body || {};
+  driveCopiesReply(res, await require("../lib/drivecopies").restore({ location: String(b.location || ""), name: String(b.name || ""), confirm: String(b.confirm || "") }));
 });
 
 // ---------- the encoder limit (media/encbudget.js) ----------

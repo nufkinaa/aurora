@@ -1,0 +1,18 @@
+# Runs aurora-update.service every ten minutes (and five minutes after boot).
+# Nothing to edit here. Pause the updates:  sudo systemctl disable --now aurora-update.timer
+# docs/nufurora-auto-update.md has the details.
+[Unit]
+Description=Aurora auto-update every ten minutes
+Documentation=https://github.com/nufkinaa/aurora/blob/master/docs/nufurora-auto-update.md
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=10min
+RandomizedDelaySec=60
+# (systemd applies Persistent= to OnCalendar= timers only; OnBootSec= above
+# already runs one soon after every boot)
+Persistent=true
+Unit=aurora-update.service
+
+[Install]
+WantedBy=timers.target

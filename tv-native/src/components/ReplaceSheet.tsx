@@ -2,6 +2,14 @@
 // words; the rules are the server's, src/media/replace.js).
 //
 //   step 1  What's wrong with this copy?   five reasons, focus on the first
+//   other   What's wrong with it?          "Other": a few words first (the field, the
+//                                          remote's microphone where the TV can hear),
+//                                          Next — nothing downloads (Jesse's report,
+//                                          2026-11-08: Other went straight on to the
+//                                          versions and gave no way to say what)
+//     …ask   Get another version?           a CHOICE: Yes → step 2 (the words go with
+//                                          the request), No → the words are sent as a
+//                                          report and the copy stays
 //   step 2  Get another version            the title's other sources, ★ BEST first,
 //                                          each marked as the title page marks it
 //                                          (CAM / TS / BURNED-IN SUBS + its line)
@@ -22,19 +30,27 @@
 // focus lands on the first at once; the answer then may turn the sheet into
 // "on its way" or "refused". A reason press keeps the sheet on step 1 (that
 // row spinning, focus where it is) until the sources are in, so focus never
-// falls out of the sheet between the steps. BACK: step 2 → step 1, else closes.
+// falls out of the sheet between the steps. BACK: step 2 → step 1 (Other: → its
+// question), the question → the words, the words → step 1, else closes.
 // The Sheet traps focus on all four sides while it is up.
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, LayoutChangeEvent, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {ActivityIndicator, LayoutChangeEvent, ScrollView, StyleSheet, Text, TextInput, useTVEventHandler, View} from 'react-native';
 import Focusable from './Focusable';
 import Sheet from './Sheet';
 import {api, ReplaceStream, ReplaceView} from '../api';
 import {clientContext} from '../clientContext';
+import {acceptTvEvent, noteFocus, noteFocusLost} from '../focus';
+import {notePress} from '../householdRecs';
 import {closeOverlay} from '../overlay';
 import {currentRouteName, rootNav} from '../rootNav';
 import {showToast} from '../toast';
 import {track} from '../usage';
 import {
+  addHeard,
+  asksForNote,
+  copyNote,
+  copyReport,
+  COPY_NOTE_MAX,
   reasonsOf,
   replaceFace,
   replaceReasonText,
@@ -46,6 +62,7 @@ import {
   WORDS,
 } from '../replaceLogic';
 import {EARLY_CONFIRM} from '../releaseWords';
+import {useVoiceNote} from '../useVoiceNote';
 import theme from '../theme';
 
 const {colors, fontSize, radius, spacing} = theme;
@@ -60,13 +77,14 @@ const QUALITY_COLOR: Record<string, string> = {
 // while a replacement is on its way and the sheet is up: its progress, asked again this often
 const POLL_MS = 4000;
 
-const Primary = ({label, onPress, focus, busy, uiId}: {label: string; onPress: () => void; focus?: boolean; busy?: boolean; uiId?: string}) => (
-  <Focusable round light ring="violet" hasTVPreferredFocus={focus} uiId={uiId} onPress={onPress} style={styles.primary}>
+type BtnRef = React.MutableRefObject<{requestTVFocus?: () => void} | null>;
+const Primary = ({label, onPress, focus, busy, uiId, btnRef, onFocusChange}: {label: string; onPress: () => void; focus?: boolean; busy?: boolean; uiId?: string; btnRef?: BtnRef; onFocusChange?: (f: boolean) => void}) => (
+  <Focusable ref={btnRef as never} round light ring="violet" hasTVPreferredFocus={focus} uiId={uiId} onPress={onPress} onFocusChange={onFocusChange} style={styles.primary}>
     {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.primaryText}>{label}</Text>}
   </Focusable>
 );
-const Ghost = ({label, onPress, focus, uiId}: {label: string; onPress: () => void; focus?: boolean; uiId?: string}) => (
-  <Focusable round hasTVPreferredFocus={focus} uiId={uiId} onPress={onPress} style={styles.ghost}>
+const Ghost = ({label, onPress, focus, uiId, onFocusChange}: {label: string; onPress: () => void; focus?: boolean; uiId?: string; onFocusChange?: (f: boolean) => void}) => (
+  <Focusable round hasTVPreferredFocus={focus} uiId={uiId} onPress={onPress} onFocusChange={onFocusChange} style={styles.ghost}>
     <Text style={styles.ghostText}>{label}</Text>
   </Focusable>
 );
@@ -116,6 +134,37 @@ export default function ReplaceSheet({
   const [askCancel, setAskCancel] = useState(false);
   // the "that version didn't come through" face was answered
   const [skipEnded, setSkipEnded] = useState(false);
+  // "Other": the person's own words first, then the question (see the top)
+  const [other, setOther] = useState<'write' | 'ask' | null>(null);
+  const [note, setNote] = useState('');
+  const [noteErr, setNoteErr] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const voice = useVoiceNote(heard => setNote(n => addHeard(n, heard)));
+  // The field and its keys — the household-recommendation note's rules (RecommendSheet.tsx):
+  // DOWN from the field goes to Next wherever the cursor is, the keyboard's ✓ too; focus.ts
+  // is told the field holds focus, so its rescue never sends focus behind the sheet.
+  const nextRef = useRef<{requestTVFocus?: () => void} | null>(null);
+  const fieldRef = useRef<TextInput>(null);
+  const fieldNode = useRef({requestTVFocus: () => fieldRef.current?.focus()});
+  useEffect(() => () => noteFocusLost(fieldNode.current), []);
+  const inField = useRef(false);
+  const fieldGotAt = useRef(0);
+  const fieldLeftAt = useRef(0);
+  const prevKeyAt = useRef(Date.now());
+  const leftField = useCallback(() => {
+    if (!inField.current) return;
+    inField.current = false;
+    fieldLeftAt.current = Date.now();
+    noteFocusLost(fieldNode.current);
+  }, []);
+  const notOnField = useCallback((f: boolean) => f && leftField(), [leftField]);
+  useTVEventHandler(evt => {
+    if (!evt || !acceptTvEvent(evt) || other !== 'write') return;
+    const prev = prevKeyAt.current;
+    prevKeyAt.current = Date.now();
+    if (notePress({inField: inField.current, gotAt: fieldGotAt.current, leftAt: fieldLeftAt.current, prevKeyAt: prev}) !== 'field') return;
+    if (evt.eventType === 'down') setTimeout(() => nextRef.current?.requestTVFocus?.(), 0);
+  });
   const live = useRef(true);
   useEffect(
     () => () => {
@@ -135,6 +184,10 @@ export default function ReplaceSheet({
   askedRef.current = asked;
   const askCancelRef = useRef(askCancel);
   askCancelRef.current = askCancel;
+  const otherRef = useRef(other);
+  otherRef.current = other;
+  const voiceRef = useRef(voice);
+  voiceRef.current = voice;
   const back = useCallback(() => {
     if (askCancelRef.current) {
       setAskCancel(false);
@@ -148,6 +201,17 @@ export default function ReplaceSheet({
       setStep2(null);
       setFocusKey(null);
       setPickErr(null);
+      setSkipEnded(true);
+      return;
+    }
+    if (otherRef.current === 'ask') {
+      setOther('write');
+      return;
+    }
+    if (otherRef.current === 'write') {
+      if (voiceRef.current.listening) return voiceRef.current.cancel();
+      setOther(null);
+      setNoteErr(null);
       setSkipEnded(true);
       return;
     }
@@ -169,7 +233,7 @@ export default function ReplaceSheet({
     load();
   }, [load]);
 
-  const face = viewErr ? 'error' : replaceFace(view, skipEnded || !!step2);
+  const face = viewErr ? 'error' : replaceFace(view, skipEnded || !!step2 || !!other);
   const active = view?.active || null;
   // a replacement on its way: its progress moves while the sheet is up
   useEffect(() => {
@@ -178,7 +242,7 @@ export default function ReplaceSheet({
     return () => clearInterval(t);
   }, [face, load]);
 
-  const pickReason = useCallback(
+  const loadSources = useCallback(
     (reason: string) => {
       if (asking) return;
       setAsking(reason);
@@ -191,6 +255,51 @@ export default function ReplaceSheet({
     },
     [asking, libraryId, profileId],
   );
+  // A reason: its versions — "Other" first asks what is wrong (nothing downloads yet)
+  const pickReason = useCallback(
+    (reason: string) => {
+      if (asksForNote(reason)) {
+        setNoteErr(null);
+        setOther('write');
+        return;
+      }
+      loadSources(reason);
+    },
+    [loadSources],
+  );
+  const toAsk = useCallback(() => {
+    if (!note.trim()) {
+      setNoteErr(WORDS.otherEmpty);
+      setTimeout(() => fieldRef.current?.focus(), 0);
+      return;
+    }
+    voice.cancel();
+    setNoteErr(null);
+    setOther('ask');
+  }, [note, voice]);
+  const reportCtx = useCallback(
+    () => ({...clientContext(), route: `tv:${currentRouteName()}`, ...(context || {}), note: note.trim() || null}),
+    [context, note],
+  );
+  // No — just send it: the words go to the admin as a report; nothing downloads
+  const sendOnly = useCallback(() => {
+    if (sending) return;
+    setSending(true);
+    setNoteErr(null);
+    const label = reasonsOf(view).find(r => r.id === 'other')?.label || 'Other';
+    api
+      .report(copyReport({reasonLabel: label, note}), reportCtx(), rootNav().profileName || null)
+      .then(() => {
+        track('feat', {f: 'replace_note_only'});
+        close();
+        showToast(WORDS.sent, '🛠️');
+      })
+      .catch(e => {
+        if (!live.current) return;
+        setNoteErr((e as Error)?.message || "Couldn't send it — try again in a moment");
+        setSending(false);
+      });
+  }, [sending, view, note, reportCtx, close]);
 
   const pickSource = useCallback(
     (s: ReplaceStream, sure = false) => {
@@ -209,8 +318,9 @@ export default function ReplaceSheet({
         .replaceRequest(libraryId, {
           profile: profileId,
           reason: step2.reason,
+          ...(note.trim() ? {note: note.trim()} : {}),
           source: {infoHash: s.infoHash, fileIdx: s.fileIdx || 0},
-          context: {...clientContext(), route: `tv:${currentRouteName()}`, ...(context || {})},
+          context: reportCtx(),
         })
         .then(() => {
           track('feat', {f: 'replace_pick', reason: step2.reason});
@@ -223,7 +333,7 @@ export default function ReplaceSheet({
           setPicking(null);
         });
     },
-    [step2, picking, libraryId, profileId, context, close],
+    [step2, picking, libraryId, profileId, note, reportCtx, close],
   );
 
   const cancel = useCallback(() => {
@@ -302,7 +412,7 @@ export default function ReplaceSheet({
         <Text style={styles.faint}>{`Reason: ${last.reasonLabel}`}</Text>
         <Text style={styles.body}>{WORDS.endedNext}</Text>
         <View style={styles.actions}>
-          <Primary uiId="replace.next" label={WORDS.pickNext} onPress={() => pickReason(last.reason)} busy={asking === last.reason} focus />
+          <Primary uiId="replace.next" label={WORDS.pickNext} onPress={() => loadSources(last.reason)} busy={asking === last.reason} focus />
           <Ghost uiId="replace.other" label={WORDS.otherReason} onPress={() => setSkipEnded(true)} />
           <Ghost label={WORDS.keepCopy} onPress={close} />
         </View>
@@ -391,6 +501,63 @@ export default function ReplaceSheet({
     );
   }
 
+  // Other — the question: another version, or just the words
+  if (other === 'ask') {
+    return (
+      <Sheet kicker={kicker} title={WORDS.askHeading} width={640} onClose={back}>
+        <Text style={styles.body}>{WORDS.askBody}</Text>
+        <Text style={styles.quote} numberOfLines={3}>{`“${note.trim()}”`}</Text>
+        {noteErr ? <Text style={styles.error}>{noteErr}</Text> : null}
+        <View style={styles.actions}>
+          <Primary uiId="replace.other.another" label={WORDS.askYes} onPress={() => loadSources('other')} busy={asking === 'other'} focus />
+          <Ghost uiId="replace.other.send" label={sending ? 'Sending…' : WORDS.askNo} onPress={sendOnly} />
+          <Ghost label="‹  Back" onPress={back} />
+        </View>
+      </Sheet>
+    );
+  }
+
+  // Other — a few words first
+  if (other === 'write') {
+    return (
+      <Sheet kicker={kicker} title={WORDS.otherHeading} width={640} onClose={back}>
+        <Text style={styles.body}>{WORDS.otherBody}</Text>
+        <TextInput
+          ref={fieldRef}
+          style={styles.input}
+          value={note}
+          onChangeText={v => {
+            setNote(copyNote(v));
+            if (noteErr) setNoteErr(null);
+          }}
+          autoFocus
+          multiline
+          numberOfLines={3}
+          maxLength={COPY_NOTE_MAX * 2 /* code units; copyNote cuts at 300 code points */}
+          placeholder={WORDS.otherPlaceholder}
+          placeholderTextColor={colors.textFaint}
+          blurOnSubmit
+          // the keyboard's ✓ ends the typing: focus goes on to Next (left to Android, a
+          // field's blur put focus on the page under the sheet — RecommendSheet.tsx)
+          onSubmitEditing={() => setTimeout(() => nextRef.current?.requestTVFocus?.(), 0)}
+          onFocus={() => {
+            inField.current = true;
+            fieldGotAt.current = Date.now();
+            noteFocus(fieldNode.current, false);
+          }}
+          onBlur={leftField}
+        />
+        {voice.line ? <Text style={styles.faint}>{voice.line}</Text> : null}
+        {noteErr ? <Text style={styles.error}>{noteErr}</Text> : null}
+        <View style={styles.actions}>
+          <Primary uiId="replace.other.next" btnRef={nextRef} label={WORDS.otherNext} onPress={toAsk} onFocusChange={notOnField} />
+          {voice.available ? <Ghost uiId="replace.other.voice" label={voice.listening ? WORDS.stopListening : `🎤  ${WORDS.sayIt}`} onPress={voice.press} onFocusChange={notOnField} /> : null}
+          <Ghost label="‹  Back" onPress={back} onFocusChange={notOnField} />
+        </View>
+      </Sheet>
+    );
+  }
+
   // step 1 — the reasons (also while the server's answer is on its way)
   const reasons = reasonsOf(view);
   return (
@@ -418,6 +585,20 @@ const styles = StyleSheet.create({
   body: {color: colors.text, fontSize: fontSize.body, lineHeight: 24},
   faint: {color: colors.textDim, fontSize: fontSize.small, marginTop: spacing.sm},
   faintBig: {color: colors.textDim, fontSize: fontSize.body, marginTop: spacing.md},
+  quote: {color: colors.text, fontSize: fontSize.body, fontStyle: 'italic', marginTop: spacing.md},
+  input: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    borderRadius: radius.m,
+    color: colors.text,
+    fontSize: fontSize.body,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: spacing.md,
+    minHeight: 84,
+    textAlignVertical: 'top',
+  },
   error: {color: '#ff8080', fontSize: fontSize.body, marginTop: spacing.sm},
   status: {color: colors.text, fontSize: fontSize.row, fontWeight: '800'},
   actions: {flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.lg},

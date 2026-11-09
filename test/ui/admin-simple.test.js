@@ -232,9 +232,10 @@ ui.test("Copy for Claude: the state, one section, and everything — plain markd
   await open(page, "downloads");
   await page.click('[data-copy-for="d-flight"]');
   const d = await clipStarting("## Downloads in flight");
-  assert.match(d, /^## Downloads in flight\n_Aurora admin · .+_\n\n\| title \| by \| state \| done \| size \| speed \| left \| note \|\n\|---\|/);
-  assert.match(d, /\| The Long Film \(2021\) \| Anna \| downloading \| 31% \| 7\.6 GB \| 4\.1 MB\/s \| ~\d+m left \|  \|/);
-  assert.match(d, /Waiting for approval:\n\| title \| by \| size \| why held \|[\s\S]*Big Film \(2024\) \| Anna \| 7\.6 GB \| Held back: under 10% free/);
+  assert.match(d, /^## Downloads in flight\n_Aurora admin · .+_\n\n\| title \| by \| asked \| state \| done \| size \| speed \| left \| note \|\n\|---\|/);
+  assert.match(d, /\| The Long Film \(2021\) \| Anna \| asked [^|]+ \(\d+[sm] ago\) \| downloading \| 31% \| 7\.6 GB \| 4\.1 MB\/s \| ~\d+m left \|  \|/);
+  assert.match(d, /Waiting for approval:\n\| title \| by \| asked \| size \| why held \|[\s\S]*Big Film \(2024\) \| Anna \| asked .+ \| 7\.6 GB \| Held back: under 10% free/);
+  assert.match(d, /By person \(times in .+\):\n- Anna — 2 downloads · last [^\n]+$/m);
 
   await open(page, "overview");
   await page.click("#copy-all");

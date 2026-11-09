@@ -667,3 +667,200 @@
     bottom: 0;
   }
 }
+
+/* ---------- The phone tab bar's More, and its side menu (2026-11-06/09) ----------
+   elia: "do we have a way to reach all screens on smaller phone screens?",
+   then "we can do an hamburger menu like we have on tv (it can also look the
+   same)". At 320 px with AI and Saved on, Search fell off the end of the
+   bar, and New was not in it at all. The bar now holds Home, Movies, Shows,
+   My List, More and Search; More opens the TV's side menu (tv-native
+   src/components/NavRail.tsx), made for a finger, with every place
+   (js/navmore.js, docs/web-nav.md). The TV has one look, so the menu is the
+   same in both of the site's. Desktop and tablet: no More, nothing moves. */
+.nav-more {
+  display: none;
+  position: relative;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+.nav-more .nav-new-dot { display: none; }
+.nav-more-dots { display: none; vertical-align: -5px; }
+.nav-more-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 300; /* over the bar, as the TV's panel is over its page */
+  background: rgba(4, 5, 12, 0.55);
+  animation: nav-more-fade 220ms ease-out both;
+}
+.nav-more-wrap.leaving { animation: nav-more-fade 220ms ease-in reverse both; pointer-events: none; }
+.nav-more-wrap.leaving .nav-more-sheet { animation: nav-more-in 220ms var(--ease) reverse both; }
+@keyframes nav-more-fade { from { opacity: 0; } to { opacity: 1; } }
+/* the TV's panel: 240 dp of opaque #0a0b14 with the room's hues (violet from
+   the top-left, green from the foot) and a 48 dp feather into the page; here
+   a little wider for a thumb, and as tall as the screen */
+.nav-more-sheet {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(288px, 86vw);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: max(14px, env(safe-area-inset-top, 0px)) 12px max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+  background:
+    linear-gradient(165deg, rgba(104, 86, 226, 0.2) 0%, rgba(10, 11, 20, 0) 46%, rgba(70, 200, 150, 0.12) 100%),
+    #0a0b14;
+  animation: nav-more-in 280ms var(--ease) both;
+  touch-action: pan-y;
+}
+.nav-more-sheet::after {
+  /* the feather: the panel's edge melts into the page (the TV's panelFeather) */
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: 48px;
+  background: linear-gradient(90deg, #0a0b14, rgba(10, 11, 20, 0));
+  pointer-events: none;
+}
+@keyframes nav-more-in { from { transform: translateX(calc(-100% - 48px)); } to { transform: none; } }
+.nav-more-hues {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* the right half back to the panel's own colour (the TV's huesEdge), so
+     the feather beside it melts into the page without a seam */
+  background:
+    linear-gradient(90deg, rgba(10, 11, 20, 0) 50%, #0a0b14 100%),
+    radial-gradient(440px 440px at -50px -70px, rgba(104, 86, 226, 0.26), rgba(104, 86, 226, 0) 62%),
+    radial-gradient(460px 460px at -20px calc(100% + 40px), rgba(70, 200, 150, 0.16), rgba(70, 200, 150, 0) 62%);
+}
+.nav-more-sheet > :not(.nav-more-hues) { position: relative; }
+/* the mark and the word, lined up with the rows' words (the TV's open rail) */
+.nav-more-logo {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0 12px 16px;
+  min-height: 44px;
+}
+.nav-more-logo .logo-mark { width: 36px; height: 36px; }
+.nav-more-brand { color: var(--text); font-size: 23px; font-weight: 800; letter-spacing: 0.4px; }
+.nav-more-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  scrollbar-width: none;
+}
+.nav-more-list::-webkit-scrollbar { display: none; }
+/* more below the fold of a short screen: the last row fades out */
+.nav-more-list.more-below {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), rgba(0, 0, 0, 0.2));
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), rgba(0, 0, 0, 0.2));
+}
+/* Settings and you, at the foot (the TV's spacer pushes them down) */
+.nav-more-foot { flex: none; display: flex; flex-direction: column; gap: 4px; padding-top: 10px; }
+.nav-more-rule { flex: none; height: 1px; margin: 6px 16px; background: rgba(255, 255, 255, 0.09); }
+/* a row: the TV's `.nav-item` — 15/600, near-white with a cast shadow over
+   the hues, 48 tall, a round pill; lit = --surface; focused = inverted */
+.nav-more-item {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 16px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: left;
+  text-decoration: none;
+  text-shadow: 0 1px 6px rgba(8, 9, 16, 0.9);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.nav-more-item:active { background: rgba(255, 255, 255, 0.1); }
+.nav-more-item.active { background: var(--surface); color: #fff; }
+.nav-more-item:focus-visible {
+  outline: none;
+  background: #fff;
+  color: #0b0c14;
+  text-shadow: none;
+  box-shadow: var(--focus-ring);
+}
+.nav-more-icon { flex: none; display: inline-flex; }
+.nav-more-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.nav-more-sub { font-size: 12px; font-weight: 600; color: rgba(243, 244, 248, 0.66); }
+.nav-more-item.live .nav-more-sub { color: #8cffbe; }
+.nav-more-item:focus-visible .nav-more-sub { color: rgba(11, 12, 20, 0.7); }
+.nav-more-dot { flex: none; width: 7px; height: 7px; border-radius: 4px; background: var(--accent); }
+/* you: the TV's profile pill — the avatar and your name on --surface */
+.nav-more-profile {
+  gap: 10px;
+  padding: 5px 14px 5px 6px;
+  background: var(--surface);
+  font-size: 14px;
+  text-shadow: none;
+}
+.nav-more-profile .avatar { width: 30px; height: 30px; font-size: 16px; }
+.nav-more-profile .nav-more-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) {
+  .nav-more-wrap, .nav-more-wrap.leaving, .nav-more-sheet, .nav-more-wrap.leaving .nav-more-sheet { animation: none; }
+}
+/* the classic bar: AI, New and Saved make way for More (the menu has them) */
+@media (max-width: 600px) {
+  html:not([data-look="glass"]) .nav-items > #nav-pick,
+  html:not([data-look="glass"]) .nav-items > #nav-new,
+  html:not([data-look="glass"]) .nav-items > #nav-saved {
+    display: none;
+  }
+  html:not([data-look="glass"]) .nav-items > .nav-more {
+    display: block;
+    order: 8; /* the last word, right before Search */
+  }
+  html:not([data-look="glass"]) .nav-more:focus:not(:focus-visible) {
+    color: var(--text-dim);
+    background: none;
+    box-shadow: none;
+  }
+  html:not([data-look="glass"]) .nav-more.open,
+  html:not([data-look="glass"]) .nav-more.open:focus:not(:focus-visible) {
+    color: var(--text);
+    background: var(--surface);
+  }
+  html:not([data-look="glass"]) .nav-more.has-new .nav-new-dot {
+    display: block;
+    position: absolute;
+    top: 8px;
+    left: calc(50% + 15px); /* at the word's shoulder */
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--accent);
+  }
+  /* the words fit, measured (js/navmore.js fitBar, NAV.md section 1):
+     narrower sides, then smaller words, then More as the menu's three lines */
+  html:not([data-look="glass"]) .nav-items.fit-pad .nav-item { padding-left: 2px; padding-right: 2px; }
+  html:not([data-look="glass"]) .nav-items.fit-small .nav-item { font-size: 10.5px; }
+  html:not([data-look="glass"]) .nav-items.fit-dots .nav-more-word { display: none; }
+  html:not([data-look="glass"]) .nav-items.fit-dots .nav-more-dots { display: inline-block; }
+}

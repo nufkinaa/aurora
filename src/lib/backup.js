@@ -146,6 +146,9 @@ const EXCLUDE_FILES = new Set([
   "keeper-control.json",
   "backup-state.json",
   "store-recovery.json",
+  // a restore staged for the next start, and how the last one went (lib/restoreboot.js)
+  "restore-pending.json",
+  "restore-last.json",
 ]);
 const INCLUDE_DIRS = ["usage", "avatars"];
 const MAX_TOTAL_BYTES = 1024 ** 3; // a snapshot is built in memory; state is kilobytes, not this
@@ -348,14 +351,16 @@ const collect = async (dataDir, configFiles = []) => {
   const first = (n) => (/-journal\.json$/i.test(n) ? 0 : 1);
   top.sort((a, b) => first(a.name) - first(b.name) || (a.name < b.name ? -1 : 1));
   for (const e of top) {
-    if (!e.isFile() || !e.name.toLowerCase().endsWith(".json")) continue;
+    // (a dot file is the machine's, not the household's: .aurora-owner.json is
+    // the running server's lock — put back by a restore it would name an old pid)
+    if (!e.isFile() || !e.name.toLowerCase().endsWith(".json") || e.name.startsWith(".")) continue;
     if (EXCLUDE_FILES.has(e.name.toLowerCase())) continue;
     out.push({ abs: path.join(dataDir, e.name), as: `data/${e.name}` });
   }
   for (const dir of INCLUDE_DIRS) await walk(path.join(dataDir, dir), dir, out);
   for (const c of configFiles) {
     try {
-      if ((await fs.promises.stat(c.abs)).isFile()) out.push({ abs: c.abs, as: c.as });
+      if ((await fs.promises.stat(c.abs)).isFile()) out.push({ abs: c.abs, as: c.as, ...(c.transform ? { transform: c.transform } : {}) });
     } catch {}
   }
   return out;
@@ -503,7 +508,8 @@ const verify = async (archivePath) => {
 // only then given its real name: a file named like a snapshot has always
 // passed its check once.
 //
-// opts: { dataDir, backupDir, configFiles?, version?, now?, hooks? }
+// opts: { dataDir, backupDir, configFiles?, version?, now?, hooks?, manifestExtra? }
+// (configFiles: [{ abs, as, transform? }] — transform(Buffer) -> Buffer | null)
 // returns { name, path, size, files, bytes, warnings, manifest }
 const createSnapshot = async (opts) => {
   const { dataDir, backupDir } = opts;
@@ -524,6 +530,12 @@ const createSnapshot = async (opts) => {
     } catch (e) {
       if (e.code !== "ENOENT") warnings.push(`${w.as} could not be read (${e.code || e.message})`);
       continue; // gone between listing and reading: it was being replaced or removed
+    }
+    // (a config file can be changed on its way in — the drive copies leave
+    // the secrets out of config.json, lib/drivecopies.js; null leaves it out)
+    if (w.transform) {
+      try { data = w.transform(data); } catch { data = null; }
+      if (!data) continue;
     }
     // A store that does not parse is copied all the same (it may be all there
     // is), but said out loud: the caller must not rotate good snapshots away
@@ -566,6 +578,7 @@ const createSnapshot = async (opts) => {
     host: os.hostname(),
     platform: process.platform,
     note: "data/* goes into Aurora's data folder, config/* next to server.js. See src/lib/backup.js for the restore steps.",
+    ...(opts.manifestExtra || {}),
     warnings,
     summary: { profiles: summary.profiles, historyRows: summary.historyRows, sessions: summary.sessions, stores: summary.stores, newestChangeAt: summary.newestChangeAt },
     files,
@@ -1048,6 +1061,7 @@ const restoreLive = async ({ archivePath, dataDir, backupDir, root, withConfig =
     const parts = f.path.split("/");
     if (parts.some((seg) => !seg || seg === "." || seg === "..") || f.path.includes("\\")) throw new Error(`unsafe path in the archive: ${f.path}`);
     const data = check.entries.get(f.path);
+    if (parts[0] === "data" && parts.length === 2 && parts[1].startsWith(".")) continue; // (the lock file an older backup took: never put back)
     if (parts[0] === "data") {
       const abs = path.join(dataDir, ...parts.slice(1));
       await fs.promises.mkdir(path.dirname(abs), { recursive: true });
@@ -1085,7 +1099,7 @@ module.exports = {
   createSnapshot, verify, restore, list, prune, applyRetention,
   createNow, listVerified, newestVerifiedAt, pathForDownload, status, runDaily,
   drill, drillNow, drillIfDue, drillSentence, restoreLive, newestGoodCopySync, mirrorSnapshot, summaryOf, locations,
-  _internals: { tarPack, tarUnpack, splitName, nameFor, timeOf, isSnapshotName, collect, sameVolume, volumeKey, summarize, shrinkage, copyFromSnapshotsSync, verifyBufferSync, readState, writeState, EXCLUDE_FILES, INCLUDE_DIRS, DEFAULT_KEEP, NAME_RE, DRILL_EVERY_MS, live },
+  _internals: { sha256, PARTIAL_RE, tarPack, tarUnpack, splitName, nameFor, timeOf, isSnapshotName, collect, sameVolume, volumeKey, summarize, shrinkage, copyFromSnapshotsSync, verifyBufferSync, readState, writeState, EXCLUDE_FILES, INCLUDE_DIRS, DEFAULT_KEEP, NAME_RE, DRILL_EVERY_MS, live },
 };
 
 // ---------------------------------------------------------------- CLI

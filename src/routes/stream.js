@@ -18,9 +18,33 @@ const stillsLib = lazy(require, "../media/stills");
 // right now" (lib/inuse.js) — what the admin's "delete this copy" asks
 // before it deletes anything.
 const inuse = require("../lib/inuse");
-router.use(["/stream/video/:id", "/stream/hls/:id", "/stream/transcode/:id", "/stream/download/:id"], (req, res, next) => {
+router.use(["/stream/video/:id", "/stream/hls/:id", "/stream/transcode/:id", "/stream/download/:id", "/stream/prepared/:id"], (req, res, next) => {
   inuse.touch(req.params.id);
   next();
+});
+
+// A library file on a network drive that is not answering (lib/drives):
+// the request is answered at once — 503 with the sentence every app shows —
+// instead of a file call that would wait for ever and, a few of them later,
+// hold the server for everyone. Other titles are not touched. Local drives
+// pass straight through (no look at the disk here).
+const drivesLib = lazy(require, "../lib/drives");
+const viewerLib = lazy(require, "../lib/viewer");
+router.use(["/stream/video/:id", "/stream/hls/:id", "/stream/transcode/:id", "/stream/download/:id", "/stream/airplay/:id", "/stream/subtitle/:id", "/stream/embedded/:id", "/img/:id"], (req, res, next) => {
+  const entry = scanner.resolve(req.params.id);
+  if (!entry || !entry.path) return next();
+  let drives;
+  try { drives = drivesLib(); } catch { return next(); }
+  const o = drives.onPath(entry.path);
+  if (!o || !o.network) return next();
+  let who = null;
+  try { who = viewerLib().viewerOf(req); } catch {}
+  drives.guard(entry.path, who).then((g) => {
+    if (g.ok) return next();
+    res.set("Retry-After", "60");
+    res.set("X-Aurora-Error", g.code);
+    res.status(g.status || 503).json({ error: g.message, code: g.code });
+  }, () => next());
 });
 
 const MIME = {
@@ -164,6 +188,16 @@ router.get("/offline/file/:id", (req, res) => {
   res.sendFile(file);
 });
 
+// A file made overnight for devices that cannot play the title as it is
+// (media/prepared.js — ?k=copy | h264). Range-capable: the players open it as
+// they would the file itself, and every seek is native.
+router.get("/stream/prepared/:id", (req, res) => {
+  const file = require("../media/prepared").fileFor(req.params.id, String(req.query.k || ""));
+  if (!file) return res.status(404).send("Not prepared");
+  res.setHeader("Cache-Control", "private, max-age=0");
+  res.sendFile(file, { headers: { "Content-Type": "video/mp4" } });
+});
+
 // A frame at a given second (?t=), for "resume from here" prompts.
 router.get("/img/frame/:id", async (req, res) => {
   try {
@@ -264,16 +298,34 @@ const fetchExtImage = (url, file) => {
 const { variant: imgVariant } = require("../lib/imgvariant");
 // ?blur=<px>: pre-blurred (the TV's billboard layers — see imgvariant.js).
 // ?fmt=webp: that blurred variant as WebP (opt-in; ignored otherwise).
+// AVIF for a browser whose Accept says image/avif, or ?fmt=avif (imgvariant.js
+// wantsAvif): the same address answers by the Accept header, so it says
+// `Vary: Accept`, and the WebP sent while the AVIF is still being made is
+// kept for AVIF_PENDING_S only, so the AVIF is what the next look gets.
+const { wantsAvif, hasAvif, blurOf: imgBlurOf } = require("../lib/imgvariant");
+const AVIF_PENDING_S = 300;
 // Who is asking, for the variant queue's per-client limit (lib/admission.js).
 const artClient = (res) => { try { return admissionLib().heavy.clientKey(res.req); } catch { return null; } };
+// The variant options of a request, and the headers its answer needs.
+const artOpts = (req, res) => {
+  const q = req.query || {};
+  const opts = { blur: q.blur, fmt: q.fmt, client: artClient(res), avif: false };
+  if (q.w && hasAvif() && !imgBlurOf(q.blur)) {
+    res.vary("Accept");
+    opts.avif = wantsAvif(q, req.get("accept"));
+  }
+  return opts;
+};
+const artCache = (opts, long) =>
+  // (the original sent because the variant queue was full is kept for a
+  // minute only: the variant is asked for again once the rush is over)
+  opts.shed ? "public, max-age=60" : opts.avifPending ? `public, max-age=${AVIF_PENDING_S}` : `public, max-age=${long}`;
 const sendArt = async (res, file, width, blur, fmt) => {
-  const opts = { blur, fmt, client: artClient(res) };
+  const opts = artOpts(res.req, res);
   const v = width || blur ? await imgVariant(file, width, opts) : null;
   const out = v || file;
   res.setHeader("Content-Type", mimeOfFile(out) || "image/jpeg");
-  // (the original sent because the variant queue was full is kept for a
-  // minute only: the variant is asked for again once the rush is over)
-  res.setHeader("Cache-Control", opts.shed ? "public, max-age=60" : "public, max-age=604800");
+  res.setHeader("Cache-Control", artCache(opts, 604800));
   res.sendFile(out);
 };
 router.get("/img/ext", async (req, res) => {
@@ -373,9 +425,11 @@ router.get("/img/:id", async (req, res) => {
   // blocking call per picture was paid for nothing; server round 2026-10-18)
   if (!entry) return res.status(404).send("Not found");
   try {
-    const opts = { blur: req.query.blur, fmt: req.query.fmt, client: artClient(res) };
+    const opts = artOpts(req, res);
     const v = req.query.w || req.query.blur ? await imgVariant(entry.path, req.query.w, opts) : null;
-    res.setHeader("Cache-Control", opts.shed ? "public, max-age=60" : "public, max-age=86400");
+    res.setHeader("Cache-Control", artCache(opts, 86400));
+    // (an .avif is typed here: the static file server's type table predates it)
+    if (v && v.endsWith(".avif")) res.setHeader("Content-Type", "image/avif");
     res.sendFile(v || entry.path);
   } catch (e) {
     console.warn(`[img] ${req.params.id} w=${req.query.w || "-"} blur=${req.query.blur || "-"} failed: ${(e && e.message) || e}`);

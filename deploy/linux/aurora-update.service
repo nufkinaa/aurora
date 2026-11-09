@@ -1,0 +1,35 @@
+# Aurora's auto-updater, run once by aurora-update.timer (every ten minutes).
+# It runs scripts/nufurora/update.sh: fetch, wait while anyone is watching,
+# move to the newest release, restart, check, roll back if needed.
+# docs/nufurora-auto-update.md has the install steps.
+#
+#   sudo cp deploy/linux/aurora-update.service deploy/linux/aurora-update.timer /etc/systemd/system/
+#   sudoedit /etc/systemd/system/aurora-update.service   # the three EDIT lines below
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now aurora-update.timer
+[Unit]
+Description=Aurora auto-update (one run)
+Documentation=https://github.com/nufkinaa/aurora/blob/master/docs/nufurora-auto-update.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# EDIT: the account that owns the Aurora folder (the same User= as aurora.service).
+User=aurora
+# EDIT: the Aurora folder.
+WorkingDirectory=/opt/aurora
+ExecStart=/bin/bash /opt/aurora/scripts/nufurora/update.sh
+# EDIT if node or npm are not in /usr/bin or /usr/local/bin (`which node`):
+# put their folder first.
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin
+# npm ci and the health wait can take a while; never let a run hang forever.
+TimeoutStartSec=30min
+# (A run that is stopped half-way is finished by the next one: update.sh
+# keeps a note.)
+# Low priority: the update must not take CPU from people watching.
+Nice=10
+IOSchedulingClass=idle
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aurora-update

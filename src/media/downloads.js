@@ -42,6 +42,8 @@ const badreleases = require("./badreleases");
 const dlhealth = require("./dlhealth");
 const dlprio = require("./dlprio");
 const dlfallback = require("./dlfallback");
+const langcheck = require("./langcheck");
+const copylang = require("./copylang");
 
 const store = new JsonStore(path.join(config.DATA_DIR, "downloads.json"), []);
 
@@ -109,7 +111,7 @@ const seams = {
   // only a clear "this is not a video" from ffprobe counts against a copy.
   probe: (file) => new Promise((resolve) => {
     if (!config.ffmpegAvailable || !config.FFPROBE) return resolve(null);
-    require("child_process").execFile(config.FFPROBE, ["-v", "error", "-show_entries", "format=duration:stream=codec_type", "-of", "json", file],
+    require("child_process").execFile(config.FFPROBE, ["-v", "error", "-show_entries", "format=duration:stream=codec_type:stream_tags=language,title", "-of", "json", file],
       { encoding: "utf-8", timeout: 60000, windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
         if (err) {
           if (err.killed || err.signal) return resolve(null);
@@ -118,12 +120,43 @@ const seams = {
         try {
           const j = JSON.parse(stdout || "{}");
           const streams = j.streams || [];
-          resolve({ video: streams.some((x) => x.codec_type === "video"), duration: Number(j.format && j.format.duration) || 0, invalid: false });
+          resolve({
+            video: streams.some((x) => x.codec_type === "video"), duration: Number(j.format && j.format.duration) || 0, invalid: false,
+            // each audio track's language tag and title (the language check, media/langcheck.js)
+            audio: streams.filter((x) => x.codec_type === "audio").map((x) => ({ language: (x.tags && x.tags.language) || null, title: (x.tags && x.tags.title) || null })),
+          });
         } catch { resolve(null); }
       });
   }),
   // a hard link instead of a copy into the library (same volume, not Windows)
   link: process.platform !== "win32",
+  // The language check (media/langcheck.js): the audio language a person last
+  // picked in a player (their profile's prefs.audioLang), and a title's
+  // original language (TMDB: cached, else asked once, briefly — no answer
+  // means the check for an ordinary download is simply not made).
+  personLang: (who) => {
+    try {
+      const p = require("../profiles").list().find((x) => x.id === who || x.name === who);
+      return (p && p.prefs && p.prefs.audioLang) || null;
+    } catch { return null; }
+  },
+  originalLanguage: async (job) => {
+    if (!job.imdbId) return null;
+    const discover = require("./discover");
+    const kind = job.type === "show" ? "series" : "movie";
+    const known = discover.metaCached(kind, job.imdbId);
+    if (known) return known.originalLanguage || null;
+    const meta = await Promise.race([discover.meta(kind, job.imdbId).catch(() => null), new Promise((r) => { const t = setTimeout(() => r(null), 2500); t.unref?.(); })]);
+    return (meta && meta.originalLanguage) || null;
+  },
+  // does this person want to hear when a download of theirs lands (Settings →
+  // "Tell me when a download is ready", prefs.readyNotice; on unless switched off)
+  readyNotice: (who) => {
+    try {
+      const p = require("../profiles").list().find((x) => x.id === who || x.name === who);
+      return !(p && p.prefs && p.prefs.readyNotice === false);
+    } catch { return true; }
+  },
 };
 const later = (fn, ms) => { if (seams.auto) { const t = setTimeout(fn, ms); t.unref?.(); } };
 
@@ -184,6 +217,33 @@ const whoAsked = (j) => {
   } catch {}
   return /^[0-9a-f]{12}$/i.test(j.profile) ? null : j.profile;
 };
+// The others who asked for the same download after it was on its way
+// (`also`, profile ids — see create's "same TITLE" join), by name; ids nobody
+// has any more are left out, never shown.
+const alsoAsked = (j) => {
+  if (!j || !Array.isArray(j.also) || !j.also.length) return [];
+  let people = [];
+  try { people = require("../profiles").list(); } catch {}
+  const out = [];
+  for (const id of j.also) {
+    const p = people.find((x) => x.id === id);
+    const name = p && p.name ? p.name : /^[0-9a-f]{12}$/i.test(String(id)) ? null : id;
+    if (name && name !== whoAsked(j) && !out.includes(name)) out.push(name);
+  }
+  return out;
+};
+// Which automatic kind queued it, for "Automatic · Niso's next episode" on the
+// admin's Downloads screen: "next" (smart downloads; the oldest smart jobs
+// carry no kind and are these), "follow" (a followed show's new episode),
+// "ahead" (the episode after next, downloaded ahead — media/overnight.js), or
+// just "auto" for any other (the old My List downloads: no My List tag is sent
+// any more, mylistdl-queue.test.js) — null for a download a person asked for.
+// (Not `auto`, the stored field, which stays server-side.)
+const autoKind = (j) => {
+  if (!j.smart && !j.auto) return null;
+  const k = j.auto || "next";
+  return k === "next" || k === "follow" || k === "ahead" ? k : "auto";
+};
 
 // Strip fields nobody outside needs; keep it small for WS.
 const publicJob = (j) => ({
@@ -207,6 +267,10 @@ const publicJob = (j) => ({
   // Who started it, by NAME only (elia 2026-10-11: "downloads should say who
   // started them"); the profile id stays server-side.
   by: whoAsked(j),
+  // …the others who asked for it too, and which automatic kind queued it
+  // (then `by` is the person it was for: whose next episode, whose follow).
+  alsoBy: alsoAsked(j),
+  autoFor: autoKind(j),
   libraryId: j.status === "done" && j.destPath ? scanner.idForPath(j.destPath) : null,
   // A second source is being tried beside the first (media/dlrace.js). The
   // card stays ONE card: `progress` above is the leading attempt's. `race` is
@@ -252,7 +316,27 @@ const publicJob = (j) => ({
   retryAt: j.status === "approved" && j.retryAt ? j.retryAt : null,
   // Time left at the speed it has had lately (seconds), null when unknown.
   etaSec: j.status === "downloading" && Number.isFinite(j.etaSec) ? j.etaSec : null,
+  // ---- "tell me when it's ready" + the language check ----
+  // The sentences every client says when a download lands, from here so the
+  // website, the TV and the phone say the same: `readyLine` ("“Film” is ready
+  // to watch") and, when the language check has something to say, `langLine`
+  // ("This copy doesn't say its language — report it again if it's wrong.").
+  readyLine: j.status === "done" ? readyLineOf(j) : null,
+  langLine: j.status === "done" ? langLineOf(j) : null,
 });
+// What the person is told when it lands (publicJob readyLine).
+const readyLineOf = (j) => {
+  const name = String(j.label || j.title || "").replace(/ — another version$/, "");
+  return j.replaces ? `The new version of “${name}” is in — ready to watch` : `“${name}” is ready to watch`;
+};
+// What the language check found, when it is worth saying (publicJob langLine).
+const langLineOf = (j) => {
+  const c = j.langCheck;
+  if (!c) return null;
+  if (c.verdict === "unknown" && isLanguageReplace(j)) return langcheck.UNKNOWN_LINE;
+  if (c.verdict === "kept" && (c.has || []).length && (c.want || []).length) return langcheck.lines.keptWrong(c.has, c.want);
+  return null;
+};
 
 // The requester opened the finished file: the "ready to play" nudge for it
 // goes away on every device of theirs. Only the requester can clear it.
@@ -283,12 +367,61 @@ const isValidHash = (h) => typeof h === "string" && /^[a-z0-9]{32,40}$/i.test(h)
 
 const SUB_EXT = [".srt", ".vtt", ".ass", ".ssa"];
 
-// The library root a finished job lands in. Falls back to null if nothing is
-// configured for that media type.
-const destRoot = (type) => {
-  const roots = type === "show" ? config.LIBRARIES.shows : config.LIBRARIES.movies;
-  return (roots && roots[0]) || null;
+// The library root a job lands in. Falls back to null if nothing is
+// configured for that media type. One folder: that one, as always. Several
+// (more than one drive in use — lib/drives, docs/storage-drives.md): the
+// drive with room (keeping its reserve), the fastest of the roomy ones, and
+// for a show the drive it already lives on when that has room
+// (lib/drives/rules.js pick). `job` (optional): { id, title, sizeBytes }.
+const drivesLib = require("../lib/lazy")(require, "../lib/drives");
+const rootsOf = (type) => (type === "show" ? config.LIBRARIES.shows : config.LIBRARIES.movies) || [];
+// Does the show already have a folder in `root`? From the last library walk's
+// listing (a network root is never read on the way to answering), else the disk.
+const showFolderIn = (root, title) => {
+  let names = null;
+  try { names = scanner.rootFolders(root); } catch {}
+  if (!names) {
+    let net = false;
+    try { const o = drivesLib().onPath(root); net = !!(o && o.network); } catch {}
+    names = net ? [] : foldersIn(root);
+  }
+  const want = folderKey(title);
+  return names.some((n) => folderKey(n) === want);
 };
+// Bytes still to land in `root`: jobs on their way there, and — not knowing
+// yet where they go — every queued job of the same kind.
+const committedOn = (root, type, excludeId) =>
+  store.data.reduce((n, j) => {
+    if (j.id === excludeId || !["approved", "downloading"].includes(j.status)) return n;
+    if (j.destRoot ? j.destRoot !== root : (j.type === "show" ? "show" : "movie") !== (type === "show" ? "show" : "movie")) return n;
+    if (j.attempts && j.attempts.length > 1) return n + j.attempts.reduce((m, a) => m + Math.max(0, (a.sizeBytes || 0) * (1 - (a.progress || 0))), 0);
+    return n + Math.max(0, (j.sizeBytes || 0) * (1 - (j.progress || 0)));
+  }, 0);
+// Why this job belongs on the fast drive (top-quality 4K, what someone is
+// about to watch, a person's own request — lib/drives/rules.js wantsFast), or
+// null: HD copies and automatic or background downloads go where there is
+// most room. Only for a real job (the disk gate asks with a sketch of one).
+const fastWhy = (job) => {
+  if (!job || !job.infoHash) return null;
+  try {
+    let cls = null;
+    try { cls = priorityOf(job).base; } catch {}
+    return require("../lib/drives/rules").wantsFast(job, cls).why;
+  } catch { return null; }
+};
+const destPick = (type, job = null) => {
+  const roots = rootsOf(type);
+  if (roots.length <= 1) return { root: roots[0] || null, why: "the only library folder", full: false };
+  try {
+    return drivesLib().pickRoot(type === "show" ? "show" : "movie", { sizeBytes: (job && job.sizeBytes) || 0, preferFast: fastWhy(job) }, {
+      hasShowAt: (root) => !!(job && job.title && type === "show" && showFolderIn(root, job.title)),
+      committedOn: (root) => committedOn(root, type, job && job.id),
+    });
+  } catch (e) {
+    return { root: roots[0], why: `the first folder (${(e && e.message) || e})`, full: false };
+  }
+};
+const destRoot = (type, job = null) => destPick(type, job).root;
 
 // ---------- the disk gate (what replaced blanket admin approval) ----------
 const gb = (n) => (n / 1e9).toFixed(1);
@@ -319,12 +452,14 @@ const committedBytes = (excludeId) =>
 const diskGate = (type, sizeBytes, excludeId) => {
   const min = config.DOWNLOAD_MIN_FREE_PERCENT;
   if (!(min > 0)) return { ok: true }; // 0/disabled = never ask
-  const root = destRoot(type);
+  const several = rootsOf(type).length > 1;
+  const root = destRoot(type, { id: excludeId, sizeBytes });
   const s = root ? disk.spaceSync(root) : null;
   if (!s || s.freePct == null || !s.total) {
     return { ok: false, reason: `Couldn't read free space on ${root || "the library drive"}.` };
   }
-  const needed = Math.max(0, sizeBytes || 0) + committedBytes(excludeId);
+  // (several drives: only what is on its way to THIS one counts against it)
+  const needed = Math.max(0, sizeBytes || 0) + (several ? committedOn(root, type, excludeId) : committedBytes(excludeId));
   const pctAfter = ((s.free - needed) / s.total) * 100;
   if (pctAfter >= min) return { ok: true };
   return {
@@ -601,7 +736,9 @@ const create = (fields) => {
     smart: !!smart, // queued by smart downloads (the next episode), not by hand
     // which automatic kind: "next" (smart downloads) or "follow" (a followed
     // show's new episode) — its priority class (media/dlprio.js)
-    ...(smart && ["next", "follow"].includes(fields.auto) ? { auto: fields.auto } : {}),
+    // (or "ahead": the episode after next, downloaded ahead overnight —
+    // media/overnight.js; the Background class)
+    ...(smart && ["next", "follow", "ahead"].includes(fields.auto) ? { auto: fields.auto } : {}),
     ...(replaces ? { replaces: { ...replaces } } : {}),
     status: gate.ok ? "approved" : "pending",
     // Set when the queue started this itself, so pump() knows it may still send
@@ -968,9 +1105,17 @@ const destinationFor = (job) => {
     const p = job.replaces.path;
     return { dir: path.dirname(p), base: path.basename(p, path.extname(p)) };
   }
-  const root = destRoot(job.type);
+  const pick = destPick(job.type, job);
+  const root = pick.root;
   if (!root) throw new Error("no library folder configured");
-  const folder = chooseFolder(foldersIn(root), job.title, job.year);
+  if (rootsOf(job.type).length > 1) {
+    job.destRoot = root;
+    console.log(`[download] ${String(job.id || "").slice(0, 6)} goes to ${root} (${pick.why})`);
+  }
+  // (a network root's folders from the last walk: no blocking read of a mount that may hang)
+  let listing = null;
+  try { const o = drivesLib().onPath(root); if (o && o.network) listing = scanner.rootFolders(root) || []; } catch {}
+  const folder = chooseFolder(listing || foldersIn(root), job.title, job.year);
   if (job.type === "show") {
     const s = job.season || 1;
     const e = job.episode || 1;
@@ -1362,7 +1507,7 @@ const attemptFailed = (job, rec, att, message, code = null) => {
 // either). It starts again by itself once the disk gate passes (healthTick).
 const holdForDisk = (job, message) => {
   stopActive(job.id, `held: the disk is full (${message})`);
-  const root = destRoot(job.type);
+  const root = job.destRoot || destRoot(job.type);
   job.status = "pending";
   job.approvedAt = null;
   job.diskHold = true;
@@ -1618,6 +1763,7 @@ const claimWin = (job, rec, att, file, engineStatus) => {
     if (e && e.quiet) return;
     // the bytes are all there and they are not the film: the next copy
     if (e && e.fakeFile && active.get(job.id) === rec) return switchNow(job, rec, { kind: "fake", why: e.message });
+    if (e && e.wrongLanguage && active.get(job.id) === rec) return switchNow(job, rec, { kind: "language", why: e.message, lead: e.lead });
     fail(job, errText(e));
   });
   return true;
@@ -1637,8 +1783,14 @@ const completeJob = async (job, rec, file, engineStatus) => {
   // Is it a film at all? A copy whose bytes are all there can still be a
   // fake (random bytes, a renamed sample): ffprobe says, before anything
   // lands in the library (dlfallback.checkProbe).
-  const bad = dlfallback.checkProbe(await seams.probe(file.path), job, file.length);
+  const facts = await seams.probe(file.path);
+  const bad = dlfallback.checkProbe(facts, job, file.length);
   if (bad) throw Object.assign(new Error(bad), { fakeFile: true });
+  if (active.get(job.id) !== rec) throw Object.assign(new Error("stopped before it was copied"), { quiet: true });
+  // Is it in the language it was fetched for? (media/langcheck.js) A copy
+  // that clearly is not goes no further: the next copy.
+  const lang = await languageGate(job, facts);
+  if (lang) throw Object.assign(new Error(lang.why), { wrongLanguage: true, lead: lang.lead });
   if (active.get(job.id) !== rec) throw Object.assign(new Error("stopped before it was copied"), { quiet: true });
 
   job.phase = "copying";
@@ -1648,6 +1800,21 @@ const completeJob = async (job, rec, file, engineStatus) => {
   job.etaSec = null;
   broadcast(job);
 
+  // A destination on a network drive is asked first, in a child process
+  // with a deadline (lib/drives): the landing below makes blocking calls
+  // there, and a drive that stopped answering would hold the server.
+  if (!job.replaces) {
+    try {
+      const o = await drivesLib().confirm(rec.dir);
+      if (o && o.network && !o.answering) {
+        const again = destinationFor(job);
+        if (again.dir === rec.dir) throw Object.assign(new Error(`the storage drive ${o.drive.mount} isn't answering`), { driveDown: true });
+        console.log(`[download] ${job.id.slice(0, 6)} ${o.drive.mount} isn't answering — lands on ${job.destRoot || "another drive"} instead`);
+        rec.dir = again.dir;
+        rec.base = again.base;
+      }
+    } catch (e) { if (e && e.driveDown) throw e; }
+  }
   fs.mkdirSync(rec.dir, { recursive: true });
   sweepTemps(rec.dir, job.id);
   // The bytes go to a hidden temp name in the destination folder; only a
@@ -2213,10 +2380,104 @@ const excludeFor = (job) => {
 };
 const acceptFor = (job) => {
   const r = job.replaces;
-  if (!r) return null;
+  const fit = job.langFit ? { wanted: job.langFit.want || [], wrong: job.langFit.wrong || [] } : null;
+  if (!r && !fit) return null;
   const rk = badreleases._internals.relKey;
-  const old = r.oldRelease ? rk(r.oldRelease) : null;
-  return (s) => !(old && s.release && rk(s.release) === old);
+  const old = r && r.oldRelease ? rk(r.oldRelease) : null;
+  // a copy whose NAME says it is in a language not wanted is not tried
+  // (media/copylang.js judge: "same" as the copy given up on, or "other")
+  return (s) => !(old && s.release && rk(s.release) === old) && !(fit && ["same", "other"].includes(copylang.judge(s, fit)));
+};
+// The next copy for a job, from a fresh source list. A job looking for a
+// language (`langFit`) takes a copy whose name says that language first.
+const pickNext = (job, streams, oldHash) => {
+  const args = {
+    job, tried: triedSet(job), exclude: excludeFor(job), live: otherSources(job.id), accept: acceptFor(job),
+    original: { dubbed: false, hardsub: false, ...((streams || []).find((x) => sameHash(x.infoHash, oldHash)) || {}) },
+  };
+  if (job.langFit) {
+    const fit = { wanted: job.langFit.want || [], wrong: job.langFit.wrong || [] };
+    const right = (streams || []).filter((s) => copylang.judge(s, fit) === "right");
+    if (right.length) {
+      const first = dlfallback.chooseFallback({ ...args, streams: right });
+      if (first.source) return first;
+    }
+  }
+  return dlfallback.chooseFallback({ ...args, streams: streams || [] });
+};
+
+// ---------- the language check (media/langcheck.js) ----------
+// What a job's copy should be in: { want, wrong } (ISO 639-1 codes), or null
+// when nothing is asked of it.
+//   "Wrong language" (media/replace.js) - what the request said: the person's
+//     language and the title's own, not the language of the copy replaced
+//   any other download - the language the person last picked in a player and
+//     the title's original language (a Hebrew speaker's English film in
+//     English is right), only when both are known
+const uniqLangs = (list) => [...new Set(list.map((x) => require("../lib/lang").iso1(x)).filter(Boolean))];
+const isLanguageReplace = (job) => !!(job.replaces && job.replaces.reason === "language");
+const langWish = async (job) => {
+  if (job.langFit) return job.langFit;
+  if (isLanguageReplace(job)) {
+    const r = job.replaces;
+    if (r.lang) return { want: uniqLangs(r.lang.want || []), wrong: uniqLangs(r.lang.wrong || []) };
+    // (a request from before the check stored what it was after)
+    let original = null;
+    try { original = await seams.originalLanguage(job); } catch {}
+    return { want: uniqLangs([seams.personLang(r.by), original]), wrong: [] };
+  }
+  const mine = job.profile ? seams.personLang(job.profile) : null;
+  if (!require("../lib/lang").iso1(mine)) return null;
+  let original = null;
+  try { original = await seams.originalLanguage(job); } catch {}
+  if (!original) return null;
+  return { want: uniqLangs([mine, original]), wrong: [] };
+};
+// Called with the finished file's ffprobe facts, before it lands. -> null (it
+// lands) or { why, lead } (it does not: the next copy). What was found is kept
+// on the job (`langCheck`) for the line the person is told (publicJob
+// langLine).
+//   "Wrong language" replacement: right -> swap; wrong -> the next copy;
+//     unknown (untagged audio) -> swap, and the person is told so plainly.
+//   any other download: only when its tracks say their language; wrong ->
+//     the next copy, or - when there is no other copy to try - it lands as it
+//     is and says so (a whole download thrown away for nothing is worse).
+const languageGate = async (job, facts) => {
+  const audio = facts && Array.isArray(facts.audio) ? facts.audio : null;
+  const replace = isLanguageReplace(job);
+  if (!replace && !(audio && audio.some((t) => langcheck.trackLangs(t).length))) return null;
+  const wish = await langWish(job);
+  if (!wish || (!wish.want.length && !wish.wrong.length)) {
+    if (replace) job.langCheck = { verdict: "unknown", has: [], want: [] };
+    return null;
+  }
+  const v = langcheck.verdict({ audio, release: job.release, want: wish.want, wrong: wish.wrong });
+  console.log(`[download] ${job.id.slice(0, 6)} language check: ${v.verdict} (has ${v.has.join(",") || "nothing tagged"}; wants ${wish.want.join(",") || "-"}${wish.wrong.length ? `; not ${wish.wrong.join(",")}` : ""})`);
+  if (v.verdict !== "wrong") {
+    job.langCheck = { verdict: v.verdict, has: v.has, want: wish.want };
+    return null;
+  }
+  const next = { want: wish.want, wrong: uniqLangs([...wish.wrong, ...v.has]) };
+  if (!replace) {
+    // is there another copy to try? None: it lands as it is.
+    const was = job.langFit;
+    job.langFit = next;
+    let pick = null;
+    if ((job.tried || []).length + 1 < dlfallback.MAX_SOURCES) {
+      try {
+        const found = await seams.findSources(job);
+        pick = pickNext({ ...job, tried: [...(job.tried || []), { h: lc(job.infoHash) }] }, (found && found.streams) || [], job.infoHash);
+      } catch { pick = null; }
+    }
+    if (!pick || !pick.source) {
+      if (was) job.langFit = was; else delete job.langFit;
+      job.langCheck = { verdict: "kept", has: v.has, want: wish.want };
+      return null;
+    }
+  }
+  job.langFit = next;
+  job.langCheck = { verdict: "wrong", has: v.has, want: wish.want };
+  return { why: `its sound is in ${langcheck._internals.list(v.has, "and")}`, lead: langcheck.lines.lead(v.has, wish.want) };
 };
 // A source as the job carries it.
 const asSource = (s) => {
@@ -2232,11 +2493,14 @@ const LEADS = {
   dead: "No one was sharing that copy",
   fake: "That copy was fake or broken",
   failed: "That copy failed",
+  language: "That copy was in the wrong language",
 };
 // Give up on the job's copy and move to the next one — inside its running
 // slot, so it keeps its place. `kind`: "dead" (nobody sharing it), "fake"
-// (not the film, or damaged), "failed" (the engine gave up on it).
-const switchSource = async (job, rec, { kind, why }) => {
+// (not the film, or damaged), "failed" (the engine gave up on it), "language"
+// (its sound is not in the language wanted: media/langcheck.js; `lead` says
+// which).
+const switchSource = async (job, rec, { kind, why, lead }) => {
   if (rec.switching || active.get(job.id) !== rec) return;
   rec.switching = true;
   const old = rec.main;
@@ -2244,10 +2508,11 @@ const switchSource = async (job, rec, { kind, why }) => {
     const key = dlrace.titleKey(job);
     const wall = seams.wall();
     // 1. what is remembered about the copy that let this title down
-    remember(job, old.infoHash, kind === "dead" ? "stalled" : "failed");
+    // (a copy in another language downloaded fine: nothing against its source)
+    if (kind !== "language") remember(job, old.infoHash, kind === "dead" ? "stalled" : "failed");
     if (key) {
       try {
-        badreleases.record(key, { infoHash: old.infoHash, release: job.release || old.src.release || null, reason: kind === "dead" ? "dead" : "fake", auto: true, byName: "Aurora" }, wall);
+        badreleases.record(key, { infoHash: old.infoHash, release: job.release || old.src.release || null, reason: kind === "dead" ? "dead" : kind === "language" ? "language" : "fake", auto: true, byName: "Aurora" }, wall);
       } catch (e) { console.warn("[download] could not file the copy:", errText(e)); }
     }
     const tried = (job.tried || []).filter((x) => !sameHash(x.h, old.infoHash));
@@ -2276,10 +2541,7 @@ const switchSource = async (job, rec, { kind, why }) => {
       try { found = await seams.findSources(job); } catch (e) { found = null; pick = { source: null, reason: `the list of copies could not be fetched (${errText(e)})` }; }
       if (active.get(job.id) !== rec || job.status !== "downloading") return;
       if (found) {
-        pick = dlfallback.chooseFallback({
-          job, streams: (found && found.streams) || [], tried: triedSet(job), exclude: excludeFor(job),
-          live: otherSources(job.id), accept: acceptFor(job), original: { dubbed: false, hardsub: false, ...((found.streams || []).find((x) => sameHash(x.infoHash, old.infoHash)) || {}) },
-        });
+        pick = pickNext(job, (found && found.streams) || [], old.infoHash);
       }
     }
     if (!pick || !pick.source) {
@@ -2307,7 +2569,7 @@ const switchSource = async (job, rec, { kind, why }) => {
     job.peers = 0;
     job.etaSec = null;
     job.health = { state: "starting", code: "finding", why: null, countsAsRunning: true, since: isoAt(wall) };
-    job.fallbackNote = `${LEADS[kind] || LEADS.failed} — now trying another${sourceDesc(src) ? ` (${sourceDesc(src)})` : ""}`;
+    job.fallbackNote = `${lead || LEADS[kind] || LEADS.failed} — now trying another${sourceDesc(src) ? ` (${sourceDesc(src)})` : ""}`;
     job.note = job.fallbackNote;
     store.save();
     broadcast(job);
@@ -2336,6 +2598,12 @@ const waitAndRetry = (job, rec, reason) => {
   job.retries = (job.retries || 0) + 1;
   const n = (job.tried || []).length;
   const copies = `${n} cop${n === 1 ? "y" : "ies"}`;
+  // Every copy tried was in the wrong language (media/langcheck.js): trying
+  // them again later would only fetch the same files again.
+  if (n && !(job.shelved || []).length && (job.tried || []).every((x) => x.kind === "language")) {
+    job.fallbackNote = null;
+    return fail(job, langcheck.lines.none((job.langFit && job.langFit.want) || [], n));
+  }
   if (job.retries > max) {
     const since = Date.parse(job.firstStartedAt || job.approvedAt || job.at) || seams.wall();
     job.fallbackNote = null;
@@ -2346,9 +2614,11 @@ const waitAndRetry = (job, rec, reason) => {
       : `It would not download — tried ${copies} over ${over} (last: ${last.why || last.kind}). Try again later.`);
   }
   // what to try when the time comes
+  // (a copy found in the wrong language is never tried again: it would be
+  // the same file)
   const pool = [
     ...(job.shelved || []).slice().sort((a, b) => (b.bytes || 0) - (a.bytes || 0)).map((x) => ({ ...x, fileIdx: x.fileIdx || 0 })),
-    ...(job.tried || []).filter((x) => !(job.shelved || []).some((y) => sameHash(y.infoHash, x.h))).map((x) => ({
+    ...(job.tried || []).filter((x) => x.kind !== "language" && !(job.shelved || []).some((y) => sameHash(y.infoHash, x.h))).map((x) => ({
       infoHash: x.h, fileIdx: x.fileIdx || 0, quality: x.q, sizeBytes: x.size, provider: x.provider, seeders: x.seeders, release: x.rel,
     })),
   ];
@@ -2614,19 +2884,30 @@ const finish = async (job, destPath) => {
     const libId = scanner.idForPath(destPath);
     if (libId) require("./preconvert").consider(libId);
   }
+  // No Hebrew subtitles anywhere, for somebody who watches with Hebrew ones:
+  // one is translated in the background (media/subai.js; only with an AI key)
+  try { require("./subai").landed(destPath, [job.profile, ...(job.also || [])].filter(Boolean)); } catch {}
   console.log(`[download] ${job.id.slice(0, 6)} done "${job.title}"`);
   tellMyList(job);
   tellReplace(job);
   if (job.replaces) notify.send("Aurora: copy replaced", `"${job.label || job.title}" — ${job.replaces.byName || "someone"} replaced the copy (${job.replaces.reasonLabel || job.replaces.reason}).`);
   else notify.send("Aurora: download ready", `"${job.label || job.title}" is downloaded and in the library.`);
-  // …and the person who asked for it (or whose follow / smart download
-  // fetched it) hears on the devices where they switched notifications on.
-  for (const who of [job.profile, ...(job.also || [])].filter(Boolean)) {
+  // …and the person who asked for it hears on the devices where they switched
+  // notifications on — unless they said no under Settings ("Tell me when a
+  // download is ready", prefs.readyNotice). A smart download nobody asked for
+  // stays quiet, as it does in the apps. What the language check found is
+  // said either way (langLine).
+  const langLine = langLineOf(job);
+  const askers = [...new Set([...(job.smart ? [] : [job.profile]), ...(job.also || [])].filter(Boolean))];
+  for (const who of askers) {
+    const ready = seams.readyNotice(who);
+    if (!ready && !langLine) continue;
     try {
       const libId = scanner.idForPath(destPath);
+      const base = job.replaces ? "The new version is in — ready to watch." : "Downloaded and ready to watch.";
       require("../lib/push").send(who, {
         title: job.type === "show" && job.season ? `${job.title} · S${job.season} E${job.episode}` : job.title,
-        body: job.replaces ? "The new version is in — ready to watch." : "Downloaded and ready to watch.",
+        body: ready ? (langLine ? `${base} ${langLine}` : base) : langLine,
         url: libId ? `/#/play/${libId}` : "/#/downloads",
         tag: `dl-${job.id}`,
       });

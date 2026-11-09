@@ -15,6 +15,7 @@ const lazy = require("../lib/lazy");
 const authmodeLib = lazy(require, "../lib/authmode");
 const smartdlLib = lazy(require, "../media/smartdl");
 const smartcleanLib = lazy(require, "../media/smartclean");
+const untouchedLib = lazy(require, "../media/untouched");
 const sessionsLib = lazy(require, "../lib/sessions");
 const apiRoutes = lazy(require, "./api");
 
@@ -498,8 +499,17 @@ router.post("/api/profiles/:id/progress", gate, (req, res) => {
     profiles.markProgress(req.params.id, [markEntry({ itemId, watched, duration, item })]);
     return res.json({ ok: true });
   }
+  // the row before this save: did this one PLAY? (media/untouched.js — the
+  // admin's "nobody watched for 45 days" counts real play only, not opening)
+  const prevRow = (profiles.getProgress(req.params.id) || {})[itemId];
+  const prev = prevRow ? { position: prevRow.position, finished: !!prevRow.finished } : null;
   profiles.setProgress(req.params.id, itemId, position, duration, item);
   res.json({ ok: true });
+  untouchedLib().notePlay(req.params.id, itemId, prev, position, item);
+  // a title with no Hebrew subtitles played by somebody who watches with
+  // Hebrew ones: one is translated (media/subai.js; only with an AI key — a
+  // cheap check otherwise, and a title is queued once)
+  try { require("../media/subai").played(req.params.id, itemId); } catch {}
   // Most of the way through an episode? Queue the next one (media/smartdl.js).
   // After the response, never on its critical path.
   smartdlLib()

@@ -210,25 +210,29 @@ test("search: Hebrew the catalogues do not know is looked up by its English name
     }
     return { query: { pages: [] } };
   });
-  // the quick call (no wait) does not go out: it says more is coming
-  let r = await spoken.search("תחפש את הסדרה פאודה", {});
+  // an English name said in Hebrew letters is found by its sound
+  // (media/hebrew.js): nothing to ask
+  let r = await spoken.search("תחפש את הסדרה פאודה", { wait: true });
+  assert.equal(top(r), "Fauda");
+  assert.equal(asked.length, 0);
+  // a Hebrew NAME the index does not know: the quick call (no wait) does not
+  // go out, it says more is coming
+  r = await spoken.search("הארי פוטר ואבן החכמים", {});
   assert.equal(r.pending, true);
   assert.equal(asked.length, 0);
-  // the waiting call asks Wikipedia and searches the English name
-  r = await spoken.search("תחפש את הסדרה פאודה", { wait: true });
-  assert.equal(top(r), "Fauda");
-  assert.equal(r.q, "Fauda");
+  // the waiting call asks Wikipedia and searches the English name —
+  // Wikipedia's "(film)" is not part of it; its first page is the best one
+  r = await spoken.search("הארי פוטר ואבן החכמים", { wait: true });
+  assert.equal(top(r), "Harry Potter and the Philosopher's Stone");
+  assert.equal(r.q, "Harry Potter and the Philosopher's Stone");
   assert.equal(r.spoken.via, "hebrew-title");
   assert.equal(asked.length, 1);
   assert.match(asked[0], /^https:\/\/he\.wikipedia\.org\/w\/api\.php\?/);
   assert.match(asked[0], /lllimit=max/, "every page's link, not one page's");
   // remembered: the next quick call has it at once
-  r = await spoken.search("פאודה", {});
-  assert.equal(top(r), "Fauda");
-  assert.equal(asked.length, 1);
-  // Wikipedia's "(film)" is not part of the name; its first page is the best one
-  r = await spoken.search("הארי פוטר ואבן החכמים", { wait: true });
+  r = await spoken.search("הארי פוטר ואבן החכמים", {});
   assert.equal(top(r), "Harry Potter and the Philosopher's Stone");
+  assert.equal(asked.length, 1);
   // the search's first page has no English page: no later page stands in for it
   r = await spoken.search("שם שאין לו דף", { wait: true });
   assert.deepEqual(r.results, []);

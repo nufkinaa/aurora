@@ -35,7 +35,7 @@ import {clearProfileCaches} from '../../src/profileScope';
 describe('which settings are whose', () => {
   test('the person-level keys and the device-level keys do not overlap, and every one is a real setting', () => {
     expect(PERSON_KEYS.sort()).toEqual([
-      'autoplayNext', 'dialogueBoost', 'matchFrameRate', 'nightMode', 'smartCleanup', 'smartDownloads',
+      'autoplayNext', 'dialogueBoost', 'matchFrameRate', 'nightMode', 'readyNotice', 'smartCleanup', 'smartDownloads',
       'subBg', 'subColor', 'subLang', 'subOpacity', 'subPos', 'subSize', 'subWeight', 'subsDefault', 'surround', 'usageStats', 'voiceLang',
     ]);
     for (const k of DEVICE_KEYS) expect(PERSON_KEYS as string[]).not.toContain(k);
@@ -43,6 +43,7 @@ describe('which settings are whose', () => {
     // the defaults the two clients share
     expect(PERSON_DEFAULTS).toEqual({
       autoplayNext: true, subsDefault: true, subLang: 'any', voiceLang: 'auto', usageStats: true, smartDownloads: true, smartCleanup: true,
+      readyNotice: true, // "Tell me when it's ready" (readyNotice.ts)
       // [player-options] 2026-10-19
       nightMode: false, dialogueBoost: false,
       subSize: 'M', subColor: 'white', subBg: 'box', subOpacity: 75, subWeight: 'bold', subPos: 'lower',

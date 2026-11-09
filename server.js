@@ -11,6 +11,10 @@ const http = require("http");
 const express = require("express");
 
 const config = require("./src/config");
+// A restore the admin asked for (Backups → Copies on every drive) is put in
+// place NOW, before any store reads its file (lib/restoreboot.js): the data
+// as it is is copied aside first. Nothing to do on an ordinary start.
+require("./src/lib/restoreboot").applyPendingSync({ dataDir: config.DATA_DIR, backupDir: config.BACKUP_DIR, version: (() => { try { return require("./package.json").version; } catch { return null; } })() });
 const scanner = require("./src/media/scanner");
 const ocr = require("./src/media/ocr");
 const online = require("./src/media/online");
@@ -588,6 +592,12 @@ const bgRescan = (() => {
     touched.set(video, source);
     bgRescan({ now: source === "resync" || source === "undo", after: tell });
   });
+  // A Hebrew track was translated for a title that had none (media/subai.js):
+  // the library lists it, and the players watching that title add it.
+  require("./src/media/subai").events.on("ready", ({ video }) => {
+    touched.set(video, "ai");
+    bgRescan({ now: true, after: tell });
+  });
 }
 // A file's tracks were just named from their text: the library learns the names.
 require("./src/media/sublang").events.on("detected", () => bgRescan());
@@ -632,6 +642,9 @@ require("./src/media/introdetect");
 // disk and refreshed weekly, off the request path — media/wellknown.js), and
 // the search index built once before anyone types.
 require("./src/media/wellknown").start();
+// …and their official Hebrew names (TMDB he-IL, a round every half hour
+// through the recommender's paced TMDB door until all are known — media/hetitles.js)
+require("./src/media/hetitles").start();
 {
   const t = setTimeout(() => require("./src/media/search").warm(), 20 * 1000);
   t.unref?.();
@@ -647,12 +660,23 @@ require("./src/media/wellknown").start();
 }
 // Followed shows: new episodes download by themselves when they air.
 require("./src/media/follows").start();
+// Overnight: the next episodes downloaded ahead, and at quiet hours made
+// playable without a live conversion for the devices that need it
+// (media/overnight.js — Admin → Downloads → Overnight).
+require("./src/media/overnight").start();
 require("./src/lib/watchdog").start();
 require("./src/lib/healer").start();
 // Health alerts: disk, ffmpeg, the download engine, backup freshness, crash
 // loops — told to the admin (ntfy / Telegram) once, and again when they
 // clear; plus the dead-man's-switch ping when "healthPingUrl" is set.
 require("./src/lib/health").start();
+// Storage drives (lib/drives): which drives there are, how full and how fast,
+// and — for a network drive — whether it answers (asked in a child process
+// with a deadline; a hung NFS mount never holds the server).
+require("./src/lib/drives").start();
+// …and, when the admin has switched it on, a copy of the household's data on
+// each of those drives once a day (lib/drivecopies.js; never while someone watches).
+require("./src/lib/drivecopies").start();
 // A store that could not be read at boot was restored from a good copy, or
 // put in safe mode (lib/jsonstore.js): say each such event ONCE, through the
 // health alerts (the log, ntfy / Telegram, the admin page).

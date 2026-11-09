@@ -69,7 +69,7 @@ ui.test("seeking on the repackaged stream: the timeline, the buttons, the keys",
 ui.test("embedded subtitles are listed and show their cues", async ({ page, srv, signIn, freshProfile, lib }) => {
   await signIn(await freshProfile());
   await player.open(page, srv, lib.film2.id);
-  const items = (await player.menu(page, "Subtitles")).filter((i) => !/Resync/.test(i.text));
+  const items = (await player.menu(page, "Subtitles")).filter((i) => !/Resync|Fix timing|Reload subtitles/.test(i.text));
   assert.deepEqual(items.map((i) => [i.text, i.tag]), [["Off", ""], ["English", "Embedded"], ["Hebrew", "Embedded"]]);
   await page.locator(".player .menu .menu-item", { hasText: "Hebrew" }).click();
   await page.waitForFunction(() => {

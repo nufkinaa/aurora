@@ -3,6 +3,50 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.17 — 2026-11-09
+
+- **Hebrew subtitles for everything.** A film or episode with no Hebrew subtitles gets one translated with AI for people whose subtitles are Hebrew, listed as "עברית (AI)": every line keeps its timing, reads right to left and stays short. It needs the server's AI key and keeps to a daily budget. "Resync subtitles" is now **Fix timing**, and "Use the file's own timing" puts a track back, on the website, TV and phone.
+- **Search in Hebrew.** Type a title the way you say it (פרנדס, ספיידרמן) or its Hebrew name (שובר שורות) and it's found; the wrong keyboard language is worked out too. Hebrew searches are also faster.
+- **Tonight's episodes, ready tomorrow.** The next episode of every show someone is watching downloads ahead, and at night, while nobody watches, Aurora prepares what your devices can't play as it is, so it starts faster with no live conversion. It pauses the moment someone starts watching. Admin → Downloads → Overnight.
+- **Every screen on small phones.** On the phone website, More opens a menu like the TV's, with every screen in it; tab names never get cut. The pictures you can see now load first (the hero on a slow line in about half the time).
+- **Copies of the household's data on every drive** (Admin → Backups, off until you switch it on): checked daily copies, 7 daily and 4 weekly per drive, and a restore that puts the current data aside first.
+- The website's posters and backdrops come as AVIF where the browser supports it: about a sixth fewer bytes, the same picture. The TV and phone apps get their usual format.
+- On the TV and phone apps, the subtitle menu, prepared copies and the rest arrive with their next update.
+
+## 1.15.16 — 2026-11-09
+
+- **Admin: what to delete, suggested clearly.** Admin → Downloads → Free up space now suggests every film and episode nobody has touched for 45 days ("Nobody watched for 52 days · last played by Niso on Sep 18", "Never played · arrived Sep 10"), beside the titles everyone has finished and the extra copies. Each row shows its size, drive and who asked for it; select a group, see the total, confirm once. Nothing is ever removed unless you choose it.
+- **Kept for people who are away:** someone who hasn't connected since they last watched keeps that title (and for a show the next episode), so it's there when they come back; admin lists these with "away since…". Titles you pin with Keep, and films you uploaded yourself, are never suggested. "Removed recently" lists what was removed, when and why.
+- Titles being moved between drives are never offered for deletion.
+
+## 1.15.15 — 2026-11-09
+
+**Storage drives, better.**
+- The speed check fits its time on slow network drives, says what it measured even when cut short, cleans up its test file and never marks a slow drive "Not answering". Network drives are scored by what they can serve at once ("about N 1080p and M 4K streams"): Fast, Good, Fine for 1080p or Too slow.
+- Aurora's share of a drive is counted properly (each file once, by the space it really takes), and says so when it can't be exact.
+- **Keep the fast drive for new and 4K titles** (on by default): new 4K, what someone is about to watch and personal requests go to the fastest drive; when it runs low, titles nobody has played for 60 days move to a roomier drive, safely and one at a time, never while being watched, and keep their place in everyone's history and lists.
+- **Stop using this drive:** moves its titles to the other drives first, or takes an empty or gone drive out of use — no alerts afterwards.
+- **Tune this network drive:** after a one-time helper setup on the server, admin can switch a network share to faster settings and shows the speed before and after, with Put it back.
+
+## 1.15.14 — 2026-11-09
+
+- **"Problem with this copy → Other" asks what's wrong first.** A box to say it in your own words, then a plain question: get another version, or just send the report. Nothing downloads until you pick a version, and both steps say so. Your words reach the admin with the report.
+- On the TV and phone apps, the same steps arrive with their next update — together with Play on a title not on the server, which will save it and play it once it's in instead of streaming it straight away.
+
+## 1.15.13 — 2026-11-08
+
+- **More storage drives.** Admin → Downloads → On disk shows every drive the server has, network drives too: how much is used in total and by Aurora (GB and %), what's free, and a speed score from a short test. Press **Use this drive too** and Aurora checks it can write there, makes its Movies and Shows folders and starts using it — nothing already on it is moved or deleted. New downloads go to the drive with the most room (a show's new episodes stay where the show is), and each drive can be stopped for new downloads.
+- **A storage drive that stops answering** never freezes Aurora. Titles on it say plainly that the drive isn't answering and the admin has been told; everything else keeps playing. The admin page shows "Needs you", one alert goes to the admin's phone (and one when it's back), and everything resumes by itself.
+- **Who downloaded what, and when:** every download in admin shows who asked for it and when it was asked for or landed, with a filter by person and a line per person ("Niso — 14 downloads · 182 GB · last Nov 6").
+- **Admin scrolls again on a computer:** the mouse wheel didn't move the admin page, and the title row didn't stay on top.
+
+## 1.15.12 — 2026-11-06
+
+- **The right language, checked.** Before a replacement copy goes in, Aurora reads its audio tracks. A copy clearly in another language is set aside and the next one is tried ("That copy was in English, not Hebrew — now trying another"); a copy that doesn't say its language goes in with a short note to report it again if it's wrong. Other finished downloads get the same check when your audio language is set and the file says its language.
+- **Tell me when it's ready.** When something you asked for has downloaded, Aurora says so on every device you use (and by push, where you turned push on). It's on for everyone; turn it off in Settings → Notifications. Automatic downloads nobody asked for stay quiet.
+- **Admin:** a disk forecast ("about 47 days until full at this week's pace") on Downloads and in the Disk line, and Free up space: titles everyone who started has finished, on nobody's My List and older than 60 days, plus extra copies of the same title. Nothing is removed without your OK, and nothing being played.
+- On the TV and phone apps, the notices use the same words with their next update.
+
 ## 1.15.11 — 2026-11-04
 
 **Real watch time** — on the website, Aurora TV 5.8.4 and Aurora for Android phones 1.0.4.

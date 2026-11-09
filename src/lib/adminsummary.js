@@ -67,6 +67,7 @@ const fmtUp = (sec) => {
   const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
   return d > 0 ? `${d} d ${h} h` : h > 0 ? `${h} h ${m} min` : `${m} min`;
 };
+const clockOf = (t) => { const d = new Date(t); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
 const plural = (n, one, many = one + "s") => `${n} ${n === 1 ? one : many}`;
 // how quickly the server picks up a request (the event loop's p99)
 const answers = (loop) => (!loop ? "" : (loop.p99Ms || 0) < 20 ? "answers at once" : `answers in ${Math.round(loop.p99Ms)} ms`);
@@ -115,7 +116,18 @@ const decide = (x = {}) => {
     add(minor, { id: "slow-starts", area: "playback", title: "Plays start slowly", why: `The median start in the last day took ${fmtSec(starts.p50)} (${starts.n} starts).` });
   }
   // 5. disk
-  const disks = (x.disks || []).filter((d) => d && d.free != null && d.total);
+  // 5a. a storage drive in use that is not answering (lib/drives): its titles cannot play
+  const inUse = (x.drives || []).filter((d) => d && d.id);
+  for (const d of inUse.filter((y) => y.answering === false)) {
+    const since = d.downSince ? ` since ${clockOf(d.downSince)}` : "";
+    const n = d.titles || 0;
+    add(needs, { id: `drive-down:${d.id}`, area: "disk", title: "A storage drive isn't answering", why: `Storage drive ${d.mount} isn't answering${since} — ${plural(n, "title")} can't play. New downloads go to the other drives until it answers again.`, fix: go("Open Drives", "downloads", "d-disk") });
+  }
+  // with several drives in use, the drives that take new downloads count together
+  const pool = inUse.length > 1 ? inUse.filter((d) => d.answering !== false && d.newDownloads !== false && d.free != null && d.total) : null;
+  const disks = pool && pool.length
+    ? [{ root: pool.length > 1 ? `${pool.length} drives` : pool[0].mount, free: pool.reduce((n, d) => n + d.free, 0), total: pool.reduce((n, d) => n + d.total, 0), pooled: pool.length }]
+    : (x.disks || []).filter((d) => d && d.free != null && d.total);
   const lowest = disks.reduce((m, d) => (!m || d.free < m.free ? d : m), null);
   if (lowest && lowest.free < DISK_BAD && !needs.some((n) => n.area === "disk")) {
     add(needs, { id: "disk", area: "disk", title: "A drive is almost full", why: `${fmtGb(lowest.free)} free on ${lowest.root}. Downloads and recordings fail when it runs out.`, fix: go("Free up space", "downloads", "d-disk") });
@@ -166,7 +178,10 @@ const decide = (x = {}) => {
     },
     {
       id: "disk", label: "Disk", level: worst("disk"),
-      line: lowest ? `${fmtGb(lowest.free)} free${disks.length > 1 ? " on the fullest drive" : ""}` : "not measured",
+      // + "about 40 days until full" / "no growth this week" (media/diskforecast.js)
+      line: lowest
+        ? `${fmtGb(lowest.free)} free${lowest.pooled > 1 ? ` on ${lowest.pooled} drives` : disks.length > 1 ? " on the fullest drive" : ""}${inUse.some((d) => d.answering === false) ? ` · ${plural(inUse.filter((d) => d.answering === false).length, "drive")} not answering` : ""}${x.forecast && x.forecast.short ? ` · ${x.forecast.short}` : ""}`
+        : "not measured",
     },
     {
       id: "downloads", label: "Downloads", level: worst("downloads"),
@@ -198,6 +213,16 @@ const decide = (x = {}) => {
 const safe = (fn, fallback = null) => { try { const v = fn(); return v === undefined ? fallback : v; } catch { return fallback; } };
 const within = (p, ms, fallback) => Promise.race([Promise.resolve(p).catch(() => fallback), new Promise((r) => setTimeout(() => r(fallback), ms).unref?.())]);
 
+// The household's clock: the server's time zone and locale, so the admin
+// page writes "Nov 6, 21:14" in the house's time whatever device it is opened
+// on (the downloads' who-and-when, elia 2026-11-08). PURE apart from Intl.
+const clock = () => {
+  let tz = null, locale = null, hourCycle = null;
+  try { const o = new Intl.DateTimeFormat().resolvedOptions(); tz = o.timeZone || null; locale = o.locale || null; } catch {}
+  try { hourCycle = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hourCycle || null; } catch {}
+  return { tz: tz || "UTC", locale: locale || "en-US", hourCycle };
+};
+
 const gather = async () => {
   const config = require("../config");
   const now = Date.now();
@@ -220,6 +245,11 @@ const gather = async () => {
     const s = await within(disk.space(root), 1500, null);
     if (s) disks.push({ root, free: s.free, total: s.total });
   }
+  const drives = safe(() => require("./drives").summaryFacts(), []);
+  // (several drives in use: the forecast is for all of them together)
+  const pooled = drives.length > 1 ? drives.filter((d) => d.answering !== false && d.newDownloads !== false && d.free != null) : [];
+  const fullest = pooled.length ? { free: pooled.reduce((n, d) => n + d.free, 0) } : disks.reduce((m, d) => (!m || d.free < m.free ? d : m), null);
+  const forecast = fullest ? safe(() => require("../media/diskforecast").measure(fullest.free, now)) : null;
   const jobs = safe(() => require("../media/downloads").list(), []);
   const health = safe(() => require("./health").status(), null);
   const healer = safe(() => require("./healer").status(), null);
@@ -245,6 +275,8 @@ const gather = async () => {
     loop: safe(() => require("./looplag").read()),
     enc,
     disks,
+    drives,
+    forecast,
     minFreePct: config.DOWNLOAD_MIN_FREE_PERCENT || 0,
     watchingNow,
     plays: pm ? { hour: safe(() => pm.summarize(pm.list(), now, HOUR)), day: safe(() => pm.summarize(pm.list(), now, DAY)) } : null,
@@ -262,13 +294,14 @@ const gather = async () => {
     waiting: {
       people: people.map((r) => ({ id: r.id, name: r.name, realName: r.realName || null, avatar: r.avatar || null, requestedAt: r.requestedAt || null })),
       resets,
-      downloads: jobs.filter((j) => j.status === "pending").map((j) => ({ id: j.id, label: j.label || j.title, by: j.by || null, sizeBytes: j.sizeBytes || 0, holdReason: j.holdReason || null })),
+      downloads: jobs.filter((j) => j.status === "pending").map((j) => ({ id: j.id, label: j.label || j.title, by: j.by || null, autoFor: j.autoFor || null, at: j.at || null, sizeBytes: j.sizeBytes || 0, holdReason: j.holdReason || null })),
       reports: safe(() => require("../routes/reports").openCount(), 0),
       requests: safe(() => require("../routes/requests").pendingCount(), 0),
       update: update && !update.error ? { available: !!update.available, restartNeeded: !!update.restartNeeded } : null,
     },
     restart: x.supervisor || { supervised: false, by: null },
+    clock: clock(),
   };
 };
 
-module.exports = { decide, gather, WATCH_CHECKS, _internals: { LOOP_BAD, LOOP_SLOW_P99, DISK_BAD, DISK_LOW } };
+module.exports = { decide, gather, clock, WATCH_CHECKS, _internals: { LOOP_BAD, LOOP_SLOW_P99, DISK_BAD, DISK_LOW } };

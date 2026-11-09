@@ -27,6 +27,9 @@ const roots = () => {
 };
 
 const readable = (dir) => {
+  // a folder on a network drive: as of lib/drives' last check (never a
+  // blocking stat of a mount that may be hung)
+  try { const r = require("./drives").rootReadable(dir); if (r !== undefined) return r; } catch {}
   try { return fs.statSync(dir).isDirectory() && (fs.readdirSync(dir), true); } catch { return false; }
 };
 

@@ -63,13 +63,28 @@ if (!isMainThread && parentPort) {
 
   // -> Promise<snapshot>. `reset`: forget the worker's previous snapshot
   // (the next walk reads everything).
-  const walk = (opts, { reset = false } = {}) => {
+  // A walk that has not come back in WALK_TIMEOUT_MS (a network drive that
+  // stopped answering mid-walk: its call never returns) is given up: the
+  // worker is left behind (a thread stuck in the kernel cannot be stopped)
+  // and the next walk gets a new one. NOT walked again on the main thread —
+  // that would hang the server on the same drive.
+  const WALK_TIMEOUT_MS = 10 * 60 * 1000;
+  const walk = (opts, { reset = false, timeoutMs = WALK_TIMEOUT_MS } = {}) => {
     stats.walks++;
     let w;
     try { w = ensure(); } catch (e) { return fallback(opts, e); }
     const id = ++seq;
     return new Promise((resolve, reject) => {
-      waiting.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        if (!waiting.has(id)) return;
+        waiting.delete(id);
+        stats.timeouts = (stats.timeouts || 0) + 1;
+        if (worker === w) worker = null;
+        try { w.unref(); w.terminate().catch(() => {}); } catch {}
+        reject(Object.assign(new Error(`the library walk did not finish in ${Math.round(timeoutMs / 1000)} s`), { timeout: true }));
+      }, timeoutMs);
+      timer.unref?.();
+      waiting.set(id, { resolve: (v) => { clearTimeout(timer); resolve(v); }, reject: (e) => { clearTimeout(timer); reject(e); } });
       w.ref(); // held while a walk is out (a script with nothing else to do waits for it)
       try {
         w.postMessage({ type: "walk", id, opts, reset });
@@ -77,7 +92,7 @@ if (!isMainThread && parentPort) {
         waiting.delete(id);
         reject(e);
       }
-    }).catch((e) => fallback(opts, e));
+    }).catch((e) => { if (e && e.timeout) throw e; return fallback(opts, e); });
   };
   const fallback = (opts, err) => {
     stats.fallbacks++;

@@ -23,6 +23,7 @@ import { showClaimModal } from "./claim.js";
 import { showShortcutsOverlay } from "./screens/shortcuts.js";
 import { showReportSheet } from "./report.js";
 import { replaceEndedLine } from "./replaceCopy.js";
+import { readyText } from "./readyNotice.js";
 import { pushScope, popScope } from "./focus.js";
 import { initAurora } from "./aurora.js";
 import { initScreensaver } from "./screensaver.js";
@@ -478,13 +479,18 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
       !(prev && prev.status === "done" && prev.libraryId);
     downloads.set(job.id, job);
     paint();
-    if (landed && prev) { // `prev`: we watched it arrive — not a list being loaded
-      bumpBadge(); // (only counts while the app is in the background)
+    // The words come from the server (readyLine / langLine: the same on the
+    // TV and the phone), and the person can switch the notice off under
+    // Settings → "Tell me when it's ready" (prefs.readyNotice, follows them).
+    const on = ((state.profile && state.profile.prefs) || {}).readyNotice !== false;
+    const text = landed && prev ? readyText(job, on) : null;
+    if (text) { // `prev`: we watched it arrive — not a list being loaded
+      if (on) bumpBadge(); // (only counts while the app is in the background)
       const name = job.label || job.title;
       const playing = !!document.querySelector(".player");
-      if (playing) toast(`“${name}” is ready`, "✅", null, { quiet: true });
-      else toast(`“${name}” is ready to watch`, "✅", { label: "Play", onClick: () => navigate(`#/play/${job.libraryId}`) });
-      try {
+      if (playing) toast(on && !job.langLine ? `“${name}” is ready` : text, "✅", null, { quiet: true });
+      else toast(text, "✅", { label: "Play", onClick: () => navigate(`#/play/${job.libraryId}`) });
+      if (on) try {
         // with Web Push on, the server's notification is the one (same tag, so even a race shows once)
         if (document.hidden && localStorage.getItem("aurora-push") !== "1" && localStorage.getItem("aurora-notify-ready") === "1" && "Notification" in window && Notification.permission === "granted") {
           const n = new Notification("Ready to watch", { body: name, tag: `aurora-ready-${job.id}` });
@@ -717,6 +723,7 @@ const startRemote = () => import("./remote.js").then((m) => { remoteMod = m; m.i
 
 const showProfileMenu = () => {
   document.querySelector(".nav-menu-wrap")?.remove(); // toggle: second click closes
+  if (document.querySelector(".nav-more-wrap")) import("./navmore.js").then((m) => m.close()).catch(() => {}); // one menu at a time
   const remoteOn = !!(remoteMod && remoteMod.getDevices().length); // [phone-remote]
   const item = (label, onclick, cls = "") =>
     el("button", { class: `nav-menu-item focusable ${cls}`, onclick }, label);
@@ -739,7 +746,7 @@ const showProfileMenu = () => {
     item("Report a problem", () => { close(); showReportSheet(); }),
     item("Join a watch party", () => { close(); showJoinParty(); }),
     // [phone-remote] there while a TV (or another computer) of this profile is on
-    remoteOn && item("Remote", () => { close(); navigate("#/remote"); }),
+    remoteOn && item("Your TVs", () => { close(); navigate("#/remote"); }),
     // [/phone-remote]
     state.user &&
       item("Sign out", () => {
@@ -760,6 +767,18 @@ const showProfileMenu = () => {
   document.body.append(wrap);
   setTimeout(() => menu.querySelector("button")?.focus({ preventScroll: true }), 40);
 };
+
+// The phone tab bar's More (js/navmore.js): every place the bar has no room
+// for, in a sheet over the bar. Loaded after the first frame — it also fits
+// the bar's words to the width (larger text), and lights More on a screen
+// it leads to.
+{
+  const loadMore = () => import("./navmore.js");
+  $("#nav-more").addEventListener("click", () => loadMore().then((m) => { m.initMore(); m.toggleMore(); }).catch(() => {}));
+  requestAnimationFrame(() => loadMore().then((m) => m.initMore()).catch(() => {}));
+}
+// "Report a problem" from More's sheet (the profile menu calls it directly)
+document.addEventListener("aurora-report", () => showReportSheet());
 
 $("#nav-profile").addEventListener("click", () => {
   // Before any profile is active (shouldn't happen — the gate covers boot),

@@ -19,6 +19,9 @@
 //                     batch from a profile that said no)       default on
 //     smartDownloads  get the next episode ready               default on
 //     smartCleanup    tidy up after watching                   default on
+//     readyNotice     tell me when a download is ready (the    default on
+//                     in-app notice here and on the website, and
+//                     this TV's / phone's notification too: readyNotice.ts)
 //     matchFrameRate  the screen follows the film's frame rate auto | off   default auto
 //     surround        Dolby / DTS sound to the TV or soundbar  auto | stereo  default auto
 //                     as it is (TV round 2026-10-19 — the
@@ -58,6 +61,7 @@ export type PersonPrefs = {
   usageStats: boolean;
   smartDownloads: boolean;
   smartCleanup: boolean;
+  readyNotice: boolean;
   // [player-options]
   nightMode: boolean;
   dialogueBoost: boolean;
@@ -75,6 +79,7 @@ export const PERSON_DEFAULTS: PersonPrefs = {
   usageStats: true,
   smartDownloads: true,
   smartCleanup: true,
+  readyNotice: true,
   nightMode: false,
   dialogueBoost: false,
   ...SUB_STYLE_DEFAULTS,

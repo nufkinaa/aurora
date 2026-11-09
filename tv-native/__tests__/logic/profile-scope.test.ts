@@ -25,7 +25,7 @@ const PROFILE: Record<string, string[]> = {
   'api.ts': ['homeKept', 'libraryKept', 'homeFlight', 'memoStore', 'lastState'],
   'artPrefetch.ts': ['wants', 'queue', 'timer'],
   'homeSnapshot.ts': ['primed'],
-  'homeScreen.ts': ['lastNext', 'lastChannel', 'lastConfig', 'lastRows', 'lastProfile', 'lastJobs'],
+  'homeScreen.ts': ['lastNext', 'lastChannel', 'lastConfig', 'lastRows', 'lastProfile', 'lastJobs', 'personNotices'],
   // [household] whose pings this TV hears, and the newest recommendation it has shown them
   'householdLive.ts': ['profile', 'newest', 'asking'],
   'navSection.ts': ['cache', 'cacheAt', 'loading'],
@@ -170,7 +170,7 @@ const DEVICE: Record<string, Record<string, string>> = {
     traps: 'focus engine',
     lastDown: 'key timing',
   },
-  'homeScreen.ts': {noticesOn: 'a device-level setting (this TV’s notifications)', appRun: 'the runs of the app root (a new Activity), for the launch link'},
+  'homeScreen.ts': {noticesOn: 'this TV’s notifications: the box’s switch and the active person’s together', deviceNotices: 'a device-level setting (this TV’s notifications)', appRun: 'the runs of the app root (a new Activity), for the launch link'},
   'navLock.ts': {lastNav: 'a debounce stamp'},
   'navSection.ts': {newSeen: 'which release this TV has seen', newSubs: 'listeners', meSubs: 'listeners (who shows a profile record: told when it changes)'},
   'overlay.ts': {current: 'the open sheet (unmounts with the navigator)', subs: 'listeners'},

@@ -87,6 +87,7 @@ module.exports = {
   "nav.home": "wtp",
   "nav.movies": "wtp",
   "nav.mylist": "wtp",
+  "nav.more": "w", // the phone tab bar's More (js/navmore.js)
   "nav.new": "w",
   "nav.profile": "wtp",
   "nav.remote": "w", // [phone-remote]
@@ -94,6 +95,27 @@ module.exports = {
   "nav.search": "wtp",
   "nav.settings": "wtp",
   "nav.shows": "wtp",
+  // more (the phone's side menu behind the tab bar's More, js/navmore.js; ids as in docs/android-phone/NAV.md)
+  "more.apps": "w",
+  "more.calendar": "w",
+  "more.downloads": "w",
+  "more.home": "w",
+  "more.household": "w",
+  "more.list": "w",
+  "more.movies": "w",
+  "more.new": "w",
+  "more.pair": "w",
+  "more.party": "w",
+  "more.pick": "w",
+  "more.profile": "w",
+  "more.remote": "w",
+  "more.report": "w",
+  "more.saved": "w",
+  "more.search": "w",
+  "more.settings": "w",
+  "more.shows": "w",
+  "more.taste": "w",
+  "more.wrapped": "w",
   // newpassword
   "newpassword.signout": "tp",
   "newpassword.submit": "tp",
@@ -158,7 +180,7 @@ module.exports = {
   "player.subtitles.pick": "wtp",
   "player.subtitles.resync": "wtp",
   "player.subtitles.style": "wtp",
-  "player.subtitles.undo": "w",
+  "player.subtitles.undo": "wtp",
   "player.upnext.dismiss": "wtp",
   "player.upnext.play": "wtp",
   "player.xray": "wtp",
@@ -210,6 +232,12 @@ module.exports = {
   "replace.early": "tp", // "Download it anyway" on a pre-release copy (the site asks with its shared confirm sheet)
   "replace.next": "wtp", // the last try ended: Pick another version
   "replace.other": "wtp", // the last try ended: Something else is wrong
+  // "Other": a few words first, then the question (Jesse's report, 2026-11-08)
+  "replace.other.another": "wtp", // Yes — pick another version
+  "replace.other.next": "wtp", // the words are in: Next
+  "replace.other.note": "w", // the field (the TV's and the phone's is a TextInput, not tagged)
+  "replace.other.send": "wtp", // No — just send it (a report, nothing downloads)
+  "replace.other.voice": "tp", // Say it: the microphone
   "replace.pick": "wtp",
   "replace.reason": "wtp",
   // row
@@ -241,6 +269,7 @@ module.exports = {
   "settings.look": "w",
   "settings.notices": "t",
   "settings.party": "tp",
+  "settings.ready": "tp", // Tell me when it's ready (the person's; the site's is settings.toggle)
   "settings.report": "tp",
   "settings.rows.hide": "w",
   "settings.signout": "tp",

@@ -41,9 +41,11 @@ jobs:
         with:
           fetch-depth: 0
           sparse-checkout-cone-mode: false
+          # (ci-changed.test.js checks the TV tests' DESIGN.md exists; the screenshots stay out)
           sparse-checkout: |
             /*
             !/docs/qa/
+            /docs/qa/household-recs/*.md
             !/docs/android-phone/
       - uses: actions/setup-node@v6
         with:
@@ -115,3 +117,59 @@ jobs:
         with:
           path: ${{ runner.temp }}/test-map
           key: test-map-v1-node${{ matrix.node }}-${{ steps.select.outputs.day }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+  # The TV and phone apps' logic tests (jest, plain node: jest.logic.config.js) and
+  # the type check, only when tv-native/ (or this workflow) changed in the same range
+  # the root tests compare (tools/ci/ci-tests.js changed; docs/ci.md), or one of the
+  # files outside tv-native/ that those tests read (website/server parity checks;
+  # test/ci-changed.test.js fails when a test starts reading one not listed here).
+  # Skipped steps leave the job green, like "No affected tests" above.
+  tv-native:
+    runs-on: ubuntu-latest
+    name: "tv-native logic + tsc (node 22)"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          sparse-checkout-cone-mode: false
+          # (household-recs.test.ts reads its DESIGN.md; the screenshots stay out)
+          sparse-checkout: |
+            /*
+            !/docs/qa/
+            /docs/qa/household-recs/*.md
+            !/docs/android-phone/
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Did tv-native change?
+        id: changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: >-
+          node tools/ci/ci-tests.js changed
+          --match tv-native/ --match .github/workflows/
+          --match public/js/screens/player.js --match public/js/replaceCopy.js
+          --match src/media/household.js --match src/media/badreleases.js --match src/lib/tvtuning.js
+          --match test/home-merge-cases.json --match test/fixtures/party-sync-cases.json
+          --match tools/home-merge-cases.js --match docs/qa/household-recs/
+      - name: Cache npm (tv-native)
+        if: steps.changed.outputs.run == 'true'
+        uses: actions/cache@v5
+        with:
+          path: ~/.npm
+          key: npm-tv-native-${{ runner.os }}-node22-${{ hashFiles('tv-native/package-lock.json') }}
+          restore-keys: npm-tv-native-${{ runner.os }}-node22-
+      - name: npm ci (tv-native)
+        if: steps.changed.outputs.run == 'true'
+        working-directory: tv-native
+        # postinstall runs patch-package (tv-native/patches)
+        run: npm ci --legacy-peer-deps --no-audit --no-fund
+      - name: jest (logic)
+        if: steps.changed.outputs.run == 'true'
+        working-directory: tv-native
+        run: npx jest -c jest.logic.config.js --ci
+      - name: tsc
+        if: steps.changed.outputs.run == 'true'
+        working-directory: tv-native
+        run: npx tsc --noEmit -p .

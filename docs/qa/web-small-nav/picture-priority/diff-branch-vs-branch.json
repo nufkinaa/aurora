@@ -1,0 +1,195 @@
+{
+ "a": [
+  "out/picprio-b1/shots"
+ ],
+ "b": [
+  "out/picprio-b2/shots"
+ ],
+ "pairs": 184,
+ "identical": 171,
+ "differing": [
+  {
+   "file": "desktop-1440/film.legacy.default.down1.png",
+   "exact": 137,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    64,
+    540,
+    1406,
+    552
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__film.legacy.default.down1.png"
+  },
+  {
+   "file": "desktop-1440/home.glass.default.down3.png",
+   "exact": 129,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    264,
+    692,
+    1410,
+    695
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__home.glass.default.down3.png"
+  },
+  {
+   "file": "desktop-1440/home.legacy.default.down3.png",
+   "exact": 142,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    608,
+    557,
+    1406,
+    821
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__home.legacy.default.down3.png"
+  },
+  {
+   "file": "desktop-1440/libshow.legacy.default.down1.png",
+   "exact": 25,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    64,
+    540,
+    233,
+    552
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__libshow.legacy.default.down1.png"
+  },
+  {
+   "file": "desktop-1440/list.glass.default.top.png",
+   "exact": 50,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    264,
+    831,
+    650,
+    834
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__list.glass.default.top.png"
+  },
+  {
+   "file": "desktop-1440/list.legacy.default.top.png",
+   "exact": 66,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    794,
+    288,
+    1376,
+    822
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__list.legacy.default.top.png"
+  },
+  {
+   "file": "desktop-1440/movies.glass.default.top.png",
+   "exact": 32,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    1373,
+    620,
+    1376,
+    900
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__movies.glass.default.top.png"
+  },
+  {
+   "file": "desktop-1440/movies.legacy.default.down1.png",
+   "exact": 24,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    261,
+    122,
+    456,
+    124
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__movies.legacy.default.down1.png"
+  },
+  {
+   "file": "desktop-1440/movies.legacy.default.top.png",
+   "exact": 56,
+   "visible": 0,
+   "max": 3,
+   "box": [
+    64,
+    316,
+    1376,
+    900
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__movies.legacy.default.top.png"
+  },
+  {
+   "file": "desktop-1440/search.glass.default.typed.png",
+   "exact": 635,
+   "visible": 0,
+   "max": 2,
+   "box": [
+    64,
+    186,
+    771,
+    656
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__search.glass.default.typed.png"
+  },
+  {
+   "file": "desktop-1440/search.legacy.default.typed.png",
+   "exact": 51,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    64,
+    264,
+    1216,
+    648
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__search.legacy.default.typed.png"
+  },
+  {
+   "file": "desktop-1440/shows.glass.default.top.png",
+   "exact": 172,
+   "visible": 0,
+   "max": 2,
+   "box": [
+    64,
+    378,
+    1376,
+    900
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__shows.glass.default.top.png"
+  },
+  {
+   "file": "desktop-1440/shows.legacy.default.top.png",
+   "exact": 13,
+   "visible": 0,
+   "max": 1,
+   "box": [
+    64,
+    896,
+    1376,
+    900
+   ],
+   "pixels": 1296000,
+   "sheet": "desktop-1440__shows.legacy.default.top.png"
+  }
+ ],
+ "onlyInOne": []
+}
