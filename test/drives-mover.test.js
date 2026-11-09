@@ -207,7 +207,7 @@ test("cold titles leave the fast drive when it runs low — oldest first, never 
   I.data().keepFast = true; // (not setKeepFast: that starts the mover, and the next test starts afresh)
 });
 
-test("a restart in the middle of a copy: the move goes on from where it stopped", { timeout: 60000 }, async (t) => {
+test("a restart in the middle of a copy: the move goes on from where it stopped", { timeout: 150000 }, async (t) => {
   for (const d of [A, B]) for (const k of ["Movies", "Shows"]) fs.rmSync(lib(d, k), { recursive: true, force: true }), fs.mkdirSync(lib(d, k), { recursive: true });
   const dir = film(A, "Big Old Film (1990)", 40);
   const want = hashOf(path.join(dir, "Big Old Film (1990).mkv"));
@@ -220,7 +220,8 @@ test("a restart in the middle of a copy: the move goes on from where it stopped"
   const run = mover().kick({ force: true });
   // let it copy part of the film, then "restart"
   let cur = null;
-  for (let i = 0; i < 200; i++) {
+  // (up to 60 s: the mover runs at the lowest priority, and a loaded machine starts it late)
+  for (let i = 0; i < 1200; i++) {
     await new Promise((r) => setTimeout(r, 50));
     cur = I.data().moves.current;
     if (cur && cur.phase === "copying" && cur.copied > 0) break;
@@ -243,6 +244,9 @@ test("a restart in the middle of a copy: the move goes on from where it stopped"
   console.log = (...a) => { lines.push(a.join(" ")); };
   try { await mover().drain(); } finally { console.log = log; }
   assert.ok(!lines.some((l) => /moving "Big Old Film/.test(l)), "it did not start over: " + lines.join("\n"));
+  if (!fs.existsSync(path.join(lib(B, "Movies"), "Big Old Film (1990)", "Big Old Film (1990).mkv"))) {
+    assert.fail("not moved; log:\n" + lines.join("\n") + "\nmoves: " + JSON.stringify(I.data().moves).slice(0, 3000));
+  }
   assert.equal(hashOf(path.join(lib(B, "Movies"), "Big Old Film (1990)", "Big Old Film (1990).mkv")), want);
   assert.equal(fs.existsSync(dir), false);
   assert.equal(I.data().moves.recent[0].result, "moved");
