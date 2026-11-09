@@ -79,6 +79,12 @@ const deps = {
 
 let current = null; // { id, action, step, startedAt }
 
+// titles being moved to or from the drive (lib/drives/mover.js), or the drive being emptied
+const movingOn = (D, id) => {
+  try { if (D.mover && D.mover().busyOn(id)) return true; } catch {}
+  const ev = D.tuneSeams.data().evacuate;
+  return !!(ev && ev[id]);
+};
 const supported = (drive) => deps.platform() === "linux" && !!drive && !!drive.network && /^nfs4?$/.test(String(drive.fstype || ""));
 
 // ---------- the one-time setup ----------
@@ -241,8 +247,9 @@ const flow = async (drive, action, status) => {
   try {
     step("landings");
     const until = deps.now() + limits.landingsMs;
-    while (D.deps.landingsOn(drive) > 0) {
-      if (deps.now() > until) throw stop("A download was still being copied there after 10 minutes — nothing was changed. Try again later.");
+    // (and a title the mover is copying there or from there: it finishes its step first)
+    while (D.deps.landingsOn(drive) > 0 || (() => { try { return D.mover().busyOn(id); } catch { return false; } })()) {
+      if (deps.now() > until) throw stop("A download or a moved title was still being copied there after 10 minutes — nothing was changed. Try again later.");
       await deps.sleep(limits.pollMs);
     }
     // Aurora's own looks at the drive finish first (they hold files open there)
@@ -324,6 +331,7 @@ const start = async (id, action = "apply") => {
     if (!S.testDirFor(drive)) return { error: "Use this drive first — the speed check before and after writes in Aurora's folder there." };
     if (S.stateOf(id).answering === false) return { error: "The drive is not answering — Aurora can't measure it now." };
     if (D.deps.playingOn(drive) > 0) return { error: WATCHING, watching: true };
+    if (movingOn(D, id)) return { error: "Titles are being moved to or from this drive — try again when that is done." };
     const st = await askHelper(["status", drive.mount], limits.statusMs);
     if (st.missing) return { error: "The mount helper isn't set up on this server yet.", missing: st.missing, setup: setupFor() };
     if (!st.ok) return { error: st.error };

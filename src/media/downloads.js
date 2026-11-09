@@ -396,11 +396,23 @@ const committedOn = (root, type, excludeId) =>
     if (j.attempts && j.attempts.length > 1) return n + j.attempts.reduce((m, a) => m + Math.max(0, (a.sizeBytes || 0) * (1 - (a.progress || 0))), 0);
     return n + Math.max(0, (j.sizeBytes || 0) * (1 - (j.progress || 0)));
   }, 0);
+// Why this job belongs on the fast drive (top-quality 4K, what someone is
+// about to watch, a person's own request — lib/drives/rules.js wantsFast), or
+// null: HD copies and automatic or background downloads go where there is
+// most room. Only for a real job (the disk gate asks with a sketch of one).
+const fastWhy = (job) => {
+  if (!job || !job.infoHash) return null;
+  try {
+    let cls = null;
+    try { cls = priorityOf(job).base; } catch {}
+    return require("../lib/drives/rules").wantsFast(job, cls).why;
+  } catch { return null; }
+};
 const destPick = (type, job = null) => {
   const roots = rootsOf(type);
   if (roots.length <= 1) return { root: roots[0] || null, why: "the only library folder", full: false };
   try {
-    return drivesLib().pickRoot(type === "show" ? "show" : "movie", { sizeBytes: (job && job.sizeBytes) || 0 }, {
+    return drivesLib().pickRoot(type === "show" ? "show" : "movie", { sizeBytes: (job && job.sizeBytes) || 0, preferFast: fastWhy(job) }, {
       hasShowAt: (root) => !!(job && job.title && type === "show" && showFolderIn(root, job.title)),
       committedOn: (root) => committedOn(root, type, job && job.id),
     });

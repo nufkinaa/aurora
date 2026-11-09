@@ -20,6 +20,11 @@
 //            direct, one buffered, several at once; random 4K reads (progress
 //            lines before the answer, so a check stopped on its deadline still counts)
 //   sweep    { dirs, pids, maxAgeMs }  delete the test files a killed check left
+//   tree     { dir }                   every file under it, with its length
+//   copy     { src, dst, maxMs, resume }  copy for at most maxMs, from where it stopped
+//   ends     { paths }                 length + hash of the first and last MB of each
+//   land     { temp, dst }             rename each file of temp into dst, then drop temp
+//   rmtree   { dir }                   delete a folder and everything in it
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -378,6 +383,112 @@ const speed = async ({ dir, sizeMB = 256, budgetMs = 18000, network = false, rea
   }
 };
 
+// ---- moving a title from one drive to another (lib/drives/mover.js) ----
+// Every file under `dir`, with its length: [{ rel, size }], and the total.
+const tree = ({ dir }) => {
+  if (!fs.statSync(dir).isDirectory()) throw new Error(`${dir} is not a folder`);
+  const files = [];
+  let bytes = 0;
+  const stack = [""];
+  while (stack.length) {
+    const rel = stack.pop();
+    for (const e of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {
+      const r = rel ? path.join(rel, e.name) : e.name;
+      if (e.isSymbolicLink()) continue;
+      if (e.isDirectory()) { stack.push(r); continue; }
+      if (!e.isFile()) continue;
+      const size = fs.statSync(path.join(dir, r)).size;
+      files.push({ rel: r, size });
+      bytes += size;
+    }
+  }
+  files.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+  return { files, bytes };
+};
+
+// Copy `src` to `dst` for at most maxMs, from where an earlier call stopped
+// (the length of `dst`). `resume`: the first call after a restart — it
+// starts RESUME_BACK earlier, since the last bytes written before a crash
+// may not have reached the disk.
+const RESUME_BACK = 16 * MB;
+const copy = ({ src, dst, maxMs = 15000, resume = false }) => {
+  const size = fs.statSync(src).size;
+  fs.mkdirSync(path.dirname(dst), { recursive: true });
+  let at = 0;
+  try { at = fs.statSync(dst).size; } catch {}
+  at = Math.max(0, Math.min(at, size) - (resume ? RESUME_BACK : 0));
+  let out;
+  try { out = fs.openSync(dst, "r+"); } catch { out = fs.openSync(dst, "w"); }
+  const inp = fs.openSync(src, "r");
+  const buf = Buffer.allocUnsafe(4 * MB);
+  const until = Date.now() + maxMs;
+  try {
+    fs.ftruncateSync(out, at);
+    while (at < size && Date.now() < until) {
+      const n = io.readSync(inp, buf, at);
+      if (!n) break;
+      fs.writeSync(out, buf, 0, n, at);
+      at += n;
+    }
+    io.sync(out);
+  } finally { fs.closeSync(inp); fs.closeSync(out); }
+  return { size, copied: at, done: at >= size };
+};
+
+// A quick fingerprint of a file: its length, and a hash of its first and last MB.
+const fingerprint = (p) => {
+  const size = fs.statSync(p).size;
+  const fd = fs.openSync(p, "r");
+  const part = (at) => {
+    const n = Math.min(MB, Math.max(0, size - at));
+    const b = Buffer.alloc(n);
+    if (n) fs.readSync(fd, b, 0, n, at);
+    return crypto.createHash("sha1").update(b).digest("hex");
+  };
+  try { return { size, head: part(0), tail: part(Math.max(0, size - MB)) }; } finally { fs.closeSync(fd); }
+};
+const ends = ({ paths = [] }) => {
+  const out = {};
+  for (const p of paths) { try { out[p] = fingerprint(p); } catch (e) { out[p] = { error: e.code || String(e.message || e) }; } }
+  return out;
+};
+
+// Put every file of the temp folder in place under `dst`, one rename each (a
+// rename on one drive is all or nothing). A file already there with the same
+// fingerprint is that file (a landing picked up again after a restart); one
+// that differs is kept, and the incoming file lands beside it as
+// "<name> (moved).ext". Then the temp folder goes. Safe to call again.
+const land = ({ temp, dst }) => {
+  const landed = [];
+  const beside = [];
+  let same = 0;
+  let files = [];
+  try { files = tree({ dir: temp }).files; } catch (e) { if (e.code !== "ENOENT") throw e; }
+  for (const f of files) {
+    const from = path.join(temp, f.rel);
+    let to = path.join(dst, f.rel);
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    if (fs.existsSync(to)) {
+      const a = fingerprint(from);
+      const b = fingerprint(to);
+      if (a.size === b.size && a.head === b.head && a.tail === b.tail) { fs.unlinkSync(from); same++; continue; }
+      const ext = path.extname(to);
+      to = path.join(path.dirname(to), `${path.basename(to, ext)} (moved)${ext}`);
+      if (fs.existsSync(to)) throw Object.assign(new Error(`${to} is in the way`), { code: "EEXIST" });
+      beside.push(to);
+    }
+    fs.renameSync(from, to);
+    landed.push(to);
+  }
+  fs.rmSync(temp, { recursive: true, force: true });
+  return { landed: landed.length, same, beside };
+};
+
+const rmtree = ({ dir }) => {
+  fs.rmSync(dir, { recursive: true, force: true });
+  return { gone: !fs.existsSync(dir) };
+};
+
 const OPS = {
   statfs: ({ path: p }) => statfs(p),
   check: ({ path: p, roots = [] }) => {
@@ -391,6 +502,11 @@ const OPS = {
   prepare,
   speed,
   sweep,
+  tree,
+  copy,
+  ends,
+  land,
+  rmtree,
 };
 
 if (require.main === module) {

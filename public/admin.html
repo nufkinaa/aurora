@@ -889,6 +889,14 @@
     .drv-line { font-size: 0.84rem; color: var(--text-dim); margin-top: 9px; line-height: 1.45; overflow-wrap: anywhere; }
     .drv-line.bad { color: var(--bad); font-weight: 700; }
     .drv-score { white-space: nowrap; }
+    .drv-moves { margin: 2px 0 14px; padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.08); font-size: 0.86rem; color: var(--text-dim); }
+    .drv-moves label { display: flex; align-items: center; gap: 9px; color: var(--text); font-weight: 600; cursor: pointer; }
+    .drv-moves label input { width: 18px; height: 18px; flex: none; accent-color: var(--accent-strong); }
+    .drv-moves .drv-line { margin-top: 7px; }
+    .drv-moves details { margin-top: 8px; }
+    .drv-moves summary { cursor: pointer; color: var(--text); }
+    .drv-moves ul { margin: 6px 0 0; padding-left: 18px; }
+    .drv-moves li { margin: 3px 0; overflow-wrap: anywhere; }
     .drv-score b { font-size: 1.05rem; }
     .drv-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     .drv-acts .mini.go { background: var(--accent-strong); color: #fff; }
@@ -1795,6 +1803,7 @@
       <details class="more" data-more="d-disk" data-title="On disk" data-sub="the drives and the whole library — find it, see who watched it, free up space">
         <div class="more-body">
           <div class="drv-grid" id="drives-card" aria-live="polite"></div>
+          <div class="drv-moves hidden" id="drives-moves"></div>
           <div class="now-grid" id="disk-bars" style="margin-bottom:14px"></div>
           <div class="bar-row" style="align-items:center;flex-wrap:wrap;gap:8px;margin:8px 0 6px">
             <input type="text" id="lib-search" placeholder="Search titles &amp; episodes…" style="max-width:230px;flex:1;min-width:150px" />
@@ -5286,6 +5295,8 @@
         down ? `<span class="pill bad">Not answering</span>` : d.inUse ? `<span class="pill live">In use</span>` : `<span class="pill">Not in use</span>`,
         d.inUse && !d.newDownloads ? `<span class="pill warn">No new downloads</span>` : "",
         d.readOnly ? `<span class="pill">Read-only</span>` : "",
+        d.gone ? `<span class="pill bad">Not mounted</span>` : "",
+        d.evacuating ? `<span class="pill warn">Moving off</span>` : "",
       ].join("");
       const bar = p.total
         ? `<div class="drv-bar" role="img" aria-label="${esc(p.unsure ? `${drvPct(p.used, p.total)}% used, ${UNSURE_SHARE}, ${fmtDrive(p.free)} free` : `${drvPct(p.used, p.total)}% used, ${drvPct(p.aurora, p.total)}% by Aurora, ${fmtDrive(p.free)} free`)}"><i class="a" style="width:${(p.aurora / p.total) * 100}%"></i><i class="o" style="width:${(p.other / p.total) * 100}%"></i></div>
@@ -5299,6 +5310,10 @@
            <div class="drv-line">Used ${fmtDrive(p.used)} of ${fmtDrive(p.total)} (${drvPct(p.used, p.total)}%)${d.inUse && d.reserve ? ` · keeps ${fmtDrive(d.reserve)} free` : ""}</div>
            ${p.unsure ? `<div class="drv-line drv-unsure">${UNSURE_SHARE} — its count (${fmtDrive(d.aurora.bytes)}) came to all that is used on the drive, so it is not shown.</div>` : ""}`
         : `<div class="drv-line">${down ? "No numbers while it does not answer." : "Size not measured yet."}</div>`;
+      const ev = d.evacuating;
+      const evLine = ev
+        ? `<div class="drv-line">Moving its titles to the other drives${ev.left != null ? ` — ${ev.left} left` : ""}${ev.moved ? `, ${ev.moved} moved` : ""}. One at a time, never while one is playing; Aurora stops using the drive when none is left.${ev.why ? ` Waiting: ${esc(ev.why)}.` : ""}</div>`
+        : "";
       const state = down
         ? `<div class="drv-line bad">Not answering since ${d.downSince ? hhmmShort(d.downSince) : "a moment ago"} — ${d.titles} title${d.titles === 1 ? "" : "s"} can't play. New downloads go to the other drives; everything resumes by itself when it answers.</div>`
         : d.inUse
@@ -5312,7 +5327,10 @@
       const acts = d.inUse
         ? `<button class="mini" data-drv-act="${d.newDownloads ? "stop" : "resume"}" data-id="${esc(d.id)}"${tuning ? " disabled" : ""}>${d.newDownloads ? "Stop using for new downloads" : "Use for new downloads again"}</button>` +
           `<button class="mini" data-drv-act="test" data-id="${esc(d.id)}"${down || d.testing || tuning ? " disabled" : ""}>Test again</button>` +
-          (drvTuneOn(d) ? `<button class="mini" data-drv-act="tune" data-id="${esc(d.id)}"${down || tuning || d.testing === "running" ? " disabled" : ""}>Tune this network drive</button>` : "") +
+          (d.evacuating
+            ? `<button class="mini" data-drv-act="cancel-move" data-id="${esc(d.id)}">Stop moving — keep using it</button>`
+            : `<button class="mini" data-drv-act="remove" data-id="${esc(d.id)}"${tuning ? " disabled" : ""}${d.holds && d.holds.includes("data") ? ' disabled title="Aurora\'s own data is on this drive"' : ""}>Stop using this drive</button>`) +
+          (drvTuneOn(d) ? `<button class="mini" data-drv-act="tune" data-id="${esc(d.id)}"${down || tuning || d.evacuating || d.testing === "running" ? " disabled" : ""}>Tune this network drive</button>` : "") +
           (drvTuneOn(d) && tuneLast && tuneLast.ok && tuneLast.action === "apply" && !tuneLast.better && !tuning ? `<button class="mini" data-drv-act="revert" data-id="${esc(d.id)}"${down ? " disabled" : ""}>Put it back</button>` : "")
         : `<button class="mini go" data-drv-act="use" data-id="${esc(d.id)}"${d.readOnly || !d.answering ? " disabled" : ""}>Use this drive too</button>`;
       return `<div class="drv" data-drive="${esc(d.id)}"${down ? ' data-down="1"' : ""}>
@@ -5320,6 +5338,7 @@
         <div class="drv-tags">${tags}</div>
         ${bar}
         ${state}
+        ${evLine}
         <div class="drv-line">${drvSpeedLine(d)}</div>
         ${drvTuneOn(d) ? drvTuneLine(d) : ""}
         ${hint}
@@ -5386,6 +5405,43 @@
       if (!r) toast("The server did not answer.");
       loadDisk();
     }
+    // "Keep the fast drive for new and 4K titles" and "Moved recently" (lib/drives/mover.js)
+    let MOVES = null;
+    const fmtMoveWhen = (t) => (t ? fmtWhen(t) : "");
+    function paintMoves(drv) {
+      const box = $("#drives-moves");
+      if (!box) return;
+      MOVES = drv && drv.moves ? drv.moves : null;
+      const inUse = (DRIVES || []).filter((d) => d.inUse).length;
+      const m = MOVES || { keepFast: drv ? drv.keepFast !== false : true, current: null, recent: [] };
+      const show = inUse > 1 || m.current || (m.recent && m.recent.length);
+      box.classList.toggle("hidden", !show);
+      if (!show) return;
+      const c = m.current;
+      const cur = c
+        ? `<div class="drv-line" id="drives-moving">${c.paused ? "Paused" : "Moving"}: “${esc(c.title)}” ${c.bytes ? `(${fmtDrive(c.bytes)}) ` : ""}from ${esc(c.from)} to ${esc(c.to)}${c.phase === "copying" && c.bytes ? ` — ${Math.round((c.copied / c.bytes) * 100)}%` : c.phase === "removing" ? " — in place; the original goes next" : ""}${c.paused ? ` — ${esc(c.paused)}` : ""}.</div>`
+        : "";
+      const rec = (m.recent || []).slice(0, 12);
+      const recent = rec.length
+        ? `<details class="drv-recent"><summary>Moved recently (${rec.length})</summary><ul>${rec.map((x) => `<li>${esc(x.title)} — ${x.result === "moved" ? `moved to ${esc(x.to)}` : esc(x.result)}${x.bytes ? ` · ${fmtDrive(x.bytes)}` : ""} · ${esc(fmtMoveWhen(x.at))}</li>`).join("")}</ul></details>`
+        : "";
+      setHTML(box, `${inUse > 1 ? `<label><input type="checkbox" id="drv-keepfast"${m.keepFast !== false ? " checked" : ""} /> Keep the fast drive for new and 4K titles</label>
+        <div class="drv-line">New downloads someone asked for, the next episode of what is being watched, and top-quality 4K go to the fastest drive while it has room; the rest goes where there is most room. When the fast drive runs low, titles nobody has played for 60 days move to a slower drive, one at a time, never while someone is watching.</div>` : ""}${cur}${recent}`);
+    }
+    document.addEventListener("change", async (e) => {
+      if (!e.target || e.target.id !== "drv-keepfast") return;
+      const on = e.target.checked;
+      const r = await post("/api/admin/drives/keep-fast", { on }).catch(() => null);
+      if (r && r.ok) toast(on ? "The fast drive is kept for new and 4K titles" : "New downloads go where there is most room");
+      else { e.target.checked = !on; toast((r && r.error) || "That did not work — try again"); }
+    });
+    function movesText(m) {
+      if (!m) return "";
+      const lines = [`Keep the fast drive for new and 4K titles: ${m.keepFast !== false ? "on" : "off"}`];
+      if (m.current) lines.push(`Moving now: ${m.current.title} (${fmtDrive(m.current.bytes || 0)}) from ${m.current.from} to ${m.current.to}, ${m.current.phase}${m.current.paused ? `, paused: ${m.current.paused}` : ""}`);
+      if (m.recent && m.recent.length) lines.push("Moved recently:\n" + MD.table(["title", "from", "to", "size", "result", "when"], m.recent.map((x) => [x.title, x.from, x.to, fmtDrive(x.bytes || 0), x.result, fmtMoveWhen(x.at)])));
+      return lines.join("\n");
+    }
     async function driveAction(act, id) {
       const d = (DRIVES || []).find((x) => x.id === id);
       if (!d) return;
@@ -5401,6 +5457,25 @@
       } else if (act === "stop" || act === "resume") {
         r = await post("/api/admin/drives/new-downloads", { id, on: act === "resume" }).catch(() => null);
         if (r && r.ok) toast(act === "stop" ? `No new downloads to ${d.mount} — what is there stays` : `${d.mount} takes new downloads again`);
+      } else if (act === "remove") {
+        const n = d.titles || 0;
+        let how = "remove";
+        let ok;
+        if ((!d.answering || d.gone) && n) {
+          how = "force";
+          ok = await askBox(`Stop using ${d.mount} anyway? It ${d.gone ? "is not mounted any more" : "isn't answering"}, so its titles can't be moved.\n\nIts ${n} title${n === 1 ? "" : "s"} will disappear from the library. Its library folders are taken out of config.json (a copy of the old file is kept). Nothing on the drive is deleted — if it comes back, "Use this drive too" brings them back.`, false, "Stop using it anyway");
+        } else if (n) {
+          how = "move";
+          ok = await askBox(`Move ${n} title${n === 1 ? "" : "s"} off ${d.mount} first? Aurora keeps ${n} title${n === 1 ? "" : "s"} there.\n\nThey move to the other drives one at a time — never while one is playing, carefully copied and checked before the original goes. New downloads stop going there now. When none is left, Aurora stops using the drive by itself.`, false, "Move them to the other drives first");
+        } else {
+          ok = await askBox(`Stop using ${d.mount}? Aurora keeps no titles there.\n\nIts library folders are taken out of config.json (a copy of the old file is kept) and the library is rescanned. Nothing on the drive is deleted.`, false, "Stop using it");
+        }
+        if (!ok) return;
+        r = await post("/api/admin/drives/stop-using", { id, how }).catch(() => null);
+        if (r && r.ok) toast(r.moving ? `Moving ${r.titles} title${r.titles === 1 ? "" : "s"} off ${d.mount} — it is removed when empty` : `Aurora no longer uses ${d.mount}`);
+      } else if (act === "cancel-move") {
+        r = await post("/api/admin/drives/stop-using", { id, how: "cancel" }).catch(() => null);
+        if (r && r.ok) toast(`Stopped moving titles off ${d.mount} — it stays in use`);
       } else if (act === "test") {
         r = await post("/api/admin/drives/test", { id }).catch(() => null);
         if (r && r.ok) toast(r.waiting ? `Speed check queued — ${r.waiting}` : "Speed check started — about 20 seconds");
@@ -5422,7 +5497,7 @@
         const m = (d.score && d.score.measured) || {};
         return [
           d.mount, d.network ? "network" : "local", d.fstype || "",
-          d.inUse ? (!d.answering ? `NOT ANSWERING since ${d.downSince ? hhmmShort(d.downSince) : "?"}${d.why ? ` (${d.why})` : ""}` : d.newDownloads ? "in use" : "in use, no new downloads") : "not in use",
+          d.evacuating ? `moving off (${d.evacuating.left != null ? d.evacuating.left : "?"} left${d.evacuating.why ? `; ${d.evacuating.why}` : ""})` : d.inUse ? (!d.answering ? `NOT ANSWERING${d.gone ? " (not mounted)" : ""} since ${d.downSince ? hhmmShort(d.downSince) : "?"}${d.why ? ` (${d.why})` : ""}` : d.newDownloads ? "in use" : "in use, no new downloads") : "not in use",
           p.total ? `${fmtDrive(p.used)} of ${fmtDrive(p.total)} (${drvPct(p.used, p.total)}%)` : "?",
           d.aurora ? (p.unsure ? `${UNSURE_SHARE} (counted ${fmtDrive(d.aurora.bytes)}${d.aurora.apparent != null ? `, ${fmtDrive(d.aurora.apparent)} by file length` : ""})` : `${fmtDrive(p.aurora)} (${drvPct(p.aurora, p.total)}%)`) : d.inUse ? "counting" : "-",
           p.total ? fmtDrive(p.free) : "?",
@@ -5443,7 +5518,7 @@
       const res = await json("/api/admin/disk");
       const drv = await drvP;
       const drivesList = drv && Array.isArray(drv.drives) ? drv.drives : null;
-      if (drivesList) paintDrives(drivesList);
+      if (drivesList) { paintDrives(drivesList); paintMoves(drv); }
       $("#disk-bars").classList.toggle("hidden", !!drivesList);
       const disks = Array.isArray(res) ? res : res.disks || [];
       const minFreePct = Array.isArray(res) ? 0 : res.minFreePct || 0;
@@ -6700,7 +6775,7 @@
         copy: async () => {
           const [dk, t, dv] = await Promise.all([json("/api/admin/disk"), json("/api/admin/library/tree"), json("/api/admin/drives").catch(() => null)]);
           const disks = Array.isArray(dk) ? dk : dk.disks || [];
-          const drivesPart = dv && Array.isArray(dv.drives) ? drivesText(dv.drives) + "\n\n" : "";
+          const drivesPart = dv && Array.isArray(dv.drives) ? drivesText(dv.drives) + "\n\n" + (dv.moves ? movesText(dv.moves) + "\n\n" : "") : "";
           const movies = t.movies || [], shows = t.shows || [];
           const big = [...movies.map((m) => [m.title + (m.year ? ` (${m.year})` : ""), m.sizeBytes || 0, m.watched || 0]),
             ...shows.map((s) => [s.title, s.sizeBytes || (s.seasons || []).reduce((n, se) => n + (se.episodes || []).reduce((x, e) => x + (e.sizeBytes || 0), 0), 0), s.watched || 0])]

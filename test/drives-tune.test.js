@@ -170,6 +170,18 @@ test("refused while someone plays from the drive — nothing paused, the helper 
   assert.equal(tune._internals.current(), null);
 });
 
+test("refused while titles are being moved off the drive (Stop using this drive)", async () => {
+  const d = drives._internals.data();
+  d.evacuate = d.evacuate || {};
+  d.evacuate[ID] = { since: Date.now() };
+  try {
+    const r = await tune.start(ID);
+    assert.equal(r.error, "Titles are being moved to or from this drive — try again when that is done.");
+    assert.ok(!world.helperCalls.some((a) => a[0] === "apply"));
+    assert.equal(tune._internals.current(), null);
+  } finally { delete d.evacuate[ID]; }
+});
+
 test("a run: paused (viewers told fast, landings wait), no new downloads meanwhile, speed before → helper → speed after, all back as it was", async () => {
   const file = path.join(movies, "Film (2020)", "Film (2020).mkv");
   world.landings = [1, 1]; // a download copying there: the run waits for it

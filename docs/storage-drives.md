@@ -45,7 +45,7 @@ After you confirm, Aurora:
 5. takes the folders into the running server at once (no restart) and rescans;
 6. measures Aurora's share, and runs the speed check.
 
-Nothing already on the drive is moved or deleted, ever. **Stop using for new downloads** only means no new download is sent there. What is on the drive stays, and plays. To stop using a drive completely, take its folders out of config.json by hand and restart.
+Nothing already on the drive is moved or deleted by "Use this drive too". **Stop using for new downloads** only means no new download is sent there. What is on the drive stays, and plays. To stop using a drive completely, see **Stop using this drive** below.
 
 ## Where new downloads go
 
@@ -53,6 +53,7 @@ This is `lib/drives/rules.js` `pick`; the detail is in docs/downloads-v2.md §10
 
 1. Only drives that take new downloads and are answering are considered.
 2. A show's new episode goes to the drive where the show already has its folder, if that drive has room. That keeps seasons together.
+2b. With **Keep the fast drive for new and 4K titles** on (see *The fast drive*), a download that belongs there goes to the fast drive while it has room above its reserve.
 3. Otherwise Aurora picks among the drives **with room**. "Room" means: the free space, minus what is already on its way there, minus this file, is still at least the **reserve**. The reserve is 10% of the drive or 50 GB, whichever is smaller.
    - Drives with at least 75% of the roomiest drive's free space count as equals, and **the fastest of them wins**.
    - So a big new drive fills up first, instead of the nearly full one, and speed decides between drives that are about as roomy.
@@ -60,7 +61,52 @@ This is `lib/drives/rules.js` `pick`; the detail is in docs/downloads-v2.md §10
 
 Staging (aria2's folder) stays on the local disk. A finished file is copied onto a network drive under a hidden temp name and then put in place, so nothing half-written is ever seen.
 
-Existing files are never moved automatically. A "Move" button may come later.
+Files already in the library move only in the two cases below (*The fast drive* running low, and *Stop using this drive*), always one title at a time and in the same safe way.
+
+## The fast drive
+
+*2026-11-09 · `lib/drives/rules.js` (fastDrive, wantsFast, coldNeed, coldTitles), `lib/drives/mover.js`*
+
+On the **On disk** card, with two or more drives in use: **Keep the fast drive for new and 4K titles**, on by default.
+
+- **The fast drive** is the drive in use with the highest speed score, at least 10 points above every other (a drive not tested yet counts as 50). Two drives about as fast: there is no fast drive and nothing below happens.
+- **New downloads that go there** (while it has room above its reserve):
+  - top-quality 4K: a 2160p remux, or a 2160p copy above about 25 Mbit/s (a film of 20 GB or more, an episode of 8 GB or more);
+  - what someone is about to watch: what is on a screen now, or its next episode;
+  - a person's own request.
+- **Everything else** (HD copies, automatic next episodes for later, followed shows, background work) goes to the drive with the most room, as before. A show's new episodes stay with the show, wherever it lives.
+- **Cold titles move off when it runs low.** When the fast drive's room above its reserve falls under **15%** of the drive, the titles nobody has played for **60 days or more** (never played: added that long ago) move to the roomiest slower drive, oldest first, until it is back at **20%**. Never moved: anything being played, on someone's My List, in someone's Continue watching, or being downloaded.
+- Off: new downloads go where there is most room, and nothing moves.
+
+### How a title is moved (both for cold titles and for Stop using this drive)
+
+1. One title at a time: a film's folder, or a show's folder.
+2. Its files are copied into a hidden folder on the target, `.aurora-moving-<token>` (the library walk skips dot folders), a few seconds at a time, by a child process at the lowest CPU and I/O priority (nice 19, ionice idle on Linux).
+3. Before every few seconds of copying:
+   - the title itself starting to play **stops a cold move** (the temp copy is deleted, the original is never touched, and the title is left alone for a week), and **pauses** an evacuation;
+   - someone watching anything from either drive, or a drive not answering, **pauses** it. It looks again every 30 s.
+4. Each file is checked: the same length, and the same hash of its first and last MB.
+5. Each file is renamed into place on the target. A file already there with the same fingerprint is that file; one that differs is kept, and the incoming one lands beside it as `<name> (moved).ext`.
+6. The original is deleted (only while nobody plays it), the library is walked again, and one log line says what moved where: `[drives] moved "Title" (8.1 GB) from … to …`.
+
+A title keeps its id, so watch history, My List and Continue watching follow it: the id comes from the path under the library folder, which is the same on the new drive. Its probe (length, tracks) is carried over, so it is not probed again.
+
+Everything is in `data/drives.json` (`moves.current`). After a restart the move goes on from the byte where it stopped (the last 16 MB are copied again, in case they had not reached the disk). The card shows the move under way, and **Moved recently** (Details) what moved and when, or why a move stopped. **Copy for Claude** includes both.
+
+## Stop using this drive
+
+A button on every drive in use (not on the drive with Aurora's own data folder).
+
+- **Titles on it:** the card says how many and offers **Move them to the other drives first**. New downloads stop going there at once. The titles move one at a time, as above, never while one is playing, and it survives restarts. **Stop moving — keep using it** cancels. When none is left (and no download is landing there), the drive is removed by itself.
+  - Before it starts, Aurora checks the other drives have room for all of it (Aurora's share against their room above the reserve).
+- **No titles on it** (only Aurora's empty folders): one question, then its library folders are taken out of config.json, the same safe way "Use this drive too" adds them (the file as it is on disk, a copy kept, a temp file renamed over it), the running server forgets them, and the library is walked again. Nothing on the drive is deleted.
+- **Not answering, or not mounted any more** (a cancelled share): its titles can't be moved, so the card warns that **its N titles disappear from the library**, and **Stop using it anyway** removes it as it is. Nothing on the drive is deleted; if it comes back, "Use this drive too" brings them back. A drive that Aurora was told to use but that is no longer in the mount list is shown as **Not mounted** for this.
+- **Afterwards** the drive is **Not in use** again. No alert, no "answering again" message and no **Needs you** comes for a drive removed on purpose.
+
+### Before a network share is cancelled
+
+- **Take its line out of `/etc/fstab`** (or at least add `nofail`) before the share goes away. A share listed there without `nofail` that no longer exists can make the server **hang at boot**.
+- After Aurora has stopped using it: `sudo umount /mnt/storagespace`.
 
 ## The speed check and the score
 
@@ -275,11 +321,12 @@ To apply a changed line: stop Aurora (or make sure nobody is watching), then run
 | `src/lib/drives/mounts.js` | parsing the mount list and Windows drives (pure) |
 | `src/lib/drives/rules.js` | reserve, pick, score, when to alert (pure) |
 | `src/lib/drives/run.js` | a child process with a deadline, one per drive at a time |
-| `src/lib/drives/probe-child.js` | the only code that touches a network drive |
+| `src/lib/drives/probe-child.js` | the only code that touches a network drive (also copies, checks and lands moved titles) |
+| `src/lib/drives/mover.js` | moving titles between drives: cold titles off the fast drive, Stop using this drive |
 | `src/lib/drives/tune.js` | "Tune this network drive": the preview, the run, the setup commands |
 | `scripts/nufurora/aurora-mount-helper` | the root helper (installed once to `/usr/local/sbin`) |
-| `data/drives.json` | scores, Aurora's share, "no new downloads", alert state, the last tune |
-| routes | `GET /api/admin/drives`, `POST /api/admin/drives/use`, `…/new-downloads`, `…/test`, `…/tune/preview`, `…/tune`, `…/tune/revert` |
-| tests | `test/drives-mounts.test.js`, `test/drives-rules.test.js`, `test/drives-hang.test.js`, `test/drives-speed.test.js`, `test/drives-tune.test.js`, `test/drives-mount-helper.test.js`, `test/ui/admin-drives.test.js`, `test/ui/admin-drives-tune.test.js` |
+| `data/drives.json` | scores, Aurora's share, "no new downloads", alert state, moves, the last tune |
+| routes | `GET /api/admin/drives`, `POST /api/admin/drives/use`, `…/new-downloads`, `…/test`, `…/keep-fast`, `…/stop-using`, `…/tune/preview`, `…/tune`, `…/tune/revert` |
+| tests | `test/drives-mounts.test.js`, `test/drives-rules.test.js`, `test/drives-hang.test.js`, `test/drives-speed.test.js`, `test/drives-mover.test.js`, `test/drives-tune.test.js`, `test/drives-mount-helper.test.js`, `test/ui/admin-drives.test.js`, `test/ui/admin-drives-tune.test.js` |
 
-Test seam: `AURORA_DRIVES_EXTRA='[{"path":"…","network":true}]'` makes folders count as drives of their own, and `AURORA_DRIVES_FAKE_HANG=<path>` makes the probe child never answer for paths under it. `AURORA_DRIVES_FAKE_SLOW_MS_PER_MB=<ms>` makes every MB the speed check writes or reads take that much longer. All are for private test servers only.
+Test seam: `AURORA_DRIVES_EXTRA='[{"path":"…","network":true}]'` makes folders count as drives of their own, and `AURORA_DRIVES_FAKE_HANG=<path>` makes the probe child never answer for paths under it. `AURORA_DRIVES_FAKE_SLOW_MS_PER_MB=<ms>` makes every MB the speed check writes or reads take that much longer. A local extra drive may give its size (`"space":{"total":…,"free":…}`), since a test machine's own disk can be too full for the reserve. All are for private test servers only.

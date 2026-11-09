@@ -42,6 +42,10 @@ const MOUNTS_MS = 30 * SEC;
 const limits = {
   checkTimeoutMs: 6 * SEC, guardTimeoutMs: 3 * SEC,
   speed: { local: { sizeMB: 256, budgetMs: 18 * SEC, timeoutMs: 45 * SEC }, network: { sizeMB: 128, budgetMs: 65 * SEC, timeoutMs: 90 * SEC } },
+  // moving titles between drives (mover.js): a copy step of chunkMs, any step
+  // given up after stepTimeoutMs more; a paused move looks again every
+  // pauseRetryMs; with nothing to move, the plan is made again every idleEveryMs
+  mover: { chunkMs: 10 * SEC, stepTimeoutMs: 60 * SEC, pauseRetryMs: 30 * SEC, idleEveryMs: 10 * MIN, keepRecent: 30, idleDays: 60 },
 };
 const USAGE_EVERY_MS = 6 * 3600 * SEC;
 const USAGE_TIMEOUT_MS = 3 * MIN;
@@ -69,6 +73,8 @@ const deps = {
   }),
   // test/e2e seam: folders that count as drives of their own
   //   AURORA_DRIVES_EXTRA='[{"path":"C:\\tmp\\drive2","network":true}]'
+  //   (a local one may give its size: "space":{"total":…,"free":…} — a test
+  //   machine's own disk can be too full for the reserve)
   extra: () => {
     try {
       const v = JSON.parse(process.env.AURORA_DRIVES_EXTRA || "[]");
@@ -102,8 +108,8 @@ const deps = {
   rescan: () => {
     try {
       const scanner = require("../../media/scanner");
-      Promise.resolve(scanner.scanAsync({ force: true })).then(() => { try { require("../../realtime").libraryUpdated(); } catch {} }).catch(() => {});
-    } catch {}
+      return Promise.resolve(scanner.scanAsync({ force: true })).then(() => { try { require("../../realtime").libraryUpdated(); } catch {} }).catch(() => {});
+    } catch { return Promise.resolve(); }
   },
   configFile: () => path.join(configLib().ROOT, "config.json"),
   titlesUnder: (dirs) => {
@@ -148,18 +154,116 @@ const deps = {
       })()).length;
     } catch { return 0; }
   },
+  // ---- for the mover (mover.js) ----
+  // the titles of the library, one per folder: a film's folder, a show's
+  // folder in one library folder (a show in two library folders is two)
+  libraryTitles: () => {
+    const scanner = require("../../media/scanner");
+    const profiles = require("../../profiles");
+    const libroots = require("../libroots");
+    const config = configLib();
+    const last = new Map();
+    const midway = new Set();
+    const listed = new Set();
+    const listedImdb = new Set();
+    for (const p of profiles.list()) {
+      const prog = profiles.getProgress(p.id) || {};
+      for (const [id, pr] of Object.entries(prog)) {
+        if (!pr) continue;
+        last.set(id, Math.max(last.get(id) || 0, pr.updatedAt || 0));
+        if (!pr.finished && (pr.position || 0) > 60) midway.add(id);
+      }
+      for (const e of profiles.getWatchlist(p.id) || []) {
+        if (typeof e === "string") listed.add(e);
+        else if (e && e.imdbId) listedImdb.add(String(e.imdbId).toLowerCase());
+      }
+    }
+    let jobs = [];
+    try { jobs = require("../../media/downloads").rawJobs().filter((j) => ["pending", "approved", "downloading"].includes(j.status)); } catch {}
+    const key = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const downloading = (kind, title, imdbId) => jobs.some((j) => (j.type === "show" ? "show" : "movie") === kind &&
+      ((imdbId && j.imdbId && String(j.imdbId).toLowerCase() === String(imdbId).toLowerCase()) || key(j.title) === key(title)));
+    const rootOf = (abs, kind) => ((kind === "show" ? config.LIBRARIES.shows : config.LIBRARIES.movies) || []).find((r) => libroots.isUnder(abs, [r])) || null;
+    const out = [];
+    for (const m of scanner.index.movies) {
+      const e = scanner.resolve(m.id);
+      if (!e) continue;
+      const root = rootOf(e.path, "movie");
+      if (!root) continue;
+      const imdb = m.imdbId ? String(m.imdbId).toLowerCase() : null;
+      out.push({ id: m.id, ids: [m.id], kind: "movie", title: m.title, root, dir: path.dirname(e.path), sizeBytes: m.sizeBytes || 0,
+        lastPlayed: last.get(m.id) || 0, addedAt: m.addedAt || 0, midway: midway.has(m.id), onList: listed.has(m.id) || (!!imdb && listedImdb.has(imdb)),
+        downloading: downloading("movie", m.title, m.imdbId) });
+    }
+    for (const s of scanner.index.shows) {
+      const units = new Map(); // folder -> unit
+      for (const se of s.seasons || []) for (const ep of se.episodes || []) {
+        const e = scanner.resolve(ep.id);
+        if (!e) continue;
+        const root = rootOf(e.path, "show");
+        if (!root) continue;
+        const first = path.relative(root, e.path).split(/[\\/]/)[0];
+        const dir = path.join(root, first);
+        let u = units.get(dir);
+        if (!u) { u = { id: `${s.id}@${dir}`, showId: s.id, ids: [], kind: "show", title: s.title, root, dir, sizeBytes: 0, lastPlayed: 0, addedAt: 0, midway: false, onList: false, downloading: false }; units.set(dir, u); }
+        u.ids.push(ep.id);
+        u.sizeBytes += ep.sizeBytes || 0;
+        u.lastPlayed = Math.max(u.lastPlayed, last.get(ep.id) || 0);
+        u.addedAt = Math.max(u.addedAt, ep.addedAt || 0);
+        if (midway.has(ep.id) || listed.has(ep.id)) u[midway.has(ep.id) ? "midway" : "onList"] = true;
+      }
+      const imdb = s.imdbId ? String(s.imdbId).toLowerCase() : null;
+      for (const u of units.values()) {
+        if (listed.has(s.id) || (imdb && listedImdb.has(imdb))) u.onList = true;
+        u.downloading = downloading("show", s.title, s.imdbId);
+        out.push(u);
+      }
+    }
+    return out;
+  },
+  // what is being played right now: [{ id, path }] (lib/inuse: a stream asked
+  // for its bytes in the last few minutes)
+  playingNow: () => {
+    const out = [];
+    try {
+      const inuse = require("../inuse");
+      const scanner = require("../../media/scanner");
+      const t = Date.now();
+      for (const [id, at] of inuse._internals.seen) if (t - at < inuse.WINDOW_MS) { const e = scanner.resolve(id); out.push({ id, path: e ? e.path : null }); }
+    } catch {}
+    return out;
+  },
+  // a download on its way to a library folder on this drive
+  downloadsTo: (driveId) => {
+    try {
+      return require("../../media/downloads").rawJobs().some((j) => ["approved", "downloading"].includes(j.status) && j.destRoot && (() => { const o = onPath(j.destRoot); return o && o.drive.id === driveId; })());
+    } catch { return false; }
+  },
+  committedOn: () => 0,
+  // a moved file keeps its probe (length, tracks): no new ffprobe of it on the new drive
+  carryProbes: (src, dst, files) => {
+    const store = require("../../media/metadata")._store;
+    let n = 0;
+    for (const f of files || []) {
+      const a = path.join(src, f.rel);
+      if (store.data[a] && !store.data[path.join(dst, f.rel)]) { store.data[path.join(dst, f.rel)] = store.data[a]; n++; }
+    }
+    if (n) store.save();
+  },
 };
+
+const spaceSeam = (x) => (x && x.space && x.space.total > 0 && x.space.free >= 0 ? { total: x.space.total, free: x.space.free, used: x.space.total - x.space.free } : null);
 
 // ---------- the store (data/drives.json) ----------
 let store = null;
-const mem = { scores: {}, noNew: {}, usage: {}, added: {}, alerts: {}, tunes: {} };
+const mem = { scores: {}, noNew: {}, usage: {}, added: {}, alerts: {}, evacuate: {}, removed: {}, moves: {}, tunes: {} };
 const data = () => (store ? store.data : mem);
 const save = () => { if (store) store.save(); };
 const openStore = () => {
   if (store) return store;
   try {
     const { JsonStore } = require("../jsonstore");
-    store = new JsonStore(path.join(configLib().DATA_DIR, "drives.json"), { scores: {}, noNew: {}, usage: {}, added: {}, alerts: {}, tunes: {} });
+    store = new JsonStore(path.join(configLib().DATA_DIR, "drives.json"), { scores: {}, noNew: {}, usage: {}, added: {}, alerts: {}, evacuate: {}, removed: {}, moves: {}, tunes: {} });
     for (const k of Object.keys(mem)) if (!store.data[k] || typeof store.data[k] !== "object") store.data[k] = {};
   } catch { store = null; }
   return store;
@@ -243,7 +347,16 @@ const refreshMounts = async () => {
   }
   for (const x of deps.extra()) {
     const mount = path.resolve(x.path);
-    list.push({ id: mount, mount, source: x.source || mount, fstype: x.network ? "nfs" : "folder", network: !!x.network, readOnly: false, hard: !!x.network, options: [], label: x.label || null, extra: true });
+    list.push({ id: mount, mount, source: x.source || mount, fstype: x.network ? "nfs" : "folder", network: !!x.network, readOnly: false, hard: !!x.network, options: [], label: x.label || null, extra: true, space: spaceSeam(x) });
+  }
+  // a drive Aurora was told to use that is not mounted any more (a cancelled
+  // network share): still listed, as not answering, so it can be removed
+  for (const [id, a] of Object.entries(data().added || {})) {
+    if (list.some((d) => d.id === id)) continue;
+    const config = configLib();
+    const roots = [...(config.LIBRARIES.movies || []), ...(config.LIBRARIES.shows || [])];
+    if (!(a && [a.movies, a.shows].some((dir) => dir && roots.some((r) => normDir(r) === normDir(dir))))) continue;
+    list.push({ id, mount: id, source: "not mounted", fstype: "gone", network: true, readOnly: false, hard: false, options: [], label: null, gone: true });
   }
   // a paused drive may be unmounted this very moment: it stays on the list
   // (else its folders would count as the system disk's, and look empty)
@@ -282,13 +395,14 @@ const check = async (drive, { force = false } = {}) => {
   const s = stateOf(drive.id);
   // (paused: its mount point may be an empty folder for a moment — not a fact about the drive)
   if (isPaused(drive.id) && !force) return s;
+  if (drive.gone) { markDown(drive, "it is not mounted any more"); return s; }
   const roots = dirsOn(drive).filter((d) => d.kind === "movies" || d.kind === "shows").map((d) => d.dir);
   if (!drive.network) {
     // (a local disk does not hang the way a network one does — but a dying
     // USB disk can be slow: the round never waits on it longer than this)
     const within = (p, ms = 10 * SEC) => Promise.race([p, new Promise((_, no) => { const t = setTimeout(() => no(Object.assign(new Error("slow"), { code: "slow to answer" })), ms); t.unref?.(); })]);
     try {
-      const v = await within(deps.statfsLocal(drive.mount));
+      const v = drive.space ? { ...drive.space } : await within(deps.statfsLocal(drive.mount));
       Object.assign(s, v, { at: deps.now() });
       const r = {};
       for (const d of roots) { try { r[d] = (await within(fs.promises.stat(d))).isDirectory(); } catch { r[d] = false; } }
@@ -344,9 +458,9 @@ const stepAlert = (drive) => {
   }
 };
 
-const titlesOn = (drive, now = deps.now()) => {
+const titlesOn = (drive, now = deps.now(), fresh = false) => {
   const hit = live.titles.by.get(drive.id);
-  if (hit && now - hit.at < 30 * SEC) return hit.n;
+  if (!fresh && hit && now - hit.at < 30 * SEC) return hit.n;
   const dirs = dirsOn(drive).filter((d) => d.kind === "movies" || d.kind === "shows").map((d) => d.dir);
   const n = dirs.length ? deps.titlesUnder(dirs) : 0;
   live.titles.by.set(drive.id, { at: now, n });
@@ -503,6 +617,8 @@ const round = async ({ all = false } = {}) => {
       if (!sc || (!sc.value && !sc.errorAt)) queueSpeed(d.id);
     }
   }
+  // titles to move (an evacuation, or the fast drive running low): one at a time, in the background
+  if (live.started) mover().kick();
 };
 
 const start = () => {
@@ -522,7 +638,7 @@ const start = () => {
   t1.unref?.(); t2.unref?.();
   live.timers.push(t1, t2);
 };
-const stop = () => { for (const t of live.timers) { clearTimeout(t); clearInterval(t); } live.timers = []; live.started = false; };
+const stop = () => { for (const t of live.timers) { clearTimeout(t); clearInterval(t); } live.timers = []; live.started = false; if (moverInst) moverInst.stop(); };
 
 // ---------- questions from the rest of the server (all from memory) ----------
 const onPath = (abs) => {
@@ -667,7 +783,144 @@ const pickRoot = (kind, ask = {}, helpers = {}) => {
   const config = configLib();
   const roots = (kind === "show" ? config.LIBRARIES.shows : config.LIBRARIES.movies) || [];
   if (roots.length <= 1) return { root: roots[0] || null, drive: null, why: "the only library folder", full: false };
-  return rules.pick(candidatesFor(kind, helpers), { kind, sizeBytes: ask.sizeBytes || 0 });
+  const preferFast = data().keepFast !== false && ask.preferFast ? ask.preferFast : null;
+  return rules.pick(candidatesFor(kind, helpers), { kind, sizeBytes: ask.sizeBytes || 0, preferFast });
+};
+
+// ---------- moving titles between drives (mover.js) ----------
+// The drives in use, as the fast-drive rules see them.
+const inUseDrives = () => live.drives.filter((d) => dirsOn(d).some((x) => x.kind === "movies" || x.kind === "shows") && !data().evacuate?.[d.id]).map((d) => {
+  const s = stateOf(d.id);
+  const sc = data().scores[d.id];
+  return { id: d.id, score: sc && sc.value != null ? sc.value : null, answering: s.answering !== false, free: s.free, total: s.total, accepts: acceptsNew(d.id) };
+});
+let moverInst = null;
+const mover = () => {
+  if (!moverInst) {
+    moverInst = require("./mover")({
+      deps, data, save, live, stateOf, onPath, check, rules, run, limits, inUseDrives,
+      candidatesFor: (kind) => candidatesFor(kind, { committedOn: (root, id) => deps.committedOn(root, id) }),
+      finishRemove: (id, info) => finishRemove(id, info),
+      // Aurora's share of both drives, counted again
+      afterMove: (cur) => { for (const id of [cur.from, cur.to]) { const dr = live.drives.find((x) => x.id === id); if (dr) measureUsage(dr).catch(() => {}); } },
+    });
+  }
+  return moverInst;
+};
+const setKeepFast = (on) => {
+  data().keepFast = !!on;
+  save();
+  console.log(`[drives] keep the fast drive for new and 4K titles: ${on ? "on" : "off"}`);
+  if (on) mover().kick({ force: true });
+  return { ok: true, keepFast: !!on };
+};
+
+// ---------- "Stop using this drive" ----------
+// how: "remove"  an empty drive (no titles): its library folders leave config.json
+//      "move"    titles there: they move to the other drives first (the mover),
+//                then it is removed by itself
+//      "force"   a drive that does not answer (cancelled, unplugged): removed
+//                as it is — its titles leave the library
+//      "cancel"  stop moving its titles off; it stays in use
+const libraryDirsOf = (id) => {
+  const drive = live.drives.find((d) => d.id === id);
+  const fromDrive = drive ? dirsOn(drive).filter((d) => d.kind === "movies" || d.kind === "shows") : [];
+  return fromDrive.map((d) => ({ kind: d.kind, dir: d.dir }));
+};
+const removeLibrariesFromConfig = (dirs) => writeConfig((cfg) => {
+  cfg.libraries = cfg.libraries && typeof cfg.libraries === "object" ? cfg.libraries : {};
+  for (const kind of ["movies", "shows"]) {
+    const list = Array.isArray(cfg.libraries[kind]) ? cfg.libraries[kind] : [];
+    cfg.libraries[kind] = list.filter((x) => !dirs.some((d) => normDir(d) === normDir(x)));
+  }
+});
+const finishRemove = (id, { moved = 0, forced = false } = {}) => {
+  const titles = titlesOn(live.drives.find((d) => d.id === id) || { id }, deps.now(), true);
+  const libs = libraryDirsOf(id);
+  const dirs = libs.map((d) => d.dir);
+  const config = configLib();
+  if (dirs.length) {
+    try { removeLibrariesFromConfig(dirs); } catch (e) {
+      console.warn(`[drives] ${id}: config.json could not be updated: ${shortErr(e)}`);
+      return { error: `config.json could not be updated: ${shortErr(e)}` };
+    }
+    for (const kind of ["movies", "shows"]) {
+      const list = config.LIBRARIES[kind] || [];
+      for (let i = list.length - 1; i >= 0; i--) if (dirs.some((d) => normDir(d) === normDir(list[i]))) list.splice(i, 1);
+    }
+    try { require("../libroots")._reset(); } catch {}
+  }
+  const d = data();
+  const ev = (d.evacuate || {})[id];
+  if (ev && ev.noNewBefore === false) delete d.noNew[id];
+  else if (ev && ev.noNewBefore === true) d.noNew[id] = true;
+  else delete d.noNew[id];
+  if (d.evacuate) delete d.evacuate[id];
+  delete d.alerts[id];
+  delete d.added[id];
+  delete d.usage[id];
+  if (!d.removed || typeof d.removed !== "object") d.removed = {};
+  d.removed[id] = { at: deps.now(), dirs, moved, forced, titlesLeft: forced ? titles : 0 };
+  const s = stateOf(id);
+  s.answering = null; s.downSince = 0; s.why = null;
+  live.titles.by.delete(id);
+  // a drive that is no longer mounted leaves the list with it
+  live.drives = live.drives.filter((x) => !(x.id === id && x.gone));
+  save();
+  console.log(`[drives] stopped using ${id}${dirs.length ? `: ${dirs.join(", ")} left the library (config.json updated)` : ""}${moved ? ` after moving ${moved} title${moved === 1 ? "" : "s"} to the other drives` : ""}${forced ? ` — removed as it was; ${titles} title${titles === 1 ? "" : "s"} there left the library` : ""}`);
+  deps.rescan();
+  return { ok: true, removed: true, dirs, moved, forced };
+};
+const stopUsing = async (id, how = "remove") => {
+  const drive = live.drives.find((d) => d.id === id);
+  if (!drive) return { error: "That drive is not on this server's list — reload." };
+  const libs = libraryDirsOf(id);
+  if (!libs.length) return { error: "Aurora keeps no films or shows on this drive." };
+  const d = data();
+  if (!d.evacuate || typeof d.evacuate !== "object") d.evacuate = {};
+  if (how === "cancel") {
+    const ev = d.evacuate[id];
+    if (!ev) return { error: "Nothing is being moved off this drive." };
+    delete d.evacuate[id];
+    if (!ev.noNewBefore) delete d.noNew[id];
+    save();
+    console.log(`[drives] ${drive.mount}: moving its titles off stopped — it stays in use`);
+    return { ok: true, cancelled: true, moved: ev.moved || 0 };
+  }
+  // what the server knows of the drive without touching it
+  const answeringNow = stateOf(id).answering !== false && !drive.gone;
+  const n = titlesOn(drive, deps.now(), true);
+  // the data folder or the staging folder there: Aurora itself needs the drive
+  const own = dirsOn(drive).filter((x) => x.kind === "data");
+  if (own.length) return { error: "Aurora's own data folder is on this drive — it can't stop using it." };
+  if (how === "force") {
+    if (answeringNow && n > 0) return { error: `It answers and keeps ${n} title${n === 1 ? "" : "s"} — move them first.`, titles: n, needsMove: true };
+    return finishRemove(id, { forced: n > 0 });
+  }
+  if (how === "move") {
+    if (!answeringNow) return { error: "The drive isn't answering — its titles can't be moved. Stop using it anyway to take them out of the library.", titles: n, needsForce: true };
+    if (n === 0) return finishRemove(id);
+    if (d.evacuate[id]) return { ok: true, moving: true, titles: n };
+    // is there room on the others for all of it?
+    const others = inUseDrives().filter((x) => x.id !== id && x.answering && x.accepts && x.total);
+    const room = others.reduce((sum, x) => sum + Math.max(0, x.free - rules.reserveFor(x.total)), 0);
+    const u = d.usage[id];
+    if (!others.length) return { error: "There is no other drive in use to move them to — use another drive first." };
+    if (u && u.bytes > room) return { error: `Its titles take ${(u.bytes / 1e9).toFixed(0)} GB and the other drives have ${(room / 1e9).toFixed(0)} GB of room — free some space first.` };
+    d.evacuate[id] = { since: deps.now(), titles: n, moved: 0, left: n, why: null, noNewBefore: !!d.noNew[id] };
+    d.noNew[id] = true;
+    save();
+    console.log(`[drives] ${drive.mount}: moving its ${n} title${n === 1 ? "" : "s"} to the other drives, then it is removed`);
+    mover().kick({ force: true });
+    return { ok: true, moving: true, titles: n };
+  }
+  // "remove": only an empty drive (nothing in the library there)
+  if (n > 0) {
+    return answeringNow
+      ? { error: `Aurora still keeps ${n} title${n === 1 ? "" : "s"} there.`, titles: n, needsMove: true }
+      : { error: `The drive isn't answering and ${n} title${n === 1 ? "" : "s"} there would leave the library.`, titles: n, needsForce: true };
+  }
+  return finishRemove(id);
 };
 
 // ---------- "Use this drive too" ----------
@@ -676,17 +929,12 @@ const shortErr = (e) => String((e && e.message) || e || "").slice(0, 300);
 // as it is NOW on disk is read (a hand edit since the start is kept), a copy
 // of it is kept beside it, the new one goes to a temp file, is fsync'd, and
 // renamed over it.
-const addLibrariesToConfig = (adds) => {
+const writeConfig = (change) => {
   const file = deps.configFile();
   let raw = "{}";
   try { raw = fs.readFileSync(file, "utf8"); } catch (e) { if (e.code !== "ENOENT") throw e; }
   const cfg = JSON.parse(raw);
-  cfg.libraries = cfg.libraries && typeof cfg.libraries === "object" ? cfg.libraries : {};
-  for (const kind of ["movies", "shows"]) {
-    const list = Array.isArray(cfg.libraries[kind]) ? cfg.libraries[kind] : [];
-    for (const dir of adds[kind] || []) if (!list.some((x) => normDir(x) === normDir(dir))) list.push(dir);
-    cfg.libraries[kind] = list;
-  }
+  change(cfg);
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..*$/, "").replace("T", "-");
   const backup = `${file}.before-drive-${stamp}`;
   if (fs.existsSync(file)) fs.copyFileSync(file, backup);
@@ -703,6 +951,14 @@ const addLibrariesToConfig = (adds) => {
   fs.renameSync(tmp, file);
   return { file, backup };
 };
+const addLibrariesToConfig = (adds) => writeConfig((cfg) => {
+  cfg.libraries = cfg.libraries && typeof cfg.libraries === "object" ? cfg.libraries : {};
+  for (const kind of ["movies", "shows"]) {
+    const list = Array.isArray(cfg.libraries[kind]) ? cfg.libraries[kind] : [];
+    for (const dir of adds[kind] || []) if (!list.some((x) => normDir(x) === normDir(dir))) list.push(dir);
+    cfg.libraries[kind] = list;
+  }
+});
 
 const use = async (id) => {
   if (!live.mountsAt) await refreshMounts();
@@ -796,9 +1052,13 @@ const list = async ({ fresh = false } = {}) => {
       reserve: s.total ? rules.reserveFor(s.total) : null,
       paused: isPaused(drive.id),
       tune: tuneFacts(drive),
+      gone: !!drive.gone,
+      evacuating: d.evacuate && d.evacuate[drive.id] ? { since: d.evacuate[drive.id].since, left: d.evacuate[drive.id].left != null ? d.evacuate[drive.id].left : null, moved: d.evacuate[drive.id].moved || 0, why: d.evacuate[drive.id].why || null } : null,
     };
   });
 };
+// the admin's "Keep the fast drive…" switch and "Moved recently"
+const moverView = () => mover().view();
 
 const tuneFacts = (drive) => { try { return require("./tune").cardFacts(drive); } catch { return null; } };
 
@@ -811,10 +1071,10 @@ const summaryFacts = () => {
 };
 
 module.exports = {
-  start, stop, list, use, setNewDownloads, testAgain, pickRoot, candidatesFor, onPath, confirm, isDown, spaceOf, rootReadable, guard, unavailableFor, summaryFacts,
+  start, stop, list, use, setNewDownloads, testAgain, pickRoot, setKeepFast, stopUsing, moverView, mover, candidatesFor, onPath, confirm, isDown, spaceOf, rootReadable, guard, unavailableFor, summaryFacts,
   VIEWER_MESSAGE, PAUSED_MESSAGE, CODE,
   deps, limits,
   // for lib/drives/tune.js
   tuneSeams: { live, data, save, stateOf, check, refreshMounts, measureSpeed, testDirFor, dirsOn, pause, unpause, isPaused },
-  _internals: { live, data, round, check, refreshMounts, addLibrariesToConfig, stepAlert, pumpSpeed, queueSpeed, measureSpeed, measureUsage, topDirs, sweepDrive, pause, unpause, reset: () => { live.drives = []; live.state.clear(); live.mountsAt = 0; live.lazyAt = 0; live.speedQueue = []; live.speedRunning = null; live.swept.clear(); live.titles.by.clear(); for (const p of live.paused.values()) p.release(); live.paused.clear(); pending.clear(); for (const k of Object.keys(mem)) mem[k] = {}; store = null; } },
+  _internals: { live, data, round, check, refreshMounts, addLibrariesToConfig, stepAlert, pumpSpeed, queueSpeed, measureSpeed, measureUsage, topDirs, sweepDrive, finishRemove, inUseDrives, pause, unpause, reset: () => { live.drives = []; live.state.clear(); live.mountsAt = 0; live.lazyAt = 0; live.speedQueue = []; live.speedRunning = null; live.swept.clear(); if (moverInst) moverInst.stop(); moverInst = null; live.titles.by.clear(); for (const p of live.paused.values()) p.release(); live.paused.clear(); pending.clear(); for (const k of Object.keys(mem)) mem[k] = {}; store = null; } },
 };
