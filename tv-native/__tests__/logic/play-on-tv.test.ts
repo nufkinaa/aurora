@@ -177,14 +177,10 @@ describe('the screensaver is woken first', () => {
   const native = (wakeWorks: boolean) => {
     (NativeModules as Record<string, unknown>).AuroraRemote = {
       pressKey: async () => true,
+      // (the native side answers whether Aurora is in front after the wake)
       wake: async () => {
         calls.push('wake');
-        if (wakeWorks)
-          setTimeout(() => {
-            appState.currentState = 'active';
-            for (const fn of [...listeners]) fn('active');
-          }, 5);
-        return true;
+        return wakeWorks;
       },
       bringToFront: async () => {
         calls.push('bringToFront');

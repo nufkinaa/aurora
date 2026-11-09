@@ -62,7 +62,8 @@ export const nativeRemote = {
       return null;
     }
   },
-  /** The screen on (ends the TV's screensaver). False: not in this build, or refused. */
+  /** The screen on (ends the TV's screensaver); true when Aurora has the window within 1.5 s
+   *  (waited for natively). False: another app is in front, not in this build, or refused. */
   wake: async (): Promise<boolean> => {
     const m = mod();
     if (!m || typeof m.wake !== 'function') return false;
