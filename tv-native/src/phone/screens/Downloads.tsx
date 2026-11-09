@@ -9,9 +9,9 @@
 //
 // A server row's actions are the TV's and the site's (downloadsLogic.ts); its
 // words are shared with the TV page (downloadsWords.ts).
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Image, RefreshControl, ScrollView, StyleSheet, Text, View} from 'react-native';
-import {useIsFocused} from '@react-navigation/native';
+import {useIsFocused, useRoute} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {api, ApiError, HeroItem, MyDownload} from '../../api';
 import {useApp} from '../../AppContext';
@@ -55,6 +55,16 @@ function Row({pic, title, line, sub, pct, right, onPress, onLongPress, tone}: {p
 
 export default function Downloads() {
   const bar = useSolidBar();
+  // More → "My downloads" opens the page at its second list (`section: 'server'`);
+  // "Saved on this phone" at the top, where the phone's copies are
+  const section = (useRoute().params as {section?: 'server'} | undefined)?.section;
+  const scroller = useRef<ScrollView>(null);
+  const jumped = useRef(false);
+  const onServerHead = (y: number) => {
+    if (section !== 'server' || jumped.current) return;
+    jumped.current = true;
+    requestAnimationFrame(() => scroller.current?.scrollTo({y: Math.max(0, y - 64), animated: false}));
+  };
   const column = useColumn();
   const navigation = usePNav();
   const live = useIsFocused();
@@ -236,6 +246,7 @@ export default function Downloads() {
   return (
     <View style={s.root}>
       <ScrollView
+        ref={scroller}
         onScroll={bar.onScroll}
         scrollEventThrottle={32}
         contentContainerStyle={[{paddingTop: insets.top + 70, paddingBottom: bottom + 24}, column]}
@@ -257,7 +268,9 @@ export default function Downloads() {
         <Text style={s.hint}>{usage.count ? `${usage.count} saved · ${fmtSize(usage.bytes)} · ${fmtSize(usage.free)} free` : 'Save a film or an episode from its page to watch it with no connection.'}</Text>
         {phone.map(phoneRow)}
 
-        <Text style={s.h2}>My downloads</Text>
+        <Text style={s.h2} onLayout={e => onServerHead(e.nativeEvent.layout.y)}>
+          My downloads
+        </Text>
         {mine.length ? <Text style={s.summary}>{countLine(downloadCounts(mine))}</Text> : null}
         <Text style={s.hint}>What you asked the server to fetch. Tap one on its way to cancel it (it asks first); hold a row for everything you can do.</Text>
         {error ? <Text style={s.err}>{error}</Text> : null}

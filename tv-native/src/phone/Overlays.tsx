@@ -16,6 +16,7 @@ import RecommendSheet from './sheets/RecommendSheet';
 import {JoinPartySheet, ReportSheet} from './sheets/SmallSheets';
 import UpdateSheet from './sheets/UpdateSheet';
 import ProfileMenu from './ui/ProfileMenu';
+import MoreSheet from './sheets/MoreSheet';
 
 export default function PhoneOverlays() {
   const o = useOverlay();
@@ -71,6 +72,7 @@ export default function PhoneOverlays() {
       {o?.kind === 'report' ? <ReportSheet hint={o.hint} onClose={closeOverlay} /> : null}
       <UpdateSheet />
       <ProfileMenu />
+      <MoreSheet />
       <Toasts />
     </>
   );

@@ -571,7 +571,8 @@ const s = StyleSheet.create({
   heroMetaRow: {flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 11},
   heroMeta: {flexShrink: 1, color: colors.textDim, fontSize: 14.4, fontWeight: '600', lineHeight: 21.6},
   star: {color: colors.star, fontSize: 14.4, fontWeight: '800', lineHeight: 21.6},
-  heroBtns: {flexDirection: 'row', gap: 12, marginTop: 12},
+  // (wraps: with the phone's font turned up, Details goes under Play instead of off the edge)
+  heroBtns: {flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 12},
   heroBtn: {paddingHorizontal: 26},
   // .hero-dots: 7 dp dots 18 apart, the one on 22 wide and lit, 19 above the foot
   dots: {position: 'absolute', bottom: 19, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 18},
