@@ -21,7 +21,7 @@ const {colors, fontSize, spacing, radius} = theme;
 // one place to change: its cards say `since: ROUND`, and NEW_FROM = ROUND puts the New
 // ribbon on them alone. (The website has the same cards: public/js/screens/whatsnew.js,
 // ROUND there; its `webOnly` cards — AirPlay from an iPhone — have nothing to do on a TV.)
-export const ROUND = '5.9.0';
+export const ROUND = '5.9.1';
 const NEW_FROM = ROUND;
 const cmpVersion = (a: string, b: string) => {
   const pa = a.split('.').map(Number);
@@ -35,7 +35,7 @@ type Feature = {since?: string; glyph: string; title: string; what: string; how:
 export const FEATURES: Feature[] = [
   // ---- [play-on-tv] Play on TV / Continue on this phone: the same card, the same words, on the website ----
   {
-    since: ROUND,
+    since: '5.9.0',
     glyph: '📺',
     title: "Play on TV, and back to your phone",
     what: "Press Play on TV on a title, an episode or in the player, and the TV starts it at the same second: it wakes from its screensaver and opens your profile, asking for its PIN or password if it has one. Your phone or computer pauses and becomes the remote, and Continue on this phone brings it back.",
@@ -68,7 +68,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Go home', act: 'home'},
   },
   {
-    since: ROUND,
+    since: '5.9.0',
     glyph: '🍿',
     title: "Pick together",
     what: "What do we watch tonight? Start it on the TV, everyone joins with the code on their phone and swipes yes, maybe or no. Aurora shows what you all want, and one press plays it.",
@@ -76,7 +76,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Go home', act: 'home'},
   },
   {
-    since: ROUND,
+    since: '5.9.0',
     glyph: '🔤',
     title: "Hebrew subtitles for everything",
     what: "When a film or episode has no Hebrew subtitles, Aurora translates one with AI. It is called עברית (AI) in the subtitle menu and switches on by itself. Subtitles out of sync? Fix timing lines them up with what is said, and you can always go back to the file's own timing.",
@@ -84,7 +84,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Go home', act: 'home'},
   },
   {
-    since: ROUND,
+    since: '5.9.0',
     glyph: '🔎',
     title: "Search in Hebrew",
     what: "Type a title the way you say it, like פרנדס or ספיידרמן, or its Hebrew name, like שובר שורות, and Aurora finds it. Typed with the keyboard in the wrong language? It works that out too.",
@@ -92,7 +92,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Open Search', act: 'search'},
   },
   {
-    since: ROUND,
+    since: '5.9.0',
     glyph: '🌙',
     title: "Tonight's episodes, ready tomorrow",
     what: "Aurora now downloads the next episode of the shows you are watching ahead of time, and at night makes it ready for your device, so it starts faster.",
@@ -101,7 +101,7 @@ export const FEATURES: Feature[] = [
   },
   // ---- tv-reports-nov (2026-11-09: Bigmakdaddy's and Jesse's reports): the same cards, the same words, on the website ----
   {
-    since: ROUND,
+    since: '5.9.0',
     glyph: '⬇️',
     title: "Save & watch saves, then plays",
     what: "On a title that isn't on the server yet, Save & watch downloads the best copy and the page shows how far it has got; Play plays it once it is in. Nothing streams from a torrent by itself, and the Home billboard never starts a download for you.",
@@ -109,7 +109,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'My downloads', act: 'downloads'},
   },
   {
-    since: ROUND,
+    since: '5.9.0',
     glyph: '✍️',
     title: "Say what's wrong with a copy",
     what: "Pick Other under Problem with this copy and Aurora asks what is wrong first. Then you choose: get another version, or just send your words to the admin and keep the copy you have.",
@@ -118,7 +118,7 @@ export const FEATURES: Feature[] = [
   },
   // ---- downloads-next (2026-11-06): the same cards, the same words, on the website ----
   {
-    since: ROUND,
+    since: '5.9.0',
     glyph: '🎧',
     title: "Checked for the right language",
     what: "When a copy you reported as Wrong language arrives, Aurora reads its sound tracks first. If it is in the wrong language again, it is not swapped in and the next version is fetched. If the copy doesn't say its language, it is swapped in and Aurora tells you so.",
@@ -126,7 +126,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'My downloads', act: 'downloads'},
   },
   {
-    since: ROUND,
+    since: '5.9.0',
     glyph: '🔔',
     title: "Tell me when it's ready",
     what: "When something you asked for has downloaded, Aurora says so on the website, the TV and the phone. Switch it off once and it is off on every device you use.",

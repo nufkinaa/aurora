@@ -21,12 +21,12 @@ import { showReportSheet } from "../report.js";
 // (The TV has the same cards: tv-native/src/screens/WhatsNew.tsx, ROUND there.
 // A card about something only a browser has says `webOnly: true` first —
 // test/whatsnew-parity.test.js leaves it out of the comparison.)
-export const ROUND = "1.15.12";
+export const ROUND = "1.15.26";
 const NEW_FROM = ROUND;
 const FEATURES = [
   // ---- [play-on-tv] Play on TV / Continue on this phone: the same card, the same words, on the TV ----
   {
-    since: ROUND, cue: "tap", glyph: "📺",
+    since: "1.15.20", cue: "tap", glyph: "📺",
     title: "Play on TV, and back to your phone",
     what: "Press Play on TV on a title, an episode or in the player, and the TV starts it at the same second: it wakes from its screensaver and opens your profile, asking for its PIN or password if it has one. Your phone or computer pauses and becomes the remote, and Continue on this phone brings it back.",
     how: "Title page, an episode or the player → Play on TV. On the remote: Continue on this phone.",
@@ -55,28 +55,28 @@ const FEATURES = [
     go: { label: "Go home", to: "#/" },
   },
   {
-    since: ROUND, cue: "tap", glyph: "🍿",
+    since: "1.15.18", cue: "tap", glyph: "🍿",
     title: "Pick together",
     what: "What do we watch tonight? Start it on the TV, everyone joins with the code on their phone and swipes yes, maybe or no. Aurora shows what you all want, and one press plays it.",
     how: "Your profile menu → Pick together, or on the TV: AI → Pick together.",
     go: { label: "Pick together", to: "#/group" },
   },
   {
-    since: ROUND, cue: "tap", glyph: "🔤",
+    since: "1.15.17", cue: "tap", glyph: "🔤",
     title: "Hebrew subtitles for everything",
     what: "When a film or episode has no Hebrew subtitles, Aurora translates one with AI. It is called עברית (AI) in the subtitle menu and switches on by itself. Subtitles out of sync? Fix timing lines them up with what is said, and you can always go back to the file's own timing.",
     how: "In the player: Subtitles → עברית (AI), or Fix timing.",
     go: { label: "Go home", to: "#/" },
   },
   {
-    since: ROUND, cue: "tap", glyph: "🔎",
+    since: "1.15.17", cue: "tap", glyph: "🔎",
     title: "Search in Hebrew",
     what: "Type a title the way you say it, like פרנדס or ספיידרמן, or its Hebrew name, like שובר שורות, and Aurora finds it. Typed with the keyboard in the wrong language? It works that out too.",
     how: "Search → type in Hebrew, or use the microphone.",
     go: { label: "Open Search", to: "#/search" },
   },
   {
-    since: ROUND, cue: "tap", glyph: "🌙",
+    since: "1.15.17", cue: "tap", glyph: "🌙",
     title: "Tonight's episodes, ready tomorrow",
     what: "Aurora now downloads the next episode of the shows you are watching ahead of time, and at night makes it ready for your device, so it starts faster.",
     how: "Nothing to do: keep watching a show and its next episode is waiting.",
@@ -84,14 +84,14 @@ const FEATURES = [
   },
   // ---- tv-reports-nov (2026-11-09: Bigmakdaddy's and Jesse's reports): the same cards, the same words, on the TV ----
   {
-    since: ROUND, cue: "tap", glyph: "⬇️",
+    since: "1.15.14", cue: "tap", glyph: "⬇️",
     title: "Save & watch saves, then plays",
     what: "On a title that isn't on the server yet, Save & watch downloads the best copy and the page shows how far it has got; Play plays it once it is in. Nothing streams from a torrent by itself, and the Home billboard never starts a download for you.",
     how: "Open a title you don't have → Save & watch. My downloads shows it too.",
     go: { label: "My downloads", to: "#/downloads" },
   },
   {
-    since: ROUND, cue: "tap", glyph: "✍️",
+    since: "1.15.14", cue: "tap", glyph: "✍️",
     title: "Say what's wrong with a copy",
     what: "Pick Other under Problem with this copy and Aurora asks what is wrong first. Then you choose: get another version, or just send your words to the admin and keep the copy you have.",
     how: "In the player: ⚙ → Problem with this copy? → Other. Or on a film you own: Problem with this copy? under its buttons.",
@@ -99,14 +99,14 @@ const FEATURES = [
   },
   // ---- downloads-next (2026-11-06): the same cards, the same words, on the TV ----
   {
-    since: ROUND, cue: "tap", glyph: "🎧",
+    since: "1.15.12", cue: "tap", glyph: "🎧",
     title: "Checked for the right language",
     what: "When a copy you reported as Wrong language arrives, Aurora reads its sound tracks first. If it is in the wrong language again, it is not swapped in and the next version is fetched. If the copy doesn't say its language, it is swapped in and Aurora tells you so.",
     how: "In the player: Report a problem → Problem with this copy → Wrong language. The new copy is checked before it replaces yours.",
     go: { label: "My downloads", to: "#/downloads" },
   },
   {
-    since: ROUND, cue: "tap", glyph: "🔔",
+    since: "1.15.12", cue: "tap", glyph: "🔔",
     title: "Tell me when it's ready",
     what: "When something you asked for has downloaded, Aurora says so on the website, the TV and the phone. Switch it off once and it is off on every device you use.",
     how: "Settings → More settings → Downloads → Tell me when it's ready. For a notification with Aurora closed, also switch on Notifications on this device.",
