@@ -30,6 +30,21 @@
 // It only means something together with ?blur= (unblurred variants are WebP
 // already); any other value is ignored. Settings picked by measurement:
 // tools/art-format-bench.js.
+//
+// AVIF (2026-11-09, docs/qa/avif/REPORT.md): an unblurred variant for a
+// browser that says it decodes AVIF (`image/avif` in its Accept header — the
+// route passes `opts.avif`, see wantsAvif) or that asks with ?fmt=avif. The
+// same picture at a smaller size, settings chosen by measurement against
+// today's WebP (as good or better on SSIM, MS-SSIM and banding, crops looked
+// at). An AVIF encode costs several times a WebP's CPU, so it is NEVER waited
+// for: the first ask for a picture gets the WebP it always got (marked
+// `opts.avifPending`, so the route keeps that answer short-lived) and the
+// AVIF is made in the background — one at a time, only when no WebP/JPEG
+// variant is waiting, never while somebody's video is being encoded — for
+// the next ask. The TV and the phone apps never send image/avif (Fresco on
+// Android 9 has no AVIF decoder): they get exactly what they got before.
+// Blurred variants, and an ffmpeg without libaom-av1 or the avif muxer, are
+// never AVIF. The files sit beside the WebPs, under their own file cap.
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -76,6 +91,7 @@ const failed = new Map(); // out path -> failedAt (don't retry a broken source e
 const FAIL_TTL = 10 * 60 * 1000;
 const MAX_FILES = 6000;
 let writes = 0;
+let avifWrites = 0;
 
 // Snap a requested width onto the ladder (up, never down — the picture must
 // still cover the box it was asked for). Anything absurd → null (no variant).
@@ -94,6 +110,30 @@ const blurOf = (b) => {
 
 // ?fmt= → "webp" or "" (anything else: not asked for).
 const fmtOf = (f) => (typeof f === "string" && f.trim().toLowerCase() === "webp" ? "webp" : "");
+
+// Does this Accept header say AVIF? Only an explicit `image/avif` with a q
+// above zero counts — `image/*` and `*/*` do not (an Android image loader
+// that sends `*/*` cannot decode it).
+const acceptsAvif = (accept) => {
+  if (typeof accept !== "string" || !accept) return false;
+  for (const part of accept.toLowerCase().split(",")) {
+    const [type, ...params] = part.split(";").map((x) => x.trim());
+    if (type !== "image/avif") continue;
+    const q = params.find((x) => x.startsWith("q="));
+    return !q || parseFloat(q.slice(2)) > 0;
+  }
+  return false;
+};
+// Should this request get the AVIF? ?fmt=avif asks outright; ?fmt=webp (or
+// any other fmt, or a blur) says no; otherwise the Accept header decides.
+// `q`: the query ({ fmt, blur }); `accept`: the request's Accept header.
+const wantsAvif = (q, accept) => {
+  if (q && blurOf(q.blur)) return false;
+  const fmt = q && typeof q.fmt === "string" ? q.fmt.trim().toLowerCase() : q && q.fmt != null ? "?" : "";
+  if (fmt === "avif") return true;
+  if (fmt) return false;
+  return acceptsAvif(accept);
+};
 
 // THE FAST PATH (server round, 2026-10-18). A variant that was found or
 // made is remembered for TRUST_MS by what was asked (source, width, blur,
@@ -147,8 +187,14 @@ const waitStats = { waited: 0, gaveNearest: 0, gaveOriginal: 0 };
 
 // (asynchronous, a few files at a time: lib/dirsweep.js — the blocking
 // version held the event loop for the length of 6,000 stats)
+// (the AVIFs are counted apart, under their own cap: a browser's AVIFs never
+// push out the WebPs the TVs are sent)
+const isAvifName = (n) => n.endsWith(".avif");
 const sweep = () =>
-  require("./dirsweep").trim(DIR, { max: MAX_FILES, down: MAX_FILES - 500, onRemoved: () => { fast.clear(); bySrc.clear(); } }).catch(() => 0);
+  require("./dirsweep").trim(DIR, { max: MAX_FILES, down: MAX_FILES - 500, filter: (n) => !isAvifName(n), onRemoved: () => { fast.clear(); bySrc.clear(); } }).catch(() => 0);
+const AVIF_MAX_FILES = 6000;
+const sweepAvif = () =>
+  require("./dirsweep").trim(DIR, { max: AVIF_MAX_FILES, down: AVIF_MAX_FILES - 500, filter: isAvifName, onRemoved: () => { fast.clear(); bySrc.clear(); } }).catch(() => 0);
 
 const pump = () => {
   while (running < MAX_CONCURRENT && queue.length) {
@@ -161,23 +207,110 @@ const pump = () => {
     job.run().finally(() => {
       running--;
       pump();
+      pumpAvif();
     });
   }
 };
 // Is there room to wait? (the two limits above)
 const roomFor = (client) => queue.length < MAX_QUEUE && (client == null || (waitingOf.get(client) || 0) < MAX_QUEUE_CLIENT);
 
+// THE AVIF QUEUE (see the header). Nobody waits on it: a request that wants
+// an AVIF not made yet is answered with the WebP and puts the AVIF here.
+//   AVIF_CONCURRENT   encodes at once (libaom: several times a WebP's CPU)
+//   AVIF_QUEUE_MAX    waiting; past it the ask is not queued (and not looked
+//                     for again for AVIF_RETRY_MS — the WebP is the answer)
+// An AVIF encode starts only when no WebP/JPEG variant is being made or
+// waiting (somebody is waiting for those), and not while a viewer's video encode runs
+// (media/cpuwork.js) — then it is looked at again in AVIF_VIEWER_WAIT_MS.
+const AVIF_CONCURRENT = 1;
+const AVIF_QUEUE_MAX = 400;
+const AVIF_RETRY_MS = 30 * 1000;
+const AVIF_VIEWER_WAIT_MS = 5000;
+const avifQueue = [];
+let avifRunning = 0;
+let avifTimer = null;
+const avifInflight = new Map(); // `${src}|${w}|0|avif` -> promise
+const avifWait = new Map(); // same key -> not asked again before this time (failed, or the queue was full)
+const avifStats = { queued: 0, made: 0, failed: 0, full: 0, heldForViewers: 0 };
+const cpuworkLib = require("./lazy")(require, "../media/cpuwork");
+const avifDeps = { viewerBusy: () => { try { return cpuworkLib().viewer.busy(); } catch { return false; } } };
+const pumpAvif = () => {
+  while (avifRunning < AVIF_CONCURRENT && avifQueue.length) {
+    if (queue.length || running > 0) return; // pump() calls again when one ends
+    if (avifDeps.viewerBusy()) {
+      if (!avifTimer) {
+        avifStats.heldForViewers++;
+        avifTimer = setTimeout(() => { avifTimer = null; pumpAvif(); }, AVIF_VIEWER_WAIT_MS);
+        if (avifTimer.unref) avifTimer.unref();
+      }
+      return;
+    }
+    const job = avifQueue.shift();
+    avifRunning++;
+    job.run().finally(() => {
+      avifRunning--;
+      pumpAvif();
+    });
+  }
+};
+const avifLater = (k, ms) => {
+  if (avifWait.size > 4000) avifWait.clear();
+  avifWait.set(k, Date.now() + ms);
+};
+const rememberAvif = (k, file) => {
+  if (fast.size >= FAST_MAX) fast.delete(fast.keys().next().value);
+  fast.set(k, { out: file, at: Date.now() });
+  return file;
+};
+// Put an AVIF on the queue (once, however many ask). true: it is being made.
+const queueAvif = (src, out, w, k) => {
+  if (avifInflight.has(k)) return true;
+  if (avifQueue.length >= AVIF_QUEUE_MAX) {
+    avifStats.full++;
+    avifLater(k, AVIF_RETRY_MS);
+    return false;
+  }
+  const p = new Promise((resolve, reject) => {
+    avifQueue.push({ run: () => encode(src, out, w, 0).then(resolve, reject) });
+  });
+  avifInflight.set(k, p);
+  avifStats.queued++;
+  p.then(
+    (made) => { avifStats.made++; rememberAvif(k, made); },
+    () => { avifStats.failed++; avifLater(k, FAIL_TTL); },
+  ).finally(() => avifInflight.delete(k));
+  // (on the next turn: the WebP this same request is about to queue goes first)
+  setImmediate(pumpAvif);
+  return true;
+};
+
 // WebP when this ffmpeg has libwebp (every build we've seen does; a JPEG at
 // q4 otherwise). Same picture, roughly a third fewer bytes than the JPEG.
 // Probed once, asynchronously, at load — never a blocking call inside a
 // request; until the answer lands the odd early variant is a JPEG.
 let webp = false;
+// AVIF needs both libaom's AV1 encoder and the avif muxer (ffmpeg 6.0 on;
+// Ubuntu 24.04's 6.1 has both) — asked once, at load, like the WebP probe.
+let aom = false;
+let avifMux = false;
 if (config.FFMPEG) {
   execFile(config.FFMPEG, ["-hide_banner", "-encoders"], { windowsHide: true, timeout: 8000 }, (err, out) => {
     webp = !err && /\blibwebp\b/.test(String(out || ""));
+    // (and an ffmpeg new enough for libaom's still-picture and all-intra
+    // modes — an older one would fail every encode)
+    if (!err && /\blibaom-av1\b/.test(String(out || "")))
+      execFile(config.FFMPEG, ["-hide_banner", "-h", "encoder=libaom-av1"], { windowsHide: true, timeout: 8000 }, (e2, help) => {
+        aom = !e2 && /still-picture/.test(String(help || "")) && /allintra/.test(String(help || ""));
+      });
+  });
+  execFile(config.FFMPEG, ["-hide_banner", "-muxers"], { windowsHide: true, timeout: 8000 }, (err, out) => {
+    avifMux = !err && /^\s*E\s+avif\b/m.test(String(out || ""));
   });
 }
 const hasWebp = () => webp;
+// (`config.IMG_AVIF`: the admin's switch, on unless config.json says false;
+// WebP is the fallback, so no WebP encoder means no AVIF either)
+const hasAvif = () => !!(config.IMG_AVIF !== false && aom && avifMux && webp);
 
 // The filter chain. Blurred: to planar RGB first (boxblur on YUV would blur
 // the subsampled chroma planes at twice the reach), the two-pass box at the
@@ -211,17 +344,49 @@ const codecFor = (out, width, blur) =>
     ? ["-c:v", "libwebp", "-quality", width >= HERO_STEP ? "84" : "78", "-compression_level", "4"]
     : ["-q:v", "4"];
 
+// The AVIF encode — every choice measured (docs/qa/avif/REPORT.md: 29
+// real posters and backdrops from the library cache, 70 picture-and-width
+// pairs, decoded in Chrome, against today's WebP on SSIM, MS-SSIM, PSNR-HVS
+// and Netflix's banding score CAMBI, and crops looked at):
+//   - 4:2:0 8-bit, FULL range (as the JPEG sources are): the AVIF baseline
+//     profile, which every AVIF decoder reads; full range is what took the
+//     banding below the WebP's (limited range banded more than the WebP in
+//     dark skies and gradients; 10-bit shifted colours by a level in Chrome);
+//   - libaom's all-intra mode tuned for SSIM, speed 6 (speed 4: 6× the CPU
+//     for ~3% fewer bytes);
+//   - crf 24 up to 1280 px and crf 18 from HERO_STEP up (the WebP there is
+//     a finer q84 too): the highest crf at which the AVIF is as good as the
+//     WebP on every measure, on average and on nearly every picture —
+//     4–5% fewer bytes on posters, 17–18% on backdrops, ~19% on the hero;
+//   - explicit colour tags (sRGB primaries and curve, BT.601 matrix — the
+//     JPEG's) so no decoder has to guess;
+//   - two threads, below normal priority like every picture variant.
+const AVIF_CRF = 24;
+const AVIF_CRF_HERO = 18;
+const AVIF_CPU = 6;
+const AVIF_THREADS = 2;
+const avifCodec = (width) => [
+  "-c:v", "libaom-av1", "-still-picture", "1", "-usage", "allintra",
+  "-crf", String(width >= HERO_STEP ? AVIF_CRF_HERO : AVIF_CRF), "-cpu-used", String(AVIF_CPU), "-threads", String(AVIF_THREADS),
+  "-aom-params", "tune=ssim",
+  "-color_range", "pc", "-color_primaries", "bt709", "-color_trc", "iec61966-2-1", "-colorspace", "bt470bg",
+];
+const AVIF_TIMEOUT_MS = 60000;
+const avifFilter = (width) => `scale='min(${width},iw)':-2:out_range=full,format=yuv420p`;
+
 const encode = (src, out, width, blur = 0) =>
   new Promise((resolve, reject) => {
     const tmp = `${out}.tmp${path.extname(out)}`;
     // -2 keeps the height even (a JPEG requirement); q 4 / webp quality 78 are
     // visually transparent for artwork at these sizes.
-    const codec = codecFor(out, width, blur);
+    const isAvif = out.endsWith(".avif");
+    const codec = isAvif ? avifCodec(width) : codecFor(out, width, blur);
     const fmt = blur && out.endsWith(".webp") ? "webp" : "";
+    const vf = isAvif ? avifFilter(width) : filterFor(width, blur, fmt);
     // (started from a worker thread: lib/spawner.js — starting a process
     // blocked the event loop 50-90 ms each on a loaded Windows box)
     spawnerLib()
-      .run(config.FFMPEG, ["-v", "error", "-y", "-i", src, "-vf", filterFor(width, blur, fmt), "-frames:v", "1", ...codec, tmp], { timeoutMs: 20000, name: "picture variant", maxBuffer: 64 * 1024, lower: true })
+      .run(config.FFMPEG, ["-v", "error", "-y", "-i", src, "-vf", vf, "-frames:v", "1", ...codec, tmp], { timeoutMs: isAvif ? AVIF_TIMEOUT_MS : 20000, name: isAvif ? "picture variant (avif)" : "picture variant", maxBuffer: 64 * 1024, lower: true })
       .then((r) => {
         if (r.code !== 0) {
           fs.unlink(tmp, () => {});
@@ -229,7 +394,8 @@ const encode = (src, out, width, blur = 0) =>
         }
         fs.rename(tmp, out, (e) => {
           if (e) return reject(e);
-          if (++writes % 100 === 0) sweep();
+          if (isAvif) { if (++avifWrites % 100 === 0) sweepAvif(); }
+          else if (++writes % 100 === 0) sweep();
           resolve(out);
         });
       });
@@ -242,7 +408,10 @@ const encode = (src, out, width, blur = 0) =>
 // long-lived caches. `opts.client`: who is asking (for the per-client limit). `opts.blur` (see the header): pre-blurred, at
 // `width` or, with no usable width, at the original size. `opts.fmt`
 // "webp": that blurred variant as WebP (ignored without blur, and where this
-// ffmpeg has no libwebp — the JPEG is the answer then).
+// ffmpeg has no libwebp — the JPEG is the answer then). `opts.avif` (the
+// route's wantsAvif): the AVIF when it is made; when it is not, the variant
+// it would have been without, and `opts.avifPending` set while the AVIF is
+// on its way (the route caches that answer briefly).
 const variant = async (src, width, opts = {}) => {
   const w = snap(width);
   const blur = blurOf(opts && opts.blur);
@@ -251,7 +420,17 @@ const variant = async (src, width, opts = {}) => {
   const fastKey = `${src}|${w || 0}|${blur}|${fmt}`;
   const known = fast.get(fastKey);
   const now = Date.now();
-  if (known && now - known.at < TRUST_MS) { fastStats.hits++; return known.out; }
+  // The AVIF first, for an asker that can have it: made → sent; on its way →
+  // the WebP meanwhile; not known → looked for on disk below.
+  const avifKey = !blur && w && opts && opts.avif && hasAvif() ? `${src}|${w}|0|avif` : null;
+  let lookForAvif = false;
+  if (avifKey) {
+    const a = fast.get(avifKey);
+    if (a && now - a.at < TRUST_MS) { fastStats.hits++; return a.out; }
+    if (avifInflight.has(avifKey)) opts.avifPending = true;
+    else if (now >= (avifWait.get(avifKey) || 0)) lookForAvif = true;
+  }
+  if (known && now - known.at < TRUST_MS && !lookForAvif) { fastStats.hits++; return known.out; }
   fastStats.misses++;
   let st;
   try {
@@ -279,6 +458,15 @@ const variant = async (src, width, opts = {}) => {
     noteSize(src, w, blur, fmt, file);
     return file;
   };
+  if (lookForAvif) {
+    // (the same key as the WebP's: the same source, the same width)
+    const avifOut = path.join(DIR, `${key}-w${w}.avif`);
+    try {
+      if (fs.statSync(avifOut).size > 512) return rememberAvif(avifKey, avifOut);
+    } catch {}
+    if (queueAvif(src, avifOut, w, avifKey)) opts.avifPending = true;
+    if (known && now - known.at < TRUST_MS) return known.out;
+  }
   try {
     if (fs.statSync(out).size > 512) return remember(out);
   } catch {}
@@ -328,4 +516,7 @@ const variant = async (src, width, opts = {}) => {
 };
 const LATE = Symbol("late");
 
-module.exports = { variant, snap, blurOf, fmtOf, filterFor, blurChain, codecFor, hasWebp, LADDER, MAX_BLUR, DIR, MAX_QUEUE, MAX_QUEUE_CLIENT, TRUST_MS, MAX_WAIT_MS, forget: () => { fast.clear(); bySrc.clear(); }, _internals: { queue, waitingOf, shedStats, waitStats, roomFor, inflight, fast, fastStats, sweep, nearest, bySrc } };
+// The AVIF side, for the admin's health numbers.
+const avifStatus = () => ({ on: hasAvif(), waiting: avifQueue.length, running: avifRunning, ...avifStats });
+
+module.exports = { variant, snap, blurOf, fmtOf, acceptsAvif, wantsAvif, filterFor, blurChain, codecFor, hasWebp, hasAvif, avifStatus, avifFilter, avifCodec, LADDER, MAX_BLUR, DIR, MAX_QUEUE, MAX_QUEUE_CLIENT, TRUST_MS, MAX_WAIT_MS, AVIF_MAX_FILES, forget: () => { fast.clear(); bySrc.clear(); avifWait.clear(); }, _internals: { queue, waitingOf, shedStats, waitStats, roomFor, inflight, fast, fastStats, sweep, sweepAvif, nearest, bySrc, avifQueue, avifInflight, avifWait, avifStats, avifDeps, pumpAvif, probe: { set: (v) => { if ("aom" in v) aom = v.aom; if ("avifMux" in v) avifMux = v.avifMux; if ("webp" in v) webp = v.webp; }, get: () => ({ aom, avifMux, webp }) } } };

@@ -248,6 +248,10 @@ module.exports = {
   // (media/faststart.js — nothing on disk changes). "serveFaststart": false
   // serves every file byte for byte as it is.
   SERVE_FASTSTART: userConfig.serveFaststart !== false,
+  // AVIF picture variants for the browsers that ask for them (lib/imgvariant.js;
+  // docs/qa/avif/REPORT.md). Made in the background, WebP until then; the TV
+  // and phone apps never ask. false (or AURORA_IMG_AVIF=0): WebP for everyone.
+  IMG_AVIF: process.env.AURORA_IMG_AVIF !== "0" && userConfig.imgAvif !== false,
   // What kind of disk a library root is, when the OS's answer is wrong or
   // missing (lib/disktype.js): { "<path prefix>": "hdd" | "ssd" | "network" }.
   DISK_TYPES: userConfig.diskTypes && typeof userConfig.diskTypes === "object" ? userConfig.diskTypes : null,

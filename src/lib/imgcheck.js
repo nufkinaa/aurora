@@ -17,6 +17,9 @@ const sniffMime = (b) => {
   if (b[0] === 0x89 && b[1] === 0x50) return "image/png";
   if (b[0] === 0x52 && b[1] === 0x49) return "image/webp";
   if (b[0] === 0x47 && b[1] === 0x49) return "image/gif";
+  // (an AVIF is only ever one of the server's own picture variants —
+  // lib/imgvariant.js; magicOk does not take one from a picture host)
+  if (b.length >= 12 && b.toString("latin1", 4, 8) === "ftyp" && /^avi[fs]$/.test(b.toString("latin1", 8, 12))) return "image/avif";
   return "application/octet-stream";
 };
 
