@@ -125,7 +125,7 @@ One reader with `rsize=65536` asks the server for 64 KiB at a time and waits for
 - **`nconnect=4`**: four TCP connections to the server instead of one (kernel 5.3+; nufurora runs 6.8). Helps several viewers at once.
 - **`vers=4.1`** if netcup offers it (then `nolock` is not needed: locking is built into v4).
 
-**A remount is not enough**: `mount -o remount` does not change these. Edit the line in `/etc/fstab`, then, with nobody watching from the drive:
+**A remount is not enough**: `mount -o remount` does not change these. Edit the line in `/etc/fstab` (or let Aurora do it: *Tune this network drive from the admin* below), then, with nobody watching from the drive:
 
 ```
 sudo systemctl daemon-reload
@@ -158,6 +158,49 @@ rm -f $F $R
 ```
 
 The last figure (four readers together) is the one Aurora scores a network drive by.
+
+## Tune this network drive from the admin
+
+The change above, without SSH: on an NFS drive's card (Linux servers, `nfs` / `nfs4` drives Aurora uses), **Tune this network drive**.
+
+- **The preview** shows the line in `/etc/fstab` now, what is in force (`findmnt`), and what changes: `rsize=1048576,wsize=1048576,nconnect=4` and the safety set `_netdev,nofail,x-systemd.mount-timeout=30s,soft,timeo=100,retrans=2` (replacing `hard`; the line's other options — `vers`, `proto`, `nolock`, … — stay as they are).
+- **Tune it now** works only while nobody plays from that drive (it says so otherwise). For about three minutes Aurora pauses the drive: a viewer who opens one of its titles is told at once that the drive is being tuned (no outage alert), the scanner leaves its titles alone, new downloads go to the other drives, and a download that comes to land there waits (one already copying there is waited for first). Then: the speed check, the helper changes the mount, Aurora waits for the drive to answer, the speed check again. New downloads are then as they were before.
+- **The result** on the card: for example *Faster: read 22 → 95 MB/s for 4 viewers together*. If the server agreed to a smaller `rsize`, the card says the real figure. Not faster (less than 10% better)? **Put it back** puts the line back as it was before the first tune — the same pause, umount, mount and speed checks.
+- If Aurora restarts in the middle, new downloads are put back as they were at its next start, and the card says what happened. The helper itself puts the old line back when the new one doesn't mount, or when it is stopped half-way.
+
+### The root helper, and the one-time setup
+
+Changing mount options needs root, and Aurora runs as the unprivileged user `elia`. Aurora never gets root: it may run ONE fixed-purpose script, `scripts/nufurora/aurora-mount-helper`, through `sudo -n` (never a password prompt; `execFile`, never a shell). The card shows these two commands (with this server's real paths and user) and a **Copy** button when the helper or its sudo rule is missing. Run them once, over SSH, from the server:
+
+```
+sudo install -o root -g root -m 0755 /home/elia/aurora/scripts/nufurora/aurora-mount-helper /usr/local/sbin/aurora-mount-helper
+t=$(mktemp) && echo 'elia ALL=(root) NOPASSWD: /usr/local/sbin/aurora-mount-helper' > "$t" && sudo visudo -cf "$t" && sudo install -o root -g root -m 0440 "$t" /etc/sudoers.d/aurora-mount; rm -f "$t"
+```
+
+- The first copies the helper to a root-owned place. **It never runs from the repo**: Aurora's own user can write the repo, so a root script there would be root for anyone who can change Aurora's files. A `git pull` does not change the installed copy; when the repo's helper is newer (its `VERSION=` line), the card says *Update the mount helper* and shows the same command.
+- The second allows Aurora's user that one file and nothing else, checked by `visudo` before it goes in (a broken sudoers file can lock sudo).
+- Check: `sudo -n /usr/local/sbin/aurora-mount-helper status /mnt/storagespace` prints one line of JSON.
+
+**What the helper can do** (one line of JSON out each time):
+
+| command | what |
+|---|---|
+| `status <mountpoint>` | the line's options, what is in force, what `tuned` would write, whether there is a line to go back to |
+| `apply <mountpoint> tuned` | the preset above on that one line; back-up of the fstab (timestamped, the ten newest kept in `/var/lib/aurora-mount-helper/`), `systemctl daemon-reload`, `umount`, `mount`, checked with `findmnt` |
+| `revert <mountpoint>` | the line exactly as it was before the helper's first change (kept in `/var/lib/aurora-mount-helper/`) |
+
+**What it can't do**: take options from the caller (only the preset names written in it — today `tuned`); touch any other line, or a line that is not `nfs`/`nfs4`, or a commented one; add or remove lines; take a mount point that isn't a plain absolute path (letters, digits, `. _ - /`, no `..`, not a system folder); unmount lazily or by force — a busy drive is left alone and nothing changes; run from a file that isn't root-owned; run as anyone but root. When the new options don't mount, it puts the old fstab back and mounts the drive the old way. One change at a time (a lock).
+
+Its test mode (fake fstab, stub `mount`/`umount`/`findmnt`/`systemctl`: `test/drives-mount-helper.test.js`) is refused as root and under sudo — sudo drops the variables anyway (`env_reset`, and the rule has no `SETENV`), and the helper does not trust them if they get through.
+
+**To remove it**:
+
+```
+sudo rm /etc/sudoers.d/aurora-mount /usr/local/sbin/aurora-mount-helper
+sudo rm -r /var/lib/aurora-mount-helper     # its fstab backups and the kept original line
+```
+
+The fstab line stays as it is; to go back first, press **Put it back** (or put the line back by hand from a backup in `/var/lib/aurora-mount-helper/`).
 
 ## Network drives that stop answering (NFS safety)
 
@@ -233,8 +276,10 @@ To apply a changed line: stop Aurora (or make sure nobody is watching), then run
 | `src/lib/drives/rules.js` | reserve, pick, score, when to alert (pure) |
 | `src/lib/drives/run.js` | a child process with a deadline, one per drive at a time |
 | `src/lib/drives/probe-child.js` | the only code that touches a network drive |
-| `data/drives.json` | scores, Aurora's share, "no new downloads", alert state |
-| routes | `GET /api/admin/drives`, `POST /api/admin/drives/use`, `…/new-downloads`, `…/test` |
-| tests | `test/drives-mounts.test.js`, `test/drives-rules.test.js`, `test/drives-hang.test.js`, `test/drives-speed.test.js`, `test/ui/admin-drives.test.js` |
+| `src/lib/drives/tune.js` | "Tune this network drive": the preview, the run, the setup commands |
+| `scripts/nufurora/aurora-mount-helper` | the root helper (installed once to `/usr/local/sbin`) |
+| `data/drives.json` | scores, Aurora's share, "no new downloads", alert state, the last tune |
+| routes | `GET /api/admin/drives`, `POST /api/admin/drives/use`, `…/new-downloads`, `…/test`, `…/tune/preview`, `…/tune`, `…/tune/revert` |
+| tests | `test/drives-mounts.test.js`, `test/drives-rules.test.js`, `test/drives-hang.test.js`, `test/drives-speed.test.js`, `test/drives-tune.test.js`, `test/drives-mount-helper.test.js`, `test/ui/admin-drives.test.js`, `test/ui/admin-drives-tune.test.js` |
 
 Test seam: `AURORA_DRIVES_EXTRA='[{"path":"…","network":true}]'` makes folders count as drives of their own, and `AURORA_DRIVES_FAKE_HANG=<path>` makes the probe child never answer for paths under it. `AURORA_DRIVES_FAKE_SLOW_MS_PER_MB=<ms>` makes every MB the speed check writes or reads take that much longer. All are for private test servers only.

@@ -122,18 +122,44 @@ const deps = {
     } catch { return 0; }
   },
   stagingRoot: () => { try { return require("../../media/aria2").STAGING_ROOT; } catch { return path.join(os.tmpdir(), "aurora-downloads"); } },
+  // titles played from `drive` in the last `ms` (every byte request stamps its
+  // library id in lib/inuse; a player that plays asks every few seconds)
+  playingOn: (drive, ms = 2 * MIN) => {
+    let n = 0;
+    try {
+      const seen = require("../inuse")._internals.seen;
+      const scanner = require("../../media/scanner");
+      const t = Date.now();
+      for (const [id, at] of seen) {
+        if (t - at >= ms) continue;
+        const e = scanner.resolve(id);
+        const on = e && e.path && mounts.driveOf(e.path, live.drives, deps.platform());
+        if (on && on.id === drive.id) n++;
+      }
+    } catch {}
+    return n;
+  },
+  // downloads being copied onto `drive` right now (their last step, "landing")
+  landingsOn: (drive) => {
+    try {
+      return require("../../media/downloads").rawJobs().filter((j) => j && j.status === "downloading" && j.phase === "copying" && j.destRoot && (() => {
+        const on = mounts.driveOf(j.destRoot, live.drives, deps.platform());
+        return on && on.id === drive.id;
+      })()).length;
+    } catch { return 0; }
+  },
 };
 
 // ---------- the store (data/drives.json) ----------
 let store = null;
-const mem = { scores: {}, noNew: {}, usage: {}, added: {}, alerts: {} };
+const mem = { scores: {}, noNew: {}, usage: {}, added: {}, alerts: {}, tunes: {} };
 const data = () => (store ? store.data : mem);
 const save = () => { if (store) store.save(); };
 const openStore = () => {
   if (store) return store;
   try {
     const { JsonStore } = require("../jsonstore");
-    store = new JsonStore(path.join(configLib().DATA_DIR, "drives.json"), { scores: {}, noNew: {}, usage: {}, added: {}, alerts: {} });
+    store = new JsonStore(path.join(configLib().DATA_DIR, "drives.json"), { scores: {}, noNew: {}, usage: {}, added: {}, alerts: {}, tunes: {} });
     for (const k of Object.keys(mem)) if (!store.data[k] || typeof store.data[k] !== "object") store.data[k] = {};
   } catch { store = null; }
   return store;
@@ -153,7 +179,29 @@ const live = {
   usageRunning: new Set(),
   swept: new Set(), // drives whose leftover test files were looked for since the start
   titles: { at: 0, by: new Map() },
+  // drives Aurora keeps its hands off for a while (lib/drives/tune.js: the
+  // drive is unmounted and mounted again). id -> { why, since, done, release }
+  paused: new Map(),
 };
+// While a drive is paused: nobody plays from it (a fast "being tuned"
+// answer), the scanner leaves its titles as they are (the mount point may be
+// an empty folder for a moment), no round looks at it, a landing waits.
+const isPaused = (id) => live.paused.has(id);
+const pause = (id, why) => {
+  if (live.paused.has(id)) return live.paused.get(id);
+  let release;
+  const done = new Promise((r) => { release = r; });
+  const p = { why, since: deps.now(), done, release };
+  live.paused.set(id, p);
+  return p;
+};
+const unpause = (id) => {
+  const p = live.paused.get(id);
+  if (!p) return;
+  live.paused.delete(id);
+  p.release();
+};
+const PAUSED_MESSAGE = "This title's storage drive is being tuned for a few minutes — try again shortly.";
 const stateOf = (id) => {
   let s = live.state.get(id);
   if (!s) { s = { total: null, free: null, used: null, at: 0, answering: null, downSince: 0, why: null, roots: {}, lastOkAt: 0 }; live.state.set(id, s); }
@@ -197,6 +245,13 @@ const refreshMounts = async () => {
     const mount = path.resolve(x.path);
     list.push({ id: mount, mount, source: x.source || mount, fstype: x.network ? "nfs" : "folder", network: !!x.network, readOnly: false, hard: !!x.network, options: [], label: x.label || null, extra: true });
   }
+  // a paused drive may be unmounted this very moment: it stays on the list
+  // (else its folders would count as the system disk's, and look empty)
+  for (const id of live.paused.keys()) {
+    if (list.some((d) => d.id === id)) continue;
+    const old = live.drives.find((d) => d.id === id);
+    if (old) list.push(old);
+  }
   live.drives = list;
   live.mountsAt = deps.now();
   return list;
@@ -223,8 +278,10 @@ const markUp = (drive) => {
   stepAlert(drive);
 };
 
-const check = async (drive) => {
+const check = async (drive, { force = false } = {}) => {
   const s = stateOf(drive.id);
+  // (paused: its mount point may be an empty folder for a moment — not a fact about the drive)
+  if (isPaused(drive.id) && !force) return s;
   const roots = dirsOn(drive).filter((d) => d.kind === "movies" || d.kind === "shows").map((d) => d.dir);
   if (!drive.network) {
     // (a local disk does not hang the way a network one does — but a dying
@@ -312,7 +369,7 @@ const topDirs = (dirs) => {
   return out;
 };
 const measureUsage = async (drive) => {
-  if (live.usageRunning.has(drive.id)) return;
+  if (live.usageRunning.has(drive.id) || isPaused(drive.id)) return;
   const dirs = dirsOn(drive).map((d) => d.dir);
   if (!dirs.length) return;
   // (nested folders — the staging folder inside the data folder — and the
@@ -375,8 +432,20 @@ const pumpSpeed = async () => {
   const id = live.speedQueue.shift();
   const drive = live.drives.find((d) => d.id === id);
   const dir = drive && testDirFor(drive);
-  if (!drive || !dir || stateOf(id).answering === false) return setImmediate(pumpSpeed);
+  // (a paused drive is being measured by whoever paused it)
+  if (!drive || !dir || stateOf(id).answering === false || isPaused(id)) return setImmediate(pumpSpeed);
+  await measureSpeed(drive);
+};
+// One speed check of `drive`, now (the queue's, and the tune's before and
+// after): kept as the drive's score. -> { score, measured } | { error }
+// The caller makes sure nobody watches and no other check runs (speedRunning
+// is set before the first await, so the queue can't start one beside it).
+const measureSpeed = async (drive) => {
+  const id = drive.id;
+  const dir = testDirFor(drive);
+  if (!dir) return { error: "Use this drive first — the speed check writes in Aurora's folder there." };
   live.speedRunning = id;
+  let out = { error: "the speed check failed" };
   const lim = drive.network ? limits.speed.network : limits.speed.local;
   const key = `${id}:speed`;
   try {
@@ -389,22 +458,25 @@ const pumpSpeed = async () => {
     if (sc) {
       data().scores[id] = { ...sc, measured: measuredOf(m), at: deps.now() };
       save();
+      out = { score: data().scores[id], measured: data().scores[id].measured };
       console.log(`[drives] speed of ${drive.mount}: ${sc.value} (${sc.word})${m.partial ? " [partly measured]" : ""} — write ${round1(m.writeMBps)} MB/s, read ${round1(m.readMBps)} MB/s (${m.readMethod || "?"}), ${m.parallelReaders || "?"} readers together ${round1(m.parallelMBps)} MB/s, ${Math.round(m.iops || 0)} random reads/s`);
     } else {
       data().scores[id] = { ...(data().scores[id] || {}), error: res && res.timeout ? "the speed check ran out of time before it could measure anything" : (res && res.error) || "the speed check failed", errorAt: deps.now() };
       save();
+      out = { error: data().scores[id].error };
     }
     if (res && res.timeout) {
       // the killed check's test file goes once the child has; then the drive
       // is asked whether it answers — a slow check is not a drive that is down
       await run.settled(key).catch(() => {});
       await sweepDrive(drive, res.pid ? [res.pid] : []).catch(() => {});
-      await check(drive).catch(() => {});
+      await check(drive, { force: true }).catch(() => {});
     }
   } finally {
     live.speedRunning = null;
     setImmediate(pumpSpeed);
   }
+  return out;
 };
 const round1 = (v) => (v == null ? null : Math.round(v * 10) / 10);
 const round2 = (v) => (v == null ? null : Math.round(v * 100) / 100);
@@ -416,6 +488,7 @@ const round = async ({ all = false } = {}) => {
   const mountsEvery = deps.platform() === "win32" ? 5 * MIN : MOUNTS_MS;
   if (all || now - live.mountsAt >= mountsEvery || !live.mountsAt) await refreshMounts();
   for (const d of live.drives) {
+    if (isPaused(d.id)) continue;
     const s = stateOf(d.id);
     const inUse = dirsOn(d).some((x) => x.kind === "movies" || x.kind === "shows");
     const every = d.network ? (inUse ? NET_CHECK_MS : NET_IDLE_CHECK_MS) : LOCAL_CHECK_MS;
@@ -436,6 +509,8 @@ const start = () => {
   if (live.started) return;
   live.started = true;
   openStore();
+  // a tune the last run did not finish: new downloads as they were, and said on the card
+  try { require("./tune").recover(); } catch (e) { console.warn(`[drives] tune recovery: ${(e && e.message) || e}`); }
   // (one round at a time: a check that waits for its deadline must not start a second round behind it)
   const tick = () => {
     if (live.rounding) return;
@@ -463,12 +538,22 @@ const onPath = (abs) => {
   const drive = mounts.driveOf(abs, live.drives, deps.platform());
   if (!drive) return null;
   const s = stateOf(drive.id);
-  return { drive, network: !!drive.network, answering: s.answering !== false, state: s };
+  const paused = isPaused(drive.id);
+  return { drive, network: !!drive.network, answering: s.answering !== false && !paused, paused, state: s };
 };
-// onPath, after a fresh check of a network drive (a download about to land there)
+// onPath, after a fresh check of a network drive (a download about to land
+// there). A paused drive: the landing waits until it is back (at most 15 min).
+const LANDING_WAIT_MS = 15 * MIN;
 const confirm = async (abs) => {
-  const o = onPath(abs);
+  let o = onPath(abs);
   if (!o || !o.network) return o;
+  if (o.paused) {
+    const p = live.paused.get(o.drive.id);
+    let t;
+    await Promise.race([p.done, new Promise((r) => { t = setTimeout(r, LANDING_WAIT_MS); t.unref?.(); })]).finally(() => clearTimeout(t));
+    o = onPath(abs);
+    if (o && o.paused) return o;
+  }
   await check(o.drive).catch(() => {});
   return onPath(abs);
 };
@@ -502,6 +587,8 @@ const pending = new Map(); // drive id -> stats out
 const guard = async (abs, who = null) => {
   const o = onPath(abs);
   if (!o || !o.network) return { ok: true };
+  // being tuned: a fast answer, and no outage (nobody is told it is down)
+  if (o.paused) return { ok: false, status: 503, code: CODE, message: PAUSED_MESSAGE };
   const blocked = () => {
     noteViewer(o.drive, who);
     return { ok: false, status: 503, code: CODE, message: VIEWER_MESSAGE };
@@ -537,7 +624,11 @@ const noteViewer = (drive, who) => {
 };
 
 // the item record's mark (GET /api/item/:id): a title whose file is on a drive that is down
-const unavailableFor = (abs) => (isDown(abs) ? { code: CODE, message: VIEWER_MESSAGE } : null);
+const unavailableFor = (abs) => {
+  if (!isDown(abs)) return null;
+  const o = onPath(abs);
+  return { code: CODE, message: o && o.paused ? PAUSED_MESSAGE : VIEWER_MESSAGE };
+};
 
 // ---------- where new downloads go ----------
 const acceptsNew = (id) => !data().noNew[id];
@@ -703,9 +794,13 @@ const list = async ({ fresh = false } = {}) => {
       testing: live.speedRunning === drive.id ? "running" : live.speedQueue.includes(drive.id) ? (live.speedWaiting || "queued") : null,
       titles: inUse ? titlesOn(drive) : 0,
       reserve: s.total ? rules.reserveFor(s.total) : null,
+      paused: isPaused(drive.id),
+      tune: tuneFacts(drive),
     };
   });
 };
+
+const tuneFacts = (drive) => { try { return require("./tune").cardFacts(drive); } catch { return null; } };
 
 // for the admin summary (lib/adminsummary.js): the drives in use
 const summaryFacts = () => {
@@ -717,7 +812,9 @@ const summaryFacts = () => {
 
 module.exports = {
   start, stop, list, use, setNewDownloads, testAgain, pickRoot, candidatesFor, onPath, confirm, isDown, spaceOf, rootReadable, guard, unavailableFor, summaryFacts,
-  VIEWER_MESSAGE, CODE,
+  VIEWER_MESSAGE, PAUSED_MESSAGE, CODE,
   deps, limits,
-  _internals: { live, data, round, check, refreshMounts, addLibrariesToConfig, stepAlert, pumpSpeed, queueSpeed, measureUsage, topDirs, sweepDrive, reset: () => { live.drives = []; live.state.clear(); live.mountsAt = 0; live.lazyAt = 0; live.speedQueue = []; live.speedRunning = null; live.swept.clear(); live.titles.by.clear(); pending.clear(); for (const k of Object.keys(mem)) mem[k] = {}; store = null; } },
+  // for lib/drives/tune.js
+  tuneSeams: { live, data, save, stateOf, check, refreshMounts, measureSpeed, testDirFor, dirsOn, pause, unpause, isPaused },
+  _internals: { live, data, round, check, refreshMounts, addLibrariesToConfig, stepAlert, pumpSpeed, queueSpeed, measureSpeed, measureUsage, topDirs, sweepDrive, pause, unpause, reset: () => { live.drives = []; live.state.clear(); live.mountsAt = 0; live.lazyAt = 0; live.speedQueue = []; live.speedRunning = null; live.swept.clear(); live.titles.by.clear(); for (const p of live.paused.values()) p.release(); live.paused.clear(); pending.clear(); for (const k of Object.keys(mem)) mem[k] = {}; store = null; } },
 };

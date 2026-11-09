@@ -893,6 +893,16 @@
     .drv-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     .drv-acts .mini.go { background: var(--accent-strong); color: #fff; }
     @media (max-width: 640px) { .drv-acts .mini { flex: 1; } }
+    /* "Tune this network drive" (lib/drives/tune.js) */
+    .drv-tune { margin-top: 12px; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); }
+    .drv-tune-h { font-weight: 800; margin-bottom: 2px; }
+    .drv-tune code { font-size: 0.78rem; overflow-wrap: anywhere; word-break: break-all; color: var(--text); }
+    .drv-opts { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 5px; }
+    .drv-opt { font-size: 0.76rem; padding: 2px 7px; border-radius: 999px; overflow-wrap: anywhere; }
+    .drv-opt.add { background: rgba(80, 200, 120, 0.14); color: #6ee7a0; }
+    .drv-opt.rm { background: rgba(248, 113, 113, 0.12); color: #f9a3a3; text-decoration: line-through; }
+    .drv-cmd { margin: 8px 0 0; padding: 10px; border-radius: 10px; background: rgba(0,0,0,0.35); font: 0.76rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-all; color: var(--text); user-select: all; }
+    .drv-line.good { color: #6ee7a0; font-weight: 700; }
   </style>
 </head>
 <body>
@@ -5209,6 +5219,65 @@
       if (d.scoreError) return `Speed check: ${esc(d.scoreError)}.`;
       return d.inUse ? "Speed: not tested yet." : "Speed: tested when you start using it.";
     };
+    // "Tune this network drive" (lib/drives/tune.js, docs/storage-drives.md):
+    // the preview opens inside the card; the run follows the drives list.
+    let DRV_TUNE = null; // { id, loading, p } — the open preview
+    const drvTuneOn = (d) => !!(d.tune && d.tune.supported && d.inUse);
+    // (a break allowed after each comma: the options wrap between words, not inside one)
+    const drvOptsCode = (o) => esc(o || "").replace(/,/g, ",<wbr>");
+    const drvOptChips = (list, cls, sign) => list.map((o) => `<span class="drv-opt ${cls}">${sign} ${esc(o)}</span>`).join("");
+    const drvTuneLine = (d) => {
+      const t = d.tune;
+      if (!t) return "";
+      if (t.running) return `<div class="drv-line" data-drv-tune-state="running">${t.running.action === "revert" ? "Putting the old mount options back" : "Tuning the mount"}: ${esc(t.running.words || "")}… Nobody can watch from this drive until it is done (about three minutes).</div>`;
+      const l = t.last;
+      if (!l) return "";
+      const when = l.at ? hhmmShort(l.at) : "";
+      const cls = !l.ok ? "bad" : l.action === "apply" && l.better ? "good" : "";
+      return `<div class="drv-line${cls ? " " + cls : ""}" data-drv-tune-state="${l.ok ? (l.action === "apply" && !l.better ? "not-better" : "done") : "failed"}">${l.action === "revert" ? "Put back" : "Tuned"}${when ? ` at ${esc(when)}` : ""}${l.ok ? "" : " — did not work"}: ${esc(l.message || "")}</div>`;
+    };
+    const drvTunePanel = (d) => {
+      if (!DRV_TUNE || DRV_TUNE.id !== d.id) return "";
+      const id = esc(d.id);
+      const close = `<button class="mini" data-drv-act="tune-close" data-id="${id}">Cancel</button>`;
+      if (DRV_TUNE.loading) return `<div class="drv-tune"><div class="drv-tune-h">Tune this network drive</div><div class="drv-line">Asking the server…</div></div>`;
+      const p = DRV_TUNE.p || {};
+      if (p.error) return `<div class="drv-tune"><div class="drv-tune-h">Tune this network drive</div><div class="drv-line bad">${esc(p.error)}</div><div class="drv-acts">${close}</div></div>`;
+      if (p.installed === false || p.outdated) {
+        const cmds = (p.setup && p.setup.commands) || [];
+        return `<div class="drv-tune" data-drv-tune="setup">
+          <div class="drv-tune-h">${p.outdated ? "Update the mount helper" : "One-time setup on the server"}</div>
+          <div class="drv-line">${p.outdated
+            ? "A newer mount helper is in Aurora's folder. Run these once more on the server to update it."
+            : `${p.missing === "sudo" ? "The mount helper is there, but Aurora isn't allowed to run it yet." : "The mount helper isn't installed on this server yet."} Run these two commands once on the server (over SSH). After that, Aurora tunes the drive by itself — no SSH again.`}</div>
+          <pre class="drv-cmd">${esc(cmds.join("\n"))}</pre>
+          <div class="drv-line" style="font-size:0.78rem;color:var(--text-faint)">The first copies the helper to /usr/local/sbin, owned by root (Aurora can't change it there). The second lets Aurora's user run that one file with sudo — nothing else — and is checked by visudo before it goes in. To remove it: docs/storage-drives.md.</div>
+          <div class="drv-acts"><button class="mini go" data-drv-act="tune-copy" data-id="${id}">Copy</button>${close}</div>
+        </div>`;
+      }
+      if (p.problem) return `<div class="drv-tune"><div class="drv-tune-h">Tune this network drive</div><div class="drv-line bad">${esc(p.problem)}</div><div class="drv-acts">${close}</div></div>`;
+      const watching = p.watching ? `<div class="drv-line bad">Someone is watching a title from this drive right now — try again when nobody is.</div>` : "";
+      if (p.already) {
+        return `<div class="drv-tune" data-drv-tune="already">
+          <div class="drv-tune-h">Tune this network drive</div>
+          <div class="drv-line">This drive already has the tuned options.</div>
+          <div class="drv-line">In /etc/fstab: <code>${drvOptsCode(p.fstabOptions)}</code></div>
+          ${p.liveOptions ? `<div class="drv-line">In force: <code>${drvOptsCode(p.liveOptions)}</code></div>` : ""}
+          ${p.canRevert ? `<div class="drv-line">Before: <code>${drvOptsCode(p.originalOptions)}</code></div>${watching}` : ""}
+          <div class="drv-acts">${p.canRevert ? `<button class="mini" data-drv-act="revert" data-id="${id}"${p.watching ? " disabled" : ""}>Put back the old options</button>` : ""}${close}</div>
+        </div>`;
+      }
+      return `<div class="drv-tune" data-drv-tune="preview">
+        <div class="drv-tune-h">Tune this network drive</div>
+        <div class="drv-line">Now in /etc/fstab: <code>${drvOptsCode(p.fstabOptions)}</code></div>
+        ${p.liveOptions ? `<div class="drv-line">In force: <code>${drvOptsCode(p.liveOptions)}</code></div>` : `<div class="drv-line">Not mounted right now.</div>`}
+        <div class="drv-line">What changes: bigger reads and writes (1 MiB), 4 connections, and the safety options (the server boots without it; a call that gets no answer gives up after about 30 s).</div>
+        <div class="drv-opts">${drvOptChips(p.remove || [], "rm", "−")}${drvOptChips(p.add || [], "add", "+")}</div>
+        <div class="drv-line">${esc(p.pauseNote || "")}</div>
+        ${watching}
+        <div class="drv-acts"><button class="mini go" data-drv-act="tune-run" data-id="${id}"${p.watching ? " disabled" : ""}>Tune it now</button>${close}</div>
+      </div>`;
+    };
     const driveCard = (d) => {
       const p = drvParts(d);
       const down = d.inUse && !d.answering;
@@ -5236,11 +5305,15 @@
           ? `<div class="drv-line">${d.newDownloads ? "New downloads can go here." : "New downloads go to the other drives. What is here stays and plays."}${d.titles ? ` ${d.titles} title${d.titles === 1 ? "" : "s"} here.` : ""}</div>`
           : `<div class="drv-line">Aurora keeps no films or shows here${d.holds && d.holds.length ? ` (only its ${d.holds.includes("data") ? "own data" : "download staging"})` : ""}.</div>`;
       const hint = d.network && d.hardMount
-        ? `<div class="drv-line" style="font-size:0.78rem;color:var(--text-faint)">Mounted “hard”: a drive that stops answering makes file calls wait for ever. Aurora keeps itself out of the way — the safer mount line is in docs/storage-drives.md.</div>`
+        ? `<div class="drv-line" style="font-size:0.78rem;color:var(--text-faint)">Mounted “hard”: a drive that stops answering makes file calls wait for ever. Aurora keeps itself out of the way — ${drvTuneOn(d) ? "“Tune this network drive” sets the safer options too" : "the safer mount line is in docs/storage-drives.md"}.</div>`
         : "";
+      const tuning = !!(d.tune && (d.tune.running || d.tune.elsewhere));
+      const tuneLast = d.tune && d.tune.last;
       const acts = d.inUse
-        ? `<button class="mini" data-drv-act="${d.newDownloads ? "stop" : "resume"}" data-id="${esc(d.id)}">${d.newDownloads ? "Stop using for new downloads" : "Use for new downloads again"}</button>` +
-          `<button class="mini" data-drv-act="test" data-id="${esc(d.id)}"${down || d.testing ? " disabled" : ""}>Test again</button>`
+        ? `<button class="mini" data-drv-act="${d.newDownloads ? "stop" : "resume"}" data-id="${esc(d.id)}"${tuning ? " disabled" : ""}>${d.newDownloads ? "Stop using for new downloads" : "Use for new downloads again"}</button>` +
+          `<button class="mini" data-drv-act="test" data-id="${esc(d.id)}"${down || d.testing || tuning ? " disabled" : ""}>Test again</button>` +
+          (drvTuneOn(d) ? `<button class="mini" data-drv-act="tune" data-id="${esc(d.id)}"${down || tuning || d.testing === "running" ? " disabled" : ""}>Tune this network drive</button>` : "") +
+          (drvTuneOn(d) && tuneLast && tuneLast.ok && tuneLast.action === "apply" && !tuneLast.better && !tuning ? `<button class="mini" data-drv-act="revert" data-id="${esc(d.id)}"${down ? " disabled" : ""}>Put it back</button>` : "")
         : `<button class="mini go" data-drv-act="use" data-id="${esc(d.id)}"${d.readOnly || !d.answering ? " disabled" : ""}>Use this drive too</button>`;
       return `<div class="drv" data-drive="${esc(d.id)}"${down ? ' data-down="1"' : ""}>
         <div class="drv-head"><span class="drv-name">${esc(d.name || d.mount)}</span><span class="drv-mount" title="${esc(d.source || "")}">${esc(d.mount)}${d.fstype ? ` · ${esc(d.fstype)}` : ""}</span></div>
@@ -5248,8 +5321,10 @@
         ${bar}
         ${state}
         <div class="drv-line">${drvSpeedLine(d)}</div>
+        ${drvTuneOn(d) ? drvTuneLine(d) : ""}
         ${hint}
         <div class="drv-acts">${acts}</div>
+        ${drvTuneOn(d) ? drvTunePanel(d) : ""}
       </div>`;
     };
     // the drives that take new downloads, together (the headline's number)
@@ -5261,6 +5336,55 @@
       // in use first, then the rest, by mount
       const sorted = list.slice().sort((a, b) => (b.inUse - a.inUse) || String(a.mount).localeCompare(String(b.mount)));
       setHTML(box, sorted.map(driveCard).join(""));
+      // a tune running: the card follows it, and says the result when it ends
+      const running = list.filter((d) => d.tune && d.tune.running).map((d) => d.id);
+      for (const id of DRV_TUNING) {
+        if (running.includes(id)) continue;
+        const d = list.find((x) => x.id === id);
+        const l = d && d.tune && d.tune.last;
+        if (l && l.message) toast(l.message);
+      }
+      DRV_TUNING = new Set(running);
+      clearTimeout(DRV_TUNE_TIMER);
+      if (running.length) DRV_TUNE_TIMER = setTimeout(() => { if (activeTab === "downloads") loadDisk(); }, 4000);
+    }
+    let DRV_TUNING = new Set();
+    let DRV_TUNE_TIMER = null;
+    const repaintDrives = () => { if (DRIVES) paintDrives(DRIVES); };
+    async function driveTune(act, id) {
+      const d = (DRIVES || []).find((x) => x.id === id);
+      if (!d) return;
+      if (act === "tune-close") { DRV_TUNE = null; repaintDrives(); return; }
+      if (act === "tune-copy") {
+        const p = DRV_TUNE && DRV_TUNE.id === id && DRV_TUNE.p;
+        const cmds = (p && p.setup && p.setup.commands) || [];
+        if (cmds.length) await copyText(cmds.join("\n") + "\n", "Copied the setup commands — paste them in an SSH session on the server");
+        return;
+      }
+      if (act === "tune") {
+        DRV_TUNE = { id, loading: true };
+        repaintDrives();
+        const p = await post("/api/admin/drives/tune/preview", { id }).catch(() => ({ error: "The server did not answer." }));
+        if (!DRV_TUNE || DRV_TUNE.id !== id) return;
+        DRV_TUNE = { id, p: p || { error: "The server did not answer." } };
+        repaintDrives();
+        return;
+      }
+      let r;
+      if (act === "tune-run") {
+        r = await post("/api/admin/drives/tune", { id }).catch(() => null);
+        if (r && r.ok) toast(`Tuning ${d.mount} — about three minutes`);
+      } else if (act === "revert") {
+        const ok = await askBox(`Put the old mount options back on ${d.mount}?\n\nThe line in /etc/fstab goes back to what it was before the first tune, and the drive is mounted again. Aurora pauses this drive for about three minutes: nobody can watch from it meanwhile and new downloads wait. It measures the speed before and after.`, false, "Yes, put it back");
+        if (!ok) return;
+        r = await post("/api/admin/drives/tune/revert", { id }).catch(() => null);
+        if (r && r.ok) toast(`Putting the old options back on ${d.mount} — about three minutes`);
+      }
+      if (r && r.ok) DRV_TUNE = null;
+      else if (r && r.setup) { DRV_TUNE = { id, p: { installed: false, missing: r.missing, setup: r.setup } }; }
+      if (r && r.error) toast(r.error);
+      if (!r) toast("The server did not answer.");
+      loadDisk();
     }
     async function driveAction(act, id) {
       const d = (DRIVES || []).find((x) => x.id === id);
@@ -5288,6 +5412,7 @@
     document.addEventListener("click", (e) => {
       const b = e.target.closest && e.target.closest("[data-drv-act]");
       if (!b || b.disabled) return;
+      if (/^(tune|tune-run|tune-close|tune-copy|revert)$/.test(b.dataset.drvAct)) return driveTune(b.dataset.drvAct, b.dataset.id);
       driveAction(b.dataset.drvAct, b.dataset.id);
     });
     function drivesText(list) {
@@ -5304,7 +5429,7 @@
           d.score ? (d.score.scale === "network"
             ? `${d.score.value} ${d.score.word}: ${drvStreams(d.score)} (${m.parallelReaders || 4} readers together ${Math.round(m.parallelMBps || 0)} MB/s, one reader ${Math.round(m.bufferedMBps || 0)} MB/s, one direct ${m.directMBps != null ? Math.round(m.directMBps) + " MB/s" : "?"}, write ${Math.round(m.writeMBps || 0)} MB/s, ${m.iops || 0} small reads/s${m.partial ? `; ${drvPartly(m)}` : ""})`
             : `${d.score.value} ${d.score.word} (read ${Math.round(m.readMBps || 0)} MB/s, write ${Math.round(m.writeMBps || 0)} MB/s, ${m.iops || 0} small reads/s; read ${m.readMethod || "?"}${m.partial ? `; ${drvPartly(m)}` : ""})`) : d.testing ? `testing (${d.testing})` : d.scoreError || "not tested",
-          d.network ? (d.hardMount ? "hard" : "soft") + (d.options && d.options.length ? ` [${d.options.join(",")}]` : "") : "",
+          d.network ? (d.hardMount ? "hard" : "soft") + (d.options && d.options.length ? ` [${d.options.join(",")}]` : "") + (d.tune && d.tune.last ? `; last ${d.tune.last.action === "revert" ? "put back" : "tune"}: ${d.tune.last.message || "?"}` : "") : "",
         ];
       });
       return "Drives:\n" + MD.table(["drive", "kind", "fs", "state", "used", "Aurora", "free", "speed", "mount options"], rows);

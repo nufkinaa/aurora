@@ -1,0 +1,355 @@
+#!/bin/bash
+# aurora-mount-helper — the ONE root task Aurora may ask for: re-mount an NFS
+# drive that is already in /etc/fstab with a fixed, known set of options
+# ("tuned"), or put its line back the way it was. docs/storage-drives.md,
+# "Tune this network drive from the admin".
+#
+# Installed once by the admin, root-owned, OUTSIDE the repo (Aurora's own user
+# can write the repo; a root helper it could edit would be root for anyone):
+#   sudo install -o root -g root -m 0755 scripts/nufurora/aurora-mount-helper /usr/local/sbin/aurora-mount-helper
+# and allowed to Aurora's user, and to nothing else, by /etc/sudoers.d/aurora-mount:
+#   elia ALL=(root) NOPASSWD: /usr/local/sbin/aurora-mount-helper
+#
+# Commands (one line of JSON on stdout each time, exit 0 when ok):
+#   status <mountpoint>          the fstab line's options, what is in force, what
+#                                "tuned" would write, whether there is a line to go back to
+#   apply  <mountpoint> tuned    the preset below, then umount + mount, checked with findmnt
+#   revert <mountpoint>          the line as it was before this helper's first change
+#
+# What it will not do: take options from the caller (only the presets named
+# here), touch any line but the one nfs/nfs4 line whose mount point is exactly
+# <mountpoint>, add or remove fstab lines, unmount lazily or by force, or run
+# from a file that is not root-owned. When the new mount fails, the old fstab
+# comes back and the drive is mounted the old way.
+#
+# Test mode (test/drives-mount-helper.test.js): AURORA_MOUNT_HELPER_TEST=1 with
+# AURORA_MOUNT_HELPER_FSTAB / _STATE / _BIN (a folder of stub mount, umount,
+# findmnt, systemctl). It is refused as root and under sudo: sudo resets the
+# environment (env_reset, the default, and the sudoers line has no SETENV, so
+# `sudo -E` is refused too) — and if those variables got through anyway, a
+# root or sudo'd run still refuses test mode instead of trusting them.
+set -u
+set -f # no globbing: option words and paths are never patterns
+umask 022
+
+VERSION=1
+NAME=aurora-mount-helper
+INSTALLED=/usr/local/sbin/aurora-mount-helper
+# "tuned": 1 MiB per request, 4 TCP connections, and the safety set (boot
+# never hangs on it; a call that gets no answer gives up after ~30 s)
+PRESET_TUNED="rsize=1048576,wsize=1048576,nconnect=4,_netdev,nofail,x-systemd.mount-timeout=30s,soft,timeo=100,retrans=2"
+# the options the preset replaces (every other option of the line is kept)
+DROP_RE='^((rsize|wsize|nconnect|timeo|retrans|x-systemd\.mount-timeout)=.*|hard|soft|softerr|_netdev|nofail)$'
+STEP_TIMEOUT=45
+
+ACTION="${1:-}"
+
+# ---------- JSON out ----------
+jstr() {
+  local s
+  s=$(printf '%s' "${1:-}" | tr -d '\000-\010\013-\037')
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  s=${s//$'\n'/\\n}
+  s=${s//$'\t'/ }
+  printf '"%s"' "$s"
+}
+jarr() { # jarr a b c -> ["a","b","c"]
+  local out="" x
+  for x in "$@"; do out+="${out:+,}$(jstr "$x")"; done
+  printf '[%s]' "$out"
+}
+fail() { # fail <code> <message> [extra json fields, starting with a comma]
+  printf '{"ok":false,"helper":"%s","version":%s,"action":%s,"code":%s,"error":%s%s}\n' "$NAME" "$VERSION" "$(jstr "$ACTION")" "$(jstr "$1")" "$(jstr "$2")" "${3:-}"
+  exit 1
+}
+
+# ---------- where it works ----------
+if [ "${AURORA_MOUNT_HELPER_TEST:-}" = "1" ]; then
+  if [ "$(id -u)" = "0" ] || [ -n "${SUDO_UID:-}" ] || [ -n "${SUDO_USER:-}" ] || [ -n "${SUDO_COMMAND:-}" ]; then
+    fail refused "test mode is never allowed as root or under sudo"
+  fi
+  FSTAB="${AURORA_MOUNT_HELPER_FSTAB:-}"
+  STATE="${AURORA_MOUNT_HELPER_STATE:-}"
+  [ -n "$FSTAB" ] && [ -n "$STATE" ] || fail refused "test mode needs AURORA_MOUNT_HELPER_FSTAB and AURORA_MOUNT_HELPER_STATE"
+  if [ -n "${AURORA_MOUNT_HELPER_BIN:-}" ]; then PATH="$AURORA_MOUNT_HELPER_BIN:$PATH"; fi
+  STEP_TIMEOUT="${AURORA_MOUNT_HELPER_STEP_TIMEOUT:-$STEP_TIMEOUT}"
+else
+  PATH=/usr/sbin:/usr/bin:/sbin:/bin
+  export PATH
+  FSTAB=/etc/fstab
+  STATE=/var/lib/aurora-mount-helper
+  [ "$(id -u)" = "0" ] || fail not-root "run it with sudo: sudo -n $INSTALLED $*"
+  # a root helper anyone else can change is a way to root: refuse to run from one
+  SELF=$(readlink -f "$0" 2>/dev/null || echo "$0")
+  OWN=$(stat -c '%u %a' "$SELF" 2>/dev/null || echo "?")
+  case "$OWN" in
+    "0 "[0-7][0-5][0-5]) ;;
+    *) fail unsafe-install "$SELF must be owned by root and writable only by root (sudo install -o root -g root -m 0755 ...)" ;;
+  esac
+  DIROWN=$(stat -c '%u %a' "$(dirname "$SELF")" 2>/dev/null || echo "?")
+  case "$DIROWN" in
+    "0 "[0-7][0-5][0-5]) ;;
+    *) fail unsafe-install "$(dirname "$SELF") must be owned by root and writable only by root" ;;
+  esac
+fi
+
+# ---------- the arguments ----------
+# an absolute path of plain characters: no spaces, quotes, $, `, ;, globs,
+# no "." or ".." parts, no trailing or double slash, not a system folder
+valid_mountpoint() {
+  local p="$1"
+  [ "${#p}" -ge 2 ] && [ "${#p}" -le 200 ] || return 1
+  [[ "$p" =~ ^/[A-Za-z0-9._/-]+$ ]] || return 1
+  [[ "$p" == */ ]] && return 1
+  [[ "$p" == *//* ]] && return 1
+  [[ "$p/" == */./* || "$p/" == */../* ]] && return 1
+  local top="/${p#/}"; top="${top#/}"; top="/${top%%/*}"
+  case "$top" in
+    /proc|/sys|/dev|/run|/boot|/etc|/usr|/bin|/sbin|/lib|/lib32|/lib64|/libx32|/var|/root|/tmp|/snap) return 1 ;;
+  esac
+  return 0
+}
+
+MP="${2:-}"
+case "$ACTION" in
+  status|revert) [ "$#" -eq 2 ] || fail usage "usage: $NAME status|revert <mountpoint>" ;;
+  apply) [ "$#" -eq 3 ] || fail usage "usage: $NAME apply <mountpoint> tuned" ;;
+  *) fail usage "usage: $NAME status <mountpoint> | apply <mountpoint> tuned | revert <mountpoint>" ;;
+esac
+valid_mountpoint "$MP" || fail bad-mountpoint "not a mount point this helper takes: an absolute path of letters, digits, . _ - and /"
+if [ "$ACTION" = "apply" ]; then
+  case "${3:-}" in
+    tuned) PRESET="$PRESET_TUNED" ;;
+    *) fail bad-preset "the only preset is: tuned" ;;
+  esac
+fi
+
+[ -f "$FSTAB" ] && [ -r "$FSTAB" ] || fail no-fstab "$FSTAB can't be read"
+mkdir -p "$STATE" 2>/dev/null && [ -d "$STATE" ] || fail state "can't make $STATE"
+chmod 0700 "$STATE" 2>/dev/null || true
+
+# one change at a time
+if command -v flock >/dev/null 2>&1 && [ "$ACTION" != "status" ]; then
+  exec 9>"$STATE/.lock" || fail state "can't open $STATE/.lock"
+  flock -n 9 || fail busy "another change is running"
+fi
+
+# ---------- reading the line ----------
+# the numbers of the uncommented lines whose 2nd field is exactly $MP
+matching_lines() {
+  awk -v mp="$MP" '$0 !~ /^[ \t]*#/ && NF >= 4 && $2 == mp { print NR }' "$FSTAB"
+}
+field_of() { # field_of <line> <n>
+  printf '%s\n' "$1" | awk -v n="$2" '{ print $n }'
+}
+# the options field replaced, the rest of the line (spacing included) kept
+replace_options() { # replace_options <line> <new options>
+  printf '%s\n' "$1" | OPT="$2" awk '{
+    opt = ENVIRON["OPT"]
+    rest = $0; pre = ""
+    for (i = 1; i <= 3; i++) { match(rest, /^[ \t]*[^ \t]+/); pre = pre substr(rest, 1, RLENGTH); rest = substr(rest, RLENGTH + 1) }
+    match(rest, /^[ \t]+/); pre = pre substr(rest, 1, RLENGTH); rest = substr(rest, RLENGTH + 1)
+    match(rest, /^[^ \t]+/); rest = substr(rest, RLENGTH + 1)
+    print pre opt rest
+  }'
+}
+# the preset over the line's options: the ones it replaces go, the rest stay in order
+tuned_options() { # tuned_options <current options> <preset>
+  local out="" o
+  local IFS=,
+  for o in $1; do
+    [ -z "$o" ] && continue
+    [[ "$o" =~ $DROP_RE ]] && continue
+    out+="${out:+,}$o"
+  done
+  printf '%s' "${out:+$out,}$2"
+}
+# the line with number $1 replaced by $2, written safely (temp file beside it, same owner and mode, renamed over)
+write_line() {
+  local n="$1" newline="$2" dir tmp before after
+  dir=$(dirname "$FSTAB")
+  tmp=$(mktemp "$dir/.fstab.aurora.XXXXXX") || return 1
+  # (ENVIRON, not -v: awk -v would turn a \040 in the line into a space)
+  NL="$newline" awk -v n="$n" 'NR == n { print ENVIRON["NL"]; next } { print }' "$FSTAB" > "$tmp" || { rm -f "$tmp"; return 1; }
+  before=$(wc -l < "$FSTAB"); after=$(wc -l < "$tmp")
+  # (a file whose last line had no newline gains one: that is the only difference allowed)
+  if [ "$after" -ne "$before" ] && [ "$after" -ne $((before + 1)) ]; then rm -f "$tmp"; return 1; fi
+  chmod --reference="$FSTAB" "$tmp" 2>/dev/null || chmod 0644 "$tmp"
+  chown --reference="$FSTAB" "$tmp" 2>/dev/null || [ "${AURORA_MOUNT_HELPER_TEST:-}" = "1" ] || { rm -f "$tmp"; return 1; }
+  sync "$tmp" 2>/dev/null || sync
+  mv -f "$tmp" "$FSTAB" || { rm -f "$tmp"; return 1; }
+  return 0
+}
+
+live_options() { findmnt -n -o OPTIONS --mountpoint "$MP" 2>/dev/null | head -n 1; }
+is_mounted() { [ -n "$(findmnt -n -o TARGET --mountpoint "$MP" 2>/dev/null | head -n 1)" ]; }
+opt_value() { # opt_value <options> <name> -> its value, or "1" for a flag, or nothing
+  local o
+  local IFS=,
+  for o in $1; do
+    if [ "$o" = "$2" ]; then echo 1; return; fi
+    case "$o" in "$2="*) echo "${o#*=}"; return ;; esac
+  done
+}
+run_for() { # run_for <seconds> cmd... (timeout when there is one)
+  local s="$1"; shift
+  if command -v timeout >/dev/null 2>&1; then timeout "$s" "$@"; else "$@"; fi
+}
+reload_systemd() {
+  if command -v systemctl >/dev/null 2>&1; then run_for 30 systemctl daemon-reload >/dev/null 2>&1 || return 1; fi
+  return 0
+}
+
+STATEFILE="$STATE/$(printf '%s' "$MP" | sha256sum 2>/dev/null | cut -c1-16).line"
+[ "$STATEFILE" = "$STATE/.line" ] && STATEFILE="$STATE/$(printf '%s' "$MP" | tr '/.' '__').line"
+
+LINES=$(matching_lines)
+COUNT=$(printf '%s' "$LINES" | grep -c . || true)
+[ "$COUNT" -ge 1 ] || fail not-found "$MP has no line in $FSTAB (this helper only changes a line that is there)"
+[ "$COUNT" -eq 1 ] || fail not-found "$MP has $COUNT lines in $FSTAB — fix that by hand first"
+N="$LINES"
+LINE=$(sed -n "${N}p" "$FSTAB")
+FSTYPE=$(field_of "$LINE" 3)
+case "$FSTYPE" in
+  nfs|nfs4) ;;
+  *) fail not-nfs "$MP is $FSTYPE in $FSTAB — this helper only tunes nfs and nfs4 mounts" ;;
+esac
+OPTS=$(field_of "$LINE" 4)
+LIVE=$(live_options)
+ORIG_LINE=""
+if [ -f "$STATEFILE" ]; then
+  ORIG_MP=$(sed -n 1p "$STATEFILE")
+  ORIG_LINE=$(sed -n 2p "$STATEFILE")
+  [ "$ORIG_MP" = "$MP" ] || ORIG_LINE=""
+fi
+ORIG_OPTS=""
+[ -n "$ORIG_LINE" ] && ORIG_OPTS=$(field_of "$ORIG_LINE" 4)
+TUNED=$(tuned_options "$OPTS" "$PRESET_TUNED")
+if is_mounted; then MOUNTED=true; else MOUNTED=false; fi
+IS_TUNED=false
+[ "$TUNED" = "$OPTS" ] && IS_TUNED=true
+CAN_REVERT=false
+[ -n "$ORIG_LINE" ] && [ "$ORIG_LINE" != "$LINE" ] && CAN_REVERT=true
+
+if [ "$ACTION" = "status" ]; then
+  printf '{"ok":true,"helper":"%s","version":%s,"action":"status","mountpoint":%s,"fstype":%s,"mounted":%s,"fstabOptions":%s,"liveOptions":%s,"tunedOptions":%s,"isTuned":%s,"canRevert":%s,"originalOptions":%s}\n' \
+    "$NAME" "$VERSION" "$(jstr "$MP")" "$(jstr "$FSTYPE")" "$MOUNTED" "$(jstr "$OPTS")" "$(jstr "$LIVE")" "$(jstr "$TUNED")" "$IS_TUNED" "$CAN_REVERT" "$(jstr "$ORIG_OPTS")"
+  exit 0
+fi
+
+# ---------- apply / revert ----------
+if [ "$ACTION" = "apply" ]; then
+  NEWOPTS=$(tuned_options "$OPTS" "$PRESET")
+  NEWLINE=$(replace_options "$LINE" "$NEWOPTS")
+else
+  [ -n "$ORIG_LINE" ] || fail nothing-to-revert "this helper has not changed $MP's line, so there is nothing to put back"
+  # the kept line must still be the same mount point, nfs
+  [ "$(field_of "$ORIG_LINE" 2)" = "$MP" ] || fail state "the kept line is not for $MP"
+  case "$(field_of "$ORIG_LINE" 3)" in nfs|nfs4) ;; *) fail state "the kept line is not an nfs line" ;; esac
+  NEWLINE="$ORIG_LINE"
+  NEWOPTS="$ORIG_OPTS"
+fi
+[ "${#NEWLINE}" -le 1000 ] || fail state "the new line would be too long"
+
+wanted_in_force() { # are the kernel options of the new line in force?
+  local live="$1" o k v got
+  [ -n "$live" ] || return 1
+  local IFS=,
+  for o in $NEWOPTS; do
+    case "$o" in
+      rsize=*|wsize=*) ;; # the server may agree to less: reported, not required
+      nconnect=*|timeo=*|retrans=*) k="${o%%=*}"; v="${o#*=}"; got=$(opt_value "$live" "$k"); [ "$got" = "$v" ] || return 1 ;;
+      soft|hard) [ "$(opt_value "$live" "$o")" = "1" ] || return 1 ;;
+    esac
+  done
+  return 0
+}
+
+if [ "$NEWLINE" = "$LINE" ] && [ "$MOUNTED" = "true" ] && wanted_in_force "$LIVE"; then
+  printf '{"ok":true,"helper":"%s","version":%s,"action":%s,"mountpoint":%s,"changed":false,"fstabBefore":%s,"fstabAfter":%s,"liveBefore":%s,"liveAfter":%s,"clamped":[],"missing":[],"message":%s}\n' \
+    "$NAME" "$VERSION" "$(jstr "$ACTION")" "$(jstr "$MP")" "$(jstr "$OPTS")" "$(jstr "$NEWOPTS")" "$(jstr "$LIVE")" "$(jstr "$LIVE")" "$(jstr "Nothing to change: the line and the mount already have these options.")"
+  exit 0
+fi
+
+# the first change keeps the line as it was (what revert puts back)
+if [ "$ACTION" = "apply" ] && [ -z "$ORIG_LINE" ]; then
+  printf '%s\n%s\n' "$MP" "$LINE" > "$STATEFILE.tmp" && mv -f "$STATEFILE.tmp" "$STATEFILE" || fail state "can't keep the original line in $STATE"
+fi
+
+STAMP=$(date +%Y%m%d-%H%M%S)
+BACKUP="$STATE/fstab.$STAMP.$$"
+cp -p "$FSTAB" "$BACKUP" || fail backup "can't back up $FSTAB"
+# the ten newest backups stay
+find "$STATE" -maxdepth 1 -name 'fstab.*' -type f 2>/dev/null | sort | head -n -10 | while read -r old; do rm -f "$old"; done
+
+CHANGED=0
+FINISHED=0
+put_back() { # the old fstab, and the drive mounted the old way; prints the extra JSON fields
+  local restored=false remounted=false
+  if cp -p "$BACKUP" "$FSTAB" 2>/dev/null; then restored=true; fi
+  reload_systemd || true
+  if is_mounted; then remounted=true
+  elif run_for "$STEP_TIMEOUT" mount "$MP" >/dev/null 2>&1 && is_mounted; then remounted=true; fi
+  printf ',"fstabRestored":%s,"mountedOldWay":%s,"backup":%s' "$restored" "$remounted" "$(jstr "$BACKUP")"
+}
+on_signal() {
+  if [ "$CHANGED" = "1" ] && [ "$FINISHED" = "0" ]; then
+    FINISHED=1
+    fail interrupted "stopped half-way; the old line was put back" "$(put_back)"
+  fi
+  fail interrupted "stopped before anything changed"
+}
+trap on_signal TERM INT HUP
+
+write_line "$N" "$NEWLINE" || fail write "could not write $FSTAB (it is unchanged)"
+CHANGED=1
+RELOAD_NOTE=""
+reload_systemd || RELOAD_NOTE=" (systemctl daemon-reload failed; the mount itself read the new line)"
+
+if [ "$MOUNTED" = "true" ]; then
+  # never lazy, never forced: a drive something still reads is left alone
+  if ! UOUT=$(run_for "$STEP_TIMEOUT" umount "$MP" 2>&1); then
+    FINISHED=1
+    if printf '%s' "$UOUT" | grep -qi 'busy'; then
+      fail busy "something still has a file open on $MP, so it was not unmounted: nothing changed. Try again when nothing uses it." "$(put_back),\"detail\":$(jstr "$UOUT")"
+    fi
+    fail umount-failed "$MP could not be unmounted: nothing changed" "$(put_back),\"detail\":$(jstr "$UOUT")"
+  fi
+fi
+
+if ! MOUT=$(run_for "$STEP_TIMEOUT" mount "$MP" 2>&1) || ! is_mounted; then
+  FINISHED=1
+  fail mount-failed "the new options did not mount: the old line is back" "$(put_back),\"detail\":$(jstr "$MOUT")"
+fi
+FINISHED=1
+AFTER=$(live_options)
+
+# what is really in force: the server may clamp rsize/wsize; anything else missing is said
+CLAMPED=()
+MISSING=()
+IFS_SAVE="$IFS"; IFS=,
+for o in $NEWOPTS; do
+  case "$o" in
+    rsize=*|wsize=*) k="${o%%=*}"; v="${o#*=}"; got=$(opt_value "$AFTER" "$k")
+      if [ -z "$got" ]; then MISSING+=("$o"); elif [ "$got" != "$v" ]; then CLAMPED+=("$k=$got"); fi ;;
+    nconnect=*|timeo=*|retrans=*) k="${o%%=*}"; v="${o#*=}"; got=$(opt_value "$AFTER" "$k")
+      [ "$got" = "$v" ] || MISSING+=("$o") ;;
+    soft|hard) [ "$(opt_value "$AFTER" "$o")" = "1" ] || MISSING+=("$o") ;;
+  esac
+done
+IFS="$IFS_SAVE"
+
+if [ "$ACTION" = "revert" ]; then
+  rm -f "$STATEFILE"
+  MSG="The old line is back and mounted.$RELOAD_NOTE"
+else
+  MSG="Mounted with the new options.$RELOAD_NOTE"
+fi
+[ "${#CLAMPED[@]}" -gt 0 ] && MSG="$MSG The server agreed to less: ${CLAMPED[*]}."
+[ "${#MISSING[@]}" -gt 0 ] && MSG="$MSG Not in force: ${MISSING[*]}."
+
+printf '{"ok":true,"helper":"%s","version":%s,"action":%s,"mountpoint":%s,"changed":true,"fstabBefore":%s,"fstabAfter":%s,"liveBefore":%s,"liveAfter":%s,"clamped":%s,"missing":%s,"backup":%s,"message":%s}\n' \
+  "$NAME" "$VERSION" "$(jstr "$ACTION")" "$(jstr "$MP")" "$(jstr "$OPTS")" "$(jstr "$NEWOPTS")" "$(jstr "$LIVE")" "$(jstr "$AFTER")" \
+  "$(jarr ${CLAMPED[@]+"${CLAMPED[@]}"})" "$(jarr ${MISSING[@]+"${MISSING[@]}"})" "$(jstr "$BACKUP")" "$(jstr "$MSG")"
+exit 0

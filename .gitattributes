@@ -12,3 +12,5 @@ tools/tv-bench/**/*.sh text eol=lf
 scripts/nufurora/*.sh text eol=lf
 scripts/nufurora/*.example text eol=lf
 *.timer text eol=lf
+# The root mount helper runs on Linux (and in Git Bash for its test): a CR at a line end breaks it.
+scripts/nufurora/aurora-mount-helper text eol=lf

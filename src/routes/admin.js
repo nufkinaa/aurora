@@ -177,6 +177,32 @@ router.post("/api/admin/drives/test", (req, res) => {
   const r = require("../lib/drives").testAgain(id);
   res.status(r.error ? 409 : 200).json(r);
 });
+// "Tune this network drive" (lib/drives/tune.js): what would change, or the
+// one-time setup commands when the root helper isn't installed
+router.post("/api/admin/drives/tune/preview", async (req, res) => {
+  const id = driveId(req);
+  if (!id) return res.status(400).json({ error: "Which drive?" });
+  try {
+    const r = await require("../lib/drives/tune").preview(id);
+    res.status(r.error ? 409 : 200).json(r);
+  } catch (err) {
+    res.status(500).json({ error: `Could not ask about the drive: ${(err && err.message) || err}` });
+  }
+});
+// …and the run (in the background: the card follows /api/admin/drives)
+const tuneRun = (action) => async (req, res) => {
+  const id = driveId(req);
+  if (!id) return res.status(400).json({ error: "Which drive?" });
+  try {
+    const r = await require("../lib/drives/tune").start(id, action);
+    res.status(r.error ? 409 : 200).json(r);
+  } catch (err) {
+    res.status(500).json({ error: `Could not start: ${(err && err.message) || err}` });
+  }
+};
+router.post("/api/admin/drives/tune", tuneRun("apply"));
+// "Put it back": the line as it was before the helper's first change
+router.post("/api/admin/drives/tune/revert", tuneRun("revert"));
 
 // Every title with its on-disk size, for the "free up space" list.
 router.get("/api/admin/library", (req, res) => {

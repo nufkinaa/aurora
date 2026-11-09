@@ -93,7 +93,8 @@ const candidates = (entries) => {
       readOnly: opts.has("ro"),
       // what the NFS safety advice looks at (docs/storage-drives.md)
       hard: network && !opts.has("soft") && !opts.has("softerr"),
-      options: [...opts].filter((o) => /^(hard|soft|softerr|timeo=|retrans=|vers=|nofail|_netdev|ro|rw)/.test(o)),
+      // (and what "Tune this network drive" changes: rsize, wsize, nconnect)
+      options: [...opts].filter((o) => /^(hard|soft|softerr|timeo=|retrans=|vers=|nofail|_netdev|ro|rw|rsize=|wsize=|nconnect=|proto=)/.test(o)),
     });
   }
   return [...byDev.values()].sort((a, b) => (a.mount === "/" ? -1 : b.mount === "/" ? 1 : a.mount.localeCompare(b.mount)));
