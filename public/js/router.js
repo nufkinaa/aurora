@@ -18,6 +18,13 @@ export const route = (pattern, render) => {
   routes.push({ pattern, regex, names, render });
 };
 
+// Whether the app has a screen for this address (js/navmore.js lists a place
+// only once its screen exists — the release calendar, for one).
+export const hasRoute = (hash) => {
+  const path = String(hash || "").replace(/^#/, "") || "/";
+  return routes.some((r) => r.regex.test(path));
+};
+
 // The page this one was reached from (null on a cold load), so a screen that
 // "goes back" to a known place can use the browser's Back instead of pushing
 // a second copy of that page onto the history.

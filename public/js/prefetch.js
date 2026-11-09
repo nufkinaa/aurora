@@ -22,7 +22,7 @@
 // a 2G-class connection, a hidden tab, offline, or while a film is playing.
 import { api } from "./api.js";
 import { state, loadLibrary, progressFor } from "./state.js";
-import { artUrl, heroArtWidth } from "./ui.js";
+import { artUrl, heroArtWidth, afterPictures } from "./ui.js";
 import { lite, fastNet, netTier } from "./net.js";
 
 const allowed = () => {
@@ -93,14 +93,15 @@ export const warmTitle = (item, { art = false } = {}) => {
   warmedTitles.add(key);
   if (libId) quiet(api.item(libId, { low: true }));
   if (item.imdbId) quiet(api.discoverMeta(item.type === "show" ? "show" : "movie", item.imdbId, { low: true }));
-  if (art && fast()) {
+  // (art: after the pictures on screen are in — ui.js afterPictures)
+  if (art && fast()) afterPictures(() => {
     for (const [src, w] of [[item.cover, 300], [item.backdrop, heroArtWidth()]]) {
       if (!src) continue;
       const im = new Image();
       im.fetchPriority = "low";
       im.src = artUrl(src, w);
     }
-  }
+  });
 };
 
 // The billboard's current title, once it has held still for a moment.

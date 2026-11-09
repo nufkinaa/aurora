@@ -48,7 +48,8 @@
 }
 /* The Beam mark (docs/brand): a play triangle of three bands of light. The data URI is
    written by `python docs/brand/tools/build.py install` - do not hand-edit it. */
-.nav-logo .logo-mark {
+.nav-logo .logo-mark,
+.nav-more-logo .logo-mark {
   width: 26px;
   height: 26px;
   flex: none;
@@ -60,7 +61,8 @@
      the mark on top is now drawn straight, as sharp as the screen allows. */
   position: relative;
 }
-.nav-logo .logo-mark::before {
+.nav-logo .logo-mark::before,
+.nav-more-logo .logo-mark::before {
   content: "";
   position: absolute;
   inset: 0;

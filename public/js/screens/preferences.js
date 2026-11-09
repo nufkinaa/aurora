@@ -1099,7 +1099,7 @@ export const renderPreferences = async (root) => {
             () => (remote.targetEnabled() ? "On" : "Off"),
             () => remote.setTargetEnabled(!remote.targetEnabled())
           ),
-          linkRow("Remote", "Control a TV that has Aurora open", () => navigate("#/remote"))
+          linkRow("Your TVs", "Control a TV that has Aurora open", () => navigate("#/remote"))
         )),
       // [/phone-remote]
       section("Privacy", "Nothing leaves this server.",

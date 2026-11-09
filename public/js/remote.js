@@ -566,7 +566,7 @@ const paintNav = (list) => {
   if (!list.length) { if (b) b.hidden = true; return; }
   ensureRemoteCss();
   if (!b) {
-    b = el("a", { id: "nav-remote", class: "nav-remote focusable", href: "#/remote", "data-nav": "", "data-ui": "nav.remote", "aria-label": "Remote", title: "Remote", html: ICONS.remote });
+    b = el("a", { id: "nav-remote", class: "nav-remote focusable", href: "#/remote", "data-nav": "", "data-ui": "nav.remote", "aria-label": "Your TVs", title: "Your TVs", html: ICONS.remote });
     const anchor = document.getElementById("nav-dl") || nav.querySelector(".nav-gear");
     if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(b, anchor);
     else nav.append(b);

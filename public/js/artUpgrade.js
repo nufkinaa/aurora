@@ -15,7 +15,7 @@
 // A job is dropped when its element is gone or already shows another picture
 // (the billboard turned a slide), and it does nothing at all when the painted
 // address already IS the full one — so every hero may register, cheaply.
-import { artUrl } from "./ui.js";
+import { artUrl, pictureWait, picturesIn } from "./ui.js";
 import { lite, onNet } from "./net.js";
 
 const IDLE_MS = 2500; // no input for this long = the viewer is reading/watching
@@ -53,7 +53,8 @@ export const upgradeArt = (node, prop, src, width, { now = false } = {}) => {
   const painted = node.style.getPropertyValue(prop);
   if (!painted) return;
   const job = { node, prop, src, width, painted };
-  if (now && clear()) { run(job).catch(() => {}); return; }
+  // (the sharp hero is a picture on screen: what is out of view waits for it)
+  if (now && clear()) { pictureWait(run(job).catch(() => {})); return; }
   jobs.add(job);
   arm();
 };
@@ -70,7 +71,8 @@ const tick = () => {
     if (!j.node.isConnected || j.node.style.getPropertyValue(j.prop) !== j.painted) jobs.delete(j);
   }
   if (!jobs.size) return;
-  if (running || !clear() || !idle()) return arm();
+  // (and not while the pictures on screen are still coming: ui.js)
+  if (running || !clear() || !idle() || !picturesIn()) return arm();
   // one at a time, the oldest first, in an idle slot
   const job = jobs.values().next().value;
   running = true;
