@@ -1,0 +1,13 @@
+{
+  "id": "meet-the-parents",
+  "name": "Meet the Parents",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0212338","tmdbId":1597,"type":"movie","title":"Meet the Parents","year":2000,"date":"2000-10-06"},
+    {"imdbId":"tt0290002","tmdbId":693,"type":"movie","title":"Meet the Fockers","year":2004,"date":"2004-12-22"},
+    {"imdbId":"tt0970866","tmdbId":39451,"type":"movie","title":"Little Fockers","year":2010,"date":"2010-12-22"}
+  ],
+  "tmdbCollections": [51509],
+  "sources": ["https://en.wikipedia.org/wiki/Meet_the_Parents_(franchise)","https://www.themoviedb.org/collection/51509","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

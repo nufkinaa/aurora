@@ -1,0 +1,14 @@
+{
+  "id": "sonic",
+  "name": "Sonic the Hedgehog",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt3794354","tmdbId":454626,"type":"movie","title":"Sonic the Hedgehog","year":2020,"date":"2020-02-14"},
+    {"imdbId":"tt12412888","tmdbId":675353,"type":"movie","title":"Sonic the Hedgehog 2","year":2022,"date":"2022-04-08"},
+    {"imdbId":"tt18259086","tmdbId":939243,"type":"movie","title":"Sonic the Hedgehog 3","year":2024,"date":"2024-12-20"}
+  ],
+  "tmdbCollections": [720879],
+  "sources": ["https://en.wikipedia.org/wiki/Sonic_the_Hedgehog_(film_series)","https://www.themoviedb.org/collection/720879","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The three films; the series Knuckles is left out."
+}

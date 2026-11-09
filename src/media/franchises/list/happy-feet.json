@@ -1,0 +1,12 @@
+{
+  "id": "happy-feet",
+  "name": "Happy Feet",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0366548","tmdbId":9836,"type":"movie","title":"Happy Feet","year":2006,"date":"2006-11-17"},
+    {"imdbId":"tt1402488","tmdbId":65759,"type":"movie","title":"Happy Feet Two","year":2011,"date":"2011-11-18"}
+  ],
+  "tmdbCollections": [92012],
+  "sources": ["https://en.wikipedia.org/wiki/Happy_Feet_Two","https://www.themoviedb.org/collection/92012","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

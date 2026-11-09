@@ -1,0 +1,29 @@
+{
+  "id": "alien",
+  "name": "Alien",
+  "the": false,
+  "priority": 50,
+  "entries": [
+    {"imdbId":"tt0078748","tmdbId":348,"type":"movie","title":"Alien","year":1979,"date":"1979-06-22"},
+    {"imdbId":"tt0090605","tmdbId":679,"type":"movie","title":"Aliens","year":1986,"date":"1986-07-18"},
+    {"imdbId":"tt0103644","tmdbId":8077,"type":"movie","title":"Alien³","year":1992,"date":"1992-05-22"},
+    {"imdbId":"tt0118583","tmdbId":8078,"type":"movie","title":"Alien: Resurrection","year":1997,"date":"1997-11-26"},
+    {"imdbId":"tt1446714","tmdbId":70981,"type":"movie","title":"Prometheus","year":2012,"date":"2012-06-08"},
+    {"imdbId":"tt2316204","tmdbId":126889,"type":"movie","title":"Alien: Covenant","year":2017,"date":"2017-05-19"},
+    {"imdbId":"tt18412256","tmdbId":945961,"type":"movie","title":"Alien: Romulus","year":2024,"date":"2024-08-16"},
+    {"imdbId":"tt13623632","tmdbId":157239,"type":"series","title":"Alien: Earth","year":2025,"date":"2025-08-12","optional":true}
+  ],
+  "story": [
+    "tt1446714",
+    "tt2316204",
+    "tt13623632",
+    "tt0078748",
+    "tt18412256",
+    "tt0090605",
+    "tt0103644",
+    "tt0118583"
+  ],
+  "tmdbCollections": [8091,135416],
+  "sources": ["https://en.wikipedia.org/wiki/Alien_(franchise)","https://en.wikipedia.org/wiki/Alien:_Earth","https://www.themoviedb.org/collection/8091","https://www.themoviedb.org/collection/135416","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order by in-universe year: Prometheus (2093), Alien: Covenant (2104), Alien: Earth (2120, optional series), Alien (2122), Alien: Romulus (2142), Aliens (2179), Alien 3, Alien Resurrection. The two Alien vs. Predator films are their own franchise."
+}

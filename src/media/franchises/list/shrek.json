@@ -1,0 +1,25 @@
+{
+  "id": "shrek",
+  "name": "Shrek",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0126029","tmdbId":808,"type":"movie","title":"Shrek","year":2001,"date":"2001-05-18"},
+    {"imdbId":"tt0298148","tmdbId":809,"type":"movie","title":"Shrek 2","year":2004,"date":"2004-05-19"},
+    {"imdbId":"tt0413267","tmdbId":810,"type":"movie","title":"Shrek the Third","year":2007,"date":"2007-05-18"},
+    {"imdbId":"tt0892791","tmdbId":10192,"type":"movie","title":"Shrek Forever After","year":2010,"date":"2010-05-21"},
+    {"imdbId":"tt0448694","tmdbId":417859,"type":"movie","title":"Puss in Boots","year":2011,"date":"2011-11-15","optional":true,"note":"spin-off, before Puss meets Shrek"},
+    {"imdbId":"tt3915174","tmdbId":315162,"type":"movie","title":"Puss in Boots: The Last Wish","year":2022,"date":"2022-12-21","optional":true,"note":"spin-off, after Shrek Forever After"}
+  ],
+  "story": [
+    "tt0448694",
+    "tt0126029",
+    "tt0298148",
+    "tt0413267",
+    "tt0892791",
+    "tt3915174"
+  ],
+  "tmdbCollections": [2150,94602],
+  "sources": ["https://en.wikipedia.org/wiki/Shrek_(franchise)","https://en.wikipedia.org/wiki/Puss_in_Boots_(2011_film)","https://www.themoviedb.org/collection/2150","https://www.themoviedb.org/collection/94602","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order: Puss in Boots (2011) is a prequel set before Puss meets Shrek in Shrek 2; The Last Wish is set after the Shrek films. Shrek 5 is not out until 2027."
+}

@@ -1,4 +1,4 @@
-// FRANCHISES — the curated list: one JSON file per franchise in ./data.
+// FRANCHISES — the curated list: one JSON file per franchise in ./list (not ./data: .gitignore keeps every data/ folder out of git).
 //
 // TMDB collections (media/franchises/tmdb.js) cover most film series, but
 // they split the big shared universes (the MCU is a dozen TMDB collections and
@@ -11,7 +11,7 @@
 //   list to it (the id is that title, the TMDB id and year are right, nothing
 //   twice, every order a full and consistent ordering).
 //
-// A FILE (data/<id>.json):
+// A FILE (list/<id>.json):
 //   id          the file's name, [a-z0-9-]
 //   name        "Marvel Cinematic Universe"
 //   the         true → "Part of the Marvel Cinematic Universe" (false: "Part of Star Wars")
@@ -33,7 +33,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const DATA_DIR = path.join(__dirname, "data");
+const DATA_DIR = path.join(__dirname, "list");
 const { ORDER_LABELS } = require("./logic");
 const ORDERS = Object.keys(ORDER_LABELS);
 const TYPES = new Set(["movie", "series"]);

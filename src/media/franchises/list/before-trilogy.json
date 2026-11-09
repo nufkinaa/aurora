@@ -1,0 +1,13 @@
+{
+  "id": "before-trilogy",
+  "name": "Before Trilogy",
+  "the": true,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0112471","tmdbId":76,"type":"movie","title":"Before Sunrise","year":1995,"date":"1995-01-27"},
+    {"imdbId":"tt0381681","tmdbId":80,"type":"movie","title":"Before Sunset","year":2004,"date":"2004-07-30"},
+    {"imdbId":"tt2209418","tmdbId":132344,"type":"movie","title":"Before Midnight","year":2013,"date":"2013-06-14"}
+  ],
+  "tmdbCollections": [],
+  "sources": ["https://en.wikipedia.org/wiki/Before_trilogy","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "kick-ass",
+  "name": "Kick-Ass",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1250777","tmdbId":23483,"type":"movie","title":"Kick-Ass","year":2010,"date":"2010-04-16"},
+    {"imdbId":"tt1650554","tmdbId":59859,"type":"movie","title":"Kick-Ass 2","year":2013,"date":"2013-08-16"}
+  ],
+  "tmdbCollections": [179892],
+  "sources": ["https://en.wikipedia.org/wiki/Kick-Ass_2_(film)","https://www.themoviedb.org/collection/179892","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

@@ -30,7 +30,7 @@ module.exports = {
   "detail.episode.playontv": "w", // [phone-remote]
   "detail.episode.watched": "w",
   "detail.follow": "wtp",
-  "detail.franchise": "w", // "Part of … · 12 of 34 — Watch in order" (franchise order, 2026-11-09)
+  "detail.franchise": "wtp", // "Part of … · 12 of 34 — Watch in order" (franchise order, 2026-11-09)
   "detail.hh.dismiss": "wtp", // "Not for me" on a recommended title
   "detail.mylist": "wtp",
   "detail.offline": "w",
@@ -71,10 +71,10 @@ module.exports = {
   "downloads.retry": "w",
   "downloads.row": "tp",
   // franchise (the franchise page, #/franchise/:id)
-  "franchise.entry": "w",
-  "franchise.order": "w",
-  "franchise.play": "w",
-  "franchise.save": "w",
+  "franchise.entry": "wtp",
+  "franchise.order": "wtp",
+  "franchise.play": "wtp",
+  "franchise.save": "wtp",
   // home
   "home.hero.details": "wtp",
   "home.hero.mute": "wt",
@@ -165,9 +165,10 @@ module.exports = {
   "player.subtitles.resync": "wtp",
   "player.subtitles.style": "wtp",
   "player.subtitles.undo": "w",
-  "player.franchise.dismiss": "w", // the end card's next film in a franchise
-  "player.franchise.play": "w",
-  "player.franchise.save": "w",
+  "player.franchise.dismiss": "wtp", // the end card's next film in a franchise
+  "player.franchise.open": "wtp", // …when it is a show: Open / Choose episode
+  "player.franchise.play": "wtp",
+  "player.franchise.save": "wtp",
   "player.upnext.dismiss": "wtp",
   "player.upnext.play": "wtp",
   "player.xray": "wtp",

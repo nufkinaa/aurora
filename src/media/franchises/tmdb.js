@@ -1,6 +1,6 @@
 // TMDB COLLECTIONS as franchises — every film series TMDB groups ("The Matrix
 // Collection", "Paddington Collection"…), for the films the curated list
-// (./data) does not cover. Needs a TMDB key (config.TMDB_KEY); without one
+// (./list) does not cover. Needs a TMDB key (config.TMDB_KEY); without one
 // every answer is "none" and nothing is asked.
 //
 // It rides on what the title page already fetches: similar.collection() reads
@@ -24,9 +24,10 @@ const TITLE_TTL = 28 * 24 * 3600 * 1000;
 const MISS_TTL = 24 * 3600 * 1000;
 
 let store = null;
+let storeFile = null; // (tests: a store of their own)
 const db = () =>
   store ||
-  (store = new JsonStore(path.join(config.CACHE_DIR, "franchise-tmdb.json"), {
+  (store = new JsonStore(storeFile || path.join(config.CACHE_DIR, "franchise-tmdb.json"), {
     v: 1,
     titles: {}, // imdbId -> { coll: <id>|null, at }
     colls: {}, // id -> { name, parts: [entry…], at }
@@ -130,4 +131,4 @@ const forTitle = async (imdbId, opts = {}) => {
   return id ? collection(id, opts) : null;
 };
 
-module.exports = { forTitle, collection, collectionIdFor, cachedFor, cleanName, _internals: { db, asFranchise, reset: () => { store = null; } } };
+module.exports = { forTitle, collection, collectionIdFor, cachedFor, cleanName, _internals: { db, asFranchise, useFile: (f) => { storeFile = f; store = null; } } };

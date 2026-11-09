@@ -28,6 +28,7 @@ import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, se
 import { readStyle, nextChoice, styleLabel, cueCss, cueShadow, cueBackdrop, CUE_VW, CUE_MIN_PX, RAISED_PCT, SUB_STYLE_KEYS, SUB_STYLE_NAMES, SUB_COLORS } from "../subStyle.js";
 import { audioFxFor, AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES } from "../audiofx.js";
 import { recommendButton, canRecommend } from "../recommend.js";
+import { entryAction } from "../franchise.js";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -6113,14 +6114,21 @@ export const renderPlayer = async (root, { id }) => {
       el("div", { class: "upnext-actions" },
         owned
           ? el("button", { "data-ui": "player.franchise.play", class: "btn btn-primary focusable", html: icons.play + "<span>Play now</span>", onclick: () => { noteInput(); play(false); } })
-          : el("button", { "data-ui": "player.franchise.save", class: "btn btn-primary focusable", html: icons.download + "<span>Save &amp; watch</span>",
-              onclick: () => {
-                noteInput();
-                track("feat", { f: "franchise_next_save" });
-                hideFilmEnd();
-                saveProgress();
-                navigate(`#/discover/movie/${encodeURIComponent(e.imdbId)}?save=1`);
-              } }),
+          : (() => {
+              // not on the server: Save & watch (a film — its page presses its
+              // own Save & watch once); a show: its page (Open / Choose episode)
+              const act = entryAction(e);
+              const save = act.kind === "save";
+              return el("button", { "data-ui": save ? "player.franchise.save" : "player.franchise.open", class: "btn btn-primary focusable",
+                html: (save ? icons.download : icons.play) + `<span>${act.label.replace(/&/g, "&amp;")}</span>`,
+                onclick: () => {
+                  noteInput();
+                  track("feat", { f: save ? "franchise_next_save" : "franchise_next_open" });
+                  hideFilmEnd();
+                  saveProgress();
+                  navigate(act.href);
+                } });
+            })(),
         el("button", { "data-ui": "player.franchise.dismiss", class: "btn focusable", onclick: () => { noteInput(); hideFilmEnd(); } },
           counting ? ring : null, counting ? " Dismiss" : "Dismiss")));
     overlay.append(filmEndEl);

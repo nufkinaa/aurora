@@ -1,0 +1,13 @@
+{
+  "id": "back-to-the-future",
+  "name": "Back to the Future",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0088763","tmdbId":105,"type":"movie","title":"Back to the Future","year":1985,"date":"1985-07-03"},
+    {"imdbId":"tt0096874","tmdbId":165,"type":"movie","title":"Back to the Future Part II","year":1989,"date":"1989-11-22"},
+    {"imdbId":"tt0099088","tmdbId":196,"type":"movie","title":"Back to the Future Part III","year":1990,"date":"1990-05-25"}
+  ],
+  "tmdbCollections": [264],
+  "sources": ["https://en.wikipedia.org/wiki/Back_to_the_Future_(franchise)","https://www.themoviedb.org/collection/264","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "the-incredibles",
+  "name": "The Incredibles",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0317705","tmdbId":9806,"type":"movie","title":"The Incredibles","year":2004,"date":"2004-11-05"},
+    {"imdbId":"tt3606756","tmdbId":260513,"type":"movie","title":"Incredibles 2","year":2018,"date":"2018-06-15"}
+  ],
+  "tmdbCollections": [468222],
+  "sources": ["https://en.wikipedia.org/wiki/The_Incredibles_(franchise)","https://www.themoviedb.org/collection/468222","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

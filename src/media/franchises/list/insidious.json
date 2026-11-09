@@ -1,0 +1,25 @@
+{
+  "id": "insidious",
+  "name": "Insidious",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1591095","tmdbId":49018,"type":"movie","title":"Insidious","year":2011,"date":"2011-04-01"},
+    {"imdbId":"tt2226417","tmdbId":91586,"type":"movie","title":"Insidious: Chapter 2","year":2013,"date":"2013-09-13"},
+    {"imdbId":"tt3195644","tmdbId":280092,"type":"movie","title":"Insidious: Chapter 3","year":2015,"date":"2015-06-05"},
+    {"imdbId":"tt5726086","tmdbId":406563,"type":"movie","title":"Insidious: The Last Key","year":2018,"date":"2018-01-05"},
+    {"imdbId":"tt13405778","tmdbId":614479,"type":"movie","title":"Insidious: The Red Door","year":2023,"date":"2023-07-07"},
+    {"imdbId":"tt32393988","tmdbId":1291595,"type":"movie","title":"Insidious: Out of the Further","year":2026,"date":"2026-08-21"}
+  ],
+  "story": [
+    "tt3195644",
+    "tt5726086",
+    "tt1591095",
+    "tt2226417",
+    "tt13405778",
+    "tt32393988"
+  ],
+  "tmdbCollections": [228446],
+  "sources": ["https://en.wikipedia.org/wiki/Insidious_(film_series)","https://www.fangoria.com/how-to-watch-insidious-movies-in-chronological-order/","https://guides.justwatch.com/us/complete-insidious-timeline-explained","https://www.themoviedb.org/collection/228446","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order: Chapter 3 and The Last Key (Elise's earlier cases) come before Insidious and Chapter 2; The Red Door (ten years later) and Out of the Further (2026) close it."
+}

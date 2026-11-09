@@ -1,0 +1,14 @@
+{
+  "id": "how-to-train-your-dragon",
+  "name": "How to Train Your Dragon",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0892769","tmdbId":10191,"type":"movie","title":"How to Train Your Dragon","year":2010,"date":"2010-03-26"},
+    {"imdbId":"tt1646971","tmdbId":82702,"type":"movie","title":"How to Train Your Dragon 2","year":2014,"date":"2014-06-13"},
+    {"imdbId":"tt2386490","tmdbId":166428,"type":"movie","title":"How to Train Your Dragon: The Hidden World","year":2019,"date":"2019-02-22"}
+  ],
+  "tmdbCollections": [89137],
+  "sources": ["https://en.wikipedia.org/wiki/How_to_Train_Your_Dragon_(franchise)","https://www.themoviedb.org/collection/89137","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The animated trilogy. The 2025 live-action remake retells the first film and is left out."
+}

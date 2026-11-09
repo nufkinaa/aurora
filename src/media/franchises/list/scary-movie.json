@@ -1,0 +1,17 @@
+{
+  "id": "scary-movie",
+  "name": "Scary Movie",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0175142","tmdbId":4247,"type":"movie","title":"Scary Movie","year":2000,"date":"2000-07-07"},
+    {"imdbId":"tt0257106","tmdbId":4248,"type":"movie","title":"Scary Movie 2","year":2001,"date":"2001-07-04"},
+    {"imdbId":"tt0306047","tmdbId":4256,"type":"movie","title":"Scary Movie 3","year":2003,"date":"2003-10-24"},
+    {"imdbId":"tt0362120","tmdbId":4257,"type":"movie","title":"Scary Movie 4","year":2006,"date":"2006-04-14"},
+    {"imdbId":"tt0795461","tmdbId":4258,"type":"movie","title":"Scary Movie 5","year":2013,"date":"2013-04-12"},
+    {"imdbId":"tt32093575","tmdbId":1273221,"type":"movie","title":"Scary Movie","year":2026,"date":"2026-06-05"}
+  ],
+  "tmdbCollections": [4246],
+  "sources": ["https://en.wikipedia.org/wiki/Scary_Movie_(film_series)","https://www.paramount.com/news/scary-movie-makes-a-killer-return-opening-to-franchise-record-1055-million-worldwide","https://www.themoviedb.org/collection/4246","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The six films, including the 2026 Scary Movie with the Wayans brothers back."
+}

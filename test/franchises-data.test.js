@@ -1,4 +1,4 @@
-// The curated franchise list (src/media/franchises/data) is only worth having
+// The curated franchise list (src/media/franchises/list) is only worth having
 // if every entry is right: the IMDb id is that title (name, year, type and
 // TMDB id as the catalogue has them — test/fixtures/franchise-meta.json, made
 // by tools/franchises/snapshot.js from Cinemeta), nothing is listed twice, the

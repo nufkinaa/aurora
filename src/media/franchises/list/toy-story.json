@@ -1,0 +1,17 @@
+{
+  "id": "toy-story",
+  "name": "Toy Story",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0114709","tmdbId":862,"type":"movie","title":"Toy Story","year":1995,"date":"1995-11-22"},
+    {"imdbId":"tt0120363","tmdbId":863,"type":"movie","title":"Toy Story 2","year":1999,"date":"1999-11-24"},
+    {"imdbId":"tt0435761","tmdbId":10193,"type":"movie","title":"Toy Story 3","year":2010,"date":"2010-06-18"},
+    {"imdbId":"tt1979376","tmdbId":301528,"type":"movie","title":"Toy Story 4","year":2019,"date":"2019-06-21"},
+    {"imdbId":"tt10298810","tmdbId":718789,"type":"movie","title":"Lightyear","year":2022,"date":"2022-06-17","optional":true,"note":"the film Andy saw in 1995 that made him want a Buzz toy"},
+    {"imdbId":"tt29355505","tmdbId":1084244,"type":"movie","title":"Toy Story 5","year":2026,"date":"2026-06-19"}
+  ],
+  "tmdbCollections": [10194],
+  "sources": ["https://en.wikipedia.org/wiki/Toy_Story_(franchise)","https://www.themoviedb.org/collection/10194","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Lightyear (2022) is an optional spin-off: the in-world film behind the Buzz Lightyear toy. Toy Story 5 (2026) added. Toy Story of Terror!, Toy Story That Time Forgot and the shorts are left out."
+}

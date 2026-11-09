@@ -1,0 +1,21 @@
+{
+  "id": "saw",
+  "name": "Saw",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0387564","tmdbId":176,"type":"movie","title":"Saw","year":2004,"date":"2004-10-29"},
+    {"imdbId":"tt0432348","tmdbId":215,"type":"movie","title":"Saw II","year":2005,"date":"2005-10-28"},
+    {"imdbId":"tt0489270","tmdbId":214,"type":"movie","title":"Saw III","year":2006,"date":"2006-10-27"},
+    {"imdbId":"tt0890870","tmdbId":663,"type":"movie","title":"Saw IV","year":2007,"date":"2007-10-26"},
+    {"imdbId":"tt1132626","tmdbId":11917,"type":"movie","title":"Saw V","year":2008,"date":"2008-10-24"},
+    {"imdbId":"tt1233227","tmdbId":22804,"type":"movie","title":"Saw VI","year":2009,"date":"2009-10-23"},
+    {"imdbId":"tt1477076","tmdbId":41439,"type":"movie","title":"Saw 3D","year":2010,"date":"2010-10-29"},
+    {"imdbId":"tt3348730","tmdbId":298250,"type":"movie","title":"Jigsaw","year":2017,"date":"2017-10-27"},
+    {"imdbId":"tt10342730","tmdbId":602734,"type":"movie","title":"Spiral","year":2021,"date":"2021-05-14"},
+    {"imdbId":"tt21807222","tmdbId":951491,"type":"movie","title":"Saw X","year":2023,"date":"2023-09-29"}
+  ],
+  "tmdbCollections": [656],
+  "sources": ["https://en.wikipedia.org/wiki/Saw_(franchise)","https://www.themoviedb.org/collection/656","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Release order only: the films cut between flashback timelines (Saw X sits between Saw and Saw II, Jigsaw's flashbacks predate the first film), and no story order is agreed. Spiral is a standalone entry in the same world."
+}

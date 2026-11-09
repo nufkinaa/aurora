@@ -1,0 +1,16 @@
+{
+  "id": "dcu",
+  "name": "DC Universe",
+  "the": true,
+  "priority": 100,
+  "entries": [
+    {"imdbId":"tt13146488","tmdbId":110492,"type":"series","title":"Peacemaker","year":2022,"date":"2022-01-13","optional":true,"note":"season 2 (2025) is set in the DC Universe"},
+    {"imdbId":"tt26545355","tmdbId":219543,"type":"series","title":"Creature Commandos","year":2024,"date":"2024-12-05","optional":true,"note":"animated; Chapter One opener"},
+    {"imdbId":"tt5950044","tmdbId":800788,"type":"movie","title":"Superman","year":2025,"date":"2025-07-11"},
+    {"imdbId":"tt8814476","tmdbId":1081003,"type":"movie","title":"Supergirl","year":2026,"date":"2026-06-26"},
+    {"imdbId":"tt26545992","tmdbId":95350,"type":"series","title":"Lanterns","year":2026,"date":"2026-08-16","optional":true}
+  ],
+  "tmdbCollections": [],
+  "sources": ["https://en.wikipedia.org/wiki/DC_Universe_(franchise)","https://www.thewrap.com/lanterns-hbo-premiere-summer-2026/","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "James Gunn and Peter Safran's DC Studios universe (Chapter One: Gods and Monsters). Films are main; Creature Commandos, Peacemaker (one entry for the show: its second season is DCU) and Lanterns (HBO, August 2026) are optional. Clayface (September 2026) left out until checked."
+}

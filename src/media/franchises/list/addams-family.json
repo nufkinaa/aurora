@@ -1,0 +1,13 @@
+{
+  "id": "addams-family",
+  "name": "The Addams Family (1991)",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0101272","tmdbId":2907,"type":"movie","title":"The Addams Family","year":1991,"date":"1991-11-22"},
+    {"imdbId":"tt0106220","tmdbId":2758,"type":"movie","title":"Addams Family Values","year":1993,"date":"1993-11-19"}
+  ],
+  "tmdbCollections": [11716],
+  "sources": ["https://en.wikipedia.org/wiki/The_Addams_Family_(1991_film)","https://www.themoviedb.org/collection/11716","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Barry Sonnenfeld's two live-action films. The animated films and the TV series are left out."
+}

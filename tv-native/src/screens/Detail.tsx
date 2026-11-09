@@ -38,6 +38,8 @@ import Card, {CARD_W, CARD_H} from '../components/Card';
 import NavRail from '../components/NavRail';
 import {api, ApiError, artSrc, forgetMemo, imgSrc, ImgSource, Item, Episode, HeroItem, LIST_ADDED, Progress, StreamRef, DiscoverMeta, DownloadJob, MarkEntry, Stream} from '../api';
 import {autoPlayStep, pickBest, playPress, SAVE_WATCH} from '../playBest';
+import FranchiseLine from '../components/FranchiseLine'; // [franchise]
+import {autoSaveStep, isImdbId} from '../franchiseRules'; // [franchise]
 import {heroRelease, ReleaseStatus} from '../releaseWords';
 import {isOpen, onMessage} from '../realtime';
 import {canNavigate} from '../navLock';
@@ -683,7 +685,7 @@ export default function Detail({
   route,
   navigation,
 }: NativeStackScreenProps<RootStackParamList, 'Detail'>) {
-  const {item, play: autoPlay} = route.params;
+  const {item, play: autoPlay, save: autoSave} = route.params;
   const {profileId} = useApp();
   // Which nav section this title belongs to. Computed once: inside the movie
   // branch TypeScript has already narrowed item.type, so an inline comparison
@@ -1293,6 +1295,8 @@ export default function Detail({
   // opens the marked list instead of saving one. The read is the one Play
   // makes anyway (api.ts memo, 90 s), so the press after it costs nothing.
   const [heroRel, setHeroRel] = useState<ReleaseStatus | null>(null);
+  // [franchise] is there a best source (null: not known yet) — what `save` waits for
+  const [filmBest, setFilmBest] = useState<boolean | null>(null);
   const filmImdb = item.type === 'show' ? null : item.imdbId || libImdb || null;
   useEffect(() => {
     setHeroRel(null);
@@ -1301,7 +1305,9 @@ export default function Detail({
     api
       .torrentSources({type: 'movie', title: filmImdb, year: item.year ?? undefined})
       .then(r => {
-        if (live) setHeroRel(pickBest(r.streams) ? null : heroRelease(r.release));
+        if (!live) return;
+        setHeroRel(pickBest(r.streams) ? null : heroRelease(r.release));
+        setFilmBest(!!pickBest(r.streams));
       })
       .catch(() => {});
     return () => {
@@ -2337,6 +2343,48 @@ export default function Detail({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoKey, heroOwned]);
+  // [franchise] SAVE & WATCH, PRESSED ONCE (route param `save`: the franchise
+  // page's or the end card's Save & watch on a film not on the server — the
+  // person's own press carried over). The very handler a press runs, once it
+  // is known the film is not on disk, not on its way and has a best source;
+  // anything else leaves the page as it is, Save & watch focused
+  // (franchiseRules.ts autoSaveStep). Once per page.
+  const saveDone = useRef(!autoSave);
+  const downloadBestMovieRef = useRef(downloadBestMovie);
+  downloadBestMovieRef.current = downloadBestMovie;
+  const saveKey = `${torrentsKnown}|${torrentsOff}|${stream ? libSettled : !loading}|${!!ownedMovieId}|${jobsRead}|${!!movieJob}|${filmBest}`;
+  useEffect(() => {
+    if (saveDone.current) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const step = () => {
+      timer = null;
+      if (saveDone.current) return;
+      const out = autoSaveStep({
+        save: !!autoSave,
+        type: item.type,
+        torrentsKnown,
+        torrentsOff,
+        libraryKnown: stream ? libSettled : !loading,
+        owned: !!ownedMovieId,
+        jobsKnown: jobsRead,
+        onItsWay: !!movieJob,
+        best: filmBest,
+        elapsed: Date.now() - openedAt.current,
+      });
+      if (out === 'wait') {
+        timer = setTimeout(step, 400);
+        return;
+      }
+      saveDone.current = true;
+      if (out === 'press') downloadBestMovieRef.current();
+      else console.log('[franchise] save: left as it is');
+    };
+    step();
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saveKey]);
   const heroJob = heroOwned || !heroKey ? null : heroKey === 'film' ? movieJob : epJobs[heroKey];
   // no target yet (a show whose episode list has not landed): nothing to say
   const heroDl = !heroKey
@@ -2449,6 +2497,13 @@ export default function Detail({
   const scrollRef = useRef<ScrollView>(null);
   const scrollToEnd = useCallback(() => scrollRef.current?.scrollToEnd({animated: true}), []);
   const scrollToTop = useCallback(() => scrollRef.current?.scrollTo({y: 0, animated: true}), []);
+  // [franchise] Watch in order → the franchise page
+  const openFranchise = useCallback(
+    (f: {id: string; name: string}) => {
+      if (canNavigate(navigation)) navigation.push('Franchise', {id: f.id, name: f.name});
+    },
+    [navigation],
+  );
   const renderEpisode = useCallback(
     ({item: ep, index}: {item: UiEp; index: number}) => (
       <EpisodeCard
@@ -2634,6 +2689,16 @@ export default function Detail({
     </TVFocusGuideView>
   ) : null;
 
+  // [franchise] under the icon row: "Part of … · 12 of 34 · Watch in order" (drawn
+  // once the server answers — FranchiseLine)
+  const frImdb = item.imdbId || libImdb || full?.imdbId || streamMeta?.imdbId || (isImdbId(item.id) ? item.id : null);
+  const heroBanner = (
+    <>
+      {hhBanner}
+      <FranchiseLine imdbId={frImdb} type={item.type === 'show' ? 'series' : 'movie'} profileId={profileId} onOpen={openFranchise} onFocused={scrollToTop} />
+    </>
+  );
+
   if (item.type === 'show') {
     return (
       <View style={styles.root} onLayout={() => titleShown(isStream(item))}>
@@ -2662,7 +2727,7 @@ export default function Detail({
           cast={streamMeta?.cast}
           note={srcNote}
           bottomInset={0}
-          banner={hhBanner}
+          banner={heroBanner}
           secondary={
             <>
               <IconBtn uiId="detail.mylist" ref={listBtnRef} edgeLeft icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />
@@ -2825,7 +2890,7 @@ export default function Detail({
         cast={streamMeta?.cast}
         note={srcNote}
         bottomInset={0}
-        banner={hhBanner}
+        banner={heroBanner}
         secondary={
           <>
             <IconBtn uiId="detail.mylist" ref={listBtnRef} edgeLeft icon={inList ? 'check' : 'plus'} on={inList} label="My List" onPress={toggleList} />

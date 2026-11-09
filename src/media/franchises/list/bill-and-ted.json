@@ -1,0 +1,13 @@
+{
+  "id": "bill-and-ted",
+  "name": "Bill & Ted",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0096928","tmdbId":1648,"type":"movie","title":"Bill & Ted's Excellent Adventure","year":1989,"date":"1989-02-17"},
+    {"imdbId":"tt0101452","tmdbId":1649,"type":"movie","title":"Bill & Ted's Bogus Journey","year":1991,"date":"1991-07-19"},
+    {"imdbId":"tt1086064","tmdbId":501979,"type":"movie","title":"Bill & Ted Face the Music","year":2020,"date":"2020-08-28"}
+  ],
+  "tmdbCollections": [91746],
+  "sources": ["https://en.wikipedia.org/wiki/Bill_%26_Ted","https://www.themoviedb.org/collection/91746","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

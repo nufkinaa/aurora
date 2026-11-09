@@ -1,0 +1,23 @@
+{
+  "id": "mad-max",
+  "name": "Mad Max",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0079501","tmdbId":9659,"type":"movie","title":"Mad Max","year":1980,"date":"1980-03-21"},
+    {"imdbId":"tt0082694","tmdbId":8810,"type":"movie","title":"The Road Warrior","year":1982,"date":"1982-05-21"},
+    {"imdbId":"tt0089530","tmdbId":9355,"type":"movie","title":"Mad Max: Beyond Thunderdome","year":1985,"date":"1985-07-10"},
+    {"imdbId":"tt1392190","tmdbId":76341,"type":"movie","title":"Mad Max: Fury Road","year":2015,"date":"2015-05-15"},
+    {"imdbId":"tt12037194","tmdbId":786892,"type":"movie","title":"Furiosa: A Mad Max Saga","year":2024,"date":"2024-05-24"}
+  ],
+  "story": [
+    "tt0079501",
+    "tt0082694",
+    "tt0089530",
+    "tt12037194",
+    "tt1392190"
+  ],
+  "tmdbCollections": [8945],
+  "sources": ["https://en.wikipedia.org/wiki/Mad_Max","https://en.wikipedia.org/wiki/Furiosa:_A_Mad_Max_Saga","https://www.themoviedb.org/collection/8945","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order: Furiosa (a prequel spanning the years before Fury Road) comes before Mad Max: Fury Road."
+}

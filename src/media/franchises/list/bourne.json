@@ -1,0 +1,16 @@
+{
+  "id": "bourne",
+  "name": "Bourne",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0258463","tmdbId":2501,"type":"movie","title":"The Bourne Identity","year":2002,"date":"2002-06-14"},
+    {"imdbId":"tt0372183","tmdbId":2502,"type":"movie","title":"The Bourne Supremacy","year":2004,"date":"2004-07-23"},
+    {"imdbId":"tt0440963","tmdbId":2503,"type":"movie","title":"The Bourne Ultimatum","year":2007,"date":"2007-08-03"},
+    {"imdbId":"tt1194173","tmdbId":49040,"type":"movie","title":"The Bourne Legacy","year":2012,"date":"2012-08-10","optional":true,"note":"spin-off with Aaron Cross"},
+    {"imdbId":"tt4196776","tmdbId":324668,"type":"movie","title":"Jason Bourne","year":2016,"date":"2016-07-29"}
+  ],
+  "tmdbCollections": [31562],
+  "sources": ["https://en.wikipedia.org/wiki/Bourne_(franchise)","https://www.themoviedb.org/collection/31562","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The Bourne Legacy is optional: a side story with a different agent, running alongside The Bourne Ultimatum. The Treadstone series is left out."
+}

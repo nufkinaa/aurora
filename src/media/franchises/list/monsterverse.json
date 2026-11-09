@@ -1,0 +1,25 @@
+{
+  "id": "monsterverse",
+  "name": "MonsterVerse",
+  "the": true,
+  "priority": 100,
+  "entries": [
+    {"imdbId":"tt0831387","tmdbId":124905,"type":"movie","title":"Godzilla","year":2014,"date":"2014-05-16"},
+    {"imdbId":"tt3731562","tmdbId":293167,"type":"movie","title":"Kong: Skull Island","year":2017,"date":"2017-03-10"},
+    {"imdbId":"tt3741700","tmdbId":373571,"type":"movie","title":"Godzilla: King of the Monsters","year":2019,"date":"2019-05-31"},
+    {"imdbId":"tt5034838","tmdbId":399566,"type":"movie","title":"Godzilla vs. Kong","year":2021,"date":"2021-03-31"},
+    {"imdbId":"tt17220216","tmdbId":202411,"type":"series","title":"Monarch: Legacy of Monsters","year":2023,"date":"2023-11-17","optional":true},
+    {"imdbId":"tt14539740","tmdbId":823464,"type":"movie","title":"Godzilla X Kong: The New Empire","year":2024,"date":"2024-03-29"}
+  ],
+  "story": [
+    "tt3731562",
+    "tt0831387",
+    "tt17220216",
+    "tt3741700",
+    "tt5034838",
+    "tt14539740"
+  ],
+  "tmdbCollections": [535313,1539140],
+  "sources": ["https://en.wikipedia.org/wiki/Monsterverse","https://en.wikipedia.org/wiki/Monarch:_Legacy_of_Monsters","https://www.themoviedb.org/collection/535313","https://www.themoviedb.org/collection/1539140","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order: Kong: Skull Island (1973) first; Monarch: Legacy of Monsters (its present-day story is 2015, the year after Godzilla's San Francisco attack; flashbacks to the 1950s) after Godzilla (2014). Left out: the Skull Island anime series."
+}

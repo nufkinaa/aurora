@@ -1,0 +1,12 @@
+{
+  "id": "princess-diaries",
+  "name": "The Princess Diaries",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0247638","tmdbId":9880,"type":"movie","title":"The Princess Diaries","year":2001,"date":"2001-08-03"},
+    {"imdbId":"tt0368933","tmdbId":11130,"type":"movie","title":"The Princess Diaries 2: Royal Engagement","year":2004,"date":"2004-08-11"}
+  ],
+  "tmdbCollections": [107674],
+  "sources": ["https://en.wikipedia.org/wiki/The_Princess_Diaries_2:_Royal_Engagement","https://www.themoviedb.org/collection/107674","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

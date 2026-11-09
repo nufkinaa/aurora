@@ -1,0 +1,12 @@
+{
+  "id": "five-nights-at-freddys",
+  "name": "Five Nights at Freddy's",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt4589218","tmdbId":507089,"type":"movie","title":"Five Nights at Freddy's","year":2023,"date":"2023-10-27"},
+    {"imdbId":"tt30274401","tmdbId":1228246,"type":"movie","title":"Five Nights at Freddy's 2","year":2025,"date":"2025-12-05"}
+  ],
+  "tmdbCollections": [1240438],
+  "sources": ["https://en.wikipedia.org/wiki/Five_Nights_at_Freddy%27s_2_(film)","https://www.themoviedb.org/collection/1240438","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

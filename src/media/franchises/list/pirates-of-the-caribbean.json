@@ -1,0 +1,15 @@
+{
+  "id": "pirates-of-the-caribbean",
+  "name": "Pirates of the Caribbean",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0325980","tmdbId":22,"type":"movie","title":"Pirates of the Caribbean: The Curse of the Black Pearl","year":2003,"date":"2003-07-09"},
+    {"imdbId":"tt0383574","tmdbId":58,"type":"movie","title":"Pirates of the Caribbean: Dead Man's Chest","year":2006,"date":"2006-07-07"},
+    {"imdbId":"tt0449088","tmdbId":285,"type":"movie","title":"Pirates of the Caribbean: At World's End","year":2007,"date":"2007-05-25"},
+    {"imdbId":"tt1298650","tmdbId":1865,"type":"movie","title":"Pirates of the Caribbean: On Stranger Tides","year":2011,"date":"2011-05-20"},
+    {"imdbId":"tt1790809","tmdbId":166426,"type":"movie","title":"Pirates of the Caribbean: Dead Men Tell No Tales","year":2017,"date":"2017-05-26"}
+  ],
+  "tmdbCollections": [295],
+  "sources": ["https://en.wikipedia.org/wiki/Pirates_of_the_Caribbean_(film_series)","https://www.themoviedb.org/collection/295","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

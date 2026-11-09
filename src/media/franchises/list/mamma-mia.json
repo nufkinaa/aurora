@@ -1,0 +1,12 @@
+{
+  "id": "mamma-mia",
+  "name": "Mamma Mia!",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0795421","tmdbId":11631,"type":"movie","title":"Mamma Mia!","year":2008,"date":"2008-07-18"},
+    {"imdbId":"tt6911608","tmdbId":458423,"type":"movie","title":"Mamma Mia! Here We Go Again","year":2018,"date":"2018-07-20"}
+  ],
+  "tmdbCollections": [458558],
+  "sources": ["https://en.wikipedia.org/wiki/Mamma_Mia!_Here_We_Go_Again","https://www.themoviedb.org/collection/458558","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

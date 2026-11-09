@@ -1,0 +1,5028 @@
+{
+ "tt0055928": {
+  "type": "movie",
+  "name": "Dr. No",
+  "year": 1962,
+  "released": "1962-10-10",
+  "tmdbId": 646
+ },
+ "tt0057076": {
+  "type": "movie",
+  "name": "From Russia with Love",
+  "year": 1964,
+  "released": "1964-05-27",
+  "tmdbId": 657
+ },
+ "tt0058150": {
+  "type": "movie",
+  "name": "Goldfinger",
+  "year": 1965,
+  "released": "1965-01-09",
+  "tmdbId": 658
+ },
+ "tt0059800": {
+  "type": "movie",
+  "name": "Thunderball",
+  "year": 1965,
+  "released": "1965-12-22",
+  "tmdbId": 660
+ },
+ "tt0062512": {
+  "type": "movie",
+  "name": "You Only Live Twice",
+  "year": 1967,
+  "released": "1967-06-13",
+  "tmdbId": 667
+ },
+ "tt0063442": {
+  "type": "movie",
+  "name": "Planet of the Apes",
+  "year": 1968,
+  "released": "1968-04-03",
+  "tmdbId": 871
+ },
+ "tt0064757": {
+  "type": "movie",
+  "name": "On Her Majesty's Secret Service",
+  "year": 1969,
+  "released": "1969-12-19",
+  "tmdbId": 668
+ },
+ "tt0065462": {
+  "type": "movie",
+  "name": "Beneath the Planet of the Apes",
+  "year": 1970,
+  "released": "1970-05-26",
+  "tmdbId": 1685
+ },
+ "tt0066995": {
+  "type": "movie",
+  "name": "Diamonds Are Forever",
+  "year": 1971,
+  "released": "1971-12-17",
+  "tmdbId": 681
+ },
+ "tt0067065": {
+  "type": "movie",
+  "name": "Escape from the Planet of the Apes",
+  "year": 1971,
+  "released": "1971-07-09",
+  "tmdbId": 1687
+ },
+ "tt0068408": {
+  "type": "movie",
+  "name": "Conquest of the Planet of the Apes",
+  "year": 1972,
+  "released": "1972-06-30",
+  "tmdbId": 1688
+ },
+ "tt0068646": {
+  "type": "movie",
+  "name": "The Godfather",
+  "year": 1972,
+  "released": "1972-03-24",
+  "tmdbId": 238
+ },
+ "tt0069768": {
+  "type": "movie",
+  "name": "Battle for the Planet of the Apes",
+  "year": 1973,
+  "released": "1973-06-15",
+  "tmdbId": 1705
+ },
+ "tt0070328": {
+  "type": "movie",
+  "name": "Live and Let Die",
+  "year": 1973,
+  "released": "1973-06-27",
+  "tmdbId": 253
+ },
+ "tt0071562": {
+  "type": "movie",
+  "name": "The Godfather Part II",
+  "year": 1974,
+  "released": "1974-12-18",
+  "tmdbId": 240
+ },
+ "tt0071807": {
+  "type": "movie",
+  "name": "The Man with the Golden Gun",
+  "year": 1974,
+  "released": "1974-12-20",
+  "tmdbId": 682
+ },
+ "tt0073195": {
+  "type": "movie",
+  "name": "Jaws",
+  "year": 1975,
+  "released": "1975-06-20",
+  "tmdbId": 578
+ },
+ "tt0075148": {
+  "type": "movie",
+  "name": "Rocky",
+  "year": 1976,
+  "released": "1976-12-03",
+  "tmdbId": 1366
+ },
+ "tt0076752": {
+  "type": "movie",
+  "name": "The Spy Who Loved Me",
+  "year": 1977,
+  "released": "1977-08-03",
+  "tmdbId": 691
+ },
+ "tt0076759": {
+  "type": "movie",
+  "name": "Star Wars: Episode IV - A New Hope",
+  "year": 1977,
+  "released": "1977-05-25",
+  "tmdbId": 11
+ },
+ "tt0077651": {
+  "type": "movie",
+  "name": "Halloween",
+  "year": 1978,
+  "released": "1978-10-27",
+  "tmdbId": 948
+ },
+ "tt0077766": {
+  "type": "movie",
+  "name": "Jaws 2",
+  "year": 1978,
+  "released": "1978-06-16",
+  "tmdbId": 579
+ },
+ "tt0078748": {
+  "type": "movie",
+  "name": "Alien",
+  "year": 1979,
+  "released": "1979-06-22",
+  "tmdbId": 348
+ },
+ "tt0079501": {
+  "type": "movie",
+  "name": "Mad Max",
+  "year": 1980,
+  "released": "1980-03-21",
+  "tmdbId": 9659
+ },
+ "tt0079574": {
+  "type": "movie",
+  "name": "Moonraker",
+  "year": 1979,
+  "released": "1979-06-29",
+  "tmdbId": 698
+ },
+ "tt0079817": {
+  "type": "movie",
+  "name": "Rocky II",
+  "year": 1979,
+  "released": "1979-06-15",
+  "tmdbId": 1367
+ },
+ "tt0079945": {
+  "type": "movie",
+  "name": "Star Trek: The Motion Picture",
+  "year": 1979,
+  "released": "1979-12-08",
+  "tmdbId": 152
+ },
+ "tt0080684": {
+  "type": "movie",
+  "name": "Star Wars: Episode V - The Empire Strikes Back",
+  "year": 1980,
+  "released": "1980-06-18",
+  "tmdbId": 1891
+ },
+ "tt0082398": {
+  "type": "movie",
+  "name": "For Your Eyes Only",
+  "year": 1981,
+  "released": "1981-06-26",
+  "tmdbId": 699
+ },
+ "tt0082694": {
+  "type": "movie",
+  "name": "The Road Warrior",
+  "year": 1982,
+  "released": "1982-05-21",
+  "tmdbId": 8810
+ },
+ "tt0082971": {
+  "type": "movie",
+  "name": "Raiders of the Lost Ark",
+  "year": 1981,
+  "released": "1981-06-12",
+  "tmdbId": 85
+ },
+ "tt0083658": {
+  "type": "movie",
+  "name": "Blade Runner",
+  "year": 1982,
+  "released": "1982-06-25",
+  "tmdbId": 78
+ },
+ "tt0083907": {
+  "type": "movie",
+  "name": "The Evil Dead",
+  "year": 1983,
+  "released": "1983-04-15",
+  "tmdbId": 764
+ },
+ "tt0083944": {
+  "type": "movie",
+  "name": "First Blood",
+  "year": 1982,
+  "released": "1982-10-22",
+  "tmdbId": 1368
+ },
+ "tt0084602": {
+  "type": "movie",
+  "name": "Rocky III",
+  "year": 1982,
+  "released": "1982-05-28",
+  "tmdbId": 1371
+ },
+ "tt0084726": {
+  "type": "movie",
+  "name": "Star Trek II: The Wrath of Khan",
+  "year": 1982,
+  "released": "1982-06-04",
+  "tmdbId": 154
+ },
+ "tt0084827": {
+  "type": "movie",
+  "name": "Tron",
+  "year": 1982,
+  "released": "1982-07-09",
+  "tmdbId": 97
+ },
+ "tt0085750": {
+  "type": "movie",
+  "name": "Jaws 3-D",
+  "year": 1983,
+  "released": "1983-07-22",
+  "tmdbId": 17692
+ },
+ "tt0086034": {
+  "type": "movie",
+  "name": "Octopussy",
+  "year": 1983,
+  "released": "1983-06-10",
+  "tmdbId": 700
+ },
+ "tt0086190": {
+  "type": "movie",
+  "name": "Star Wars: Episode VI - Return of the Jedi",
+  "year": 1983,
+  "released": "1983-05-25",
+  "tmdbId": 1892
+ },
+ "tt0086960": {
+  "type": "movie",
+  "name": "Beverly Hills Cop",
+  "year": 1984,
+  "released": "1984-12-05",
+  "tmdbId": 90
+ },
+ "tt0087332": {
+  "type": "movie",
+  "name": "Ghostbusters",
+  "year": 1984,
+  "released": "1984-06-08",
+  "tmdbId": 620
+ },
+ "tt0087363": {
+  "type": "movie",
+  "name": "Gremlins",
+  "year": 1984,
+  "released": "1984-06-08",
+  "tmdbId": 927
+ },
+ "tt0087469": {
+  "type": "movie",
+  "name": "Indiana Jones and the Temple of Doom",
+  "year": 1984,
+  "released": "1984-05-23",
+  "tmdbId": 87
+ },
+ "tt0087538": {
+  "type": "movie",
+  "name": "The Karate Kid",
+  "year": 1984,
+  "released": "1984-06-22",
+  "tmdbId": 1885
+ },
+ "tt0088170": {
+  "type": "movie",
+  "name": "Star Trek III: The Search for Spock",
+  "year": 1984,
+  "released": "1984-06-01",
+  "tmdbId": 157
+ },
+ "tt0088247": {
+  "type": "movie",
+  "name": "The Terminator",
+  "year": 1984,
+  "released": "1984-10-26",
+  "tmdbId": 218
+ },
+ "tt0088763": {
+  "type": "movie",
+  "name": "Back to the Future",
+  "year": 1985,
+  "released": "1985-07-03",
+  "tmdbId": 105
+ },
+ "tt0089530": {
+  "type": "movie",
+  "name": "Mad Max: Beyond Thunderdome",
+  "year": 1985,
+  "released": "1985-07-10",
+  "tmdbId": 9355
+ },
+ "tt0089880": {
+  "type": "movie",
+  "name": "Rambo: First Blood Part II",
+  "year": 1985,
+  "released": "1985-05-22",
+  "tmdbId": 1369
+ },
+ "tt0089927": {
+  "type": "movie",
+  "name": "Rocky IV",
+  "year": 1985,
+  "released": "1985-11-27",
+  "tmdbId": 1374
+ },
+ "tt0090264": {
+  "type": "movie",
+  "name": "A View to a Kill",
+  "year": 1985,
+  "released": "1985-05-24",
+  "tmdbId": 707
+ },
+ "tt0090605": {
+  "type": "movie",
+  "name": "Aliens",
+  "year": 1986,
+  "released": "1986-07-18",
+  "tmdbId": 679
+ },
+ "tt0091326": {
+  "type": "movie",
+  "name": "The Karate Kid Part II",
+  "year": 1986,
+  "released": "1986-06-20",
+  "tmdbId": 8856
+ },
+ "tt0092007": {
+  "type": "movie",
+  "name": "Star Trek IV: The Voyage Home",
+  "year": 1986,
+  "released": "1986-11-26",
+  "tmdbId": 168
+ },
+ "tt0092099": {
+  "type": "movie",
+  "name": "Top Gun",
+  "year": 1986,
+  "released": "1986-05-16",
+  "tmdbId": 744
+ },
+ "tt0092644": {
+  "type": "movie",
+  "name": "Beverly Hills Cop II",
+  "year": 1987,
+  "released": "1987-05-20",
+  "tmdbId": 96
+ },
+ "tt0092991": {
+  "type": "movie",
+  "name": "Evil Dead II",
+  "year": 1987,
+  "released": "1987-03-13",
+  "tmdbId": 765
+ },
+ "tt0093300": {
+  "type": "movie",
+  "name": "Jaws: The Revenge",
+  "year": 1987,
+  "released": "1987-07-17",
+  "tmdbId": 580
+ },
+ "tt0093409": {
+  "type": "movie",
+  "name": "Lethal Weapon",
+  "year": 1987,
+  "released": "1987-03-06",
+  "tmdbId": 941
+ },
+ "tt0093428": {
+  "type": "movie",
+  "name": "The Living Daylights",
+  "year": 1987,
+  "released": "1987-07-31",
+  "tmdbId": 708
+ },
+ "tt0093773": {
+  "type": "movie",
+  "name": "Predator",
+  "year": 1987,
+  "released": "1987-06-12",
+  "tmdbId": 106
+ },
+ "tt0093870": {
+  "type": "movie",
+  "name": "RoboCop",
+  "year": 1987,
+  "released": "1987-07-17",
+  "tmdbId": 5548
+ },
+ "tt0094721": {
+  "type": "movie",
+  "name": "Beetlejuice",
+  "year": 1988,
+  "released": "1988-03-30",
+  "tmdbId": 4011
+ },
+ "tt0095016": {
+  "type": "movie",
+  "name": "Die Hard",
+  "year": 1988,
+  "released": "1988-07-20",
+  "tmdbId": 562
+ },
+ "tt0095705": {
+  "type": "movie",
+  "name": "The Naked Gun: From the Files of Police Squad!",
+  "year": 1988,
+  "released": "1988-12-02",
+  "tmdbId": 37136
+ },
+ "tt0095956": {
+  "type": "movie",
+  "name": "Rambo III",
+  "year": 1988,
+  "released": "1988-05-25",
+  "tmdbId": 1370
+ },
+ "tt0096874": {
+  "type": "movie",
+  "name": "Back to the Future Part II",
+  "year": 1989,
+  "released": "1989-11-22",
+  "tmdbId": 165
+ },
+ "tt0096928": {
+  "type": "movie",
+  "name": "Bill & Ted's Excellent Adventure",
+  "year": 1989,
+  "released": "1989-02-17",
+  "tmdbId": 1648
+ },
+ "tt0097428": {
+  "type": "movie",
+  "name": "Ghostbusters II",
+  "year": 1989,
+  "released": "1989-06-16",
+  "tmdbId": 2978
+ },
+ "tt0097576": {
+  "type": "movie",
+  "name": "Indiana Jones and the Last Crusade",
+  "year": 1989,
+  "released": "1989-05-24",
+  "tmdbId": 89
+ },
+ "tt0097647": {
+  "type": "movie",
+  "name": "The Karate Kid Part III",
+  "year": 1989,
+  "released": "1989-06-30",
+  "tmdbId": 10495
+ },
+ "tt0097733": {
+  "type": "movie",
+  "name": "Lethal Weapon 2",
+  "year": 1989,
+  "released": "1989-07-07",
+  "tmdbId": 942
+ },
+ "tt0097742": {
+  "type": "movie",
+  "name": "Licence to Kill",
+  "year": 1989,
+  "released": "1989-07-14",
+  "tmdbId": 709
+ },
+ "tt0098382": {
+  "type": "movie",
+  "name": "Star Trek V: The Final Frontier",
+  "year": 1989,
+  "released": "1989-06-09",
+  "tmdbId": 172
+ },
+ "tt0099088": {
+  "type": "movie",
+  "name": "Back to the Future Part III",
+  "year": 1990,
+  "released": "1990-05-25",
+  "tmdbId": 196
+ },
+ "tt0099423": {
+  "type": "movie",
+  "name": "Die Hard 2",
+  "year": 1990,
+  "released": "1990-07-03",
+  "tmdbId": 1573
+ },
+ "tt0099674": {
+  "type": "movie",
+  "name": "The Godfather Part III",
+  "year": 1990,
+  "released": "1990-12-25",
+  "tmdbId": 242
+ },
+ "tt0099700": {
+  "type": "movie",
+  "name": "Gremlins 2: The New Batch",
+  "year": 1990,
+  "released": "1990-06-15",
+  "tmdbId": 928
+ },
+ "tt0099785": {
+  "type": "movie",
+  "name": "Home Alone",
+  "year": 1990,
+  "released": "1990-11-16",
+  "tmdbId": 771
+ },
+ "tt0100403": {
+  "type": "movie",
+  "name": "Predator 2",
+  "year": 1990,
+  "released": "1990-11-21",
+  "tmdbId": 169
+ },
+ "tt0100502": {
+  "type": "movie",
+  "name": "RoboCop 2",
+  "year": 1990,
+  "released": "1990-06-22",
+  "tmdbId": 5549
+ },
+ "tt0100507": {
+  "type": "movie",
+  "name": "Rocky V",
+  "year": 1990,
+  "released": "1990-11-16",
+  "tmdbId": 1375
+ },
+ "tt0101272": {
+  "type": "movie",
+  "name": "The Addams Family",
+  "year": 1991,
+  "released": "1991-11-22",
+  "tmdbId": 2907
+ },
+ "tt0101452": {
+  "type": "movie",
+  "name": "Bill & Ted's Bogus Journey",
+  "year": 1991,
+  "released": "1991-07-19",
+  "tmdbId": 1649
+ },
+ "tt0102510": {
+  "type": "movie",
+  "name": "The Naked Gun 2½: The Smell of Fear",
+  "year": 1991,
+  "released": "1991-06-28",
+  "tmdbId": 37137
+ },
+ "tt0102975": {
+  "type": "movie",
+  "name": "Star Trek VI: The Undiscovered Country",
+  "year": 1991,
+  "released": "1991-12-06",
+  "tmdbId": 174
+ },
+ "tt0103064": {
+  "type": "movie",
+  "name": "Terminator 2: Judgment Day",
+  "year": 1991,
+  "released": "1991-07-03",
+  "tmdbId": 280
+ },
+ "tt0103644": {
+  "type": "movie",
+  "name": "Alien³",
+  "year": 1992,
+  "released": "1992-05-22",
+  "tmdbId": 8077
+ },
+ "tt0104431": {
+  "type": "movie",
+  "name": "Home Alone 2: Lost in New York",
+  "year": 1992,
+  "released": "1992-11-20",
+  "tmdbId": 772
+ },
+ "tt0104714": {
+  "type": "movie",
+  "name": "Lethal Weapon 3",
+  "year": 1992,
+  "released": "1992-05-15",
+  "tmdbId": 943
+ },
+ "tt0105793": {
+  "type": "movie",
+  "name": "Wayne's World",
+  "year": 1992,
+  "released": "1992-02-14",
+  "tmdbId": 8872
+ },
+ "tt0106220": {
+  "type": "movie",
+  "name": "Addams Family Values",
+  "year": 1993,
+  "released": "1993-11-19",
+  "tmdbId": 2758
+ },
+ "tt0106308": {
+  "type": "movie",
+  "name": "Army of Darkness",
+  "year": 1993,
+  "released": "1993-02-19",
+  "tmdbId": 766
+ },
+ "tt0107120": {
+  "type": "movie",
+  "name": "Hocus Pocus",
+  "year": 1993,
+  "released": "1993-07-16",
+  "tmdbId": 10439
+ },
+ "tt0107290": {
+  "type": "movie",
+  "name": "Jurassic Park",
+  "year": 1993,
+  "released": "1993-06-11",
+  "tmdbId": 329
+ },
+ "tt0107978": {
+  "type": "movie",
+  "name": "RoboCop 3",
+  "year": 1993,
+  "released": "1993-11-05",
+  "tmdbId": 5550
+ },
+ "tt0108525": {
+  "type": "movie",
+  "name": "Wayne's World 2",
+  "year": 1993,
+  "released": "1993-12-10",
+  "tmdbId": 8873
+ },
+ "tt0109040": {
+  "type": "movie",
+  "name": "Ace Ventura: Pet Detective",
+  "year": 1994,
+  "released": "1994-02-04",
+  "tmdbId": 3049
+ },
+ "tt0109254": {
+  "type": "movie",
+  "name": "Beverly Hills Cop III",
+  "year": 1994,
+  "released": "1994-05-25",
+  "tmdbId": 306
+ },
+ "tt0109686": {
+  "type": "movie",
+  "name": "Dumb and Dumber",
+  "year": 1994,
+  "released": "1994-12-16",
+  "tmdbId": 8467
+ },
+ "tt0110622": {
+  "type": "movie",
+  "name": "Naked Gun 33 1/3: The Final Insult",
+  "year": 1994,
+  "released": "1994-03-18",
+  "tmdbId": 36593
+ },
+ "tt0110657": {
+  "type": "movie",
+  "name": "The Next Karate Kid",
+  "year": 1994,
+  "released": "1994-09-09",
+  "tmdbId": 11231
+ },
+ "tt0111070": {
+  "type": "movie",
+  "name": "The Santa Clause",
+  "year": 1994,
+  "released": "1994-11-11",
+  "tmdbId": 11395
+ },
+ "tt0111280": {
+  "type": "movie",
+  "name": "Star Trek: Generations",
+  "year": 1994,
+  "released": "1994-11-18",
+  "tmdbId": 193
+ },
+ "tt0112281": {
+  "type": "movie",
+  "name": "Ace Ventura: When Nature Calls",
+  "year": 1995,
+  "released": "1995-11-10",
+  "tmdbId": 9273
+ },
+ "tt0112442": {
+  "type": "movie",
+  "name": "Bad Boys",
+  "year": 1995,
+  "released": "1995-04-07",
+  "tmdbId": 9737
+ },
+ "tt0112471": {
+  "type": "movie",
+  "name": "Before Sunrise",
+  "year": 1995,
+  "released": "1995-01-27",
+  "tmdbId": 76
+ },
+ "tt0112864": {
+  "type": "movie",
+  "name": "Die Hard with a Vengeance",
+  "year": 1995,
+  "released": "1995-05-19",
+  "tmdbId": 1572
+ },
+ "tt0113189": {
+  "type": "movie",
+  "name": "GoldenEye",
+  "year": 1995,
+  "released": "1995-11-17",
+  "tmdbId": 710
+ },
+ "tt0113497": {
+  "type": "movie",
+  "name": "Jumanji",
+  "year": 1995,
+  "released": "1995-12-15",
+  "tmdbId": 8844
+ },
+ "tt0114709": {
+  "type": "movie",
+  "name": "Toy Story",
+  "year": 1995,
+  "released": "1995-11-22",
+  "tmdbId": 862
+ },
+ "tt0116483": {
+  "type": "movie",
+  "name": "Happy Gilmore",
+  "year": 1996,
+  "released": "1996-02-16",
+  "tmdbId": 9614
+ },
+ "tt0116629": {
+  "type": "movie",
+  "name": "Independence Day",
+  "year": 1996,
+  "released": "1996-07-03",
+  "tmdbId": 602
+ },
+ "tt0117060": {
+  "type": "movie",
+  "name": "Mission: Impossible",
+  "year": 1996,
+  "released": "1996-05-22",
+  "tmdbId": 954
+ },
+ "tt0117571": {
+  "type": "movie",
+  "name": "Scream",
+  "year": 1996,
+  "released": "1996-12-20",
+  "tmdbId": 4232
+ },
+ "tt0117731": {
+  "type": "movie",
+  "name": "Star Trek: First Contact",
+  "year": 1996,
+  "released": "1996-11-22",
+  "tmdbId": 199
+ },
+ "tt0118583": {
+  "type": "movie",
+  "name": "Alien: Resurrection",
+  "year": 1997,
+  "released": "1997-11-26",
+  "tmdbId": 8078
+ },
+ "tt0118655": {
+  "type": "movie",
+  "name": "Austin Powers: International Man of Mystery",
+  "year": 1997,
+  "released": "1997-05-02",
+  "tmdbId": 816
+ },
+ "tt0119567": {
+  "type": "movie",
+  "name": "The Lost World: Jurassic Park",
+  "year": 1997,
+  "released": "1997-05-22",
+  "tmdbId": 330
+ },
+ "tt0119654": {
+  "type": "movie",
+  "name": "Men in Black",
+  "year": 1997,
+  "released": "1997-07-02",
+  "tmdbId": 607
+ },
+ "tt0120082": {
+  "type": "movie",
+  "name": "Scream 2",
+  "year": 1997,
+  "released": "1997-12-12",
+  "tmdbId": 4233
+ },
+ "tt0120347": {
+  "type": "movie",
+  "name": "Tomorrow Never Dies",
+  "year": 1997,
+  "released": "1997-12-19",
+  "tmdbId": 714
+ },
+ "tt0120363": {
+  "type": "movie",
+  "name": "Toy Story 2",
+  "year": 1999,
+  "released": "1999-11-24",
+  "tmdbId": 863
+ },
+ "tt0120616": {
+  "type": "movie",
+  "name": "The Mummy",
+  "year": 1999,
+  "released": "1999-05-07",
+  "tmdbId": 564
+ },
+ "tt0120737": {
+  "type": "movie",
+  "name": "The Lord of the Rings: The Fellowship of the Ring",
+  "year": 2001,
+  "released": "2001-12-19",
+  "tmdbId": 120
+ },
+ "tt0120755": {
+  "type": "movie",
+  "name": "Mission: Impossible II",
+  "year": 2000,
+  "released": "2000-05-24",
+  "tmdbId": 955
+ },
+ "tt0120804": {
+  "type": "movie",
+  "name": "Resident Evil",
+  "year": 2002,
+  "released": "2002-03-15",
+  "tmdbId": 1576
+ },
+ "tt0120812": {
+  "type": "movie",
+  "name": "Rush Hour",
+  "year": 1998,
+  "released": "1998-09-18",
+  "tmdbId": 2109
+ },
+ "tt0120844": {
+  "type": "movie",
+  "name": "Star Trek: Insurrection",
+  "year": 1998,
+  "released": "1998-12-11",
+  "tmdbId": 200
+ },
+ "tt0120903": {
+  "type": "movie",
+  "name": "X-Men",
+  "year": 2000,
+  "released": "2000-07-14",
+  "tmdbId": 36657
+ },
+ "tt0120912": {
+  "type": "movie",
+  "name": "Men in Black II",
+  "year": 2002,
+  "released": "2002-07-03",
+  "tmdbId": 608
+ },
+ "tt0120915": {
+  "type": "movie",
+  "name": "Star Wars: Episode I - The Phantom Menace",
+  "year": 1999,
+  "released": "1999-05-19",
+  "tmdbId": 1893
+ },
+ "tt0121765": {
+  "type": "movie",
+  "name": "Star Wars: Episode II - Attack of the Clones",
+  "year": 2002,
+  "released": "2002-05-16",
+  "tmdbId": 1894
+ },
+ "tt0121766": {
+  "type": "movie",
+  "name": "Star Wars: Episode III - Revenge of the Sith",
+  "year": 2005,
+  "released": "2005-05-19",
+  "tmdbId": 1895
+ },
+ "tt0122151": {
+  "type": "movie",
+  "name": "Lethal Weapon 4",
+  "year": 1998,
+  "released": "1998-07-10",
+  "tmdbId": 944
+ },
+ "tt0126029": {
+  "type": "movie",
+  "name": "Shrek",
+  "year": 2001,
+  "released": "2001-05-18",
+  "tmdbId": 808
+ },
+ "tt0133093": {
+  "type": "movie",
+  "name": "The Matrix",
+  "year": 1999,
+  "released": "1999-03-31",
+  "tmdbId": 603
+ },
+ "tt0134084": {
+  "type": "movie",
+  "name": "Scream 3",
+  "year": 2000,
+  "released": "2000-02-04",
+  "tmdbId": 4234
+ },
+ "tt0134847": {
+  "type": "movie",
+  "name": "Pitch Black",
+  "year": 2000,
+  "released": "2000-02-18",
+  "tmdbId": 2787
+ },
+ "tt0143145": {
+  "type": "movie",
+  "name": "The World Is Not Enough",
+  "year": 1999,
+  "released": "1999-11-19",
+  "tmdbId": 36643
+ },
+ "tt0145487": {
+  "type": "movie",
+  "name": "Spider-Man",
+  "year": 2002,
+  "released": "2002-05-03",
+  "tmdbId": 557
+ },
+ "tt0145660": {
+  "type": "movie",
+  "name": "Austin Powers: The Spy Who Shagged Me",
+  "year": 1999,
+  "released": "1999-06-11",
+  "tmdbId": 817
+ },
+ "tt0163025": {
+  "type": "movie",
+  "name": "Jurassic Park III",
+  "year": 2001,
+  "released": "2001-07-18",
+  "tmdbId": 331
+ },
+ "tt0163651": {
+  "type": "movie",
+  "name": "American Pie",
+  "year": 1999,
+  "released": "1999-07-09",
+  "tmdbId": 2105
+ },
+ "tt0167260": {
+  "type": "movie",
+  "name": "The Lord of the Rings: The Return of the King",
+  "year": 2003,
+  "released": "2003-12-17",
+  "tmdbId": 122
+ },
+ "tt0167261": {
+  "type": "movie",
+  "name": "The Lord of the Rings: The Two Towers",
+  "year": 2002,
+  "released": "2002-12-18",
+  "tmdbId": 121
+ },
+ "tt0172156": {
+  "type": "movie",
+  "name": "Bad Boys II",
+  "year": 2003,
+  "released": "2003-07-18",
+  "tmdbId": 8961
+ },
+ "tt0172495": {
+  "type": "movie",
+  "name": "Gladiator",
+  "year": 2000,
+  "released": "2000-05-05",
+  "tmdbId": 98
+ },
+ "tt0175142": {
+  "type": "movie",
+  "name": "Scary Movie",
+  "year": 2000,
+  "released": "2000-07-07",
+  "tmdbId": 4247
+ },
+ "tt0181852": {
+  "type": "movie",
+  "name": "Terminator 3: Rise of the Machines",
+  "year": 2003,
+  "released": "2003-07-02",
+  "tmdbId": 296
+ },
+ "tt0195714": {
+  "type": "movie",
+  "name": "Final Destination",
+  "year": 2000,
+  "released": "2000-03-17",
+  "tmdbId": 9532
+ },
+ "tt0198781": {
+  "type": "movie",
+  "name": "Monsters, Inc.",
+  "year": 2001,
+  "released": "2001-11-02",
+  "tmdbId": 585
+ },
+ "tt0209163": {
+  "type": "movie",
+  "name": "The Mummy Returns",
+  "year": 2001,
+  "released": "2001-05-04",
+  "tmdbId": 1734
+ },
+ "tt0212338": {
+  "type": "movie",
+  "name": "Meet the Parents",
+  "year": 2000,
+  "released": "2000-10-06",
+  "tmdbId": 1597
+ },
+ "tt0217869": {
+  "type": "movie",
+  "name": "Unbreakable",
+  "year": 2000,
+  "released": "2000-11-22",
+  "tmdbId": 9741
+ },
+ "tt0232500": {
+  "type": "movie",
+  "name": "The Fast and the Furious",
+  "year": 2001,
+  "released": "2001-06-22",
+  "tmdbId": 9799
+ },
+ "tt0234215": {
+  "type": "movie",
+  "name": "The Matrix Reloaded",
+  "year": 2003,
+  "released": "2003-05-15",
+  "tmdbId": 604
+ },
+ "tt0240772": {
+  "type": "movie",
+  "name": "Ocean's Eleven",
+  "year": 2001,
+  "released": "2001-12-07",
+  "tmdbId": 161
+ },
+ "tt0241527": {
+  "type": "movie",
+  "name": "Harry Potter and the Sorcerer's Stone",
+  "year": 2001,
+  "released": "2001-11-16",
+  "tmdbId": 671
+ },
+ "tt0242653": {
+  "type": "movie",
+  "name": "The Matrix Revolutions",
+  "year": 2003,
+  "released": "2003-11-05",
+  "tmdbId": 605
+ },
+ "tt0243155": {
+  "type": "movie",
+  "name": "Bridget Jones's Diary",
+  "year": 2001,
+  "released": "2001-04-13",
+  "tmdbId": 634
+ },
+ "tt0246460": {
+  "type": "movie",
+  "name": "Die Another Day",
+  "year": 2002,
+  "released": "2002-11-22",
+  "tmdbId": 36669
+ },
+ "tt0247638": {
+  "type": "movie",
+  "name": "The Princess Diaries",
+  "year": 2001,
+  "released": "2001-08-03",
+  "tmdbId": 9880
+ },
+ "tt0250494": {
+  "type": "movie",
+  "name": "Legally Blonde",
+  "year": 2001,
+  "released": "2001-07-13",
+  "tmdbId": 8835
+ },
+ "tt0252866": {
+  "type": "movie",
+  "name": "American Pie 2",
+  "year": 2001,
+  "released": "2001-08-10",
+  "tmdbId": 2770
+ },
+ "tt0253754": {
+  "type": "movie",
+  "name": "Star Trek: Nemesis",
+  "year": 2002,
+  "released": "2002-12-13",
+  "tmdbId": 201
+ },
+ "tt0257106": {
+  "type": "movie",
+  "name": "Scary Movie 2",
+  "year": 2001,
+  "released": "2001-07-04",
+  "tmdbId": 4248
+ },
+ "tt0258463": {
+  "type": "movie",
+  "name": "The Bourne Identity",
+  "year": 2002,
+  "released": "2002-06-14",
+  "tmdbId": 2501
+ },
+ "tt0266543": {
+  "type": "movie",
+  "name": "Finding Nemo",
+  "year": 2003,
+  "released": "2003-05-30",
+  "tmdbId": 12
+ },
+ "tt0266697": {
+  "type": "movie",
+  "name": "Kill Bill: Vol. 1",
+  "year": 2003,
+  "released": "2003-10-10",
+  "tmdbId": 24
+ },
+ "tt0266915": {
+  "type": "movie",
+  "name": "Rush Hour 2",
+  "year": 2001,
+  "released": "2001-08-03",
+  "tmdbId": 5175
+ },
+ "tt0268380": {
+  "type": "movie",
+  "name": "Ice Age",
+  "year": 2002,
+  "released": "2002-03-15",
+  "tmdbId": 425
+ },
+ "tt0277296": {
+  "type": "movie",
+  "name": "The Scorpion King",
+  "year": 2002,
+  "released": "2002-04-19",
+  "tmdbId": 9334
+ },
+ "tt0289043": {
+  "type": "movie",
+  "name": "28 Days Later",
+  "year": 2003,
+  "released": "2003-06-27",
+  "tmdbId": 170
+ },
+ "tt0290002": {
+  "type": "movie",
+  "name": "Meet the Fockers",
+  "year": 2004,
+  "released": "2004-12-22",
+  "tmdbId": 693
+ },
+ "tt0290334": {
+  "type": "movie",
+  "name": "X2: X-Men United",
+  "year": 2003,
+  "released": "2003-05-02",
+  "tmdbId": 36658
+ },
+ "tt0293429": {
+  "type": "movie",
+  "name": "Mortal Kombat",
+  "year": 2021,
+  "released": "2021-04-23",
+  "tmdbId": 460465
+ },
+ "tt0293564": {
+  "type": "movie",
+  "name": "Rush Hour 3",
+  "year": 2007,
+  "released": "2007-08-10",
+  "tmdbId": 5174
+ },
+ "tt0295178": {
+  "type": "movie",
+  "name": "Austin Powers in Goldmember",
+  "year": 2002,
+  "released": "2002-07-26",
+  "tmdbId": 818
+ },
+ "tt0295297": {
+  "type": "movie",
+  "name": "Harry Potter and the Chamber of Secrets",
+  "year": 2002,
+  "released": "2002-11-15",
+  "tmdbId": 672
+ },
+ "tt0296572": {
+  "type": "movie",
+  "name": "The Chronicles of Riddick",
+  "year": 2004,
+  "released": "2004-06-11",
+  "tmdbId": 2789
+ },
+ "tt0298148": {
+  "type": "movie",
+  "name": "Shrek 2",
+  "year": 2004,
+  "released": "2004-05-19",
+  "tmdbId": 809
+ },
+ "tt0304141": {
+  "type": "movie",
+  "name": "Harry Potter and the Prisoner of Azkaban",
+  "year": 2004,
+  "released": "2004-06-04",
+  "tmdbId": 673
+ },
+ "tt0304669": {
+  "type": "movie",
+  "name": "The Santa Clause 2",
+  "year": 2002,
+  "released": "2002-11-01",
+  "tmdbId": 9021
+ },
+ "tt0306047": {
+  "type": "movie",
+  "name": "Scary Movie 3",
+  "year": 2003,
+  "released": "2003-10-24",
+  "tmdbId": 4256
+ },
+ "tt0309593": {
+  "type": "movie",
+  "name": "Final Destination 2",
+  "year": 2003,
+  "released": "2003-01-31",
+  "tmdbId": 9358
+ },
+ "tt0316654": {
+  "type": "movie",
+  "name": "Spider-Man 2",
+  "year": 2004,
+  "released": "2004-06-30",
+  "tmdbId": 558
+ },
+ "tt0317198": {
+  "type": "movie",
+  "name": "Bridget Jones: The Edge of Reason",
+  "year": 2004,
+  "released": "2004-11-19",
+  "tmdbId": 9801
+ },
+ "tt0317219": {
+  "type": "movie",
+  "name": "Cars",
+  "year": 2006,
+  "released": "2006-06-09",
+  "tmdbId": 920
+ },
+ "tt0317705": {
+  "type": "movie",
+  "name": "The Incredibles",
+  "year": 2004,
+  "released": "2004-11-05",
+  "tmdbId": 9806
+ },
+ "tt0317919": {
+  "type": "movie",
+  "name": "Mission: Impossible III",
+  "year": 2006,
+  "released": "2006-05-05",
+  "tmdbId": 956
+ },
+ "tt0318627": {
+  "type": "movie",
+  "name": "Resident Evil: Apocalypse",
+  "year": 2004,
+  "released": "2004-09-10",
+  "tmdbId": 1577
+ },
+ "tt0320691": {
+  "type": "movie",
+  "name": "Underworld",
+  "year": 2003,
+  "released": "2003-09-19",
+  "tmdbId": 277
+ },
+ "tt0322259": {
+  "type": "movie",
+  "name": "2 Fast 2 Furious",
+  "year": 2003,
+  "released": "2003-06-06",
+  "tmdbId": 584
+ },
+ "tt0322330": {
+  "type": "movie",
+  "name": "Freaky Friday",
+  "year": 2003,
+  "released": "2003-08-06",
+  "tmdbId": 10330
+ },
+ "tt0325980": {
+  "type": "movie",
+  "name": "Pirates of the Caribbean: The Curse of the Black Pearl",
+  "year": 2003,
+  "released": "2003-07-09",
+  "tmdbId": 22
+ },
+ "tt0328828": {
+  "type": "movie",
+  "name": "American Wedding",
+  "year": 2003,
+  "released": "2003-08-01",
+  "tmdbId": 8273
+ },
+ "tt0330373": {
+  "type": "movie",
+  "name": "Harry Potter and the Goblet of Fire",
+  "year": 2005,
+  "released": "2005-11-18",
+  "tmdbId": 674
+ },
+ "tt0333780": {
+  "type": "movie",
+  "name": "Legally Blonde 2: Red, White & Blonde",
+  "year": 2003,
+  "released": "2003-07-02",
+  "tmdbId": 10327
+ },
+ "tt0337978": {
+  "type": "movie",
+  "name": "Live Free or Die Hard",
+  "year": 2007,
+  "released": "2007-06-27",
+  "tmdbId": 1571
+ },
+ "tt0349903": {
+  "type": "movie",
+  "name": "Ocean's Twelve",
+  "year": 2004,
+  "released": "2004-12-10",
+  "tmdbId": 163
+ },
+ "tt0351283": {
+  "type": "movie",
+  "name": "Madagascar",
+  "year": 2005,
+  "released": "2005-05-27",
+  "tmdbId": 953
+ },
+ "tt0362120": {
+  "type": "movie",
+  "name": "Scary Movie 4",
+  "year": 2006,
+  "released": "2006-04-14",
+  "tmdbId": 4257
+ },
+ "tt0363771": {
+  "type": "movie",
+  "name": "The Chronicles of Narnia: The Lion, the Witch and the Wardrobe",
+  "year": 2005,
+  "released": "2005-12-09",
+  "tmdbId": 411
+ },
+ "tt0366548": {
+  "type": "movie",
+  "name": "Happy Feet",
+  "year": 2006,
+  "released": "2006-11-17",
+  "tmdbId": 9836
+ },
+ "tt0367882": {
+  "type": "movie",
+  "name": "Indiana Jones and the Kingdom of the Crystal Skull",
+  "year": 2008,
+  "released": "2008-05-22",
+  "tmdbId": 217
+ },
+ "tt0368891": {
+  "type": "movie",
+  "name": "National Treasure",
+  "year": 2004,
+  "released": "2004-11-19",
+  "tmdbId": 2059
+ },
+ "tt0368933": {
+  "type": "movie",
+  "name": "The Princess Diaries 2: Royal Engagement",
+  "year": 2004,
+  "released": "2004-08-11",
+  "tmdbId": 11130
+ },
+ "tt0369610": {
+  "type": "movie",
+  "name": "Jurassic World",
+  "year": 2015,
+  "released": "2015-06-12",
+  "tmdbId": 135397
+ },
+ "tt0370263": {
+  "type": "movie",
+  "name": "Alien vs. Predator",
+  "year": 2004,
+  "released": "2004-08-13",
+  "tmdbId": 395
+ },
+ "tt0371746": {
+  "type": "movie",
+  "name": "Iron Man",
+  "year": 2008,
+  "released": "2008-05-02",
+  "tmdbId": 1726
+ },
+ "tt0372183": {
+  "type": "movie",
+  "name": "The Bourne Supremacy",
+  "year": 2004,
+  "released": "2004-07-23",
+  "tmdbId": 2502
+ },
+ "tt0372784": {
+  "type": "movie",
+  "name": "Batman Begins",
+  "year": 2005,
+  "released": "2005-06-15",
+  "tmdbId": 272
+ },
+ "tt0373889": {
+  "type": "movie",
+  "name": "Harry Potter and the Order of the Phoenix",
+  "year": 2007,
+  "released": "2007-07-11",
+  "tmdbId": 675
+ },
+ "tt0376994": {
+  "type": "movie",
+  "name": "X-Men: The Last Stand",
+  "year": 2006,
+  "released": "2006-05-26",
+  "tmdbId": 36668
+ },
+ "tt0378194": {
+  "type": "movie",
+  "name": "Kill Bill: Vol. 2",
+  "year": 2004,
+  "released": "2004-04-16",
+  "tmdbId": 393
+ },
+ "tt0381061": {
+  "type": "movie",
+  "name": "Casino Royale",
+  "year": 2006,
+  "released": "2006-11-17",
+  "tmdbId": 36557
+ },
+ "tt0381681": {
+  "type": "movie",
+  "name": "Before Sunset",
+  "year": 2004,
+  "released": "2004-07-30",
+  "tmdbId": 80
+ },
+ "tt0383574": {
+  "type": "movie",
+  "name": "Pirates of the Caribbean: Dead Man's Chest",
+  "year": 2006,
+  "released": "2006-07-07",
+  "tmdbId": 58
+ },
+ "tt0387564": {
+  "type": "movie",
+  "name": "Saw",
+  "year": 2004,
+  "released": "2004-10-29",
+  "tmdbId": 176
+ },
+ "tt0401855": {
+  "type": "movie",
+  "name": "Underworld: Evolution",
+  "year": 2006,
+  "released": "2006-01-20",
+  "tmdbId": 834
+ },
+ "tt0413267": {
+  "type": "movie",
+  "name": "Shrek the Third",
+  "year": 2007,
+  "released": "2007-05-18",
+  "tmdbId": 810
+ },
+ "tt0413300": {
+  "type": "movie",
+  "name": "Spider-Man 3",
+  "year": 2007,
+  "released": "2007-05-04",
+  "tmdbId": 559
+ },
+ "tt0414982": {
+  "type": "movie",
+  "name": "Final Destination 3",
+  "year": 2006,
+  "released": "2006-02-10",
+  "tmdbId": 9286
+ },
+ "tt0417741": {
+  "type": "movie",
+  "name": "Harry Potter and the Half-Blood Prince",
+  "year": 2009,
+  "released": "2009-07-15",
+  "tmdbId": 767
+ },
+ "tt0418279": {
+  "type": "movie",
+  "name": "Transformers",
+  "year": 2007,
+  "released": "2007-07-03",
+  "tmdbId": 1858
+ },
+ "tt0432021": {
+  "type": "movie",
+  "name": "Resident Evil: Extinction",
+  "year": 2007,
+  "released": "2007-09-21",
+  "tmdbId": 7737
+ },
+ "tt0432348": {
+  "type": "movie",
+  "name": "Saw II",
+  "year": 2005,
+  "released": "2005-10-28",
+  "tmdbId": 215
+ },
+ "tt0435761": {
+  "type": "movie",
+  "name": "Toy Story 3",
+  "year": 2010,
+  "released": "2010-06-18",
+  "tmdbId": 10193
+ },
+ "tt0438097": {
+  "type": "movie",
+  "name": "Ice Age: The Meltdown",
+  "year": 2006,
+  "released": "2006-03-31",
+  "tmdbId": 950
+ },
+ "tt0438488": {
+  "type": "movie",
+  "name": "Terminator Salvation",
+  "year": 2009,
+  "released": "2009-05-21",
+  "tmdbId": 534
+ },
+ "tt0439572": {
+  "type": "movie",
+  "name": "The Flash",
+  "year": 2023,
+  "released": "2023-06-16",
+  "tmdbId": 298618
+ },
+ "tt0440963": {
+  "type": "movie",
+  "name": "The Bourne Ultimatum",
+  "year": 2007,
+  "released": "2007-08-03",
+  "tmdbId": 2503
+ },
+ "tt0441773": {
+  "type": "movie",
+  "name": "Kung Fu Panda",
+  "year": 2008,
+  "released": "2008-06-06",
+  "tmdbId": 9502
+ },
+ "tt0448115": {
+  "type": "movie",
+  "name": "Shazam!",
+  "year": 2019,
+  "released": "2019-04-05",
+  "tmdbId": 287947
+ },
+ "tt0448694": {
+  "type": "movie",
+  "name": "Puss in Boots",
+  "year": 2011,
+  "released": "2011-11-15",
+  "tmdbId": 417859
+ },
+ "tt0449088": {
+  "type": "movie",
+  "name": "Pirates of the Caribbean: At World's End",
+  "year": 2007,
+  "released": "2007-05-25",
+  "tmdbId": 285
+ },
+ "tt0451279": {
+  "type": "movie",
+  "name": "Wonder Woman",
+  "year": 2017,
+  "released": "2017-06-02",
+  "tmdbId": 297762
+ },
+ "tt0452681": {
+  "type": "movie",
+  "name": "The Santa Clause 3: The Escape Clause",
+  "year": 2006,
+  "released": "2006-11-03",
+  "tmdbId": 13767
+ },
+ "tt0455944": {
+  "type": "movie",
+  "name": "The Equalizer",
+  "year": 2014,
+  "released": "2014-09-26",
+  "tmdbId": 156022
+ },
+ "tt0458290": {
+  "type": "series",
+  "name": "Star Wars: The Clone Wars",
+  "year": 2008,
+  "released": "2008-10-03",
+  "tmdbId": 4194
+ },
+ "tt0458339": {
+  "type": "movie",
+  "name": "Captain America: The First Avenger",
+  "year": 2011,
+  "released": "2011-07-22",
+  "tmdbId": 1771
+ },
+ "tt0458352": {
+  "type": "movie",
+  "name": "The Devil Wears Prada",
+  "year": 2006,
+  "released": "2006-06-30",
+  "tmdbId": 350
+ },
+ "tt0458525": {
+  "type": "movie",
+  "name": "X-Men Origins: Wolverine",
+  "year": 2009,
+  "released": "2009-05-01",
+  "tmdbId": 2080
+ },
+ "tt0462499": {
+  "type": "movie",
+  "name": "Rambo",
+  "year": 2008,
+  "released": "2008-01-25",
+  "tmdbId": 7555
+ },
+ "tt0463854": {
+  "type": "movie",
+  "name": "28 Weeks Later",
+  "year": 2007,
+  "released": "2007-05-11",
+  "tmdbId": 1562
+ },
+ "tt0463985": {
+  "type": "movie",
+  "name": "The Fast and the Furious: Tokyo Drift",
+  "year": 2006,
+  "released": "2006-06-16",
+  "tmdbId": 9615
+ },
+ "tt0465234": {
+  "type": "movie",
+  "name": "National Treasure: Book of Secrets",
+  "year": 2007,
+  "released": "2007-12-21",
+  "tmdbId": 6637
+ },
+ "tt0468569": {
+  "type": "movie",
+  "name": "The Dark Knight",
+  "year": 2008,
+  "released": "2008-07-18",
+  "tmdbId": 155
+ },
+ "tt0477347": {
+  "type": "movie",
+  "name": "Night at the Museum",
+  "year": 2006,
+  "released": "2006-12-22",
+  "tmdbId": 1593
+ },
+ "tt0478970": {
+  "type": "movie",
+  "name": "Ant-Man",
+  "year": 2015,
+  "released": "2015-07-17",
+  "tmdbId": 102899
+ },
+ "tt0479143": {
+  "type": "movie",
+  "name": "Rocky Balboa",
+  "year": 2006,
+  "released": "2006-12-20",
+  "tmdbId": 1246
+ },
+ "tt0479952": {
+  "type": "movie",
+  "name": "Madagascar: Escape 2 Africa",
+  "year": 2008,
+  "released": "2008-11-07",
+  "tmdbId": 10527
+ },
+ "tt0481499": {
+  "type": "movie",
+  "name": "The Croods",
+  "year": 2013,
+  "released": "2013-03-22",
+  "tmdbId": 49519
+ },
+ "tt0489270": {
+  "type": "movie",
+  "name": "Saw III",
+  "year": 2006,
+  "released": "2006-10-27",
+  "tmdbId": 214
+ },
+ "tt0496806": {
+  "type": "movie",
+  "name": "Ocean's Thirteen",
+  "year": 2007,
+  "released": "2007-06-08",
+  "tmdbId": 298
+ },
+ "tt0499448": {
+  "type": "movie",
+  "name": "The Chronicles of Narnia: Prince Caspian",
+  "year": 2008,
+  "released": "2008-05-16",
+  "tmdbId": 2454
+ },
+ "tt0499549": {
+  "type": "movie",
+  "name": "Avatar",
+  "year": 2009,
+  "released": "2009-12-18",
+  "tmdbId": 19995
+ },
+ "tt0758730": {
+  "type": "movie",
+  "name": "Aliens vs. Predator: Requiem",
+  "year": 2007,
+  "released": "2007-12-25",
+  "tmdbId": 440
+ },
+ "tt0770828": {
+  "type": "movie",
+  "name": "Man of Steel",
+  "year": 2013,
+  "released": "2013-06-14",
+  "tmdbId": 49521
+ },
+ "tt0790724": {
+  "type": "movie",
+  "name": "Jack Reacher",
+  "year": 2012,
+  "released": "2012-12-21",
+  "tmdbId": 75780
+ },
+ "tt0795421": {
+  "type": "movie",
+  "name": "Mamma Mia!",
+  "year": 2008,
+  "released": "2008-07-18",
+  "tmdbId": 11631
+ },
+ "tt0795461": {
+  "type": "movie",
+  "name": "Scary Movie 5",
+  "year": 2013,
+  "released": "2013-04-12",
+  "tmdbId": 4258
+ },
+ "tt0796366": {
+  "type": "movie",
+  "name": "Star Trek",
+  "year": 2009,
+  "released": "2009-05-08",
+  "tmdbId": 13475
+ },
+ "tt0800080": {
+  "type": "movie",
+  "name": "The Incredible Hulk",
+  "year": 2008,
+  "released": "2008-06-13",
+  "tmdbId": 1724
+ },
+ "tt0800369": {
+  "type": "movie",
+  "name": "Thor",
+  "year": 2011,
+  "released": "2011-05-06",
+  "tmdbId": 10195
+ },
+ "tt0830515": {
+  "type": "movie",
+  "name": "Quantum of Solace",
+  "year": 2008,
+  "released": "2008-11-14",
+  "tmdbId": 10764
+ },
+ "tt0831387": {
+  "type": "movie",
+  "name": "Godzilla",
+  "year": 2014,
+  "released": "2014-05-16",
+  "tmdbId": 124905
+ },
+ "tt0834001": {
+  "type": "movie",
+  "name": "Underworld: Rise of the Lycans",
+  "year": 2009,
+  "released": "2009-01-23",
+  "tmdbId": 12437
+ },
+ "tt0837562": {
+  "type": "movie",
+  "name": "Hotel Transylvania",
+  "year": 2012,
+  "released": "2012-09-28",
+  "tmdbId": 76492
+ },
+ "tt0844471": {
+  "type": "movie",
+  "name": "Cloudy with a Chance of Meatballs",
+  "year": 2009,
+  "released": "2009-09-18",
+  "tmdbId": 22794
+ },
+ "tt0848228": {
+  "type": "movie",
+  "name": "The Avengers",
+  "year": 2012,
+  "released": "2012-05-04",
+  "tmdbId": 24428
+ },
+ "tt0859163": {
+  "type": "movie",
+  "name": "The Mummy: Tomb of the Dragon Emperor",
+  "year": 2008,
+  "released": "2008-08-01",
+  "tmdbId": 1735
+ },
+ "tt0890870": {
+  "type": "movie",
+  "name": "Saw IV",
+  "year": 2007,
+  "released": "2007-10-26",
+  "tmdbId": 663
+ },
+ "tt0892769": {
+  "type": "movie",
+  "name": "How to Train Your Dragon",
+  "year": 2010,
+  "released": "2010-03-26",
+  "tmdbId": 10191
+ },
+ "tt0892791": {
+  "type": "movie",
+  "name": "Shrek Forever After",
+  "year": 2010,
+  "released": "2010-05-21",
+  "tmdbId": 10192
+ },
+ "tt0903624": {
+  "type": "movie",
+  "name": "The Hobbit: An Unexpected Journey",
+  "year": 2012,
+  "released": "2012-12-14",
+  "tmdbId": 49051
+ },
+ "tt0926084": {
+  "type": "movie",
+  "name": "Harry Potter and the Deathly Hallows: Part 1",
+  "year": 2010,
+  "released": "2010-11-19",
+  "tmdbId": 12444
+ },
+ "tt0936501": {
+  "type": "movie",
+  "name": "Taken",
+  "year": 2009,
+  "released": "2009-01-30",
+  "tmdbId": 8681
+ },
+ "tt0948470": {
+  "type": "movie",
+  "name": "The Amazing Spider-Man",
+  "year": 2012,
+  "released": "2012-07-03",
+  "tmdbId": 1930
+ },
+ "tt0970866": {
+  "type": "movie",
+  "name": "Little Fockers",
+  "year": 2010,
+  "released": "2010-12-22",
+  "tmdbId": 39451
+ },
+ "tt0974015": {
+  "type": "movie",
+  "name": "Justice League",
+  "year": 2017,
+  "released": "2017-11-17",
+  "tmdbId": 141052
+ },
+ "tt0980970": {
+  "type": "movie",
+  "name": "The Chronicles of Narnia: The Voyage of the Dawn Treader",
+  "year": 2010,
+  "released": "2010-12-10",
+  "tmdbId": 10140
+ },
+ "tt0988045": {
+  "type": "movie",
+  "name": "Sherlock Holmes",
+  "year": 2009,
+  "released": "2009-12-25",
+  "tmdbId": 10528
+ },
+ "tt1013752": {
+  "type": "movie",
+  "name": "Fast & Furious",
+  "year": 2009,
+  "released": "2009-04-03",
+  "tmdbId": 13804
+ },
+ "tt10151854": {
+  "type": "movie",
+  "name": "Shazam! Fury of the Gods",
+  "year": 2023,
+  "released": "2023-03-17",
+  "tmdbId": 594767
+ },
+ "tt10160804": {
+  "type": "series",
+  "name": "Hawkeye",
+  "year": 2021,
+  "released": "2021-11-24",
+  "tmdbId": 88329
+ },
+ "tt10160976": {
+  "type": "movie",
+  "name": "The Nun II",
+  "year": 2023,
+  "released": "2023-09-08",
+  "tmdbId": 968051
+ },
+ "tt10168312": {
+  "type": "series",
+  "name": "What If...?",
+  "year": 2021,
+  "released": "2021-08-11",
+  "tmdbId": 91363
+ },
+ "tt10234724": {
+  "type": "series",
+  "name": "Moon Knight",
+  "year": 2022,
+  "released": "2022-03-30",
+  "tmdbId": 92749
+ },
+ "tt10298810": {
+  "type": "movie",
+  "name": "Lightyear",
+  "year": 2022,
+  "released": "2022-06-17",
+  "tmdbId": 718789
+ },
+ "tt10327252": {
+  "type": "movie",
+  "name": "The Forever Purge",
+  "year": 2021,
+  "released": "2021-07-02",
+  "tmdbId": 602223
+ },
+ "tt10342730": {
+  "type": "movie",
+  "name": "Spiral",
+  "year": 2021,
+  "released": "2021-05-14",
+  "tmdbId": 602734
+ },
+ "tt10366206": {
+  "type": "movie",
+  "name": "John Wick: Chapter 4",
+  "year": 2023,
+  "released": "2023-03-24",
+  "tmdbId": 603692
+ },
+ "tt10403420": {
+  "type": "movie",
+  "name": "Terrifier 2",
+  "year": 2022,
+  "released": "2022-10-06",
+  "tmdbId": 663712
+ },
+ "tt10466872": {
+  "type": "series",
+  "name": "Dune: Prophecy",
+  "year": 2024,
+  "released": "2024-11-17",
+  "tmdbId": 90228
+ },
+ "tt10515988": {
+  "type": "movie",
+  "name": "Paranormal Activity: Next of Kin",
+  "year": 2021,
+  "released": "2021-10-29",
+  "tmdbId": 609972
+ },
+ "tt10545296": {
+  "type": "movie",
+  "name": "The Hunger Games: The Ballad of Songbirds & Snakes",
+  "year": 2023,
+  "released": "2023-11-17",
+  "tmdbId": 695721
+ },
+ "tt10548174": {
+  "type": "movie",
+  "name": "28 Years Later",
+  "year": 2025,
+  "released": "2025-06-20",
+  "tmdbId": 1100988
+ },
+ "tt1055369": {
+  "type": "movie",
+  "name": "Transformers: Revenge of the Fallen",
+  "year": 2009,
+  "released": "2009-06-24",
+  "tmdbId": 8373
+ },
+ "tt1060277": {
+  "type": "movie",
+  "name": "Cloverfield",
+  "year": 2008,
+  "released": "2008-01-18",
+  "tmdbId": 7191
+ },
+ "tt10648342": {
+  "type": "movie",
+  "name": "Thor: Love and Thunder",
+  "year": 2022,
+  "released": "2022-07-08",
+  "tmdbId": 616037
+ },
+ "tt10665338": {
+  "type": "movie",
+  "name": "Halloween Kills",
+  "year": 2021,
+  "released": "2021-10-15",
+  "tmdbId": 610253
+ },
+ "tt10665342": {
+  "type": "movie",
+  "name": "Halloween Ends",
+  "year": 2022,
+  "released": "2022-10-14",
+  "tmdbId": 616820
+ },
+ "tt10676048": {
+  "type": "movie",
+  "name": "The Marvels",
+  "year": 2023,
+  "released": "2023-11-10",
+  "tmdbId": 609681
+ },
+ "tt10676052": {
+  "type": "movie",
+  "name": "The Fantastic Four: First Steps",
+  "year": 2025,
+  "released": "2025-07-25",
+  "tmdbId": 617126
+ },
+ "tt1074638": {
+  "type": "movie",
+  "name": "Skyfall",
+  "year": 2012,
+  "released": "2012-11-09",
+  "tmdbId": 37724
+ },
+ "tt1078912": {
+  "type": "movie",
+  "name": "Night at the Museum: Battle of the Smithsonian",
+  "year": 2009,
+  "released": "2009-05-22",
+  "tmdbId": 18360
+ },
+ "tt1080016": {
+  "type": "movie",
+  "name": "Ice Age: Dawn of the Dinosaurs",
+  "year": 2009,
+  "released": "2009-07-01",
+  "tmdbId": 8355
+ },
+ "tt10838180": {
+  "type": "movie",
+  "name": "The Matrix Resurrections",
+  "year": 2021,
+  "released": "2021-12-22",
+  "tmdbId": 624860
+ },
+ "tt10857160": {
+  "type": "series",
+  "name": "She Hulk: Attorney at Law",
+  "year": 2022,
+  "released": "2022-08-18",
+  "tmdbId": 92783
+ },
+ "tt10857164": {
+  "type": "series",
+  "name": "Ms. Marvel",
+  "year": 2022,
+  "released": "2022-06-08",
+  "tmdbId": 92782
+ },
+ "tt1086064": {
+  "type": "movie",
+  "name": "Bill & Ted Face the Music",
+  "year": 2020,
+  "released": "2020-08-28",
+  "tmdbId": 501979
+ },
+ "tt10872600": {
+  "type": "movie",
+  "name": "Spider-Man: No Way Home",
+  "year": 2021,
+  "released": "2021-12-17",
+  "tmdbId": 634649
+ },
+ "tt10954600": {
+  "type": "movie",
+  "name": "Ant-Man and the Wasp: Quantumania",
+  "year": 2023,
+  "released": "2023-02-17",
+  "tmdbId": 640146
+ },
+ "tt1099212": {
+  "type": "movie",
+  "name": "Twilight",
+  "year": 2008,
+  "released": "2008-11-21",
+  "tmdbId": 8966
+ },
+ "tt1104001": {
+  "type": "movie",
+  "name": "Tron: Legacy",
+  "year": 2010,
+  "released": "2010-12-17",
+  "tmdbId": 20526
+ },
+ "tt1109624": {
+  "type": "movie",
+  "name": "Paddington",
+  "year": 2015,
+  "released": "2015-01-16",
+  "tmdbId": 116149
+ },
+ "tt11145118": {
+  "type": "movie",
+  "name": "Creed III",
+  "year": 2023,
+  "released": "2023-03-03",
+  "tmdbId": 677179
+ },
+ "tt1119646": {
+  "type": "movie",
+  "name": "The Hangover",
+  "year": 2009,
+  "released": "2009-06-05",
+  "tmdbId": 18785
+ },
+ "tt11245972": {
+  "type": "movie",
+  "name": "Scream",
+  "year": 2022,
+  "released": "2022-01-14",
+  "tmdbId": 646385
+ },
+ "tt1132626": {
+  "type": "movie",
+  "name": "Saw V",
+  "year": 2008,
+  "released": "2008-10-24",
+  "tmdbId": 11917
+ },
+ "tt11389872": {
+  "type": "movie",
+  "name": "Kingdom of the Planet of the Apes",
+  "year": 2024,
+  "released": "2024-05-10",
+  "tmdbId": 653346
+ },
+ "tt1144884": {
+  "type": "movie",
+  "name": "The Final Destination",
+  "year": 2009,
+  "released": "2009-08-28",
+  "tmdbId": 19912
+ },
+ "tt1155076": {
+  "type": "movie",
+  "name": "The Karate Kid",
+  "year": 2010,
+  "released": "2010-06-11",
+  "tmdbId": 38575
+ },
+ "tt1156398": {
+  "type": "movie",
+  "name": "Zombieland",
+  "year": 2009,
+  "released": "2009-10-02",
+  "tmdbId": 19908
+ },
+ "tt11564570": {
+  "type": "movie",
+  "name": "Glass Onion",
+  "year": 2022,
+  "released": "2022-12-23",
+  "tmdbId": 661374
+ },
+ "tt1160419": {
+  "type": "movie",
+  "name": "Dune",
+  "year": 2021,
+  "released": "2021-10-22",
+  "tmdbId": 438631
+ },
+ "tt1170358": {
+  "type": "movie",
+  "name": "The Hobbit: The Desolation of Smaug",
+  "year": 2013,
+  "released": "2013-12-13",
+  "tmdbId": 57158
+ },
+ "tt1179904": {
+  "type": "movie",
+  "name": "Paranormal Activity",
+  "year": 2009,
+  "released": "2009-10-16",
+  "tmdbId": 23827
+ },
+ "tt1179933": {
+  "type": "movie",
+  "name": "10 Cloverfield Lane",
+  "year": 2016,
+  "released": "2016-03-11",
+  "tmdbId": 333371
+ },
+ "tt1185834": {
+  "type": "movie",
+  "name": "Star Wars: The Clone Wars",
+  "year": 2008,
+  "released": "2008-08-15",
+  "tmdbId": 12180
+ },
+ "tt11866324": {
+  "type": "movie",
+  "name": "Prey",
+  "year": 2022,
+  "released": "2022-08-05",
+  "tmdbId": 766507
+ },
+ "tt11909878": {
+  "type": "movie",
+  "name": "Hocus Pocus 2",
+  "year": 2022,
+  "released": "2022-09-30",
+  "tmdbId": 642885
+ },
+ "tt1194173": {
+  "type": "movie",
+  "name": "The Bourne Legacy",
+  "year": 2012,
+  "released": "2012-08-10",
+  "tmdbId": 49040
+ },
+ "tt1201607": {
+  "type": "movie",
+  "name": "Harry Potter and the Deathly Hallows: Part 2",
+  "year": 2011,
+  "released": "2011-07-15",
+  "tmdbId": 12445
+ },
+ "tt12037194": {
+  "type": "movie",
+  "name": "Furiosa: A Mad Max Saga",
+  "year": 2024,
+  "released": "2024-05-24",
+  "tmdbId": 786892
+ },
+ "tt1206885": {
+  "type": "movie",
+  "name": "Rambo: Last Blood",
+  "year": 2019,
+  "released": "2019-09-20",
+  "tmdbId": 292012
+ },
+ "tt1211837": {
+  "type": "movie",
+  "name": "Doctor Strange",
+  "year": 2016,
+  "released": "2016-11-04",
+  "tmdbId": 284052
+ },
+ "tt1216475": {
+  "type": "movie",
+  "name": "Cars 2",
+  "year": 2011,
+  "released": "2011-06-24",
+  "tmdbId": 49013
+ },
+ "tt1220634": {
+  "type": "movie",
+  "name": "Resident Evil: Afterlife",
+  "year": 2010,
+  "released": "2010-09-10",
+  "tmdbId": 35791
+ },
+ "tt12262202": {
+  "type": "series",
+  "name": "The Acolyte",
+  "year": 2024,
+  "released": "2024-06-04",
+  "tmdbId": 114479
+ },
+ "tt1228705": {
+  "type": "movie",
+  "name": "Iron Man 2",
+  "year": 2010,
+  "released": "2010-05-07",
+  "tmdbId": 10138
+ },
+ "tt1229238": {
+  "type": "movie",
+  "name": "Mission: Impossible - Ghost Protocol",
+  "year": 2011,
+  "released": "2011-12-21",
+  "tmdbId": 56292
+ },
+ "tt1232829": {
+  "type": "movie",
+  "name": "21 Jump Street",
+  "year": 2012,
+  "released": "2012-03-16",
+  "tmdbId": 64688
+ },
+ "tt1233227": {
+  "type": "movie",
+  "name": "Saw VI",
+  "year": 2009,
+  "released": "2009-10-23",
+  "tmdbId": 22804
+ },
+ "tt12361974": {
+  "type": "movie",
+  "name": "Zack Snyder's Justice League",
+  "year": 2021,
+  "released": "2021-03-18",
+  "tmdbId": 791373
+ },
+ "tt12412888": {
+  "type": "movie",
+  "name": "Sonic the Hedgehog 2",
+  "year": 2022,
+  "released": "2022-04-08",
+  "tmdbId": 675353
+ },
+ "tt1250777": {
+  "type": "movie",
+  "name": "Kick-Ass",
+  "year": 2010,
+  "released": "2010-04-16",
+  "tmdbId": 23483
+ },
+ "tt1259528": {
+  "type": "movie",
+  "name": "Den of Thieves",
+  "year": 2018,
+  "released": "2018-01-19",
+  "tmdbId": 449443
+ },
+ "tt1259571": {
+  "type": "movie",
+  "name": "The Twilight Saga: New Moon",
+  "year": 2009,
+  "released": "2009-11-20",
+  "tmdbId": 18239
+ },
+ "tt1262416": {
+  "type": "movie",
+  "name": "Scream 4",
+  "year": 2011,
+  "released": "2011-04-15",
+  "tmdbId": 41446
+ },
+ "tt1262426": {
+  "type": "movie",
+  "name": "Wicked",
+  "year": 2024,
+  "released": "2024-11-22",
+  "tmdbId": 402431
+ },
+ "tt1270797": {
+  "type": "movie",
+  "name": "Venom",
+  "year": 2018,
+  "released": "2018-10-05",
+  "tmdbId": 335983
+ },
+ "tt1270798": {
+  "type": "movie",
+  "name": "X-Men: First Class",
+  "year": 2011,
+  "released": "2011-06-03",
+  "tmdbId": 49538
+ },
+ "tt12708542": {
+  "type": "series",
+  "name": "Star Wars: The Bad Batch",
+  "year": 2021,
+  "released": "2021-05-04",
+  "tmdbId": 105971
+ },
+ "tt1277953": {
+  "type": "movie",
+  "name": "Madagascar 3: Europe's Most Wanted",
+  "year": 2012,
+  "released": "2012-06-08",
+  "tmdbId": 80321
+ },
+ "tt1288558": {
+  "type": "movie",
+  "name": "Evil Dead",
+  "year": 2013,
+  "released": "2013-04-05",
+  "tmdbId": 109428
+ },
+ "tt1298650": {
+  "type": "movie",
+  "name": "Pirates of the Caribbean: On Stranger Tides",
+  "year": 2011,
+  "released": "2011-05-20",
+  "tmdbId": 1865
+ },
+ "tt1300854": {
+  "type": "movie",
+  "name": "Iron Man 3",
+  "year": 2013,
+  "released": "2013-05-03",
+  "tmdbId": 68721
+ },
+ "tt1302011": {
+  "type": "movie",
+  "name": "Kung Fu Panda 2",
+  "year": 2011,
+  "released": "2011-05-26",
+  "tmdbId": 49444
+ },
+ "tt13146488": {
+  "type": "series",
+  "name": "Peacemaker",
+  "year": 2022,
+  "released": "2022-01-13",
+  "tmdbId": 110492
+ },
+ "tt13157618": {
+  "type": "series",
+  "name": "Secret Invasion",
+  "year": 2023,
+  "released": "2023-06-21",
+  "tmdbId": 114472
+ },
+ "tt1318514": {
+  "type": "movie",
+  "name": "Rise of the Planet of the Apes",
+  "year": 2011,
+  "released": "2011-08-05",
+  "tmdbId": 61791
+ },
+ "tt1320253": {
+  "type": "movie",
+  "name": "The Expendables",
+  "year": 2010,
+  "released": "2010-08-13",
+  "tmdbId": 27578
+ },
+ "tt1323594": {
+  "type": "movie",
+  "name": "Despicable Me",
+  "year": 2010,
+  "released": "2010-07-09",
+  "tmdbId": 20352
+ },
+ "tt1324999": {
+  "type": "movie",
+  "name": "The Twilight Saga: Breaking Dawn - Part 1",
+  "year": 2011,
+  "released": "2011-11-18",
+  "tmdbId": 50619
+ },
+ "tt1325004": {
+  "type": "movie",
+  "name": "The Twilight Saga: Eclipse",
+  "year": 2010,
+  "released": "2010-06-30",
+  "tmdbId": 24021
+ },
+ "tt13345606": {
+  "type": "movie",
+  "name": "Evil Dead Rise",
+  "year": 2023,
+  "released": "2023-04-21",
+  "tmdbId": 713704
+ },
+ "tt1340138": {
+  "type": "movie",
+  "name": "Terminator Genisys",
+  "year": 2015,
+  "released": "2015-07-01",
+  "tmdbId": 87101
+ },
+ "tt13405778": {
+  "type": "movie",
+  "name": "Insidious: The Red Door",
+  "year": 2023,
+  "released": "2023-07-07",
+  "tmdbId": 614479
+ },
+ "tt13433802": {
+  "type": "movie",
+  "name": "A Quiet Place: Day One",
+  "year": 2024,
+  "released": "2024-06-28",
+  "tmdbId": 762441
+ },
+ "tt1345836": {
+  "type": "movie",
+  "name": "The Dark Knight Rises",
+  "year": 2012,
+  "released": "2012-07-20",
+  "tmdbId": 49026
+ },
+ "tt13622776": {
+  "type": "series",
+  "name": "Ahsoka",
+  "year": 2023,
+  "released": "2023-08-22",
+  "tmdbId": 114461
+ },
+ "tt13622970": {
+  "type": "movie",
+  "name": "Moana 2",
+  "year": 2024,
+  "released": "2024-11-27",
+  "tmdbId": 1241982
+ },
+ "tt13623126": {
+  "type": "series",
+  "name": "Ironheart",
+  "year": 2025,
+  "released": "2025-06-24",
+  "tmdbId": 114471
+ },
+ "tt13623632": {
+  "type": "series",
+  "name": "Alien: Earth",
+  "year": 2025,
+  "released": "2025-08-12",
+  "tmdbId": 157239
+ },
+ "tt13634480": {
+  "type": "movie",
+  "name": "The Ice Age Adventures of Buck Wild",
+  "year": 2022,
+  "released": "2022-01-28",
+  "tmdbId": 774825
+ },
+ "tt13668894": {
+  "type": "series",
+  "name": "The Book of Boba Fett",
+  "year": 2021,
+  "released": "2021-12-29",
+  "tmdbId": 115036
+ },
+ "tt1375670": {
+  "type": "movie",
+  "name": "Grown Ups",
+  "year": 2010,
+  "released": "2010-06-25",
+  "tmdbId": 38365
+ },
+ "tt1386697": {
+  "type": "movie",
+  "name": "Suicide Squad",
+  "year": 2016,
+  "released": "2016-08-05",
+  "tmdbId": 297761
+ },
+ "tt1392170": {
+  "type": "movie",
+  "name": "The Hunger Games",
+  "year": 2012,
+  "released": "2012-03-23",
+  "tmdbId": 70160
+ },
+ "tt1392190": {
+  "type": "movie",
+  "name": "Mad Max: Fury Road",
+  "year": 2015,
+  "released": "2015-05-15",
+  "tmdbId": 76341
+ },
+ "tt1396484": {
+  "type": "movie",
+  "name": "It",
+  "year": 2017,
+  "released": "2017-09-08",
+  "tmdbId": 346364
+ },
+ "tt13966962": {
+  "type": "series",
+  "name": "Echo",
+  "year": 2023,
+  "released": "2024-01-09",
+  "tmdbId": 122226
+ },
+ "tt1397280": {
+  "type": "movie",
+  "name": "Taken 2",
+  "year": 2012,
+  "released": "2012-10-05",
+  "tmdbId": 82675
+ },
+ "tt1399103": {
+  "type": "movie",
+  "name": "Transformers: Dark of the Moon",
+  "year": 2011,
+  "released": "2011-06-29",
+  "tmdbId": 38356
+ },
+ "tt1402488": {
+  "type": "movie",
+  "name": "Happy Feet Two",
+  "year": 2011,
+  "released": "2011-11-18",
+  "tmdbId": 65759
+ },
+ "tt1408101": {
+  "type": "movie",
+  "name": "Star Trek Into Darkness",
+  "year": 2013,
+  "released": "2013-05-16",
+  "tmdbId": 54138
+ },
+ "tt1409024": {
+  "type": "movie",
+  "name": "Men in Black 3",
+  "year": 2012,
+  "released": "2012-05-25",
+  "tmdbId": 41154
+ },
+ "tt1411250": {
+  "type": "movie",
+  "name": "Riddick",
+  "year": 2013,
+  "released": "2013-09-06",
+  "tmdbId": 87421
+ },
+ "tt1411697": {
+  "type": "movie",
+  "name": "The Hangover Part II",
+  "year": 2011,
+  "released": "2011-05-26",
+  "tmdbId": 45243
+ },
+ "tt1424381": {
+  "type": "movie",
+  "name": "Predators",
+  "year": 2010,
+  "released": "2010-07-09",
+  "tmdbId": 34851
+ },
+ "tt1430132": {
+  "type": "movie",
+  "name": "The Wolverine",
+  "year": 2013,
+  "released": "2013-07-26",
+  "tmdbId": 76170
+ },
+ "tt1431045": {
+  "type": "movie",
+  "name": "Deadpool",
+  "year": 2016,
+  "released": "2016-02-12",
+  "tmdbId": 293660
+ },
+ "tt14362112": {
+  "type": "movie",
+  "name": "Trolls Band Together",
+  "year": 2023,
+  "released": "2023-11-17",
+  "tmdbId": 901362
+ },
+ "tt14364480": {
+  "type": "movie",
+  "name": "Wake Up Dead Man",
+  "year": 2025,
+  "released": "2025-12-12",
+  "tmdbId": 812583
+ },
+ "tt1436562": {
+  "type": "movie",
+  "name": "Rio",
+  "year": 2011,
+  "released": "2011-04-15",
+  "tmdbId": 46195
+ },
+ "tt1446714": {
+  "type": "movie",
+  "name": "Prometheus",
+  "year": 2012,
+  "released": "2012-06-08",
+  "tmdbId": 70981
+ },
+ "tt14513804": {
+  "type": "movie",
+  "name": "Captain America: Brave New World",
+  "year": 2025,
+  "released": "2025-02-14",
+  "tmdbId": 822119
+ },
+ "tt1453405": {
+  "type": "movie",
+  "name": "Monsters University",
+  "year": 2013,
+  "released": "2013-06-21",
+  "tmdbId": 62211
+ },
+ "tt14539740": {
+  "type": "movie",
+  "name": "Godzilla X Kong: The New Empire",
+  "year": 2024,
+  "released": "2024-03-29",
+  "tmdbId": 823464
+ },
+ "tt1457767": {
+  "type": "movie",
+  "name": "The Conjuring",
+  "year": 2013,
+  "released": "2013-07-19",
+  "tmdbId": 138843
+ },
+ "tt1462764": {
+  "type": "movie",
+  "name": "Indiana Jones and the Dial of Destiny",
+  "year": 2023,
+  "released": "2023-06-30",
+  "tmdbId": 335977
+ },
+ "tt14641788": {
+  "type": "movie",
+  "name": "Enola Holmes 2",
+  "year": 2022,
+  "released": "2022-11-04",
+  "tmdbId": 829280
+ },
+ "tt1473832": {
+  "type": "movie",
+  "name": "Bridget Jones's Baby",
+  "year": 2016,
+  "released": "2016-09-16",
+  "tmdbId": 95610
+ },
+ "tt1477076": {
+  "type": "movie",
+  "name": "Saw 3D",
+  "year": 2010,
+  "released": "2010-10-29",
+  "tmdbId": 41439
+ },
+ "tt1477834": {
+  "type": "movie",
+  "name": "Aquaman",
+  "year": 2018,
+  "released": "2018-12-21",
+  "tmdbId": 297802
+ },
+ "tt14824600": {
+  "type": "movie",
+  "name": "The Lord of the Rings: The War of the Rohirrim",
+  "year": 2024,
+  "released": "2024-12-13",
+  "tmdbId": 839033
+ },
+ "tt1490017": {
+  "type": "movie",
+  "name": "The Lego Movie",
+  "year": 2014,
+  "released": "2014-02-07",
+  "tmdbId": 137106
+ },
+ "tt1496025": {
+  "type": "movie",
+  "name": "Underworld: Awakening",
+  "year": 2012,
+  "released": "2012-01-20",
+  "tmdbId": 52520
+ },
+ "tt1499658": {
+  "type": "movie",
+  "name": "Horrible Bosses",
+  "year": 2011,
+  "released": "2011-07-08",
+  "tmdbId": 51540
+ },
+ "tt1502397": {
+  "type": "movie",
+  "name": "Bad Boys for Life",
+  "year": 2020,
+  "released": "2020-01-17",
+  "tmdbId": 38700
+ },
+ "tt1502407": {
+  "type": "movie",
+  "name": "Halloween",
+  "year": 2018,
+  "released": "2018-10-19",
+  "tmdbId": 424139
+ },
+ "tt1515091": {
+  "type": "movie",
+  "name": "Sherlock Holmes: A Game of Shadows",
+  "year": 2011,
+  "released": "2011-12-16",
+  "tmdbId": 58574
+ },
+ "tt15239678": {
+  "type": "movie",
+  "name": "Dune: Part Two",
+  "year": 2024,
+  "released": "2024-03-01",
+  "tmdbId": 693134
+ },
+ "tt1536044": {
+  "type": "movie",
+  "name": "Paranormal Activity 2",
+  "year": 2010,
+  "released": "2010-10-22",
+  "tmdbId": 41436
+ },
+ "tt15474916": {
+  "type": "movie",
+  "name": "Smile",
+  "year": 2022,
+  "released": "2022-09-30",
+  "tmdbId": 882598
+ },
+ "tt15571732": {
+  "type": "series",
+  "name": "Agatha All Along",
+  "year": 2024,
+  "released": "2024-09-18",
+  "tmdbId": 138501
+ },
+ "tt1560220": {
+  "type": "movie",
+  "name": "Zombieland: Double Tap",
+  "year": 2019,
+  "released": "2019-10-18",
+  "tmdbId": 338967
+ },
+ "tt1591095": {
+  "type": "movie",
+  "name": "Insidious",
+  "year": 2011,
+  "released": "2011-04-01",
+  "tmdbId": 49018
+ },
+ "tt1596343": {
+  "type": "movie",
+  "name": "Fast Five",
+  "year": 2011,
+  "released": "2011-04-29",
+  "tmdbId": 51497
+ },
+ "tt1605630": {
+  "type": "movie",
+  "name": "American Reunion",
+  "year": 2012,
+  "released": "2012-04-06",
+  "tmdbId": 71552
+ },
+ "tt1606378": {
+  "type": "movie",
+  "name": "A Good Day to Die Hard",
+  "year": 2013,
+  "released": "2013-02-14",
+  "tmdbId": 47964
+ },
+ "tt1622979": {
+  "type": "movie",
+  "name": "Final Destination 5",
+  "year": 2011,
+  "released": "2011-08-12",
+  "tmdbId": 55779
+ },
+ "tt16280138": {
+  "type": "movie",
+  "name": "Magic Mike's Last Dance",
+  "year": 2023,
+  "released": "2023-02-10",
+  "tmdbId": 906221
+ },
+ "tt1628841": {
+  "type": "movie",
+  "name": "Independence Day: Resurgence",
+  "year": 2016,
+  "released": "2016-06-24",
+  "tmdbId": 47933
+ },
+ "tt1630029": {
+  "type": "movie",
+  "name": "Avatar: The Way of Water",
+  "year": 2022,
+  "released": "2022-12-16",
+  "tmdbId": 76600
+ },
+ "tt16366836": {
+  "type": "movie",
+  "name": "Venom: The Last Dance",
+  "year": 2024,
+  "released": "2024-10-25",
+  "tmdbId": 912649
+ },
+ "tt1637725": {
+  "type": "movie",
+  "name": "Ted",
+  "year": 2012,
+  "released": "2012-06-29",
+  "tmdbId": 72105
+ },
+ "tt1646971": {
+  "type": "movie",
+  "name": "How to Train Your Dragon 2",
+  "year": 2014,
+  "released": "2014-06-13",
+  "tmdbId": 82702
+ },
+ "tt1650554": {
+  "type": "movie",
+  "name": "Kick-Ass 2",
+  "year": 2013,
+  "released": "2013-08-16",
+  "tmdbId": 59859
+ },
+ "tt1663662": {
+  "type": "movie",
+  "name": "Pacific Rim",
+  "year": 2013,
+  "released": "2013-07-12",
+  "tmdbId": 68726
+ },
+ "tt1667889": {
+  "type": "movie",
+  "name": "Ice Age: Continental Drift",
+  "year": 2012,
+  "released": "2012-07-13",
+  "tmdbId": 57800
+ },
+ "tt1670345": {
+  "type": "movie",
+  "name": "Now You See Me",
+  "year": 2013,
+  "released": "2013-05-31",
+  "tmdbId": 75656
+ },
+ "tt1673434": {
+  "type": "movie",
+  "name": "The Twilight Saga: Breaking Dawn - Part 2",
+  "year": 2012,
+  "released": "2012-11-16",
+  "tmdbId": 50620
+ },
+ "tt1674782": {
+  "type": "movie",
+  "name": "Karate Kid: Legends",
+  "year": 2025,
+  "released": "2025-05-30",
+  "tmdbId": 1011477
+ },
+ "tt1679335": {
+  "type": "movie",
+  "name": "Trolls",
+  "year": 2016,
+  "released": "2016-11-04",
+  "tmdbId": 136799
+ },
+ "tt1690953": {
+  "type": "movie",
+  "name": "Despicable Me 2",
+  "year": 2013,
+  "released": "2013-07-03",
+  "tmdbId": 93456
+ },
+ "tt17024450": {
+  "type": "movie",
+  "name": "The Equalizer 3",
+  "year": 2023,
+  "released": "2023-09-01",
+  "tmdbId": 926393
+ },
+ "tt17220216": {
+  "type": "series",
+  "name": "Monarch: Legacy of Monsters",
+  "year": 2023,
+  "released": "2023-11-17",
+  "tmdbId": 202411
+ },
+ "tt1745960": {
+  "type": "movie",
+  "name": "Top Gun: Maverick",
+  "year": 2022,
+  "released": "2022-05-27",
+  "tmdbId": 361743
+ },
+ "tt17490712": {
+  "type": "movie",
+  "name": "Mortal Kombat II",
+  "year": 2026,
+  "released": "2026-05-08",
+  "tmdbId": 931285
+ },
+ "tt1757678": {
+  "type": "movie",
+  "name": "Avatar: Fire and Ash",
+  "year": 2025,
+  "released": "2025-12-19",
+  "tmdbId": 83533
+ },
+ "tt1764651": {
+  "type": "movie",
+  "name": "The Expendables 2",
+  "year": 2012,
+  "released": "2012-08-17",
+  "tmdbId": 76163
+ },
+ "tt17663992": {
+  "type": "movie",
+  "name": "Scream VI",
+  "year": 2023,
+  "released": "2023-03-10",
+  "tmdbId": 934433
+ },
+ "tt1772341": {
+  "type": "movie",
+  "name": "Wreck-It Ralph",
+  "year": 2012,
+  "released": "2012-11-02",
+  "tmdbId": 82690
+ },
+ "tt1778304": {
+  "type": "movie",
+  "name": "Paranormal Activity 3",
+  "year": 2011,
+  "released": "2011-10-21",
+  "tmdbId": 72571
+ },
+ "tt1790809": {
+  "type": "movie",
+  "name": "Pirates of the Caribbean: Dead Men Tell No Tales",
+  "year": 2017,
+  "released": "2017-05-26",
+  "tmdbId": 166426
+ },
+ "tt1790864": {
+  "type": "movie",
+  "name": "The Maze Runner",
+  "year": 2014,
+  "released": "2014-09-19",
+  "tmdbId": 198663
+ },
+ "tt1825683": {
+  "type": "movie",
+  "name": "Black Panther",
+  "year": 2018,
+  "released": "2018-02-16",
+  "tmdbId": 284054
+ },
+ "tt18259086": {
+  "type": "movie",
+  "name": "Sonic the Hedgehog 3",
+  "year": 2024,
+  "released": "2024-12-20",
+  "tmdbId": 939243
+ },
+ "tt1840309": {
+  "type": "movie",
+  "name": "Divergent",
+  "year": 2014,
+  "released": "2014-03-21",
+  "tmdbId": 157350
+ },
+ "tt18412256": {
+  "type": "movie",
+  "name": "Alien: Romulus",
+  "year": 2024,
+  "released": "2024-08-16",
+  "tmdbId": 945961
+ },
+ "tt1843866": {
+  "type": "movie",
+  "name": "Captain America: The Winter Soldier",
+  "year": 2014,
+  "released": "2014-04-04",
+  "tmdbId": 100402
+ },
+ "tt1855325": {
+  "type": "movie",
+  "name": "Resident Evil: Retribution",
+  "year": 2012,
+  "released": "2012-09-14",
+  "tmdbId": 71679
+ },
+ "tt1856101": {
+  "type": "movie",
+  "name": "Blade Runner 2049",
+  "year": 2017,
+  "released": "2017-10-06",
+  "tmdbId": 335984
+ },
+ "tt1872181": {
+  "type": "movie",
+  "name": "The Amazing Spider-Man 2",
+  "year": 2014,
+  "released": "2014-05-02",
+  "tmdbId": 102382
+ },
+ "tt1877832": {
+  "type": "movie",
+  "name": "X-Men: Days of Future Past",
+  "year": 2014,
+  "released": "2014-05-23",
+  "tmdbId": 127585
+ },
+ "tt18923754": {
+  "type": "series",
+  "name": "Daredevil: Born Again",
+  "year": 2025,
+  "released": "2025-03-04",
+  "tmdbId": 202555
+ },
+ "tt1905041": {
+  "type": "movie",
+  "name": "Fast & Furious 6",
+  "year": 2013,
+  "released": "2013-05-24",
+  "tmdbId": 82992
+ },
+ "tt1911658": {
+  "type": "movie",
+  "name": "Penguins of Madagascar",
+  "year": 2014,
+  "released": "2014-11-26",
+  "tmdbId": 270946
+ },
+ "tt1915581": {
+  "type": "movie",
+  "name": "Magic Mike",
+  "year": 2012,
+  "released": "2012-06-29",
+  "tmdbId": 77930
+ },
+ "tt1922777": {
+  "type": "movie",
+  "name": "Sinister",
+  "year": 2012,
+  "released": "2012-10-12",
+  "tmdbId": 82507
+ },
+ "tt19244304": {
+  "type": "series",
+  "name": "It: Welcome to Derry",
+  "year": 2025,
+  "released": "2025-10-26",
+  "tmdbId": 200875
+ },
+ "tt1951261": {
+  "type": "movie",
+  "name": "The Hangover Part III",
+  "year": 2013,
+  "released": "2013-05-23",
+  "tmdbId": 109439
+ },
+ "tt1951264": {
+  "type": "movie",
+  "name": "The Hunger Games: Catching Fire",
+  "year": 2013,
+  "released": "2013-11-22",
+  "tmdbId": 101299
+ },
+ "tt1951265": {
+  "type": "movie",
+  "name": "The Hunger Games: Mockingjay - Part 1",
+  "year": 2014,
+  "released": "2014-11-21",
+  "tmdbId": 131631
+ },
+ "tt1951266": {
+  "type": "movie",
+  "name": "The Hunger Games: Mockingjay - Part 2",
+  "year": 2015,
+  "released": "2015-11-20",
+  "tmdbId": 131634
+ },
+ "tt1979376": {
+  "type": "movie",
+  "name": "Toy Story 4",
+  "year": 2019,
+  "released": "2019-06-21",
+  "tmdbId": 301528
+ },
+ "tt1981115": {
+  "type": "movie",
+  "name": "Thor: The Dark World",
+  "year": 2013,
+  "released": "2013-11-08",
+  "tmdbId": 76338
+ },
+ "tt1981677": {
+  "type": "movie",
+  "name": "Pitch Perfect",
+  "year": 2012,
+  "released": "2012-10-05",
+  "tmdbId": 114150
+ },
+ "tt19847976": {
+  "type": "movie",
+  "name": "Wicked: For Good",
+  "year": 2025,
+  "released": "2025-11-21",
+  "tmdbId": 967941
+ },
+ "tt1985966": {
+  "type": "movie",
+  "name": "Cloudy with a Chance of Meatballs 2",
+  "year": 2013,
+  "released": "2013-09-27",
+  "tmdbId": 109451
+ },
+ "tt2015381": {
+  "type": "movie",
+  "name": "Guardians of the Galaxy",
+  "year": 2014,
+  "released": "2014-08-01",
+  "tmdbId": 118340
+ },
+ "tt2049403": {
+  "type": "movie",
+  "name": "Beetlejuice Beetlejuice",
+  "year": 2024,
+  "released": "2024-09-06",
+  "tmdbId": 917496
+ },
+ "tt20600980": {
+  "type": "series",
+  "name": "Skeleton Crew",
+  "year": 2024,
+  "released": "2024-12-02",
+  "tmdbId": 202879
+ },
+ "tt2096672": {
+  "type": "movie",
+  "name": "Dumb and Dumber To",
+  "year": 2014,
+  "released": "2014-11-14",
+  "tmdbId": 100042
+ },
+ "tt2096673": {
+  "type": "movie",
+  "name": "Inside Out",
+  "year": 2015,
+  "released": "2015-06-19",
+  "tmdbId": 150540
+ },
+ "tt20969586": {
+  "type": "movie",
+  "name": "Thunderbolts*",
+  "year": 2025,
+  "released": "2025-05-02",
+  "tmdbId": 986056
+ },
+ "tt2103281": {
+  "type": "movie",
+  "name": "Dawn of the Planet of the Apes",
+  "year": 2014,
+  "released": "2014-07-11",
+  "tmdbId": 119450
+ },
+ "tt21066182": {
+  "type": "series",
+  "name": "Wonder Man",
+  "year": 2026,
+  "released": "2026-01-27",
+  "tmdbId": 198178
+ },
+ "tt2109184": {
+  "type": "movie",
+  "name": "Paranormal Activity 4",
+  "year": 2012,
+  "released": "2012-10-19",
+  "tmdbId": 82990
+ },
+ "tt2109248": {
+  "type": "movie",
+  "name": "Transformers: Age of Extinction",
+  "year": 2014,
+  "released": "2014-06-27",
+  "tmdbId": 91314
+ },
+ "tt21235248": {
+  "type": "movie",
+  "name": "Ghostbusters: Frozen Empire",
+  "year": 2024,
+  "released": "2024-03-22",
+  "tmdbId": 967847
+ },
+ "tt2140479": {
+  "type": "movie",
+  "name": "The Accountant",
+  "year": 2016,
+  "released": "2016-10-14",
+  "tmdbId": 302946
+ },
+ "tt21692408": {
+  "type": "movie",
+  "name": "Kung Fu Panda 4",
+  "year": 2024,
+  "released": "2024-03-08",
+  "tmdbId": 1011985
+ },
+ "tt2170439": {
+  "type": "movie",
+  "name": "Horrible Bosses 2",
+  "year": 2014,
+  "released": "2014-11-26",
+  "tmdbId": 227159
+ },
+ "tt21807222": {
+  "type": "movie",
+  "name": "Saw X",
+  "year": 2023,
+  "released": "2023-09-29",
+  "tmdbId": 951491
+ },
+ "tt2184339": {
+  "type": "movie",
+  "name": "The Purge",
+  "year": 2013,
+  "released": "2013-06-07",
+  "tmdbId": 158015
+ },
+ "tt2191701": {
+  "type": "movie",
+  "name": "Grown Ups 2",
+  "year": 2013,
+  "released": "2013-07-12",
+  "tmdbId": 109418
+ },
+ "tt22022452": {
+  "type": "movie",
+  "name": "Inside Out 2",
+  "year": 2024,
+  "released": "2024-06-14",
+  "tmdbId": 1022789
+ },
+ "tt22084616": {
+  "type": "movie",
+  "name": "Spider-Man: Brand New Day",
+  "year": 2026,
+  "released": "2026-07-31",
+  "tmdbId": 969681
+ },
+ "tt2209418": {
+  "type": "movie",
+  "name": "Before Midnight",
+  "year": 2013,
+  "released": "2013-06-14",
+  "tmdbId": 132344
+ },
+ "tt2226417": {
+  "type": "movie",
+  "name": "Insidious: Chapter 2",
+  "year": 2013,
+  "released": "2013-09-13",
+  "tmdbId": 91586
+ },
+ "tt2250912": {
+  "type": "movie",
+  "name": "Spider-Man: Homecoming",
+  "year": 2017,
+  "released": "2017-07-07",
+  "tmdbId": 315635
+ },
+ "tt2267968": {
+  "type": "movie",
+  "name": "Kung Fu Panda 3",
+  "year": 2016,
+  "released": "2016-01-29",
+  "tmdbId": 140300
+ },
+ "tt2268016": {
+  "type": "movie",
+  "name": "Magic Mike XXL",
+  "year": 2015,
+  "released": "2015-07-01",
+  "tmdbId": 264999
+ },
+ "tt2277860": {
+  "type": "movie",
+  "name": "Finding Dory",
+  "year": 2016,
+  "released": "2016-06-17",
+  "tmdbId": 127380
+ },
+ "tt2283336": {
+  "type": "movie",
+  "name": "Men in Black: International",
+  "year": 2019,
+  "released": "2019-06-14",
+  "tmdbId": 479455
+ },
+ "tt2283362": {
+  "type": "movie",
+  "name": "Jumanji: Welcome to the Jungle",
+  "year": 2017,
+  "released": "2017-12-20",
+  "tmdbId": 353486
+ },
+ "tt22898462": {
+  "type": "movie",
+  "name": "The Conjuring: Last Rites",
+  "year": 2025,
+  "released": "2025-09-05",
+  "tmdbId": 1038392
+ },
+ "tt2293640": {
+  "type": "movie",
+  "name": "Minions",
+  "year": 2015,
+  "released": "2015-07-10",
+  "tmdbId": 211672
+ },
+ "tt2294449": {
+  "type": "movie",
+  "name": "22 Jump Street",
+  "year": 2014,
+  "released": "2014-06-13",
+  "tmdbId": 187017
+ },
+ "tt2294629": {
+  "type": "movie",
+  "name": "Frozen",
+  "year": 2013,
+  "released": "2013-11-27",
+  "tmdbId": 109445
+ },
+ "tt2310332": {
+  "type": "movie",
+  "name": "The Hobbit: The Battle of the Five Armies",
+  "year": 2014,
+  "released": "2014-12-17",
+  "tmdbId": 122917
+ },
+ "tt23112594": {
+  "type": "series",
+  "name": "VisionQuest",
+  "year": 2026,
+  "released": "2026-10-13",
+  "tmdbId": 213375
+ },
+ "tt2316204": {
+  "type": "movie",
+  "name": "Alien: Covenant",
+  "year": 2017,
+  "released": "2017-05-19",
+  "tmdbId": 126889
+ },
+ "tt2322441": {
+  "type": "movie",
+  "name": "Fifty Shades of Grey",
+  "year": 2015,
+  "released": "2015-02-13",
+  "tmdbId": 216015
+ },
+ "tt2333784": {
+  "type": "movie",
+  "name": "The Expendables 3",
+  "year": 2014,
+  "released": "2014-08-15",
+  "tmdbId": 138103
+ },
+ "tt2357291": {
+  "type": "movie",
+  "name": "Rio 2",
+  "year": 2014,
+  "released": "2014-04-11",
+  "tmdbId": 172385
+ },
+ "tt2379713": {
+  "type": "movie",
+  "name": "Spectre",
+  "year": 2015,
+  "released": "2015-11-06",
+  "tmdbId": 206647
+ },
+ "tt2381249": {
+  "type": "movie",
+  "name": "Mission: Impossible - Rogue Nation",
+  "year": 2015,
+  "released": "2015-07-31",
+  "tmdbId": 177677
+ },
+ "tt2382320": {
+  "type": "movie",
+  "name": "No Time to Die",
+  "year": 2021,
+  "released": "2021-10-08",
+  "tmdbId": 370172
+ },
+ "tt2386490": {
+  "type": "movie",
+  "name": "How to Train Your Dragon: The Hidden World",
+  "year": 2019,
+  "released": "2019-02-22",
+  "tmdbId": 166428
+ },
+ "tt2395427": {
+  "type": "movie",
+  "name": "Avengers: Age of Ultron",
+  "year": 2015,
+  "released": "2015-05-01",
+  "tmdbId": 99861
+ },
+ "tt2446042": {
+  "type": "movie",
+  "name": "Taken 3",
+  "year": 2015,
+  "released": "2015-01-09",
+  "tmdbId": 260346
+ },
+ "tt2473510": {
+  "type": "movie",
+  "name": "Paranormal Activity: The Ghost Dimension",
+  "year": 2015,
+  "released": "2015-10-23",
+  "tmdbId": 146301
+ },
+ "tt2473682": {
+  "type": "movie",
+  "name": "Paranormal Activity: The Marked Ones",
+  "year": 2014,
+  "released": "2014-01-03",
+  "tmdbId": 227348
+ },
+ "tt2488496": {
+  "type": "movie",
+  "name": "Star Wars: Episode VII - The Force Awakens",
+  "year": 2015,
+  "released": "2015-12-18",
+  "tmdbId": 140607
+ },
+ "tt2510894": {
+  "type": "movie",
+  "name": "Hotel Transylvania 2",
+  "year": 2015,
+  "released": "2015-09-25",
+  "tmdbId": 159824
+ },
+ "tt2527336": {
+  "type": "movie",
+  "name": "Star Wars: Episode VIII - The Last Jedi",
+  "year": 2017,
+  "released": "2017-12-15",
+  "tmdbId": 181808
+ },
+ "tt2527338": {
+  "type": "movie",
+  "name": "Star Wars: Episode IX - The Rise of Skywalker",
+  "year": 2019,
+  "released": "2019-12-20",
+  "tmdbId": 181812
+ },
+ "tt2548396": {
+  "type": "movie",
+  "name": "The Cloverfield Paradox",
+  "year": 2018,
+  "released": "2018-02-04",
+  "tmdbId": 384521
+ },
+ "tt2557478": {
+  "type": "movie",
+  "name": "Pacific Rim: Uprising",
+  "year": 2018,
+  "released": "2018-03-23",
+  "tmdbId": 268896
+ },
+ "tt2592614": {
+  "type": "movie",
+  "name": "Resident Evil: The Final Chapter",
+  "year": 2017,
+  "released": "2017-01-27",
+  "tmdbId": 173897
+ },
+ "tt26342662": {
+  "type": "movie",
+  "name": "M3GAN 2.0",
+  "year": 2025,
+  "released": "2025-06-27",
+  "tmdbId": 1071585
+ },
+ "tt2637276": {
+  "type": "movie",
+  "name": "Ted 2",
+  "year": 2015,
+  "released": "2015-06-26",
+  "tmdbId": 214756
+ },
+ "tt26443597": {
+  "type": "movie",
+  "name": "Zootopia 2",
+  "year": 2025,
+  "released": "2025-11-26",
+  "tmdbId": 1084242
+ },
+ "tt26545355": {
+  "type": "series",
+  "name": "Creature Commandos",
+  "year": 2024,
+  "released": "2024-12-05",
+  "tmdbId": 219543
+ },
+ "tt26545992": {
+  "type": "series",
+  "name": "Lanterns",
+  "year": 2026,
+  "released": "2026-08-16",
+  "tmdbId": 95350
+ },
+ "tt2660888": {
+  "type": "movie",
+  "name": "Star Trek Beyond",
+  "year": 2016,
+  "released": "2016-07-22",
+  "tmdbId": 188927
+ },
+ "tt2692250": {
+  "type": "movie",
+  "name": "Night at the Museum: Secret of the Tomb",
+  "year": 2014,
+  "released": "2014-12-19",
+  "tmdbId": 181533
+ },
+ "tt27047903": {
+  "type": "movie",
+  "name": "Scream 7",
+  "year": 2026,
+  "released": "2026-02-27",
+  "tmdbId": 1159559
+ },
+ "tt2709768": {
+  "type": "movie",
+  "name": "The Secret Life of Pets",
+  "year": 2016,
+  "released": "2016-07-07",
+  "tmdbId": 328111
+ },
+ "tt2752772": {
+  "type": "movie",
+  "name": "Sinister 2",
+  "year": 2015,
+  "released": "2015-08-21",
+  "tmdbId": 283445
+ },
+ "tt27911000": {
+  "type": "movie",
+  "name": "Terrifier 3",
+  "year": 2024,
+  "released": "2024-10-11",
+  "tmdbId": 1034541
+ },
+ "tt2802144": {
+  "type": "movie",
+  "name": "Kingsman: The Secret Service",
+  "year": 2015,
+  "released": "2015-02-13",
+  "tmdbId": 207703
+ },
+ "tt2820852": {
+  "type": "movie",
+  "name": "Furious 7",
+  "year": 2015,
+  "released": "2015-04-03",
+  "tmdbId": 168259
+ },
+ "tt2848292": {
+  "type": "movie",
+  "name": "Pitch Perfect 2",
+  "year": 2015,
+  "released": "2015-05-15",
+  "tmdbId": 254470
+ },
+ "tt2850386": {
+  "type": "movie",
+  "name": "The Croods: A New Age",
+  "year": 2020,
+  "released": "2020-11-25",
+  "tmdbId": 529203
+ },
+ "tt28650488": {
+  "type": "movie",
+  "name": "The Super Mario Galaxy Movie",
+  "year": 2026,
+  "released": "2026-04-01",
+  "tmdbId": 1226863
+ },
+ "tt28996126": {
+  "type": "movie",
+  "name": "Nobody 2",
+  "year": 2025,
+  "released": "2025-08-15",
+  "tmdbId": 1007734
+ },
+ "tt2908446": {
+  "type": "movie",
+  "name": "The Divergent Series: Insurgent",
+  "year": 2015,
+  "released": "2015-03-20",
+  "tmdbId": 262500
+ },
+ "tt2911666": {
+  "type": "movie",
+  "name": "John Wick",
+  "year": 2014,
+  "released": "2014-10-24",
+  "tmdbId": 245891
+ },
+ "tt29268110": {
+  "type": "movie",
+  "name": "Smile 2",
+  "year": 2024,
+  "released": "2024-10-18",
+  "tmdbId": 1100782
+ },
+ "tt2930604": {
+  "type": "series",
+  "name": "Star Wars Rebels",
+  "year": 2014,
+  "released": null,
+  "tmdbId": 60554
+ },
+ "tt29355505": {
+  "type": "movie",
+  "name": "Toy Story 5",
+  "year": 2026,
+  "released": "2026-06-19",
+  "tmdbId": 1084244
+ },
+ "tt2948356": {
+  "type": "movie",
+  "name": "Zootopia",
+  "year": 2016,
+  "released": "2016-03-04",
+  "tmdbId": 269149
+ },
+ "tt29644189": {
+  "type": "movie",
+  "name": "Black Phone 2",
+  "year": 2025,
+  "released": "2025-10-17",
+  "tmdbId": 1197137
+ },
+ "tt2975578": {
+  "type": "movie",
+  "name": "The Purge: Anarchy",
+  "year": 2014,
+  "released": "2014-07-18",
+  "tmdbId": 238636
+ },
+ "tt2975590": {
+  "type": "movie",
+  "name": "Batman v Superman: Dawn of Justice",
+  "year": 2016,
+  "released": "2016-03-25",
+  "tmdbId": 209112
+ },
+ "tt3014284": {
+  "type": "movie",
+  "name": "The Lego Ninjago Movie",
+  "year": 2017,
+  "released": "2017-09-22",
+  "tmdbId": 274862
+ },
+ "tt30274401": {
+  "type": "movie",
+  "name": "Five Nights at Freddy's 2",
+  "year": 2025,
+  "released": "2025-12-05",
+  "tmdbId": 1228246
+ },
+ "tt3065204": {
+  "type": "movie",
+  "name": "The Conjuring 2",
+  "year": 2016,
+  "released": "2016-06-10",
+  "tmdbId": 259693
+ },
+ "tt3076658": {
+  "type": "movie",
+  "name": "Creed",
+  "year": 2015,
+  "released": "2015-11-25",
+  "tmdbId": 312221
+ },
+ "tt30825738": {
+  "type": "movie",
+  "name": "Star Wars: The Mandalorian and Grogu",
+  "year": 2026,
+  "released": "2026-05-22",
+  "tmdbId": 1228710
+ },
+ "tt3083016": {
+  "type": "movie",
+  "name": "Beverly Hills Cop: Axel F",
+  "year": 2024,
+  "released": "2024-07-03",
+  "tmdbId": 280180
+ },
+ "tt31036941": {
+  "type": "movie",
+  "name": "Jurassic World: Rebirth",
+  "year": 2025,
+  "released": "2025-07-02",
+  "tmdbId": 1234821
+ },
+ "tt3110958": {
+  "type": "movie",
+  "name": "Now You See Me 2",
+  "year": 2016,
+  "released": "2016-06-10",
+  "tmdbId": 291805
+ },
+ "tt31227572": {
+  "type": "movie",
+  "name": "Predator: Badlands",
+  "year": 2025,
+  "released": "2025-11-07",
+  "tmdbId": 1242898
+ },
+ "tt3183660": {
+  "type": "movie",
+  "name": "Fantastic Beasts and Where to Find Them",
+  "year": 2016,
+  "released": "2016-11-18",
+  "tmdbId": 259316
+ },
+ "tt31868189": {
+  "type": "movie",
+  "name": "Happy Gilmore 2",
+  "year": 2025,
+  "released": "2025-07-25",
+  "tmdbId": 1263256
+ },
+ "tt31956415": {
+  "type": "movie",
+  "name": "Freakier Friday",
+  "year": 2025,
+  "released": "2025-08-08",
+  "tmdbId": 1125257
+ },
+ "tt3195644": {
+  "type": "movie",
+  "name": "Insidious: Chapter 3",
+  "year": 2015,
+  "released": "2015-06-05",
+  "tmdbId": 280092
+ },
+ "tt32063050": {
+  "type": "movie",
+  "name": "Bridget Jones: Mad About the Boy",
+  "year": 2025,
+  "released": "2025-02-13",
+  "tmdbId": 1272149
+ },
+ "tt32093575": {
+  "type": "movie",
+  "name": "Scary Movie",
+  "year": 2026,
+  "released": "2026-06-05",
+  "tmdbId": 1273221
+ },
+ "tt32141377": {
+  "type": "movie",
+  "name": "28 Years Later: The Bone Temple",
+  "year": 2026,
+  "released": "2026-01-16",
+  "tmdbId": 1272837
+ },
+ "tt32278481": {
+  "type": "movie",
+  "name": "Enola Holmes 3",
+  "year": 2026,
+  "released": "2026-07-01",
+  "tmdbId": 1202033
+ },
+ "tt32393988": {
+  "type": "movie",
+  "name": "Insidious: Out of the Further",
+  "year": 2026,
+  "released": "2026-08-21",
+  "tmdbId": 1291595
+ },
+ "tt32890033": {
+  "type": "movie",
+  "name": "Minions & Monsters",
+  "year": 2026,
+  "released": "2026-07-01",
+  "tmdbId": 1315772
+ },
+ "tt3291150": {
+  "type": "movie",
+  "name": "The Expendables 4",
+  "year": 2023,
+  "released": "2023-09-22",
+  "tmdbId": 299054
+ },
+ "tt3315342": {
+  "type": "movie",
+  "name": "Logan",
+  "year": 2017,
+  "released": "2017-03-03",
+  "tmdbId": 263115
+ },
+ "tt3322940": {
+  "type": "movie",
+  "name": "Annabelle",
+  "year": 2014,
+  "released": "2014-10-03",
+  "tmdbId": 250546
+ },
+ "tt3348730": {
+  "type": "movie",
+  "name": "Jigsaw",
+  "year": 2017,
+  "released": "2017-10-27",
+  "tmdbId": 298250
+ },
+ "tt33612209": {
+  "type": "movie",
+  "name": "The Devil Wears Prada 2",
+  "year": 2026,
+  "released": "2026-05-01",
+  "tmdbId": 1314481
+ },
+ "tt3371366": {
+  "type": "movie",
+  "name": "Transformers: The Last Knight",
+  "year": 2017,
+  "released": "2017-06-21",
+  "tmdbId": 335988
+ },
+ "tt3385516": {
+  "type": "movie",
+  "name": "X-Men: Apocalypse",
+  "year": 2016,
+  "released": "2016-05-27",
+  "tmdbId": 246655
+ },
+ "tt3393786": {
+  "type": "movie",
+  "name": "Jack Reacher: Never Go Back",
+  "year": 2016,
+  "released": "2016-10-21",
+  "tmdbId": 343611
+ },
+ "tt3397884": {
+  "type": "movie",
+  "name": "Sicario",
+  "year": 2015,
+  "released": "2015-10-02",
+  "tmdbId": 273481
+ },
+ "tt3402138": {
+  "type": "movie",
+  "name": "The Naked Gun",
+  "year": 2025,
+  "released": "2025-08-01",
+  "tmdbId": 1035259
+ },
+ "tt3410834": {
+  "type": "movie",
+  "name": "The Divergent Series: Allegiant",
+  "year": 2016,
+  "released": "2016-03-18",
+  "tmdbId": 262504
+ },
+ "tt3416828": {
+  "type": "movie",
+  "name": "Ice Age: Collision Course",
+  "year": 2016,
+  "released": "2016-07-22",
+  "tmdbId": 278154
+ },
+ "tt3450958": {
+  "type": "movie",
+  "name": "War for the Planet of the Apes",
+  "year": 2017,
+  "released": "2017-07-14",
+  "tmdbId": 281338
+ },
+ "tt3469046": {
+  "type": "movie",
+  "name": "Despicable Me 3",
+  "year": 2017,
+  "released": "2017-06-30",
+  "tmdbId": 324852
+ },
+ "tt3470600": {
+  "type": "movie",
+  "name": "Sing",
+  "year": 2016,
+  "released": "2016-12-21",
+  "tmdbId": 335797
+ },
+ "tt3480822": {
+  "type": "movie",
+  "name": "Black Widow",
+  "year": 2021,
+  "released": "2021-07-09",
+  "tmdbId": 497698
+ },
+ "tt3498820": {
+  "type": "movie",
+  "name": "Captain America: Civil War",
+  "year": 2016,
+  "released": "2016-05-06",
+  "tmdbId": 271110
+ },
+ "tt3501632": {
+  "type": "movie",
+  "name": "Thor: Ragnarok",
+  "year": 2017,
+  "released": "2017-11-03",
+  "tmdbId": 284053
+ },
+ "tt3513498": {
+  "type": "movie",
+  "name": "The Lego Movie 2: The Second Part",
+  "year": 2019,
+  "released": "2019-02-08",
+  "tmdbId": 280217
+ },
+ "tt3521164": {
+  "type": "movie",
+  "name": "Moana",
+  "year": 2016,
+  "released": "2016-11-23",
+  "tmdbId": 277834
+ },
+ "tt3606752": {
+  "type": "movie",
+  "name": "Cars 3",
+  "year": 2017,
+  "released": "2017-06-16",
+  "tmdbId": 260514
+ },
+ "tt3606756": {
+  "type": "movie",
+  "name": "Incredibles 2",
+  "year": 2018,
+  "released": "2018-06-15",
+  "tmdbId": 260513
+ },
+ "tt36463894": {
+  "type": "movie",
+  "name": "Predator: Killer of Killers",
+  "year": 2025,
+  "released": "2025-06-06",
+  "tmdbId": 1376434
+ },
+ "tt3717252": {
+  "type": "movie",
+  "name": "Underworld: Blood Wars",
+  "year": 2017,
+  "released": "2017-01-06",
+  "tmdbId": 346672
+ },
+ "tt3731562": {
+  "type": "movie",
+  "name": "Kong: Skull Island",
+  "year": 2017,
+  "released": "2017-03-10",
+  "tmdbId": 293167
+ },
+ "tt3741700": {
+  "type": "movie",
+  "name": "Godzilla: King of the Monsters",
+  "year": 2019,
+  "released": "2019-05-31",
+  "tmdbId": 373571
+ },
+ "tt3748528": {
+  "type": "movie",
+  "name": "Rogue One: A Star Wars Story",
+  "year": 2016,
+  "released": "2016-12-16",
+  "tmdbId": 330459
+ },
+ "tt3766354": {
+  "type": "movie",
+  "name": "The Equalizer 2",
+  "year": 2018,
+  "released": "2018-07-20",
+  "tmdbId": 345887
+ },
+ "tt3778644": {
+  "type": "movie",
+  "name": "Solo: A Star Wars Story",
+  "year": 2018,
+  "released": "2018-05-25",
+  "tmdbId": 348350
+ },
+ "tt3794354": {
+  "type": "movie",
+  "name": "Sonic the Hedgehog",
+  "year": 2020,
+  "released": "2020-02-14",
+  "tmdbId": 454626
+ },
+ "tt3829266": {
+  "type": "movie",
+  "name": "The Predator",
+  "year": 2018,
+  "released": "2018-09-14",
+  "tmdbId": 346910
+ },
+ "tt3874544": {
+  "type": "movie",
+  "name": "The Boss Baby",
+  "year": 2017,
+  "released": "2017-03-31",
+  "tmdbId": 295693
+ },
+ "tt3896198": {
+  "type": "movie",
+  "name": "Guardians of the Galaxy: Vol. 2",
+  "year": 2017,
+  "released": "2017-05-05",
+  "tmdbId": 283995
+ },
+ "tt3915174": {
+  "type": "movie",
+  "name": "Puss in Boots: The Last Wish",
+  "year": 2022,
+  "released": "2022-12-21",
+  "tmdbId": 315162
+ },
+ "tt4046784": {
+  "type": "movie",
+  "name": "Maze Runner: The Scorch Trials",
+  "year": 2015,
+  "released": "2015-09-18",
+  "tmdbId": 294254
+ },
+ "tt4094724": {
+  "type": "movie",
+  "name": "The Purge: Election Year",
+  "year": 2016,
+  "released": "2016-07-01",
+  "tmdbId": 316727
+ },
+ "tt4116284": {
+  "type": "movie",
+  "name": "The Lego Batman Movie",
+  "year": 2017,
+  "released": "2017-02-10",
+  "tmdbId": 324849
+ },
+ "tt4123430": {
+  "type": "movie",
+  "name": "Fantastic Beasts: The Crimes of Grindelwald",
+  "year": 2018,
+  "released": "2018-11-16",
+  "tmdbId": 338952
+ },
+ "tt4123432": {
+  "type": "movie",
+  "name": "Fantastic Beasts: The Secrets of Dumbledore",
+  "year": 2022,
+  "released": "2022-04-15",
+  "tmdbId": 338953
+ },
+ "tt4154664": {
+  "type": "movie",
+  "name": "Captain Marvel",
+  "year": 2019,
+  "released": "2019-03-08",
+  "tmdbId": 299537
+ },
+ "tt4154756": {
+  "type": "movie",
+  "name": "Avengers: Infinity War",
+  "year": 2018,
+  "released": "2018-04-27",
+  "tmdbId": 299536
+ },
+ "tt4154796": {
+  "type": "movie",
+  "name": "Avengers: Endgame",
+  "year": 2019,
+  "released": "2019-04-26",
+  "tmdbId": 299534
+ },
+ "tt4196776": {
+  "type": "movie",
+  "name": "Jason Bourne",
+  "year": 2016,
+  "released": "2016-07-29",
+  "tmdbId": 324668
+ },
+ "tt4281724": {
+  "type": "movie",
+  "name": "Terrifier",
+  "year": 2018,
+  "released": "2018-03-27",
+  "tmdbId": 420634
+ },
+ "tt4425200": {
+  "type": "movie",
+  "name": "John Wick: Chapter 2",
+  "year": 2017,
+  "released": "2017-02-10",
+  "tmdbId": 324552
+ },
+ "tt4465564": {
+  "type": "movie",
+  "name": "Fifty Shades Darker",
+  "year": 2017,
+  "released": "2017-02-10",
+  "tmdbId": 341174
+ },
+ "tt4468740": {
+  "type": "movie",
+  "name": "Paddington 2",
+  "year": 2018,
+  "released": "2018-01-12",
+  "tmdbId": 346648
+ },
+ "tt4477536": {
+  "type": "movie",
+  "name": "Fifty Shades Freed",
+  "year": 2018,
+  "released": "2018-02-09",
+  "tmdbId": 337167
+ },
+ "tt4500922": {
+  "type": "movie",
+  "name": "Maze Runner: The Death Cure",
+  "year": 2018,
+  "released": "2018-01-26",
+  "tmdbId": 336843
+ },
+ "tt4513678": {
+  "type": "movie",
+  "name": "Ghostbusters: Afterlife",
+  "year": 2021,
+  "released": "2021-11-19",
+  "tmdbId": 425909
+ },
+ "tt4520988": {
+  "type": "movie",
+  "name": "Frozen II",
+  "year": 2019,
+  "released": "2019-11-22",
+  "tmdbId": 330457
+ },
+ "tt4589218": {
+  "type": "movie",
+  "name": "Five Nights at Freddy's",
+  "year": 2023,
+  "released": "2023-10-27",
+  "tmdbId": 507089
+ },
+ "tt4630562": {
+  "type": "movie",
+  "name": "The Fate of the Furious",
+  "year": 2017,
+  "released": "2017-04-14",
+  "tmdbId": 337339
+ },
+ "tt4633694": {
+  "type": "movie",
+  "name": "Spider-Man: Into the Spider-Verse",
+  "year": 2018,
+  "released": "2018-12-14",
+  "tmdbId": 324857
+ },
+ "tt4649466": {
+  "type": "movie",
+  "name": "Kingsman: The Golden Circle",
+  "year": 2017,
+  "released": "2017-09-22",
+  "tmdbId": 343668
+ },
+ "tt4682266": {
+  "type": "movie",
+  "name": "The New Mutants",
+  "year": 2020,
+  "released": "2020-08-28",
+  "tmdbId": 340102
+ },
+ "tt4701182": {
+  "type": "movie",
+  "name": "Bumblebee",
+  "year": 2018,
+  "released": "2018-12-21",
+  "tmdbId": 424783
+ },
+ "tt4712810": {
+  "type": "movie",
+  "name": "Now You See Me: Now You Don't",
+  "year": 2025,
+  "released": "2025-11-14",
+  "tmdbId": 425274
+ },
+ "tt4765284": {
+  "type": "movie",
+  "name": "Pitch Perfect 3",
+  "year": 2017,
+  "released": "2017-12-22",
+  "tmdbId": 353616
+ },
+ "tt4881806": {
+  "type": "movie",
+  "name": "Jurassic World: Fallen Kingdom",
+  "year": 2018,
+  "released": "2018-06-22",
+  "tmdbId": 351286
+ },
+ "tt4912910": {
+  "type": "movie",
+  "name": "Mission: Impossible - Fallout",
+  "year": 2018,
+  "released": "2018-07-27",
+  "tmdbId": 353081
+ },
+ "tt4913966": {
+  "type": "movie",
+  "name": "The Curse of La Llorona",
+  "year": 2019,
+  "released": "2019-04-19",
+  "tmdbId": 480414
+ },
+ "tt4919268": {
+  "type": "movie",
+  "name": "Bad Boys: Ride or Die",
+  "year": 2024,
+  "released": "2024-06-07",
+  "tmdbId": 353262
+ },
+ "tt4972582": {
+  "type": "movie",
+  "name": "Split",
+  "year": 2017,
+  "released": "2017-01-20",
+  "tmdbId": 381288
+ },
+ "tt5034838": {
+  "type": "movie",
+  "name": "Godzilla vs. Kong",
+  "year": 2021,
+  "released": "2021-03-31",
+  "tmdbId": 399566
+ },
+ "tt5052474": {
+  "type": "movie",
+  "name": "Sicario: Day of the Soldado",
+  "year": 2018,
+  "released": "2018-06-29",
+  "tmdbId": 400535
+ },
+ "tt5090568": {
+  "type": "movie",
+  "name": "Transformers: Rise of the Beasts",
+  "year": 2023,
+  "released": "2023-06-09",
+  "tmdbId": 667538
+ },
+ "tt5095030": {
+  "type": "movie",
+  "name": "Ant-Man and the Wasp",
+  "year": 2018,
+  "released": "2018-07-06",
+  "tmdbId": 363088
+ },
+ "tt5113040": {
+  "type": "movie",
+  "name": "The Secret Life of Pets 2",
+  "year": 2019,
+  "released": "2019-06-07",
+  "tmdbId": 412117
+ },
+ "tt5113044": {
+  "type": "movie",
+  "name": "Minions: The Rise of Gru",
+  "year": 2022,
+  "released": "2022-07-01",
+  "tmdbId": 438148
+ },
+ "tt5140878": {
+  "type": "movie",
+  "name": "Annabelle: Creation",
+  "year": 2017,
+  "released": "2017-08-11",
+  "tmdbId": 396422
+ },
+ "tt5164214": {
+  "type": "movie",
+  "name": "Ocean's Eight",
+  "year": 2018,
+  "released": "2018-06-08",
+  "tmdbId": 402900
+ },
+ "tt5220122": {
+  "type": "movie",
+  "name": "Hotel Transylvania 3: Summer Vacation",
+  "year": 2018,
+  "released": "2018-07-13",
+  "tmdbId": 400155
+ },
+ "tt5308322": {
+  "type": "movie",
+  "name": "Happy Death Day",
+  "year": 2017,
+  "released": "2017-10-13",
+  "tmdbId": 440021
+ },
+ "tt5433138": {
+  "type": "movie",
+  "name": "F9: The Fast Saga",
+  "year": 2021,
+  "released": "2021-06-25",
+  "tmdbId": 385128
+ },
+ "tt5433140": {
+  "type": "movie",
+  "name": "Fast X",
+  "year": 2023,
+  "released": "2023-05-19",
+  "tmdbId": 385687
+ },
+ "tt5463162": {
+  "type": "movie",
+  "name": "Deadpool 2",
+  "year": 2018,
+  "released": "2018-05-18",
+  "tmdbId": 383498
+ },
+ "tt5726086": {
+  "type": "movie",
+  "name": "Insidious: The Last Key",
+  "year": 2018,
+  "released": "2018-01-05",
+  "tmdbId": 406563
+ },
+ "tt5814060": {
+  "type": "movie",
+  "name": "The Nun",
+  "year": 2018,
+  "released": "2018-09-07",
+  "tmdbId": 439079
+ },
+ "tt5822536": {
+  "type": "movie",
+  "name": "Paddington in Peru",
+  "year": 2025,
+  "released": "2025-02-14",
+  "tmdbId": 516729
+ },
+ "tt5848272": {
+  "type": "movie",
+  "name": "Ralph Breaks the Internet",
+  "year": 2018,
+  "released": "2018-11-21",
+  "tmdbId": 404368
+ },
+ "tt5886046": {
+  "type": "movie",
+  "name": "Escape Room",
+  "year": 2019,
+  "released": "2019-01-04",
+  "tmdbId": 522681
+ },
+ "tt5950044": {
+  "type": "movie",
+  "name": "Superman",
+  "year": 2025,
+  "released": "2025-07-11",
+  "tmdbId": 800788
+ },
+ "tt6133466": {
+  "type": "movie",
+  "name": "The First Purge",
+  "year": 2018,
+  "released": "2018-07-04",
+  "tmdbId": 442249
+ },
+ "tt6146586": {
+  "type": "movie",
+  "name": "John Wick: Chapter 3 - Parabellum",
+  "year": 2019,
+  "released": "2019-05-17",
+  "tmdbId": 458156
+ },
+ "tt6263850": {
+  "type": "movie",
+  "name": "Deadpool & Wolverine",
+  "year": 2024,
+  "released": "2024-07-26",
+  "tmdbId": 533535
+ },
+ "tt6320628": {
+  "type": "movie",
+  "name": "Spider-Man: Far from Home",
+  "year": 2019,
+  "released": "2019-07-02",
+  "tmdbId": 429617
+ },
+ "tt6334354": {
+  "type": "movie",
+  "name": "The Suicide Squad",
+  "year": 2021,
+  "released": "2021-08-05",
+  "tmdbId": 436969
+ },
+ "tt6343314": {
+  "type": "movie",
+  "name": "Creed II",
+  "year": 2018,
+  "released": "2018-11-21",
+  "tmdbId": 480530
+ },
+ "tt6443346": {
+  "type": "movie",
+  "name": "Black Adam",
+  "year": 2022,
+  "released": "2022-10-21",
+  "tmdbId": 436270
+ },
+ "tt6450804": {
+  "type": "movie",
+  "name": "Terminator: Dark Fate",
+  "year": 2019,
+  "released": "2019-11-01",
+  "tmdbId": 290859
+ },
+ "tt6467266": {
+  "type": "movie",
+  "name": "Sing 2",
+  "year": 2021,
+  "released": "2021-12-22",
+  "tmdbId": 438695
+ },
+ "tt6486762": {
+  "type": "series",
+  "name": "The Continental",
+  "year": 2023,
+  "released": "2023-09-22",
+  "tmdbId": 72710
+ },
+ "tt6565702": {
+  "type": "movie",
+  "name": "X-Men: Dark Phoenix",
+  "year": 2019,
+  "released": "2019-06-07",
+  "tmdbId": 320288
+ },
+ "tt6587640": {
+  "type": "movie",
+  "name": "Trolls World Tour",
+  "year": 2020,
+  "released": "2020-04-10",
+  "tmdbId": 446893
+ },
+ "tt6604188": {
+  "type": "movie",
+  "name": "Tron: Ares",
+  "year": 2025,
+  "released": "2025-10-10",
+  "tmdbId": 533533
+ },
+ "tt6644200": {
+  "type": "movie",
+  "name": "A Quiet Place",
+  "year": 2018,
+  "released": "2018-04-06",
+  "tmdbId": 447332
+ },
+ "tt6718170": {
+  "type": "movie",
+  "name": "The Super Mario Bros. Movie",
+  "year": 2023,
+  "released": "2023-04-05",
+  "tmdbId": 502356
+ },
+ "tt6791350": {
+  "type": "movie",
+  "name": "Guardians of the Galaxy Vol. 3",
+  "year": 2023,
+  "released": "2023-05-05",
+  "tmdbId": 447365
+ },
+ "tt6806448": {
+  "type": "movie",
+  "name": "Fast & Furious Presents: Hobbs & Shaw",
+  "year": 2019,
+  "released": "2019-08-02",
+  "tmdbId": 384018
+ },
+ "tt6823368": {
+  "type": "movie",
+  "name": "Glass",
+  "year": 2019,
+  "released": "2019-01-18",
+  "tmdbId": 450465
+ },
+ "tt6856242": {
+  "type": "movie",
+  "name": "The King's Man",
+  "year": 2021,
+  "released": "2021-12-22",
+  "tmdbId": 476669
+ },
+ "tt6911608": {
+  "type": "movie",
+  "name": "Mamma Mia! Here We Go Again",
+  "year": 2018,
+  "released": "2018-07-20",
+  "tmdbId": 458423
+ },
+ "tt6932874": {
+  "type": "movie",
+  "name": "The Boss Baby: Family Business",
+  "year": 2021,
+  "released": "2021-07-02",
+  "tmdbId": 459151
+ },
+ "tt7068946": {
+  "type": "movie",
+  "name": "The Accountant 2",
+  "year": 2025,
+  "released": "2025-04-25",
+  "tmdbId": 870028
+ },
+ "tt7069210": {
+  "type": "movie",
+  "name": "The Conjuring: The Devil Made Me Do It",
+  "year": 2021,
+  "released": "2021-06-04",
+  "tmdbId": 423108
+ },
+ "tt7097896": {
+  "type": "movie",
+  "name": "Venom: Let There Be Carnage",
+  "year": 2021,
+  "released": "2021-10-01",
+  "tmdbId": 580489
+ },
+ "tt7126948": {
+  "type": "movie",
+  "name": "Wonder Woman 1984",
+  "year": 2020,
+  "released": "2020-12-25",
+  "tmdbId": 464052
+ },
+ "tt7144666": {
+  "type": "movie",
+  "name": "The Black Phone",
+  "year": 2022,
+  "released": "2022-06-24",
+  "tmdbId": 756999
+ },
+ "tt7181546": {
+  "type": "movie",
+  "name": "Ballerina",
+  "year": 2025,
+  "released": "2025-06-06",
+  "tmdbId": 541671
+ },
+ "tt7221388": {
+  "type": "series",
+  "name": "Cobra Kai",
+  "year": 2018,
+  "released": "2018-05-02",
+  "tmdbId": 77169
+ },
+ "tt7349950": {
+  "type": "movie",
+  "name": "It: Chapter Two",
+  "year": 2019,
+  "released": "2019-09-06",
+  "tmdbId": 474350
+ },
+ "tt7510222": {
+  "type": "movie",
+  "name": "Despicable Me 4",
+  "year": 2024,
+  "released": "2024-07-03",
+  "tmdbId": 519182
+ },
+ "tt7631058": {
+  "type": "series",
+  "name": "The Lord of the Rings: The Rings of Power",
+  "year": 2022,
+  "released": "2022-09-01",
+  "tmdbId": 84773
+ },
+ "tt7713068": {
+  "type": "movie",
+  "name": "Birds of Prey and the Fantabulous Emancipation of One Harley Quinn",
+  "year": 2020,
+  "released": "2020-02-07",
+  "tmdbId": 495764
+ },
+ "tt7846844": {
+  "type": "movie",
+  "name": "Enola Holmes",
+  "year": 2020,
+  "released": "2020-09-23",
+  "tmdbId": 497582
+ },
+ "tt7888964": {
+  "type": "movie",
+  "name": "Nobody",
+  "year": 2021,
+  "released": "2021-03-26",
+  "tmdbId": 615457
+ },
+ "tt7975244": {
+  "type": "movie",
+  "name": "Jumanji: The Next Level",
+  "year": 2019,
+  "released": "2019-12-13",
+  "tmdbId": 512200
+ },
+ "tt8008948": {
+  "type": "movie",
+  "name": "Den of Thieves: Pantera",
+  "year": 2025,
+  "released": "2025-01-10",
+  "tmdbId": 604685
+ },
+ "tt8041270": {
+  "type": "movie",
+  "name": "Jurassic World: Dominion",
+  "year": 2022,
+  "released": "2022-06-10",
+  "tmdbId": 507086
+ },
+ "tt8111088": {
+  "type": "series",
+  "name": "The Mandalorian",
+  "year": 2019,
+  "released": "2019-11-12",
+  "tmdbId": 82856
+ },
+ "tt8155288": {
+  "type": "movie",
+  "name": "Happy Death Day 2U",
+  "year": 2019,
+  "released": "2019-02-13",
+  "tmdbId": 512196
+ },
+ "tt8332922": {
+  "type": "movie",
+  "name": "A Quiet Place Part II",
+  "year": 2021,
+  "released": "2021-05-28",
+  "tmdbId": 520763
+ },
+ "tt8350360": {
+  "type": "movie",
+  "name": "Annabelle Comes Home",
+  "year": 2019,
+  "released": "2019-06-26",
+  "tmdbId": 521029
+ },
+ "tt8466564": {
+  "type": "series",
+  "name": "Obi-Wan Kenobi",
+  "year": 2022,
+  "released": "2022-05-27",
+  "tmdbId": 92830
+ },
+ "tt8760708": {
+  "type": "movie",
+  "name": "M3GAN",
+  "year": 2023,
+  "released": "2023-01-06",
+  "tmdbId": 536554
+ },
+ "tt8814476": {
+  "type": "movie",
+  "name": "Supergirl",
+  "year": 2026,
+  "released": "2026-06-26",
+  "tmdbId": 1081003
+ },
+ "tt8864596": {
+  "type": "movie",
+  "name": "Transformers One",
+  "year": 2024,
+  "released": "2024-09-20",
+  "tmdbId": 698687
+ },
+ "tt8946378": {
+  "type": "movie",
+  "name": "Knives Out",
+  "year": 2019,
+  "released": "2019-11-27",
+  "tmdbId": 546554
+ },
+ "tt9032400": {
+  "type": "movie",
+  "name": "Eternals",
+  "year": 2021,
+  "released": "2021-11-05",
+  "tmdbId": 524434
+ },
+ "tt9114286": {
+  "type": "movie",
+  "name": "Black Panther: Wakanda Forever",
+  "year": 2022,
+  "released": "2022-11-11",
+  "tmdbId": 505642
+ },
+ "tt9140554": {
+  "type": "series",
+  "name": "Loki",
+  "year": 2021,
+  "released": "2021-06-09",
+  "tmdbId": 84958
+ },
+ "tt9140560": {
+  "type": "series",
+  "name": "WandaVision",
+  "year": 2021,
+  "released": "2021-01-15",
+  "tmdbId": 85271
+ },
+ "tt9208876": {
+  "type": "series",
+  "name": "The Falcon and the Winter Soldier",
+  "year": 2021,
+  "released": "2021-03-19",
+  "tmdbId": 88396
+ },
+ "tt9218128": {
+  "type": "movie",
+  "name": "Gladiator II",
+  "year": 2024,
+  "released": "2024-11-22",
+  "tmdbId": 558449
+ },
+ "tt9253284": {
+  "type": "series",
+  "name": "Andor",
+  "year": 2022,
+  "released": "2022-09-21",
+  "tmdbId": 83867
+ },
+ "tt9362722": {
+  "type": "movie",
+  "name": "Spider-Man: Across the Spider-Verse",
+  "year": 2023,
+  "released": "2023-06-02",
+  "tmdbId": 569094
+ },
+ "tt9362930": {
+  "type": "movie",
+  "name": "Blue Beetle",
+  "year": 2023,
+  "released": "2023-08-18",
+  "tmdbId": 565770
+ },
+ "tt9376612": {
+  "type": "movie",
+  "name": "Shang-Chi and the Legend of the Ten Rings",
+  "year": 2021,
+  "released": "2021-09-03",
+  "tmdbId": 566525
+ },
+ "tt9419884": {
+  "type": "movie",
+  "name": "Doctor Strange in the Multiverse of Madness",
+  "year": 2022,
+  "released": "2022-05-06",
+  "tmdbId": 453395
+ },
+ "tt9603208": {
+  "type": "movie",
+  "name": "Mission: Impossible - The Final Reckoning",
+  "year": 2025,
+  "released": "2025-05-23",
+  "tmdbId": 575265
+ },
+ "tt9603212": {
+  "type": "movie",
+  "name": "Mission: Impossible - Dead Reckoning Part One",
+  "year": 2023,
+  "released": "2023-07-12",
+  "tmdbId": 575264
+ },
+ "tt9619824": {
+  "type": "movie",
+  "name": "Final Destination: Bloodlines",
+  "year": 2025,
+  "released": "2025-05-16",
+  "tmdbId": 574475
+ },
+ "tt9663764": {
+  "type": "movie",
+  "name": "Aquaman and the Lost Kingdom",
+  "year": 2023,
+  "released": "2023-12-22",
+  "tmdbId": 572802
+ },
+ "tt9844522": {
+  "type": "movie",
+  "name": "Escape Room: Tournament of Champions",
+  "year": 2021,
+  "released": "2021-07-16",
+  "tmdbId": 585216
+ },
+ "tt9848626": {
+  "type": "movie",
+  "name": "Hotel Transylvania 4: Transformania",
+  "year": 2022,
+  "released": "2022-01-14",
+  "tmdbId": 585083
+ }
+}

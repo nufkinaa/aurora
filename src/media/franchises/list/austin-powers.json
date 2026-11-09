@@ -1,0 +1,13 @@
+{
+  "id": "austin-powers",
+  "name": "Austin Powers",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0118655","tmdbId":816,"type":"movie","title":"Austin Powers: International Man of Mystery","year":1997,"date":"1997-05-02"},
+    {"imdbId":"tt0145660","tmdbId":817,"type":"movie","title":"Austin Powers: The Spy Who Shagged Me","year":1999,"date":"1999-06-11"},
+    {"imdbId":"tt0295178","tmdbId":818,"type":"movie","title":"Austin Powers in Goldmember","year":2002,"date":"2002-07-26"}
+  ],
+  "tmdbCollections": [1006],
+  "sources": ["https://en.wikipedia.org/wiki/Austin_Powers","https://www.themoviedb.org/collection/1006","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

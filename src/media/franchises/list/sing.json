@@ -1,0 +1,12 @@
+{
+  "id": "sing",
+  "name": "Sing",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt3470600","tmdbId":335797,"type":"movie","title":"Sing","year":2016,"date":"2016-12-21"},
+    {"imdbId":"tt6467266","tmdbId":438695,"type":"movie","title":"Sing 2","year":2021,"date":"2021-12-22"}
+  ],
+  "tmdbCollections": [544670],
+  "sources": ["https://en.wikipedia.org/wiki/Sing_(franchise)","https://www.themoviedb.org/collection/544670","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

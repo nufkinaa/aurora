@@ -1,0 +1,12 @@
+{
+  "id": "finding-nemo",
+  "name": "Finding Nemo",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0266543","tmdbId":12,"type":"movie","title":"Finding Nemo","year":2003,"date":"2003-05-30"},
+    {"imdbId":"tt2277860","tmdbId":127380,"type":"movie","title":"Finding Dory","year":2016,"date":"2016-06-17"}
+  ],
+  "tmdbCollections": [137697],
+  "sources": ["https://en.wikipedia.org/wiki/Finding_Nemo_(franchise)","https://www.themoviedb.org/collection/137697","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

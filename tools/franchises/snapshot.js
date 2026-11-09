@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The curated franchise list (src/media/franchises/data) held to the catalogue.
+// The curated franchise list (src/media/franchises/list) held to the catalogue.
 //
 //   node tools/franchises/snapshot.js            ask Cinemeta about every entry not yet in
 //                                                test/fixtures/franchise-meta.json, write it,

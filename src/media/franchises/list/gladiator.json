@@ -1,0 +1,12 @@
+{
+  "id": "gladiator",
+  "name": "Gladiator",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0172495","tmdbId":98,"type":"movie","title":"Gladiator","year":2000,"date":"2000-05-05"},
+    {"imdbId":"tt9218128","tmdbId":558449,"type":"movie","title":"Gladiator II","year":2024,"date":"2024-11-22"}
+  ],
+  "tmdbCollections": [1069584],
+  "sources": ["https://en.wikipedia.org/wiki/Gladiator_II","https://www.themoviedb.org/collection/1069584","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

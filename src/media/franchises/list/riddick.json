@@ -1,0 +1,14 @@
+{
+  "id": "riddick",
+  "name": "Riddick",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0134847","tmdbId":2787,"type":"movie","title":"Pitch Black","year":2000,"date":"2000-02-18"},
+    {"imdbId":"tt0296572","tmdbId":2789,"type":"movie","title":"The Chronicles of Riddick","year":2004,"date":"2004-06-11"},
+    {"imdbId":"tt1411250","tmdbId":87421,"type":"movie","title":"Riddick","year":2013,"date":"2013-09-06"}
+  ],
+  "tmdbCollections": [2794],
+  "sources": ["https://en.wikipedia.org/wiki/The_Chronicles_of_Riddick","https://www.themoviedb.org/collection/2794","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Pitch Black, The Chronicles of Riddick, Riddick. The animated short Dark Fury is left out."
+}

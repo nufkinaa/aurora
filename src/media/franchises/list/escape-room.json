@@ -1,0 +1,12 @@
+{
+  "id": "escape-room",
+  "name": "Escape Room",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt5886046","tmdbId":522681,"type":"movie","title":"Escape Room","year":2019,"date":"2019-01-04"},
+    {"imdbId":"tt9844522","tmdbId":585216,"type":"movie","title":"Escape Room: Tournament of Champions","year":2021,"date":"2021-07-16"}
+  ],
+  "tmdbCollections": [769423],
+  "sources": ["https://en.wikipedia.org/wiki/Escape_Room_(franchise)","https://www.themoviedb.org/collection/769423","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

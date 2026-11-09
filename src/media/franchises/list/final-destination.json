@@ -1,0 +1,25 @@
+{
+  "id": "final-destination",
+  "name": "Final Destination",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0195714","tmdbId":9532,"type":"movie","title":"Final Destination","year":2000,"date":"2000-03-17"},
+    {"imdbId":"tt0309593","tmdbId":9358,"type":"movie","title":"Final Destination 2","year":2003,"date":"2003-01-31"},
+    {"imdbId":"tt0414982","tmdbId":9286,"type":"movie","title":"Final Destination 3","year":2006,"date":"2006-02-10"},
+    {"imdbId":"tt1144884","tmdbId":19912,"type":"movie","title":"The Final Destination","year":2009,"date":"2009-08-28"},
+    {"imdbId":"tt1622979","tmdbId":55779,"type":"movie","title":"Final Destination 5","year":2011,"date":"2011-08-12"},
+    {"imdbId":"tt9619824","tmdbId":574475,"type":"movie","title":"Final Destination: Bloodlines","year":2025,"date":"2025-05-16"}
+  ],
+  "story": [
+    "tt1622979",
+    "tt0195714",
+    "tt0309593",
+    "tt0414982",
+    "tt1144884",
+    "tt9619824"
+  ],
+  "tmdbCollections": [8864],
+  "sources": ["https://en.wikipedia.org/wiki/Final_Destination","https://en.wikipedia.org/wiki/Final_Destination_5","https://www.themoviedb.org/collection/8864","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order: Final Destination 5 is a prequel (its ending is the Flight 180 departure from the first film); Bloodlines (2025) is set in the present day after the others."
+}

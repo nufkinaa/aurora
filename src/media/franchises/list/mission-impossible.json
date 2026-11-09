@@ -1,0 +1,18 @@
+{
+  "id": "mission-impossible",
+  "name": "Mission: Impossible",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0117060","tmdbId":954,"type":"movie","title":"Mission: Impossible","year":1996,"date":"1996-05-22"},
+    {"imdbId":"tt0120755","tmdbId":955,"type":"movie","title":"Mission: Impossible II","year":2000,"date":"2000-05-24"},
+    {"imdbId":"tt0317919","tmdbId":956,"type":"movie","title":"Mission: Impossible III","year":2006,"date":"2006-05-05"},
+    {"imdbId":"tt1229238","tmdbId":56292,"type":"movie","title":"Mission: Impossible - Ghost Protocol","year":2011,"date":"2011-12-21"},
+    {"imdbId":"tt2381249","tmdbId":177677,"type":"movie","title":"Mission: Impossible - Rogue Nation","year":2015,"date":"2015-07-31"},
+    {"imdbId":"tt4912910","tmdbId":353081,"type":"movie","title":"Mission: Impossible - Fallout","year":2018,"date":"2018-07-27"},
+    {"imdbId":"tt9603212","tmdbId":575264,"type":"movie","title":"Mission: Impossible - Dead Reckoning Part One","year":2023,"date":"2023-07-12"},
+    {"imdbId":"tt9603208","tmdbId":575265,"type":"movie","title":"Mission: Impossible - The Final Reckoning","year":2025,"date":"2025-05-23"}
+  ],
+  "tmdbCollections": [87359],
+  "sources": ["https://en.wikipedia.org/wiki/Mission:_Impossible_(film_series)","https://www.themoviedb.org/collection/87359","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

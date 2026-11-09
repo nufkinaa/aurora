@@ -1,0 +1,12 @@
+{
+  "id": "the-black-phone",
+  "name": "The Black Phone",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt7144666","tmdbId":756999,"type":"movie","title":"The Black Phone","year":2022,"date":"2022-06-24"},
+    {"imdbId":"tt29644189","tmdbId":1197137,"type":"movie","title":"Black Phone 2","year":2025,"date":"2025-10-17"}
+  ],
+  "tmdbCollections": [1197140],
+  "sources": ["https://en.wikipedia.org/wiki/Black_Phone_2","https://www.themoviedb.org/collection/1197140","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "zootopia",
+  "name": "Zootopia",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt2948356","tmdbId":269149,"type":"movie","title":"Zootopia","year":2016,"date":"2016-03-04"},
+    {"imdbId":"tt26443597","tmdbId":1084242,"type":"movie","title":"Zootopia 2","year":2025,"date":"2025-11-26"}
+  ],
+  "tmdbCollections": [1084247],
+  "sources": ["https://en.wikipedia.org/wiki/Zootopia_(franchise)","https://www.themoviedb.org/collection/1084247","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

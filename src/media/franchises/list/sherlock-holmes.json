@@ -1,0 +1,13 @@
+{
+  "id": "sherlock-holmes",
+  "name": "Sherlock Holmes (Guy Ritchie)",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0988045","tmdbId":10528,"type":"movie","title":"Sherlock Holmes","year":2009,"date":"2009-12-25"},
+    {"imdbId":"tt1515091","tmdbId":58574,"type":"movie","title":"Sherlock Holmes: A Game of Shadows","year":2011,"date":"2011-12-16"}
+  ],
+  "tmdbCollections": [102322],
+  "sources": ["https://en.wikipedia.org/wiki/Sherlock_Holmes_(2009_film)","https://www.themoviedb.org/collection/102322","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Guy Ritchie's two films with Robert Downey Jr."
+}

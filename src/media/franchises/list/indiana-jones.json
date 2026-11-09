@@ -1,0 +1,23 @@
+{
+  "id": "indiana-jones",
+  "name": "Indiana Jones",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0082971","tmdbId":85,"type":"movie","title":"Raiders of the Lost Ark","year":1981,"date":"1981-06-12"},
+    {"imdbId":"tt0087469","tmdbId":87,"type":"movie","title":"Indiana Jones and the Temple of Doom","year":1984,"date":"1984-05-23"},
+    {"imdbId":"tt0097576","tmdbId":89,"type":"movie","title":"Indiana Jones and the Last Crusade","year":1989,"date":"1989-05-24"},
+    {"imdbId":"tt0367882","tmdbId":217,"type":"movie","title":"Indiana Jones and the Kingdom of the Crystal Skull","year":2008,"date":"2008-05-22"},
+    {"imdbId":"tt1462764","tmdbId":335977,"type":"movie","title":"Indiana Jones and the Dial of Destiny","year":2023,"date":"2023-06-30"}
+  ],
+  "story": [
+    "tt0087469",
+    "tt0082971",
+    "tt0097576",
+    "tt0367882",
+    "tt1462764"
+  ],
+  "tmdbCollections": [84],
+  "sources": ["https://en.wikipedia.org/wiki/Indiana_Jones","https://en.wikipedia.org/wiki/Indiana_Jones_and_the_Temple_of_Doom","https://www.themoviedb.org/collection/84","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order: Temple of Doom (1935) is a prequel to Raiders of the Lost Ark (1936). The Young Indiana Jones Chronicles series is left out."
+}

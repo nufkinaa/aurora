@@ -1,0 +1,27 @@
+{
+  "id": "despicable-me",
+  "name": "Despicable Me",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1323594","tmdbId":20352,"type":"movie","title":"Despicable Me","year":2010,"date":"2010-07-09"},
+    {"imdbId":"tt1690953","tmdbId":93456,"type":"movie","title":"Despicable Me 2","year":2013,"date":"2013-07-03"},
+    {"imdbId":"tt2293640","tmdbId":211672,"type":"movie","title":"Minions","year":2015,"date":"2015-07-10"},
+    {"imdbId":"tt3469046","tmdbId":324852,"type":"movie","title":"Despicable Me 3","year":2017,"date":"2017-06-30"},
+    {"imdbId":"tt5113044","tmdbId":438148,"type":"movie","title":"Minions: The Rise of Gru","year":2022,"date":"2022-07-01"},
+    {"imdbId":"tt7510222","tmdbId":519182,"type":"movie","title":"Despicable Me 4","year":2024,"date":"2024-07-03"},
+    {"imdbId":"tt32890033","tmdbId":1315772,"type":"movie","title":"Minions & Monsters","year":2026,"date":"2026-07-01"}
+  ],
+  "story": [
+    "tt32890033",
+    "tt2293640",
+    "tt5113044",
+    "tt1323594",
+    "tt1690953",
+    "tt3469046",
+    "tt7510222"
+  ],
+  "tmdbCollections": [86066,544669],
+  "sources": ["https://en.wikipedia.org/wiki/Despicable_Me","https://www.comicbasics.com/minions-monsters-timeline-explained-where-does-the-new-prequel-fit-in-the-despicable-me-story/","https://www.themoviedb.org/collection/86066","https://www.themoviedb.org/collection/544669","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Story order: Minions & Monsters (1920s Hollywood), Minions (1968), Minions: The Rise of Gru (1976), then Despicable Me 1-4."
+}

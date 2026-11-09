@@ -1,0 +1,14 @@
+{
+  "id": "the-matrix",
+  "name": "The Matrix",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0133093","tmdbId":603,"type":"movie","title":"The Matrix","year":1999,"date":"1999-03-31"},
+    {"imdbId":"tt0234215","tmdbId":604,"type":"movie","title":"The Matrix Reloaded","year":2003,"date":"2003-05-15"},
+    {"imdbId":"tt0242653","tmdbId":605,"type":"movie","title":"The Matrix Revolutions","year":2003,"date":"2003-11-05"},
+    {"imdbId":"tt10838180","tmdbId":624860,"type":"movie","title":"The Matrix Resurrections","year":2021,"date":"2021-12-22"}
+  ],
+  "tmdbCollections": [2344],
+  "sources": ["https://en.wikipedia.org/wiki/The_Matrix_(franchise)","https://www.themoviedb.org/collection/2344","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

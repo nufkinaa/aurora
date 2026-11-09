@@ -1,0 +1,14 @@
+{
+  "id": "men-in-black",
+  "name": "Men in Black",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0119654","tmdbId":607,"type":"movie","title":"Men in Black","year":1997,"date":"1997-07-02"},
+    {"imdbId":"tt0120912","tmdbId":608,"type":"movie","title":"Men in Black II","year":2002,"date":"2002-07-03"},
+    {"imdbId":"tt1409024","tmdbId":41154,"type":"movie","title":"Men in Black 3","year":2012,"date":"2012-05-25"},
+    {"imdbId":"tt2283336","tmdbId":479455,"type":"movie","title":"Men in Black: International","year":2019,"date":"2019-06-14"}
+  ],
+  "tmdbCollections": [86055],
+  "sources": ["https://en.wikipedia.org/wiki/Men_in_Black_(franchise)","https://www.themoviedb.org/collection/86055","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

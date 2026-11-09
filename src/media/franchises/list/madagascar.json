@@ -1,0 +1,14 @@
+{
+  "id": "madagascar",
+  "name": "Madagascar",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0351283","tmdbId":953,"type":"movie","title":"Madagascar","year":2005,"date":"2005-05-27"},
+    {"imdbId":"tt0479952","tmdbId":10527,"type":"movie","title":"Madagascar: Escape 2 Africa","year":2008,"date":"2008-11-07"},
+    {"imdbId":"tt1277953","tmdbId":80321,"type":"movie","title":"Madagascar 3: Europe's Most Wanted","year":2012,"date":"2012-06-08"},
+    {"imdbId":"tt1911658","tmdbId":270946,"type":"movie","title":"Penguins of Madagascar","year":2014,"date":"2014-11-26","optional":true,"note":"spin-off"}
+  ],
+  "tmdbCollections": [14740],
+  "sources": ["https://en.wikipedia.org/wiki/Madagascar_(franchise)","https://www.themoviedb.org/collection/14740","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

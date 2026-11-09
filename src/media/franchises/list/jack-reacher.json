@@ -1,0 +1,13 @@
+{
+  "id": "jack-reacher",
+  "name": "Jack Reacher",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0790724","tmdbId":75780,"type":"movie","title":"Jack Reacher","year":2012,"date":"2012-12-21"},
+    {"imdbId":"tt3393786","tmdbId":343611,"type":"movie","title":"Jack Reacher: Never Go Back","year":2016,"date":"2016-10-21"}
+  ],
+  "tmdbCollections": [403374],
+  "sources": ["https://en.wikipedia.org/wiki/Jack_Reacher_(film)","https://www.themoviedb.org/collection/403374","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The two Tom Cruise films; the Reacher series is a separate adaptation and is left out."
+}

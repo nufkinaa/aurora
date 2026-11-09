@@ -1,0 +1,15 @@
+{
+  "id": "american-pie",
+  "name": "American Pie",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0163651","tmdbId":2105,"type":"movie","title":"American Pie","year":1999,"date":"1999-07-09"},
+    {"imdbId":"tt0252866","tmdbId":2770,"type":"movie","title":"American Pie 2","year":2001,"date":"2001-08-10"},
+    {"imdbId":"tt0328828","tmdbId":8273,"type":"movie","title":"American Wedding","year":2003,"date":"2003-08-01"},
+    {"imdbId":"tt1605630","tmdbId":71552,"type":"movie","title":"American Reunion","year":2012,"date":"2012-04-06"}
+  ],
+  "tmdbCollections": [2806],
+  "sources": ["https://en.wikipedia.org/wiki/American_Pie_(film_series)","https://www.themoviedb.org/collection/2806","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The four theatrical films with the original cast; the direct-to-video American Pie Presents spin-offs are left out."
+}

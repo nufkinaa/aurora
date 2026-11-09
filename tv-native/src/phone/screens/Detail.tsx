@@ -46,6 +46,8 @@ import {cancelQuestion} from '../../downloadsLogic';
 import StarRating from '../ui/StarRating';
 import {onDiskLines} from '../words';
 import {autoPlayStep, pickBest, playPress, SAVE_WATCH} from '../../playBest';
+import {autoSaveStep} from '../../franchiseRules'; // [franchise]
+import FranchiseLine from '../ui/FranchiseLine'; // [franchise]
 import {heroRelease, ReleaseStatus} from '../../releaseWords';
 import {pickUp, startSeason} from '../../episodeRules';
 import {bannerLine, ltr, notesShown, titleKey, WORDS as HH} from '../../householdRecs';
@@ -176,7 +178,7 @@ export default function Detail() {
   const route = useRoute<RouteProp<RootStackParamList, 'Detail'>>();
   const navigation = usePNav();
   const isFocused = useIsFocused();
-  const {item, play: autoPlay} = route.params;
+  const {item, play: autoPlay, save: autoSave} = route.params;
   const {profileId} = useApp();
   const insets = useSafeAreaInsets();
   const bottom = useTabBarSpace();
@@ -202,6 +204,7 @@ export default function Detail() {
   const [jobsRead, setJobsRead] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [heroRel, setHeroRel] = useState<ReleaseStatus | null>(null);
+  const [filmBest, setFilmBest] = useState<boolean | null>(null); // [franchise] a best source? (what `save` waits for)
   const [note, setNote] = useState<{text: string; tone: 'live' | 'warn' | 'ok' | 'hint'} | null>(null);
   const [similar, setSimilar] = useState<HeroItem[] | null>(null);
   const [moreText, setMoreText] = useState(false);
@@ -451,7 +454,11 @@ export default function Detail() {
     let live = true;
     api
       .torrentSources({type: 'movie', title: imdb, year: year ?? undefined})
-      .then(r => live && setHeroRel(pickBest(r.streams) ? null : heroRelease(r.release)))
+      .then(r => {
+        if (!live) return;
+        setHeroRel(pickBest(r.streams) ? null : heroRelease(r.release));
+        setFilmBest(!!pickBest(r.streams));
+      })
       .catch(() => {});
     return () => {
       live = false;
@@ -846,6 +853,39 @@ export default function Detail() {
     if (step === 'press') primary(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   });
+  // [franchise] Save & watch, pressed ONCE (route param `save`: the franchise page's or the
+  // end card's Save & watch on a film not on the server, carried over) — the handler the
+  // button runs, once the film is known not on disk, not on its way, with a best source;
+  // anything else leaves the page as it is (franchiseRules.ts autoSaveStep).
+  const saveDone = useRef(!autoSave);
+  useEffect(() => {
+    if (saveDone.current) return;
+    const step = autoSaveStep({
+      save: !!autoSave,
+      type: item.type,
+      torrentsKnown,
+      torrentsOff,
+      libraryKnown: libSettled && !loading,
+      owned: !!ownedMovieId,
+      jobsKnown: jobsRead,
+      onItsWay: !!jobs.film,
+      best: filmBest,
+      elapsed: Date.now() - autoT0.current,
+    });
+    if (step === 'wait') {
+      const t = setTimeout(() => setAutoTick(n => n + 1), 400);
+      return () => clearTimeout(t);
+    }
+    saveDone.current = true;
+    if (step === 'press') saveBest(null, null, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  const openFranchise = useCallback(
+    (f: {id: string; name: string}) => {
+      if (canNavigate(navigation as never)) navigation.push('Franchise', {id: f.id, name: f.name});
+    },
+    [navigation],
+  );
 
   // ---- the one button ----
   const filmJob = jobs.film;
@@ -1065,6 +1105,8 @@ export default function Detail() {
             {trailers.length || imdb ? <ActionCircle uiId="detail.trailer" icon="film" label="Trailer" onPress={() => openTrailer(trailers, title, {imdbId: imdb, type: isShow ? 'show' : 'movie', year})} /> : null}
             <ActionCircle uiId="phone.detail.share" icon="share" label="Share" onPress={share} />
           </ScrollView>
+          {/* [franchise] "Part of … · 12 of 34 · Watch in order" */}
+          <FranchiseLine imdbId={imdb} type={isShow ? 'series' : 'movie'} profileId={profileId} onOpen={openFranchise} />
 
           {hhFrom.length && !hhHidden ? (
             <View style={s.hh}>

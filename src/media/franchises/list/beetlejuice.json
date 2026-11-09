@@ -1,0 +1,12 @@
+{
+  "id": "beetlejuice",
+  "name": "Beetlejuice",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0094721","tmdbId":4011,"type":"movie","title":"Beetlejuice","year":1988,"date":"1988-03-30"},
+    {"imdbId":"tt2049403","tmdbId":917496,"type":"movie","title":"Beetlejuice Beetlejuice","year":2024,"date":"2024-09-06"}
+  ],
+  "tmdbCollections": [945475],
+  "sources": ["https://en.wikipedia.org/wiki/Beetlejuice_Beetlejuice","https://www.themoviedb.org/collection/945475","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

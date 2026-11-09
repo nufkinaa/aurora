@@ -1,0 +1,14 @@
+{
+  "id": "cars",
+  "name": "Cars",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0317219","tmdbId":920,"type":"movie","title":"Cars","year":2006,"date":"2006-06-09"},
+    {"imdbId":"tt1216475","tmdbId":49013,"type":"movie","title":"Cars 2","year":2011,"date":"2011-06-24"},
+    {"imdbId":"tt3606752","tmdbId":260514,"type":"movie","title":"Cars 3","year":2017,"date":"2017-06-16"}
+  ],
+  "tmdbCollections": [87118],
+  "sources": ["https://en.wikipedia.org/wiki/Cars_(franchise)","https://www.themoviedb.org/collection/87118","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The Planes spin-offs are left out."
+}

@@ -1,0 +1,14 @@
+{
+  "id": "the-godfather",
+  "name": "The Godfather",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0068646","tmdbId":238,"type":"movie","title":"The Godfather","year":1972,"date":"1972-03-24"},
+    {"imdbId":"tt0071562","tmdbId":240,"type":"movie","title":"The Godfather Part II","year":1974,"date":"1974-12-18"},
+    {"imdbId":"tt0099674","tmdbId":242,"type":"movie","title":"The Godfather Part III","year":1990,"date":"1990-12-25"}
+  ],
+  "tmdbCollections": [230],
+  "sources": ["https://en.wikipedia.org/wiki/The_Godfather_(film_series)","https://www.themoviedb.org/collection/230","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Release order only: Part II tells Vito's younger years alongside Michael's story, so it has no clean place in a story order."
+}

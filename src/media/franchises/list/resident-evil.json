@@ -1,0 +1,17 @@
+{
+  "id": "resident-evil",
+  "name": "Resident Evil",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0120804","tmdbId":1576,"type":"movie","title":"Resident Evil","year":2002,"date":"2002-03-15"},
+    {"imdbId":"tt0318627","tmdbId":1577,"type":"movie","title":"Resident Evil: Apocalypse","year":2004,"date":"2004-09-10"},
+    {"imdbId":"tt0432021","tmdbId":7737,"type":"movie","title":"Resident Evil: Extinction","year":2007,"date":"2007-09-21"},
+    {"imdbId":"tt1220634","tmdbId":35791,"type":"movie","title":"Resident Evil: Afterlife","year":2010,"date":"2010-09-10"},
+    {"imdbId":"tt1855325","tmdbId":71679,"type":"movie","title":"Resident Evil: Retribution","year":2012,"date":"2012-09-14"},
+    {"imdbId":"tt2592614","tmdbId":173897,"type":"movie","title":"Resident Evil: The Final Chapter","year":2017,"date":"2017-01-27"}
+  ],
+  "tmdbCollections": [17255],
+  "sources": ["https://en.wikipedia.org/wiki/Resident_Evil_(film_series)","https://www.themoviedb.org/collection/17255","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Paul W. S. Anderson's six films with Milla Jovovich (2002-2016). The 2021 reboot Welcome to Raccoon City and the animated films are left out."
+}

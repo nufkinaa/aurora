@@ -1,0 +1,19 @@
+{
+  "id": "it",
+  "name": "It",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1396484","tmdbId":346364,"type":"movie","title":"It","year":2017,"date":"2017-09-08"},
+    {"imdbId":"tt7349950","tmdbId":474350,"type":"movie","title":"It: Chapter Two","year":2019,"date":"2019-09-06"},
+    {"imdbId":"tt19244304","tmdbId":200875,"type":"series","title":"It: Welcome to Derry","year":2025,"date":"2025-10-26","optional":true,"note":"prequel series, 1962"}
+  ],
+  "story": [
+    "tt19244304",
+    "tt1396484",
+    "tt7349950"
+  ],
+  "tmdbCollections": [477962],
+  "sources": ["https://en.wikipedia.org/wiki/It_(2017_film)","https://en.wikipedia.org/wiki/It:_Welcome_to_Derry","https://www.themoviedb.org/collection/477962","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Andy Muschietti's two films with the prequel series It: Welcome to Derry (optional, set in 1962) first in the story order. The 1990 miniseries is left out."
+}

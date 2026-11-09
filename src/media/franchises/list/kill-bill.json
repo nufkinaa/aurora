@@ -1,0 +1,12 @@
+{
+  "id": "kill-bill",
+  "name": "Kill Bill",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0266697","tmdbId":24,"type":"movie","title":"Kill Bill: Vol. 1","year":2003,"date":"2003-10-10"},
+    {"imdbId":"tt0378194","tmdbId":393,"type":"movie","title":"Kill Bill: Vol. 2","year":2004,"date":"2004-04-16"}
+  ],
+  "tmdbCollections": [2883],
+  "sources": ["https://en.wikipedia.org/wiki/Kill_Bill","https://www.themoviedb.org/collection/2883","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

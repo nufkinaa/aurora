@@ -1,0 +1,19 @@
+{
+  "id": "dune",
+  "name": "Dune",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1160419","tmdbId":438631,"type":"movie","title":"Dune","year":2021,"date":"2021-10-22"},
+    {"imdbId":"tt15239678","tmdbId":693134,"type":"movie","title":"Dune: Part Two","year":2024,"date":"2024-03-01"},
+    {"imdbId":"tt10466872","tmdbId":90228,"type":"series","title":"Dune: Prophecy","year":2024,"date":"2024-11-17","optional":true,"note":"10,000 years before Paul"}
+  ],
+  "story": [
+    "tt10466872",
+    "tt1160419",
+    "tt15239678"
+  ],
+  "tmdbCollections": [726871],
+  "sources": ["https://en.wikipedia.org/wiki/Dune_(franchise)","https://en.wikipedia.org/wiki/Dune:_Prophecy","https://www.themoviedb.org/collection/726871","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Denis Villeneuve's films with the prequel series Dune: Prophecy (optional, set 10,000 years earlier). Lynch's 1984 film and the 2000s miniseries are separate adaptations and are left out. Dune: Part Three is not out until December 2026."
+}

@@ -1,0 +1,13 @@
+{
+  "id": "terrifier",
+  "name": "Terrifier",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt4281724","tmdbId":420634,"type":"movie","title":"Terrifier","year":2018,"date":"2018-03-27"},
+    {"imdbId":"tt10403420","tmdbId":663712,"type":"movie","title":"Terrifier 2","year":2022,"date":"2022-10-06"},
+    {"imdbId":"tt27911000","tmdbId":1034541,"type":"movie","title":"Terrifier 3","year":2024,"date":"2024-10-11"}
+  ],
+  "tmdbCollections": [727761],
+  "sources": ["https://en.wikipedia.org/wiki/Terrifier_(franchise)","https://www.themoviedb.org/collection/727761","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

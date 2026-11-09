@@ -1,0 +1,12 @@
+{
+  "id": "independence-day",
+  "name": "Independence Day",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0116629","tmdbId":602,"type":"movie","title":"Independence Day","year":1996,"date":"1996-07-03"},
+    {"imdbId":"tt1628841","tmdbId":47933,"type":"movie","title":"Independence Day: Resurgence","year":2016,"date":"2016-06-24"}
+  ],
+  "tmdbCollections": [304378],
+  "sources": ["https://en.wikipedia.org/wiki/Independence_Day_(franchise)","https://www.themoviedb.org/collection/304378","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "knives-out",
+  "name": "Knives Out",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt8946378","tmdbId":546554,"type":"movie","title":"Knives Out","year":2019,"date":"2019-11-27"},
+    {"imdbId":"tt11564570","tmdbId":661374,"type":"movie","title":"Glass Onion","year":2022,"date":"2022-12-23"},
+    {"imdbId":"tt14364480","tmdbId":812583,"type":"movie","title":"Wake Up Dead Man","year":2025,"date":"2025-12-12"}
+  ],
+  "tmdbCollections": [722971],
+  "sources": ["https://en.wikipedia.org/wiki/Knives_Out_(film_series)","https://www.themoviedb.org/collection/722971","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Rian Johnson's Benoit Blanc mysteries: Knives Out, Glass Onion, Wake Up Dead Man."
+}

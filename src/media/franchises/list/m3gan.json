@@ -1,0 +1,12 @@
+{
+  "id": "m3gan",
+  "name": "M3GAN",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt8760708","tmdbId":536554,"type":"movie","title":"M3GAN","year":2023,"date":"2023-01-06"},
+    {"imdbId":"tt26342662","tmdbId":1071585,"type":"movie","title":"M3GAN 2.0","year":2025,"date":"2025-06-27"}
+  ],
+  "tmdbCollections": [1071588],
+  "sources": ["https://en.wikipedia.org/wiki/M3GAN_2.0","https://www.themoviedb.org/collection/1071588","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

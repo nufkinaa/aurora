@@ -1,0 +1,13 @@
+{
+  "id": "pitch-perfect",
+  "name": "Pitch Perfect",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1981677","tmdbId":114150,"type":"movie","title":"Pitch Perfect","year":2012,"date":"2012-10-05"},
+    {"imdbId":"tt2848292","tmdbId":254470,"type":"movie","title":"Pitch Perfect 2","year":2015,"date":"2015-05-15"},
+    {"imdbId":"tt4765284","tmdbId":353616,"type":"movie","title":"Pitch Perfect 3","year":2017,"date":"2017-12-22"}
+  ],
+  "tmdbCollections": [306031],
+  "sources": ["https://en.wikipedia.org/wiki/Pitch_Perfect","https://www.themoviedb.org/collection/306031","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

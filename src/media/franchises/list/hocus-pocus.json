@@ -1,0 +1,12 @@
+{
+  "id": "hocus-pocus",
+  "name": "Hocus Pocus",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0107120","tmdbId":10439,"type":"movie","title":"Hocus Pocus","year":1993,"date":"1993-07-16"},
+    {"imdbId":"tt11909878","tmdbId":642885,"type":"movie","title":"Hocus Pocus 2","year":2022,"date":"2022-09-30"}
+  ],
+  "tmdbCollections": [751156],
+  "sources": ["https://en.wikipedia.org/wiki/Hocus_Pocus_2","https://www.themoviedb.org/collection/751156","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

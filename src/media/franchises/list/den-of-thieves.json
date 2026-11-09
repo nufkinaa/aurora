@@ -1,0 +1,12 @@
+{
+  "id": "den-of-thieves",
+  "name": "Den of Thieves",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1259528","tmdbId":449443,"type":"movie","title":"Den of Thieves","year":2018,"date":"2018-01-19"},
+    {"imdbId":"tt8008948","tmdbId":604685,"type":"movie","title":"Den of Thieves: Pantera","year":2025,"date":"2025-01-10"}
+  ],
+  "tmdbCollections": [933989],
+  "sources": ["https://en.wikipedia.org/wiki/Den_of_Thieves_2:_Pantera","https://www.themoviedb.org/collection/933989","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

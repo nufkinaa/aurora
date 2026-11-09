@@ -1,0 +1,15 @@
+{
+  "id": "rambo",
+  "name": "Rambo",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0083944","tmdbId":1368,"type":"movie","title":"First Blood","year":1982,"date":"1982-10-22"},
+    {"imdbId":"tt0089880","tmdbId":1369,"type":"movie","title":"Rambo: First Blood Part II","year":1985,"date":"1985-05-22"},
+    {"imdbId":"tt0095956","tmdbId":1370,"type":"movie","title":"Rambo III","year":1988,"date":"1988-05-25"},
+    {"imdbId":"tt0462499","tmdbId":7555,"type":"movie","title":"Rambo","year":2008,"date":"2008-01-25"},
+    {"imdbId":"tt1206885","tmdbId":292012,"type":"movie","title":"Rambo: Last Blood","year":2019,"date":"2019-09-20"}
+  ],
+  "tmdbCollections": [5039],
+  "sources": ["https://en.wikipedia.org/wiki/Rambo_(franchise)","https://www.themoviedb.org/collection/5039","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

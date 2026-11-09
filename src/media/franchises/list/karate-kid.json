@@ -1,0 +1,18 @@
+{
+  "id": "karate-kid",
+  "name": "Karate Kid",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0087538","tmdbId":1885,"type":"movie","title":"The Karate Kid","year":1984,"date":"1984-06-22"},
+    {"imdbId":"tt0091326","tmdbId":8856,"type":"movie","title":"The Karate Kid Part II","year":1986,"date":"1986-06-20"},
+    {"imdbId":"tt0097647","tmdbId":10495,"type":"movie","title":"The Karate Kid Part III","year":1989,"date":"1989-06-30"},
+    {"imdbId":"tt0110657","tmdbId":11231,"type":"movie","title":"The Next Karate Kid","year":1994,"date":"1994-09-09"},
+    {"imdbId":"tt1155076","tmdbId":38575,"type":"movie","title":"The Karate Kid","year":2010,"date":"2010-06-11"},
+    {"imdbId":"tt7221388","tmdbId":77169,"type":"series","title":"Cobra Kai","year":2018,"date":"2018-05-02","optional":true,"note":"34 years after the 1984 film"},
+    {"imdbId":"tt1674782","tmdbId":1011477,"type":"movie","title":"Karate Kid: Legends","year":2025,"date":"2025-05-30"}
+  ],
+  "tmdbCollections": [8580],
+  "sources": ["https://en.wikipedia.org/wiki/The_Karate_Kid","https://en.wikipedia.org/wiki/Karate_Kid:_Legends","https://www.themoviedb.org/collection/8580","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "All six films: Karate Kid: Legends (2025) brings the 2010 film's Mr. Han and the original's Daniel LaRusso into one story, so the 2010 film counts. Cobra Kai is optional. Release order only."
+}

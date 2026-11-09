@@ -1,0 +1,14 @@
+{
+  "id": "eastrail-177",
+  "name": "Eastrail 177 Trilogy",
+  "the": true,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0217869","tmdbId":9741,"type":"movie","title":"Unbreakable","year":2000,"date":"2000-11-22"},
+    {"imdbId":"tt4972582","tmdbId":381288,"type":"movie","title":"Split","year":2017,"date":"2017-01-20"},
+    {"imdbId":"tt6823368","tmdbId":450465,"type":"movie","title":"Glass","year":2019,"date":"2019-01-18"}
+  ],
+  "tmdbCollections": [],
+  "sources": ["https://en.wikipedia.org/wiki/Unbreakable_(film_series)","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "M. Night Shyamalan's Unbreakable, Split and Glass."
+}

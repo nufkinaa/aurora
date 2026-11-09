@@ -2105,6 +2105,90 @@ export const api = {
   householdSettings: (profileId: string) => request<HouseholdSettings>(`/api/profiles/${profileId}/household/settings`),
   setHouseholdSettings: (profileId: string, body: {on?: boolean; muted?: string[]}) =>
     post<HouseholdSettings>(`/api/profiles/${profileId}/household/settings`, body),
+
+  // ---- [franchise] Franchise order (server: routes/franchises.js) ----
+  // The title page's line. Kept a few minutes: coming back to the page asks
+  // again for nothing (the order switch forgets it — franchiseSetOrder).
+  franchiseFor: (imdbId: string, type: 'movie' | 'series', profileId?: string | null, tmdbId?: number | null) => {
+    const path =
+      `/api/franchises/for/${encodeURIComponent(imdbId)}?type=${type}` +
+      (tmdbId ? `&tmdbId=${encodeURIComponent(String(tmdbId))}` : '') +
+      (profileId ? `&profile=${encodeURIComponent(profileId)}` : '');
+    return memo(path, 5 * 60000, () => request<{franchise: FranchiseLine | null; others?: FranchiseLine[]}>(path));
+  },
+  // The franchise page, in `order` (or the person's own order when absent).
+  franchise: (id: string, profileId?: string | null, order?: FranchiseOrderId | null) =>
+    request<FranchisePage>(
+      `/api/franchises/${encodeURIComponent(id)}?` +
+        [profileId ? `profile=${encodeURIComponent(profileId)}` : '', order ? `order=${order}` : ''].filter(Boolean).join('&'),
+    ),
+  // The person's order for this franchise, kept on the server (every device and the website).
+  franchiseSetOrder: (id: string, profileId: string, order: FranchiseOrderId) =>
+    post<{ok: boolean; order: FranchiseOrderId}>(`/api/franchises/${encodeURIComponent(id)}/order`, {profile: profileId, order}).then(r => {
+      forgetMemo('/api/franchises/'); // the title pages' "12 of 34" follow the order
+      return r;
+    }),
+  // What comes after this film in the person's order (the player's end card).
+  franchiseNext: (imdbId: string, profileId?: string | null) =>
+    request<{next: FranchiseNext | null}>(
+      `/api/franchises/next/${encodeURIComponent(imdbId)}${profileId ? `?profile=${encodeURIComponent(profileId)}` : ''}`,
+    ),
+};
+
+// [franchise] the shapes of routes/franchises.js (media/franchises/service.js)
+export type FranchiseOrderId = 'release' | 'story';
+export type FranchiseLine = {
+  id: string;
+  name: string;
+  the: boolean;
+  /** the exact words: "Part of the Marvel Cinematic Universe · 12 of 34" */
+  line: string;
+  /** "Watch in order" */
+  action: string;
+  position: number | null;
+  total: number;
+  optional: boolean;
+  order: FranchiseOrderId;
+};
+export type FranchiseEntry = {
+  imdbId: string;
+  type: 'movie' | 'show';
+  title: string;
+  year?: number | null;
+  date?: string | null;
+  poster?: string | null;
+  cover?: string | null;
+  optional: boolean;
+  note?: string;
+  /** the library's copy, when the server holds it */
+  onServer: {id: string; type: 'movie' | 'show'} | null;
+  /** its number among the main entries; null for an optional one */
+  position: number | null;
+  state?: 'watched' | 'started' | null;
+};
+export type FranchisePage = {
+  id: string;
+  name: string;
+  the: boolean;
+  source: string;
+  title: string;
+  /** "34 films · 9 on the server · 12 watched"; null for a kids profile (hidden) */
+  summary: string | null;
+  order: FranchiseOrderId;
+  savedOrder: FranchiseOrderId;
+  orders: {id: FranchiseOrderId; label: string}[];
+  total: number;
+  entries: FranchiseEntry[];
+  sources?: unknown[];
+};
+export type FranchiseNext = {
+  franchise: {id: string; name: string; the: boolean};
+  /** "Next in the Marvel Cinematic Universe" */
+  kicker: string;
+  order: FranchiseOrderId;
+  position: number;
+  total: number;
+  entry: FranchiseEntry;
 };
 
 export { ApiError };

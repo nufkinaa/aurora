@@ -1,0 +1,13 @@
+{
+  "id": "jump-street",
+  "name": "21 Jump Street",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1232829","tmdbId":64688,"type":"movie","title":"21 Jump Street","year":2012,"date":"2012-03-16"},
+    {"imdbId":"tt2294449","tmdbId":187017,"type":"movie","title":"22 Jump Street","year":2014,"date":"2014-06-13"}
+  ],
+  "tmdbCollections": [212562],
+  "sources": ["https://en.wikipedia.org/wiki/22_Jump_Street","https://www.themoviedb.org/collection/212562","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The two films; the original TV series is left out."
+}

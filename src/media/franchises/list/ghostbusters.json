@@ -1,0 +1,15 @@
+{
+  "id": "ghostbusters",
+  "name": "Ghostbusters",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0087332","tmdbId":620,"type":"movie","title":"Ghostbusters","year":1984,"date":"1984-06-08"},
+    {"imdbId":"tt0097428","tmdbId":2978,"type":"movie","title":"Ghostbusters II","year":1989,"date":"1989-06-16"},
+    {"imdbId":"tt4513678","tmdbId":425909,"type":"movie","title":"Ghostbusters: Afterlife","year":2021,"date":"2021-11-19"},
+    {"imdbId":"tt21235248","tmdbId":967847,"type":"movie","title":"Ghostbusters: Frozen Empire","year":2024,"date":"2024-03-22"}
+  ],
+  "tmdbCollections": [2980],
+  "sources": ["https://en.wikipedia.org/wiki/Ghostbusters","https://www.themoviedb.org/collection/2980","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The original continuity: Ghostbusters, Ghostbusters II, Afterlife and Frozen Empire. The 2016 reboot is a separate continuity and is left out."
+}

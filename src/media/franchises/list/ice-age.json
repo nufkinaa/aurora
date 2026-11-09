@@ -1,0 +1,17 @@
+{
+  "id": "ice-age",
+  "name": "Ice Age",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0268380","tmdbId":425,"type":"movie","title":"Ice Age","year":2002,"date":"2002-03-15"},
+    {"imdbId":"tt0438097","tmdbId":950,"type":"movie","title":"Ice Age: The Meltdown","year":2006,"date":"2006-03-31"},
+    {"imdbId":"tt1080016","tmdbId":8355,"type":"movie","title":"Ice Age: Dawn of the Dinosaurs","year":2009,"date":"2009-07-01"},
+    {"imdbId":"tt1667889","tmdbId":57800,"type":"movie","title":"Ice Age: Continental Drift","year":2012,"date":"2012-07-13"},
+    {"imdbId":"tt3416828","tmdbId":278154,"type":"movie","title":"Ice Age: Collision Course","year":2016,"date":"2016-07-22"},
+    {"imdbId":"tt13634480","tmdbId":774825,"type":"movie","title":"The Ice Age Adventures of Buck Wild","year":2022,"date":"2022-01-28","optional":true,"note":"Disney+ spin-off"}
+  ],
+  "tmdbCollections": [8354],
+  "sources": ["https://en.wikipedia.org/wiki/Ice_Age_(franchise)","https://www.themoviedb.org/collection/8354","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The five theatrical films, with the Disney+ spin-off The Ice Age Adventures of Buck Wild (2022) as optional."
+}

@@ -1,0 +1,14 @@
+{
+  "id": "jaws",
+  "name": "Jaws",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0073195","tmdbId":578,"type":"movie","title":"Jaws","year":1975,"date":"1975-06-20"},
+    {"imdbId":"tt0077766","tmdbId":579,"type":"movie","title":"Jaws 2","year":1978,"date":"1978-06-16"},
+    {"imdbId":"tt0085750","tmdbId":17692,"type":"movie","title":"Jaws 3-D","year":1983,"date":"1983-07-22"},
+    {"imdbId":"tt0093300","tmdbId":580,"type":"movie","title":"Jaws: The Revenge","year":1987,"date":"1987-07-17"}
+  ],
+  "tmdbCollections": [2366],
+  "sources": ["https://en.wikipedia.org/wiki/Jaws_(franchise)","https://www.themoviedb.org/collection/2366","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

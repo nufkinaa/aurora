@@ -1,0 +1,18 @@
+{
+  "id": "scream",
+  "name": "Scream",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0117571","tmdbId":4232,"type":"movie","title":"Scream","year":1996,"date":"1996-12-20"},
+    {"imdbId":"tt0120082","tmdbId":4233,"type":"movie","title":"Scream 2","year":1997,"date":"1997-12-12"},
+    {"imdbId":"tt0134084","tmdbId":4234,"type":"movie","title":"Scream 3","year":2000,"date":"2000-02-04"},
+    {"imdbId":"tt1262416","tmdbId":41446,"type":"movie","title":"Scream 4","year":2011,"date":"2011-04-15"},
+    {"imdbId":"tt11245972","tmdbId":646385,"type":"movie","title":"Scream","year":2022,"date":"2022-01-14"},
+    {"imdbId":"tt17663992","tmdbId":934433,"type":"movie","title":"Scream VI","year":2023,"date":"2023-03-10"},
+    {"imdbId":"tt27047903","tmdbId":1159559,"type":"movie","title":"Scream 7","year":2026,"date":"2026-02-27"}
+  ],
+  "tmdbCollections": [2602],
+  "sources": ["https://en.wikipedia.org/wiki/Scream_(franchise)","https://www.themoviedb.org/collection/2602","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The seven films through Scream 7 (2026). The MTV series is a separate story and is left out."
+}

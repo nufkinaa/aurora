@@ -1,0 +1,14 @@
+{
+  "id": "beverly-hills-cop",
+  "name": "Beverly Hills Cop",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0086960","tmdbId":90,"type":"movie","title":"Beverly Hills Cop","year":1984,"date":"1984-12-05"},
+    {"imdbId":"tt0092644","tmdbId":96,"type":"movie","title":"Beverly Hills Cop II","year":1987,"date":"1987-05-20"},
+    {"imdbId":"tt0109254","tmdbId":306,"type":"movie","title":"Beverly Hills Cop III","year":1994,"date":"1994-05-25"},
+    {"imdbId":"tt3083016","tmdbId":280180,"type":"movie","title":"Beverly Hills Cop: Axel F","year":2024,"date":"2024-07-03"}
+  ],
+  "tmdbCollections": [85861],
+  "sources": ["https://en.wikipedia.org/wiki/Beverly_Hills_Cop","https://www.themoviedb.org/collection/85861","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

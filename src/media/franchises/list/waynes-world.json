@@ -1,0 +1,12 @@
+{
+  "id": "waynes-world",
+  "name": "Wayne's World",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0105793","tmdbId":8872,"type":"movie","title":"Wayne's World","year":1992,"date":"1992-02-14"},
+    {"imdbId":"tt0108525","tmdbId":8873,"type":"movie","title":"Wayne's World 2","year":1993,"date":"1993-12-10"}
+  ],
+  "tmdbCollections": [8979],
+  "sources": ["https://en.wikipedia.org/wiki/Wayne%27s_World_2","https://www.themoviedb.org/collection/8979","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

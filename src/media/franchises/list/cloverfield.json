@@ -1,0 +1,14 @@
+{
+  "id": "cloverfield",
+  "name": "Cloverfield",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt1060277","tmdbId":7191,"type":"movie","title":"Cloverfield","year":2008,"date":"2008-01-18"},
+    {"imdbId":"tt1179933","tmdbId":333371,"type":"movie","title":"10 Cloverfield Lane","year":2016,"date":"2016-03-11"},
+    {"imdbId":"tt2548396","tmdbId":384521,"type":"movie","title":"The Cloverfield Paradox","year":2018,"date":"2018-02-04"}
+  ],
+  "tmdbCollections": [],
+  "sources": ["https://en.wikipedia.org/wiki/Cloverfield_(franchise)","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "Loosely connected anthology; release order only."
+}

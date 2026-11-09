@@ -1,0 +1,12 @@
+{
+  "id": "alien-vs-predator",
+  "name": "Alien vs. Predator",
+  "the": false,
+  "priority": 100,
+  "entries": [
+    {"imdbId":"tt0370263","tmdbId":395,"type":"movie","title":"Alien vs. Predator","year":2004,"date":"2004-08-13"},
+    {"imdbId":"tt0758730","tmdbId":440,"type":"movie","title":"Aliens vs. Predator: Requiem","year":2007,"date":"2007-12-25"}
+  ],
+  "tmdbCollections": [115762],
+  "sources": ["https://en.wikipedia.org/wiki/Alien_vs._Predator_(franchise)","https://www.themoviedb.org/collection/115762","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

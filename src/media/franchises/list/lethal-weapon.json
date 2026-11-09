@@ -1,0 +1,15 @@
+{
+  "id": "lethal-weapon",
+  "name": "Lethal Weapon",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0093409","tmdbId":941,"type":"movie","title":"Lethal Weapon","year":1987,"date":"1987-03-06"},
+    {"imdbId":"tt0097733","tmdbId":942,"type":"movie","title":"Lethal Weapon 2","year":1989,"date":"1989-07-07"},
+    {"imdbId":"tt0104714","tmdbId":943,"type":"movie","title":"Lethal Weapon 3","year":1992,"date":"1992-05-15"},
+    {"imdbId":"tt0122151","tmdbId":944,"type":"movie","title":"Lethal Weapon 4","year":1998,"date":"1998-07-10"}
+  ],
+  "tmdbCollections": [945],
+  "sources": ["https://en.wikipedia.org/wiki/Lethal_Weapon","https://www.themoviedb.org/collection/945","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"],
+  "notes": "The four films; the TV series is left out."
+}

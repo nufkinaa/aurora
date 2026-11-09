@@ -1,0 +1,12 @@
+{
+  "id": "sicario",
+  "name": "Sicario",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt3397884","tmdbId":273481,"type":"movie","title":"Sicario","year":2015,"date":"2015-10-02"},
+    {"imdbId":"tt5052474","tmdbId":400535,"type":"movie","title":"Sicario: Day of the Soldado","year":2018,"date":"2018-06-29"}
+  ],
+  "tmdbCollections": [496796],
+  "sources": ["https://en.wikipedia.org/wiki/Sicario:_Day_of_the_Soldado","https://www.themoviedb.org/collection/496796","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}

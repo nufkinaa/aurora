@@ -1,0 +1,12 @@
+{
+  "id": "devil-wears-prada",
+  "name": "The Devil Wears Prada",
+  "the": false,
+  "priority": 10,
+  "entries": [
+    {"imdbId":"tt0458352","tmdbId":350,"type":"movie","title":"The Devil Wears Prada","year":2006,"date":"2006-06-30"},
+    {"imdbId":"tt33612209","tmdbId":1314481,"type":"movie","title":"The Devil Wears Prada 2","year":2026,"date":"2026-05-01"}
+  ],
+  "tmdbCollections": [1314623],
+  "sources": ["https://en.wikipedia.org/wiki/The_Devil_Wears_Prada_2","https://www.themoviedb.org/collection/1314623","Cinemeta (v3-cinemeta.strem.io) for ids, titles and dates"]
+}
