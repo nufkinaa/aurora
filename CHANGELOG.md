@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.16 — 2026-11-09
+
+- **Admin: what to delete, suggested clearly.** Admin → Downloads → Free up space now suggests every film and episode nobody has touched for 45 days ("Nobody watched for 52 days · last played by Niso on Sep 18", "Never played · arrived Sep 10"), beside the titles everyone has finished and the extra copies. Each row shows its size, drive and who asked for it; select a group, see the total, confirm once. Nothing is ever removed unless you choose it.
+- **Kept for people who are away:** someone who hasn't connected since they last watched keeps that title (and for a show the next episode), so it's there when they come back; admin lists these with "away since…". Titles you pin with Keep, and films you uploaded yourself, are never suggested. "Removed recently" lists what was removed, when and why.
+- Titles being moved between drives are never offered for deletion.
+
 ## 1.15.15 — 2026-11-09
 
 **Storage drives, better.**
