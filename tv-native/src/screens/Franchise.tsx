@@ -17,6 +17,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {View, Text, Animated, FlatList, Image, StyleSheet, ActivityIndicator} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
+import {useIsFocused} from '@react-navigation/native';
 import Btn from '../components/Btn';
 import Chip from '../components/Chip';
 import Focusable from '../components/Focusable';
@@ -30,7 +31,7 @@ import {useApp} from '../AppContext';
 import {useRouteShown} from '../useRouteShown';
 import {showToast} from '../toast';
 import {RootStackParamList} from '../navigation';
-import {entryAction, entryItem, entryNumber, entryStateWord, entryTags, firstFocusIndex, FR_WORDS, showOrderSwitch} from '../franchiseRules';
+import {entryAction, entryArt, entryItem, entryNumber, entryStateWord, entryTags, firstFocusIndex, FR_WORDS, showOrderSwitch} from '../franchiseRules';
 import theme, {useTvMetrics} from '../theme';
 
 const {colors, fontSize, spacing, radius, CLEARANCE} = theme;
@@ -60,7 +61,7 @@ const EntryRow = React.memo(function FranchiseEntryRow({
   onAct: (e: FranchiseEntry) => void;
   onFocusRow: (index: number, focused: boolean) => void;
 }) {
-  const art = artSrc(e.poster || e.cover, THUMB_W).src;
+  const art = artSrc(entryArt(e), THUMB_W).src;
   const num = entryNumber(e);
   const tags = entryTags(e);
   const state = entryStateWord(e);
@@ -132,25 +133,33 @@ export default function Franchise({route, navigation}: NativeStackScreenProps<Ro
   const [switching, setSwitching] = useState(false);
   useRouteShown(page !== null || !!error);
 
+  // Read on arrival and again on every return (a film played from here, or a
+  // Save & watch on its title page, changes Watched / Started / On the server
+  // — the website reads the page afresh each time it is shown). A failed
+  // re-read keeps what is on screen; only a page never read shows the failure.
+  const isFocused = useIsFocused();
+  const have = useRef(false);
   useEffect(() => {
+    if (!isFocused) return;
     let live = true;
     setError('');
     api
       .franchise(id, profileId, want)
       .then(p => {
         if (!live) return;
+        have.current = true;
         setPage(p);
         setSwitching(false);
       })
       .catch(() => {
         if (!live) return;
         setSwitching(false);
-        setError(FR_WORDS.loadError);
+        if (!have.current) setError(FR_WORDS.loadError);
       });
     return () => {
       live = false;
     };
-  }, [id, profileId, want, reload]);
+  }, [id, profileId, want, reload, isFocused]);
 
   // The order switch: saved for this person, then the list in that order
   // (shown in it even if the save is refused — the page asks with ?order=).

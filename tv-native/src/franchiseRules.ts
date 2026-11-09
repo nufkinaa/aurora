@@ -69,10 +69,17 @@ export const entryStateWord = (e: Pick<FranchiseEntry, 'state'>): string | null 
 export const entryNumber = (e: Pick<FranchiseEntry, 'position'>): string | null =>
   e.position != null && e.position > 0 ? String(e.position) : null;
 
+/** The entry's picture, as the website draws it (franchise.js: cover || poster):
+ *  the household's own cover when the server holds the title, else the
+ *  catalogue poster. (Poster first showed the catalogue's picture for a film on
+ *  the server — not the website's — and nothing at all when the server could
+ *  not fetch it, Mi TV 2026-11-09.) */
+export const entryArt = (e: Pick<FranchiseEntry, 'cover' | 'poster'>): string | null => e.cover || e.poster || null;
+
 /** The entry as a card the title page opens: the library's copy when the
  *  server holds it (Detail reads /api/item), else the catalogue title. */
 export const entryItem = (e: FranchiseEntry): HeroItem => {
-  const art = e.cover || e.poster || null;
+  const art = entryArt(e);
   if (e.onServer) {
     return {id: e.onServer.id, type: e.onServer.type, title: e.title, year: e.year ?? undefined, imdbId: e.imdbId, cover: art, poster: e.poster || null};
   }

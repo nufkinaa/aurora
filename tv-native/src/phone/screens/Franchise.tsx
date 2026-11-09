@@ -9,16 +9,16 @@
 //   the list      number, poster, title, year, Optional / Series, Watched /
 //                 Started; a tap opens the title, the button on the right is the
 //                 one thing to do: Play, Open, Save & watch, Choose episode
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, FlatList, Image, StyleSheet, Text, View} from 'react-native';
-import {useRoute, RouteProp} from '@react-navigation/native';
+import {useIsFocused, useRoute, RouteProp} from '@react-navigation/native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {api, FranchiseEntry, FranchiseOrderId, FranchisePage} from '../../api';
 import {useApp} from '../../AppContext';
 import {canNavigate} from '../../navLock';
 import {showToast} from '../../toast';
 import {useRouteShown} from '../../useRouteShown';
-import {entryAction, entryItem, entryNumber, entryStateWord, entryTags, FR_WORDS, showOrderSwitch} from '../../franchiseRules';
+import {entryAction, entryArt, entryItem, entryNumber, entryStateWord, entryTags, FR_WORDS, showOrderSwitch} from '../../franchiseRules';
 import type {RootStackParamList} from '../../navigation';
 import {usePNav} from '../nav';
 import {ChipButton, GlassButton, PrimaryButton} from '../ui/Buttons';
@@ -32,7 +32,7 @@ const THUMB_W = 56;
 const THUMB_H = 84;
 
 const EntryRow = React.memo(function PhoneFranchiseRow({e, onOpen, onAct}: {e: FranchiseEntry; onOpen: (e: FranchiseEntry) => void; onAct: (e: FranchiseEntry) => void}) {
-  const art = artSrc(e.poster || e.cover, THUMB_W).src;
+  const art = artSrc(entryArt(e), THUMB_W).src;
   const num = entryNumber(e);
   const tags = entryTags(e);
   const state = entryStateWord(e);
@@ -85,25 +85,33 @@ export default function Franchise() {
   const [switching, setSwitching] = useState(false);
   useRouteShown(page !== null || !!error);
 
+  // Read on arrival and again on every return (a film played from here, or a
+  // Save & watch on its title page, changes Watched / Started / On the server
+  // — the website reads the page afresh each time it is shown). A failed
+  // re-read keeps what is on screen; only a page never read shows the failure.
+  const isFocused = useIsFocused();
+  const have = useRef(false);
   useEffect(() => {
+    if (!isFocused) return;
     let live = true;
     setError('');
     api
       .franchise(id, profileId, want)
       .then(p => {
         if (!live) return;
+        have.current = true;
         setPage(p);
         setSwitching(false);
       })
       .catch(() => {
         if (!live) return;
         setSwitching(false);
-        setError(FR_WORDS.loadError);
+        if (!have.current) setError(FR_WORDS.loadError);
       });
     return () => {
       live = false;
     };
-  }, [id, profileId, want, reload]);
+  }, [id, profileId, want, reload, isFocused]);
 
   const pickOrder = (o: FranchiseOrderId) => {
     if (!page || o === page.order || switching) return;

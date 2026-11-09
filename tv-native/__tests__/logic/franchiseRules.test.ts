@@ -7,6 +7,7 @@ import {
   AutoSaveFacts,
   endWindow,
   entryAction,
+  entryArt,
   entryItem,
   entryNumber,
   entryStateWord,
@@ -74,6 +75,29 @@ describe('the franchise page: one action per entry', () => {
     expect(lib.source).toBeUndefined(); // a library card: Detail reads /api/item
     const st = entryItem(entry({type: 'show'}));
     expect(st).toMatchObject({id: '', type: 'show', source: 'stream', imdbId: 'tt0800369'});
+  });
+  test("the entry's picture: the household's cover first, as the website draws it", () => {
+    // a film on the server: its library cover (franchise.js `e.cover || e.poster`), not the catalogue poster
+    const owned = entry({onServer: {id: 'lib1', type: 'movie'}, cover: '/img/abc123', poster: 'https://images.metahub.space/poster/small/tt0800369/img'});
+    expect(entryArt(owned)).toBe('/img/abc123');
+    expect(entryItem(owned).cover).toBe('/img/abc123');
+    // not on the server: the server sends the poster as the cover too; either way the poster
+    expect(entryArt(entry({cover: null}))).toBe('https://img/thor.jpg');
+    expect(entryArt(entry({cover: null, poster: null}))).toBeNull();
+  });
+  test('both franchise pages draw entryArt and read again on return (the TV and the phone)', () => {
+    const fs = require('fs');
+    const path = require('path');
+    for (const f of ['../../src/screens/Franchise.tsx', '../../src/phone/screens/Franchise.tsx']) {
+      const src = fs.readFileSync(path.join(__dirname, f), 'utf8');
+      expect(src).toContain('artSrc(entryArt(e), THUMB_W)');
+      expect(src).not.toMatch(/e\.poster \|\| e\.cover/);
+      // read again on every return to the page (a film played from it is Started / Watched
+      // when Back lands here), as the website does; a failed re-read keeps the page
+      expect(src).toContain('if (!isFocused) return;');
+      expect(src).toMatch(/\}, \[id, profileId, want, reload, isFocused\]\);/);
+      expect(src).toContain('if (!have.current) setError(FR_WORDS.loadError);');
+    }
   });
   test('focus starts on the first main entry not watched', () => {
     expect(firstFocusIndex([{state: 'watched', optional: false}, {state: null, optional: true}, {state: 'started', optional: false}])).toBe(2);
