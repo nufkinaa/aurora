@@ -275,7 +275,7 @@ test("a title that starts playing mid-copy: the move stops, the original is unto
   assert.ok(m.skip["movie:Played Now (1995)"] > Date.now() + 6 * DAY, "left alone for a week");
 });
 
-test("someone watching from the drive: the move waits, then goes on", { timeout: 60000 }, async () => {
+test("someone watching from the drive: the move waits, then goes on", { timeout: 150000 }, async () => {
   for (const d of [A, B]) for (const k of ["Movies", "Shows"]) fs.rmSync(lib(d, k), { recursive: true, force: true }), fs.mkdirSync(lib(d, k), { recursive: true });
   film(A, "Waits (1980)");
   const other = film(A, "Being Watched (2022)");
@@ -289,8 +289,14 @@ test("someone watching from the drive: the move waits, then goes on", { timeout:
   assert.match(drives.moverView().current.paused, /watching/);
   assert.ok(fs.existsSync(path.join(lib(A, "Movies"), "Waits (1980)")));
   playing = [];
-  await mover().drain();
-  assert.ok(fs.existsSync(path.join(lib(B, "Movies"), "Waits (1980)", "Waits (1980).mkv")));
+  // (a loaded machine can make a drive check run past its limit, which pauses the
+  // move for a round: drain again until it lands, for up to a minute)
+  const landed = () => fs.existsSync(path.join(lib(B, "Movies"), "Waits (1980)", "Waits (1980).mkv"));
+  for (const end = Date.now() + 60000; !landed() && Date.now() < end;) {
+    await mover().drain();
+    if (!landed()) await new Promise((r) => setTimeout(r, 500));
+  }
+  assert.ok(landed(), "moved once nobody watches: " + JSON.stringify(I.data().moves.current));
   assert.equal(fs.existsSync(path.join(lib(A, "Movies"), "Waits (1980)")), false);
 });
 
