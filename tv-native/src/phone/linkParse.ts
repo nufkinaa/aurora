@@ -1,4 +1,4 @@
-// What a link opens in the phone app — PURE (no imports of the app), tested.
+// What a link opens in the phone app — PURE (no React Native; only the pure groupPick.ts), tested.
 //
 //   aurora://open?a=play|detail&d=<item json>     a notification ("… is ready
 //   aurora-phone://open?a=…&d=…                    to watch"), the TV's format
@@ -7,6 +7,8 @@
 //   https://nufurora.com/#/discover/movie/<tt…>   app's share sheet
 //   https://nufurora.com/#/discover/series/<tt…>
 //   https://nufurora.com/#/party/<code>           join a watch party
+//   https://nufurora.com/#/group/<CODE>           "What do we watch tonight?" — the TV's QR
+//                                                  (groupPick.ts joinUrl): join that session
 //   https://nufurora.com/#/remote                 Your TVs
 //   https://nufurora.com/#/search?q=<words>       Search on those words (and the
 //   https://nufurora.com/#/search/<words>         website's own form of it)
@@ -20,10 +22,14 @@
 //   https://nufurora.com/#/reset/<token>          an emailed reset link: choose a new password
 //   aurora-phone://auth/google?code=…|error=…     Google's way back (the sign-in screens')
 //   (aurora-phone://<same hash path> works too: aurora-phone://movie/<id>, aurora-phone://pair/<CODE>)
+import {codeOk, tidyCode} from '../groupPick';
+
 export type LinkItem = {id: string; title: string; type?: 'movie' | 'show'; imdbId?: string; source?: 'stream' | 'downloaded'} & Record<string, unknown>;
 export type PhoneLink =
   | {kind: 'item'; action: 'play' | 'detail'; item: LinkItem}
   | {kind: 'party'; code: string}
+  // "What do we watch tonight?": join this code at once (null: the type-the-code field)
+  | {kind: 'group'; code: string | null}
   | {kind: 'search'; q: string}
   | {kind: 'pair'; code: string | null}
   | {kind: 'play'; id: string}
@@ -138,6 +144,10 @@ export function parsePhoneLink(url: string | null | undefined, hosts: string[] =
       return null;
     case 'party':
       return parts[1] && /^[A-Za-z0-9]{3,12}$/.test(parts[1]) ? {kind: 'party', code: parts[1].toUpperCase()} : null;
+    case 'group': {
+      const c = tidyCode(parts[1] || '');
+      return {kind: 'group', code: codeOk(c) && String(parts[1]).replace(/[^A-Za-z0-9]/g, '').length === 4 ? c : null};
+    }
     case 'remote':
       return {kind: 'screen', name: 'Remote'};
     case 'pair':

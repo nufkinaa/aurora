@@ -841,7 +841,9 @@ const lastSeenBefore = (profileId) => {
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 const THEMES = ["aurora", "oled", "warm"];
 // The on/off choices a profile carries (see `update` for what each one is).
-const PREF_SWITCHES = ["smartDownloads", "smartCleanup", "usageStats", "autoplayNext", "subsDefault", "readyNotice"];
+// (groupTutorialSeen: "What do we watch tonight?" has shown this person its
+// first-time explanation — on any device, so it is not shown again on another)
+const PREF_SWITCHES = ["smartDownloads", "smartCleanup", "usageStats", "autoplayNext", "subsDefault", "readyNotice", "groupTutorialSeen"];
 // Player options that follow the person (2026-10-19), each a closed set:
 //   nightMode, dialogueBoost   the sound (default off)
 //   subSize … subPos           how subtitles look (defaults: M, white, box,

@@ -24,6 +24,7 @@ import {useApp} from '../AppContext';
 import {useRouteShown} from '../useRouteShown';
 import {useMe, useNewUnseen} from '../navSection';
 import {openJoinParty, openReport, openUpdate} from '../overlay';
+import {WORDS as GROUP} from '../groupPick'; // [group-pick]
 import {useDownloadLine} from '../useDownloadLine';
 import {loadPrefs, savePrefs, Prefs, PREFS_DEFAULTS, saveAuthSession} from '../storage';
 import {PERSON_KEYS, PersonKey, SUB_LANGS, SUB_LANG_LABEL} from '../personPrefs';
@@ -390,6 +391,13 @@ export default function Settings({
             note="Type the four-letter code from another screen and watch in step."
             value="›"
             onPress={openJoinParty}
+          />
+          {/* [group-pick] "What do we watch tonight?" */}
+          <Row uiId="group.open"
+            label={GROUP.entry}
+            note={GROUP.entryLine}
+            value="›"
+            onPress={() => navigation.push('GroupPick')}
           />
           <Row uiId="settings.report"
             label="Report a problem"

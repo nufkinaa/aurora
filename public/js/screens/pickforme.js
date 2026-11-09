@@ -17,6 +17,8 @@ import { el, toast } from "../ui.js";
 import { card } from "../components.js";
 import { api } from "../api.js";
 import { state } from "../state.js";
+import { navigate } from "../router.js";
+import { WORDS as GROUP } from "../groupwords.js";
 
 const EXAMPLES = [
   "something dumb and loud, I've had a long day",
@@ -288,6 +290,10 @@ export const renderPickForMe = async (root) => {
       el("p", { class: "pfm-sub" },
         "Describe the mood in your own words. It searches everything Aurora can play — not just what's already downloaded.")
     ),
+    // a few people deciding together (screens/group.js) — the TV's Pick screen has the same card
+    el("button", { "data-ui": "group.open", class: "gp-entry focusable", onclick: () => navigate("#/group") },
+      el("span", { class: "gp-entry-title" }, GROUP.entry),
+      el("span", { class: "gp-entry-line" }, GROUP.entryLine)),
     el("div", { class: "pfm-box" },
       el("div", { class: "pfm-ask" }, input, goBtn),
       el("div", { class: "pfm-tune" },

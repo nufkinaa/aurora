@@ -53,6 +53,11 @@ export async function openLink(l: PhoneLink) {
       if ((navRef.getCurrentRoute()?.name as string | undefined) === 'PairTv') navRef.dispatch(StackActions.replace('PairTv', {code: l.code}));
       else push('PairTv', {code: l.code});
       return;
+    case 'group':
+      // "What do we watch tonight?" — the TV's QR: straight into joining (the page, if it is up)
+      if ((navRef.getCurrentRoute()?.name as string | undefined) === 'GroupPick') navRef.dispatch(StackActions.replace('GroupPick', {code: l.code}));
+      else push('GroupPick', {code: l.code});
+      return;
     case 'search':
       push('Search', {q: l.q});
       return;
