@@ -115,7 +115,7 @@ ui.test("the Subtitles menu lists the tracks; a pick shows its cues, Off hides t
   await player.open(page, srv, lib.film1.id);
 
   const items = await player.menu(page, "Subtitles");
-  assert.deepEqual(items.map((i) => i.text).filter((t) => !/Resync/.test(t)), ["Off", "English", "Hebrew"]);
+  assert.deepEqual(items.map((i) => i.text).filter((t) => !/Resync|Fix timing|Reload subtitles/.test(t)), ["Off", "English", "Hebrew"]);
 
   await page.locator(".player .menu .menu-item", { hasText: "Hebrew" }).click();
   await page.waitForFunction(() => {

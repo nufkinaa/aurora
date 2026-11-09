@@ -137,7 +137,7 @@ A control is tagged where it is built:
 - website: `"data-ui": "detail.play"` on the element (one delegated click listener reads it; nothing is ever guessed from a control's text). A control that is not a click on an element — a keyboard shortcut, a tap zone — calls `uiHit("player.seek.fwd")`.
 - TV: `uiId="detail.play"` on a `Focusable`, `Btn` or `Chip` (and the small wrappers that pass it through). Without it nothing happens.
 
-The vocabulary (`src/lib/tel/controls-vocab.js`) — 286 ids: 187 on the website, 157 on the TV, 93 on both. 134 on the phone app (letter `p`, the table after this one).
+The vocabulary (`src/lib/tel/controls-vocab.js`) — 286 ids: 187 on the website, 158 on the TV, 94 on both. 135 on the phone app (letter `p`, the table after this one).
 
 | Area | Website only | TV app only | Both |
 |---|---|---|---|
@@ -155,7 +155,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 286 ids: 187 on the website
 | peek | `peek.close` `peek.playontv` `peek.remove` | – | `peek.details` `peek.mylist` `peek.play` `peek.hh.dismiss` `peek.recommend` |
 | pick | – | `pick.retry` `pick.unfold` | `pick.example` `pick.go` `pick.option` |
 | picker | – | `picker.open` `picker.pick` | – |
-| player | `player.airplay` `player.fullscreen` `player.party.share` `player.party.tapjoin` `player.pip` `player.playontv` `player.quality.pick` `player.subtitles.undo` `player.recommend` | `player.autoplay` `player.back` `player.slowstart.lower` `player.slowstart.wait` `player.stall.lower` `player.stall.retry` | `player.audio.dialogue` `player.audio.night` `player.audio.pick` `player.mute` `player.next` `player.party` `player.party.handover` `player.party.react` `player.party.start` `player.playpause` `player.replace` `player.retry` `player.scrub` `player.seek.back` `player.seek.fwd` `player.settings.open` `player.skipintro` `player.speed.open` `player.speed.pick` `player.startover` `player.stillwatching.done` `player.stillwatching.keep` `player.subtitles.open` `player.subtitles.pick` `player.subtitles.resync` `player.subtitles.style` `player.upnext.dismiss` `player.upnext.play` `player.xray` |
+| player | `player.airplay` `player.fullscreen` `player.party.share` `player.party.tapjoin` `player.pip` `player.playontv` `player.quality.pick` `player.recommend` | `player.autoplay` `player.back` `player.slowstart.lower` `player.slowstart.wait` `player.stall.lower` `player.stall.retry` | `player.audio.dialogue` `player.audio.night` `player.audio.pick` `player.mute` `player.next` `player.party` `player.party.handover` `player.party.react` `player.party.start` `player.playpause` `player.replace` `player.retry` `player.scrub` `player.seek.back` `player.seek.fwd` `player.settings.open` `player.skipintro` `player.speed.open` `player.speed.pick` `player.startover` `player.stillwatching.done` `player.stillwatching.keep` `player.subtitles.open` `player.subtitles.pick` `player.subtitles.resync` `player.subtitles.style` `player.subtitles.undo` `player.upnext.dismiss` `player.upnext.play` `player.xray` |
 | profile | `profile.add` `profile.gate.close` `profile.save` | `profile.pin.submit` | `profile.pick` `profile.unlock` |
 | household | – | – | `household.filter` `household.tab` |
 | rating | `rating.star` | – | – |
@@ -191,7 +191,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 286 ids: 187 on the website
 | nav | – | `nav.home` `nav.movies` `nav.mylist` `nav.profile` `nav.search` `nav.settings` `nav.shows` |
 | newpassword | – | `newpassword.signout` `newpassword.submit` |
 | party | – | `party.join` |
-| player | – | `player.audio.dialogue` `player.audio.night` `player.audio.pick` `player.autoplay` `player.back` `player.mute` `player.next` `player.party` `player.party.handover` `player.party.react` `player.party.start` `player.playpause` `player.replace` `player.retry` `player.scrub` `player.seek.back` `player.seek.fwd` `player.settings.open` `player.skipintro` `player.slowstart.lower` `player.slowstart.wait` `player.speed.open` `player.speed.pick` `player.stall.lower` `player.stall.retry` `player.startover` `player.stillwatching.done` `player.stillwatching.keep` `player.subtitles.open` `player.subtitles.pick` `player.subtitles.resync` `player.subtitles.style` `player.upnext.dismiss` `player.upnext.play` `player.xray` |
+| player | – | `player.audio.dialogue` `player.audio.night` `player.audio.pick` `player.autoplay` `player.back` `player.mute` `player.next` `player.party` `player.party.handover` `player.party.react` `player.party.start` `player.playpause` `player.replace` `player.retry` `player.scrub` `player.seek.back` `player.seek.fwd` `player.settings.open` `player.skipintro` `player.slowstart.lower` `player.slowstart.wait` `player.speed.open` `player.speed.pick` `player.stall.lower` `player.stall.retry` `player.startover` `player.stillwatching.done` `player.stillwatching.keep` `player.subtitles.open` `player.subtitles.pick` `player.subtitles.resync` `player.subtitles.style` `player.subtitles.undo` `player.upnext.dismiss` `player.upnext.play` `player.xray` |
 | profile | – | `profile.pick` `profile.pin.submit` `profile.unlock` |
 | recommend | – | `recommend.close` `recommend.send` |
 | report | – | `report.send` |

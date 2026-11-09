@@ -158,7 +158,7 @@ module.exports = {
   "player.subtitles.pick": "wtp",
   "player.subtitles.resync": "wtp",
   "player.subtitles.style": "wtp",
-  "player.subtitles.undo": "w",
+  "player.subtitles.undo": "wtp",
   "player.upnext.dismiss": "wtp",
   "player.upnext.play": "wtp",
   "player.xray": "wtp",

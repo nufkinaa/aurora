@@ -1,7 +1,7 @@
 // Full-screen player with Apple TV-style controls: auto-hiding UI, scrubber,
 // ±10s, subtitle + speed menus, Up Next auto-advance, server-side resume.
 import { el, icons, fmtClock, toast, formatRow } from "../ui.js";
-import { api } from "../api.js";
+import { api, forgetWarm } from "../api.js";
 import { state, progressFor, titleProgressFor, refreshProgress, progressAge, readyDownloads, setPersonPref } from "../state.js";
 import { navigate, cameFrom, navStartedAt } from "../router.js";
 import { startupOf, stepsText, serverSide, firstMedia, SLOW_START_MS } from "../startline.js";
@@ -4280,7 +4280,8 @@ export const renderPlayer = async (root, { id }) => {
     showResyncPill(words, true);
     if (menuKind === "cc") closeMenu();
   };
-  // Back to the file's own timing, for everyone (after a Resync).
+  // Back to the file's own timing, for everyone (after a Fix timing, or the
+  // server's own correction).
   const undoResync = async () => {
     const t = (item.subtitles || [])[activeTrack];
     if (!resyncable(t)) return;
@@ -4366,11 +4367,15 @@ export const renderPlayer = async (root, { id }) => {
               showControls();
             },
           },
-          resyncing ? "⟲ Listening to the film…" : "⟲ Resync subtitles",
+          // "Fix timing" (2026-11-09, the TV's and the phone's words too):
+          // the server lines the track up with what is said; a stream or a
+          // copy on this device has no film on the server, so it is reloaded
+          resyncing ? "⟲ Listening to the film…" : shown && !resyncable(shown) ? "⟲ Reload subtitles" : "⟲ Fix timing",
         ),
       );
-      // after a Resync moved it (for everyone): the way back
-      if (resyncable(shown) && shown.timing && shown.timing.resync && shown.timing.verdict !== "in-time") {
+      // the track is served moved (a Fix timing, or the server's own check
+      // that found it off and was sure): the file's own timing stays a choice
+      if (resyncable(shown) && shown.timing && (shown.timing.verdict === "moved" || shown.timing.verdict === "parts")) {
         menu.append(
           el(
             "button",
@@ -7323,6 +7328,21 @@ export const renderPlayer = async (root, { id }) => {
   }
 
   // OCR can finish while watching this exact video - add the track live
+  // A track in the viewer's language arrived after the start (the providers,
+  // the server's AI translation): switched on — unless that overrules the
+  // viewer's own last pick: "Off" stays off, and a remembered language this
+  // title already carries keeps its track (2026-10-08), and a pick by hand in
+  // this session is never undone.
+  let awaitingAi = null; // the language the server is translating into for this title
+  const switchToWanted = (want, words) => {
+    const i = bestTrackIndex(item.subtitles || [], want);
+    const mine = normPick(profilePick("subPick"));
+    const overruled = subsPickedByHand || mine === "off" || (mine && mine !== want && bestTrackIndex(item.subtitles || [], mine) >= 0);
+    if (i >= 0 && !overruled && i !== activeTrack) {
+      selectTrack(i);
+      toast(words, "💬");
+    }
+  };
   // Auto-subtitles: the viewer asked for a language (Preferences → Subtitles)
   // and this file doesn't carry it — the server fetches one from the
   // subtitle providers, writes it next to the file (for everyone, for good),
@@ -7335,19 +7355,15 @@ export const renderPlayer = async (root, { id }) => {
     if (test && !(item.subtitles || []).some(matches)) {
       api.subtitlesFetch(item.id, want)
         .then((r) => {
+          // none from the providers: the server translates one (src/media/
+          // subai.js) and says so; it arrives with "subtitle_sync" below
+          if (!exited && r && r.ai && !(r.tracks || []).length) {
+            awaitingAi = want;
+            toast("No Hebrew subtitles yet — translating with AI, ready in a few minutes", "💬", null, { quiet: true });
+          }
           if (exited || !r || !r.tracks || !r.tracks.length) return;
           addTracks(r.tracks.map((t) => ({ ...t, lang: t.lang || want })));
-          const i = (item.subtitles || []).findIndex(matches);
-          // The fetched track is offered either way, but it only switches on
-          // by itself when that does not overrule the viewer's own last pick:
-          // "Off" stays off, and a remembered language this title already
-          // carries keeps its track (2026-10-08).
-          const mine = normPick(profilePick("subPick"));
-          const overruled = mine === "off" || (mine && mine !== want && bestTrackIndex(item.subtitles || [], mine) >= 0);
-          if (i >= 0 && !overruled) {
-            selectTrack(i);
-            toast(`${SUB_LANG_NAME[want] || "Matching"} subtitles found — switched on`, "💬");
-          }
+          switchToWanted(want, `${SUB_LANG_NAME[want] || "Matching"} subtitles found — switched on`);
         })
         .catch(() => {});
     }
@@ -7386,9 +7402,31 @@ export const renderPlayer = async (root, { id }) => {
   const unsubSync = onMessage("subtitle_sync", async (msg) => {
     if (!msg || msg.id !== item.id || exited) return;
     let fresh;
+    // past the read cache (api.js warmed: a minute), or the news is not in
+    // the answer — the title opened less than a minute ago
+    forgetWarm(`/api/item/${encodeURIComponent(item.id)}`);
     try { fresh = await api.item(item.id); } catch { return; }
     if (exited || !fresh) return;
     const byUrl = new Map((fresh.subtitles || []).map((t) => [trackPath(t), t]));
+    // tracks new to this title (the server's AI translation): added at the
+    // end (the menu's order never moves), and switched on for the viewer who
+    // was waiting for that language
+    {
+      const have = new Set((item.subtitles || []).map(trackPath));
+      const added = (fresh.subtitles || []).filter((t) => !have.has(trackPath(t)));
+      if (added.length) {
+        addTracks(added);
+        // (the language this viewer's subtitles follow: the last pick by
+        // hand, else Settings — autoTrackIndex)
+        const last = normPick(profilePick("subPick"));
+        const want = awaitingAi || (SUB_LANG_TEST[last] ? last : prefs.get("subLang", "any"));
+        if ((awaitingAi || SUB_LANG_TEST[last] || prefs.get("subsDefault", true)) && SUB_LANG_TEST[want] && added.some((t) => langOf(t) === want)) {
+          awaitingAi = null;
+          const t = added.find((x) => langOf(x) === want);
+          switchToWanted(want, t.ai ? "Hebrew subtitles translated with AI — switched on" : `${SUB_LANG_NAME[want] || "Matching"} subtitles found — switched on`);
+        }
+      }
+    }
     const changed = new Set();
     for (const t of item.subtitles || []) {
       const f = byUrl.get(trackPath(t));

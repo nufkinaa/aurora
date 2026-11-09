@@ -2881,6 +2881,9 @@ const finish = async (job, destPath) => {
     const libId = scanner.idForPath(destPath);
     if (libId) require("./preconvert").consider(libId);
   }
+  // No Hebrew subtitles anywhere, for somebody who watches with Hebrew ones:
+  // one is translated in the background (media/subai.js; only with an AI key)
+  try { require("./subai").landed(destPath, [job.profile, ...(job.also || [])].filter(Boolean)); } catch {}
   console.log(`[download] ${job.id.slice(0, 6)} done "${job.title}"`);
   tellMyList(job);
   tellReplace(job);

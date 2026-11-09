@@ -44,6 +44,7 @@ const REAL = [
   ["metadata", "src/media/online.js", 'Metadata fetch failed for "${item.title}"', 'Metadata fetch failed for "Some Film": 429'],
   ["ai", "src/media/ai.js", "[ai] one call failed after", "[ai] one call failed after 20.1s: OpenRouter 402 after 0.4s: insufficient credits"],
   ["ai", "src/routes/ai.js", '"[ai] recommend failed:"', "[ai] recommend failed: OpenRouter 401 after 0.2s"],
+  ["ai", "src/media/subai.js", "failed: ${e.message}`", "[subai] Some Film (2020).mkv failed: OpenRouter 402: insufficient credits"],
   ["push-signature", "src/lib/push.js", "answered ${r.status} ${why.slice(0, 160)}", '[push] web.push.apple.com answered 403 {"reason":"BadJwtToken"}'],
   ["push-failed", "src/lib/push.js", "answered ${r.status} ${why.slice(0, 160)}", "[push] fcm.googleapis.com answered 500 internal"],
   ["push-failed", "src/lib/push.js", '"[push] send failed:"', "[push] send failed: The operation was aborted due to timeout"],

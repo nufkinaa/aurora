@@ -285,6 +285,9 @@ export type SubtitleTrack = {
   // among equals (lang.ts bestTrackIndex).
   star?: boolean;
   starWhy?: string;
+  // The Hebrew track the server translated with AI for a title that had none
+  // (src/media/subai.js), labelled "עברית (AI)" everywhere.
+  ai?: boolean;
   // What the server knows about the track's timing against this file
   // (playback/resync.ts SubTiming): "in-time" | "moved" | "parts" |
   // "unmatched" | "original", by the audio or the track, in words.
@@ -1971,13 +1974,18 @@ export const api = {
   },
   // A subtitle in the preferred language for a library file the server holds
   // no track for; it is written next to the file, for everyone.
+  // `ai`: the providers had no Hebrew and the server translates one with AI
+  // (src/media/subai.js) — "queued" | "translating"; it arrives with
+  // `subtitle_sync` as a new track, "עברית (AI)".
   subtitlesFetch: (id: string, lang: 'he' | 'en' | 'ru') =>
-    post<{tracks: SubtitleTrack[]}>('/api/subtitles/fetch', {id, lang}),
+    post<{tracks: SubtitleTrack[]; ai?: string | null}>('/api/subtitles/fetch', {id, lang}),
   // The Resync button (playback/resync.ts): start — or join — the server's
   // match of one library track against the playing audio track, then ask
   // how it goes about once a second. A server from before these answers 404.
   subtitleResync: (body: ResyncBody) => post<ResyncAnswer>('/api/subtitles/resync', body),
   subtitleResyncStatus: (body: ResyncBody) => post<ResyncAnswer>('/api/subtitles/resync/status', body),
+  // "↺ Use the file's own timing": the track served as its file has it again, for everyone
+  subtitleResyncUndo: (body: ResyncBody) => post<{ok: boolean}>('/api/subtitles/resync/undo', body),
   // "Problem with this copy? → Get another version": what the sheet needs,
   // the title's other sources, ask for one, take it back. Errors carry the
   // server's words and its `code` (kids, busy, provider, …) — ApiError.

@@ -155,6 +155,12 @@ module.exports = {
   // Flash wins on speed AND quality, at roughly half a cent per search. Override
   // with "aiModel" in config.json.
   AI_MODEL: userConfig.aiModel || "google/gemini-2.5-flash",
+  // Hebrew subtitles translated by that same provider and key when a title has
+  // none (media/subai.js). Off with no key; "subtitleAi": { "enabled": false }
+  // turns it off with one. The rest are budgets (media/subai.js DEFAULTS):
+  // model, maxCues, maxUsd per title, dailyTitles, dailyUsd, priceIn/priceOut
+  // (USD per million tokens, for the estimate before a title is started).
+  SUB_AI: userConfig.subtitleAi && typeof userConfig.subtitleAi === "object" ? userConfig.subtitleAi : {},
   TORRENTS: userConfig.torrents !== false,
   // These two were documented and read by their modules but never exported,
   // so the settings did nothing (found 2026-10-08). "preconvert": false stops
