@@ -16,6 +16,9 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Tap from '../ui/Tap';
 import Icon, {PhoneIconName} from '../ui/Icon';
 import {phoneNative} from '../native';
+// [scrub-previews] the picture above the scrub point while the bar is dragged
+import ScrubThumb, {ScrubPics, thumbOuterWidth} from '../../playback/ScrubThumb';
+import {thumbLeft} from '../../playback/scrubPreview';
 
 const SCRIM_TOP = require('../../assets/player-top.png');
 const SCRIM_BOTTOM = require('../../assets/player-bottom.png');
@@ -41,6 +44,9 @@ export type ChromeProps = {
   pip: boolean;
   /** a copy on the phone: no server, so no menus, X-Ray or watch party */
   simple?: boolean;
+  /** [scrub-previews] the video's scrub pictures (none: the time bubble only) */
+  thumb?: ScrubPics | null;
+  thumbWidth?: number;
   onBack: () => void;
   onToggle: () => void;
   onSkip: (dir: -1 | 1) => void;
@@ -80,7 +86,7 @@ function Btn({icon, label, onPress, big, badge, on, mid, uiId}: {icon: PhoneIcon
   );
 }
 
-function Scrubber({shown, duration, bufPct, marks, band, onScrub, onSeek, onTouch}: Pick<ChromeProps, 'shown' | 'duration' | 'bufPct' | 'marks' | 'band' | 'onScrub' | 'onSeek' | 'onTouch'>) {
+function Scrubber({shown, duration, bufPct, marks, band, onScrub, onSeek, onTouch, thumb, thumbWidth = 144}: Pick<ChromeProps, 'shown' | 'duration' | 'bufPct' | 'marks' | 'band' | 'onScrub' | 'onSeek' | 'onTouch' | 'thumb' | 'thumbWidth'>) {
   const [w, setW] = useState(1);
   const [drag, setDrag] = useState<number | null>(null);
   const ref = useRef({w: 1, duration, x0: 0});
@@ -132,7 +138,16 @@ function Scrubber({shown, duration, bufPct, marks, band, onScrub, onSeek, onTouc
         {duration > 0 ? marks.filter(t => t > 0 && t < duration).map((t, i) => <View key={i} style={[s.mark, {left: `${(t / duration) * 100}%`}]} />) : null}
       </View>
       <View style={[s.head, drag != null && s.headBig, {left: `${pct}%`}]} pointerEvents="none" />
-      {drag != null ? (
+      {drag != null && thumb && duration > 0 ? (
+        // the picture of that second with the time under it, kept over the bar
+        <ScrubThumb
+          index={thumb.index}
+          sources={thumb.sources}
+          t={drag}
+          width={thumbWidth}
+          style={[s.thumb, {left: thumbLeft(drag / duration, w, thumbOuterWidth(thumbWidth))}]}
+        />
+      ) : drag != null ? (
         <View style={[s.bubble, {left: `${pct}%`}]} pointerEvents="none">
           <Text style={s.bubbleText}>{fmt(drag)}</Text>
         </View>
@@ -199,7 +214,7 @@ export default function PhoneChrome(p: ChromeProps) {
       <View style={[s.bottom, {paddingBottom: Math.max(insets.bottom, 10) + 4, paddingLeft: padL, paddingRight: padR}]} pointerEvents="box-none">
         <View style={s.timeRow} pointerEvents="box-none">
           <Text style={s.time}>{fmt(p.shown)}</Text>
-          <Scrubber shown={p.shown} duration={p.duration} bufPct={p.bufPct} marks={p.marks} band={p.band} onScrub={p.onScrub} onSeek={p.onSeek} onTouch={p.onTouch} />
+          <Scrubber shown={p.shown} duration={p.duration} bufPct={p.bufPct} marks={p.marks} band={p.band} onScrub={p.onScrub} onSeek={p.onSeek} onTouch={p.onTouch} thumb={p.thumb} thumbWidth={p.thumbWidth} />
           <Text style={[s.time, s.timeRight]}>{p.duration ? `-${fmt(left)}` : ''}</Text>
         </View>
         <View style={s.row} pointerEvents="box-none">
@@ -263,4 +278,5 @@ const s = StyleSheet.create({
   headBig: {width: 22, height: 22, marginLeft: -11, borderRadius: 11, top: 7},
   bubble: {position: 'absolute', bottom: 34, marginLeft: -36, width: 72, paddingVertical: 4, borderRadius: 10, backgroundColor: 'rgba(8,9,16,0.85)', alignItems: 'center'},
   bubbleText: {color: '#fff', fontSize: 14, fontWeight: '800', fontVariant: ['tabular-nums']},
+  thumb: {position: 'absolute', bottom: 30},
 });

@@ -8,6 +8,8 @@ import {PanResponder, StyleSheet, Text, View, GestureResponderEvent} from 'react
 import {decideDrag, deltaLabel, DOUBLE_TAP_MS, DragKind, levelAfter, pinchVerdict, seekTarget, TAP_SLOP_PX, zoneOf} from './gestures';
 import {phoneNative} from '../native';
 import Icon from '../ui/Icon';
+// [scrub-previews] the picture of the target second in the seek drag's readout
+import ScrubThumb, {ScrubPics} from '../../playback/ScrubThumb';
 
 type Props = {
   width: number;
@@ -23,6 +25,9 @@ type Props = {
   locked: boolean;
   /** nothing playing yet: no scrubbing */
   armed: boolean;
+  /** [scrub-previews] the video's scrub pictures (none: the time only) */
+  thumb?: ScrubPics | null;
+  thumbWidth?: number;
 };
 
 const fmt = (s: number) => {
@@ -167,6 +172,7 @@ export default function PhoneGestures(p: Props) {
     <View style={StyleSheet.absoluteFill} {...responder.panHandlers}>
       {hud?.kind === 'seek' ? (
         <View style={s.seekHud} pointerEvents="none">
+          {p.thumb ? <ScrubThumb index={p.thumb.index} sources={p.thumb.sources} t={hud.to} width={p.thumbWidth || 144} showTime={false} style={s.seekThumb} /> : null}
           <Text style={s.seekTo}>{fmt(hud.to)}</Text>
           <Text style={s.seekDelta}>{deltaLabel(hud.delta)}</Text>
         </View>
@@ -186,6 +192,7 @@ export default function PhoneGestures(p: Props) {
 
 const s = StyleSheet.create({
   seekHud: {position: 'absolute', alignSelf: 'center', top: '38%', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 16, backgroundColor: 'rgba(8,9,16,0.72)', alignItems: 'center'},
+  seekThumb: {marginBottom: 8},
   seekTo: {color: '#fff', fontSize: 30, fontWeight: '800', fontVariant: ['tabular-nums']},
   seekDelta: {color: 'rgba(255,255,255,0.8)', fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums']},
   level: {position: 'absolute', top: '22%', width: 44, paddingVertical: 12, borderRadius: 22, backgroundColor: 'rgba(8,9,16,0.72)', alignItems: 'center', gap: 8},

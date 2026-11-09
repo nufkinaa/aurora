@@ -67,6 +67,7 @@ import {
   Animated,
   AppState,
   BackHandler,
+  Easing,
   Image,
   ScrollView,
   Share,
@@ -188,6 +189,26 @@ import {
 } from './resync';
 import {afterClaim, claimFirst, SERVER_BUSY, whenRoom} from '../serverManners';
 import {playerError, seekResumed, seekStarted, seeking} from '../telemetry'; // [analytics]
+// [scrub-previews] the pictures above the scrub point, and the TV's hold-to-seek (2026-11-09)
+import {readScrubIndex, SCRUB_REASK_MS, thumbLeft} from './scrubPreview';
+import {
+  scrubClosed,
+  scrubCommitDue,
+  scrubCommitTarget,
+  scrubHoldStart,
+  scrubInterrupt,
+  scrubRelease,
+  ScrubSession,
+  scrubShown,
+  scrubTap,
+  scrubTick,
+  SCRUB_TICK_MS,
+  Settle,
+  settleHolds,
+} from './scrubAccel';
+import ScrubThumb, {ScrubPics, thumbOuterWidth, warmScrubAround} from './ScrubThumb';
+import {Live, liveValue} from './liveValue';
+// [/scrub-previews]
 // [phone-remote] the phone as a remote: this player registers itself while it is up
 import {notifyRemote, registerRemotePlayer} from '../remote/player';
 import {audioForLang, subForLang} from '../remote/playItem';
@@ -222,6 +243,15 @@ const HIDE_NOW_MS = PHONE ? 4000 : HIDE_MS;
 // seekTo()'s debounce: a burst of remote presses moves the scrubber instantly
 // but touches the network once, after the presses stop.
 const SEEK_DEBOUNCE_MS = 450;
+// [scrub-previews] the picture above the scrub point, drawn this wide (dp; the
+// height keeps the server's tile aspect), and how far above the bar it sits
+const THUMB_W_TV = 192;
+const THUMB_W_PHONE = 144;
+const THUMB_GAP = 8;
+// the scrub row's gap between the times and the bar (styles.scrubRow), and
+// the bottom bar's padding above that row (styles.bottom)
+const SCRUB_ROW_GAP = 12;
+const BOTTOM_PAD_TOP = 16;
 // A watch party's landing on a direct file: how far ahead of the party the
 // picture is held before it is set going (holdAndGo) — above the slowest seek
 // measured on the Mi TV (1.5 s), so the frame is there when the party arrives.
@@ -732,9 +762,11 @@ export default function Player({
     next: NextEp;
     countdown: number | null;
     still: boolean;
-    /** a scene follows the credits: the next episode starts when this one ends */
-    atEnd?: boolean;
+    /** a scene follows the credits: the card says so (the countdown runs as for any episode) */
+    scene: boolean;
   } | null>(null);
+  // the thin bar under "Starts in 15", filling over the countdown (native driver)
+  const upNextBar = useRef(new Animated.Value(0)).current;
   // Skip intro / Skip recap: inside a known range right now (the button
   // shows), and which of the two it would skip.
   const [inIntro, setInIntro] = useState(false);
@@ -825,6 +857,17 @@ export default function Player({
   const pendingSeek = useRef<number | null>(null);
   const seekNowRef = useRef<(sec: number) => void>(() => {});
   const seekPreviewRef = useRef<number | null>(null);
+  // [scrub-previews] The TV's scrub session (scrubAccel.ts: taps, the hold's
+  // glide, one seek after a pause), the marker it draws — a live value, so a
+  // glide redraws the bar and the picture 30 times a second without rendering
+  // this whole player (`thumb`: the picture shows; false = only the marker is
+  // held, for the moment between the seek and the player's next render) — and
+  // the target the marker stays on after a seek until the player gets there.
+  const scrubSess = useRef<ScrubSession>(scrubClosed());
+  const scrubTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const seekLive = useMemo(() => liveValue<{t: number; thumb: boolean} | null>(null), []);
+  const settle = useRef<Settle>(null);
+  // [/scrub-previews]
   const skipStreak = useRef(0);
   const skipAccum = useRef(0);
   const skipDir = useRef(0);
@@ -891,7 +934,7 @@ export default function Player({
   // themselves live in refs — the 4 Hz progress loop reads them).
   const [marksTick, setMarksTick] = useState(0);
   const creditsStart = useRef<number | null>(null);
-  // the server heard a scene after the credits: Up next does not count down over it
+  // the server heard a scene after the credits: the Up next card says so
   const creditsScene = useRef(false);
   const introKey = useRef<string | null>(null);
   // Party: mute the events our own remote-apply causes; keep the party across
@@ -1072,7 +1115,8 @@ export default function Player({
   const showControls = useCallback(() => {
     // Scrubber state is frozen while the controls are hidden (see onProgress),
     // so refresh it from the live refs before revealing.
-    if (pendingSeek.current == null && seekPreviewRef.current == null) {
+    // (nor while a seek just made is still on its way: the marker stays on it)
+    if (pendingSeek.current == null && seekPreviewRef.current == null && !settleHolds(settle.current, curRef.current, Date.now())) {
       setCurrent(curRef.current);
     }
     setBuffered(bufRef.current);
@@ -1082,7 +1126,8 @@ export default function Player({
     hideTimer.current = setTimeout(() => {
       // The web's hideControls: never while a menu is open, and never while
       // paused — a paused player with no chrome is just a frozen frame.
-      if (menuOpen || pausedRef.current || upNext) return;
+      // Nor while the marker is being moved (the session's seek shows it again).
+      if (menuOpen || pausedRef.current || upNext || scrubSess.current.open) return;
       setControls(false);
     }, HIDE_NOW_MS);
   }, [menuOpen, upNext]);
@@ -1140,10 +1185,11 @@ export default function Player({
   const dismissUpNext = useCallback(() => {
     if (countdownTimer.current) clearInterval(countdownTimer.current);
     countdownTimer.current = null;
+    upNextBar.stopAnimation();
     setUpNext(null);
     showControls();
     setTimeout(() => pauseBtnRef.current?.requestTVFocus?.(), 0);
-  }, [showControls]);
+  }, [showControls, upNextBar]);
 
   // If another screen ever lands on top of this one (a stray navigation),
   // don't keep playing invisibly underneath it.
@@ -1881,6 +1927,51 @@ export default function Player({
       if (again) clearTimeout(again);
     };
   }, [meta, stream, id]);
+
+  // ---------------------------------------------------------------- [scrub-previews]
+  // The pictures above the scrub point (GET /api/scrub/:id, scrubPreview.ts):
+  // asked for once at open, for a LIBRARY video only (not a torrent stream);
+  // not ready yet → asked once more, the first time the chrome shows
+  // SCRUB_REASK_MS later. No index: the bar shows the time only, as always.
+  const [scrubIdx, setScrubIdx] = useState<ScrubPics | null>(null);
+  const scrubReask = useRef<{at: number; ask: () => void} | null>(null);
+  const libVideo = !stream && !!id && !String(id).startsWith('torrent|');
+  const hasMeta = !!meta;
+  useEffect(() => {
+    setScrubIdx(null);
+    scrubReask.current = null;
+    if (!hasMeta || !libVideo) return;
+    let live = true;
+    const ask = (again: boolean) => {
+      api
+        .scrubIndex(id)
+        .then(
+          r => readScrubIndex(r),
+          () => null,
+        )
+        .then(index => {
+          if (!live) return;
+          if (index) {
+            const sources = index.sheets.map(p => imgSrc(p));
+            setScrubIdx({index, sources});
+            // the sheets around the playhead, so the first scrub is not blank
+            warmScrubAround(index, sources, curRef.current);
+          } else if (!again) scrubReask.current = {at: Date.now(), ask: () => ask(true)};
+        });
+    };
+    ask(false);
+    return () => {
+      live = false;
+      scrubReask.current = null;
+    };
+  }, [hasMeta, libVideo, id]);
+  useEffect(() => {
+    const r = scrubReask.current;
+    if (!controls || !r || Date.now() - r.at < SCRUB_REASK_MS) return;
+    scrubReask.current = null;
+    r.ask();
+  }, [controls]);
+  // [/scrub-previews]
   const activeIntro = () => intro.current || autoIntro.current;
   const skipIntro = useCallback(() => {
     // what the button would skip right now: the recap while inside it, else
@@ -2699,6 +2790,14 @@ export default function Player({
     if (pendingSeek.current == null) return;
     const target = pendingSeek.current;
     pendingSeek.current = null;
+    // [scrub-previews] the seek is made: the picture goes, the marker stays
+    {
+      const lv = seekLive.get();
+      if (lv && lv.thumb) seekLive.set({t: lv.t, thumb: false});
+    }
+    // (and from here the old spot's progress events do not pull it back — a
+    // torrent's region fetch below can take a moment; renewed when the seek is sent)
+    settle.current = {target, at: Date.now()};
     seekStarted(target); // [analytics] seek → playing again, as a timing
     const base = itemRef.current?.transcodeBase || stream?.transcodeBase;
     // A committed seek is shared with the party — unless it IS the party's
@@ -2798,7 +2897,10 @@ export default function Player({
     curRef.current = target;
     progTime.current = target;
     progAt.current = Date.now();
-  }, [isTorrent, prefetchRegion, startTranscodeAt, stream, toast, transcodeUrl]);
+    // [scrub-previews] the progress events still on their way name the old
+    // spot: the marker stays on the target until the player is there
+    settle.current = {target, at: Date.now()};
+  }, [isTorrent, prefetchRegion, startTranscodeAt, stream, toast, transcodeUrl, seekLive]);
 
   const seekTo = useCallback(
     (sec: number) => {
@@ -2838,6 +2940,16 @@ export default function Player({
       // spinner up forever because nothing else ever calls setUri.
       if (!uriRef.current) return;
       const now = Date.now();
+      // [scrub-previews] a scrub session still open (the marker was being
+      // moved on the bar, then a button or a phone skip): it folds into this
+      // skip — from where the marker is, one seek in all
+      if (scrubSess.current.open) {
+        const at = scrubCommitTarget(scrubSess.current, now);
+        scrubSess.current = scrubClosed();
+        if (scrubTimer.current) clearInterval(scrubTimer.current);
+        scrubTimer.current = null;
+        if (at != null) pendingSeek.current = at;
+      }
       if (now - lastSkipAt.current > SKIP_CHAIN_MS || dir !== skipDir.current) {
         skipStreak.current = 0;
         skipAccum.current = 0;
@@ -2860,6 +2972,8 @@ export default function Player({
       // so the preview target must be set AFTER it to win the batch.
       showControls();
       seekTo(base + dir * step);
+      // [scrub-previews] the picture of where it is headed, until the seek is made
+      if (pendingSeek.current != null) seekLive.set({t: pendingSeek.current, thumb: true});
 
       // The ACCUMULATED jump, not this single press, so a burst reads "« 40s"
       // rather than flashing "10s" four times.
@@ -2880,20 +2994,164 @@ export default function Player({
         isInteraction: false,
       }).start();
     },
-    [seekTo, showControls, skipAnim],
+    [seekTo, showControls, skipAnim, seekLive],
   );
+
+  // ---------------------------------------------------------------- [scrub-previews]
+  // THE TV'S SCRUB SESSION (scrubAccel.ts has the rules and the numbers). Taps
+  // of LEFT/RIGHT on the bar (or with the chrome hidden) step 10 s each; a HOLD
+  // glides, faster the longer it is held; COMMIT_PAUSE_MS after the last input
+  // ONE seek goes through seekTo/commitSeek. OK on the bar seeks at once, BACK
+  // puts the marker back and seeks nowhere. Everything here reads refs: the
+  // clock below outlives the render that started it.
+  const showControlsRef = useRef(showControls);
+  showControlsRef.current = showControls;
+  const scrubStopClock = () => {
+    if (scrubTimer.current) clearInterval(scrubTimer.current);
+    scrubTimer.current = null;
+  };
+  const scrubDraw = (now: number) => {
+    const v = scrubShown(scrubSess.current, now);
+    seekLive.set(v == null ? null : {t: v, thumb: true});
+  };
+  // the readout beside the picture: how far the marker is from where the film is
+  const scrubHint = () => {
+    const s = scrubSess.current;
+    const d = Math.round(s.target - s.origin);
+    if (!s.open || !d) return;
+    const a = Math.abs(d);
+    setSkipHint({dir: d < 0 ? -1 : 1, label: a >= 60 ? `${Math.floor(a / 60)}m${a % 60 ? ` ${a % 60}s` : ''}` : `${a}s`});
+    skipAnim.setValue(1);
+    Animated.timing(skipAnim, {toValue: 0, duration: 150, delay: 550, useNativeDriver: true, isInteraction: false}).start();
+  };
+  const scrubCommit = () => {
+    const now = Date.now();
+    const target = scrubCommitTarget(scrubSess.current, now);
+    scrubSess.current = scrubClosed();
+    scrubStopClock();
+    if (target == null) {
+      seekLive.set(null);
+      return;
+    }
+    seekLive.set({t: target, thumb: true});
+    seekNowRef.current(target); // one seek, now (the pause was the debounce)
+    showControlsRef.current(); // the auto-hide counts from here
+  };
+  const scrubCancel = () => {
+    scrubSess.current = scrubClosed();
+    scrubStopClock();
+    seekLive.set(null);
+    setSkipHint(null);
+    showControlsRef.current();
+  };
+  const scrubFns = useRef({commit: scrubCommit, cancel: scrubCancel, draw: scrubDraw});
+  scrubFns.current = {commit: scrubCommit, cancel: scrubCancel, draw: scrubDraw};
+  const scrubClock = () => {
+    if (scrubTimer.current) return;
+    scrubTimer.current = setInterval(() => {
+      if (exited.current) {
+        scrubStopClock();
+        return;
+      }
+      const now = Date.now();
+      const was = scrubSess.current;
+      scrubSess.current = scrubTick(was, now);
+      if (scrubCommitDue(scrubSess.current, now)) {
+        scrubFns.current.commit();
+        return;
+      }
+      if (was.hold) scrubFns.current.draw(now);
+    }, SCRUB_TICK_MS);
+  };
+  const scrubCtx = (now: number) => ({
+    now,
+    // a seek already on its way is where the marker starts from
+    position: pendingSeek.current ?? seekPreviewRef.current ?? curRef.current,
+    duration: durRef.current || 0,
+  });
+  // A session opening: a skip from a button still debouncing is taken over
+  // (the session starts where it was headed; no seek in between).
+  const scrubBegin = (now: number) => {
+    const ctx = scrubCtx(now);
+    if (!scrubSess.current.open) {
+      if (seekTimer.current && pendingSeek.current != null) {
+        clearTimeout(seekTimer.current);
+        seekTimer.current = null;
+        pendingSeek.current = null;
+      }
+      settle.current = null;
+    }
+    return ctx;
+  };
+  const scrubTapKey = (dir: 1 | -1) => {
+    // nothing armed yet: nothing to seek in (see skip)
+    if (!uriRef.current) return;
+    const now = Date.now();
+    scrubSess.current = scrubTap(scrubSess.current, dir, scrubBegin(now));
+    showControlsRef.current();
+    scrubDraw(now);
+    scrubHint();
+    scrubClock();
+  };
+  const scrubHoldKey = (dir: 1 | -1) => {
+    if (!uriRef.current) return;
+    const now = Date.now();
+    scrubSess.current = scrubHoldStart(scrubSess.current, dir, scrubBegin(now));
+    showControlsRef.current();
+    setSkipHint(null);
+    scrubDraw(now);
+    scrubClock();
+  };
+  const scrubReleaseKey = () => {
+    if (!scrubSess.current.hold) return;
+    const now = Date.now();
+    scrubSess.current = scrubRelease(scrubSess.current, now);
+    scrubDraw(now);
+    scrubHint();
+  };
+  // OK on the bar: inside a session it is "go there now"; outside, play / pause
+  const onScrubOk = () => (scrubSess.current.open ? scrubCommit() : togglePlay());
+  useEffect(() => () => scrubStopClock(), []);
+  // after a seek the marker is held by `current` (seekTo set it): the live
+  // value lets go once this player has rendered with it
+  useEffect(() => {
+    const v = seekLive.get();
+    if (v && !v.thumb && !scrubSess.current.open) seekLive.set(null);
+  });
+  // [/scrub-previews]
 
   // The subtitle menu's list, so opening it can scroll to the ticked track.
   const ccScroll = useRef<ScrollView>(null);
 
   // ---------------------------------------------------------------- input
   const onTV = useCallback(
-    (evt: {eventType: string}) => {
+    (evt: {eventType: string; eventKeyAction?: number | string}) => {
       // A player under another screen (a second player pushed over it — the TV's
       // home-screen row while a film is open, X-Ray → a title → Play) hears every
       // key too: it must not wake its chrome (below: BACK, Mi TV 2026-10-18).
       if (!navigation.isFocused()) return;
+      const t = evt.eventType;
+      // [scrub-previews] A HELD left/right (react-native-tvos: 'longLeft' /
+      // 'longRight', once with eventKeyAction 0 when the hold is recognised and
+      // once with 1 when the key comes up — scrubAccel.ts). Before the
+      // one-press filter on purpose: it would drop the release of a hold
+      // shorter than its 1.5 s window, and the glide would never stop.
+      if (!PHONE && (t === 'longLeft' || t === 'longRight')) {
+        if (Number(evt.eventKeyAction) === 1) {
+          scrubReleaseKey();
+          return;
+        }
+        autoRun.current = 0;
+        if (overlayOpen() || menuOpen || upNext || slowStart || stopCard) return;
+        if (!controls || zone.current === 'scrub') return scrubHoldKey(t === 'longRight' ? 1 : -1);
+        return showControls();
+      }
       if (!acceptTvEvent(evt)) return; // one press, one event (focus.ts)
+      // any other key while the marker glides (its release was lost): it stops there
+      if (scrubSess.current.hold) {
+        scrubSess.current = scrubInterrupt(scrubSess.current, Date.now());
+        scrubDraw(Date.now());
+      }
       // Someone is there: the run of episodes that started by themselves is
       // over (the site's noteInput — "Still watching?" counts hands-off ones).
       autoRun.current = 0;
@@ -2901,7 +3159,6 @@ export default function Player({
       // the sheet's. Without this an OK pressed in the sheet also reached this
       // handler and, once the chrome had hidden, paused the film under it.
       if (overlayOpen()) return;
-      const t = evt.eventType;
       // The web's media-key handler. A remote (or an HDMI-CEC transport control)
       // sends the discrete play/pause keys, not just the toggle — treating only
       // 'playPause' meant the dedicated pause key did nothing at all.
@@ -2914,12 +3171,13 @@ export default function Player({
         if (pausedRef.current) togglePlay();
         return;
       }
-      if (t === 'fastForward') return skip(1);
-      if (t === 'rewind') return skip(-1);
+      // (on the TV through the scrub session: 10 s a press, one seek after them)
+      if (t === 'fastForward') return PHONE ? skip(1) : scrubTapKey(1);
+      if (t === 'rewind') return PHONE ? skip(-1) : scrubTapKey(-1);
       if (menuOpen || upNext || slowStart || stopCard) return; // the overlay's own focusables handle it
       if (!controls) {
-        if (t === 'left') return skip(-1);
-        if (t === 'right') return skip(1);
+        if (t === 'left') return PHONE ? skip(-1) : scrubTapKey(-1);
+        if (t === 'right') return PHONE ? skip(1) : scrubTapKey(1);
         // OK on the focused Skip intro button / resume card is theirs alone —
         // the Pressable fires, and this global handler must not also toggle.
         if (t === 'select') {
@@ -2940,10 +3198,12 @@ export default function Player({
       // Keying strictly off the scrubber is deterministic, and everything else
       // in the row keeps a working D-pad.
       if (t === 'left' || t === 'right') {
-        if (zone.current === 'scrub') return skip(t === 'right' ? 1 : -1);
+        if (zone.current === 'scrub') return PHONE ? skip(t === 'right' ? 1 : -1) : scrubTapKey(t === 'right' ? 1 : -1);
       }
       showControls(); // any activity keeps the chrome alive
     },
+    // (the scrub session's functions read refs only: a stale one acts the same)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [controls, menuOpen, upNext, slowStart, stopCard, skip, togglePlay, showControls, navigation],
   );
   useTVEventHandler(onTV);
@@ -2963,6 +3223,12 @@ export default function Player({
         playing: !!uri && !error,
       });
       if (act === 'pass') return false;
+      // [scrub-previews] the marker was being moved: BACK puts it back, no seek
+      // (the next BACK is the usual one)
+      if (scrubSess.current.open) {
+        scrubFns.current.cancel();
+        return true;
+      }
       if (act === 'closeMenu') {
         closeMenu();
         return true;
@@ -3598,11 +3864,20 @@ export default function Player({
       scene: creditsScene.current,
     });
     if (plan.card === 'still') track('feat', {f: 'still_watching_shown'});
-    setUpNext({next, countdown: plan.countdown, still: plan.card === 'still', atEnd: !!plan.atEnd});
+    setUpNext({next, countdown: plan.countdown, still: plan.card === 'still', scene: plan.scene});
     setControls(true);
     if (countdownTimer.current) clearInterval(countdownTimer.current);
     countdownTimer.current = null;
+    upNextBar.stopAnimation();
+    upNextBar.setValue(0);
     if (plan.countdown != null) {
+      Animated.timing(upNextBar, {
+        toValue: 1,
+        duration: plan.countdown * 1000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+        isInteraction: false,
+      }).start();
       countdownTimer.current = setInterval(() => {
         setUpNext(prev => {
           if (!prev || prev.countdown == null) return prev;
@@ -3610,7 +3885,7 @@ export default function Player({
         });
       }, 1000);
     }
-  }, []);
+  }, [upNextBar]);
   showUpNextRef.current = showUpNext;
   // The viewer went back out of the credits: the card goes (and any countdown
   // with it) and is armed again for when the credits return — the site's rule.
@@ -3998,7 +4273,11 @@ export default function Player({
     // otherwise steady playback re-rendered the whole player tree every second
     // for nothing. A pending/preview seek owns the bar; don't fight it.
     if (controlsRef.current && pendingSeek.current == null && seekPreviewRef.current == null) {
-      setCurrent(content);
+      // [scrub-previews] a seek just made: the old spot does not pull the marker back
+      if (!settleHolds(settle.current, content, Date.now())) {
+        settle.current = null;
+        setCurrent(content);
+      }
       setBuffered(bufRef.current);
     }
     // Skip intro / Skip recap: inside a known range, playing, and not in its
@@ -4059,7 +4338,7 @@ export default function Player({
   // the next one whatever the card said, the setting included.
   const endOnCard = () => {
     if (!upNext) return false;
-    if (upNext.countdown != null || upNext.atEnd) goNext(upNext.next, true);
+    if (upNext.countdown != null) goNext(upNext.next, true);
     else setPaused(true);
     return true;
   };
@@ -4373,6 +4652,34 @@ export default function Player({
     chromeH.current = e.nativeEvent.layout.height;
     liftFromLayout();
   };
+  // [scrub-previews] where the TV's track is across the screen (the picture
+  // above the scrub point is centred on it and kept inside it): the bar starts
+  // after the left time (its width changes with an hour digit) and the row's gap.
+  const scrubGeom = useRef({tx: 0, tw: 0, w: 0});
+  const [trackBox, setTrackBox] = useState<{x: number; w: number} | null>(null);
+  const trackFromLayout = () => {
+    const g = scrubGeom.current;
+    if (!g.w) return;
+    const x = Math.round(spacing.pageX + g.tx + g.tw + SCRUB_ROW_GAP);
+    const w = Math.round(g.w);
+    setTrackBox(prev => (prev && prev.x === x && prev.w === w ? prev : {x, w}));
+  };
+  const onTimeLayout = (e: {nativeEvent: {layout: {x: number; width: number}}}) => {
+    scrubGeom.current.tx = e.nativeEvent.layout.x;
+    scrubGeom.current.tw = e.nativeEvent.layout.width;
+    trackFromLayout();
+  };
+  const onTrackLayout = (e: {nativeEvent: {layout: {width: number}}}) => {
+    scrubGeom.current.w = e.nativeEvent.layout.width;
+    trackFromLayout();
+  };
+  // the next episode's picture on the Up next card (a library one; a stream has none)
+  const upNextFor = upNext?.next;
+  const upNextStill = useMemo(
+    () => (upNextFor && upNextFor.kind === 'library' ? imgSrc(`/img/still/${encodeURIComponent(upNextFor.id)}`) : null),
+    [upNextFor],
+  );
+  // [/scrub-previews]
   // (hooks above this line: the early returns below must not change their number)
 
   if (loadErr) {
@@ -4629,6 +4936,8 @@ export default function Player({
           duration={() => durRef.current}
           armed={!!uri}
           locked={locked}
+          thumb={scrubIdx}
+          thumbWidth={THUMB_W_PHONE}
           onTap={() => {
             // a tap beside an open menu closes it
             if (menuOpen) {
@@ -4673,6 +4982,8 @@ export default function Player({
           party={partyInfo ? `${partyInfo.members.length} · ${partyInfo.code}` : null}
           next={nextEp ? nextEp.label : null}
           pip={phoneNative.pipSupported()}
+          thumb={scrubIdx}
+          thumbWidth={THUMB_W_PHONE}
           onBack={() => canNavigate(navigation) && navigation.goBack()}
           onToggle={togglePlay}
           onSkip={dir => skip(dir)}
@@ -4752,6 +5063,32 @@ export default function Player({
             </View>
           </View>
 
+          {/* [scrub-previews] the picture above the scrub point, while the
+              marker is being moved (taps, a hold, a skip's seek still to be
+              made): centred on the marker, kept inside the track, just above
+              the bar (chromeLift: the bar's top from the screen's bottom, and
+              the scrub row sits styles.bottom's paddingTop below it). */}
+          {scrubIdx && trackBox && chromeLift != null && duration > 0 ? (
+            <Live value={seekLive}>
+              {v =>
+                v && v.thumb ? (
+                  <ScrubThumb
+                    index={scrubIdx.index}
+                    sources={scrubIdx.sources}
+                    t={v.t}
+                    width={THUMB_W_TV}
+                    style={[
+                      styles.thumb,
+                      {
+                        left: trackBox.x + thumbLeft(v.t / duration, trackBox.w, thumbOuterWidth(THUMB_W_TV)),
+                        bottom: chromeLift - BOTTOM_PAD_TOP + THUMB_GAP,
+                      },
+                    ]}
+                  />
+                ) : null
+              }
+            </Live>
+          ) : null}
           <View style={styles.bottom} onLayout={onBottomLayout}>
             <View style={styles.scrim} pointerEvents="none">
               <Image source={SCRIM_BOTTOM} style={styles.scrimImg} resizeMode="stretch" />
@@ -4766,7 +5103,15 @@ export default function Player({
                 nowhere (Mi TV, 2026-10-08). The guide catches it and hands
                 focus to its one focusable, the bar. */}
             <TVFocusGuideView autoFocus trapFocusLeft trapFocusRight style={styles.scrubRow}>
-            <Text style={styles.time}>{fmt(shown)}</Text>
+            {/* [scrub-previews] the times and the fill follow the marker while it
+                is moved (a live value: these redraw, the player does not) */}
+            <Live value={seekLive}>
+              {v => (
+                <Text style={styles.time} onLayout={onTimeLayout}>
+                  {fmt(v ? v.t : shown)}
+                </Text>
+              )}
+            </Live>
             <Focusable uiId="player.scrub"
               noScale
               ref={scrubRef as never}
@@ -4775,14 +5120,18 @@ export default function Player({
                 setScrubFocused(f);
                 if (f) zone.current = 'scrub';
               }}
-              onPress={togglePlay}
+              onPress={onScrubOk}
               style={styles.scrubber}>
-              <View style={[styles.track, scrubFocused && styles.trackTall]}>
+              <View style={[styles.track, scrubFocused && styles.trackTall]} onLayout={onTrackLayout}>
                 <View style={[styles.trackBuffer, {width: `${bufPct}%`}]} />
-                <View style={[styles.trackFill, {width: `${pct}%`}]}>
-                  {/* the lit head bead (glass.css .scrubber-fill::after) */}
-                  <View style={[styles.head, scrubFocused && styles.headBig]} />
-                </View>
+                <Live value={seekLive}>
+                  {v => (
+                    <View style={[styles.trackFill, {width: `${v && duration ? Math.min(100, (v.t / duration) * 100) : pct}%`}]}>
+                      {/* the lit head bead (glass.css .scrubber-fill::after) */}
+                      <View style={[styles.head, scrubFocused && styles.headBig]} />
+                    </View>
+                  )}
+                </Live>
                 {/* The intro as a band on the track, so the skip range reads at a
                     glance (elia: "the skip intro timings on the timeline"). */}
                 {duration > 0 && marksRange && marksRange.end > marksRange.start ? (
@@ -4812,9 +5161,13 @@ export default function Player({
                   : null}
               </View>
             </Focusable>
-            <Text style={[styles.time, styles.timeRight]}>
-              {duration ? `-${fmt(Math.max(0, duration - shown))}` : ''}
-            </Text>
+            <Live value={seekLive}>
+              {v => (
+                <Text style={[styles.time, styles.timeRight]}>
+                  {duration ? `-${fmt(Math.max(0, duration - (v ? v.t : shown)))}` : ''}
+                </Text>
+              )}
+            </Live>
             </TVFocusGuideView>
             <View style={styles.buttons}>
               <PBtn uiId="player.seek.back"
@@ -5406,10 +5759,33 @@ export default function Player({
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.upNext}>
           {/* "Still watching?" — three episodes started by themselves with
               nobody touching the remote: this one waits to be asked for. */}
-          <Text style={styles.upNextKicker}>{upNext.still ? 'STILL WATCHING?' : 'UP NEXT'}</Text>
-          <Text style={styles.upNextTitle} numberOfLines={1}>
-            {upNext.still ? `Up next · ${upNext.next.label}` : upNext.next.label}
-          </Text>
+          {/* The website's words (player.js): NEXT EPISODE, the episode's
+              picture (one on disk), its label, "Starts in 15" counting down
+              with a thin bar filling over it, and a line when a scene follows
+              the credits; Play now / Watch credits. */}
+          <View style={styles.upNextHead}>
+            {upNextStill ? (
+              <View style={styles.upNextStill}>
+                <Image source={upNextStill} style={styles.upNextStillImg} resizeMode="cover" />
+              </View>
+            ) : null}
+            <View style={styles.upNextText}>
+              <Text style={styles.upNextKicker}>{upNext.still ? 'STILL WATCHING?' : 'NEXT EPISODE'}</Text>
+              <Text style={styles.upNextTitle} numberOfLines={2}>
+                {upNext.still ? `Up next · ${upNext.next.label}` : upNext.next.label}
+              </Text>
+              {!upNext.still && upNext.countdown != null ? (
+                <Text style={styles.upNextCount}>{`Starts in ${Math.max(0, upNext.countdown)}`}</Text>
+              ) : null}
+              {/* (with the countdown only, as on the website: nothing starts by itself otherwise) */}
+              {!upNext.still && upNext.countdown != null && upNext.scene ? <Text style={styles.upNextScene}>A scene follows the credits</Text> : null}
+            </View>
+          </View>
+          {!upNext.still && upNext.countdown != null ? (
+            <View style={styles.upNextBar}>
+              <Animated.View style={[styles.upNextBarFill, {transform: [{scaleX: upNextBar}]}]} />
+            </View>
+          ) : null}
           <View style={styles.upNextActions}>
             <Focusable uiId={upNext.still ? 'player.stillwatching.keep' : 'player.upnext.play'}
               round
@@ -5428,9 +5804,9 @@ export default function Player({
               onFocusChange={markZone('menu')}
               onPress={upNext.still ? doneWatching : dismissUpNext}
               style={styles.btn}>
-              <Text style={styles.btnText}>
-                {upNext.still ? "I'm done" : upNext.countdown != null ? `Dismiss (${upNext.countdown})` : 'Dismiss'}
-              </Text>
+              {/* stops the countdown and takes the card away: the credits (and a
+                  scene after them) play on */}
+              <Text style={styles.btnText}>{upNext.still ? "I'm done" : 'Watch credits'}</Text>
             </Focusable>
           </View>
         </TVFocusGuideView>
@@ -5632,9 +6008,11 @@ const styles = StyleSheet.create({
   // gaps under the track and above the buttons tightened. The bottom padding
   // stays at the 5% overscan inset (27dp on a 540dp panel), so nothing moves
   // closer to the edge of the screen than it was allowed to be.
-  bottom: {paddingHorizontal: spacing.pageX, paddingTop: 16, paddingBottom: 22},
+  bottom: {paddingHorizontal: spacing.pageX, paddingTop: BOTTOM_PAD_TOP, paddingBottom: 22},
+  // [scrub-previews] the picture above the scrub point (its place is set inline)
+  thumb: {position: 'absolute'},
   // .scrub-row — the times sit either side of the bar, tabular, dim.
-  scrubRow: {flexDirection: 'row', alignItems: 'center', gap: 12},
+  scrubRow: {flexDirection: 'row', alignItems: 'center', gap: SCRUB_ROW_GAP},
   // .scrubber { height: 22px; display:flex; align-items:center }
   scrubber: {flex: 1, height: 22, justifyContent: 'center', borderRadius: radius.s},
   // .scrubber-track, and `.scrubber:focus .scrubber-track { height: 8px }`.
@@ -5893,6 +6271,33 @@ const styles = StyleSheet.create({
     fontSize: fontSize.row,
     fontWeight: '800',
     marginVertical: spacing.sm,
+  },
+  // [scrub-previews] the redesigned card: the picture beside the words, the
+  // countdown line, the scene line, the bar
+  upNextHead: {flexDirection: 'row', alignItems: 'center', gap: spacing.md},
+  upNextStill: {
+    width: PHONE ? 128 : 160,
+    height: PHONE ? 72 : 90,
+    borderRadius: radius.s,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  upNextStillImg: {width: '100%', height: '100%'},
+  upNextText: {flexShrink: 1},
+  upNextCount: {color: colors.text, fontSize: fontSize.small, fontWeight: '800', fontVariant: ['tabular-nums']},
+  upNextScene: {color: colors.textDim, fontSize: 13, fontWeight: '600', marginTop: 4},
+  upNextBar: {
+    height: 3,
+    borderRadius: 2,
+    marginTop: spacing.md,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    overflow: 'hidden',
+  },
+  upNextBarFill: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.accent,
+    transformOrigin: 'left',
   },
   upNextActions: {flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm},
   errorText: {
