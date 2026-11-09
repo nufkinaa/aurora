@@ -253,7 +253,7 @@ const collection = async (type, imdbId, tmdbHint) => {
           .filter((m) => m.release_date) // unreleased entries have no poster worth showing
           .sort((a, b) => a.release_date.localeCompare(b.release_date));
         const items = await addImdbIds(mapItems(ordered, "movie"), "movie");
-        if (items.length > 1) out.collection = { name: coll.name, items };
+        if (items.length > 1) out.collection = { id: coll.id, name: coll.name, items }; // (id: media/franchises/tmdb.js)
       }
       const director = ((movie.credits && movie.credits.crew) || []).find((c) => c.job === "Director");
       if (director && director.id) {

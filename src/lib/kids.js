@@ -469,6 +469,15 @@ const createGate = (deps) => {
           return out;
         });
       }
+      // Franchise order (routes/franchises.js): the franchise page lists only
+      // what this profile may see (its count and summary say "of what is
+      // shown"), and the end card never offers a title it may not see.
+      if (p.startsWith("/api/franchises/next/")) {
+        return rewrite((body) => ({ ...body, next: body && body.next && body.next.entry && ok(body.next.entry) ? body.next : null }));
+      }
+      if (/^\/api\/franchises\/[a-z0-9-]+$/.test(p) && p !== "/api/franchises/for") {
+        return rewrite((body) => (body && Array.isArray(body.entries) ? { ...body, entries: keep(body.entries) || [], summary: null } : body));
+      }
       // The title page's own data: the rating arrives WITH the answer (and is
       // cached from then on), so the verdict is given on the way out.
       if (p.startsWith("/api/discover/meta/")) {

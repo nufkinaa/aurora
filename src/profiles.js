@@ -982,6 +982,33 @@ const update = (id, fields) => {
   return pub(p);
 };
 
+// Franchise order (2026-11-09): which order this person watches a franchise
+// in ("release" | "story"), per franchise — the franchise page's order
+// switch, followed by the title page's "12 of 34", the end card's next title
+// and Continue the franchise on every device. Bounded: franchise ids are
+// [a-z0-9-], at most 200 kept; "release" (the default) is stored as nothing.
+const FRANCHISE_ORDERS = ["release", "story"];
+const franchiseOrderOf = (id, franchiseId) => {
+  const p = store.data.profiles.find((x) => x.id === id);
+  const m = p && p.prefs && p.prefs.franchiseOrder;
+  const v = m && typeof m === "object" ? m[franchiseId] : null;
+  return FRANCHISE_ORDERS.includes(v) ? v : null;
+};
+const setFranchiseOrder = (id, franchiseId, order) => {
+  const p = store.data.profiles.find((x) => x.id === id);
+  if (!p || !/^[a-z0-9][a-z0-9-]{0,39}$/.test(String(franchiseId || "")) || !FRANCHISE_ORDERS.includes(order)) return null;
+  p.prefs = p.prefs || {};
+  const m = p.prefs.franchiseOrder && typeof p.prefs.franchiseOrder === "object" ? { ...p.prefs.franchiseOrder } : {};
+  delete m[franchiseId];
+  if (order !== "release") m[franchiseId] = order;
+  const keys = Object.keys(m);
+  for (const k of keys.slice(0, Math.max(0, keys.length - 200))) delete m[k];
+  if (Object.keys(m).length) p.prefs.franchiseOrder = m;
+  else delete p.prefs.franchiseOrder;
+  store.save();
+  return order;
+};
+
 // The stored home-row prefs for /api/home's composer (null = defaults).
 const rowPrefs = (id) => {
   const p = store.data.profiles.find((x) => x.id === id);
@@ -1828,6 +1855,8 @@ module.exports = {
   update,
   setAvatarImage,
   rowPrefs,
+  franchiseOrderOf,
+  setFranchiseOrder,
   setLikedTitles,
   getLikedTitles,
   setTasteAnswer,

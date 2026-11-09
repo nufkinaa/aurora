@@ -283,6 +283,7 @@ app.use(require("./src/routes/subtitles"));
 app.use(require("./src/routes/reports"));
 app.use(require("./src/routes/usage"));
 app.use(require("./src/routes/nextep"));
+app.use(require("./src/routes/franchises")); // franchise order: the title page's "Part of …", the franchise page, the end card's next film (media/franchises)
 app.use(require("./src/routes/avcaps")); // what a device can play, and how a title plays on it (TV round 2026-10-19)
 app.use(require("./src/routes/proxy"));
 

@@ -115,9 +115,10 @@ const SEGMENTS = new Set((
   "caps play " + // what a device can play (/api/caps, /api/caps/:id/play/:itemId — routes/avcaps.js)
   "drives use new-downloads test keep-fast stop-using tune preview revert " + // storage drives (/api/admin/drives, …/use, …/new-downloads, …/test, …/keep-fast, …/stop-using, …/tune, …/tune/preview, …/tune/revert — lib/drives)
   "uploads chunk retry " +
+  "franchises next order " + // franchise order (/api/franchises/for/:id, /api/franchises/next/:id, /api/franchises/:id, …/:id/order — routes/franchises.js)
   "reset request code check complete reset-requests reset-code app-start app-finish " + // sign-in round: password reset, the phone's Google (routes/auth.js) // admin "Add your own file" (/api/admin/uploads, …/link, …/:id/chunk, …/cancel, …/retry, …/dismiss)
   ".m3u8 .ts .m4s .mp4 .mkv .webm .vtt .srt .jpg .jpeg .png .webp .avif .svg .gif .ico .js .css .json .html .txt .apk .woff2 .webmanifest " +
-  "?a ?blur ?caps ?from ?key ?category ?code ?days ?duration ?episode ?error ?fmt ?force ?genre ?head ?hevc ?imdbid ?intent ?itemid ?k ?kb ?keys ?limit ?page ?profile ?pw " +
+  "?a ?blur ?caps ?from ?key ?category ?code ?days ?duration ?episode ?error ?fmt ?force ?genre ?head ?hevc ?imdbid ?intent ?itemid ?k ?kb ?keys ?limit ?order ?page ?profile ?pw " +
   "?n ?part ?offset ?queued ?q ?season ?seek ?seg ?slim ?state ?t ?title ?tmdbid ?type ?u ?url ?v ?vtag ?w ?h ?y ?year ?r"
 ).split(/\s+/));
 // the query keys whose (small, numeric) value is kept: a size, not content
