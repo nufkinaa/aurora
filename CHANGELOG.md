@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.14 — 2026-11-09
+
+- **"Problem with this copy → Other" asks what's wrong first.** A box to say it in your own words, then a plain question: get another version, or just send the report. Nothing downloads until you pick a version, and both steps say so. Your words reach the admin with the report.
+- On the TV and phone apps, the same steps arrive with their next update — together with Play on a title not on the server, which will save it and play it once it's in instead of streaming it straight away.
+
 ## 1.15.13 — 2026-11-08
 
 - **More storage drives.** Admin → Downloads → On disk shows every drive the server has, network drives too: how much is used in total and by Aurora (GB and %), what's free, and a speed score from a short test. Press **Use this drive too** and Aurora checks it can write there, makes its Movies and Shows folders and starts using it — nothing already on it is moved or deleted. New downloads go to the drive with the most room (a show's new episodes stay where the show is), and each drive can be stopped for new downloads.
