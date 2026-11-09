@@ -632,6 +632,9 @@ require("./src/media/introdetect");
 // disk and refreshed weekly, off the request path — media/wellknown.js), and
 // the search index built once before anyone types.
 require("./src/media/wellknown").start();
+// …and their official Hebrew names (TMDB he-IL, a round every half hour
+// through the recommender's paced TMDB door until all are known — media/hetitles.js)
+require("./src/media/hetitles").start();
 {
   const t = setTimeout(() => require("./src/media/search").warm(), 20 * 1000);
   t.unref?.();

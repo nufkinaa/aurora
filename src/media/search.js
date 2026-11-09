@@ -33,6 +33,23 @@
 //
 // An alternate title (the catalogue's name for a library folder called
 // "Avatar Movie") scores like the title when it is exact, 20 lower otherwise.
+//
+// HEBREW (2026-11-09). A title's official Hebrew name (TMDB he-IL, kept by
+// media/hetitles.js) is one of those alternate titles: "שובר שורות" is
+// Breaking Bad at 1000, "הארי פוטר" starts eight films' names at 900. A
+// query in Hebrew letters is also compared with the English titles by SOUND
+// (media/hebrew.js — "פרנדס" is Friends):
+//    870  the whole title, sound for sound            "בריקינג בד" → Breaking Bad
+//    850  the start of the title                       "ספייד" → Spider-Man
+//    780  a later word of the title                    "פוטר" → Harry Potter
+//    640 / 600  the whole title / its start, with a slip
+//   (60 less when one side starts with a vowel and the other does not)
+// The other keyboard layout ("vtrh puyr" = "הארי פוטר", "ןמאקרדאקךךשר" =
+// "interstellar") is read only when the query as typed found nothing as
+// close as a typo, 50 under the same title typed right. A committed Hebrew
+// search that still places nothing at 870 asks the Hebrew Wikipedia for the
+// English name, as voice search does (media/spoken.js).
+//
 // Inside a tier, in order: the year you typed, the library before the
 // catalogue, popularity (the trending position plus half the catalogue's own
 // place for this query), the literal spelling, the shorter title, the newer
@@ -75,9 +92,12 @@ const wellknownLib = lazy(require, "./wellknown");
 const powerLib = lazy(require, "../lib/power");
 const similarLib = lazy(require, "./similar");
 const { norm: baseNorm } = require("./searchindex")._internals;
+const heb = require("./hebrew");
+const hetitlesLib = lazy(require, "./hetitles");
 
 // ---------- normalisation ----------
-const norm = (s) => baseNorm(String(s || "").replace(/&/g, " and "));
+// (Hebrew: no vowel points or geresh, final letters folded — media/hebrew.js)
+const norm = (s) => baseNorm(heb.fold(String(s || "")).replace(/&/g, " and "));
 const ARTICLES = new Set(["the", "a", "an"]);
 const ROMAN = { ii: "2", iii: "3", iv: "4", vi: "6", vii: "7", viii: "8", ix: "9" };
 const NUMWORD = { one: "1", two: "2", three: "3", four: "4", five: "5", six: "6", seven: "7", eight: "8", nine: "9", ten: "10" };
@@ -101,7 +121,10 @@ const maskOf = (str) => {
   let m = 0;
   for (let i = 0; i < str.length; i++) {
     const c = str.charCodeAt(i);
-    m |= c >= 97 && c <= 122 ? 1 << (c - 97) : c >= 48 && c <= 57 ? 1 << (26 + ((c - 48) % 5)) : 1 << 31;
+    m |= c >= 97 && c <= 122 ? 1 << (c - 97) : c >= 48 && c <= 57 ? 1 << (26 + ((c - 48) % 5))
+      // (a Hebrew letter: a bit of its own among Hebrew words — it may share one
+      // with a Latin letter, which only ever makes the "can this match" test looser)
+      : c >= 0x5d0 && c <= 0x5ea ? 1 << ((c - 0x5d0) % 26) : 1 << 31;
   }
   return m;
 };
@@ -110,8 +133,13 @@ const bits = (x) => {
   x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
   return (((x + (x >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
 };
+// The Hebrew article is a letter, not a word: "הסנדק" is "the Godfather".
+// Set aside like "the" — but not when a vowel letter follows the ה: that is
+// an h ("הארי" is Harry, not "the Arry").
+const HE_ARTICLE = /^ה[^אועי]/;
 const mkView = (words) => {
-  const aw = words.length > 1 && ARTICLES.has(words[0]) ? words.slice(1) : words;
+  let aw = words.length > 1 && ARTICLES.has(words[0]) ? words.slice(1) : words;
+  if (aw === words && words.length && words[0].length >= 4 && HE_ARTICLE.test(words[0])) aw = [words[0].slice(1), ...words.slice(1)];
   const q = words.join("");
   const aq = aw.join("");
   return { s: words.join(" "), w: words, a: aw.join(" "), q, aq, m: maskOf(q), am: maskOf(aq), wm: words.map(maskOf), d: q.replace(/\D+/g, "") };
@@ -120,6 +148,11 @@ const mkView = (words) => {
 // word left a word (canonWord goes on to "7", which only a finished word can
 // match). Compared without typo tolerance, like the numeral spellings.
 const leetWord = (w) => (/^[a-z]{2,}\d[a-z]*$/.test(w) ? w.replace(/\d/, (d) => LEET[d] || d) : w);
+const scriptOf = (n) => {
+  const he = /[א-ת]/.test(n);
+  const la = /[a-z]/.test(n);
+  return he && !la ? "he" : la && !he ? "la" : null;
+};
 const FORMS_MAX = 30000;
 const formsCache = new Map(); // a title's spellings never change; the index is rebuilt every minute
 const forms = (text) => {
@@ -134,6 +167,8 @@ const forms = (text) => {
     raw: mkView(words),
     canon: cw.some((w, i) => w !== words[i]) ? mkView(cw) : null,
     leet: lw.some((w, i) => w !== words[i]) ? mkView(lw) : null,
+    // the script: "he" Hebrew letters only, "la" Latin only, null both or neither
+    sc: scriptOf(n),
   };
   if (formsCache.size >= FORMS_MAX) formsCache.clear();
   formsCache.set(key, out);
@@ -264,11 +299,34 @@ const parseQuery = (q) => {
     text, f, base, yq, len: f.raw.q.length, words,
     // the name without the year, when a whole year was typed ("her 2013" → "her")
     baseText: base && yq.length === 4 ? words.slice(0, -1).join(" ") : null,
+    // Hebrew letters: what they SOUND like, to compare with English titles
+    // ("פרנדס" → Friends — media/hebrew.js)
+    snd: heb.hasHebrew(text) ? heb.hebrewKey(base && yq.length === 4 ? text.replace(/\s*\d{4}\s*$/, "") : text) : null,
   };
+};
+
+// The same keys typed on the other keyboard layout: Hebrew typed with the
+// keyboard on English ("vtrh puyr" = "הארי פוטר"), English typed with it on
+// Hebrew ("ןמאקרדאקךךשר" = "interstellar"). Asked only when the query as
+// typed matched nothing as well as a typo of a whole title (rank / suggest);
+// only a strong match counts (a title or its Hebrew name exactly or from its
+// start, a whole title by its sounds — LAYOUT_MIN), scored LAYOUT_COST under
+// what the same letters typed right would score. ("shreck" is a typo of
+// Shrek, not the start of "Dark Wolf" in Hebrew keys.)
+const LAYOUT_COST = 50;
+const LAYOUT_BELOW = 650;
+const LAYOUT_MIN = 850;
+const layoutOf = (Q) => {
+  if (Q.lay !== undefined) return Q.lay;
+  const other = heb.latinToHebrew(Q.text.toLowerCase()) || heb.hebrewToLatin(Q.text);
+  Q.lay = other ? parseQuery(other) : null;
+  return Q.lay;
 };
 
 // The title tiers for one title, year reading included.
 const titleScore = (Q, tf, year) => {
+  // Hebrew letters never spell a Latin title (that is soundScore's job), nor the other way
+  if (Q.f.sc && tf.sc && Q.f.sc !== tf.sc) return { tier: 0, ym: 0, lit: 0 };
   let tier = tierForms(Q.f, tf);
   let ym = 0;
   if (Q.base && tier < 1000) {
@@ -318,17 +376,39 @@ const personTiers = (Q) => {
   return out;
 };
 
+// A title's sounds (media/hebrew.js), kept on its spellings (which outlive
+// the index's rebuilds): null for a title in Hebrew letters.
+const soundOf = (tf) => {
+  // (the numeral spellings: "Gladiator II" is "Gladiator 2", not "Gladiator" and two vowels)
+  if (tf.snd === undefined) tf.snd = tf.raw.w.length && !heb.hasHebrew(tf.raw.s) ? heb.englishKey(tf.raw.w.map((w) => ROMAN[w] || w)) : null;
+  return tf.snd;
+};
+// A Hebrew query against the English title and its English other names, by sound.
+const soundScore = (Q, d, strong = false) => {
+  let best = heb.soundTier(Q.snd, soundOf(d.tf), strong);
+  if (best >= heb.TIERS.SOUND_WHOLE) return best;
+  for (const aka of d.akas) {
+    if (aka.he) continue;
+    const t = heb.soundTier(Q.snd, soundOf(aka.tf), strong);
+    if (t > best) best = t;
+  }
+  return best;
+};
+
 // Everything that can match in one document. Returns null for no match.
 const scoreDoc = (Q, d, { titlesOnly = false } = {}) => {
   const s = titleScore(Q, d.tf, d.year);
+  const snd = Q.snd && s.tier < 1000 ? soundScore(Q, d) : 0;
   // (nine titles in ten end here: no title match and nothing else to look at)
-  if (!s.tier && !d.akas.length && (titlesOnly || (!d.eps && !d.people.length && !d.roles.length && !d.synopsis))) return null;
+  if (!s.tier && !snd && !d.akas.length && (titlesOnly || (!d.eps && !d.people.length && !d.roles.length && !d.synopsis))) return null;
   let best = { tier: s.tier, ym: s.ym, lit: s.lit, kind: "title", label: null };
   for (const aka of d.akas) {
     const a = titleScore(Q, aka.tf, d.year);
     const t = a.tier;
     if (t > best.tier) best = { tier: t, ym: a.ym, lit: 0, kind: "aka", label: aka.title };
   }
+  // the English title spelled in Hebrew letters: under its official Hebrew name
+  if (snd > best.tier) best = { tier: snd, ym: 0, lit: 0, kind: "aka", label: null, sound: true };
   if (titlesOnly) return best.tier > 0 ? best : null;
   const L = Q.len;
   if (L >= 3 && best.tier < 520 && d.eps) {
@@ -546,7 +626,9 @@ let src = {
     try { low = powerLib().low(); } catch {}
     return low && all.length > 2000 ? lowPowerKnown(all) : all;
   },
-  knownStamp: () => wellknownLib().stamp(),
+  knownStamp: () => `${wellknownLib().stamp()}|he${hetitlesLib().stamp()}`,
+  // the official Hebrew name of a title (media/hetitles.js), or null
+  hebrewTitle: (imdbId) => hetitlesLib().get(imdbId),
   // the recommender's title index (media/recs/titleindex.js): full records only
   recTitles: () => {
     const out = [];
@@ -598,6 +680,15 @@ const rememberSeen = (items) => {
 };
 
 // ---------- the index ----------
+// A title's official Hebrew name joins its other names (`he`: compared as
+// letters, never by sound).
+const withHebrew = (d) => {
+  if (!d || !d.imdbId) return d;
+  let he = null;
+  try { he = src.hebrewTitle ? src.hebrewTitle(d.imdbId) : null; } catch {}
+  if (he && !d.akas.some((a) => a.title === he)) d.akas.push({ title: he, tf: forms(he), he: true });
+  return d;
+};
 let index = null;
 const REBUILD_MS = 60000;
 const GENRE_ALIASES = {
@@ -745,6 +836,8 @@ const build = () => {
       }
     }
   } catch {}
+  // the official Hebrew names (media/hetitles.js): another name of the title
+  for (const d of docs) withHebrew(d);
   const genres = new Map(); // normalised → display
   for (const d of docs) for (const g of d.genres) if (g && !genres.has(norm(g))) genres.set(norm(g), g);
   for (const [alias, g] of Object.entries(GENRE_ALIASES)) if (genres.has(norm(g)) && !genres.has(alias)) genres.set(alias, genres.get(norm(g)));
@@ -816,13 +909,57 @@ const withLive = (idx, live) => {
         return;
       }
       if (!m.imdbId || !(m.poster || m.cover)) return;
-      const d = catalogDoc(m, 0);
+      const d = withHebrew(catalogDoc(m, 0));
       pops.set(d.key, pop);
       fresh.set(d.imdbId, d);
       extra.push(d);
     });
   }
   return { extra, pops, akas };
+};
+
+// The other keyboard layout (layoutOf): when nothing matched the query as
+// typed better than LAYOUT_BELOW, the documents are scored once more with
+// the keys read the other way, LAYOUT_COST lower, and a document keeps the
+// better of its two scores. `make(LQ, d, match)` makes a candidate.
+// Only the matches LAYOUT_MIN lets through, without trying the looser tiers.
+const strongScore = (Q, d) => {
+  let best = null;
+  const t = titleScore(Q, d.tf, d.year);
+  if (t.tier >= LAYOUT_MIN) best = { tier: t.tier, ym: t.ym, lit: t.lit, kind: "title", label: null };
+  for (const aka of d.akas) {
+    const a = titleScore(Q, aka.tf, d.year);
+    if (a.tier >= LAYOUT_MIN && (!best || a.tier > best.tier)) best = { tier: a.tier, ym: a.ym, lit: 0, kind: "aka", label: aka.title };
+  }
+  if (Q.snd && (!best || best.tier < heb.TIERS.SOUND_WHOLE)) {
+    const s = soundScore(Q, d, true);
+    if (s >= LAYOUT_MIN && (!best || s > best.tier)) best = { tier: s, ym: 0, lit: 0, kind: "aka", label: null, sound: true };
+  }
+  return best;
+};
+const layoutPass = (Q, cands, lists, keep, make) => {
+  let top = 0;
+  for (const c of cands) if (c.tier > top) top = c.tier;
+  if (top >= LAYOUT_BELOW) return;
+  const LQ = layoutOf(Q);
+  if (!LQ || !LQ.len) return;
+  const at = new Map(cands.map((c, i) => [c.doc.key, i]));
+  for (const list of lists) {
+    for (const d of list) {
+      if (!keep(d)) continue;
+      const m = strongScore(LQ, d);
+      if (!m) continue;
+      m.tier -= LAYOUT_COST;
+      if (m.kind === "title") { m.kind = "aka"; m.label = null; }
+      m.layout = true;
+      const i = at.get(d.key);
+      if (i !== undefined && cands[i].tier >= m.tier) continue;
+      const c = make(LQ, d, m);
+      if (!c) continue;
+      if (i !== undefined) cands[i] = c;
+      else { at.set(d.key, cands.length); cands.push(c); }
+    }
+  }
 };
 
 const rank = (Q, idx, { live = null, allow = null, pin = null, limit = 60, type = null, noSynopsis = false, typing = false } = {}) => {
@@ -846,6 +983,10 @@ const rank = (Q, idx, { live = null, allow = null, pin = null, limit = 60, type 
   };
   for (const d of idx.docs) consider(d);
   for (const d of extra) consider(d);
+  layoutPass(Q, cands, [idx.docs, extra], (d) => !type || d.type === type, (LQ, d, m) => {
+    const livePop = pops.get(d.key) || 0;
+    return { doc: d, ...m, grp: place(LQ, d, m, livePop, typing), pop: d.pop + 0.5 * livePop };
+  });
   cands.sort(cmp);
   // the title was named exactly: no near-misses under it
   const named = cands.length > 0 && cands[0].tier >= 1000;
@@ -1041,6 +1182,11 @@ const tmdbPerson = async (name) => {
 };
 
 // ---------- the search ----------
+const spokenLib = lazy(require, "./spoken");
+// Hebrew that matched this well is placed: a title's official Hebrew name
+// (900+), or the whole English title by its sounds (media/hebrew.js) —
+// below it the Hebrew Wikipedia is asked for the English name (search below)
+const HE_STRONG = heb.TIERS.SOUND_WHOLE;
 const LIVE_MIN = 3; // while typing; a committed search asks at any length
 const LIVE_BUDGET = 6000;
 const RELATED_BUDGET = 3000;
@@ -1167,6 +1313,37 @@ const search = async (q, opts = {}) => {
     }
   }
 
+  // Hebrew the index could not place — no official Hebrew name, no English
+  // title that sounds like it: its English name from the Hebrew Wikipedia
+  // (the lookup voice search makes, media/spoken.js: one call on a budget,
+  // remembered for a day), searched in its place when that finds better.
+  // A committed search only (Enter, a recent) — never per keystroke — and
+  // asked in the waiting call.
+  const top = ranked[0] ? ranked[0].tier : 0;
+  if (opts.commit && !opts.noHebrewFallback && Q.snd && top < HE_STRONG) {
+    let sp = null;
+    try { sp = spokenLib()._internals; } catch {}
+    const cached = sp ? sp.englishTitleCached(Q.text) : null;
+    let en = cached ? cached.title : undefined;
+    if (sp && en === undefined && opts.wait) {
+      const t0 = Date.now();
+      try { en = await sp.englishTitle(Q.text); } catch { en = null; }
+      waited += Date.now() - t0;
+    } else if (sp && en === undefined) pending = true; // the waiting call asks
+    if (en && !heb.hasHebrew(en)) {
+      const t0 = Date.now();
+      const r2 = await search(en.slice(0, 80), { ...opts, noHebrewFallback: true });
+      waited += Date.now() - t0;
+      const t2 = r2.results[0] && r2.results[0].match ? r2.results[0].match.tier : 0;
+      if (t2 > top) {
+        return {
+          ...r2, q: Q.text, hebrewTitle: en, pending: !!r2.pending || pending, catalogFailed: !!r2.catalogFailed || catalogFailed,
+          tookMs: Math.max(0, Math.round((Number(process.hrtime.bigint() - started) / 1e6 - waited) * 100) / 100),
+        };
+      }
+    }
+  }
+
   return {
     q: Q.text,
     results: ranked.map(resultCard),
@@ -1252,6 +1429,12 @@ const suggest = (q, opts = {}) => {
     if (m.tier < floor) continue;
     cands.push({ doc: d, ...m, grp, pop: d.pop + 0.5 * livePop });
   }
+  layoutPass(Q, cands, [idx.docs, extra], (d) => (!type || d.type === type) && !!(d.cover || d.inLibrary), (LQ, d, m) => {
+    const livePop = pops.get(d.key) || 0;
+    const grp = place(LQ, d, m, livePop, true);
+    if (m.tier < (LQ.len === 1 ? 900 : LQ.len === 2 ? 760 : 580)) return null;
+    return { doc: d, ...m, grp, pop: d.pop + 0.5 * livePop };
+  });
   cands.sort(cmp);
   const all = [];
   for (const c of cands) {
@@ -1304,7 +1487,7 @@ const suggest = (q, opts = {}) => {
     cover: c.doc.cover,
     inLibrary: c.doc.inLibrary,
     hl: c.tier >= 700 && c.kind === "title" ? highlight(c.doc.title, Q) : [],
-    ...(c.kind === "aka" ? { aka: c.label } : {}),
+    ...(c.kind === "aka" && c.label ? { aka: c.label } : {}),
   });
   const personOut = (p) => ({ kind: "person", name: p.name, count: p.count, hl: highlight(p.name, Q) });
   const genreOut = (g) => ({ kind: "genre", name: g, hl: highlight(g, Q) });
@@ -1336,7 +1519,21 @@ const legacy = (q, { allow = null } = {}) => {
 
 const stats = () => {
   const idx = ensureIndex();
-  return { docs: idx.docs.length, library: idx.byLib.size, people: idx.people.size, genres: idx.genres.size, buildMs: idx.buildMs };
+  let hebrew = 0;
+  for (const d of idx.docs) if (d.akas.some((a) => a.he)) hebrew++;
+  return { docs: idx.docs.length, library: idx.byLib.size, people: idx.people.size, genres: idx.genres.size, hebrew, buildMs: idx.buildMs };
+};
+
+// The titles whose official Hebrew names are worth knowing (media/hetitles.js
+// asks TMDB for them a round at a time), most wanted first: the library, the
+// trending titles, then the rest by popularity.
+const hebrewWants = () => {
+  const idx = ensureIndex();
+  const rankOf = (d) => (d.inLibrary ? 2 : d.trending ? 1 : 0);
+  return idx.docs
+    .filter((d) => d.imdbId)
+    .sort((a, b) => rankOf(b) - rankOf(a) || b.pop - a.pop || (a.key < b.key ? -1 : 1))
+    .map((d) => ({ imdbId: d.imdbId, type: d.type }));
 };
 
 // test hooks: replace what the engine reads, drop the index
@@ -1349,6 +1546,6 @@ const _setSources = (next) => {
 const _reset = () => { index = null; };
 
 module.exports = {
-  search, suggest, legacy, stats, warm,
-  _internals: { norm, forms, tierView, tierForms, parseQuery, titleScore, scoreDoc, rank, highlight, build, ensureIndex, anchorOf, _setSources, _reset, canonWord },
+  search, suggest, legacy, stats, warm, hebrewWants,
+  _internals: { norm, forms, tierView, tierForms, parseQuery, titleScore, scoreDoc, rank, highlight, build, ensureIndex, anchorOf, _setSources, _reset, canonWord, layoutOf },
 };
