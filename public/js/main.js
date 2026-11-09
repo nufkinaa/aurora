@@ -152,6 +152,8 @@ route("/taste", lazy("./screens/taste.js", "renderTaste"));
 route("/taste/list", lazy("./screens/taste.js", "renderTasteList"));
 route("/pick", lazy("./screens/pickforme.js", "renderPickForMe"));
 route("/new", lazy("./screens/whatsnew.js", "renderWhatsNew"));
+route("/group", lazy("./screens/group.js", "renderGroup")); // "What do we watch tonight?" — start or join
+route("/group/:code", (root, p) => import("./screens/group.js").then((m) => m.renderGroup(root, p))); // where the TV's QR code lands a phone
 route("/household", lazy("./screens/household.js", "renderHousehold")); // "Show all recommended" (js/recommend.js)
 route("/household/sent", withSkeleton((root) => import("./screens/household.js").then((m) => m.renderHousehold(root, { tab: "sent" })))); // …on its "You sent" tab
 route("/pair/:code", (root, p) => import("./screens/pair.js").then((m) => m.renderPair(root, p)));
@@ -744,6 +746,7 @@ const showProfileMenu = () => {
     el("a", { href: "/install", class: "nav-menu-item focusable", "data-ui": "nav.getapps" }, "Get the apps"),
     item("Report a problem", () => { close(); showReportSheet(); }),
     item("Join a watch party", () => { close(); showJoinParty(); }),
+    el("button", { class: "nav-menu-item focusable", "data-ui": "group.open", onclick: () => { close(); navigate("#/group"); } }, "Pick together"),
     // [phone-remote] there while a TV (or another computer) of this profile is on
     remoteOn && item("Remote", () => { close(); navigate("#/remote"); }),
     // [/phone-remote]

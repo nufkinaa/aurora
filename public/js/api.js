@@ -603,4 +603,17 @@ export const api = {
   replaceSources: (libId, profile, reason) => json(`/api/replace/${encodeURIComponent(libId)}/sources?${new URLSearchParams({ ...(profile ? { profile } : {}), ...(reason ? { reason } : {}) })}`),
   replaceCopy: (libId, fields) => post(`/api/replace/${encodeURIComponent(libId)}`, fields),
   replaceCancel: (libId, profile) => post(`/api/replace/${encodeURIComponent(libId)}/cancel`, { profile }),
+
+  // "What do we watch tonight?" (src/routes/group.js; the rules src/lib/grouppick.js).
+  // `id` is the acting profile, `device` this browser's id in the session.
+  group: {
+    options: (id) => json(`/api/profiles/${encodeURIComponent(id)}/group/options`),
+    tutorialSeen: (id, seen = true) => post(`/api/profiles/${encodeURIComponent(id)}/group/tutorial`, { seen }),
+    create: (id, body) => post(`/api/profiles/${encodeURIComponent(id)}/group`, body),
+    join: (id, body) => post(`/api/profiles/${encodeURIComponent(id)}/group/join`, body),
+    get: (id, code, device) => json(`/api/profiles/${encodeURIComponent(id)}/group/${encodeURIComponent(code)}?device=${encodeURIComponent(device)}`),
+    search: (id, code, q, device) => json(`/api/profiles/${encodeURIComponent(id)}/group/${encodeURIComponent(code)}/search?q=${encodeURIComponent(q)}&device=${encodeURIComponent(device)}`),
+    // settings | role | start | vote | add | finish | extend | pick | again | choose | leave | end
+    act: (id, code, what, body) => post(`/api/profiles/${encodeURIComponent(id)}/group/${encodeURIComponent(code)}/${what}`, body),
+  },
 };
