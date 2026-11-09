@@ -2884,18 +2884,23 @@ export const renderPlayer = async (root, { id }) => {
   const scrubTipTime = el("span", { class: "scrub-tip-time" });
   const scrubTip = el("div", { class: "scrub-tip hidden" }, scrubThumb, scrubTipTime);
   let scrubIdx = null;
+  // (its timers are cleared when the player goes: a timer holds the player)
+  const scrubTimers = [];
   // (library files only: a stream, a saved copy and a file of this device have none)
   if (item.id && !isTorrent && !item._offline && !item._local) {
     const askScrub = () => api.scrubIndex(item.id).then((r) => {
-      if (exited) return;
+      if (exited) return null;
       scrubIdx = readScrubIndex(r);
-      // the first sheet now, the rest when idle: the first drag has a picture
-      if (scrubIdx) scrubIdx.sheets.forEach((u, n) => { const img = new Image(); img.decoding = "async"; if (n) setTimeout(() => { img.src = u; }, 1500 + n * 300); else img.src = u; });
+      // the first sheet now, the rest a moment later: the first drag has a picture
+      if (scrubIdx) {
+        const warm = (u) => { const img = new Image(); img.decoding = "async"; img.src = u; };
+        scrubIdx.sheets.forEach((u, n) => { if (n) scrubTimers.push(setTimeout(() => { if (!exited) warm(u); }, 1500 + n * 300)); else warm(u); });
+      }
       return scrubIdx;
     }).catch(() => null);
     // once at the start, and once more a minute in (a title that just landed
     // may get its pictures while it plays)
-    askScrub().then((x) => { if (!x) setTimeout(() => { if (!exited && !scrubIdx) askScrub(); }, 60 * 1000); });
+    askScrub().then((x) => { if (!x && !exited) scrubTimers.push(setTimeout(() => { if (!exited && !scrubIdx) askScrub(); }, 60 * 1000)); });
   }
   const THUMB_W = () => (window.innerWidth <= 560 ? 144 : 192);
   // Show the tip at fraction `frac` of the bar (t seconds).
@@ -7692,6 +7697,8 @@ export const renderPlayer = async (root, { id }) => {
     exited = true;
     clearTimeout(startSteps.subsTimer);
     clearTimeout(startSteps.subsCheck);
+    for (const t of scrubTimers) clearTimeout(t);
+    clearTimeout(skipHideTimer);
     clearTimeout(startSteps.startupTimer);
     subsHeld.length = 0;
     try { if (subsAbort) subsAbort.abort(); } catch {}
