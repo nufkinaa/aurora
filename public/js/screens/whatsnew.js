@@ -24,6 +24,28 @@ import { showReportSheet } from "../report.js";
 export const ROUND = "1.15.12";
 const NEW_FROM = ROUND;
 const FEATURES = [
+  // ---- the 2026-11-09 round: the same cards, the same words, on the TV ----
+  {
+    since: ROUND, cue: "tap", glyph: "🔤",
+    title: "Hebrew subtitles for everything",
+    what: "When a film or episode has no Hebrew subtitles, Aurora translates one with AI. It is called עברית (AI) in the subtitle menu and switches on by itself. Subtitles out of sync? Fix timing lines them up with what is said, and you can always go back to the file's own timing.",
+    how: "In the player: Subtitles → עברית (AI), or Fix timing.",
+    go: { label: "Go home", to: "#/" },
+  },
+  {
+    since: ROUND, cue: "tap", glyph: "🔎",
+    title: "Search in Hebrew",
+    what: "Type a title the way you say it, like פרנדס or ספיידרמן, or its Hebrew name, like שובר שורות, and Aurora finds it. Typed with the keyboard in the wrong language? It works that out too.",
+    how: "Search → type in Hebrew, or use the microphone.",
+    go: { label: "Open Search", to: "#/search" },
+  },
+  {
+    since: ROUND, cue: "tap", glyph: "🌙",
+    title: "Tonight's episodes, ready tomorrow",
+    what: "Aurora now downloads the next episode of the shows you are watching ahead of time, and at night makes it ready for your device, so it starts faster.",
+    how: "Nothing to do: keep watching a show and its next episode is waiting.",
+    go: { label: "Go home", to: "#/" },
+  },
   // ---- tv-reports-nov (2026-11-09: Bigmakdaddy's and Jesse's reports): the same cards, the same words, on the TV ----
   {
     since: ROUND, cue: "tap", glyph: "⬇️",
