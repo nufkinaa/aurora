@@ -40,8 +40,16 @@ const CASES = [
   ["430 (Pro Max), Home Screen", 430, 932, 59],
 ];
 const BAR = ["nav.home", "nav.movies", "nav.shows", "nav.mylist", "nav.more", "nav.search"];
-// [data-more, the words, where it leads] — NAV.md's set, order and words
-const SHEET = [
+// [data-more, the words, where it leads] — the TV rail's places in its order
+// and words, then NAV.md's set and words, then Settings and you at the foot
+// (js/navmore.js). "profile" carries the person's name.
+const MENU = [
+  ["search", "Search", "#/search"],
+  ["home", "Home", "#/"],
+  ["movies", "Movies", "#/movies"],
+  ["shows", "Shows", "#/shows"],
+  ["list", "My List", "#/list"],
+  ["pick", "AI", "#/pick"],
   ["new", "What's new", "#/new"],
   ["saved", "Saved on this device", "#/saved"],
   ["downloads", "My downloads", "#/downloads"],
@@ -49,13 +57,14 @@ const SHEET = [
   ["household", "Recommended by your household", "#/household"],
   ["wrapped", "Your Aurora Wrapped", "#/wrapped"],
   ["taste", "Swipe your taste", "#/taste"],
-  ["pick", "AI pick", "#/pick"],
-  ["settings", "Settings", "#/preferences"],
   ["apps", "Get the apps", "/install"],
   ["pair", "Sign in a TV", "#/pair"],
   ["party", "Join a watch party", "sheet:.look-notice-wrap input"],
   ["report", "Report a problem", "sheet:.report-wrap"],
+  ["settings", "Settings", "#/preferences"],
+  ["profile", null, "sheet:.nav-menu"],
 ];
+const IN_BAR = new Set(["search", "home", "movies", "shows", "list"]);
 
 // The bar as drawn: what is shown, in order, and whether anything spills.
 const readBar = () => {
@@ -108,13 +117,16 @@ const aiOn = (page) => page.route("**/api/ai/status", (r) => r.fulfill({ status:
 const openSheet = async (page) => {
   await page.locator("#nav-more").click();
   await page.waitForSelector(".nav-more-sheet");
+  // (it slides in from the left)
   await page.waitForFunction(() => document.querySelector(".nav-more-sheet").getAnimations().every((a) => a.playState !== "running"));
 };
 const lineOf = (page, id) => page.evaluate((id) => {
   const row = document.querySelector(`.nav-more-item[data-more="${id}"]`);
   if (!row) return null;
   row.scrollIntoView({ block: "nearest" });
-  const s = document.querySelector(".nav-more-sheet").getBoundingClientRect();
+  // the row against what shows of its part of the menu (the scrolling list, or the foot)
+  const s = row.parentElement.getBoundingClientRect();
+  const p = document.querySelector(".nav-more-sheet").getBoundingClientRect();
   const b = row.getBoundingClientRect();
   const label = row.querySelector(".nav-more-label");
   const l = label.getBoundingClientRect();
@@ -122,7 +134,7 @@ const lineOf = (page, id) => page.evaluate((id) => {
     words: label.textContent, sub: (row.querySelector(".nav-more-sub") || {}).textContent || null,
     inSheet: b.top >= s.top - 0.5 && b.bottom <= s.bottom + 0.5 && b.left >= s.left - 0.5 && b.right <= s.right + 0.5,
     cut: label.scrollWidth > label.clientWidth + 1 || l.right > b.right + 0.5,
-    onScreen: s.top >= 0 && s.bottom <= innerHeight && s.left >= 0 && s.right <= document.documentElement.clientWidth,
+    onScreen: p.top >= 0 && p.bottom <= innerHeight + 0.5 && p.left >= 0 && p.right <= document.documentElement.clientWidth,
     tall: b.height,
   };
 }, id);
@@ -165,8 +177,10 @@ for (const look of ["glass", "legacy"]) {
       await openSheet(page);
       await shot(page, `${look}-${name}-more`);
       const words = await page.$$eval(".nav-more-item .nav-more-label", (ls) => ls.map((l) => l.textContent));
-      assert.deepEqual(words, SHEET.map(([, w]) => w), "the sheet's lines, in order");
-      for (const [id, want, to] of SHEET) {
+      assert.deepEqual(words, MENU.map(([, w]) => w || me.name), "the menu's lines, in order");
+      assert.equal(await page.locator('.nav-more-item[data-more="calendar"]').count(), 0, "Calendar waits for its screen");
+      for (const [id, wordsOf, to] of MENU) {
+        const want = wordsOf || me.name;
         if (!(await page.locator(".nav-more-sheet").isVisible())) await openSheet(page);
         const line = await lineOf(page, id);
         assert.ok(line, `${id}: not in the sheet`);
@@ -188,7 +202,7 @@ for (const look of ["glass", "legacy"]) {
           await page.waitForSelector(to.slice(6), { state: "detached" });
           continue;
         }
-        await page.waitForFunction((h) => location.hash.startsWith(h), to);
+        await page.waitForFunction((h) => (h === "#/" ? (location.hash || "#/") === "#/" : location.hash.startsWith(h)), to);
         await page.waitForSelector(".nav-more-wrap", { state: "detached" });
         if (id === "remote") {
           // the remote takes the whole screen (its own ⌄ and "Your TVs" at the top)
@@ -196,19 +210,36 @@ for (const look of ["glass", "legacy"]) {
           await goto("#/");
           continue;
         }
-        // lit on a screen it leads to, nothing else in the bar lit
-        await page.waitForFunction(() => document.getElementById("nav-more").classList.contains("active"));
-        assert.equal(await page.locator(".nav-items .nav-item.active:visible").count(), 1, `${to}: another tab is lit as well`);
+        // More is lit on a screen only it leads to; the bar's own places light their tab
+        if (IN_BAR.has(id)) await page.waitForFunction(() => !document.getElementById("nav-more").classList.contains("active"));
+        else await page.waitForFunction(() => document.getElementById("nav-more").classList.contains("active"));
+        assert.equal(await page.locator(".nav-items .nav-item.active:visible").count(), 1, `${to}: not exactly one tab lit`);
         // the screen is there with its bar, nothing pushed sideways
         assertBar(await page.evaluate(readBar), to);
       }
 
-      // closing: a second tap on More, a tap outside, Back
+      // the menu's look: from the left edge, the whole height, the mark and the word on top
       await openSheet(page);
-      await page.locator("#nav-more").click();
+      const box = await page.evaluate(() => {
+        const p = document.querySelector(".nav-more-sheet").getBoundingClientRect();
+        return { left: p.left, top: p.top, bottom: p.bottom, width: p.width, brand: document.querySelector(".nav-more-brand").textContent, mark: document.querySelector(".nav-more-logo .logo-mark").getBoundingClientRect().width };
+      });
+      assert.equal(box.left, 0);
+      assert.equal(box.top, 0);
+      assert.ok(Math.abs(box.bottom - height) <= 1 && box.width >= 240 && box.width <= Math.min(288, width * 0.86) + 1, JSON.stringify(box));
+      assert.equal(box.brand, "Aurora");
+      assert.equal(box.mark, 36);
+      // closing: a tap beside it, a swipe to the left, Back (on a narrow phone
+      // the menu covers More itself, as the TV's panel covers its page)
+      await page.mouse.click(width - 6, Math.round(height / 2));
       await page.waitForSelector(".nav-more-wrap", { state: "detached" });
       await openSheet(page);
-      await page.locator(".nav-more-wrap").click({ position: { x: 3, y: Math.round(height / 2) } });
+      const cdp = await context.newCDPSession(page);
+      const y = Math.round(height / 2);
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 200, y }] });
+      for (let i = 1; i <= 6; i++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 200 - i * 25, y }] });
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await cdp.detach();
       await page.waitForSelector(".nav-more-wrap", { state: "detached" });
       await openSheet(page);
       await page.keyboard.press("Escape");

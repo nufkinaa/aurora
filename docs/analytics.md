@@ -137,7 +137,7 @@ A control is tagged where it is built:
 - website: `"data-ui": "detail.play"` on the element (one delegated click listener reads it; nothing is ever guessed from a control's text). A control that is not a click on an element — a keyboard shortcut, a tap zone — calls `uiHit("player.seek.fwd")`.
 - TV: `uiId="detail.play"` on a `Focusable`, `Btn` or `Chip` (and the small wrappers that pass it through). Without it nothing happens.
 
-The vocabulary (`src/lib/tel/controls-vocab.js`) — 392 ids: 214 on the website, 185 on the TV, 101 on both. 218 on the phone app (letter `p`, the table after this one).
+The vocabulary (`src/lib/tel/controls-vocab.js`) — 399 ids: 221 on the website, 185 on the TV, 101 on both. 218 on the phone app (letter `p`, the table after this one).
 
 | Area | Website only | TV app only | Both |
 |---|---|---|---|
@@ -150,7 +150,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 392 ids: 214 on the website
 | home | `home.hero.pick` | `home.hero.party` `home.switchprofile` | `home.hero.details` `home.hero.mute` `home.hero.play` `home.retry` `home.hh.all` |
 | mylist | – | `mylist.filter` | – |
 | nav | `nav.downloads` `nav.getapps` `nav.more` `nav.new` `nav.remote` `nav.saved` | – | `nav.ai` `nav.home` `nav.movies` `nav.mylist` `nav.profile` `nav.search` `nav.settings` `nav.shows` |
-| more | `more.apps` `more.downloads` `more.household` `more.new` `more.pair` `more.party` `more.pick` `more.remote` `more.report` `more.saved` `more.settings` `more.taste` `more.wrapped` | – | – |
+| more | `more.apps` `more.calendar` `more.downloads` `more.home` `more.household` `more.list` `more.movies` `more.new` `more.pair` `more.party` `more.pick` `more.profile` `more.remote` `more.report` `more.saved` `more.search` `more.settings` `more.shows` `more.taste` `more.wrapped` | – | – |
 | newpassword | – | `newpassword.signout` `newpassword.submit` | – |
 | party | – | `party.join` | – |
 | peek | `peek.close` `peek.playontv` `peek.remove` | – | `peek.details` `peek.mylist` `peek.play` `peek.hh.dismiss` `peek.recommend` |
