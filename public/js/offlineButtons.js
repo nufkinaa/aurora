@@ -8,6 +8,8 @@
 //         variant "hero"  the title page: mark + the words
 //                 "rail"  the action column of a sources card
 //                 "ep"    the small round button of an episode row
+//                 "menu"  a row of the player's settings menu: the mark, the
+//                         words, and what a press does (Stop / Remove…)
 //       A press never destroys anything by itself: on a saved title it says
 //       so and offers Remove; on a running save it offers Stop.
 //   seasonButton(nextEpisodes, showTitle, showId, { pill })   several
@@ -42,16 +44,17 @@ const sayFailure = (e, name) => {
   toast(`Couldn't save: ${msg}`, mark("failed"), /not enough room/.test(msg) ? { label: "Make room", onClick: open } : null);
 };
 
-export const saveButton = (item, { variant = "hero", ep = null, onLeave = null, ui = null } = {}) => {
+export const saveButton = (item, { variant = "hero", ep = null, onLeave = null, ui = null, onPress = null } = {}) => {
   if (!offline.available() || !item || !item.id) return null;
   const name = nameOf(item);
-  const m = mark("none", 0, variant === "ep" ? "ep-dev" : variant === "rail" ? "rail-dev" : "btn-dev-mark");
+  const m = mark("none", 0, variant === "ep" ? "ep-dev" : variant === "rail" ? "rail-dev" : variant === "menu" ? "menu-dev-mark" : "btn-dev-mark");
   let word = null, label = null, num = null;
   const btn = el("button", {
     "data-ui": ui || (variant === "ep" ? "detail.episode.offline" : "detail.offline"),
     class: variant === "ep" ? "ep-action ep-offline focusable btn-offline"
       : variant === "rail" ? "src-act src-icon focusable btn-offline"
-        : "btn focusable btn-offline btn-dev",
+        : variant === "menu" ? "menu-item focusable btn-offline menu-dev"
+          : "btn focusable btn-offline btn-dev",
   });
   if (variant === "ep") {
     num = el("b", {});
@@ -60,6 +63,10 @@ export const saveButton = (item, { variant = "hero", ep = null, onLeave = null, 
   } else if (variant === "rail") {
     label = el("span", { class: "src-lbl" });
     btn.append(el("span", { class: "src-ic" }, m), label);
+  } else if (variant === "menu") {
+    word = el("span", { class: "menu-dev-word" });
+    label = el("span", { class: "tag" });
+    btn.append(m, word, label);
   } else {
     word = el("span", { class: "btn-dev-word" });
     label = el("span", { class: "btn-label" });
@@ -101,7 +108,10 @@ export const saveButton = (item, { variant = "hero", ep = null, onLeave = null, 
     }
     if (word && word.textContent !== long) word.textContent = long;
     if (label) {
-      const s = variant === "rail" ? (st === "saved" ? "Saved" : st === "saving" ? `${pctOf(L.pct)}%` : st ? short(st, L.pct, L.waiting) : "Save") : short(st, L.pct, L.waiting);
+      const s = variant === "rail" ? (st === "saved" ? "Saved" : st === "saving" ? `${pctOf(L.pct)}%` : st ? short(st, L.pct, L.waiting) : "Save")
+        // a menu row: beside the words, what a press does
+        : variant === "menu" ? (st === "saved" ? "Remove" : ACTIVE(st) ? "Stop" : st === "paused" ? "Carry on" : st === "failed" ? "Try again" : "plays with no connection")
+          : short(st, L.pct, L.waiting);
       if (label.textContent !== s) label.textContent = s;
     }
     // it landed while this page was looking: the mark says so once
@@ -130,6 +140,7 @@ export const saveButton = (item, { variant = "hero", ep = null, onLeave = null, 
   };
   btn.onclick = () => {
     const L = look();
+    if (onPress) onPress(L.st);
     if (L.st === "saved") {
       const size = L.copy && L.copy.sizeBytes ? ` · ${fmtBytes(L.copy.sizeBytes)}` : "";
       return void toast(`“${name}” is on this device${size} — it plays with no connection`, mark("saved"), { label: "Remove", onClick: remove });

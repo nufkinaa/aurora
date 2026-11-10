@@ -13,6 +13,8 @@ import { SYNC, targetOf, startsIn, decide, landTolerance, aheadOf, readyToGo, wa
 import { showReportSheet, setPlayingContext } from "../report.js";
 import { openReplaceSheet, canOfferReplace, COPY_PROBLEM, GET_ANOTHER } from "../replaceCopy.js";
 import * as offline from "../offline.js";
+import { saveButton } from "../offlineButtons.js"; // "Save to this device" in the settings menu
+import { mark as deviceMark } from "../offlineUi.js"; // (the one mark of "on this device")
 import { localItem, localNext, localPosition, saveLocalPosition, sniffLocal } from "../localplay.js";
 import { failureSentence } from "../localsubs.js";
 import { track } from "../usage.js";
@@ -807,7 +809,7 @@ export const renderPlayer = async (root, { id }) => {
     if (saved && who && who.kids && saved.profileId !== who.id) saved = null;
     if (saved && saved.pending) saved = null; // its parts are still landing
     if (!saved) {
-      toast("That title isn't saved on this device", "📱");
+      toast("That title isn't saved on this device", deviceMark("none"));
       return navigate("#/saved");
     }
     item = {
@@ -4394,6 +4396,7 @@ export const renderPlayer = async (root, { id }) => {
   // pointer back out again).
   let menuPinned = false;
   let menuKind = null;
+  let saveRowStop = null; // the "Save to this device" row follows its save while the menu is up
   let hoverOut = null;
   const cancelHoverOut = () => {
     clearTimeout(hoverOut);
@@ -4404,6 +4407,7 @@ export const renderPlayer = async (root, { id }) => {
     menuPinned = false;
     menuKind = null;
     menuHost.innerHTML = "";
+    if (saveRowStop) { saveRowStop(); saveRowStop = null; }
   };
 
   const toggleMenu = (kind, { pinned = true } = {}) => {
@@ -4606,6 +4610,7 @@ export const renderPlayer = async (root, { id }) => {
 
       const rebuild = () => {
         menu.innerHTML = "";
+        if (saveRowStop) { saveRowStop(); saveRowStop = null; }
         // Audio — only when the file carries more than one track (a dub, a
         // commentary). Picking one restarts the stream at the current
         // position with that track mapped in.
@@ -4677,6 +4682,14 @@ export const renderPlayer = async (root, { id }) => {
             },
           ),
         );
+        // "Save to this device", where the person is when they think of it
+        // (a library title only: a copy that plays here needs none, and a
+        // stream or a file from this device has nothing to save). The row is
+        // painted from the save itself, so an open menu follows it.
+        if (!isTorrent && !item._offline && !item._local && item.id && state.profile && offline.available()) {
+          const row = saveButton(item, { variant: "menu", ui: "player.offline", onLeave: (stop) => { saveRowStop = stop; }, onPress: () => closeMenu() }); // (its data-ui)
+          if (row) menu.append(row);
+        }
         // (Subtitle style moved to the Subtitles menu, 2026-10-19 — the
         // TV's too: it is where you are looking when a cue is hard to read.)
         // (The Skip intro section that used to sit here — ignore the detected

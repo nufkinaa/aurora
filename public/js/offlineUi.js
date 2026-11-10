@@ -298,9 +298,11 @@ export const savedByItself = (id) => readAuto().ids.includes(id);
 // the last one, when it was this person's: { name, at } or null
 export const lastByItself = () => { const v = readAuto().last; const w = who(); return v && (!v.who || !w || v.who === w.id) ? v : null; };
 // Offered once on a device, when an episode lands and the switch is off:
-// one press turns it on.
+// one press turns it on. Never over something that is playing — it waits
+// for the next episode that lands.
 const NUDGE_KEY = "aurora-offline-next-asked";
 const nudgeNext = () => {
+  if (document.querySelector("#app .player")) return;
   try {
     if (offline.smartNext.get() || localStorage.getItem(NUDGE_KEY)) return;
     localStorage.setItem(NUDGE_KEY, "1");

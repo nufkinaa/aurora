@@ -171,6 +171,7 @@ module.exports = {
   "player.fullscreen": "w",
   "player.mute": "wtp",
   "player.next": "wtp",
+  "player.offline": "w", // the settings menu's "Save to this device" row
   "player.party": "wtp",
   "player.party.handover": "wtp",
   "player.party.react": "wtp",

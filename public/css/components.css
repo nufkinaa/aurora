@@ -2859,4 +2859,10 @@ html:root .card.has-dev .card-label { right: 38px; }
 .nav-dev-ring .dm-arc { stroke-width: 3.4; }
 .nav-dev-ring[data-state="failed"] .dm-disc { fill: var(--dm-bad); }
 html:root .nav-items .nav-more.dev-busy .nav-new-dot { display: none; }
+/* "Save to this device" as a row of the player's menu: the mark sits where
+   the other rows keep their tick, so the words line up */
+html:root .menu-item.menu-dev::before { content: none; }
+.menu-item .menu-dev-mark { --dm: 15px; margin-inline: -1px; }
+.menu-item.menu-dev .tag { text-transform: none; letter-spacing: 0.02em; font-size: 0.74rem; }
+.menu-item.menu-dev[data-state="saved"] .menu-dev-word { color: var(--text); }
 /* ============ end offline-look (components) ============ */

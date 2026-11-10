@@ -253,4 +253,37 @@ ui.test("the mark on a poster: only on what is on this device, with words a scre
   }
 });
 
+ui.test("in the player: Settings has Save to this device — one press, the size, and the row then says the film is here", async ({ srv, freshProfile }) => {
+  const profile = await freshProfile();
+  const { context, page, errors } = await open(srv, profile, DESKTOP);
+  try {
+    await page.evaluate((id) => { location.hash = `#/play/${id}`; }, srv.lib.film2.id);
+    await page.waitForSelector(".player");
+    const openSettings = async () => {
+      await until(() => page.evaluate(() => {
+        if (document.querySelector('.player [data-ui="player.offline"]')) return true;
+        const b = document.querySelector('.player [data-ui="player.settings.open"]');
+        if (b) b.click();
+        return false;
+      }), "the Settings menu with its Save row");
+    };
+    await openSettings();
+    const row = page.locator('.player [data-ui="player.offline"]');
+    assert.equal(await row.getAttribute("data-state"), "none");
+    assert.match(await row.innerText(), /Save to this device[\s\S]*plays with no connection/);
+    await row.click();
+    // the menu steps aside for the size sheet
+    await pickOriginal(page);
+    await until(async () => (await savedIds(page)).includes(srv.lib.film2.id), "the film on the device");
+    assert.equal(await page.locator('.player [data-ui="player.offline"]').count(), 0, "the menu closed on the press");
+    await openSettings();
+    await until(async () => (await row.getAttribute("data-state")) === "saved", "the row says saved");
+    assert.match(await row.innerText(), /Saved on this device[\s\S]*Remove/);
+    assert.match((await row.getAttribute("aria-label")) || (await row.innerText()), /Saved on this device|Remove from this device/);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close().catch(() => {});
+  }
+});
+
 ui.run({ concurrency: 1 });
