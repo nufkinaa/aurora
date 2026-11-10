@@ -60,14 +60,18 @@ export const nextDraw = (i: number, n: number) => {
 // as the two lists an Animated interpolation takes: the animation runs 0 -> 1
 // at a steady pace and the curve is in the stops, so the whole landing is one
 // value on the native driver (no JS per frame). `cell` is one cell's height.
-export const reelStops = (last: number, cell: number, samples = 48) => {
+// `from`: where the strip stands when the roll begins (the waiting reel is
+// somewhere between two card backs when the answer comes), 0 by default.
+export const reelStops = (last: number, cell: number, samples = 48, from = 0) => {
   const n = Math.max(2, whole(samples));
+  const end = Math.max(0, Number(last) || 0);
+  const start = Math.max(0, Math.min(end, Number(from) || 0));
   const inputRange: number[] = [];
   const outputRange: number[] = [];
   for (let k = 0; k <= n; k++) {
     const t = k / n;
     inputRange.push(t);
-    outputRange.push(-reelPos(t, last) * cell);
+    outputRange.push(-(start + reelPos(t, end - start)) * cell);
   }
   return {inputRange, outputRange};
 };
