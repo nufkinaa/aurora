@@ -1,8 +1,12 @@
 // A bottom sheet (Material's, in Aurora's dark glass): slides up over a dimmed
 // page, a handle on top, Back or a tap outside closes it. Its content scrolls
-// when it is taller than ~80% of the screen.
-import React, {useEffect, useRef} from 'react';
-import {Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+// when it is taller than ~80% of the screen — down to the screen's edge, the
+// gesture strip's room inside the scroll (a band 36 dp tall stood empty under
+// the list before: ui-phone 2026-11-10). With the keyboard up the sheet rides on
+// top of it (Android 15+ draws edge to edge, so the window no longer shrinks for
+// the keyboard and a field in a sheet ended up under it).
+import React, {useEffect, useRef, useState} from 'react';
+import {Animated, Easing, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {colors, GUTTER, radius} from '../theme';
 
@@ -24,6 +28,18 @@ export default function Sheet({
   const y = useRef(new Animated.Value(1)).current;
   const insets = useSafeAreaInsets();
   const {height, width} = useWindowDimensions();
+  // the keyboard's height (dp, above the navigation bar), 0 while it is down
+  const [kb, setKb] = useState(0);
+  useEffect(() => {
+    if (!visible) return;
+    const show = Keyboard.addListener('keyboardDidShow', e => setKb(Math.max(0, e.endCoordinates?.height || 0)));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKb(0));
+    return () => {
+      show.remove();
+      hide.remove();
+      setKb(0);
+    };
+  }, [visible]);
   useEffect(() => {
     if (visible) {
       y.setValue(1);
@@ -41,8 +57,8 @@ export default function Sheet({
           {
             width: maxW,
             alignSelf: 'center',
-            maxHeight: height * 0.86,
-            paddingBottom: insets.bottom + 12,
+            maxHeight: kb ? height - kb - insets.bottom - insets.top - 8 : height * 0.86,
+            paddingBottom: kb ? kb + insets.bottom + 8 : scroll ? 0 : insets.bottom + 12,
             transform: [{translateY: y.interpolate({inputRange: [0, 1], outputRange: [0, 400]})}],
           },
         ]}>
@@ -53,7 +69,8 @@ export default function Sheet({
           </Text>
         ) : null}
         {sub ? <Text style={s.sub}>{sub}</Text> : null}
-        <Body style={scroll ? {flexGrow: 0} : undefined} contentContainerStyle={scroll ? {paddingBottom: 4} : undefined}>
+        <Body style={scroll ? {flexGrow: 0} : undefined} contentContainerStyle={scroll ? {paddingBottom: kb ? 4 : insets.bottom + 16} : undefined}
+          keyboardShouldPersistTaps="handled">
           {children}
         </Body>
       </Animated.View>

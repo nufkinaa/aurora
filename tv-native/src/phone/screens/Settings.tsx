@@ -60,7 +60,8 @@ const Section = ({icon, title, sub, children}: {icon: React.ComponentProps<typeo
 const Toggle = ({value, onChange, disabled}: {value: boolean; onChange: (v: boolean) => void; disabled?: boolean}) => (
   <Switch value={value} onValueChange={onChange} disabled={disabled} trackColor={{false: 'rgba(255,255,255,0.22)', true: colors.accentStrong}} thumbColor={value ? '#fff' : '#d8dae4'} />
 );
-const Value = ({text}: {text: string}) => <Text style={s.value}>{text}</Text>;
+// (a long value — a card's name in "Save to" — wraps in its own room, never squeezing the row's title)
+const Value = ({text}: {text: string}) => <Text style={s.value} numberOfLines={2}>{text}</Text>;
 
 function HouseholdPrefs({profileId, onSent}: {profileId: string; onSent: () => void}) {
   const [st, setSt] = useState<HouseholdSettings | null>(null);
@@ -414,7 +415,7 @@ const s = StyleSheet.create({
   h2: {color: colors.text, fontSize: 17.6, fontWeight: '800', letterSpacing: -0.18, lineHeight: 26.4},
   headSub: {color: colors.textDim, fontSize: 14.4, marginTop: 4, lineHeight: 21.6},
   note: {color: colors.textDim, fontSize: 14.4, lineHeight: 21.6, paddingHorizontal: 20, marginTop: 4},
-  value: {color: colors.textDim, fontSize: 14.4, fontWeight: '700'},
+  value: {color: colors.textDim, fontSize: 14.4, fontWeight: '700', maxWidth: '42%', textAlign: 'right'},
   chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 20, paddingVertical: 10},
   preview: {marginHorizontal: 20, marginVertical: 8},
   // .pref-profile: a 56 dp avatar, the name 16.8/800, "No password set" 13.44

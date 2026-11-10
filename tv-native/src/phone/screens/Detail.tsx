@@ -76,7 +76,8 @@ import {
 } from '../../detailLogic';
 import type {RootStackParamList} from '../../navigation';
 import {usePNav} from '../nav';
-import {ActionCircle, ChipButton, PrimaryButton} from '../ui/Buttons';
+import {ActionCircle, ActionWidth, ChipButton, PrimaryButton} from '../ui/Buttons';
+import {stripItemWidth} from '../ui/stripFit';
 import {artSrc, Bar, PosterCard} from '../ui/Cards';
 import Icon from '../ui/Icon';
 import Tap from '../ui/Tap';
@@ -192,6 +193,8 @@ export default function Detail() {
   const isShow = item.type === 'show';
   const imdbKind: 'movie' | 'show' = isShow ? 'show' : 'movie';
 
+  // the round actions' strip: its width as laid out (the screen's), for stripFit
+  const [stripW, setStripW] = useState(width); // (the screen's until it is laid out: no jump on the first frame)
   const [full, setFull] = useState<Item | null>(null);
   const [meta, setMeta] = useState<DiscoverMeta | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1060,6 +1063,40 @@ export default function Detail() {
   const trailers = meta?.trailers || [];
   const aired = season?.episodes.filter(e => e.air === 'aired') || [];
   const seasonAllWatched = aired.length > 0 && aired.every(e => e.watched);
+  // the round actions (only those that apply); when they are more than fit, each is sized so
+  // that half of the next one shows past the edge (ui/stripFit.ts)
+  const actionButtons = (
+    <>
+      {tvs.length && (ownedMovieId || heroEp?.owned) ? <ActionCircle uiId="phone.detail.playon" icon="cast" label={tvs.length === 1 ? PLAY_ON.buttonFor(tvs[0].name) : PLAY_ON.button} lines={0} onPress={playOnTv} /> : null}
+      {!isShow && !ownedMovieId && imdb ? <ActionCircle uiId="detail.sources" icon="play" label="Stream instead" onPress={() => openSources()} /> : null}
+      {ownedMovieId ? (
+        <ActionCircle uiId="phone.save.film"
+          icon="downloadDevice"
+          label={phoneState(ownedMovieId) === 'done' ? 'On this phone' : phoneState(ownedMovieId) ? 'Saving…' : 'Save to phone'}
+          on={phoneState(ownedMovieId) === 'done'}
+          onPress={saveFilmToPhone}
+        />
+      ) : null}
+      {ownedMovieId && movieResume ? <ActionCircle uiId="detail.restart" icon="refresh" label="Start over" onPress={() => navigation.push('Player', {id: ownedMovieId, title, restart: true})} /> : null}
+      {isShow ? <ActionCircle uiId="phone.detail.episodes" icon="series" label="All episodes" onPress={() => scrollRef.current?.scrollTo({y: artH + 160, animated: true})} /> : null}
+      {heroJob?.mine ? <ActionCircle uiId="detail.download.cancel" icon="close" label="Cancel download" onPress={() => askCancelJob(heroJob, isShow && heroEp ? `${title} · S${heroEp.season} E${heroEp.episode}` : title)} /> : null}
+      <ActionCircle uiId="detail.mylist" icon={inList ? 'check' : 'plus'} label="My List" on={inList} onPress={toggleList} />
+      <ActionCircle uiId="detail.recommend" icon="send" label="Recommend" onPress={() => openRecommend(item, imdb)} />
+      {isShow && followImdb ? <ActionCircle uiId="detail.follow" icon={following ? 'check' : 'bell'} label={following ? 'Following' : 'Follow'} on={following} onPress={toggleFollow} /> : null}
+      {imdb || full ? (
+        <ActionCircle uiId="detail.xray"
+          icon="xray"
+          label="X-Ray"
+          onPress={() => openXray({query: full && !isShow ? {itemId: full.id} : {type: isShow ? 'series' : 'movie', imdbId: imdb}, title})}
+        />
+      ) : null}
+      {ownedMovieId ? <ActionCircle uiId="detail.watched" icon="check" label={movieWatched ? 'Watched' : 'Mark watched'} on={movieWatched} onPress={toggleMovieWatched} /> : null}
+      {ownedMovieId && replaceOffered({libraryId: ownedMovieId, kids: peekMe(profileId)?.kids, torrentsOff}) ? <ActionCircle uiId="detail.replace" icon="refresh" label="Another version" onPress={() => openReplace({libraryId: ownedMovieId, title, context: {title, itemId: ownedMovieId}})} /> : null}
+      {trailers.length || imdb ? <ActionCircle uiId="detail.trailer" icon="film" label="Trailer" onPress={() => openTrailer(trailers, title, {imdbId: imdb, type: isShow ? 'show' : 'movie', year})} /> : null}
+      <ActionCircle uiId="phone.detail.share" icon="share" label="Share" onPress={share} />
+    </>
+  );
+  const actionW = stripItemWidth({room: stripW, count: React.Children.toArray(actionButtons.props.children).length, lead: GUTTER - 8, gap: 2, base: 76, min: 70, max: 92});
   return (
     <View style={s.root}>
       <ScrollView
@@ -1076,6 +1113,9 @@ export default function Detail() {
         <View style={{height: artH}}>
           {art ? <Image source={art} style={StyleSheet.absoluteFill} resizeMode="cover" fadeDuration={FADE_MS} /> : null}
           <View style={s.artFade} pointerEvents="none" />
+          {/* the cover ends in the page colour; this carries it on into the sky under the page,
+              so no hard line shows where the picture stops (ui-phone 2026-11-10) */}
+          <View style={s.artJoin} pointerEvents="none" />
           <View style={[s.lockup, wide && {left: Math.max(GUTTER, (width - 820) / 2), right: Math.max(GUTTER, (width - 820) / 2)}]} onLayout={e => {
             const h = Math.ceil(e.nativeEvent.layout.height);
             if (Math.abs(h - lockH) > 1) setLockH(h);
@@ -1125,35 +1165,11 @@ export default function Detail() {
             </View>
           ) : null}
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.actionsStrip} contentContainerStyle={s.actions}>
-            {tvs.length && (ownedMovieId || heroEp?.owned) ? <ActionCircle uiId="phone.detail.playon" icon="cast" label={tvs.length === 1 ? PLAY_ON.buttonFor(tvs[0].name) : PLAY_ON.button} lines={0} onPress={playOnTv} /> : null}
-            {!isShow && !ownedMovieId && imdb ? <ActionCircle uiId="detail.sources" icon="play" label="Stream instead" onPress={() => openSources()} /> : null}
-            {ownedMovieId ? (
-              <ActionCircle uiId="phone.save.film"
-                icon="downloadDevice"
-                label={phoneState(ownedMovieId) === 'done' ? 'On this phone' : phoneState(ownedMovieId) ? 'Saving…' : 'Save to phone'}
-                on={phoneState(ownedMovieId) === 'done'}
-                onPress={saveFilmToPhone}
-              />
-            ) : null}
-            {ownedMovieId && movieResume ? <ActionCircle uiId="detail.restart" icon="refresh" label="Start over" onPress={() => navigation.push('Player', {id: ownedMovieId, title, restart: true})} /> : null}
-            {isShow ? <ActionCircle uiId="phone.detail.episodes" icon="series" label="All episodes" onPress={() => scrollRef.current?.scrollTo({y: artH + 160, animated: true})} /> : null}
-            {heroJob?.mine ? <ActionCircle uiId="detail.download.cancel" icon="close" label="Cancel download" onPress={() => askCancelJob(heroJob, isShow && heroEp ? `${title} · S${heroEp.season} E${heroEp.episode}` : title)} /> : null}
-            <ActionCircle uiId="detail.mylist" icon={inList ? 'check' : 'plus'} label="My List" on={inList} onPress={toggleList} />
-            <ActionCircle uiId="detail.recommend" icon="send" label="Recommend" onPress={() => openRecommend(item, imdb)} />
-            {isShow && followImdb ? <ActionCircle uiId="detail.follow" icon={following ? 'check' : 'bell'} label={following ? 'Following' : 'Follow'} on={following} onPress={toggleFollow} /> : null}
-            {imdb || full ? (
-              <ActionCircle uiId="detail.xray"
-                icon="xray"
-                label="X-Ray"
-                onPress={() => openXray({query: full && !isShow ? {itemId: full.id} : {type: isShow ? 'series' : 'movie', imdbId: imdb}, title})}
-              />
-            ) : null}
-            {ownedMovieId ? <ActionCircle uiId="detail.watched" icon="check" label={movieWatched ? 'Watched' : 'Mark watched'} on={movieWatched} onPress={toggleMovieWatched} /> : null}
-            {ownedMovieId && replaceOffered({libraryId: ownedMovieId, kids: peekMe(profileId)?.kids, torrentsOff}) ? <ActionCircle uiId="detail.replace" icon="refresh" label="Another version" onPress={() => openReplace({libraryId: ownedMovieId, title, context: {title, itemId: ownedMovieId}})} /> : null}
-            {trailers.length || imdb ? <ActionCircle uiId="detail.trailer" icon="film" label="Trailer" onPress={() => openTrailer(trailers, title, {imdbId: imdb, type: isShow ? 'show' : 'movie', year})} /> : null}
-            <ActionCircle uiId="phone.detail.share" icon="share" label="Share" onPress={share} />
+          <ActionWidth.Provider value={actionW}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.actionsStrip} contentContainerStyle={s.actions} onLayout={e => setStripW(Math.round(e.nativeEvent.layout.width))}>
+            {actionButtons}
           </ScrollView>
+          </ActionWidth.Provider>
           {/* [franchise] "Part of … · 12 of 34 · Watch in order" */}
           <FranchiseLine imdbId={imdb} type={isShow ? 'series' : 'movie'} profileId={profileId} onOpen={openFranchise} />
 
@@ -1270,6 +1286,7 @@ const s = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     experimental_backgroundImage: 'linear-gradient(180deg, rgba(7,8,17,0.4) 0%, rgba(7,8,17,0) 24%, rgba(7,8,17,0.18) 48%, rgba(7,8,17,0.82) 82%, rgba(7,8,17,1) 100%)',
   },
+  artJoin: {position: 'absolute', left: 0, right: 0, top: '100%', height: 96, experimental_backgroundImage: 'linear-gradient(180deg, rgba(7,8,17,1) 0%, rgba(7,8,17,0.55) 45%, rgba(7,8,17,0) 100%)'},
   // the words on the cover: 16 in, 20 above its foot
   lockup: {position: 'absolute', left: GUTTER, right: GUTTER, bottom: 20},
   // .hero-kicker on a title page: tinted in the kind's colour, a ring of it
