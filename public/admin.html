@@ -915,6 +915,11 @@
     /* ================= UI check 2026-11-10 (elia: "find bugs, misalignments,
        cuts on elements, and polish") — every tab at 320 to 1920 wide, with
        many people, long and Hebrew names, downloads in every state ================= */
+    /* the keyboard: every button, link, field and fold shows where it is
+       (the site's base style takes every outline away; only the side nav,
+       the Details rows and a few others had their own) */
+    :is(button, a[href], input, select, textarea, summary, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     /* a healthy healer group opened by hand: its class "ok" also matched the
        page's green "ok" word style, so every line in it turned green and bold */
     .hl-group.ok { color: inherit; font-weight: inherit; }
@@ -926,12 +931,10 @@
     #tv-problems, #phone-problems, #mx-limits, #lim-status, #dc-last-restore {
       padding: 3px 2px; color: var(--text-dim); font-size: 0.9rem; line-height: 1.5; }
     #tel-starts-line, #tel-u-totals, #rm-status { font-size: 0.84rem; line-height: 1.5; }
-    /* Overnight and Free up space settings: the number and time boxes in the
-       page's own dark style (they were the browser's white boxes) */
-    .fs-set input[type="number"], .fs-set input[type="time"], .fs-days input[type="number"], .on-set select {
-      padding: 7px 10px; border-radius: 9px; background: var(--surface); border: 1px solid var(--line); color: var(--text);
-      font: inherit; font-size: 0.9rem; color-scheme: dark; }
-    .fs-set input:focus-visible, .fs-days input:focus-visible, .on-set select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    /* Encoding: its two pickers in the page's own dark style (they were the
+       browser's small white boxes) */
+    #en-limit, #en-hwmode { padding: 7px 10px; border-radius: 9px; background: var(--surface); border: 1px solid var(--line); color: var(--text);
+      font: inherit; font-size: 0.9rem; color-scheme: dark; min-height: 38px; min-width: 120px; }
     /* a long "More than one copy" badge wraps instead of running out of the card */
     #cp-groups .cp-head .pill { white-space: normal; max-width: 100%; }
     /* the sign-in notes: a long Google error wraps inside its chip */
@@ -1039,8 +1042,6 @@
       .person-head .x { width: 40px; height: 40px; }
     }
     @media (max-width: 640px) {
-      /* (the Downloads tab's small buttons were 33 px tall on a phone: the size every other tab has) */
-      #pane-downloads .mini { min-height: 40px; }
       /* drive buttons two to a row, not four slivers */
       .drv-acts .mini { flex: 1 1 calc(50% - 4px); }
       /* On disk: a title has its own line; badges, size and Delete go under it
@@ -1052,7 +1053,7 @@
       #lib-tree .lib-row > span.num:last-of-type { margin-left: auto; }
       /* the suggestion lists grow with the page: a box that scrolls inside a
          page that scrolls was a trap for the thumb */
-      .fs-list, .fp-list, .on-list, .fs-rm { max-height: none; }
+      #pane-downloads :is(.fs-list, .fp-list, .on-list, .fs-rm) { max-height: none; }
     }
     @media (max-width: 560px) {
       .act-n span { white-space: normal; letter-spacing: 0.06em; line-height: 1.25; }
@@ -1063,6 +1064,11 @@
       /* Recent plays: the title across the row */
       .act-rec { grid-template-areas: "two two" "who when" "got got"; }
       .act-rec .got { width: auto; }
+    }
+    @media (max-width: 400px) {
+      /* (too narrow for the state and both buttons on one line: the state above them) */
+      .act-scr { grid-template-areas: "ico two two" "ico doing doing" "ico chip chip" "ico acts acts"; }
+      .act-scr .acts { justify-content: flex-start; }
     }
     @media (max-width: 380px) {
       /* the screen's name had to give way to Restart ("Ho…"): the button keeps its icon */
@@ -1932,7 +1938,7 @@
         @media (max-width: 640px) {
           #lib-tree { max-height: 58vh; }
           /* Thumb-sized targets on phones. */
-          #pane-downloads .mini { padding: 7px 12px; min-height: 30px; }
+          #pane-downloads .mini { padding: 7px 12px; min-height: 40px; }
           .lib-ep-check, .lib-season-check { width: 20px; height: 20px; }
         }
       </style>
