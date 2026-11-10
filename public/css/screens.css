@@ -279,6 +279,11 @@
   background: #fff;
   transform: scale(1.2);
 }
+/* the keyboard's place on the dots (Tab reaches them; nothing showed it) */
+.hero-dot:focus-visible span {
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(var(--bg-rgb, 7, 8, 17), 0.9), 0 0 0 5px #fff;
+}
 
 @media (max-width: 900px) {
   .hero-poster {
@@ -365,6 +370,22 @@
 .detail-synopsis-wrap {
   max-width: 640px;
   margin-bottom: 24px;
+}
+/* A Hebrew (right-to-left) synopsis reads as Hebrew: from the right, its
+   full stop at its end, a dash at the end of a line rather than leading the
+   next. A title takes its direction from its words too, but stays on the
+   page's left edge with the rest of the title block. */
+.detail-synopsis,
+.hero-synopsis,
+.ep-overview {
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+.detail-title,
+.hero-title,
+.suggest-title {
+  unicode-bidi: plaintext;
+  text-align: left;
 }
 .detail-synopsis-wrap .detail-synopsis {
   margin-bottom: 0;
@@ -1341,7 +1362,7 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
 }
 /* no results yet (the empty field, Recent and Popular in this house): the
    empty results grid kept its 62 px of padding as a hole above Popular */
-.search-wrap ~ .grid:empty {
+.search-wrap + .suggest-list + .filter-bar + .grid:empty {
   display: none;
 }
 
@@ -4341,6 +4362,9 @@ a.nav-menu-item { text-decoration: none; box-sizing: border-box; }
 /* a finger-sized row on touch screens (the items were 42 px tall) */
 @media (pointer: coarse) {
   .nav-menu-item { display: flex; align-items: center; min-height: 44px; }
+  /* (the count stays on its own line under "My downloads": in the row it
+     ran into the words — "My downloads3 ready") */
+  .nav-menu-item.nav-menu-dl { flex-direction: column; align-items: flex-start; justify-content: center; }
 }
 
 /* a proper red button for destructive actions (sign out & friends) */

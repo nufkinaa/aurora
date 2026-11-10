@@ -843,6 +843,13 @@ html[data-look="glass"] .suggest-list,
 html[data-look="glass"] .dropdown {
   border-radius: var(--g-radius);
 }
+/* The suggestions' panel lines up with the search field above it: it ran
+   from the screen's left edge to its right (its rim drawn there, the rows
+   inset by the page margin), a step wider than the field it belongs to. */
+html[data-look="glass"] .suggest-list {
+  margin: 6px var(--page-x) 0;
+  padding: 8px;
+}
 html[data-look="glass"] .pref-section,
 html[data-look="glass"] .wrapped-card,
 html[data-look="glass"] .pair-card,
@@ -2884,6 +2891,15 @@ html[data-look="glass"] .pbtn.big svg {
   html:root .detail-hero .detail-actions-more .btn > span:not(:first-child),
   html:root .detail-hero .detail-actions-more .btn > .btn-label {
     color: rgba(243, 244, 248, 0.8);
+    /* two lines at most: "Play on Grandma's big living room TV upstairs 4K"
+       stood four lines tall and pushed the synopsis down */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
   html:root .detail-hero .detail-actions-more .btn-xray.on {
     background: none;
@@ -2891,14 +2907,54 @@ html[data-look="glass"] .pbtn.big svg {
   html:root .detail-hero .detail-actions-more .btn-xray.on > svg {
     background: var(--accent-strong);
   }
-  /* Four and a half tiles on a narrow phone: at 320 px exactly four fitted
-     and nothing said the strip went on (Recommend, X-Ray, Save offline and
-     Mark watched were out of sight); at 375 the fifth was cut mid-word. */
-  @media (max-width: 399px) {
-    html:root .detail-hero .detail-actions-more .btn {
-      flex-basis: calc((100vw - 8px) / 4.5 - 2px);
-      width: calc((100vw - 8px) / 4.5 - 2px);
-    }
+  /* The strip says it goes on (elia, 2026-11-10, his iPhone at 402 pt: five
+     whole buttons ended flush with the edge — "not clear enough that this
+     has more elements and can be scrolled horizontally"). The tiles are
+     sized so a whole number of them plus HALF of the next one fills the
+     screen, at any phone width: --act-k is how many and a half are in view
+     (the band of widths keeps a tile 67–88 px wide), the strip's first tile
+     starts at page-x − 8px and each one is followed by the 2px gap. A strip
+     that holds fewer tiles than that simply ends — nothing is cut.
+     And the side that has more fades (details.js sets .more-start /
+     .more-end from what is in view; a mask, nothing redrawn as it scrolls). */
+  html:root .detail-hero .detail-actions-more {
+    --act-k: 4.5;
+  }
+  @media (min-width: 410px) { html:root .detail-hero .detail-actions-more { --act-k: 5.5; } }
+  @media (min-width: 500px) { html:root .detail-hero .detail-actions-more { --act-k: 6.5; } }
+  @media (min-width: 590px) { html:root .detail-hero .detail-actions-more { --act-k: 7.5; } }
+  @media (min-width: 680px) { html:root .detail-hero .detail-actions-more { --act-k: 8.5; } }
+  html:root .detail-hero .detail-actions-more .btn {
+    flex-basis: calc((100vw - var(--page-x) + 8px) / var(--act-k) - 2px);
+    width: calc((100vw - var(--page-x) + 8px) / var(--act-k) - 2px);
+  }
+  html:root .detail-hero .detail-actions-more.more-end {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
+    mask-image: linear-gradient(to right, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
+  }
+  html:root .detail-hero .detail-actions-more.more-start {
+    -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.12), #000 48px);
+    mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.12), #000 48px);
+  }
+  html:root .detail-hero .detail-actions-more.more-start.more-end {
+    -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.12), #000 48px, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
+    mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.12), #000 48px, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
+  }
+  /* a right-to-left page: its start is on the right */
+  html:root [dir="rtl"] .detail-hero .detail-actions-more.more-end,
+  html:root .detail-hero[dir="rtl"] .detail-actions-more.more-end {
+    -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
+    mask-image: linear-gradient(to left, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
+  }
+  html:root [dir="rtl"] .detail-hero .detail-actions-more.more-start,
+  html:root .detail-hero[dir="rtl"] .detail-actions-more.more-start {
+    -webkit-mask-image: linear-gradient(to left, rgba(0, 0, 0, 0.12), #000 48px);
+    mask-image: linear-gradient(to left, rgba(0, 0, 0, 0.12), #000 48px);
+  }
+  html:root [dir="rtl"] .detail-hero .detail-actions-more.more-start.more-end,
+  html:root .detail-hero[dir="rtl"] .detail-actions-more.more-start.more-end {
+    -webkit-mask-image: linear-gradient(to left, rgba(0, 0, 0, 0.12), #000 48px, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
+    mask-image: linear-gradient(to left, rgba(0, 0, 0, 0.12), #000 48px, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
   }
   /* a film on disk has its other versions one row down — no button for it */
   .screen.has-sources-fold .detail-actions-more .btn-sources {
@@ -4024,6 +4080,17 @@ html[data-look="glass"] .nav-dl.ready {
   background: none;
   color: var(--text);
   text-align: left;
+}
+/* Where the keyboard is in the Sources list: the row's words, its two
+   buttons and the quality filters showed no mark at all when tabbed to */
+.src-main:focus-visible {
+  border-radius: 12px;
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 4px;
+}
+.src-act:focus-visible,
+.src-filter:focus-visible {
+  box-shadow: var(--focus-ring);
 }
 .src-q {
   flex: none;

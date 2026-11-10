@@ -173,7 +173,46 @@ const actionsBlock = (actions) => {
   const list = (actions || []).filter(Boolean);
   const primary = list.filter((b) => b.classList && b.classList.contains("btn-primary"));
   const rest = list.filter((b) => !primary.includes(b));
-  return el("div", { class: "detail-actions" }, primary, rest.length ? el("div", { class: "detail-actions-more" }, rest) : null);
+  const strip = rest.length ? el("div", { class: "detail-actions-more" }, rest) : null;
+  if (strip) edgeFade(strip);
+  return el("div", { class: "detail-actions" }, primary, strip);
+};
+
+// A phone's strip of round buttons says that it goes on (elia, 2026-11-10:
+// "it's not clear enough that this has more elements and can be scrolled
+// horizontally"): the tiles are sized so half of one is cut by the edge
+// (glass.css), and the side that has more fades out. Which side has more is
+// read from whether the first and the last tile are wholly in view — an
+// IntersectionObserver, so nothing runs while the strip scrolls. On a wide
+// screen the strip is `display: contents` (no box: nothing is observed).
+const edgeFade = (strip) => {
+  if (typeof IntersectionObserver !== "function" || !matchMedia("(max-width: 720px)").matches) return;
+  let first = null, last = null;
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      const whole = e.intersectionRatio > 0.97;
+      if (e.target === first) strip.classList.toggle("more-start", !whole);
+      if (e.target === last) strip.classList.toggle("more-end", !whole);
+    }
+  }, { root: strip, threshold: [0, 0.97, 1] });
+  // the tiles shown (one can be display: none, and a Trailer can arrive later)
+  let tries = 0;
+  const watch = () => {
+    // (built before it is put on the page: wait for that, a few frames at most)
+    if (!strip.isConnected) { if (tries++ < 120) requestAnimationFrame(watch); return; }
+    const shown = [...strip.children].filter((c) => c.offsetParent !== null || c.getClientRects().length);
+    const f = shown[0] || null, l = shown[shown.length - 1] || null;
+    if (f === first && l === last) return;
+    io.disconnect();
+    strip.classList.remove("more-start", "more-end");
+    first = f; last = l;
+    if (first) io.observe(first);
+    if (last && last !== first) io.observe(last);
+  };
+  requestAnimationFrame(watch);
+  const mo = new MutationObserver(() => requestAnimationFrame(watch));
+  mo.observe(strip, { childList: true });
+  untilLeave(() => { io.disconnect(); mo.disconnect(); });
 };
 
 // Both pictures handed to CSS as variables (the same trick the home

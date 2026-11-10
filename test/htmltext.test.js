@@ -37,3 +37,30 @@ test("the swipe deck's line is plain text, whatever it was built from", () => {
   assert.equal(lineOf({ synopsis: "A tennis prodigy&apos;s marriage &amp; a rivalry turn into one long match." }, null), "A tennis prodigy's marriage & a rivalry turn into one long match.");
   assert.equal(lineOf({ imdbId: "tt1" }, () => "Rock &amp; roll never dies, says the band&#39;s drummer."), "Rock & roll never dies, says the band's drummer.");
 });
+
+// TVMaze's summaries are HTML with entities in them: "Georgie &amp; Mandy's
+// First Marriage follows…" reached the website, the TV and the phone as
+// written (elia's iPhone, 2026-11-10). The tags go and the entities are
+// decoded wherever a TVMaze summary enters: the library's synopsis
+// (online.js, and a synopsis kept from before as it is read), Discover's
+// show search (discover.js) and X-Ray's episode overview (xray.js).
+test("TVMaze summaries: tags stripped and entities decoded, library, Discover and X-Ray", () => {
+  const online = require("../src/media/online");
+  const discover = require("../src/media/discover");
+  const xray = require("../src/media/xray");
+  const html = "<p>Georgie &amp; Mandy&#39;s First Marriage follows <b>Georgie</b> and Mandy&hellip;</p>";
+  const want = "Georgie & Mandy's First Marriage follows Georgie and Mandy…";
+  assert.equal(online._internals.stripHtml(html), want);
+  assert.equal(xray._internals.stripHtml(html), want);
+  assert.equal(discover._internals.showItem({ name: "Georgie &amp; Mandy", summary: html }).synopsis, want);
+  // kept before the fix: put right as it is read
+  const store = online._internals.store;
+  const key = "show|georgie & mandy's first marriage";
+  const before = store.data[key];
+  store.data[key] = { synopsis: "Georgie &amp; Mandy&#39;s First Marriage follows", genres: [], fetchedAt: 1 };
+  try {
+    assert.equal(online.get("show", "Georgie & Mandy's First Marriage").synopsis, "Georgie & Mandy's First Marriage follows");
+  } finally {
+    if (before === undefined) delete store.data[key]; else store.data[key] = before;
+  }
+});

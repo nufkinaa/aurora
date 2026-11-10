@@ -48,7 +48,9 @@ const searchAsk = (waiting) => (waiting ? SEARCH_ASK : undefined);
 const normalize = (s) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 
-const stripHtml = (s) => (s || "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+// (the entities in TVMaze's HTML decoded too: see online.js)
+const { plainText } = require("../lib/htmltext");
+const stripHtml = (s) => plainText((s || "").replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim();
 
 // Map every result onto one shape the frontend renders directly
 const showItem = (s) => ({
@@ -1007,5 +1009,5 @@ module.exports = {
   trending, trendingCached, search, meta, metaCached, metaAge, metaRecentlyFailed, catalog, catalogCachedItems, genres, CATALOGS, normalize,
   certificateCached, certificateAge, certificateByTitle, warmCertificate, refreshCertificates, noteCertificate,
   searchCached, metaAll,
-  _internals: { metaCache, metaInflight, metaFails, metaStats, metaStore, fetchMetaOnce, META_TTL, META_STALE_MAX, META_FAIL_MS, setFetchJson: (fn) => { fetchJsonImpl = fn; }, cacheKey, isNewRelease, isFullPage, PAGE_SIZE, NEW_SPAN, certStore, noteCertificate, certFresh, CERT_V },
+  _internals: { showItem, metaCache, metaInflight, metaFails, metaStats, metaStore, fetchMetaOnce, META_TTL, META_STALE_MAX, META_FAIL_MS, setFetchJson: (fn) => { fetchJsonImpl = fn; }, cacheKey, isNewRelease, isFullPage, PAGE_SIZE, NEW_SPAN, certStore, noteCertificate, certFresh, CERT_V },
 };

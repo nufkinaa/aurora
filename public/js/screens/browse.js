@@ -548,6 +548,7 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
     type: "search", inputmode: "search", enterkeyhint: "search", autocomplete: "off", autocorrect: "off",
     autocapitalize: "off", spellcheck: "false", class: "focusable", value: st.query,
     placeholder: `Search ${title.toLowerCase()}…`, "aria-label": `Search ${title}`,
+    dir: "auto", // a Hebrew search reads from the right, as it is typed
   });
   const search = async (q) => {
     st.query = q;

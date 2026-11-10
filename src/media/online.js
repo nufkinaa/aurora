@@ -18,7 +18,13 @@ const RETRY_POSTER_MS = 24 * 3600 * 1000; // failed poster downloads retry daily
 
 const keyFor = (type, title) => `${type}|${title.toLowerCase().trim()}`;
 
-const stripHtml = (s) => (s || "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+const { plainText } = require("../lib/htmltext");
+
+// TVMaze's summaries are HTML: the tags go, and the entities in them are
+// decoded — "Georgie &amp; Mandy's First Marriage follows…" reached every
+// screen as written (elia's iPhone, 2026-11-10), since every screen puts
+// the synopsis in as text.
+const stripHtml = (s) => plainText((s || "").replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim();
 
 const normalize = (s) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
@@ -232,7 +238,11 @@ const markCustom = (type, title) => {
 
 const get = (type, title) => {
   const entry = store.data[keyFor(type, title)];
-  return entry && !entry.failed ? entry : null;
+  if (!entry || entry.failed) return null;
+  // a synopsis kept before entities were decoded (above) is put right as it
+  // is read, once: the next save keeps it plain
+  if (typeof entry.synopsis === "string" && entry.synopsis.indexOf("&") >= 0) entry.synopsis = plainText(entry.synopsis);
+  return entry;
 };
 
 let running = false;
@@ -395,4 +405,4 @@ const posterFile = (name) => {
   return fs.existsSync(file) ? file : null;
 };
 
-module.exports = { rev: () => store.rev, get, markCustom, enrich, refresh, posterFile, cachePoster, events, _internals: { refreshDue } };
+module.exports = { rev: () => store.rev, get, markCustom, enrich, refresh, posterFile, cachePoster, events, _internals: { refreshDue, stripHtml, store } };
