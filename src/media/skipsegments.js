@@ -52,7 +52,9 @@ const TIMEOUT_MS = 7000;
 const MAX_ENTRIES = 6000;
 
 const store = new JsonStore(path.join(config.CACHE_DIR, "skip-segments.json"), {});
-const failures = new Map(); // key -> at
+// key -> at. The key comes from the asking client's numbers (GET /api/segments),
+// and an entry only matters for FAIL_TTL: bounded both ways (perf-server 2026-11-10).
+const failures = new (require("../lib/caches").BoundedMap)({ max: 5000, ttlMs: FAIL_TTL, name: "skip databases: failures remembered" });
 const inflight = new Map(); // key -> promise
 
 const enabled = () => config.SKIP_DATABASES !== false;
@@ -348,4 +350,4 @@ const refreshRecent = async ({ limit = 600 } = {}) => {
   return { asked, changed };
 };
 
-module.exports = { lookup, cached, enabled, refreshRecent, _internals: { merge, plausible, fromSkipDb, fromTidb, fromIntroDb, keyFor, keepKnown, FRESH_MS } };
+module.exports = { lookup, cached, enabled, refreshRecent, _internals: { failures, merge, plausible, fromSkipDb, fromTidb, fromIntroDb, keyFor, keepKnown, FRESH_MS } };

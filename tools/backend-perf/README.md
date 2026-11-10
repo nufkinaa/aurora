@@ -37,6 +37,14 @@ node tools/backend-perf/memory.js    [--snapshot]  # heap by owner; a heap snaps
 node tools/backend-perf/soak.js      --weak --minutes 150   # memory over hours of ordinary use
 node tools/backend-perf/tonemap-cost.js --weak     # what the tone-map timing at boot costs
 
+# perf-server 2026-11-10: the server outside playback
+node tools/backend-perf/routes.js    [--n 30] [--repeat 2] [--only state,home] [--profile] [--bodies <dir>] [--ref <commit>]
+                                     # every route the website, TV and phone call: first ms, server p50/p95, CPU and loop per request, raw/br/gz bytes, ETag, 304
+node tools/backend-perf/browse.js    [--viewers 1,10,30] [--minutes 2] [--full] [--profile] [--ref <commit>]
+                                     # devices going screen to screen as the apps do (+ one viewer saving progress per ten): loop delay, healthz, CPU, memory per minute
+node tools/backend-perf/firstuse.js  [--profile] [--ref <commit>]   # the first request of each kind once the server is warm: modules loaded, blocking reads
+node tools/backend-perf/bgjobs.js    [--ref <commit>]               # the server's own background jobs, each alone: how long it held the event loop
+
 # before against after, in the same minutes (two instances, taking turns)
 node tools/backend-perf/compare.js --weak --before 68e946a [--after <commit>] [--only home,library]
 ```

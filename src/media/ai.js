@@ -33,7 +33,6 @@ const WANT = 16;          // how many we aim to show
 // unique titles — uncomfortably close to the floor.
 const ASK_LOOSE = 14;
 const ASK_TIGHT = 20;
-const CACHE_MS = 24 * 60 * 60 * 1000;
 const MAX_VIBE = 300;
 
 // AURORA_AI_MOCK=1 (a TEST aid, never set in production): the recommender
@@ -60,8 +59,11 @@ const MOCK_ANSWER = JSON.stringify([
 ]);
 const enabled = () => MOCK || !!config.OPENROUTER_KEY;
 
-// vibe|mix|era|length -> {at, items}
-const cache = new Map();
+// vibe|mix|era|length -> {at, items}. The vibe is the asker's own words, so
+// the map is bounded (perf-server 2026-11-10): the 500 most recently used
+// answers, none older than a day.
+const CACHE_MS = 24 * 60 * 60 * 1000;
+const cache = new (require("../lib/caches").BoundedMap)({ max: 500, ttlMs: CACHE_MS, name: "AI picks: answers" });
 const cacheKey = (vibe, mix, era, len) =>
   `${mix}|${era}|${len}|${vibe.trim().toLowerCase()}`;
 
@@ -511,4 +513,4 @@ const recommend = async (vibeRaw, mixRaw, eraRaw, lenRaw, { fresh = false } = {}
   return { items };
 };
 
-module.exports = { enabled, recommend };
+module.exports = { enabled, recommend, _internals: { cache } };

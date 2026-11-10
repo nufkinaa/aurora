@@ -218,7 +218,9 @@ app.use(require("./src/lib/airtoken").middleware);
   // no session).
   const GATED = (p) =>
     /^\/(api|stream|avatars|img|offline)\//.test(p) || p === "/proxy";
-  const wallSaid = new Map();
+  // (bounded: the key is the start of any refused path, which a client with
+  // no session chooses — lib/sayonce.js, perf-server 2026-11-10)
+  const wallSaid = require("./src/lib/sayonce").sayOnce({ max: 500, windowMs: 60 * 1000 });
   app.use((req, res, next) => {
     if (authmode.get() !== "closed") return next();
     if (!GATED(req.path)) return next();
@@ -236,9 +238,7 @@ app.use(require("./src/lib/airtoken").middleware);
     const cookieSid = authz.readCookie(req);
     const headerSid = req.headers["x-session"];
     const bucket = req.path.split("/").slice(0, 3).join("/");
-    const now = Date.now();
-    if (now - (wallSaid.get(bucket) || 0) > 60 * 1000) {
-      wallSaid.set(bucket, now);
+    if (wallSaid(bucket)) {
       console.warn(
         `[auth] 401 ${bucket} ua=${String(req.headers["user-agent"] || "").slice(0, 40)}` +
           ` cookie=${cookieSid ? (sessions.get(cookieSid) ? "live" : "dead") : "none"}` +
@@ -823,6 +823,13 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   // The website's modules re-printed now, off the event loop, instead of
   // on the first page load (lib/jsassets.js warm).
   try { require("./src/lib/jsassets").warm(path.join(__dirname, "public")).catch(() => {}); } catch {}
+  // The curated franchise list (165 small files), read now with the reads
+  // off the event loop, instead of synchronously by the first Home after a
+  // start (media/franchises warm: 3.3 s of the loop on a busy Windows box).
+  setTimeout(() => { try { require("./src/media/franchises").warm(); } catch {} }, 5000).unref();
+  // The code the apps' first requests load (lib/warmup.js), one module at a
+  // time from 30 s on, instead of on the spot by the first visitor of each.
+  try { require("./src/lib/warmup").warm(); } catch {}
   // The first walk of the folders, now that the port is ours.
   const fromSaved = !!scanner.index.scannedAt;
   scanner.scanAsync({ force: true })

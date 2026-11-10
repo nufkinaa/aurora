@@ -751,6 +751,7 @@ const memorySizes = () => {
   try { add("library ids remembered", scanner._internals.idMemoSize(), 200000); } catch {}
   try { add("probe cache (files)", Object.keys(require("../media/metadata")._store.data).length); } catch {}
   try { add("kept answers", require("../lib/answermemo")._internals.entries.size, 64); } catch {}
+  try { for (const p of require("../lib/answermemo").pools) if (p.name !== "home and library") add(`kept answers (${p.name})`, p._internals.entries.size, p.MAX_ENTRIES); } catch {}
   try { add("picture checks", require("../lib/imgcheck")._internals.known.size, 12000); } catch {}
   try { add("picture variants (fast path)", require("../lib/imgvariant")._internals.fast.size, 8000); } catch {}
   try {

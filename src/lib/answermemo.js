@@ -33,6 +33,20 @@
 // MAX_AGE_MS bounds what a stamp cannot see (a background fetch landing, the
 // clock crossing a release date): nothing kept here is ever older than that.
 // A different key never shares an entry — a kids profile's answer is its own.
+//
+// POOLS (perf-server 2026-11-10). pool({ name, maxEntries, maxAgeMs }) makes
+// another, separate set of kept answers with the same rules, so a route with
+// a key per profile never pushes Home's answers out. The module itself is the
+// first pool (Home and the library), exactly as it always was.
+//
+// COMPRESSION OFF THE LOOP (perf-server 2026-11-10). A kept answer's brotli or
+// gzip form is made once per answer, but it was made synchronously, on the
+// event loop: 20–30 ms for a Home and ~50 ms for a 1.5 MB library at quality
+// 6, for every profile's answer after each library change, just when every
+// device asks at once. Answers over SYNC_MAX are now compressed on libuv's
+// thread pool (the same zlib with the same parameters: the same bytes); the
+// requests that arrive meanwhile wait for that one compression. Small ones
+// are still compressed in place.
 "use strict";
 const zlib = require("zlib");
 const crypto = require("crypto");
@@ -40,29 +54,7 @@ const crypto = require("crypto");
 const MAX_AGE_MS = 30 * 1000;
 const MAX_ENTRIES = 64;
 const BR_QUALITY = 6; // the figure server.js measured for /api/home
-
-const entries = new Map(); // key -> { stamp, at, raw: Buffer, hash, br, gzip }
-const stats = { hits: 0, misses: 0, notModified: 0, stored: 0 };
-
-const get = (key, stamp, now = Date.now()) => {
-  const e = entries.get(key);
-  if (!e) return null;
-  if (e.stamp !== stamp || now - e.at > MAX_AGE_MS) {
-    entries.delete(key);
-    return null;
-  }
-  return e;
-};
-
-const put = (key, stamp, body, now = Date.now()) => {
-  const raw = Buffer.isBuffer(body) ? body : Buffer.from(String(body), "utf8");
-  const e = { stamp, at: now, raw, hash: crypto.createHash("sha1").update(raw).digest("base64url").slice(0, 22), br: null, gzip: null };
-  entries.delete(key);
-  entries.set(key, e);
-  while (entries.size > MAX_ENTRIES) entries.delete(entries.keys().next().value);
-  stats.stored++;
-  return e;
-};
+const SYNC_MAX = 64 * 1024; // up to this size, compressing in place costs well under a millisecond
 
 // What the client accepts, best first. (q=0 means "not this one".)
 const pickEncoding = (header) => {
@@ -86,84 +78,154 @@ const matches = (header, hash) => {
   return false;
 };
 
-const deliver = (req, res, e) => {
+const brOpts = (raw) => ({ params: { [zlib.constants.BROTLI_PARAM_QUALITY]: BR_QUALITY, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length } });
+
+// An entry's compressed form: a Buffer when it is ready (or small enough to
+// make now), otherwise the one Promise every waiting request shares.
+const compressed = (e, enc) => {
+  const k = enc === "br" ? "br" : "gzip";
+  if (e[k]) return e[k];
+  if (e.raw.length <= SYNC_MAX) return (e[k] = k === "br" ? zlib.brotliCompressSync(e.raw, brOpts(e.raw)) : zlib.gzipSync(e.raw));
+  const wait = `${k}Wait`;
+  if (!e[wait]) {
+    e[wait] = new Promise((resolve, reject) => {
+      const done = (err, out) => (err ? reject(err) : resolve((e[k] = out)));
+      if (k === "br") zlib.brotliCompress(e.raw, brOpts(e.raw), done);
+      else zlib.gzip(e.raw, done);
+    });
+    e[wait].catch(() => { e[wait] = null; }); // a failure is not remembered: the next request tries again
+  }
+  return e[wait];
+};
+
+const deliver = (req, res, e, stats) => {
   const enc = e.raw.length >= 1024 ? pickEncoding(req.headers["accept-encoding"]) : null;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   // personal, and to be checked every time — the check is the cheap part
   res.setHeader("Cache-Control", "private, no-cache");
   res.setHeader("Vary", "Accept-Encoding");
   // a strong validator over the bytes that are sent (each encoding its own)
-  res.setHeader("ETag", `"${e.hash}${enc === "br" ? "-br" : enc === "gzip" ? "-gz" : ""}"`);
+  const tag = (as) => `"${e.hash}${as === "br" ? "-br" : as === "gzip" ? "-gz" : ""}"`;
+  res.setHeader("ETag", tag(enc));
   if ((req.method === "GET" || req.method === "HEAD") && matches(req.headers["if-none-match"], e.hash)) {
     stats.notModified++;
     res.statusCode = 304;
     res.end();
     return;
   }
-  let body = e.raw;
-  if (enc === "br") {
-    body = e.br || (e.br = zlib.brotliCompressSync(e.raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: BR_QUALITY, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: e.raw.length } }));
-    res.setHeader("Content-Encoding", "br");
-  } else if (enc === "gzip") {
-    body = e.gzip || (e.gzip = zlib.gzipSync(e.raw));
-    res.setHeader("Content-Encoding", "gzip");
-  }
-  res.setHeader("Content-Length", body.length);
-  res.statusCode = 200;
-  if (req.method === "HEAD") return void res.end();
-  res.end(body);
-};
-
-// See the note at the top. Returns true when the request has been answered.
-const begin = (req, res, { key, stamp }) => {
-  const stampNow = typeof stamp === "function" ? stamp : () => stamp;
-  const ctx = { key, stampNow, stamp: stampNow(), send: res.send };
-  const hit = get(key, ctx.stamp);
-  if (hit) {
-    stats.hits++;
-    deliver(req, res, hit);
-    return true;
-  }
-  stats.misses++;
-  res._kept = ctx;
-  // Capture what the route sends: Express's res.json ends in res.send(string),
-  // after every res.json wrapper in front of the route (the kids filter, the
-  // blur-up placeholders) has had its turn.
-  res.send = function (body) {
-    res.send = ctx.send;
-    if (res.statusCode === 200 && (typeof body === "string" || Buffer.isBuffer(body)) && !res.headersSent) {
-      try {
-        return void deliver(req, res, put(key, ctx.stamp, body));
-      } catch {}
-    }
-    return ctx.send.call(this, body);
+  const finish = (body, as) => {
+    if (res.writableEnded || res.destroyed) return;
+    if (as) res.setHeader("Content-Encoding", as);
+    else if (res.getHeader("Content-Encoding")) res.removeHeader("Content-Encoding");
+    res.setHeader("ETag", tag(as));
+    res.setHeader("Content-Length", body.length);
+    res.statusCode = 200;
+    if (req.method === "HEAD") return void res.end();
+    res.end(body);
   };
-  return false;
+  if (!enc) return finish(e.raw, null);
+  let out;
+  try { out = compressed(e, enc); } catch { return finish(e.raw, null); }
+  if (Buffer.isBuffer(out)) return finish(out, enc);
+  // (a compression that fails sends the plain bytes, under their own validator)
+  out.then((b) => finish(b, enc), () => finish(e.raw, null));
 };
 
-// See the note at the top. Returns true when the request has been answered.
-const recheck = (req, res) => {
-  const ctx = res._kept;
-  if (!ctx) return false;
-  ctx.stamp = ctx.stampNow(); // what the answer about to be composed is built from
-  const hit = get(ctx.key, ctx.stamp);
-  if (!hit) return false;
-  stats.hits++;
-  stats.misses--; // it was counted as a miss on arrival; it was answered from memory after all
-  res.send = ctx.send;
-  deliver(req, res, hit);
-  return true;
+const pools = new Set();
+
+// A set of kept answers. See the note at the top.
+const pool = ({ name = "answers", maxEntries = MAX_ENTRIES, maxAgeMs = MAX_AGE_MS } = {}) => {
+  const entries = new Map(); // key -> { stamp, at, raw: Buffer, hash, br, gzip }
+  const stats = { hits: 0, misses: 0, notModified: 0, stored: 0 };
+
+  const get = (key, stamp, now = Date.now()) => {
+    const e = entries.get(key);
+    if (!e) return null;
+    if (e.stamp !== stamp || now - e.at > maxAgeMs) {
+      entries.delete(key);
+      return null;
+    }
+    return e;
+  };
+
+  const put = (key, stamp, body, now = Date.now()) => {
+    const raw = Buffer.isBuffer(body) ? body : Buffer.from(String(body), "utf8");
+    const e = { stamp, at: now, raw, hash: crypto.createHash("sha1").update(raw).digest("base64url").slice(0, 22), br: null, gzip: null };
+    entries.delete(key);
+    entries.set(key, e);
+    while (entries.size > maxEntries) entries.delete(entries.keys().next().value);
+    stats.stored++;
+    return e;
+  };
+
+  const self = { name, stats, MAX_AGE_MS: maxAgeMs, MAX_ENTRIES: maxEntries };
+
+  // See the note at the top. Returns true when the request has been answered.
+  self.begin = (req, res, { key, stamp }) => {
+    const stampNow = typeof stamp === "function" ? stamp : () => stamp;
+    const ctx = { key, stampNow, stamp: stampNow(), send: res.send, pool: self };
+    const hit = get(key, ctx.stamp);
+    if (hit) {
+      stats.hits++;
+      deliver(req, res, hit, stats);
+      return true;
+    }
+    stats.misses++;
+    res._kept = ctx;
+    // Capture what the route sends: Express's res.json ends in res.send(string),
+    // after every res.json wrapper in front of the route (the kids filter, the
+    // blur-up placeholders) has had its turn.
+    res.send = function (body) {
+      res.send = ctx.send;
+      if (res.statusCode === 200 && (typeof body === "string" || Buffer.isBuffer(body)) && !res.headersSent) {
+        try {
+          return void deliver(req, res, put(key, ctx.stamp, body), stats);
+        } catch {}
+      }
+      return ctx.send.call(this, body);
+    };
+    return false;
+  };
+
+  // See the note at the top. Returns true when the request has been answered.
+  self.recheck = (req, res) => {
+    const ctx = res._kept;
+    if (!ctx || ctx.pool !== self) return false;
+    ctx.stamp = ctx.stampNow(); // what the answer about to be composed is built from
+    const hit = get(ctx.key, ctx.stamp);
+    if (!hit) return false;
+    stats.hits++;
+    stats.misses--; // it was counted as a miss on arrival; it was answered from memory after all
+    res.send = ctx.send;
+    deliver(req, res, hit, stats);
+    return true;
+  };
+
+  self.clear = () => {
+    const n = entries.size;
+    entries.clear();
+    return n;
+  };
+  self._internals = { entries, get, put };
+  pools.add(self);
+  return self;
 };
 
-const clear = () => {
-  const n = entries.size;
-  entries.clear();
-  return n;
-};
+const main = pool({ name: "home and library" });
 
 // under memory pressure these go first: they are rebuilt on the next request
 try {
-  require("./watchdog").onSoftHeal(() => { const n = clear(); return n ? `${n} kept answers dropped` : null; });
+  require("./watchdog").onSoftHeal(() => {
+    let n = 0;
+    for (const p of pools) n += p.clear();
+    return n ? `${n} kept answers dropped` : null;
+  });
 } catch {}
 
-module.exports = { begin, recheck, clear, stats, MAX_AGE_MS, MAX_ENTRIES, _internals: { entries, get, put, deliver, pickEncoding, matches } };
+module.exports = {
+  begin: main.begin, recheck: main.recheck, clear: main.clear, stats: main.stats, MAX_AGE_MS, MAX_ENTRIES, pool, pools,
+  _internals: {
+    entries: main._internals.entries, get: main._internals.get, put: main._internals.put,
+    deliver: (req, res, e) => deliver(req, res, e, main.stats), pickEncoding, matches, compressed, SYNC_MAX,
+  },
+};

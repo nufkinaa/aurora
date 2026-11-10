@@ -1032,12 +1032,28 @@ const signalsStamp = (profileId) => signalStamps.get(profileId) || 0;
 // what the Home memo (routes/api.js) needs to know "is this answer still
 // right?" without comparing answers. Worked out lazily: a save marks it
 // stale, the next reader compares a serialisation of those few kilobytes.
+// What one profile's /state answer is built from, as a stamp (the kept
+// answer in routes/profiles.js keys on it — perf-server 2026-11-10): every
+// write of profiles.json moves it (savedRev, any profile), and so does every
+// playback save of THIS profile, which goes to the watch journal instead
+// (stateRevs); the library and the IMDb ids decide the title rows a library
+// id is filled from (ensureTitles). Conservative by design: a write that does
+// not touch this profile still moves it.
+let savedRev = 0;
+const stateRevs = new Map(); // profile id -> playback saves (bounded by the profiles there are)
+const bumpState = (profileId) => {
+  if (!stateRevs.has(profileId) && stateRevs.size >= 2000) stateRevs.clear(); // (never in practice; a bound all the same)
+  stateRevs.set(profileId, (stateRevs.get(profileId) || 0) + 1);
+};
+const stateStamp = (profileId) =>
+  `${savedRev}.${stateRevs.get(profileId) || 0}.${signalsStamp(profileId)}.${scanner.index.version}.${imdbLib().version()}`;
+
 let shapeStale = true;
 let shapeSeen = "";
 let shapeN = 0;
 {
   const save = store.save.bind(store);
-  store.save = () => { shapeStale = true; return save(); };
+  store.save = () => { shapeStale = true; savedRev++; return save(); };
 }
 const shapeStamp = () => {
   if (shapeStale) {
@@ -1188,6 +1204,7 @@ const setProgress = (profileId, itemId, position, duration, meta) => {
   const key = titleKeyOf(itemId, state.streamItems[itemId]);
   const titled = key ? writeTitle(state, key, row, itemId) : false;
   // Not a rewrite of profiles.json: the journal (lib/watchjournal.js).
+  bumpState(profileId);
   journal.note(profileId, { progress: [itemId], titles: titled ? [key] : [], streamItems: metaKept ? [itemId] : [] }, { urgent });
 };
 
@@ -1866,6 +1883,7 @@ module.exports = {
   getTasteSkipped,
   tasteCounts,
   signalsStamp,
+  stateStamp,
   remove,
   setProgress,
   noteStop,
