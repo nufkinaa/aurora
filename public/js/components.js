@@ -7,6 +7,7 @@ import { attachRowArrows } from "./rowArrows.js";
 import * as narrator from "./narrator.js";
 import { attachPeek } from "./peek.js";
 import { warmTitle } from "./prefetch.js";
+import { warmFirst, warmAllowed, warmScrolling } from "./warm.js";
 import { addFromRec, fromParts } from "./recommend.js";
 
 // A flat "Rated 3★" wastes a moment the viewer just chose to have; the
@@ -311,10 +312,15 @@ const fillRowLater = (scroller, items, opts) => {
     if (filled) return;
     filled = true;
     const all = scroller._rowItems || items;
-    scroller.append(...rowCards(all.slice(scroller.children.length), { ...opts, eagerCards: 0 }));
+    const more = rowCards(all.slice(scroller.children.length), { ...opts, eagerCards: 0 });
+    scroller.append(...more);
     scroller.removeEventListener("scroll", fill);
     scroller.removeEventListener("focusin", onFocus);
     scroller._fillRow = null;
+    // their pictures before the rest of the page's: this shelf is the one
+    // being paged (the browser's own lazy-load asks for a card past a
+    // shelf's edge only once it is in view — warm.js)
+    warmFirst(more.flatMap((n) => [...n.querySelectorAll("img.img-blurup, img.img-fade")]));
   };
   // for whoever needs the whole row NOW (a remembered scroll offset deep
   // into the shelf — see home.js restoreRowScroll)
@@ -330,6 +336,42 @@ const fillRowLater = (scroller, items, opts) => {
   };
   scroller.addEventListener("focusin", onFocus);
   return rowCards(items.slice(0, head), opts);
+};
+
+// A mouse that rests on a shelf is about to page it: the rest of the shelf is
+// built then, and its pictures asked for (warm.js), so the first press of the
+// arrow brings cards that are already there. Only where pictures may be
+// asked for ahead at all (a desktop on a line that is not slow); a pointer
+// that only crosses the shelf on its way elsewhere builds nothing, and neither
+// does a shelf that is wheeled past under a pointer standing still — building
+// cards is work the scroll would pay for.
+const REST_MS = 150;
+const restOnHover = (section, scroller) => {
+  if (!scroller._fillRow) return;
+  let t = 0;
+  const off = () => {
+    clearTimeout(t);
+    section.removeEventListener("pointerenter", enter);
+    section.removeEventListener("pointerleave", leave);
+  };
+  const enter = (e) => {
+    if (e.pointerType !== "mouse") return;
+    if (!scroller._fillRow) return off();
+    clearTimeout(t);
+    const rested = () => {
+      if (!scroller._fillRow) return off();
+      if (!section.isConnected || !warmAllowed()) return;
+      if (warmScrolling()) { t = setTimeout(rested, REST_MS); return; }
+      // (wheeled away meanwhile: the browser may not have said so yet)
+      if (!section.matches(":hover")) return;
+      scroller._fillRow();
+      off();
+    };
+    t = setTimeout(rested, REST_MS);
+  };
+  const leave = () => clearTimeout(t);
+  section.addEventListener("pointerenter", enter);
+  section.addEventListener("pointerleave", leave);
 };
 
 // A shelf's tail is built lazily (fillRowLater); asking for a scroll offset
@@ -366,6 +408,7 @@ export const shelfRow = (title, items, opts = {}) => {
     scroller
   );
   attachRowArrows(section, scroller);
+  restOnHover(section, scroller);
   section._shelfOpts = opts; // for patchShelf
   return section;
 };

@@ -68,16 +68,40 @@ for (const [name, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) ui.test
   await page.waitForFunction(() => window.__prio.below.getAttribute("src"));
   const after = await page.evaluate(() => ({
     below: window.__prio.below.getAttribute("src"),
-    loading: window.__prio.below.getAttribute("loading"),
     prio: window.__prio.below.getAttribute("fetchpriority"),
     seenIn: window.__prio.seen.classList.contains("img-in"),
+    seenNow: window.__prio.seen.classList.contains("img-now"),
     inYet: window.__prioUi.picturesIn(),
   }));
   assert.match(after.below, /^\/img\/prio-below\?w=\d+$/);
-  assert.equal(after.loading, "lazy");
   assert.equal(after.prio, null, "a poster out of view is not given a priority of its own");
   assert.equal(after.seenIn, true);
+  assert.equal(after.seenNow, false, "a picture that arrived late in front of the person did not fade in");
   assert.equal(after.inYet, true);
+  if (name === "desktop") {
+    // …and on a desktop it is then asked for ahead of the scroll (warm.js),
+    // and is simply there when its card comes into view: no fade
+    await page.waitForFunction(() => window.__prio.below.classList.contains("img-in"), null, { timeout: 8000 });
+    const ahead = await page.evaluate(() => ({
+      loading: window.__prio.below.getAttribute("loading"),
+      now: window.__prio.below.classList.contains("img-now"),
+      y: scrollY,
+    }));
+    assert.equal(ahead.loading, "eager");
+    assert.equal(ahead.y, 0, "the page was scrolled");
+    assert.ok(asked.some((p) => p.includes("prio-below")), "the poster further down was never requested");
+    assert.equal(ahead.now, true, "a picture that arrived out of sight is set to fade in when it is scrolled to");
+  } else {
+    // a phone: the browser's own lazy-load, and nothing ahead of it
+    await page.waitForTimeout(1200);
+    const still = await page.evaluate(() => ({
+      loading: window.__prio.below.getAttribute("loading"),
+      done: window.__prio.below.complete && window.__prio.below.naturalWidth > 0,
+    }));
+    assert.equal(still.loading, "lazy");
+    assert.equal(still.done, false, "a phone asked for a poster three screens down");
+    assert.deepEqual(asked.filter((p) => p.includes("prio-below")), [], "a phone requested a poster three screens down");
+  }
 
   // a new screen holds again; a touch lets everything go at once
   const touched = await page.evaluate(async () => {
