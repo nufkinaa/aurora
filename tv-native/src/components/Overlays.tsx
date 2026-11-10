@@ -8,7 +8,7 @@ import PersonSheet from './PersonSheet';
 import ReplaceSheet from './ReplaceSheet';
 import RecommendSheet from './RecommendSheet'; // [household]
 import Sheet from './Sheet';
-import {glassFootSheet, glassToast, ink, SHADOW} from '../glass';
+import {glassFootSheet, glassToast, HAIRLINE, ink} from '../glass';
 import TrailerFrame, {TrailerState} from './Trailer';
 import {prepareTrailer, ResolvedTrailer} from '../trailers';
 import type {ActionItem} from '../overlay';
@@ -1073,10 +1073,12 @@ const styles = StyleSheet.create({
 
   // toasts — the glass pill, bottom centre, above everything
   toasts: {position: 'absolute', left: 0, right: 0, bottom: 28, alignItems: 'center', gap: 8, zIndex: 600, elevation: 600},
-  // opaque (nothing dims the page under a toast), the rim's lines, the still shadow
+  // opaque (nothing dims the page under a toast), the rim's lines, and the dark
+  // hairline outside them - no blurred shadow (it would be blurred again on every
+  // frame the page draws while the toast is up)
   toast: {
     ...glassToast,
-    boxShadow: SHADOW,
+    boxShadow: HAIRLINE,
     borderRadius: radius.pill,
     flexDirection: 'row',
     alignItems: 'center',

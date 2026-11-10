@@ -16,9 +16,13 @@
 // pane here is OPAQUE; the glass is in the rim, the sheen and the shadow.
 //
 // Cost: borders and CSS gradients are drawn into the view's own background once;
-// nothing here animates and nothing is added per frame. A blurred boxShadow is
-// only on surfaces that stand still (SHADOW) - a pane that SLIDES takes a baked
-// picture instead (assets/glass-pane-shadow*.png, tools/gen_glass_shadow.py).
+// nothing here animates and nothing is added per frame. There is no blurred
+// boxShadow in the glass: the box blurs it again on every frame it draws, even
+// on a pane that stands still (three layers on the player's menu took opening
+// it from 14 ms to 23 ms a frame on the Mi TV). The soft shadow is baked
+// pictures (tools/gen_glass_shadow.py): one whole picture for a pane of a known
+// size (the rail, the filter panel: assets/glass-pane-shadow*.png), nine pieces
+// round a pane of any size (components/GlassShadow.tsx).
 //
 // Consts only: no state lives here (profile-scope.test.ts).
 
@@ -86,11 +90,13 @@ export const rimMenu = {
 } as const;
 
 /**
- * The shadow of a pane that STANDS STILL (never on one that slides or scales):
- * a soft one, a near one, a tight one, and a dark hairline just outside the rim.
+ * The glass's shadow is a soft one (0 14 34, black 34 %), a near one (0 3 8,
+ * black 22 %), a tight one (0 1 2, black 22 %) and a dark hairline just outside
+ * the rim - baked into pictures, see the head of this file. This is the
+ * hairline alone, for a pane too small for the pictures (a toast): no blur in
+ * it, so it costs a rounded line.
  */
-export const SHADOW =
-  '0 14px 34px rgba(0,0,0,0.34), 0 3px 8px rgba(0,0,0,0.22), 0 1px 2px rgba(0,0,0,0.22), 0 0 0 0.5px rgba(0,0,0,0.30)';
+export const HAIRLINE = '0 0 0 0.5px rgba(0,0,0,0.30)';
 
 /** A pane of the chrome over the bare page (the rail, the filter panel). Add a radius; its shadow is a baked picture. */
 export const glassPane = {
@@ -98,7 +104,7 @@ export const glassPane = {
   ...rim,
   experimental_backgroundImage: LIGHT,
 } as const;
-/** A menu (the player's menus). Add a radius, and SHADOW if it stands still. */
+/** A menu or a sheet (the player's menus, Sheet). Add a radius, and <GlassShadow> as its first child. */
 export const glassMenu = {
   backgroundColor: BODY,
   ...rimMenu,
@@ -110,11 +116,6 @@ export const glassRaised = {
   ...rimMenu,
   experimental_backgroundImage: LIGHT_MENU,
 } as const;
-/** A sheet in the middle of the screen, on its wash: the menu's glass and the shadow. */
-export const glassSheet = {
-  ...glassMenu,
-  boxShadow: SHADOW,
-} as const;
 /** A sheet that stands on the screen's foot (X-Ray, a person's page): no foot line, no foot glow. */
 export const glassFootSheet = {
   backgroundColor: BODY,
@@ -122,7 +123,7 @@ export const glassFootSheet = {
   borderBottomWidth: 0,
   experimental_backgroundImage: LIGHT_FOOT_SHEET,
 } as const;
-/** A toast: the menu's lines and the sheen. */
+/** A toast: the menu's lines and the sheen. Add HAIRLINE as its boxShadow. */
 export const glassToast = {
   backgroundColor: BODY,
   ...rimMenu,

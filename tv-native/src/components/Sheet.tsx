@@ -5,7 +5,8 @@ import React, {useEffect} from 'react';
 import {BackHandler, ScrollView, StyleSheet, Text, TVFocusGuideView, View} from 'react-native';
 import {useKeyTrap} from '../focus';
 import {sheetMaxHeight} from '../popupFit';
-import {glassSheet, ink} from '../glass';
+import {glassMenu, ink} from '../glass';
+import GlassShadow from './GlassShadow';
 import theme, {useTvMetrics} from '../theme';
 
 const {colors, fontSize, spacing} = theme;
@@ -59,6 +60,8 @@ export default function Sheet({
         trapFocusLeft
         trapFocusRight
         style={[styles.card, {width, maxHeight: sheetMaxHeight(height, spacing.pageX)}, accent && styles.cardAccent]}>
+        {/* the glass's soft shadow, as pictures; the accent card keeps its own glow */}
+        {accent ? null : <GlassShadow radius={22} />}
         {kicker ? <Text style={styles.kicker}>{kicker}</Text> : null}
         {title ? <Text style={styles.title}>{title}</Text> : null}
         <ScrollView ref={scrollRef} style={styles.body} contentContainerStyle={styles.bodyIn} showsVerticalScrollIndicator={false}>
@@ -71,10 +74,10 @@ export default function Sheet({
 }
 
 // The glass surface of a sheet: the neutral body, a rim of light with its glow,
-// a quiet sheen, a soft shadow (glass.ts; docs/glass-tv.md). Opaque: at the
+// a quiet sheen, and <GlassShadow> under it (glass.ts; docs/glass-tv.md). Opaque: at the
 // recipe's 94 % the page's own words stood readable inside the sheet (Mi TV).
 // It was a blue-black slab with one bright top edge.
-export const glass = glassSheet;
+export const glass = glassMenu;
 
 const styles = StyleSheet.create({
   backdrop: {

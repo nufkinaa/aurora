@@ -9,7 +9,8 @@ import React, {useEffect, useRef, useState} from 'react';
 import {View, Text, ScrollView, StyleSheet, TVFocusGuideView, BackHandler} from 'react-native';
 import Focusable from './Focusable';
 import {useKeyTrap} from '../focus';
-import {glassRaised, ink, SHADOW} from '../glass';
+import {glassRaised, ink} from '../glass';
+import GlassShadow from './GlassShadow';
 import theme, {useTvMetrics} from '../theme';
 
 const {colors, radius} = theme;
@@ -114,6 +115,7 @@ export default function Picker({
             place.up ? styles.panelUp : styles.panelDown,
             {maxHeight: place.max},
           ]}>
+          <GlassShadow radius={14} />
           <ScrollView>
             {options.map((o, i) => (
               <Focusable uiId="picker.pick"
@@ -186,12 +188,11 @@ const styles = StyleSheet.create({
     minWidth: 200,
     padding: 6,
     borderRadius: 14,
-    // A menu of the glass (glass.ts): opaque, the rim of light, the sheen, the
-    // soft shadow - it stands still, so the shadow may be a real one. The RAISED
-    // body: it opens on the filter pane, and with the pane's own body the two
-    // ran into each other (Mi TV).
+    // A menu of the glass (glass.ts): opaque, the rim of light, the sheen; its
+    // soft shadow is <GlassShadow>, pictures and not a blur. The RAISED body: it
+    // opens on the filter pane, and with the pane's own body the two ran into
+    // each other (Mi TV).
     ...glassRaised,
-    boxShadow: SHADOW,
     zIndex: 291,
   },
   panelDown: {top: '100%', marginTop: 6},
