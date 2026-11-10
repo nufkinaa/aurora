@@ -832,6 +832,12 @@ export const renderPlayer = async (root, { id }) => {
     } catch (e) {
       // a kids profile refused it: say so in the server's words
       if (e && /kids profile/i.test(e.message || "")) toast(e.message, "🧸");
+      else {
+        // [offline-look] Aurora is out of reach: the copy on this device plays
+        // in its place; with none, one calm line and back where you were
+        const rest = await import("../offlineRest.js").catch(() => null);
+        if (rest && rest.unreachable(e)) return rest.restPlay(itemId);
+      }
       return navigate("#/");
     }
   }
@@ -3232,7 +3238,8 @@ export const renderPlayer = async (root, { id }) => {
 
   const overlay = el(
     "div",
-    { class: "player" },
+    // (data-here: this plays from the device itself — the "No connection" line has nothing to say over it)
+    { class: "player", "data-here": item._offline || item._local ? "1" : null },
     video,
     spinner,
     torrentStatus,

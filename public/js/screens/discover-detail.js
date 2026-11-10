@@ -1227,6 +1227,13 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
     if (!lib) {
       // a kids profile refused it: say so in the server's words, not a silent trip Home
       if (libErr && /kids profile/i.test(libErr.message || "")) toast(libErr.message, "🧸");
+      else {
+        // [offline-look] Aurora is out of reach: the page rests — what is
+        // known of the title, its copy on this device, the one button that
+        // helps — instead of a trip Home without a word
+        const rest = await import("../offlineRest.js").catch(() => null);
+        if (rest && rest.unreachable(libErr)) return rest.restTitle(screen, { id, source });
+      }
       return navigate("#/");
     }
     // its file is on a storage drive that is not answering (lib/drives):
@@ -1261,6 +1268,11 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
       // (A kids profile refused the title: the server's own words, not a
       // question about the internet.)
       const kidsNo = metaErr && /kids profile/i.test(metaErr.message || "");
+      if (!kidsNo) {
+        // [offline-look] no connection: the page rests (js/offlineRest.js)
+        const rest = await import("../offlineRest.js").catch(() => null);
+        if (rest && rest.unreachable(metaErr) && navigator.onLine === false) return rest.restTitle(screen, { id, source });
+      }
       toast(kidsNo ? metaErr.message : "Couldn't load that title — is the internet up?", kidsNo ? "🧸" : "⚠️");
       if (history.length > 1) return history.back();
       return navigate("#/");

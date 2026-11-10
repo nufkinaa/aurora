@@ -297,10 +297,18 @@ export const renderSaved = async (root) => {
       const pos = at(it);
       return pos && it.duration > 0 ? el("div", { class: "dev-seen", "aria-hidden": "true" }, el("i", { style: `width:${Math.max(3, Math.min(100, Math.round((pos / it.duration) * 100)))}%` })) : null;
     };
+    // its picture — and its name in the frame when the picture cannot be had
+    // (no connection, and this one was never seen here)
+    const poster = (src, name, lazy = false) => {
+      if (!src) return el("div", { class: "card-fallback" }, name);
+      const img = el("img", { src, alt: "", loading: lazy ? "lazy" : null });
+      img.onerror = () => img.replaceWith(el("div", { class: "card-fallback" }, name));
+      return img;
+    };
     // a film, or the one episode of a show that is here
     const fullRow = (it) =>
       el("div", { class: "dl-row tone-ok dev-row" + (done.has(it.id) ? " watched" : ""), "data-id": it.id },
-        el("div", { class: "dl-poster" }, it.cover ? el("img", { src: it.cover, alt: "" }) : el("div", { class: "card-fallback" }, it.title)),
+        el("div", { class: "dl-poster" }, poster(it.cover, it.title)),
         el("div", { class: "dl-info" },
           el("div", { class: "dl-title", dir: "auto" }, el("span", { class: "dev-name" }, label(it)), tags(it, false)),
           el("div", { class: "dl-status" }, facts(it, { full: true })),
@@ -337,7 +345,7 @@ export const renderSaved = async (root) => {
       const bytes = g.eps.reduce((n, e) => n + (e.sizeBytes || 0), 0);
       const target = g.next || first;
       const head = el("div", { class: "dev-group-head" },
-        el("div", { class: "dl-poster" }, first.cover ? el("img", { src: first.cover, alt: "" }) : el("div", { class: "card-fallback" }, first.showTitle)),
+        el("div", { class: "dl-poster" }, poster(first.cover, first.showTitle)),
         el("div", { class: "dl-info" },
           el("h3", { class: "dl-title dev-group-title", dir: "auto" }, first.showTitle),
           el("div", { class: "dl-status" }, [
@@ -430,7 +438,7 @@ export const renderSaved = async (root) => {
         el("h4", { class: "dev-offers-title" }, "Worth having with you"),
         el("div", { class: "dev-offers-list" }, some.map((r) =>
           el("div", { class: "dev-offer" },
-            el("div", { class: "dl-poster" }, r.cover ? el("img", { src: r.cover, alt: "", loading: "lazy" }) : el("div", { class: "card-fallback" }, r.name)),
+            el("div", { class: "dl-poster" }, poster(r.cover, r.name, true)),
             el("div", { class: "dev-offer-words" },
               el("div", { class: "dev-offer-name", dir: "auto" }, r.name, r.sub ? el("small", {}, r.sub) : null),
               el("div", { class: "dev-offer-why" }, [r.why, mins(r.secs), r.bytes ? fmtBytes(r.bytes) : null].filter(Boolean).join(" · "))),

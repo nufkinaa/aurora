@@ -926,7 +926,13 @@ const boot = async () => {
     // AFTER startRouter's own first render, and the screen was built twice)
     try { history.replaceState(history.state, "", "#/saved"); } catch { location.hash = "#/saved"; }
     startRouter(document.getElementById("app"));
-    toast(saved.length ? "No server in reach — here is what's saved on this device" : "No server in reach — you can still play a file from this device", "📱");
+    {
+      const off = navigator.onLine === false;
+      const say = saved.length
+        ? `${off ? "No connection" : "Can't reach Aurora"} — here is what's on this device`
+        : `${off ? "No connection" : "Can't reach Aurora"} — a video from this device still plays here`;
+      import("./offlineUi.js").then((ui) => toast(say, ui.mark(saved.length ? "saved" : "none"), null, { quiet: true })).catch(() => toast(say));
+    }
     return;
   }
 
@@ -946,7 +952,8 @@ const boot = async () => {
         // (nothing saved: Saved still plays a file from this device)
         if ((location.hash || "#/") === "#/") {
           navigate("#/saved");
-          toast(list.length ? "You're offline — these are saved on this device" : "You're offline — you can still play a file from this device", "📱");
+          const say = list.length ? "No connection — here is what's on this device" : "No connection — a video from this device still plays here";
+          import("./offlineUi.js").then((ui) => toast(say, ui.mark(list.length ? "saved" : "none"), null, { quiet: true })).catch(() => toast(say));
         }
       }).catch(() => {});
     }

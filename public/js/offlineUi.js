@@ -161,6 +161,7 @@ const applyCard = (node, item) => {
       m.remove();
       node._dev = null;
       node.classList.remove("has-dev");
+      node.removeAttribute("data-dev");
       live.delete(node);
       if (node._label0 != null) node.setAttribute("aria-label", node._label0);
     }
@@ -173,6 +174,8 @@ const applyCard = (node, item) => {
     node.classList.add("has-dev");
     node.append(m);
   } else setMark(m, look.st, look.pct);
+  // (the card says its state too: with no connection, what is not here rests — screens.css)
+  if (node.getAttribute("data-dev") !== look.st) node.setAttribute("data-dev", look.st);
   const text = look.st === "saving" || look.st === "retrying" || look.st === "paused" ? `${pctOf(look.pct)}%` : look.st === "saved" && look.n > 1 ? String(look.n) : "";
   if (m.firstChild.textContent !== text) m.firstChild.textContent = text;
   const say = `${node._label0}, ${sayOf(look)}`;
@@ -244,6 +247,24 @@ const paintNav = () => {
   }
 };
 
+// ---------- the pictures of what is here ----------
+// A copy plays with no connection; its picture should be there too. The
+// worker keeps every poster it is asked for (sw.js, /img/*), so asking once
+// — while there is a connection — is all it takes. Only for copies on this
+// device, only a picture that is not kept yet, never in the way of a page
+// (after it settled, one at a time).
+const kept = new Set();
+const keepCover = async (url) => {
+  if (!url || kept.has(url) || navigator.onLine === false || !url.startsWith("/img/")) return;
+  kept.add(url);
+  try { if (!(await caches.match(url))) await fetch(url); } catch { kept.delete(url); }
+};
+const keepCovers = async () => {
+  if (!index) return;
+  let n = 0;
+  for (const c of [...index.values()]) if (c && c.cover && n++ < 80) await keepCover(c.cover);
+};
+
 // ---------- a save landing ----------
 // "It is here now": the marks pop once and one line says so, with the press
 // that plays it. (offline-web's own lines — a wish arriving, a Retry — say
@@ -256,6 +277,7 @@ const landed = (id, title) => {
   pop(navMark);
   pop(moreMark);
   document.dispatchEvent(new CustomEvent("aurora-device-landed", { detail: { id, title } }));
+  keepCover(((index && index.get(id)) || {}).cover);
   if (hush.has(id)) return;
   setTimeout(() => {
     const said = [...document.querySelectorAll("#toasts .toast")].some((t) => title && t.textContent.includes(title) && /on this device/.test(t.textContent));
@@ -356,7 +378,11 @@ export const start = () => {
   state.deviceLine = deviceLine;
   offline.onJobs(() => soon());
   offline.onIndex(() => { dirty = true; soon(); });
-  whenIndexed().then(() => { dirty = true; soon(0); });
+  whenIndexed().then(() => {
+    dirty = true;
+    soon(0);
+    if (index && index.size) setTimeout(() => (window.requestIdleCallback || ((fn) => fn()))(() => { keepCovers(); }), 6000);
+  });
   import("./offlineWish.js").then((w) => {
     noteWishes(w.listWishes());
     w.onWishes((list) => { noteWishes(list); dirty = true; soon(); });

@@ -4402,20 +4402,8 @@ a.nav-menu-item { text-decoration: none; box-sizing: border-box; }
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
 }
 
-/* "Can't reach the server" (ws.js) — the bottom edge, never over the nav */
-#offline-banner {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 9999;
-  padding: 6px 12px;
-  text-align: center;
-  font-size: 0.85rem;
-  font-weight: 600;
-  background: #5c1f24;
-  color: #ffd7d7;
-}
+/* (#offline-banner — "No connection" / "Can't reach Aurora", ws.js — is drawn
+   in the offline-look block at the end of this file) */
 
 /* ---------- My downloads (#/downloads) ----------
    Firm cards on a page you come to for an answer: one summary line up top,
@@ -5988,3 +5976,148 @@ html:root .btn.trip-go:disabled { opacity: 0.4; cursor: default; box-shadow: non
   html:root .trip-wrap .look-notice.trip-sheet { animation: none; }
 }
 /* ==== end offline-look (the screen + Pack for a trip) ==== */
+
+/* ==== offline-look (2026-11-10) — no connection
+   The one calm line (ws.js builds it), what rests while it is up
+   (html.net-off), a title page that rests (js/offlineRest.js).
+   Amber = waiting, never an alarm. Values: docs/offline-look.md ==== */
+#offline-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 14px; /* (a phone lifts it above its tab bar: glass.css / responsive.css) */
+  z-index: 9999;
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: calc(100vw - 24px);
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px 7px 11px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  color: #e9ecf4;
+  background: rgba(20, 22, 30, 0.94);
+  border: 1px solid rgba(245, 197, 66, 0.32);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+  animation: net-pill-in 0.28s ease-out both;
+}
+html:root body #offline-banner { border-radius: 999px; }
+#offline-banner::before {
+  content: "";
+  flex: none;
+  width: 17px;
+  height: 17px;
+  background: #f5c542;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.3 7.2A5.6 5.6 0 0 1 17.6 11a3.8 3.8 0 0 1 2.3 6.5M16.5 18.5H7.2a4.2 4.2 0 0 1-1-8.28'/%3E%3Cpath d='M4 4l16 16'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.3 7.2A5.6 5.6 0 0 1 17.6 11a3.8 3.8 0 0 1 2.3 6.5M16.5 18.5H7.2a4.2 4.2 0 0 1-1-8.28'/%3E%3Cpath d='M4 4l16 16'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+#offline-banner a {
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+  color: #6ee7b7;
+  font-weight: 700;
+  text-decoration: none;
+}
+#offline-banner a:hover,
+#offline-banner a:focus-visible { text-decoration: underline; }
+/* already there: the line has nowhere to lead */
+body:has(.saved-screen) #offline-banner a { display: none; }
+@media (max-width: 430px) {
+  #offline-banner .ob-more { display: none; }
+}
+/* over the player it sits at the top, clear of the controls; over something
+   that plays from this device it has nothing to say */
+html:root body:has(.player) #offline-banner {
+  top: calc(env(safe-area-inset-top, 0px) + 14px);
+  bottom: auto;
+  left: 0;
+  right: 0;
+}
+@media (max-width: 720px) {
+  html:root body:has(.player) #offline-banner { top: calc(env(safe-area-inset-top, 0px) + 70px); }
+}
+html:root body:has(.player[data-here]) #offline-banner { display: none; }
+@keyframes net-pill-in {
+  from { opacity: 0; transform: translateY(6px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #offline-banner { animation: none; }
+}
+
+/* a toast stands above the line, never under it */
+@media (max-width: 1100px) {
+  html.net-off:root body:not(:has(.player)) #toasts { bottom: 62px; }
+}
+@media (max-width: 720px) {
+  html.net-off:root[data-look="glass"] body:not(:has(.player)) #toasts { bottom: calc(122px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (max-width: 600px) {
+  html.net-off:root:not([data-look="glass"]) body:not(:has(.player)) #toasts { bottom: calc(98px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* what is not on this device rests while there is no connection */
+html.net-off #app .card:not([data-dev="saved"]) { opacity: 0.42; }
+html.net-off #app .card:not([data-dev="saved"]):is(:hover, :focus-visible) { opacity: 0.7; }
+
+/* a title page with no connection */
+.rest-page {
+  max-width: 460px;
+  margin: 0 auto;
+  padding: clamp(40px, 12vh, 120px) var(--page-x) 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.rest-cover {
+  position: relative;
+  width: 132px;
+  aspect-ratio: 2 / 3;
+  margin-bottom: 20px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+}
+.rest-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.rest-page[data-here="0"] .rest-cover img { opacity: 0.45; }
+.rest-cover-mark { position: absolute; right: 7px; bottom: 7px; --dm: 24px; }
+.rest-glyph {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  margin-bottom: 20px;
+  border-radius: 50%;
+  color: #f5c542;
+  background: rgba(245, 197, 66, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(245, 197, 66, 0.22);
+}
+.rest-glyph svg { width: 34px; height: 34px; }
+.rest-page[data-here="1"] .rest-glyph {
+  color: #6ee7b7;
+  background: rgba(110, 231, 183, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(110, 231, 183, 0.24);
+}
+.rest-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f5c542;
+}
+.rest-kicker-ic { display: grid; }
+.rest-kicker-ic svg { width: 15px; height: 15px; }
+.rest-title { margin: 8px 0; font-size: clamp(1.5rem, 4.6vw, 2.1rem); line-height: 1.15; }
+.rest-line { max-width: 34ch; margin: 0 0 22px; color: var(--text-dim); font-size: 1rem; line-height: 1.45; }
+.rest-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.rest-actions .btn { display: inline-flex; align-items: center; gap: 8px; }
+.rest-actions .btn svg { width: 18px; height: 18px; flex: none; }
+/* ==== end offline-look (no connection) ==== */

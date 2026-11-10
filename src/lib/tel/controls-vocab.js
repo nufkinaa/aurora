@@ -281,6 +281,9 @@ module.exports = {
   "saved.play.next": "w", // a show's card: play the episode that is next
   "saved.remove": "w",
   "saved.remove.show": "w", // a show's card: all its episodes off this device
+  "saved.rest.open": "w", // a title page with no connection: "On this device"
+  "saved.rest.play": "w", // a title page with no connection: play the copy on this device
+  "saved.rest.retry": "w", // a title page with no connection: "Try again"
   "saved.smartnext": "w", // the "Keep the next episode ready" switch
   "saved.wish.cancel": "w",
   "saved.wish.dismiss": "w",
