@@ -123,8 +123,8 @@ ui.test("one card at a time: poster, title, year, genres and a line; nothing aro
     const r = document.querySelector(s).getBoundingClientRect();
     return [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)].join(",");
   }));
-  // (after the screen's own entrance)
-  await page.waitForFunction(() => document.querySelector("#app .screen").getAnimations().length === 0);
+  // (after the screen's own entrance: the head, the stage and the keys rise in)
+  await page.waitForFunction(() => [...document.querySelectorAll("#app .screen, #app .ts-head, #app .ts-stage, #app .ts-answers")].every((n) => n.getAnimations().length === 0));
   await page.waitForTimeout(300);
   const before = await rects();
   await page.click('#app [data-ui="taste.love"]');

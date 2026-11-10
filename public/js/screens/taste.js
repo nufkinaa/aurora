@@ -21,6 +21,13 @@ import { state, loadLibrary } from "../state.js";
 import { navigate, untilLeave } from "../router.js";
 import { currentScope } from "../focus.js";
 import { uiHit } from "../telemetry.js"; // [analytics]
+// the look (2026-11-10, docs/play/taste.md): a deck on the night sky
+import { mountPlay, star, say } from "../play/stage.js";
+import { pullOf, setPull, depthOf, slam, SLAM_MS } from "../play/deck.js";
+import { pressable } from "../play/press.js";
+import { meteorBurst } from "../play/burst.js";
+import { readTaste, marksOf, litAt, milestone } from "../play/tasteread.js";
+import { constellationSvg, seedOf, MAX_STARS } from "../play/constellation.js";
 
 const keyOf = (t) => t.imdbId || t.id;
 const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -71,8 +78,13 @@ const noProfile = (screen) =>
   screen.append(el("div", { class: "empty" }, el("div", { class: "glyph" }, "👤"), "Pick a profile first."));
 
 export const renderTaste = async (root) => {
-  const screen = el("div", { class: "screen taste-swipe page-pad" });
+  const screen = el("div", { class: "screen taste-swipe page-pad pg-taste" });
   root.append(screen);
+  // the play surface: its own night sky behind, shown once its stylesheet is in
+  const play = mountPlay(screen, { seed: 31 });
+  const timers = new Set(); // everything timed here stops when the screen goes
+  const later = (fn, ms) => { const t = setTimeout(() => { timers.delete(t); fn(); }, ms); timers.add(t); return t; };
+  untilLeave(() => { play.destroy(); for (const t of timers) clearTimeout(t); timers.clear(); });
   if (!state.profile) return noProfile(screen);
   const pid = state.profile.id;
 
@@ -91,24 +103,36 @@ export const renderTaste = async (root) => {
   // ---------- the page ----------
   const count = el("span", { class: "ts-count", "aria-live": "polite" });
   const bar = el("span", { class: "ts-bar-fill" });
-  const undoBtn = tapButton({ "data-ui": "taste.undo", class: "btn small ts-tool focusable", disabled: true, "aria-label": "Undo the last answer" }, () => undo(), "↶ Undo");
+  const undoBtn = tapButton({ "data-ui": "taste.undo", class: "pg-tool pg-tool--undo ts-tool focusable", disabled: true, "aria-label": "Undo the last answer" }, () => undo(),
+    el("span", { class: "pg-tool-glyph", "aria-hidden": "true" }, "↶"), el("span", { class: "pg-tool-label" }, " Undo"));
+  // the taste meter: the ribbon fills, and a star lights at each quarter
+  const pips = [1, 2, 3, 4].map((k) => el("i", { class: "pg-pip", style: `--at:${k * 25}%` }, star()));
+  const meter = el("span", { class: "pg-meter", "aria-hidden": "true" }, el("span", { class: "ts-bar" }, bar), ...pips);
   const head = el("div", { class: "ts-head" },
     el("h1", {}, "What's your taste?"),
-    el("div", { class: "ts-progress" }, el("span", { class: "ts-bar", "aria-hidden": "true" }, bar), count),
+    el("div", { class: "ts-progress" }, meter, count),
     el("div", { class: "ts-toolbar" },
       undoBtn,
-      el("button", { "data-ui": "taste.edit", class: "btn small ts-tool focusable", onclick: () => navigate("#/taste/list") }, "Edit list"),
-      el("button", { "data-ui": "taste.done", class: "btn small btn-primary ts-tool ts-done focusable", onclick: leave }, "Done")));
-  const deck = el("div", { class: "ts-deck" });
+      el("button", { "data-ui": "taste.edit", class: "pg-tool pg-tool--edit ts-tool focusable", onclick: () => navigate("#/taste/list") }, "Edit list"),
+      el("button", { "data-ui": "taste.done", class: "pg-tool pg-tool--solid ts-tool ts-done focusable", onclick: leave }, "Done")));
+  // the deck: the card on show, the next one peeking, and two plates under them
+  const deck = el("div", { class: "ts-deck pg-deck" },
+    el("i", { class: "pg-ghost pg-ghost--2", "aria-hidden": "true" }),
+    el("i", { class: "pg-ghost pg-ghost--1", "aria-hidden": "true" }));
+  const callout = el("div", { class: "pg-callout", role: "status" });
+  let hush = () => {};
+  deck.append(callout); // (over the top edge of the card)
   const stage = el("div", { class: "ts-stage" }, deck);
   const btn = (attrs, verdict, glyph) =>
-    tapButton({ ...attrs, class: `ts-answer ${verdict} focusable`, "aria-label": LABEL[verdict] }, () => answer(verdict),
+    tapButton({ ...attrs, class: `ts-answer pg-key ${verdict} focusable`, "aria-label": LABEL[verdict] }, () => answer(verdict),
       el("span", { class: "ts-answer-glyph", "aria-hidden": "true" }, glyph),
       el("span", { class: "ts-answer-label" }, LABEL[verdict]));
   const answers = el("div", { class: "ts-answers" },
     btn({ "data-ui": "taste.nope" }, "nope", "✕"),
     btn({ "data-ui": "taste.skip" }, "skip", "↑"),
     btn({ "data-ui": "taste.love" }, "love", "♥"));
+  for (const b of answers.children) pressable(b, { tick: false }); // (answer() has its own tick)
+  for (const b of head.querySelectorAll(".pg-tool")) pressable(b, { tick: false });
   const hint = el("p", { class: "ts-hint" }, "← Not for me · → Love · ↓ Haven't seen · Z undo");
   screen.append(head, stage, answers, hint);
 
@@ -117,6 +141,10 @@ export const renderTaste = async (root) => {
     count.textContent = `${n} / ${goal}`;
     bar.style.transform = `scaleX(${goal ? n / goal : 0})`;
     undoBtn.disabled = !history.length;
+    const lit = litAt(n, goal);
+    pips.forEach((p, i) => p.classList.toggle("on", i < lit));
+    // how much of the deck is left to see: it thins as the round runs down
+    deck.dataset.depth = depthOf(Math.min(goal - answered, exhausted ? queue.length : 4));
   };
 
   // ---------- cards ----------
@@ -129,9 +157,9 @@ export const renderTaste = async (root) => {
       el("span", { class: "ts-stamp nope", "aria-hidden": "true" }, "NOPE"),
       el("span", { class: "ts-stamp skip", "aria-hidden": "true" }, "HAVEN'T SEEN"),
       el("div", { class: "ts-info" },
-        el("div", { class: "ts-title" }, c.title),
+        el("div", { class: "ts-title", dir: "auto" }, c.title),
         meta && el("div", { class: "ts-meta" }, meta),
-        c.line && el("div", { class: "ts-line" }, c.line)));
+        c.line && el("div", { class: "ts-line", dir: "auto" }, c.line)));
     node.dataset.id = c.imdbId;
     return node;
   };
@@ -144,14 +172,48 @@ export const renderTaste = async (root) => {
     try { new Image().src = artUrl(c.poster, 360); } catch {}
   };
 
+  // The end of a round — the reward: the loved titles as a constellation, the
+  // number in gold with the one meteor burst, what Aurora learned as lit tags.
+  const bursts = new Set(); // rounds (by their goal) that had their burst
   const endPanel = () => {
-    const done = el("div", { class: "ts-end", role: "status" },
-      el("div", { class: "ts-end-glyph", "aria-hidden": "true" }, exhausted ? "🎬" : "✨"),
-      el("h2", {}, exhausted ? "That's every title we had for you" : `${answered} answers — Home is already using them`),
-      el("p", { class: "ts-end-tally" }, `♥ ${tally.love} loved · ✕ ${tally.nope} not for you · ${tally.skip} not seen`),
+    const read = readTaste(history.map((h) => ({ verdict: h.verdict, genres: h.card.genres })));
+    const loved = history.filter((h) => h.verdict === "love");
+    const sky = loved.length
+      ? el("div", { class: "pg-end-sky" },
+        constellationSvg(loved.length, seedOf(loved.map((h) => h.card.imdbId).join(""))),
+        el("span", { class: "play-sr" }, `${Math.min(loved.length, MAX_STARS)} stars lit, one for each title you loved. `))
+      : null;
+    const sep = () => el("span", { class: "play-sr" }, " · ");
+    const tags = [
+      ...read.liked.slice(0, 4).map((g) => el("span", { class: "pg-tag lit" }, star(), `${g.genre}${g.n > 1 ? ` ×${g.n}` : ""}`)),
+      ...read.less.slice(0, 2).map((g) => el("span", { class: "pg-tag dim" }, `less ${g.genre}`)),
+    ];
+    const done = el("div", { class: "ts-end pg-reward", role: "status" },
+      sky,
+      exhausted
+        ? el("h2", { class: "pg-end-title" }, "That's every title we had for you")
+        : el("h2", { class: "pg-end-title" }, el("span", { class: "pg-end-num play-num" }, String(answered)), el("span", { class: "pg-end-words" }, " answers — Home is already using them")),
+      el("p", { class: "ts-end-tally" },
+        el("span", { class: "pg-tchip love" }, `♥ ${tally.love} loved`), sep(),
+        el("span", { class: "pg-tchip nope" }, `✕ ${tally.nope} not for you`), sep(),
+        el("span", { class: "pg-tchip skip" }, `${tally.skip} not seen`)),
+      tags.length ? el("div", { class: "pg-learned" }, el("span", { class: "play-eyebrow" }, "Aurora learned"), el("div", { class: "pg-tags" }, ...tags)) : null,
       el("div", { class: "ts-end-actions" },
-        !exhausted && el("button", { "data-ui": "taste.more", class: "btn focusable", onclick: () => keepGoing() }, "Keep going"),
-        el("button", { "data-ui": "taste.done", class: "btn btn-primary focusable", onclick: leave }, "Done")));
+        !exhausted && el("button", { "data-ui": "taste.more", class: "play-btn play-btn--aurora focusable", onclick: () => keepGoing() }, "Keep going"),
+        el("button", { "data-ui": "taste.done", class: "play-btn play-btn--gold focusable", onclick: leave }, "Done")));
+    [...done.children].forEach((c, i) => c.style.setProperty("--d", `${120 + i * 110}ms`));
+    for (const b of done.querySelectorAll("button")) pressable(b);
+    if (!calm() && !exhausted && !bursts.has(goal)) {
+      const first = !bursts.size;
+      bursts.add(goal);
+      later(() => {
+        const num = done.querySelector(".pg-end-num");
+        if (!num || !done.isConnected) return;
+        const a = num.getBoundingClientRect();
+        const b = screen.getBoundingClientRect();
+        meteorBurst(screen, { x: (a.left + a.width / 2 - b.left) / (b.width || 1), y: (a.top + a.height / 2 - b.top) / (b.height || 1), count: first ? 46 : 26, seed: goal });
+      }, sky ? 520 : 300);
+    }
     return done;
   };
   const roundOver = () => answered >= goal || (exhausted && !queue.length);
@@ -161,7 +223,9 @@ export const renderTaste = async (root) => {
   const paint = () => {
     paintProgress();
     const old = stage.querySelector(".ts-end");
+    screen.classList.toggle("is-over", roundOver());
     if (roundOver()) {
+      hush();
       for (const n of nodes.values()) n.remove();
       nodes.clear();
       if (!old) {
@@ -240,12 +304,41 @@ export const renderTaste = async (root) => {
       const to = verdict === "love" ? `translate(${w}px, ${dy * 1.5}px) rotate(24deg)`
         : verdict === "nope" ? `translate(${-w}px, ${dy * 1.5}px) rotate(-24deg)`
         : `translate(${dx * 1.5}px, ${-Math.max(window.innerHeight, 700)}px) rotate(${dx * 0.03}deg)`;
-      node.style.transition = "transform 300ms cubic-bezier(.2,.7,.3,1), opacity 300ms ease-in";
-      node.style.transform = to;
-      node.style.opacity = "0";
-      node.querySelector(`.ts-stamp.${verdict}`)?.style.setProperty("opacity", "1");
+      const stamp = node.querySelector(`.ts-stamp.${verdict}`);
+      const go = () => {
+        node.style.transition = "transform 300ms cubic-bezier(.2,.7,.3,1), opacity 300ms ease-in";
+        node.style.transform = to;
+        node.style.opacity = "0";
+      };
+      if (!from) {
+        // a button or a key: no drag showed the answer, so the stamp is slammed
+        // on, the card takes the hit, and then it is thrown
+        slam(node, stamp, verdict === "love" ? { x: 14, y: -4, r: 3 } : verdict === "nope" ? { x: -14, y: -4, r: -3 } : { y: -12 });
+        setTimeout(go, SLAM_MS);
+        setTimeout(() => node.remove(), SLAM_MS + 320);
+        return;
+      }
+      stamp?.style.setProperty("opacity", "1");
+      go();
     }
     setTimeout(() => node.remove(), calm() ? 160 : 320);
+  };
+  // the key that matches the answer lights for a moment (arrows teach the buttons)
+  const flashKey = (verdict) => {
+    const k = answers.querySelector(`.ts-answer.${verdict}`);
+    if (!k || calm()) return;
+    k.classList.add("is-hit");
+    later(() => k.classList.remove("is-hit"), 260);
+  };
+  // a star of the meter lit with this answer: say something about it (once)
+  const said = new Set();
+  const remark = () => {
+    if (calm()) hush();
+    const k = marksOf(goal).indexOf(answered) + 1;
+    if (k < 1 || k > 3 || said.has(`${goal}:${k}`) || roundOver()) return;
+    said.add(`${goal}:${k}`);
+    const words = milestone(k, readTaste(history.map((h) => ({ verdict: h.verdict, genres: h.card.genres }))));
+    if (words) hush = say(callout, words);
   };
 
   // ---------- answering ----------
@@ -259,10 +352,13 @@ export const renderTaste = async (root) => {
     tally[verdict]++;
     const node = nodes.get(card.imdbId);
     nodes.delete(card.imdbId);
+    setPull(deck, 0);
     if (node) fly(node, verdict, from);
     haptic(10);
+    flashKey(verdict);
     const entry = { card, verdict, was: null };
     history.push(entry);
+    remark();
     paint();
     // saved now; the reply brings the next cards, chosen with this answer known
     const queued = queue.slice(0, 2).map((c) => c.imdbId);
@@ -292,6 +388,7 @@ export const renderTaste = async (root) => {
     const last = history.pop();
     if (!last) return;
     const { card, verdict } = last;
+    hush();
     answered = Math.max(0, answered - 1);
     tally[verdict] = Math.max(0, tally[verdict] - 1);
     gone.delete(card.imdbId);
@@ -359,6 +456,7 @@ export const renderTaste = async (root) => {
       samples.push({ x: e.clientX, y: e.clientY, t: performance.now() });
       if (samples.length > 6) samples.shift();
       node.style.transform = `translate(${dx}px, ${dy}px) rotate(${dx * 0.05}deg)`;
+      setPull(deck, pullOf(dx, dy, DIST_X, DIST_Y)); // the next card rises to meet the drag
       stamp("love", dx / DIST_X);
       stamp("nope", -dx / DIST_X);
       stamp("skip", Math.abs(dx) < 60 ? -dy / DIST_Y : 0);
@@ -386,6 +484,7 @@ export const renderTaste = async (root) => {
         return;
       }
       // not far enough: back to the middle
+      setPull(deck, 0);
       node.style.transition = calm() ? "none" : "transform 260ms cubic-bezier(.2,.9,.3,1.2)";
       node.style.transform = "";
       for (const s of node.querySelectorAll(".ts-stamp")) s.style.opacity = "";
@@ -440,6 +539,8 @@ export const renderTaste = async (root) => {
     answers.classList.add("off");
     return;
   }
+  await play.ready; // (the card takes the focus: it has to be on show)
+  if (!screen.isConnected) return;
   paint();
 };
 
