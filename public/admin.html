@@ -4815,10 +4815,53 @@
     };
 
     // ---------- problem reports ----------
+    // [report trail] what the viewer did before (newest last), the device and app, the player, and
+    // what the server knew at that moment (docs/report-trail.md). The words are the site's own
+    // (/js/trail-core.js) — the same the viewer saw under "See what will be sent". Escaped, all of it.
+    let trailWordsP = null;
+    const trailWords = () => (trailWordsP = trailWordsP || import("/js/trail-core.js").catch(() => { trailWordsP = null; return null; }));
+    const srvLines = (s) => {
+      if (!s || typeof s !== "object") return [];
+      const out = [];
+      out.push(`server ${s.v || "?"}${s.up != null ? ` · up ${fmtUptime(s.up)}` : ""}${s.mode ? ` · sign-in ${s.mode}` : ""}`);
+      if (s.session) out.push(`this screen's viewing: ${s.session.what || "?"} · ${s.session.state || "?"}${s.session.pos != null ? ` at ${fmtClock(s.session.pos)}` : ""} (session ${s.session.id})`);
+      for (const x of s.screens || []) out.push(`their screen now: ${[x.app, x.device].filter(Boolean).join(" · ")} — ${x.presence || x.doing || "?"}${x.what ? `: ${x.what}` : ""}${x.pos != null ? ` at ${fmtClock(x.pos)}` : ""}${x.me ? " (the one that reported)" : ""}`);
+      for (const x of s.plays || []) out.push(`recent play: ${x.what || "?"} — ${x.live ? "live" : x.state || "ended"}, ${fmtMin(x.watchedSec || 0)} watched${x.pos != null ? `, at ${fmtClock(x.pos)}${x.dur ? ` of ${fmtClock(x.dur)}` : ""}` : ""}, began ${whenISO(x.started)}${x.device ? ` on ${x.device}` : ""}`);
+      for (const x of s.downloads || []) out.push(`their download: ${x.title} — ${x.status} ${x.progress}%${x.why ? ` (${x.why})` : ""}`);
+      for (const x of s.appErrors || []) out.push(`${x.level === "warn" ? "warning" : "error"} on the same app, last 15 min (any viewer): ${x.kind} · ${x.m} ×${x.n}, ${Math.round(x.ago / 60)} min ago`);
+      return out;
+    };
+    const TRAIL_TONE = { bad: "color:var(--bad)", warn: "color:var(--warn)", "": "" };
+    const reportTrailHtml = (c, tw) => {
+      if (!c || !tw) return "";
+      const steps = Array.isArray(c.trail) ? c.trail : [];
+      const flagged = steps.filter((e) => tw.trailLevel(e)).length;
+      const kv = (rows) => `<table style="width:auto;font-size:0.76rem;margin-top:4px;border-collapse:collapse">${rows.map(([k, v]) => `<tr><td class="muted" style="padding:1px 10px 1px 0;white-space:nowrap;vertical-align:top">${esc(k)}</td><td style="padding:1px 0;overflow-wrap:anywhere">${esc(v)}</td></tr>`).join("")}</table>`;
+      const facts = tw.factRows(c.env);
+      const player = tw.playerRows(c.player);
+      const reqs = Array.isArray(c.reqs) ? c.reqs : [];
+      const srv = srvLines(c.srv);
+      const parts = [];
+      if (steps.length) parts.push(`<details class="report-trail" style="margin-top:6px"><summary class="muted" style="cursor:pointer;font-size:0.8rem">what they did · ${steps.length} step${steps.length === 1 ? "" : "s"}${flagged ? ` · <span style="color:var(--bad)">${flagged} flagged</span>` : ""}</summary>
+                <ol style="list-style:none;margin:6px 0 0;padding:0;font-size:0.76rem;line-height:1.55;font-family:ui-monospace,monospace">${steps.map((e) => `<li style="${TRAIL_TONE[tw.trailLevel(e)] || ""}"><span class="muted" style="display:inline-block;min-width:4.6em">${esc(tw.trailAgo(e.t))}</span>${esc(tw.trailLine(e))}</li>`).join("")}</ol></details>`);
+      if (facts.length) parts.push(`<details style="margin-top:4px"><summary class="muted" style="cursor:pointer;font-size:0.8rem">device and app</summary>${kv(facts)}</details>`);
+      if (player.length) parts.push(`<details style="margin-top:4px"><summary class="muted" style="cursor:pointer;font-size:0.8rem">the player at the time</summary>${kv(player)}</details>`);
+      if (srv.length || reqs.length) parts.push(`<details style="margin-top:4px"><summary class="muted" style="cursor:pointer;font-size:0.8rem">the server's side${reqs.length ? " · last requests" : ""}</summary><div style="font-size:0.76rem;line-height:1.55;margin-top:4px">${srv.map((l) => `<div>${esc(l)}</div>`).join("")}${reqs.map((r) => `<div style="font-family:ui-monospace,monospace;${TRAIL_TONE[tw.trailLevel({ k: "req", ...r })] || ""}">${esc(tw.reqLine(r))}</div>`).join("")}</div></details>`);
+      return parts.join("");
+    };
+    // The same, as plain text (Copy for Claude)
+    const reportTrailText = (c, tw) => {
+      if (!c || !tw) return "";
+      const srv = srvLines(c.srv);
+      return [tw.trailText({ trail: c.trail || [], env: c.env, player: c.player, reqs: c.reqs || [] }), srv.length ? "What the server knew then:\n" + srv.map((l) => `  ${l}`).join("\n") : ""].filter(Boolean).join("\n");
+    };
+    let reportItems = [];
     async function loadReports() {
       let data;
       try { data = await json("/api/admin/reports"); } catch { return; }
       const items = data.reports || [];
+      reportItems = items;
+      const tw = await trailWords();
       $("#reports").innerHTML = items.length
         ? items.map((r) => `
           <tr class="${r.status === "closed" ? "muted" : ""}">
@@ -4834,7 +4877,7 @@
                   ${r.context.server && r.context.server.recent && r.context.server.recent.length ? `<br>last segments from the server: ${esc(recentSegs(r.context.server.recent))}` : ""}
                   ${r.context.playMarks && r.context.playMarks.length ? `<br>player marks: ${esc(r.context.playMarks.map((m) => `+${m.ms}ms ${m.name}${m.path ? ":" + m.path : ""}${m.why ? ` (${m.why})` : ""}${m.v ? ` ${m.v}` : ""}${m.to ? ` → ${m.to}` : ""}${m.stage ? ` ${m.stage}` : ""}${m.from && m.from !== "0" ? ` from ${m.from} s` : ""}`).join(" → "))}` : ""}
                   ${r.context.errors && r.context.errors.length ? `<pre style="white-space:pre-wrap;margin:6px 0 0;font-size:0.74rem">${esc(r.context.errors.join("\n"))}</pre>` : ""}
-                </div></details></td>
+                </div></details>${reportTrailHtml(r.context, tw)}${tw ? `<button class="mini" style="margin-top:6px" data-report-copy="${esc(r.id)}" title="This report, its steps and its facts, as text for Claude">Copy for Claude</button>` : ""}</td>
             <td class="muted" style="font-family:ui-monospace,monospace;font-size:0.78rem">${esc(r.context.route || "")}</td>
             <td><span class="pill${r.status === "open" ? " warn" : ""}">${esc(r.status)}</span></td>
             <td style="text-align:right;white-space:nowrap">
@@ -4868,6 +4911,12 @@
     $("#reports").addEventListener("click", async (e) => {
       const st = e.target.closest("[data-report-status]");
       const del = e.target.closest("[data-report-del]");
+      const cp = e.target.closest("[data-report-copy]");
+      if (cp) {
+        const r = reportItems.find((x) => x.id === cp.dataset.reportCopy);
+        if (r) await copyText(`## Problem report\n${stamp()}\n\n${reportCopyText(r, await trailWords())}`);
+        return;
+      }
       if (st) {
         await post(`/api/admin/reports/${encodeURIComponent(st.dataset.reportStatus)}/status`, { status: st.dataset.next });
         loadReports(); loadBadges();
@@ -7439,6 +7488,16 @@
     let telLoading = null;
     const loadTelOnce = () => (telLoading = telLoading || loadTelemetry().finally(() => setTimeout(() => { telLoading = null; }, 500)));
     const telText = async () => { const d = await json("/api/admin/telemetry"); return d.text || "(nothing reported)"; };
+    // one report as text: its words, the old context, and (report trail) its steps and facts
+    const reportCopyText = (r, tw) => {
+      const c = r.context || {};
+      const more = reportTrailText(c, tw);
+      return [`### ${whenISO(r.at)} · ${r.profile || "someone"} · ${c.route || ""}`, r.text,
+        MD.list([["app", [c.look, c.viewport, c.version ? "v" + c.version : "", c.net].filter(Boolean).join(" · ")], ["playing", c.title ? `${c.title} (${c.itemId || ""})` : ""],
+          ["start-up", c.startup ? startupLine(c.startup, c.server) : ""], ["another version", r.replace && r.replace.status ? replaceEnd(r.replace) : ""], ["browser", c.ua]]),
+        c.errors && c.errors.length ? "Errors the page saw:\n```\n" + c.errors.slice(-8).join("\n") + "\n```" : "",
+        more ? "```\n" + more + "\n```" : ""].filter(Boolean).join("\n");
+    };
     const MORE = {
       "ov-activity": {
         load: () => { loadActivity(); loadOverview(); loadTimeseries(); },
@@ -7464,13 +7523,8 @@
         copy: async () => {
           const items = ((await json("/api/admin/reports")).reports || []).filter((r) => r.status === "open");
           if (!items.length) return "No open reports.";
-          return items.slice(0, 20).map((r) => {
-            const c = r.context || {};
-            return [`### ${whenISO(r.at)} · ${r.profile || "someone"} · ${c.route || ""}`, r.text,
-              MD.list([["app", [c.look, c.viewport, c.version ? "v" + c.version : "", c.net].filter(Boolean).join(" · ")], ["playing", c.title ? `${c.title} (${c.itemId || ""})` : ""],
-                ["start-up", c.startup ? startupLine(c.startup, c.server) : ""], ["another version", r.replace && r.replace.status ? replaceEnd(r.replace) : ""], ["browser", c.ua]]),
-              c.errors && c.errors.length ? "Errors the page saw:\n```\n" + c.errors.slice(-8).join("\n") + "\n```" : ""].filter(Boolean).join("\n");
-          }).join("\n\n");
+          const tw = await trailWords();
+          return items.slice(0, 20).map((r) => reportCopyText(r, tw)).join("\n\n");
         },
       },
       "in-replaced": {

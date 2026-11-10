@@ -1601,7 +1601,7 @@ html[data-look="glass"] .peek-close { background: rgba(6, 8, 16, 0.6); box-shado
 @keyframes sheet-up { from { transform: translateY(40px); opacity: 0; } }
 
 /* report a problem */
-.look-notice.report { text-align: left; }
+.look-notice.report { text-align: left; max-height: 100%; overflow-y: auto; overscroll-behavior: contain; }
 .look-notice.report .look-notice-title, .look-notice.report .sheet-icon { text-align: center; }
 .report-text, .report-doing {
   width: 100%;
@@ -1617,6 +1617,17 @@ html[data-look="glass"] .peek-close { background: rgba(6, 8, 16, 0.6); box-shado
 .report-text:focus, .report-doing:focus { outline: none; box-shadow: var(--focus-ring); }
 .report-ctx { margin-top: 10px; font-size: 0.78rem; color: var(--text-faint); }
 .report-status { min-height: 1.2em; margin-top: 6px; font-size: 0.85rem; color: var(--text-dim); }
+/* what comes along, and a look at it before it goes (js/report.js) */
+.report-peek { margin-top: 6px; font-size: 0.82rem; }
+.report-peek > summary { display: inline-block; padding: 4px 2px; color: var(--text-dim); cursor: pointer; border-radius: 6px; }
+.report-peek > summary:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.report-peek-text {
+  max-height: min(30vh, 260px); overflow: auto; overscroll-behavior: contain;
+  margin: 6px 0 0; padding: 10px 12px; border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line);
+  font: 0.72rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--text-dim);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
 .look-notice.report .look-notice-actions { justify-content: flex-end; margin-top: 14px; }
 
 /* "Problem with this copy? → Get another version" (js/replaceCopy.js) */

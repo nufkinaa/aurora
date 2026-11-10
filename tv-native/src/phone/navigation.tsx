@@ -20,6 +20,7 @@ import PhoneOverlays from './Overlays';
 import {useLinks} from './links';
 import {setPlayingOffline} from './offline/store';
 import {keepNextAfter} from './offline/keepNext';
+import {trailScreen} from '../trail'; // [report trail]
 
 // A player opened: the saved copy on screen is never tidied away under the person, and
 // keep-next (off unless turned on) looks at what comes after the episode. Once per screen.
@@ -118,6 +119,7 @@ export default function PhoneNavigator() {
           if (!r) return;
           routeStarted(`phone:${r.name.toLowerCase()}`, r.key);
           frameScreen(r.name.toLowerCase());
+          trailScreen('phone', r); // [report trail]
           setRoute(r.name);
           onPlayRoute(r);
         }}>

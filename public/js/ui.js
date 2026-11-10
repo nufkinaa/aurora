@@ -1,5 +1,6 @@
 // Small DOM + formatting helpers shared by every screen.
 import { lite } from "./net.js";
+import { trailToast } from "./trail.js"; // [report trail] the words of every toast shown
 import { blurOf } from "./blur.js";
 import { warmOffer, warmReset, warmGo } from "./warm.js";
 
@@ -804,6 +805,7 @@ let toastRoot;
 // app did by itself that nobody needs to act on.
 export const toast = (message, icon = "ℹ️", action = null, { quiet = false } = {}) => {
   if (!toastRoot) toastRoot = document.getElementById("toasts");
+  trailToast(message);
   const node = el(
     "div",
     { class: "toast" + (action ? " has-action" : "") + (quiet ? " quiet" : "") },

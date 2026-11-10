@@ -43,6 +43,7 @@ import {
   TimingRow,
 } from './telemetryCore';
 import {registerProfileCache} from './profileScope';
+import {trail, trailKey} from './trail'; // [report trail] (imports nothing of the app's either)
 
 const K_IID = 'aurora.iid';
 const K_DAY = 'aurora.telDay';
@@ -85,8 +86,9 @@ const today = () => new Date().toISOString().slice(0, 10);
 // One global listener, one assignment. (Focus moves arrive here too: a held
 // direction keeps the gate shut for as long as it is held.)
 try {
-  TVEventHandler.addListener(() => {
+  TVEventHandler.addListener(evt => {
     lastInput = Date.now();
+    trailKey(evt as {eventType?: string; eventKeyAction?: number}); // [report trail] the key, by name
   });
 } catch {}
 let playAt = 0; // a play is starting: from the player's route to its first frame
@@ -101,11 +103,14 @@ export const quiet = () =>
 // ---------- controls ----------
 /** A tagged control was pressed (Focusable's onPress). Counter increment only. */
 export const uiHit = (id: string, input: 'remote' | 'touch' = 'remote') => {
+  trail('tap', {ui: id}); // [report trail]
   if (!off) controls.hit(screen || '?', id, input);
 };
 
 // ---------- errors ----------
 const note = (kind: Kind, level: Level, message: unknown, o: {ctx?: Record<string, number> | null; raw?: boolean} = {}) => {
+  // [report trail] what went wrong, as a report will tell it (requests are the trail's own: api.ts)
+  if (kind !== 'http') trail('err', {w: kind, lv: level === 'warn' ? 'warn' : undefined, m: String(message), st: o.ctx?.status, code: o.ctx?.code});
   if (off) return;
   try {
     if (book.add(kind, level, message, {screen, ctx: o.ctx || null, raw: !!o.raw})) poke();
@@ -400,9 +405,11 @@ export const seeking = () => seekAt > 0;
 
 /** The live socket: lost → back (realtime.ts). */
 export const wsDown = () => {
+  trail('net', {ws: 'down'}); // [report trail]
   if (!timers.running('ws_reconnect')) timers.start('ws_reconnect');
 };
 export const wsUp = () => {
+  trail('net', {ws: 'up'}); // [report trail]
   timers.end('ws_reconnect');
 };
 

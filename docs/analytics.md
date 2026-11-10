@@ -166,7 +166,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 404 ids: 226 on the website
 | remote | `remote.audio` `remote.back` `remote.close` `remote.continuehere` `remote.device.open` `remote.device.pick` `remote.dpad` `remote.home` `remote.more` `remote.mute` `remote.next` `remote.padmode` `remote.play` `remote.playpause` `remote.rename` `remote.seek` `remote.sheet.pick` `remote.skip` `remote.stop` `remote.subdelay` `remote.subtitles` `remote.view` `remote.volume` | – | – |
 | recommend | – | – | `recommend.close` `recommend.person` `recommend.send` |
 | replace | `replace.other.note` | `replace.cancel.ask` `replace.early` `replace.other.voice` | `replace.cancel` `replace.next` `replace.other` `replace.other.another` `replace.other.next` `replace.other.send` `replace.pick` `replace.reason` |
-| report | – | – | `report.send` |
+| report | – | – | `report.peek` `report.send` |
 | row | `row.arrow` | – | – |
 | saved | `saved.play` `saved.remove` | – | – |
 | search | `search.clear` | – | `search.recent.pick` `search.suggestion.pick` `search.voice` `search.voice.lang` `search.retry` |
@@ -201,7 +201,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 404 ids: 226 on the website
 | player | – | `player.audio.dialogue` `player.audio.night` `player.audio.pick` `player.autoplay` `player.back` `player.mute` `player.next` `player.party` `player.party.handover` `player.party.react` `player.party.start` `player.playpause` `player.replace` `player.retry` `player.scrub` `player.seek.back` `player.seek.fwd` `player.settings.open` `player.skipintro` `player.slowstart.lower` `player.slowstart.wait` `player.speed.open` `player.speed.pick` `player.stall.lower` `player.stall.retry` `player.startover` `player.stillwatching.done` `player.stillwatching.keep` `player.subtitles.open` `player.subtitles.pick` `player.subtitles.resync` `player.subtitles.style` `player.subtitles.undo` `player.upnext.dismiss` `player.upnext.play` `player.xray` `player.franchise.dismiss` `player.franchise.open` `player.franchise.play` `player.franchise.save` |
 | profile | – | `profile.pick` `profile.pin.submit` `profile.unlock` |
 | recommend | – | `recommend.close` `recommend.send` |
-| report | – | `report.send` |
+| report | – | `report.peek` `report.send` |
 | search | – | `search.recent.pick` `search.retry` `search.suggestion.pick` `search.voice` `search.voice.lang` |
 | settings | – | `settings.autoplay` `settings.downloads` `settings.genre` `settings.hh.mute` `settings.hh.sent` `settings.hh.toggle` `settings.party` `settings.ready` `settings.report` `settings.signout` `settings.subs.auto` `settings.subs.lang` `settings.update` `settings.usagestats` |
 | signin | `signin.mode.qr` `signin.mode.typed` | `signin.submit` |

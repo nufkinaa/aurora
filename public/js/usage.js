@@ -13,6 +13,7 @@
 import { state } from "./state.js";
 import { netTier } from "./net.js";
 import { normMessage } from "./telemetry-core.js";
+import { trail } from "./trail.js"; // [report trail]
 
 const queue = [];
 let timer = null;
@@ -97,6 +98,8 @@ export const poke = arm;
 
 // track("feat", { f: "peek" }) — `props` are short strings/numbers/booleans.
 export const track = (name, props = {}) => {
+  if (name === "feat" && props && props.f) trail("feat", { f: props.f });
+  else if (name === "airplay" || name.startsWith("airplay_")) trail("feat", { f: name });
   if (!enabled()) return;
   queue.push({ n: name, t: Date.now(), p: props });
   if (queue.length > MAX_QUEUE) queue.shift();

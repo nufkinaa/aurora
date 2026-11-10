@@ -6,21 +6,32 @@
 // "media-key" events the player listens for. Pointer remotes (LG magic
 // remote) focus on hover, so both input styles stay in sync.
 
+import { trail } from "./trail.js"; // [report trail] a sheet opened / closed
+
 const BACK_KEYS = new Set(["Escape", "GoBack", "XF86Back", "BrowserBack"]);
 const BACK_CODES = new Set([27, 461, 10009, 166]);
 
 // scope stack: navigation is trapped inside the top scope (player, modal...)
 const scopes = [document.body];
 
+// what a sheet is called in a report's trail: its own name, else its class
+const scopeName = (el) => {
+  try {
+    const d = el.matches && el.matches("[role=dialog]") ? el : el.querySelector && el.querySelector("[role=dialog]");
+    return (d && d.getAttribute("aria-label")) || el.getAttribute("aria-label") || String(el.className || el.tagName || "").split(" ")[0];
+  } catch { return "sheet"; }
+};
+
 export const pushScope = (element) => {
   scopes.push(element);
+  trail("sheet", { s: scopeName(element), on: true });
   const first = firstFocusable(element);
   if (first) first.focus({ preventScroll: true });
 };
 
 export const popScope = (element) => {
   const i = scopes.lastIndexOf(element);
-  if (i > 0) scopes.splice(i, 1);
+  if (i > 0) { scopes.splice(i, 1); trail("sheet", { s: scopeName(element), on: false }); }
 };
 
 export const currentScope = () => scopes[scopes.length - 1];

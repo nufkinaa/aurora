@@ -19,7 +19,7 @@ import { pushScope, popScope } from "./focus.js";
 import { onMessage } from "./ws.js";
 import { track } from "./usage.js";
 import { earlyOk, isEarly, sourceBadge } from "./releaseWords.js";
-import { appVersion } from "./report.js";
+import { reportContext } from "./report.js";
 
 export const COPY_PROBLEM = "Problem with this copy?";
 export const GET_ANOTHER = "Get another version";
@@ -85,15 +85,9 @@ export const copyProblemButton = ({ libraryId, title, ui = "detail.replace", cla
     onclick: () => openReplaceSheet({ libraryId, title }),
   }, el("span", { class: "copy-problem-q" }, COPY_PROBLEM), el("span", { class: "copy-problem-a" }, GET_ANOTHER));
 
-// What a report says about the client, as "Report a problem" says it.
-const contextNow = async () => ({
-  route: location.hash,
-  look: document.documentElement.dataset.look || "legacy",
-  ua: navigator.userAgent,
-  viewport: `${innerWidth}×${innerHeight}`,
-  online: navigator.onLine,
-  version: await appVersion(),
-});
+// What a report says about the client, as "Report a problem" says it — the
+// last steps, the facts and the player's state included (docs/report-trail.md).
+const contextNow = () => reportContext();
 
 // Another version of yours ended without you (it failed, or the admin took it
 // back): said wherever you are. The TV's replaceEndedToast says the same.

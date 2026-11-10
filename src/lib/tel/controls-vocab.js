@@ -247,6 +247,7 @@ module.exports = {
   "recommend.person": "wt",
   "recommend.send": "wtp",
   // report
+  "report.peek": "wtp", // "See what will be sent" (docs/report-trail.md)
   "report.send": "wtp",
   // replace ("Problem with this copy? → Get another version")
   "replace.cancel": "wtp",

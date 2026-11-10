@@ -13,7 +13,8 @@ export const recentErrors = () => ring.slice();
 
 // What the player is showing, for the report's context.
 // (`startup`: the play's start-up step by step, once its first frame is in — src/startline.ts)
-type Playing = {id: string; title: string; startup?: () => unknown};
+// (`state`: what the player is doing right now — a report's `player`, docs/report-trail.md)
+type Playing = {id: string; title: string; startup?: () => unknown; state?: () => Record<string, unknown>};
 let playing: Playing | null = null;
 export const setPlayingContext = (ctx: Playing | null) => {
   playing = ctx;

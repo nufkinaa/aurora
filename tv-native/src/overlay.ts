@@ -5,6 +5,7 @@ import {useEffect, useState} from 'react';
 import type {HeroItem, XrayQuery} from './api';
 import type {TitleLike} from './householdRecs';
 import type {UpdateInfo} from './update';
+import {trail} from './trail'; // [report trail]
 
 export type Overlay =
   | {kind: 'peek'; item: HeroItem; onRemove?: (item: HeroItem) => void}
@@ -28,6 +29,8 @@ export type ActionItem = {label: string; tag?: string; danger?: boolean; uiId?: 
 let current: Overlay = null;
 const subs = new Set<(o: Overlay) => void>();
 const set = (o: Overlay) => {
+  if (o) trail('sheet', {s: o.kind, on: true});
+  else if (current) trail('sheet', {s: current.kind, on: false});
   current = o;
   for (const fn of subs) fn(o);
 };

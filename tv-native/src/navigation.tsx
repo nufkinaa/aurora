@@ -16,6 +16,7 @@ import {frameScreen} from './perfTier';
 import {focusJustMoved} from './focus';
 import {useQaNav} from './qaNav';
 import {wireVoiceKey} from './voiceKey';
+import {trailScreen} from './trail'; // [report trail]
 
 // EVERY SCREEN BUT HOME IS LOADED WHEN IT IS FIRST WANTED.
 //
@@ -173,6 +174,7 @@ export default function AppNavigator() {
           const name = r.name === 'Browse' && p?.kind ? `${r.name}/${p.kind}` : r.name;
           routeStarted(`tv:${name.toLowerCase()}`, r.key);
           frameScreen(r.name.toLowerCase());
+          trailScreen('tv', r); // [report trail]
         }}>
         <Stack.Navigator
         // freezeOnBlur: screens buried in the stack stop re-rendering entirely,

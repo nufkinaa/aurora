@@ -14,6 +14,10 @@ const notify = require("../lib/notify");
 
 const store = new JsonStore(path.join(config.DATA_DIR, "reports.json"), { reports: [] });
 const MAX = 500;
+// [report trail] the heavy parts (the steps, the facts, the server's side) are kept on the
+// newest reports only: older ones keep their words and their old context (lib/reporttrail.js)
+const TRAIL_KEEP = 100;
+const trailLib = require("../lib/reporttrail");
 const router = express.Router();
 
 const adminOnly = (req, res, next) => {
@@ -44,16 +48,38 @@ const serverSideOf = (ip, itemId) => {
   try { return require("../lib/starttrace").of(ip, String(itemId), { maxAgeMs: 3 * 3600 * 1000 }); } catch { return null; }
 };
 
-const add = ({ text, profile = null, context = {}, ip = null, extra = null, quiet = false }) => {
+// Whose report it is, as the server can tell: the signed-in session, else
+// the profile the client names (by id, then by name) — only to read that
+// profile's own recent plays and downloads for the admin.
+const profileIdOf = (req, ctx, profile) => {
+  try {
+    const s = req ? require("../lib/authz").sessionFor(req) : null;
+    if (s && s.profile) return s.profile.id;
+  } catch {}
+  try {
+    const all = require("../profiles").list();
+    const claimed = String((req && req.headers && req.headers["x-profile"]) || (ctx && ctx.profileId) || "");
+    const p = (claimed && all.find((x) => x.id === claimed)) || (profile && all.find((x) => x.name === profile));
+    return p ? p.id : null;
+  } catch { return null; }
+};
+const otherNames = (profileId, profile) => {
+  try { return require("../profiles").list().filter((p) => p.id !== profileId && p.name !== profile).map((p) => p.name); } catch { return []; }
+};
+
+const add = ({ text, profile = null, context = {}, ip = null, extra = null, quiet = false, profileId: pidIn, req = null }) => {
   const ctx = context && typeof context === "object" ? context : {};
+  const who = clean(profile, 40) || null;
+  const profileId = pidIn !== undefined ? pidIn : profileIdOf(req, ctx, who);
+  const env = trailLib.cleanEnv(ctx.env);
   const report = {
     id: crypto.randomBytes(6).toString("hex"),
     at: Date.now(),
     status: "open",
     text: clean(text, 2000),
-    profile: clean(profile, 40) || null,
+    profile: who,
     context: {
-      route: clean(ctx.route, 200),
+      route: clean(ctx.route, 200).replace(/^(#\/(?:party|group|pair|reset|claim|invite)\/)[^/?]+/, "$1…"),
       title: clean(ctx.title, 200) || null,
       itemId: clean(ctx.itemId, 80) || null,
       // the person's own words about a copy ("Problem with this copy? → Other": the
@@ -79,12 +105,23 @@ const add = ({ text, profile = null, context = {}, ip = null, extra = null, quie
       // the start-up step by step from the press: { total, slow, path, steps: [[name, ms]…], srv }
       startup: startupOf(ctx.startup),
       server: serverSideOf(ip, clean(ctx.itemId, 80)),
+      // [report trail] the last steps, the device and app, the player, the last requests (docs/report-trail.md)
+      trail: trailLib.cleanTrail(ctx.trail, { names: otherNames(profileId, who) }),
+      env,
+      player: trailLib.cleanPlayer(ctx.player),
+      reqs: trailLib.cleanReqs(ctx.reqs),
+      // …and what only the server knows at this moment
+      srv: (() => { try { return trailLib.serverFacts({ profileId, clientId: env && env.client, app: env && env.app }); } catch { return null; } })(),
     },
     ip, // (req.ip is the reverse proxy itself behind one)
     ...(extra && typeof extra === "object" ? extra : {}),
   };
   store.data.reports.unshift(report);
   if (store.data.reports.length > MAX) store.data.reports.length = MAX;
+  for (let i = TRAIL_KEEP; i < store.data.reports.length; i++) {
+    const c = store.data.reports[i].context;
+    if (c && (c.trail || c.srv || c.reqs)) { delete c.trail; delete c.srv; delete c.reqs; }
+  }
   store.save();
   console.log(`[report] ${report.profile || "someone"} on ${report.context.route}: ${report.text.slice(0, 120)}`);
   if (!quiet) notify.send("Aurora: problem reported", `${report.profile || "Someone"}: ${report.text.slice(0, 200)}${report.context.title ? ` (${report.context.title})` : ""}`);
@@ -96,7 +133,7 @@ router.post("/api/reports", (req, res) => {
   const b = req.body || {};
   const text = clean(b.text, 2000);
   if (!text) return res.status(400).json({ error: "say what went wrong" });
-  const report = add({ text, profile: b.profile, context: b.context, ip: realtime.clientIp(req) });
+  const report = add({ text, profile: b.profile, context: b.context, ip: realtime.clientIp(req), req });
   res.json({ ok: true, id: report.id });
 });
 
