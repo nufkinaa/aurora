@@ -868,18 +868,23 @@ router.post("/api/profiles/:id/follow", gate, (req, res) => {
 // The Calendar (media/calendar.js): upcoming and recent releases of
 // everything in this person's My List, the shows they follow and the shows
 // they watch — grouped by day in the household's time zone, with the words
-// every app prints. Cache-only; ?locale= (a BCP-47 tag) names the weekdays.
-//   GET  → { upcoming: [{ day, label, date, items }], recent: [...], counts, pending, empty }
+// every app prints. Cache-only; ?locale= (a BCP-47 tag) names the weekdays
+// and picks the week's first day; ?tz= (an IANA zone) makes the days the
+// asking device's (the household's when it is left out — older apps).
+//   GET  → { upcoming: [{ day, label, date, items }], recent: [...], counts, pending, empty,
+//            grid: { from, to, weekStart, weekdays, months, byDay }, next }
 //   POST /calendar/save { imdbId, type, season?, episode? } → Save & watch for
 //        one entry (the title page's own pick and request); never by itself.
 const calendarLib = lazy(require, "../media/calendar");
 router.get("/api/profiles/:id/calendar", gate, (req, res) => {
   const cal = calendarLib();
   const locale = typeof req.query.locale === "string" ? req.query.locale.slice(0, 35) : null;
+  const tz = typeof req.query.tz === "string" ? req.query.tz.slice(0, 64) : null;
   try {
-    const r = cal.forProfile(req.params.id, { locale });
+    const r = cal.forProfile(req.params.id, { locale, tz });
     res.set("Cache-Control", "no-cache");
-    res.json({ ...r, empty: { noTitles: cal.EMPTY.noTitles, upcoming: cal.EMPTY.upcoming, recent: cal.EMPTY.recent, pending: r.pending ? cal.EMPTY.pending(r.pending) : null } });
+    const E = cal.EMPTY;
+    res.json({ ...r, empty: { noTitles: E.noTitles, upcoming: E.upcoming, recent: E.recent, month: E.month, day: E.day, pending: r.pending ? E.pending(r.pending) : null } });
   } catch (e) {
     console.warn("[calendar] could not build:", e && e.message);
     res.status(500).json({ error: "Couldn't put the calendar together right now." });

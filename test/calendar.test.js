@@ -418,3 +418,163 @@ test("a kids profile's calendar keeps only what it may see, and Save & watch onl
   const yes = run({ path: "/api/profiles/kid/calendar/save", method: "POST", body: { imdbId: "tt0000001", type: "movie" } }, (q, res) => res.json({ ok: true }));
   assert.equal(yes.passed, true);
 });
+
+// ---------- the month grid (2026-11-10) ----------
+
+const { addMonths, lastOfMonth, weekStartOf, monthLine, whenWords } = calendar._internals;
+
+test("the month grid holds every day of the months a person can page through, and the greyed edges", () => {
+  // Sunday 9 Nov 2026: last month (October) to the month holding today + 60 (January)
+  const r = build([], {}, { now: NOW, tz: JLM, locale: "en-GB" });
+  assert.deepEqual(r.grid.months.map((m) => m.key), ["2026-10", "2026-11", "2026-12", "2027-01"]);
+  assert.equal(r.grid.from, "2026-09-25"); // 1 Oct − 6
+  assert.equal(r.grid.to, "2027-02-14"); // 31 Jan + 14
+  const keys = Object.keys(r.grid.byDay);
+  assert.equal(keys.length, 143);
+  assert.deepEqual([keys[0], keys[keys.length - 1]], ["2026-09-25", "2027-02-14"]);
+  for (let i = 1; i < keys.length; i++) assert.equal(addDays(keys[i - 1], 1), keys[i]); // every day, in order
+  // every day has its heading, an empty day too
+  assert.deepEqual(r.grid.byDay["2026-11-09"], { label: "Today", date: "9 Nov", items: [] });
+  assert.equal(r.grid.byDay["2026-12-24"].label, "Thu 24 Dec");
+  const nov = r.grid.months[1];
+  assert.deepEqual([nov.month, nov.year, nov.label, nov.first, nov.last, nov.count, nov.line], ["November", "2026", "November 2026", "2026-11-01", "2026-11-30", 0, null]);
+  assert.equal(r.next, null);
+  assert.equal(addMonths("2026-12", 1), "2027-01");
+  assert.equal(addMonths("2027-01", -1), "2026-12");
+  assert.equal(lastOfMonth("2028-02"), "2028-02-29");
+});
+
+test("the grid has the releases the two lists leave out: the start of this month, last month, the far end of the last month", () => {
+  const titles = [{ imdbId: "tt0000201", type: "show", title: "Wide", why: ["list"] }];
+  const metaOf = () =>
+    show("tt0000201", "Wide", [
+      ep(1, 1, dateIn(-36)), // 4 Oct: last month, not in Recently out
+      ep(1, 2, dateIn(-8)), // 1 Nov: in both
+      ep(1, 3, dateIn(2)),
+      ep(1, 4, dateIn(70)), // 18 Jan: past the 60 days, still January
+      ep(1, 5, dateIn(100)), // 17 Feb: beyond the grid
+      ep(1, 6, dateIn(-60)), // 10 Sep: before it
+    ]);
+  const r = build(titles, { metaOf }, { now: NOW, tz: JLM, locale: "en-GB" });
+  const onGrid = Object.entries(r.grid.byDay).filter(([, d]) => d.items.length).map(([k, d]) => [k, d.items.map((e) => e.detail)]);
+  assert.deepEqual(onGrid, [["2026-10-04", ["S1 E1"]], ["2026-11-01", ["S1 E2"]], ["2026-11-11", ["S1 E3"]], ["2027-01-18", ["S1 E4"]]]);
+  // the old lists, exactly as before
+  assert.deepEqual(r.upcoming.map((d) => d.day), ["2026-11-11"]);
+  assert.deepEqual(r.recent.map((d) => d.day), ["2026-11-01"]);
+  assert.deepEqual(r.counts, { upcoming: 1, recent: 1, titles: 1 });
+  // the same entry, the same words, wherever it is listed
+  assert.deepEqual(r.grid.byDay["2026-11-11"].items[0], r.upcoming[0].items[0]);
+  assert.deepEqual(r.grid.months.map((m) => m.line), ["1 release · 1 premiere", "2 releases", null, "1 release"]);
+});
+
+test("the week starts where the asking device lives: Sunday in Israel and the US, Monday in Britain, Saturday in Egypt", () => {
+  assert.equal(weekStartOf("he-IL"), 0);
+  assert.equal(weekStartOf("en-IL"), 0);
+  assert.equal(weekStartOf("en-US"), 0);
+  assert.equal(weekStartOf("en-GB"), 1);
+  assert.equal(weekStartOf("de-DE"), 1);
+  assert.equal(weekStartOf("ar-EG"), 6);
+  const gb = build([], {}, { now: NOW, tz: JLM, locale: "en-GB" }).grid;
+  assert.equal(gb.weekStart, 1);
+  assert.deepEqual(gb.weekdays.map((w) => w.short), ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
+  const us = build([], {}, { now: NOW, tz: JLM, locale: "en-US" }).grid;
+  assert.deepEqual(us.weekdays.map((w) => w.short), ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
+  assert.deepEqual(us.weekdays.map((w) => w.narrow), ["S", "M", "T", "W", "T", "F", "S"]);
+  // Hebrew names for a Hebrew device, Sunday first
+  const he = build([], {}, { now: NOW, tz: JLM, locale: "he-IL" }).grid;
+  assert.equal(he.weekStart, 0);
+  assert.notEqual(he.weekdays[0].short, "Sun");
+  assert.notEqual(he.months[1].month, "November");
+});
+
+test("a month's line and the next-up line", () => {
+  assert.equal(monthLine([]), null);
+  const e = (kind, type = "show", imdbId = "tt1") => ({ kind, type, imdbId });
+  assert.equal(monthLine([e("episode")]), "1 release");
+  assert.equal(monthLine([e("premiere"), e("episode"), e("cinema", "movie", "tt2"), e("home", "movie", "tt2")]), "4 releases · 1 premiere · 1 film");
+  assert.deepEqual([whenWords(0), whenWords(1), whenWords(5)], ["Today", "Tomorrow", "In 5 days"]);
+  const titles = [
+    { imdbId: "tt0000301", type: "show", title: "Aired", why: ["list"] },
+    { imdbId: "tt0000302", type: "show", title: "Later", why: ["list"] },
+  ];
+  const metas = {
+    tt0000301: show("tt0000301", "Aired", [ep(1, 2, dateIn(0))]), // today, a plain date: out already
+    tt0000302: show("tt0000302", "Later", [ep(2, 1, dateIn(3))]),
+  };
+  const r = build(titles, { metaOf: (id) => metas[id] }, { now: NOW, tz: JLM, locale: "en-GB" });
+  assert.deepEqual(r.next, { key: "tt0000302:2:1", day: dateIn(3).slice(0, 10), title: "Later", what: "Season 2 premiere", kind: "premiere", when: "In 3 days" });
+  // an air time later today: next up, "Today"
+  const tonight = { tt0000301: show("tt0000301", "Aired", [ep(1, 2, "2026-11-09T19:00:00.000Z")]), tt0000302: metas.tt0000302 };
+  assert.equal(build(titles, { metaOf: (id) => tonight[id] }, { now: NOW, tz: JLM, locale: "en-GB" }).next.when, "Today");
+});
+
+test("the asking device's own zone: its today and its days (a zone ahead of UTC and one behind)", () => {
+  // 21:00 UTC on 9 Nov: already the 10th in Kiritimati (UTC+14), still the 9th in Los Angeles (UTC−8)
+  const now = Date.parse("2026-11-09T21:00:00Z");
+  const titles = [{ imdbId: "tt0000401", type: "show", title: "Air", why: ["list"] }];
+  // an air time: 02:00 UTC on the 12th is the 12th (16:00) in Kiritimati, the 11th (18:00) in Los Angeles
+  const metaOf = () => show("tt0000401", "Air", [ep(1, 1, "2026-11-12T02:00:00.000Z"), ep(1, 2, "2026-11-20T00:00:00.000Z")]);
+  const east = build(titles, { metaOf }, { now, tz: "Pacific/Kiritimati", locale: "en-GB" });
+  const west = build(titles, { metaOf }, { now, tz: "America/Los_Angeles", locale: "en-GB" });
+  assert.equal(east.today, "2026-11-10");
+  assert.equal(west.today, "2026-11-09");
+  const days = (r) => Object.entries(r.grid.byDay).filter(([, d]) => d.items.length).map(([k]) => k);
+  assert.deepEqual(days(east), ["2026-11-12", "2026-11-20"]);
+  assert.deepEqual(days(west), ["2026-11-11", "2026-11-20"]); // a plain date stays the date it names
+});
+
+test("forProfile: a device's zone when it names a real one, else the household's", () => {
+  const mods = {
+    profiles: { getWatchlist: () => [], followsOf: () => [], streamEpisodeProgress: () => ({}) },
+    scanner: { findById: () => null },
+    identity: { ensureStamped() {}, imdbIdFor: () => null, _internals: { libraryMaps: () => null }, findLibraryPlayable: () => null, findLibraryFor: () => null },
+    discover: { metaCached: () => null, metaRecentlyFailed: () => false, meta: async () => null },
+    availability: { cached: () => null, isAmbiguous: () => false, warm: async () => {} },
+    downloads: { list: () => [] },
+  };
+  assert.equal(calendar.forProfile("p", { tz: "Pacific/Kiritimati", now: NOW }, mods).tz, "Pacific/Kiritimati");
+  const house = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  assert.equal(calendar.forProfile("p", { tz: "Not/AZone", now: NOW }, mods).tz, house);
+  assert.equal(calendar.forProfile("p", { now: NOW }, mods).tz, house);
+});
+
+test("an older app's fields keep their shape and their 60/14-day window (TV 5.9.1, phone 1.1.1)", () => {
+  const titles = [{ imdbId: "tt0000501", type: "show", title: "Old", why: ["list"] }];
+  const metaOf = () => show("tt0000501", "Old", [ep(1, 1, dateIn(-20)), ep(1, 2, dateIn(-14)), ep(1, 3, dateIn(0)), ep(1, 4, dateIn(60)), ep(1, 5, dateIn(61))]);
+  const r = build(titles, { metaOf }, { now: NOW, tz: JLM, locale: "en-GB" });
+  // the fields the apps in the field read (tv-native/src/calendar.ts Calendar, 5.9.1)
+  for (const k of ["tz", "locale", "today", "upcoming", "recent", "counts", "pending"]) assert.ok(k in r, k);
+  assert.deepEqual(Object.keys(r.counts).sort(), ["recent", "titles", "upcoming"]);
+  for (const d of [...r.upcoming, ...r.recent]) assert.deepEqual(Object.keys(d).sort(), ["date", "day", "items", "label"]);
+  assert.deepEqual(r.upcoming.map((d) => d.day), [dateIn(0), dateIn(60)].map((x) => x.slice(0, 10)));
+  assert.deepEqual(r.recent.map((d) => d.day), [dateIn(-14).slice(0, 10)]);
+  const entry = r.upcoming[0].items[0];
+  for (const k of ["key", "kind", "type", "imdbId", "title", "year", "poster", "day", "at", "what", "detail", "why", "out", "state", "badge", "canSave", "save", "play", "item"]) assert.ok(k in entry, k);
+  assert.equal(calendar.EMPTY.upcoming, "Nothing coming up in the next 60 days for the titles in your list.");
+  assert.equal(calendar.EMPTY.recent, "Nothing came out in the last 14 days for the titles in your list.");
+});
+
+test("restrict(): a kids profile's gate takes titles out of the lists, the grid, the months' lines and next up", () => {
+  const titles = [
+    { imdbId: "tt0000601", type: "show", title: "Fine", why: ["list"] },
+    { imdbId: "tt0000602", type: "show", title: "Grown-up", why: ["list"] },
+  ];
+  const metas = {
+    tt0000601: show("tt0000601", "Fine", [ep(1, 3, dateIn(5))]),
+    tt0000602: show("tt0000602", "Grown-up", [ep(1, 3, dateIn(2)), ep(1, 4, dateIn(-3))]),
+  };
+  const body = build(titles, { metaOf: (id) => metas[id] }, { now: NOW, tz: JLM, locale: "en-GB" });
+  assert.equal(body.next.title, "Grown-up");
+  const out = calendar.restrict(body, (items) => items.filter((e) => e.imdbId !== "tt0000602"));
+  assert.deepEqual(out.upcoming.map((d) => d.items.map((e) => e.title)), [["Fine"]]);
+  assert.deepEqual(out.recent, []);
+  assert.deepEqual(out.counts, { upcoming: 1, recent: 0, titles: 2 });
+  const left = Object.values(out.grid.byDay).flatMap((d) => d.items.map((e) => e.title));
+  assert.deepEqual(left, ["Fine"]);
+  assert.equal(out.grid.months[1].line, "1 release");
+  assert.equal(out.next.title, "Fine");
+  assert.equal(Object.keys(out.grid.byDay).length, Object.keys(body.grid.byDay).length, "every day keeps its heading");
+  // an older answer without a grid passes through as before
+  const old = calendar.restrict({ upcoming: body.upcoming, recent: body.recent, counts: body.counts }, (items) => items);
+  assert.equal(old.grid, undefined);
+});

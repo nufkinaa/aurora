@@ -137,7 +137,7 @@ A control is tagged where it is built:
 - website: `"data-ui": "detail.play"` on the element (one delegated click listener reads it; nothing is ever guessed from a control's text). A control that is not a click on an element — a keyboard shortcut, a tap zone — calls `uiHit("player.seek.fwd")`.
 - TV: `uiId="detail.play"` on a `Focusable`, `Btn` or `Chip` (and the small wrappers that pass it through). Without it nothing happens.
 
-The vocabulary (`src/lib/tel/controls-vocab.js`) — 399 ids: 221 on the website, 185 on the TV, 101 on both. 218 on the phone app (letter `p`, the table after this one).
+The vocabulary (`src/lib/tel/controls-vocab.js`) — 404 ids: 226 on the website, 190 on the TV, 106 on both. 223 on the phone app (letter `p`, the table after this one).
 
 | Area | Website only | TV app only | Both |
 |---|---|---|---|
@@ -145,7 +145,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 399 ids: 221 on the website
 | browse | `browse.chip.pick` `browse.filter.clear` `browse.genre.open` `browse.loadmore` `browse.option.pick` `browse.sort.open` | `browse.retry` | `browse.category.pick` `browse.surprise` `browse.unwatched` |
 | card | `card.remove` `card.hh.add` | – | `card.open` |
 | detail | `detail.download.device` `detail.episode.download` `detail.episode.offline` `detail.episode.playontv` `detail.episode.watched` `detail.offline.season` `detail.offline.seasonall` `detail.offline` `detail.playontv` `detail.rollagain` `detail.save` `detail.season.open` `detail.sources.fold` `detail.sources.more` `detail.sources.retry` `detail.synopsis.more` `detail.trailer.close` `detail.trailer.pick` | `detail.season.pick` `detail.season.watched` `detail.similar` `detail.source.pick` | `detail.download.cancel` `detail.episode.play` `detail.episode.replace` `detail.follow` `detail.mylist` `detail.play` `detail.replace` `detail.restart` `detail.source.download` `detail.source.play` `detail.sources` `detail.trailer` `detail.watched` `detail.xray` `detail.hh.dismiss` `detail.recommend` `detail.franchise` |
-| calendar | – | – | `calendar.open` `calendar.play` `calendar.retry` `calendar.save` `calendar.tab` |
+| calendar | – | – | `calendar.day` `calendar.month` `calendar.next` `calendar.open` `calendar.play` `calendar.retry` `calendar.save` `calendar.tab` `calendar.today` `calendar.view` |
 | downloadpicker | `downloadpicker.confirm` | – | – |
 | downloads | `downloads.another` `downloads.cancel` `downloads.open` `downloads.play` `downloads.remove` `downloads.retry` | `downloads.row` | – |
 | home | `home.hero.pick` | `home.hero.party` `home.switchprofile` | `home.hero.details` `home.hero.mute` `home.hero.play` `home.retry` `home.hh.all` |
@@ -190,7 +190,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 399 ids: 221 on the website
 | browse | – | `browse.category.pick` `browse.retry` `browse.unwatched` |
 | card | – | `card.open` |
 | detail | – | `detail.follow` `detail.mylist` `detail.play` `detail.recommend` `detail.restart` `detail.season.pick` `detail.season.watched` `detail.sources` `detail.trailer` `detail.watched` `detail.xray` `detail.franchise` |
-| calendar | – | `calendar.open` `calendar.play` `calendar.retry` `calendar.save` `calendar.tab` |
+| calendar | – | `calendar.day` `calendar.month` `calendar.next` `calendar.open` `calendar.play` `calendar.retry` `calendar.save` `calendar.tab` `calendar.today` `calendar.view` |
 | downloads | – | `downloads.row` |
 | franchise | – | `franchise.entry` `franchise.order` `franchise.play` `franchise.save` |
 | home | – | `home.hero.details` `home.hero.play` `home.retry` |

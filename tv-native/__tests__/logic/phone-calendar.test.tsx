@@ -20,7 +20,17 @@ jest.mock('react-native', () => {
           )
         : p.ListEmptyComponent,
     );
-  return {...jest.requireActual('./rn-stub.js'), SectionList, ScrollView: 'ScrollView', RefreshControl: 'RefreshControl', ActivityIndicator: 'ActivityIndicator'};
+  return {
+    ...jest.requireActual('./rn-stub.js'),
+    SectionList,
+    ScrollView: 'ScrollView',
+    RefreshControl: 'RefreshControl',
+    ActivityIndicator: 'ActivityIndicator',
+    // the month grid's swipe and its reduced-motion check
+    PanResponder: {create: () => ({panHandlers: {}})},
+    AccessibilityInfo: {isReduceMotionEnabled: () => Promise.resolve(true)},
+    useWindowDimensions: () => ({width: 412, height: 915}),
+  };
 });
 jest.mock('@react-navigation/native', () => ({useIsFocused: () => true}));
 jest.mock('../../src/AppContext', () => ({useApp: () => ({profileId: 'p1'})}));
@@ -337,4 +347,117 @@ test('tapping a row opens its title through openItem with entry.item', async () 
   await act(async () => rowOf(r, 'A Film').props.onPress());
   expect(mockOpen).toHaveBeenCalledWith(mockNav, FILM.item);
   expect(mockNav.push).not.toHaveBeenCalled();
+});
+
+// ---------- the month (server 1.15.27+: the answer carries the month grid) ----------
+
+// October to December 2026, the lists' entries on their days, Sunday first (an Israeli phone).
+const withGrid = (c: Calendar): Calendar => {
+  const byDay: NonNullable<Calendar['grid']>['byDay'] = {};
+  for (let t = Date.parse('2026-09-25T00:00:00Z'); t <= Date.parse('2027-01-14T00:00:00Z'); t += 86400000) {
+    const d = new Date(t).toISOString().slice(0, 10);
+    byDay[d] = {label: `Day ${d.slice(8)}`, date: null, items: []};
+  }
+  for (const g of [...c.upcoming, ...c.recent]) byDay[g.day] = {label: g.label, date: g.date, items: g.items};
+  const month = (key: string, name: string, last: string, line: string | null) => ({key, month: name, year: '2026', label: `${name} 2026`, first: `${key}-01`, last, count: 0, line});
+  return {
+    ...c,
+    grid: {
+      v: 1,
+      from: '2026-09-25',
+      to: '2027-01-14',
+      weekStart: 0,
+      weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => ({short: d, narrow: d[0]})),
+      months: [month('2026-10', 'October', '2026-10-31', null), month('2026-11', 'November', '2026-11-30', '4 releases · 1 premiere · 2 films'), month('2026-12', 'December', '2026-12-31', null)],
+      byDay,
+    },
+    next: {key: 'tt3:cinema', day: '2026-11-12', title: 'A Film', what: 'In cinemas', kind: 'cinema', when: 'In 3 days'},
+    empty: {...c.empty, month: 'Nothing out this month.', day: 'Nothing out on this day.'},
+  };
+};
+const days = () => byUi(r, 'calendar.day');
+const dayOf = (label: RegExp) => days().find(n => label.test(n.props.accessibilityLabel))!;
+
+describe('the month', () => {
+  beforeEach(async () => {
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    await AsyncStorage.removeItem('aurora.calendarView');
+    mockLoad.mockResolvedValue(withGrid(CAL()));
+  });
+
+  test('the month on top (Sunday first), the picked day’s releases under it — the website’s phone layout', async () => {
+    await mount();
+    expect(byUi(r, 'calendar.view').map(c => [c.props.label, c.props.active])).toEqual([
+      ['Month', true],
+      ['List', false],
+    ]);
+    expect(byUi(r, 'calendar.tab')).toHaveLength(0);
+    const t = texts(r);
+    expect(t).toEqual(expect.arrayContaining(['November ', '2026', '4 releases · 1 premiere · 2 films', 'S', 'M', 'Today', 'NEXT UP', 'A Film', 'In 3 days']));
+    // November 2026 from Sunday: 1 Nov … 5 Dec, five weeks; the other months' days cannot be tapped
+    expect(days()).toHaveLength(35);
+    expect(days()[0].props.accessibilityLabel).toBe('Day 01');
+    expect(days().filter(d => d.props.disabled)).toHaveLength(5);
+    // today: picked, its lead poster and "+1"; its releases listed under the month
+    const today = dayOf(/^Today · 9 Nov/);
+    expect(today.props.accessibilityState).toEqual({selected: true});
+    expect(t).toContain('+1');
+    expect(t).toContain('Today · 9 Nov');
+    expect(byUi(r, 'calendar.open').map(n => texts(n)[0])).toEqual(['New Show', 'Owned Show']);
+    expect(t).toEqual(expect.arrayContaining(['Premiere', 'New episode', 'In cinemas', 'Out to stream or buy', 'On the server']));
+  });
+
+  test('a tap picks a day: its releases, or the server’s words for a day with nothing', async () => {
+    await mount();
+    await act(async () => dayOf(/^Thursday · 12 Nov/).props.onPress());
+    expect(byUi(r, 'calendar.open').map(n => texts(n)[0])).toEqual(['A Film']);
+    expect(dayOf(/^Thursday · 12 Nov/).props.accessibilityState).toEqual({selected: true});
+    await act(async () => dayOf(/^Day 13$/).props.onPress());
+    expect(byUi(r, 'calendar.open')).toHaveLength(0);
+    expect(texts(r)).toEqual(expect.arrayContaining(['Day 13', 'Nothing out on this day.']));
+    // Next up takes you to its day; Today back
+    await act(async () => byUi(r, 'calendar.next')[0].props.onPress());
+    expect(byUi(r, 'calendar.open').map(n => texts(n)[0])).toEqual(['A Film']);
+    await act(async () => byUi(r, 'calendar.today')[0].props.onPress());
+    expect(byUi(r, 'calendar.open').map(n => texts(n)[0])).toEqual(['New Show', 'Owned Show']);
+  });
+
+  test('the arrows: the month after keeps the day of the month; the last month stops', async () => {
+    await mount();
+    const arrows = () => byUi(r, 'calendar.month');
+    expect(arrows().map(a => a.props.accessibilityLabel)).toEqual(['Previous month', 'Next month']);
+    await act(async () => arrows()[1].props.onPress());
+    expect(texts(r)).toEqual(expect.arrayContaining(['December ', 'Nothing out this month.', 'Day 09', 'Nothing out on this day.']));
+    expect(arrows()[1].props.disabled).toBe(true);
+    await act(async () => arrows()[0].props.onPress());
+    expect(texts(r)).toContain('November ');
+    expect(texts(r)).toContain('Today · 9 Nov');
+  });
+
+  test('Save & watch from the picked day', async () => {
+    mockSave.mockResolvedValue({ok: true, state: 'saving', line: 'Saving — My downloads shows how far it has got'});
+    await mount();
+    await act(async () => byUi(r, 'calendar.today')[0].props.onPress());
+    await act(async () => byUi(r, 'calendar.save')[0].props.onPress());
+    await flush();
+    expect(mockSave).toHaveBeenCalledWith('p1', SAVEABLE);
+    expect(byUi(r, 'calendar.save')).toHaveLength(0);
+    expect(texts(rowOf(r, 'New Show'))).toContain('Saving');
+  });
+
+  test('List: the agenda, kept on the phone; an older server has the list only', async () => {
+    await mount();
+    await act(async () => byUi(r, 'calendar.view').find(c => c.props.label === 'List')!.props.onPress());
+    expect(byUi(r, 'calendar.tab').map(t => t.props.label)).toEqual(['Coming up · 3', 'Recently out · 1']);
+    expect(days()).toHaveLength(0);
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    expect(await AsyncStorage.getItem('aurora.calendarView')).toBe('list');
+    await act(async () => r.unmount());
+    mockLoad.mockResolvedValue(CAL());
+    await AsyncStorage.removeItem('aurora.calendarView');
+    await mount();
+    expect(byUi(r, 'calendar.view')).toHaveLength(0);
+    expect(days()).toHaveLength(0);
+    expect(byUi(r, 'calendar.tab')).toHaveLength(2);
+  });
 });

@@ -5,6 +5,11 @@
 // it (src/media/calendar.js); calendar.ts asks for it and says the screen's own
 // few words; this screen lays it out for the remote.
 //
+// TWO VIEWS, the Month / List chips at the top right (the choice stays on this
+// TV, calendar.ts loadCalendarView): Month is a real month, the picked day's
+// releases beside it (screens/CalendarMonth.tsx); List is the agenda below.
+// A server without the month grid in its answer gets the List only.
+//
 //   the tabs     "Coming up · 12" / "Recently out · 3" (opens on firstTab)
 //   a quiet line while some titles' dates are still being looked up
 //   the days     a heading ("Today · 9 Nov") and its entries: poster, title,
@@ -30,8 +35,10 @@ import NavRail from '../components/NavRail';
 import Skeleton from '../components/Skeleton';
 import {Empty} from '../components/States';
 import {artSrc} from '../api';
+import CalendarMonth from './CalendarMonth';
 import {
   afterSave,
+  CAL_WORDS,
   CALENDAR_TABS,
   CALENDAR_TITLE,
   canPlay,
@@ -40,17 +47,20 @@ import {
   entryLabel,
   FAILED_LINE,
   firstTab,
+  hasGrid,
   loadCalendar,
+  loadCalendarView,
   PLAY_WORD,
   RETRY_WORD,
   SAVE_FAILED,
   SAVE_WORD,
+  saveCalendarView,
   saveFromCalendar,
   SAVING_WORD,
   tabLabel,
   withEntry,
 } from '../calendar';
-import type {Calendar as CalendarData, CalendarEntry, CalendarTab} from '../calendar';
+import type {Calendar as CalendarData, CalendarEntry, CalendarTab, CalendarView} from '../calendar';
 import {openItem} from '../openItem';
 import {warmItem} from '../prefetch';
 import {goSection} from '../navSection';
@@ -215,8 +225,17 @@ export default function Calendar({navigation}: NativeStackScreenProps<RootStackP
   const [tab, setTab] = useState<CalendarTab | null>(null);
   const [saving, setSaving] = useState<Record<string, true>>({});
   const [reload, setReload] = useState(0);
+  // Month or List (null until this TV's choice is read)
+  const [view, setView] = useState<CalendarView | null>(null);
+  useEffect(() => {
+    let on = true;
+    loadCalendarView().then(v => on && setView(v));
+    return () => {
+      on = false;
+    };
+  }, []);
   // usage stats: the first answer is on (routeTiming.ts → `tv:calendar`)
-  useRouteShown(cal !== null || failed);
+  useRouteShown((cal !== null && view !== null) || failed);
 
   const live = useRef(true);
   useEffect(() => {
@@ -264,7 +283,9 @@ export default function Calendar({navigation}: NativeStackScreenProps<RootStackP
   // UP out of the list's first row (or its buttons) to the tab that is on.
   const atTop = useRef(false);
   const tabRef = useRef(null);
+  const viewRef = useRef(null);
   useFocusFallback(tabRef);
+  useFocusFallback(viewRef);
   useTVKeys(
     useCallback((evt: {eventType: string}) => {
       if (evt.eventType !== 'up' || railOpen() || pressMovedFocus()) return;
@@ -338,6 +359,13 @@ export default function Calendar({navigation}: NativeStackScreenProps<RootStackP
     tabbed.current = true;
     if (t !== shownTab) setTab(t);
   };
+  const switchView = (v: CalendarView) => {
+    tabbed.current = true;
+    if (v === view) return;
+    setView(v);
+    saveCalendarView(v);
+  };
+  const month = view === 'month' && hasGrid(cal);
   const retry = () => {
     setFailed(false);
     setReload(n => n + 1);
@@ -352,7 +380,24 @@ export default function Calendar({navigation}: NativeStackScreenProps<RootStackP
       <Animated.View style={[styles.page, screenIn]}>
         <View style={styles.head}>
           <Text style={styles.h1}>{CALENDAR_TITLE}</Text>
+          {hasGrid(cal) && view ? (
+            <View style={styles.views}>
+              {(['month', 'list'] as const).map(v => (
+                <Chip
+                  uiId="calendar.view"
+                  key={v}
+                  small
+                  ref={v === view ? viewRef : undefined}
+                  label={CAL_WORDS[v]}
+                  on={v === view}
+                  onFocusChange={leaveList}
+                  onPress={() => switchView(v)}
+                />
+              ))}
+            </View>
+          ) : null}
         </View>
+        {month ? null : (
         <View style={styles.band}>
           {CALENDAR_TABS.map((t, i) => (
             <Chip
@@ -369,15 +414,20 @@ export default function Calendar({navigation}: NativeStackScreenProps<RootStackP
             />
           ))}
         </View>
+        )}
         {pending && !failed ? <Text style={styles.pending}>{pending}</Text> : null}
 
         {failed ? (
           <Failed onRetry={retry} />
-        ) : !cal ? (
+        ) : !cal || !view ? (
           <View style={styles.skel}>
             {Array.from({length: SKELETONS}, (_, i) => (
               <Skeleton key={i} width={ROW_MAX - 240} height={POSTER_H + 16} />
             ))}
+          </View>
+        ) : month ? (
+          <View style={[styles.monthBody, {paddingBottom: 18 + safeBottom}]}>
+            <CalendarMonth cal={cal} saving={saving} claimFocus={!tabbed.current} onOpen={open} onPlay={play} onSave={save} />
           </View>
         ) : empty ? (
           cal.counts.titles && cal[other].length ? (
@@ -412,7 +462,9 @@ const frame = {paddingLeft: spacing.contentLeft, paddingRight: spacing.pageX};
 const styles = StyleSheet.create({
   root: {flex: 1},
   page: {flex: 1},
-  head: {flexDirection: 'row', alignItems: 'baseline', gap: 16, paddingTop: 27, paddingBottom: 4, ...frame},
+  head: {flexDirection: 'row', alignItems: 'center', gap: 16, paddingTop: 27, paddingBottom: 4, ...frame},
+  views: {flexDirection: 'row', gap: 6, marginLeft: 'auto'},
+  monthBody: {flex: 1, paddingTop: 4, ...frame},
   h1: {color: colors.text, fontSize: fontSize.title, lineHeight: 39, fontWeight: '900', letterSpacing: -0.52},
   band: {flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 2, paddingBottom: 6, ...frame},
   pending: {color: colors.textDim, fontSize: fontSize.small, paddingBottom: 4, ...frame},

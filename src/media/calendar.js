@@ -26,7 +26,22 @@
 // THE WINDOW  "Coming up" is today and the next AHEAD_DAYS days; "Recently out"
 // the RECENT_DAYS days before today. Grouped by day, in the HOUSEHOLD's time
 // zone (the server's clock — the admin's dates use the same, adminsummary
-// clock()): today is the house's today, whatever device asks.
+// clock()): today is the house's today, whatever device asks — unless the
+// device names its own zone (?tz=, an IANA name; the month grid's apps do),
+// then it is that device's today and its days.
+//
+// THE MONTH GRID (`grid`, 2026-11-10: elia, "make it look really like a
+// calendar"). The apps draw whole months, six weeks each, so besides the two
+// lists above the answer carries every day of the months a person can page
+// through: the month before this one, this one, and on to the month that
+// holds today + AHEAD_DAYS (four months, sometimes five) — plus the six days
+// either side of them that a six-week grid shows greyed. One flat map, day →
+// { label, date, items }, every day present (an empty day has items: []), so
+// a picked day always has its heading. Same entries, same words as the lists;
+// built in the same one pass over the same caches (a wider date filter costs
+// nothing: every episode is looked at either way). Older apps (TV 5.9.1,
+// phone 1.1.1) read only `upcoming`/`recent`/`counts`/`empty`, which keep
+// their 60/14-day window and shape exactly.
 //
 // TIME ZONES. Both sources write most dates as midnight UTC
 // ("2026-11-14T00:00:00.000Z"): that is a calendar DATE, not an instant, and
@@ -72,6 +87,16 @@ const keyMs = (key) => Date.parse(`${key}T00:00:00.000Z`);
 const msKey = (ms) => new Date(ms).toISOString().slice(0, 10);
 const addDays = (key, n) => msKey(keyMs(key) + n * DAY_MS);
 const daysBetween = (a, b) => Math.round((keyMs(b) - keyMs(a)) / DAY_MS);
+// months as "2026-11"
+const monthOf = (key) => key.slice(0, 7);
+const addMonths = (mk, n) => {
+  const [y, m] = mk.split("-").map(Number);
+  const t = y * 12 + (m - 1) + n;
+  return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
+};
+const lastOfMonth = (mk) => addDays(`${addMonths(mk, 1)}-01`, -1);
+const GRID_EDGE = 6; // the other months' days a week row shows before the 1st
+const GRID_TAIL = 14; // …and after the last (six rows: up to two weeks of the next month)
 
 const validTz = (tz) => {
   if (!tz || typeof tz !== "string") return false;
@@ -160,6 +185,45 @@ const dayLabel = (day, today, locale) => {
   return { label: fmt(locale, { weekday: "short", day: "numeric", month: "short" }).format(d), date: null };
 };
 
+// The first day of the week where the asking device lives: 0 Sunday … 6
+// Saturday (Israel and the US start on Sunday, most of Europe on Monday).
+// Intl's week data when the runtime has it, else a small table by region.
+const SUNDAY_REGIONS = new Set(["US", "CA", "IL", "JP", "BR", "MX", "PH", "KR", "TW", "HK", "IN", "ZA", "AU", "SA", "PE", "CO", "VE", "AR", "GT", "PA", "DO", "PR", "SG", "TH", "ID", "MO", "KE", "PK", "BD", "NP", "ZW", "BZ", "BS", "JM", "TT", "HN", "NI", "SV", "PY", "BT", "KH", "LA", "MM", "MT", "WS", "UM", "VI", "GU", "AS", "MH", "ET", "MZ", "BW", "YE"]);
+const SATURDAY_REGIONS = new Set(["AE", "AF", "BH", "DJ", "DZ", "EG", "IQ", "IR", "JO", "KW", "LY", "OM", "QA", "SD", "SY"]);
+const weekStarts = new Map();
+const weekStartOf = (locale) => {
+  if (weekStarts.has(locale)) return weekStarts.get(locale);
+  let start = 1;
+  try {
+    const loc = new Intl.Locale(locale);
+    const info = typeof loc.getWeekInfo === "function" ? loc.getWeekInfo() : loc.weekInfo;
+    if (info && Number(info.firstDay) >= 1 && Number(info.firstDay) <= 7) start = Number(info.firstDay) % 7;
+    else {
+      const region = loc.region || loc.maximize().region;
+      start = SUNDAY_REGIONS.has(region) ? 0 : SATURDAY_REGIONS.has(region) ? 6 : 1;
+    }
+  } catch {}
+  weekStarts.set(locale, start);
+  return start;
+};
+// A Sunday to name the weekdays from (4 Jan 2026 was one).
+const SUNDAY_KEY = "2026-01-04";
+// The weekday names in the device's order: [{ short: "Sun", narrow: "S" }, …]
+const weekdayNames = (locale, start) =>
+  Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(keyMs(addDays(SUNDAY_KEY, (start + i) % 7)));
+    return { short: fmt(locale, { weekday: "short" }).format(d), narrow: fmt(locale, { weekday: "narrow" }).format(d) };
+  });
+// A month's names: { month: "November", year: "2026", label: "November 2026" }
+const monthNames = (mk, locale) => {
+  const d = new Date(keyMs(`${mk}-15`));
+  return {
+    month: fmt(locale, { month: "long" }).format(d),
+    year: fmt(locale, { year: "numeric" }).format(d),
+    label: fmt(locale, { month: "long", year: "numeric" }).format(d),
+  };
+};
+
 // ---------- words ----------
 
 const WHY_WORDS = { list: "In My List", following: "Following", watching: "Watching" };
@@ -194,6 +258,21 @@ const showWords = (eps) => {
 };
 
 const FILM_WORDS = { cinema: "In cinemas", home: "Out to stream or buy" };
+
+// A month at a glance: "9 releases · 2 premieres · 1 film" (null: nothing).
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const monthLine = (items) => {
+  if (!items.length) return null;
+  const premieres = items.filter((e) => e.kind === "premiere").length;
+  const films = new Set(items.filter((e) => e.type === "movie").map((e) => e.imdbId)).size;
+  return [
+    plural(items.length, "release", "releases"),
+    premieres ? plural(premieres, "premiere", "premieres") : null,
+    films ? plural(films, "film", "films") : null,
+  ].filter(Boolean).join(" · ");
+};
+// How far off a day is, said the way the next-up line says it.
+const whenWords = (n) => (n <= 0 ? "Today" : n === 1 ? "Tomorrow" : `In ${n} days`);
 
 const BADGES = { have: "On the server", saving: "Saving", waiting: "Waiting for approval" };
 const badgeFor = (state, owned, total) =>
@@ -269,6 +348,14 @@ const build = (titles, deps = {}, opts = {}) => {
   const today = dayIn(now, tz);
   const first = addDays(today, -back);
   const last = addDays(today, ahead);
+  // the month grid's days (see THE MONTH GRID above): the month before this
+  // one to the month holding the window's last day, and the greyed edges
+  const months = [];
+  for (let mk = addMonths(monthOf(today), -1); mk <= monthOf(last); mk = addMonths(mk, 1)) months.push(mk);
+  const gridFrom = addDays(`${months[0]}-01`, -GRID_EDGE);
+  const gridTo = addDays(lastOfMonth(months[months.length - 1]), GRID_TAIL);
+  const from = first < gridFrom ? first : gridFrom;
+  const to = last > gridTo ? last : gridTo;
   const torrentsOn = opts.torrentsOn !== false;
   const metaOf = deps.metaOf || (() => null);
   const filmOf = deps.filmOf || (() => null);
@@ -279,7 +366,7 @@ const build = (titles, deps = {}, opts = {}) => {
 
   const entries = [];
   let pending = 0; // titles whose dates are not known yet (metadata not fetched so far)
-  const inWindow = (d) => d && d.day >= first && d.day <= last;
+  const inWindow = (d) => d && d.day >= from && d.day <= to;
 
   // What to open: the library copy when there is one, else the catalogue page.
   const openCard = (t, meta) => {
@@ -404,6 +491,9 @@ const build = (titles, deps = {}, opts = {}) => {
     }
   }
 
+  // premieres lead the day, then the earliest, then by name
+  const dayOrder = (a, b) =>
+    (b.kind === "premiere") - (a.kind === "premiere") || a.at - b.at || String(a.title).localeCompare(String(b.title));
   // Coming up: today onwards, soonest first. Recently out: before today, newest first.
   const group = (list, newestFirst) => {
     const days = new Map();
@@ -413,19 +503,28 @@ const build = (titles, deps = {}, opts = {}) => {
     }
     return [...days.keys()]
       .sort((a, b) => (newestFirst ? (a < b ? 1 : -1) : a < b ? -1 : 1))
-      .map((day) => ({
-        day,
-        ...dayLabel(day, today, locale),
-        // premieres lead the day, then the earliest, then by name
-        items: days.get(day).sort(
-          (a, b) =>
-            (b.kind === "premiere") - (a.kind === "premiere") || a.at - b.at || String(a.title).localeCompare(String(b.title)),
-        ),
-      }));
+      .map((day) => ({ day, ...dayLabel(day, today, locale), items: days.get(day).sort(dayOrder) }));
   };
-  const upcoming = group(entries.filter((e) => e.day >= today), false);
-  const recent = group(entries.filter((e) => e.day < today), true);
+  // (the two lists keep their own 60/14-day window: what older apps were built on)
+  const upcoming = group(entries.filter((e) => e.day >= today && e.day <= last), false);
+  const recent = group(entries.filter((e) => e.day < today && e.day >= first), true);
   const count = (g) => g.reduce((n, d) => n + d.items.length, 0);
+
+  // The month grid: every day from gridFrom to gridTo, each with its heading.
+  const byDay = {};
+  for (let d = gridFrom; d <= gridTo; d = addDays(d, 1)) byDay[d] = { ...dayLabel(d, today, locale), items: [] };
+  for (const e of entries) if (byDay[e.day]) byDay[e.day].items.push(e);
+  for (const d of Object.values(byDay)) if (d.items.length > 1) d.items.sort(dayOrder);
+  const weekStart = weekStartOf(locale);
+  const grid = finishGrid({
+    v: 1,
+    from: gridFrom,
+    to: gridTo,
+    weekStart,
+    weekdays: weekdayNames(locale, weekStart),
+    months: months.map((key) => ({ key, ...monthNames(key, locale), first: `${key}-01`, last: lastOfMonth(key), count: 0, line: null })),
+    byDay,
+  });
   return {
     tz,
     locale,
@@ -436,7 +535,52 @@ const build = (titles, deps = {}, opts = {}) => {
     recent,
     counts: { upcoming: count(upcoming), recent: count(recent), titles: titles.length },
     pending,
+    grid,
+    next: nextOf(grid, today),
   };
+};
+
+// A month's count and line, from the days it holds (again after a kids
+// profile's gate has taken titles out: restrict() below).
+const finishGrid = (grid) => ({
+  ...grid,
+  months: grid.months.map((m) => {
+    const items = [];
+    for (let d = m.first; d <= m.last; d = addDays(d, 1)) if (grid.byDay[d]) items.push(...grid.byDay[d].items);
+    return { ...m, count: items.length, line: monthLine(items) };
+  }),
+});
+
+// What comes next: the first release from today on that is not out yet —
+// { key, day, title, what, kind, when: "Today" | "Tomorrow" | "In 3 days" }.
+const nextOf = (grid, today) => {
+  if (!grid || !grid.byDay) return null;
+  for (const day of Object.keys(grid.byDay).sort()) {
+    if (day < today) continue;
+    const e = grid.byDay[day].items.filter((x) => !x.out).sort((a, b) => a.at - b.at)[0];
+    if (e) return { key: e.key, day, title: e.title, what: e.what, kind: e.kind, when: whenWords(daysBetween(today, day)) };
+  }
+  return null;
+};
+
+// The calendar with only the entries `keep(items) → items` lets through (a
+// kids profile's gate, lib/kids.js): both lists, their counts, the grid's
+// days, the months' lines and the next-up line, all made again.
+const restrict = (body, keep) => {
+  if (!body || typeof body !== "object") return body;
+  const pick = (items) => (Array.isArray(items) ? keep(items) || [] : []);
+  const days = (list) => (Array.isArray(list) ? list.map((d) => ({ ...d, items: pick(d.items) })).filter((d) => d.items.length > 0) : list);
+  const upcoming = days(body.upcoming);
+  const recent = days(body.recent);
+  const n = (g) => (Array.isArray(g) ? g.reduce((t, d) => t + d.items.length, 0) : 0);
+  const out = { ...body, upcoming, recent, counts: { ...(body.counts || {}), upcoming: n(upcoming), recent: n(recent) } };
+  if (body.grid && body.grid.byDay && Array.isArray(body.grid.months)) {
+    const byDay = {};
+    for (const [d, v] of Object.entries(body.grid.byDay)) byDay[d] = { ...v, items: pick(v.items) };
+    out.grid = finishGrid({ ...body.grid, byDay });
+    out.next = nextOf(out.grid, body.today);
+  }
+  return out;
 };
 
 // The words a calendar with nothing in it says (both tabs, every app).
@@ -444,6 +588,9 @@ const EMPTY = {
   noTitles: "Add films and shows to My List, or follow a show, and their new episodes and release dates show up here.",
   upcoming: "Nothing coming up in the next 60 days for the titles in your list.",
   recent: "Nothing came out in the last 14 days for the titles in your list.",
+  // the month grid's: a month with nothing on it, a picked day with nothing
+  month: "Nothing out this month for the titles in your list.",
+  day: "Nothing out on this day.",
   pending: (n) => `Still looking up the dates of ${n} ${n === 1 ? "title" : "titles"} — they show up here soon.`,
 };
 
@@ -492,7 +639,7 @@ const serverLocale = () => {
 };
 
 // One person's calendar, from the caches. Sync.
-const forProfile = (profileId, { locale = null, now = Date.now() } = {}, mods = live()) => {
+const forProfile = (profileId, { locale = null, tz = null, now = Date.now() } = {}, mods = live()) => {
   const { scanner, identity, discover, availability, downloads } = mods;
   const titles = titlesOf(profileId, mods);
   const maps = (() => { try { return identity._internals.libraryMaps(); } catch { return null; } })();
@@ -512,7 +659,8 @@ const forProfile = (profileId, { locale = null, now = Date.now() } = {}, mods = 
       findById: (id) => scanner.findById(id),
       jobOf: jobFinder(jobs),
     },
-    { now, tz: serverTz(), locale: locale || serverLocale(), torrentsOn },
+    // the asking device's zone when it names a real one, else the household's
+    { now, tz: validTz(tz) ? tz : serverTz(), locale: locale || serverLocale(), torrentsOn },
   );
   // what is still unknown is looked up now, a few at a time, in the background
   warmFew(titles, mods).catch(() => {});
@@ -678,6 +826,7 @@ const afterSave = (entry, r) => {
 module.exports = {
   afterSave,
   forProfile,
+  restrict,
   refresh,
   save,
   build,
@@ -685,6 +834,7 @@ module.exports = {
   EMPTY,
   _internals: {
     readDate, dayIn, dayLabel, pickLocale, showWords, whyLine, isOut, addDays, daysBetween, dueForRefresh, jobFinder, warmFew,
+    addMonths, lastOfMonth, weekStartOf, weekdayNames, monthNames, monthLine, whenWords, nextOf, validTz,
     AHEAD_DAYS, RECENT_DAYS, WATCHING_DAYS, MAX_TITLES,
   },
 };

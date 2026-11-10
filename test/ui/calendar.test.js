@@ -1,5 +1,5 @@
-// The Calendar on the website (desktop and a 320 px phone, both looks): the
-// nav link (desktop) and the profile menu (phone) lead to it; Coming up and
+// The Calendar's List view on the website (desktop and a 320 px phone, both
+// looks): the nav link (desktop) and the profile menu (phone) lead to it; Coming up and
 // Recently out, grouped by day with the server's words; the badge for what
 // the server has, Play for it, Save & watch for what it has not (its answer
 // changes the card; nothing is saved without a press); a card opens its
@@ -34,6 +34,8 @@ const filled = async (api, lib, look) => {
   await setLook(api, p, look);
   return p;
 };
+// (these tests are the List view's — the agenda; the month grid has its own file, calendar-grid.test.js)
+const listView = (page) => page.addInitScript(() => { try { localStorage.setItem("aurora-cal-view", "list"); } catch {} });
 const toastSays = (page, re) => page.waitForFunction((src) => [...document.querySelectorAll("#toasts .toast")].some((t) => new RegExp(src).test(t.innerText.replace(/\s+/g, " "))), re.source, { timeout: 15000 });
 const heads = (page) => page.$$eval("#app .cal-day-head", (n) => n.map((x) => x.textContent));
 const entries = (page) => page.$$eval("#app .cal-entry", (n) => n.map((x) => ({
@@ -52,6 +54,7 @@ for (const [look, viewport] of [["glass", DESKTOP], ["legacy", DESKTOP], ["glass
 
   ui.test(`${tag}: reached from the nav, Coming up by day, Recently out with badges, Play and Save & watch`, { viewport }, async ({ page, goto, signIn, api, lib }) => {
     const p = await filled(api, lib, look);
+    await listView(page);
     await signIn(p);
     await goto("#/");
     if (!phone) {
@@ -119,6 +122,7 @@ for (const [look, viewport] of [["glass", DESKTOP], ["legacy", DESKTOP], ["glass
 
   ui.test(`${tag}: a card opens its title; Back lands on the same tab`, { viewport }, async ({ page, goto, signIn, api, lib }) => {
     const p = await filled(api, lib, look);
+    await listView(page);
     await signIn(p);
     await goto("#/calendar");
     await page.waitForSelector("#app .cal-entry");
@@ -137,6 +141,7 @@ for (const [look, viewport] of [["glass", DESKTOP], ["legacy", DESKTOP], ["glass
 
 ui.test("320: an empty calendar says how to fill it; a failed load offers Try again", { viewport: SMALL }, async ({ page, goto, signIn, freshProfile, allow }) => {
   const p = await freshProfile();
+  await listView(page);
   await signIn(p);
   await goto("#/calendar");
   await page.waitForSelector("#app .cal-empty");
@@ -160,6 +165,7 @@ ui.test("320: an empty calendar says how to fill it; a failed load offers Try ag
 
 ui.test("desktop: a Save & watch that finds nothing says why and keeps the button", { viewport: DESKTOP }, async ({ page, goto, signIn, api, lib }) => {
   const p = await filled(api, lib, "glass");
+  await listView(page);
   await signIn(p);
   await goto("#/calendar");
   await page.waitForSelector("#app .cal-entry");

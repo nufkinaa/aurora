@@ -2224,3 +2224,491 @@ html[data-look="glass"] .hh-tabs .chip.on { background: rgba(255, 255, 255, 0.18
 @media (hover: none) {
   .cal-actions .btn { min-height: 44px; }
 }
+
+/* ---------- the Calendar's month (screens/calendar.js, calgrid.js) ----------
+   A month you read at a glance: six weeks of days, each day showing its
+   releases as a small fan of posters (one poster filling the day on a phone),
+   a coloured edge for the kind, a mint tick for what the server has. The
+   picked day's releases in full beside it (under it below 1100 px).
+   Cheap on purpose: no blur anywhere in here, every animation is transform /
+   opacity, the rings are one inset shadow on a pseudo-element. */
+.screen.calendar {
+  --k-premiere: #ffd479;
+  --k-episode: var(--accent);
+  --k-cinema: #ff9a7c;
+  --k-home: #72d4f4;
+  --k-have: #8cffbe;
+  --calg-gap: 6px;
+}
+.cal-head { align-items: center; justify-content: space-between; flex-wrap: wrap; row-gap: 10px; }
+.cal-views[hidden], .cal-tabs[hidden] { display: none; }
+.cal-views .chip { min-width: 84px; }
+.cal-month-view .cal-body { max-width: none; }
+.calg {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(330px, 27vw, 410px);
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "main next" "main panel";
+  gap: 0 28px;
+  align-items: start;
+  max-width: 1500px;
+}
+.calg-main { grid-area: main; min-width: 0; }
+.calg-panel { grid-area: panel; }
+
+/* Next up: one line that takes you to the next release's day */
+.calg-next {
+  grid-area: next;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 9px 12px 9px 9px;
+  border: 0;
+  border-radius: var(--radius-l);
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--k, var(--k-episode)) 16%, transparent), transparent 62%),
+    rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-fast), transform var(--t-fast) var(--ease);
+}
+.calg-next:hover { background-color: rgba(255, 255, 255, 0.07); }
+.calg-next:active { transform: scale(0.99); }
+.calg-next:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.calg-next.k-premiere { --k: var(--k-premiere); }
+.calg-next.k-cinema { --k: var(--k-cinema); }
+.calg-next.k-home { --k: var(--k-home); }
+.calg-next-pic {
+  flex: none;
+  width: 34px;
+  aspect-ratio: 2 / 3;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.calg-next-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.calg-next-eyebrow {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--k, var(--k-episode)) 72%, #fff);
+}
+.calg-next-line { display: flex; flex-direction: column; min-width: 0; }
+.calg-next-title { font-weight: 800; unicode-bidi: plaintext; overflow-wrap: anywhere; }
+.calg-next-what { color: var(--text-dim); font-size: 0.88rem; font-weight: 600; }
+.calg-next-when {
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  font-size: 0.85rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* the month's heading, its line, Today and the arrows */
+.calg-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: "title today nav" "line line line";
+  align-items: center;
+  column-gap: 10px;
+  margin-bottom: 16px;
+}
+.calg-month {
+  grid-area: title;
+  margin: 0;
+  font-size: clamp(1.7rem, 2.7vw, 2.5rem);
+  font-weight: 850;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  min-width: 0;
+}
+.calg-year { font-weight: 300; color: var(--text-dim); letter-spacing: -0.02em; }
+.calg-line { grid-area: line; margin: 6px 0 0; font-size: 0.9rem; font-weight: 650; color: var(--text-dim); }
+.calg-line.quiet { color: var(--text-faint); font-weight: 600; }
+.calg-today { grid-area: today; }
+.calg-nav { grid-area: nav; display: flex; gap: 6px; }
+.calg-arrow {
+  width: 40px;
+  height: 40px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--t-fast), transform var(--t-fast) var(--ease), opacity var(--t-fast);
+}
+.calg-arrow svg { width: 22px; height: 22px; }
+.calg-arrow:hover:not(:disabled) { background: var(--surface-hover); }
+.calg-arrow:active:not(:disabled) { transform: scale(0.92); }
+.calg-arrow:disabled { opacity: 0.28; cursor: default; }
+.calg-arrow:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* the grid */
+.calg-frame { position: relative; }
+.calg-grid { touch-action: pan-y; }
+.calg-wk { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--calg-gap); margin-bottom: 8px; }
+.calg-wd {
+  padding: 0 10px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.calg-wd-narrow { display: none; }
+.calg-sheets { overflow: hidden; margin: -6px; padding: 6px; } /* (room for the focus ring; the slide stays inside) */
+.calg-sheet { display: flex; flex-direction: column; gap: var(--calg-gap); }
+.calg-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--calg-gap); }
+.calg-cell { min-width: 0; }
+.calg-day {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 5 / 4;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-fast);
+}
+/* the rings (today, the picked day) — over the pictures, never under them */
+.calg-day::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  pointer-events: none;
+  z-index: 4;
+  transition: box-shadow var(--t-fast);
+}
+.calg-day:hover:not(.off) { background: rgba(255, 255, 255, 0.07); }
+.calg-day.has { background: rgba(255, 255, 255, 0.055); }
+/* a premiere's day: a little gold light from below */
+.calg-day.prem { background: radial-gradient(90% 70% at 50% 100%, rgba(255, 212, 121, 0.16), transparent 72%), rgba(255, 255, 255, 0.055); }
+@media (min-width: 1100px) { .fan .calg-day { aspect-ratio: 4 / 3; } }
+.calg-day.other { background: transparent; }
+.calg-day.other::after { box-shadow: none; }
+.calg-day.off { cursor: default; }
+.calg-day.today {
+  background:
+    radial-gradient(130% 100% at 0% 0%, rgba(var(--accent-rgb), 0.26), transparent 62%),
+    rgba(255, 255, 255, 0.05);
+}
+.calg-day.today::after { box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.7); }
+.calg-day.sel::after { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.95); }
+.calg-day:focus-visible { outline: none; }
+.calg-day:focus-visible::after { box-shadow: var(--focus-ring); }
+.calg-num {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  z-index: 3;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+.calg-day.has .calg-num { color: var(--text); font-weight: 800; }
+.calg-day.other .calg-num { color: var(--text-faint); opacity: 0.6; }
+.calg-day.today .calg-num {
+  top: 5px;
+  left: 6px;
+  min-width: 25px;
+  height: 25px;
+  padding: 0 5px;
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 4px 14px rgba(var(--accent-rgb), 0.5);
+}
+.calg-more {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  z-index: 3;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text-dim);
+}
+
+/* one poster: its kind on its bottom edge, the server's state in a corner */
+.calg-pic { --k: var(--k-episode); position: absolute; overflow: hidden; background: #1a1c2c; }
+.calg-pic.k-premiere { --k: var(--k-premiere); }
+.calg-pic.k-cinema { --k: var(--k-cinema); }
+.calg-pic.k-home { --k: var(--k-home); }
+.calg-pic::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--k);
+}
+.calg-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.calg-img-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 3px;
+  box-sizing: border-box;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--k, #8b7bff) 38%, #1a1c2e), #10111b 85%);
+  font-size: 0.48rem;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.85);
+  overflow: hidden;
+  hyphens: auto;
+  unicode-bidi: plaintext;
+}
+.calg-st {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  z-index: 2;
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(8, 9, 16, 0.86);
+  color: var(--k-have);
+}
+.calg-st svg { width: 10px; height: 10px; }
+.calg-pic.s-saving .calg-st { color: #bfe9f5; }
+.calg-pic.s-waiting .calg-st { color: var(--k-premiere); }
+/* gone by: out — the colour drained a little */
+.calg-day.past .calg-pic { filter: saturate(0.4) brightness(0.72); }
+.calg-day.other .calg-pics { opacity: 0.4; }
+
+/* wide days: a fan of up to three, like a hand of cards; it opens on hover */
+.fan .calg-pics { position: absolute; left: 50%; bottom: 9%; width: 0; height: 64%; z-index: 1; }
+.fan .calg-pic {
+  bottom: 0;
+  left: 0;
+  height: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 5px;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5);
+  transform-origin: 50% 100%;
+  transform: translateX(-50%);
+  transition: transform 280ms var(--ease), filter var(--t-fast);
+}
+.fan .calg-pic.k-premiere { box-shadow: 0 0 0 1.5px var(--k-premiere), 0 6px 16px rgba(0, 0, 0, 0.5); }
+.fan .n2 .calg-pic:nth-child(1) { z-index: 2; transform: translateX(-74%) rotate(-5deg); }
+.fan .n2 .calg-pic:nth-child(2) { transform: translateX(-26%) rotate(6deg) translateY(3%); }
+.fan .n3 .calg-pic:nth-child(1) { z-index: 3; transform: translateX(-50%); }
+.fan .n3 .calg-pic:nth-child(2) { transform: translateX(-104%) rotate(-10deg) translateY(5%); }
+.fan .n3 .calg-pic:nth-child(3) { transform: translateX(4%) rotate(10deg) translateY(5%); }
+@media (hover: hover) {
+  .fan .calg-day.n1:hover .calg-pic { transform: translateX(-50%) translateY(-5%) scale(1.06); }
+  .fan .calg-day.n2:hover .calg-pic:nth-child(1) { transform: translateX(-92%) rotate(-8deg) translateY(-4%); }
+  .fan .calg-day.n2:hover .calg-pic:nth-child(2) { transform: translateX(-8%) rotate(9deg) translateY(-1%); }
+  .fan .calg-day.n3:hover .calg-pic:nth-child(1) { transform: translateX(-50%) translateY(-6%) scale(1.05); }
+  .fan .calg-day.n3:hover .calg-pic:nth-child(2) { transform: translateX(-124%) rotate(-14deg) translateY(3%); }
+  .fan .calg-day.n3:hover .calg-pic:nth-child(3) { transform: translateX(24%) rotate(14deg) translateY(3%); }
+  .calg-day.past:hover .calg-pic { filter: none; }
+}
+
+/* narrow days (a phone): one poster IS the day, the number over its top */
+.fill .calg-day { aspect-ratio: 3 / 4; border-radius: 9px; overflow: hidden; }
+.fill .calg-pics { position: absolute; inset: 0; }
+.fill .calg-pic { inset: 0; }
+.fill .calg-day.has::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 55%;
+  z-index: 2;
+  background: linear-gradient(rgba(6, 7, 14, 0.78), transparent);
+  pointer-events: none;
+}
+.fill .calg-num { top: 5px; left: 5px; font-size: 0.78rem; }
+.fill .calg-day.has .calg-num { color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
+.fill .calg-day.today .calg-num { top: 3px; left: 3px; min-width: 20px; height: 20px; padding: 0 4px; font-size: 0.74rem; text-shadow: none; }
+.fill .calg-more {
+  top: auto;
+  bottom: 6px;
+  right: 3px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  background: rgba(6, 7, 14, 0.78);
+  color: #fff;
+  font-size: 0.62rem;
+}
+.fill .calg-st { top: auto; bottom: 6px; left: 3px; right: auto; width: 13px; height: 13px; }
+.fill .calg-st svg { width: 9px; height: 9px; }
+
+/* the legend: what the edges and the tick mean */
+.calg-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 16px;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--text-dim);
+}
+.calg-key { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.calg-key i { display: inline-block; width: 16px; height: 4px; border-radius: 2px; background: var(--k); }
+.calg-key.k-premiere { --k: var(--k-premiere); }
+.calg-key.k-episode { --k: var(--k-episode); }
+.calg-key.k-cinema { --k: var(--k-cinema); }
+.calg-key.k-home { --k: var(--k-home); }
+.calg-key-have i { width: 15px; height: 15px; border-radius: 50%; display: inline-grid; place-items: center; background: rgba(255, 255, 255, 0.08); color: var(--k-have); }
+.calg-key-have i svg { width: 11px; height: 11px; }
+
+/* nothing in the list at all: the month waits, with a word on how to fill it */
+.calg-blank { position: absolute; inset: 34px 0 0; display: grid; place-items: center; padding: 12px; pointer-events: none; }
+.calg-blank-card {
+  pointer-events: auto;
+  max-width: 380px;
+  padding: 22px 24px;
+  border-radius: var(--radius-l);
+  background: rgba(var(--bg-rgb), 0.9);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09), 0 20px 50px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+.calg-blank-card p { margin: 10px 0 0; }
+.calg-blank-icon { width: 40px; height: 40px; margin: 0 auto; display: grid; place-items: center; border-radius: 50%; background: rgba(var(--accent-rgb), 0.2); color: var(--text); }
+.calg-blank-icon svg { width: 22px; height: 22px; }
+
+/* the picked day, in full */
+.calg-panel {
+  position: sticky;
+  top: calc(var(--nav-h) + 16px);
+  max-height: calc(100vh - var(--nav-h) - 32px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 18px;
+  border-radius: var(--radius-l);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+.calg-panel-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin: 0 0 14px; font-size: 1.3rem; font-weight: 800; letter-spacing: -0.015em; }
+.calg-panel-head.today .calg-panel-label::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: 0.15em;
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.8);
+}
+.calg-panel-date { font-size: 0.95rem; font-weight: 700; color: var(--text-dim); }
+.calg-panel-empty { margin: 0; color: var(--text-dim); line-height: 1.45; }
+@media (min-width: 1100px) {
+  .calg-panel .cal-entry { flex-direction: column; align-items: stretch; gap: 10px; padding: 10px; }
+  .calg-panel .cal-actions .btn { flex: 1 1 0; }
+  .calg-panel .cal-poster { width: 52px; }
+}
+
+/* motion: the days arrive in a diagonal wave; a month slides in from its side */
+@keyframes calg-in { from { opacity: 0; transform: translateY(10px) scale(0.97); } }
+@keyframes calg-from-next { from { opacity: 0; transform: translateX(36px); } }
+@keyframes calg-from-prev { from { opacity: 0; transform: translateX(-36px); } }
+@keyframes calg-fade { from { opacity: 0; transform: translateY(6px); } }
+.calg-sheet.enter .calg-cell { animation: calg-in 460ms var(--ease) both; animation-delay: calc(var(--i, 0) * 20ms); }
+.calg-sheet.from-next { animation: calg-from-next 320ms var(--ease) both; }
+.calg-sheet.from-prev { animation: calg-from-prev 320ms var(--ease) both; }
+.calg-panel.swap > * { animation: calg-fade 260ms var(--ease) both; }
+@media (prefers-reduced-motion: reduce) {
+  .calg-sheet, .calg-sheet .calg-cell, .calg-panel > *, .fan .calg-pic { animation: none !important; transition: none !important; }
+}
+
+/* loading */
+.calg-skel { padding-top: 4px; }
+.calg-skel-bar { width: min(300px, 70%); height: 46px; border-radius: 12px; margin-bottom: 22px; }
+.calg-skel-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; max-width: 1000px; }
+.calg-skel-grid > div { aspect-ratio: 5 / 4; border-radius: 12px; }
+
+/* the glass look: the days a touch of frost (a fill and an edge, never a blur) */
+html[data-look="glass"] .calg-day { border-radius: 14px; background: rgba(255, 255, 255, 0.045); }
+html[data-look="glass"] .calg-day::after { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), inset 0 0 0 1px rgba(255, 255, 255, 0.05); }
+html[data-look="glass"] .calg-day.has { background: linear-gradient(160deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.03)); }
+html[data-look="glass"] .calg-day.prem { background: radial-gradient(90% 70% at 50% 100%, rgba(255, 212, 121, 0.17), transparent 72%), linear-gradient(160deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.03)); }
+html[data-look="glass"] .calg-day.today { background: radial-gradient(130% 100% at 0% 0%, rgba(var(--accent-rgb), 0.3), transparent 62%), linear-gradient(160deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.03)); }
+html[data-look="glass"] .calg-day.other { background: transparent; }
+html[data-look="glass"] .calg-day.other::after { box-shadow: none; }
+html[data-look="glass"] .calg-day.today::after { box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.2); }
+html[data-look="glass"] .calg-day.sel::after { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.95); }
+html[data-look="glass"] .calg-day:focus-visible::after { box-shadow: var(--focus-ring); }
+html[data-look="glass"] .fill .calg-day { border-radius: 10px; }
+html[data-look="glass"] .calg-panel { background: var(--g-fill); border-radius: var(--g-radius); box-shadow: var(--g-edge); }
+html[data-look="glass"] .calg-next {
+  background: linear-gradient(100deg, color-mix(in srgb, var(--k, var(--k-episode)) 18%, transparent), transparent 62%), var(--g-fill);
+  border-radius: var(--g-radius);
+  box-shadow: var(--g-edge);
+}
+html[data-look="glass"] .calg-arrow { background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
+
+/* one column below 1100 px: the day's releases under the grid */
+@media (max-width: 1099px) {
+  .calg { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "next" "main" "panel"; gap: 0; }
+  .calg-next { margin-bottom: 20px; }
+  .calg-main { margin-bottom: 22px; }
+  .calg-panel { position: static; max-height: none; overflow: visible; }
+}
+/* a phone */
+@media (max-width: 599px) {
+  .screen.calendar { --calg-gap: 4px; }
+  .cal-views .chip { min-width: 0; padding-left: 14px; padding-right: 14px; }
+  .calg-next { gap: 11px; margin-bottom: 18px; padding: 8px 10px 8px 8px; }
+  .calg-today { justify-self: end; padding: 6px 14px; }
+  .calg-next-pic { width: 28px; }
+  .calg-next-when { padding: 5px 10px; font-size: 0.8rem; }
+  .calg-bar { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title nav" "line today"; row-gap: 6px; }
+  .calg-month { font-size: 1.45rem; }
+  .calg-line { margin: 0; font-size: 0.82rem; }
+  .calg-arrow { width: 38px; height: 38px; }
+  .calg-wd { padding: 0; text-align: center; font-size: 0.68rem; letter-spacing: 0.04em; }
+  .calg-wd-short { display: none; }
+  .calg-wd-narrow { display: inline; }
+  .calg-skel-grid { gap: 4px; }
+  .calg-skel-grid > div { aspect-ratio: 3 / 4; border-radius: 9px; }
+  .calg-legend { gap: 8px 14px; font-size: 0.74rem; }
+  .calg-panel { padding: 14px 12px; }
+  .calg-panel-head { font-size: 1.15rem; }
+}
+@media (max-width: 360px) {
+  .calg-month { font-size: 1.25rem; }
+  .calg-arrow { width: 36px; height: 36px; }
+}
+@media (hover: none) {
+  .calg-arrow { width: 44px; height: 44px; }
+}

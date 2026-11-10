@@ -11,6 +11,7 @@ jest.mock('react-native', () => {
   const R = jest.requireActual('react');
   return {
     ...jest.requireActual('./rn-stub.js'),
+    ScrollView: 'ScrollView',
     // every row, in order (the real one windows them)
     FlatList: (p: {data: {key: string}[]; renderItem: (a: {item: unknown; index: number}) => React.ReactNode}) =>
       R.createElement('FlatList', null, p.data.map((item, index) => R.createElement(R.Fragment, {key: item.key}, p.renderItem({item, index})))),
@@ -25,6 +26,7 @@ jest.mock('../../src/components/Focusable', () => mockHost('Focusable'));
 jest.mock('../../src/components/Btn', () => mockHost('Btn'));
 jest.mock('../../src/components/Chip', () => mockHost('Chip'));
 jest.mock('../../src/components/NavRail', () => mockHost('NavRail'));
+jest.mock('../../src/components/Icon', () => mockHost('Icon'));
 jest.mock('../../src/components/Skeleton', () => mockHost('Skeleton'));
 jest.mock('../../src/components/States', () => {
   const R = jest.requireActual('react');
@@ -327,4 +329,167 @@ test('OK on a row opens the title (the shared openItem, with the entry’s card)
   await mount();
   await act(async () => byUi(r, 'calendar.open')[1].props.onPress());
   expect(mockOpen).toHaveBeenCalledWith(nav, RELEASED.item);
+});
+
+// ---------- the month (server 1.15.27+: the answer carries the month grid) ----------
+
+// The month grid of a calendar: every day of October to December 2026, the
+// lists' entries on their days (Monday first, as an en-GB TV).
+const withGrid = (c: Calendar, over: Partial<NonNullable<Calendar['grid']>> = {}): Calendar => {
+  const byDay: NonNullable<Calendar['grid']>['byDay'] = {};
+  for (let t = Date.parse('2026-09-25T00:00:00Z'); t <= Date.parse('2027-01-14T00:00:00Z'); t += 86400000) {
+    const d = new Date(t).toISOString().slice(0, 10);
+    byDay[d] = {label: d === c.today ? 'Today' : `Day ${d.slice(8)}`, date: d === c.today ? '9 Nov' : null, items: []};
+  }
+  for (const g of [...c.upcoming, ...c.recent]) byDay[g.day] = {label: g.label, date: g.date, items: g.items};
+  const month = (key: string, name: string, last: string, line: string | null) => ({key, month: name, year: '2026', label: `${name} 2026`, first: `${key}-01`, last, count: 0, line});
+  return {
+    ...c,
+    grid: {
+      v: 1,
+      from: '2026-09-25',
+      to: '2027-01-14',
+      weekStart: 1,
+      weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => ({short: d, narrow: d[0]})),
+      months: [month('2026-10', 'October', '2026-10-31', null), month('2026-11', 'November', '2026-11-30', '4 releases · 1 premiere · 2 films'), month('2026-12', 'December', '2026-12-31', null)],
+      byDay,
+      ...over,
+    },
+    next: {key: FILM.key, day: '2026-11-12', title: 'A Film', what: 'In cinemas', kind: 'cinema', when: 'In 3 days'},
+    empty: {...c.empty, month: 'Nothing out this month.', day: 'Nothing out on this day.'},
+  };
+};
+
+const mockFocus = jest.fn();
+const mountMonth = async (c: Calendar = withGrid(CAL())) => {
+  mockLoad.mockResolvedValue(c);
+  await act(async () => {
+    r = TestRenderer.create(<CalendarScreen navigation={nav as never} route={{key: 'cal-1', name: 'Calendar'} as never} />, {
+      // every focusable can be asked to take the focus
+      createNodeMock: el => ({requestTVFocus: () => mockFocus(el.props.uiId, el.props.accessibilityLabel)}),
+    });
+  });
+  await flush();
+};
+const days = () => byUi(r, 'calendar.day');
+const dayOf = (label: RegExp) => days().find(n => label.test(n.props.accessibilityLabel))!;
+const wait = (ms: number) => act(() => new Promise<void>(res => setTimeout(res, ms)));
+
+describe('the month', () => {
+  beforeEach(async () => {
+    mockFocus.mockReset();
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    await AsyncStorage.removeItem('aurora.calendarView');
+  });
+
+  test('a real month: Month / List, the month and its line, the weekdays from Monday, its weeks; today picked and its releases beside', async () => {
+    await mountMonth();
+    expect(btn(r, 'calendar.view').map(c => [c.props.label, c.props.on])).toEqual([
+      ['Month', true],
+      ['List', false],
+    ]);
+    expect(btn(r, 'calendar.tab')).toHaveLength(0); // the list's tabs are the List view's
+    const t = texts(r);
+    expect(t).toEqual(expect.arrayContaining(['November ', '2026', '4 releases · 1 premiere · 2 films', 'Mon', 'Sun', 'Today', '9 Nov', 'The Long Show', 'New Thing']));
+    // November 2026 from Monday: 26 Oct … 6 Dec, six weeks; other months' days out of reach
+    expect(days()).toHaveLength(42);
+    expect(days()[0].props.accessibilityLabel).toBe('Day 26');
+    expect(days()[0].props.focusDisabled).toBe(true);
+    expect(days().filter(d => !d.props.focusDisabled)).toHaveLength(30);
+    // LEFT from a Monday opens the rail
+    expect(days().filter(d => d.props.edgeLeft).map(d => d.props.accessibilityLabel.slice(0, 6))).toEqual(['Day 26', 'Day 02', 'Today ', 'Day 16', 'Day 23', 'Day 30']);
+    // today: two releases — its lead's poster, "+1"; picked, and it takes the focus first
+    const today = dayOf(/^Today · 9 Nov: The Long Show, New episode; New Thing, Series premiere$/);
+    expect(today.props.hasTVPreferredFocus).toBe(true);
+    expect(texts(r)).toContain('+1');
+    expect(byUi(r, 'calendar.open').map(n => n.props.accessibilityLabel)).toEqual(['The Long Show, New episode, S2 E5 · The Long Night, On the server', 'New Thing, Series premiere, S1 E1']);
+    // next up
+    expect(btn(r, 'calendar.next')[0].props.accessibilityLabel).toBe('Next up: A Film, In cinemas, In 3 days');
+    expect(t).toEqual(expect.arrayContaining(['Premiere', 'New episode', 'In cinemas', 'Out to stream or buy', 'On the server']));
+  });
+
+  test('a day that takes the focus is the picked day (after a beat); one with nothing says so', async () => {
+    await mountMonth();
+    await act(async () => dayOf(/^Today/).props.onFocusChange(true)); // (the claim)
+    await act(async () => dayOf(/^Wednesday · 12 Nov/).props.onFocusChange(true));
+    expect(texts(r)).toContain('The Long Show'); // not yet: a held direction does not redraw the panel per day
+    await wait(160);
+    expect(texts(r)).toContain('A Film');
+    expect(texts(r)).not.toContain('The Long Show');
+    await act(async () => dayOf(/^Day 13$/).props.onFocusChange(true));
+    await wait(160);
+    expect(texts(r)).toContain('Nothing out on this day.');
+  });
+
+  test('OK on a day goes into its releases; LEFT back lands on that day, not on the one beside the panel', async () => {
+    await mountMonth();
+    await act(async () => dayOf(/^Today/).props.onFocusChange(true));
+    await act(async () => dayOf(/^Today/).props.onPress());
+    await wait(10);
+    expect(mockFocus).toHaveBeenCalledWith('calendar.open', 'The Long Show, New episode, S2 E5 · The Long Night, On the server');
+    // in the panel; LEFT: Android's focus search lands on Sunday the 15th, beside it
+    await act(async () => byUi(r, 'calendar.open')[0].props.onFocusChange(true));
+    mockFocus.mockClear();
+    await act(async () => dayOf(/^Day 15$/).props.onFocusChange(true));
+    expect(mockFocus).toHaveBeenCalledWith('calendar.day', expect.stringMatching(/^Today · 9 Nov/));
+    await wait(160);
+    expect(texts(r)).toContain('The Long Show'); // still today's
+  });
+
+  test('the arrows change month and keep the day of the month; Today comes back; the ends stop', async () => {
+    await mountMonth();
+    const arrows = () => byUi(r, 'calendar.month');
+    expect(arrows().map(a => a.props.accessibilityLabel)).toEqual(['Previous month', 'Next month']);
+    await act(async () => arrows()[1].props.onPress());
+    expect(texts(r)).toContain('December ');
+    expect(texts(r)).toContain('Nothing out this month.');
+    expect(dayOf(/^Day 09$/).props.hasTVPreferredFocus).toBe(false); // the arrow keeps the focus
+    await act(async () => arrows()[1].props.onPress()); // December is the last month
+    expect(texts(r)).toContain('December ');
+    await act(async () => btn(r, 'calendar.today')[0].props.onPress());
+    expect(texts(r)).toContain('November ');
+    await act(async () => arrows()[0].props.onPress());
+    await act(async () => arrows()[0].props.onPress());
+    expect(texts(r)).toContain('October ');
+  });
+
+  test('Next up picks its day', async () => {
+    await mountMonth();
+    await act(async () => btn(r, 'calendar.next')[0].props.onPress());
+    expect(texts(r)).toContain('A Film');
+    expect(texts(r)).not.toContain('The Long Show');
+  });
+
+  test('Save & watch from the picked day turns the entry, on the day and in the panel', async () => {
+    mockSave.mockResolvedValue({ok: true, state: 'waiting', line: 'Asked — it starts once the admin approves it'});
+    await mountMonth();
+    await act(async () => btn(r, 'calendar.today')[0].props.onPress()); // (the day picked last is kept for the session)
+    await act(async () => {
+      btn(r, 'calendar.save')[0].props.onPress();
+    });
+    await flush();
+    expect(mockSave).toHaveBeenCalledWith('p1', RELEASED);
+    expect(btn(r, 'calendar.save')).toHaveLength(0);
+    expect(texts(r)).toContain('Waiting for approval');
+  });
+
+  test('List: the agenda, and the choice is kept on the TV', async () => {
+    await mountMonth();
+    await act(async () => btn(r, 'calendar.view', 'List')[0].props.onPress());
+    expect(btn(r, 'calendar.tab').map(t => t.props.label)).toEqual(['Coming up · 3', 'Recently out · 1']);
+    expect(days()).toHaveLength(0);
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    expect(await AsyncStorage.getItem('aurora.calendarView')).toBe('list');
+    await act(async () => r.unmount());
+    await mountMonth();
+    expect(btn(r, 'calendar.view').map(c => c.props.on)).toEqual([false, true]);
+    expect(days()).toHaveLength(0);
+  });
+
+  test('an older server (no month grid in its answer): the list, and no switch', async () => {
+    await mountMonth(CAL());
+    expect(btn(r, 'calendar.view')).toHaveLength(0);
+    expect(days()).toHaveLength(0);
+    expect(btn(r, 'calendar.tab')).toHaveLength(2);
+  });
 });

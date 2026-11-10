@@ -17,11 +17,16 @@ module.exports = {
   "browse.surprise": "wtp",
   "browse.unwatched": "wtp",
   // calendar (the Calendar screen: public/js/screens/calendar.js, tv-native screens/Calendar.tsx, phone/screens/Calendar.tsx)
+  "calendar.day": "wtp", // a day of the month grid
+  "calendar.month": "wtp", // the previous / next month arrows
+  "calendar.next": "wtp", // the Next up line
   "calendar.open": "wtp",
   "calendar.play": "wtp",
   "calendar.retry": "wtp",
   "calendar.save": "wtp",
   "calendar.tab": "wtp",
+  "calendar.today": "wtp", // back to today
+  "calendar.view": "wtp", // the Month / List switch
   // card
   "card.open": "wtp",
   "card.remove": "w",

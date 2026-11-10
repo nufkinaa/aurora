@@ -76,6 +76,38 @@ test("the calendar, end to end", { skip: !haveFfmpeg() && "ffmpeg not found", ti
       assert.equal(junk.locale, "en-GB");
     });
 
+    await t.test("an older app (TV 5.9.1 / phone 1.1.1) asks as it always did and gets what it always got", async () => {
+      // the request those apps make: ?locale= only, no zone
+      const r = await api.get(`/api/profiles/${dana.id}/calendar?locale=en-GB`);
+      // every field tv-native/src/calendar.ts typed in 5.9.1, with its old shape
+      for (const k of ["tz", "locale", "today", "upcoming", "recent", "counts", "pending", "empty"]) assert.ok(k in r, k);
+      assert.deepEqual(Object.keys(r.counts).sort(), ["recent", "titles", "upcoming"]);
+      for (const k of ["noTitles", "upcoming", "recent", "pending"]) assert.ok(k in r.empty, k);
+      for (const d of [...r.upcoming, ...r.recent]) assert.deepEqual(Object.keys(d).sort(), ["date", "day", "items", "label"]);
+      assert.equal(r.tz, Intl.DateTimeFormat().resolvedOptions().timeZone, "no zone asked: the household's");
+      // the same 60/14-day lists as before the month grid (Paper Moons' cinema date, 60 days ago, stays out)
+      assert.equal(r.counts.upcoming, 5);
+      assert.equal(r.counts.recent, 4);
+      assert.ok(r.upcoming.every((d) => d.day >= r.today) && r.recent.every((d) => d.day < r.today));
+      // …and the month grid beside them, for the apps that draw it
+      assert.ok(r.grid && r.grid.byDay[r.today], "the grid has today");
+      assert.equal(r.grid.byDay[r.today].label, "Today");
+      const onGrid = Object.values(r.grid.byDay).flatMap((d) => d.items.map((i) => i.key));
+      for (const d of [...r.upcoming, ...r.recent]) for (const i of d.items) assert.ok(onGrid.includes(i.key), i.key);
+      assert.equal(r.next.title, "Night Harbour");
+      assert.equal(r.next.when, "Tomorrow");
+      assert.equal(r.empty.month, "Nothing out this month for the titles in your list.");
+      assert.equal(r.empty.day, "Nothing out on this day.");
+    });
+
+    await t.test("?tz= makes the days the asking device's; a zone that is not one is the household's", async () => {
+      const east = await api.get(`/api/profiles/${dana.id}/calendar?locale=en-US&tz=${encodeURIComponent("Pacific/Kiritimati")}`);
+      assert.equal(east.tz, "Pacific/Kiritimati");
+      assert.equal(east.grid.weekStart, 0, "an American device starts its week on Sunday");
+      const junk = await api.get(`/api/profiles/${dana.id}/calendar?tz=${encodeURIComponent("Mars/Base")}`);
+      assert.equal(junk.tz, Intl.DateTimeFormat().resolvedOptions().timeZone);
+    });
+
     await t.test("guarded like the profile's own data", async () => {
       const ben = await api.createProfile("Ben"); // has a password
       assert.equal((await api.call("GET", `/api/profiles/${ben.id}/calendar`)).status, 401);
@@ -115,6 +147,9 @@ test("the calendar, end to end", { skip: !haveFfmpeg() && "ffmpeg not found", ti
       // Test Show is rated 7 (allowed); the catalogue titles have no rating: hidden
       const titles = new Set(all(r).map((i) => i.title));
       assert.ok(!titles.has("Night Harbour") && !titles.has("Paper Moons"), [...titles].join(", "));
+      const onGrid = new Set(Object.values(r.grid.byDay).flatMap((d) => d.items.map((i) => i.title)));
+      assert.ok(!onGrid.has("Night Harbour") && !onGrid.has("Paper Moons"), [...onGrid].join(", "));
+      assert.ok(!r.next || !["Night Harbour", "Quiet Fields", "Glass Orchard"].includes(r.next.title), "next up is a title it may see");
       const no = await api.call("POST", `/api/profiles/${kid.id}/calendar/save`, { imdbId: cal.IDS.moons, type: "movie" }, { "X-Profile": kid.id });
       assert.equal(no.status, 403);
     });

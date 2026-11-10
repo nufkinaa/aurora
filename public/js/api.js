@@ -596,7 +596,11 @@ export const api = {
   // The Calendar (src/media/calendar.js): this person's upcoming and recent
   // releases, the day names in this device's `locale`; and Save & watch for
   // one of its entries (`save` is the entry's own { imdbId, type, season?, episode? }).
-  calendar: (id, locale) => json(`/api/profiles/${encodeURIComponent(id)}/calendar${locale ? `?locale=${encodeURIComponent(locale)}` : ""}`),
+  // (?tz=: this device's time zone — its days and its today on the month grid)
+  calendar: (id, locale, tz) => {
+    const q = [locale ? `locale=${encodeURIComponent(locale)}` : "", tz ? `tz=${encodeURIComponent(tz)}` : ""].filter(Boolean).join("&");
+    return json(`/api/profiles/${encodeURIComponent(id)}/calendar${q ? `?${q}` : ""}`);
+  },
   calendarSave: (id, save) => post(`/api/profiles/${encodeURIComponent(id)}/calendar/save`, save),
   household: (id, from = null) =>
     json(`/api/profiles/${encodeURIComponent(id)}/household${from ? `?from=${encodeURIComponent(from)}` : ""}`),

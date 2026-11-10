@@ -1,6 +1,11 @@
 // The Calendar on the phone — the website's #/calendar and the TV's
 // screens/Calendar.tsx, same layout and words (the shared half and the words
-// are calendar.ts; the server makes the calendar, src/media/calendar.js):
+// are calendar.ts; the server makes the calendar, src/media/calendar.js).
+//
+// TWO VIEWS, a Month / List switch under the head (kept on this phone):
+//   Month   the month grid (phone/ui/CalendarGrid.tsx) and, under it, the
+//           picked day's releases as the rows below — the website's phone layout
+//   List    the agenda:
 //
 //   Calendar                        the page head, Back on the left
 //   [Coming up · 12] [Recently out · 3]
@@ -19,25 +24,35 @@ import {useIsFocused} from '@react-navigation/native';
 import {useApp} from '../../AppContext';
 import {
   afterSave,
+  CAL_WORDS,
   CALENDAR_TABS,
   CALENDAR_TITLE,
   canPlay,
+  dayEmptyLine,
   dayHeading,
   emptyLine,
   entryLabel,
   FAILED_LINE,
+  firstPick,
   firstTab,
+  gridDayHeading,
+  hasGrid,
   loadCalendar,
+  loadCalendarView,
+  monthKeys,
+  monthOf,
+  monthPick,
   PLAY_WORD,
   RETRY_WORD,
   SAVE_FAILED,
   SAVE_WORD,
+  saveCalendarView,
   saveFromCalendar,
   SAVING_WORD,
   tabLabel,
   withEntry,
 } from '../../calendar';
-import type {Calendar as Cal, CalendarDay, CalendarEntry, CalendarTab} from '../../calendar';
+import type {Calendar as Cal, CalendarDay, CalendarEntry, CalendarTab, CalendarView} from '../../calendar';
 import {canNavigate} from '../../navLock';
 import {openItem} from '../../openItem';
 import {showToast} from '../../toast';
@@ -45,6 +60,7 @@ import {useRouteShown} from '../../useRouteShown';
 import {usePNav} from '../nav';
 import {ChipButton, GlassButton} from '../ui/Buttons';
 import {artSrc} from '../ui/Cards';
+import CalendarGrid from '../ui/CalendarGrid';
 import Icon from '../ui/Icon';
 import PageHead, {BackBar, useColumn, useSolidBar} from '../ui/PageHead';
 import {useTabBarSpace} from '../ui/TabBar';
@@ -61,6 +77,9 @@ const BADGE: Partial<Record<CalendarEntry['state'], {pill: object; text: object}
 };
 
 type Section = {key: string; title: string; today: boolean; data: CalendarEntry[]};
+
+// kept for the session: Back from a title lands on the same day of the month view
+let lastPick: string | null = null;
 
 function Entry({e, saving, onOpen, onPlay, onSave}: {e: CalendarEntry; saving: boolean; onOpen: (e: CalendarEntry) => void; onPlay: (e: CalendarEntry) => void; onSave: (e: CalendarEntry) => void}) {
   const src = e.poster ? artSrc(e.poster, PIC_W).src : null;
@@ -109,6 +128,20 @@ export default function CalendarScreen() {
   const [tab, setTab] = useState<CalendarTab | null>(null);
   const [saving, setSaving] = useState<Record<string, true>>({});
   const [refreshing, setRefreshing] = useState(false);
+  // Month or List (null until this phone's choice is read)
+  const [view, setView] = useState<CalendarView | null>(null);
+  const [pick, setPickState] = useState<string | null>(lastPick);
+  const setPick = useCallback((d: string) => {
+    lastPick = d;
+    setPickState(d);
+  }, []);
+  useEffect(() => {
+    let on = true;
+    loadCalendarView().then(v => on && setView(v));
+    return () => {
+      on = false;
+    };
+  }, []);
   const calRef = useRef<Cal | null>(null);
   calRef.current = cal;
   const live = useRef(true);
@@ -138,10 +171,43 @@ export default function CalendarScreen() {
   useEffect(() => {
     if (focused) load();
   }, [focused, load]);
-  useRouteShown(cal !== null || failed);
+  useRouteShown((cal !== null && view !== null) || failed);
 
   const shownTab: CalendarTab = tab || firstTab(cal);
-  const sections = useMemo<Section[]>(() => (cal ? (cal[shownTab] || []).map((d: CalendarDay) => ({key: d.day, title: dayHeading(d), today: d.day === cal.today, data: d.items})) : []), [cal, shownTab]);
+  const month = view === 'month' && hasGrid(cal);
+  // the picked day: the one kept, if this answer can show it; else today or the next day with something
+  const months = hasGrid(cal) ? monthKeys(cal.grid) : [];
+  const picked = cal && hasGrid(cal) ? (pick && cal.grid.byDay[pick] && months.includes(monthOf(pick)) ? pick : firstPick(cal) || cal.today) : null;
+  const onMonth = useCallback(
+    (dir: -1 | 1) => {
+      const c = calRef.current;
+      if (!c || !hasGrid(c) || !picked) return;
+      const ms = monthKeys(c.grid);
+      const j = ms.indexOf(monthOf(picked)) + dir;
+      if (j >= 0 && j < ms.length) setPick(monthPick(c.grid, picked, ms[j], c.today));
+    },
+    [picked, setPick],
+  );
+  const onPick = useCallback(
+    (d: string) => {
+      const c = calRef.current;
+      if (c && hasGrid(c) && monthKeys(c.grid).includes(monthOf(d))) setPick(d);
+    },
+    [setPick],
+  );
+  const switchView = (v: CalendarView) => {
+    if (v === view) return;
+    setView(v);
+    saveCalendarView(v);
+  };
+  const sections = useMemo<Section[]>(() => {
+    if (!cal) return [];
+    if (month && picked) {
+      const d = cal.grid!.byDay[picked];
+      return d && d.items.length ? [{key: picked, title: gridDayHeading(cal, picked), today: picked === cal.today, data: d.items}] : [];
+    }
+    return (cal[shownTab] || []).map((d: CalendarDay) => ({key: d.day, title: dayHeading(d), today: d.day === cal.today, data: d.items}));
+  }, [cal, shownTab, month, picked]);
 
   const open = useCallback((e: CalendarEntry) => openItem(navigation, e.item), [navigation]);
   const play = useCallback(
@@ -181,11 +247,18 @@ export default function CalendarScreen() {
     load();
   };
 
-  const empty = emptyLine(cal, shownTab);
+  const empty = month ? null : emptyLine(cal, shownTab);
   const header = (
     <View>
       <PageHead title={CALENDAR_TITLE} />
-      {cal ? (
+      {cal && view && hasGrid(cal) ? (
+        <View style={s.chips}>
+          {(['month', 'list'] as const).map(v => (
+            <ChipButton uiId="calendar.view" key={v} label={CAL_WORDS[v]} active={view === v} onPress={() => switchView(v)} />
+          ))}
+        </View>
+      ) : null}
+      {cal && view && !month ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
           {CALENDAR_TABS.map(t => (
             <ChipButton uiId="calendar.tab" key={t.key} label={tabLabel(cal, t.key)} active={shownTab === t.key} onPress={() => setTab(t.key)} />
@@ -193,6 +266,11 @@ export default function CalendarScreen() {
         </ScrollView>
       ) : null}
       {cal?.empty?.pending ? <Text style={s.pending}>{cal.empty.pending}</Text> : null}
+      {month && cal && picked ? (
+        <View style={s.month}>
+          <CalendarGrid cal={cal as Cal & {grid: NonNullable<Cal['grid']>}} pick={picked} onPick={onPick} onMonth={onMonth} />
+        </View>
+      ) : null}
     </View>
   );
   const body = failed ? (
@@ -201,8 +279,16 @@ export default function CalendarScreen() {
       <Text style={s.emptyText}>{FAILED_LINE}</Text>
       <GlassButton uiId="calendar.retry" label={RETRY_WORD} icon="refresh" onPress={retry} />
     </View>
-  ) : !cal ? (
+  ) : !cal || !view ? (
     <ActivityIndicator color={colors.text} style={{marginTop: 30}} />
+  ) : month && picked ? (
+    // the picked day has nothing: its heading and the server's words
+    <View>
+      <Text style={[s.day, picked === cal.today && s.today]} accessibilityRole="header">
+        {gridDayHeading(cal, picked)}
+      </Text>
+      <Text style={s.dayEmpty}>{dayEmptyLine(cal)}</Text>
+    </View>
   ) : empty ? (
     <View style={s.empty}>
       <Icon name="calendar" size={40} color={colors.textFaint} />
@@ -248,7 +334,9 @@ export default function CalendarScreen() {
 
 const s = StyleSheet.create({
   root: {flex: 1},
-  chips: {paddingHorizontal: GUTTER, paddingTop: 6, paddingBottom: 8, gap: 8},
+  chips: {flexDirection: 'row', paddingHorizontal: GUTTER, paddingTop: 6, paddingBottom: 8, gap: 8},
+  month: {paddingTop: 10},
+  dayEmpty: {color: colors.textDim, fontSize: 15, lineHeight: 21, paddingHorizontal: GUTTER},
   pending: {color: colors.textFaint, fontSize: 14, lineHeight: 20, paddingHorizontal: GUTTER, paddingBottom: 4},
   // the site's .cal-day-head: 16.3/800 in the dim grey, 22 above, 10 under; today in white
   day: {color: colors.textDim, fontSize: 16.3, fontWeight: '800', letterSpacing: 0.16, paddingHorizontal: GUTTER, marginTop: 22, marginBottom: 10},
