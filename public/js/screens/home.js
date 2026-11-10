@@ -3,6 +3,7 @@ import { el, icons, fmtDuration, fmtClock, formatRow, artUrl, heroArtWidth, hero
 import { upgradeArt } from "../artUpgrade.js";
 import { blurOf } from "../blur.js";
 import { api } from "../api.js";
+import { heldRemark, localRemark, fetchRemark, noteShown } from "../remark.js";
 import { state, progressFor } from "../state.js";
 import { shelfRow, continueRow, openItem, ensureRowFilled, patchShelf } from "../components.js";
 import { itemKey, locksFor, mergeHome, visibleMoves } from "../homeMerge.js";
@@ -488,7 +489,6 @@ export const renderHome = async (root) => {
   if (state.profile) {
     const now = new Date();
     const h = now.getHours();
-    const day = now.getDay();
     const part = h < 5 ? "Up late" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
     const sub = el("div", { class: "greet-sub" }, " ");
     const name = el("b", { class: "greet-name" }, state.profile.name);
@@ -544,31 +544,40 @@ export const renderHome = async (root) => {
     // the name's shine (screens.css greet-shine) never ends: held while the
     // greeting is a screen away, at no change to what is on screen (ui.js)
     cleanups.push(holdWhileOffscreen(name));
-    // remark: stats-aware when we can, charming filler when we can't
-    const daily = [
-      "What's on the plate tonight — a movie, or a show?",
-      "The watchlist isn't going to watch itself.",
-      "Pick something good. No pressure.",
-      "One episode. Sure. “One.”",
-      "The couch is preheated.",
-    ];
-    const pickDaily = () => daily[(now.getFullYear() * 366 + now.getMonth() * 31 + now.getDate()) % daily.length];
-    sub.textContent =
-      day === 5 && h >= 17 ? "Friday. Movie night is legally required." :
-      day === 6 && h >= 11 ? "Weekend. A double feature is fully justified." :
-      pickDaily();
-    api.wrapped(state.profile.id).then((w) => {
-      if (!w || w.empty || !w.lastWatchedAt) return;
-      const last = new Date(w.lastWatchedAt);
-      const hoursSince = (now - last) / 36e5;
-      if (hoursSince > 24 * 7) {
-        sub.textContent = "Long time no see — the couch forgot your shape.";
-        fitGreet();
-      } else if (hoursSince < 36 && last.getHours() < 5 && h >= 6) {
-        sub.textContent = "Someone was up late last night. No judgment. (Some judgment.)";
-        fitGreet();
-      }
-    }).catch(() => {});
+    // The remark (src/lib/remarks, through ../remark.js): Aurora's voice from
+    // the server — a different line each visit, held for ten minutes. A line
+    // of the page's own shows at once; the server's takes its place as soon as
+    // it comes (a quick swap, or a short cross-fade once the page is on
+    // screen), and under the billboard only when it needs no more room than
+    // the one it replaces, so the page never moves. On the billboard the
+    // greeting makes its own room (fitGreet).
+    const profileId = state.profile.id;
+    const held = heldRemark(profileId);
+    sub.textContent = held ? held.text : localRemark(now);
+    if (!held) {
+      const asked = performance.now();
+      fetchRemark(profileId).then((r) => {
+        if (!r || !sub.isConnected || r.text === sub.textContent) { if (r) noteShown(profileId, r); return; }
+        const swap = () => {
+          const onSlab = !!heroSlab && greet.parentNode === heroSlab;
+          const before = sub.offsetHeight;
+          const mine = sub.textContent;
+          sub.textContent = r.text;
+          if (!onSlab && sub.offsetHeight > before) { sub.textContent = mine; return; }
+          if (onSlab) { room = 2; fitGreet(); }
+          noteShown(profileId, r);
+        };
+        if (performance.now() - asked < 120 || matchMedia("(prefers-reduced-motion: reduce)").matches) return swap();
+        sub.style.transition = "opacity .18s ease";
+        sub.style.opacity = "0";
+        setTimeout(() => {
+          if (!sub.isConnected) return;
+          swap();
+          sub.style.opacity = "";
+          setTimeout(() => { sub.style.transition = ""; }, 220);
+        }, 180);
+      });
+    }
   }
 
   // Watching together right now: a strip above the shelves with who is
