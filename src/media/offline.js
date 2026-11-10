@@ -757,4 +757,4 @@ const load = () => {
   return { running: running || null, since: j ? j.startedAt : null, progress: j ? j.progress || 0 : 0, queued: queue.length, waitingSince: oldest };
 };
 
-module.exports = { status, prepare, cancel, fileFor, options, wishOptions, sweep, load, onReady, DIR, MAX_BYTES, QUALITIES, STALL_MS, _internals: { toRemove, KEEP_MS, isDirect, originalMode, argsFor, normQuality, outFileFor, DIRECT_CONTAINERS, isEncode, spawner, jobs, queue, lanes, pump, checkStalls, waitOf, _reset: () => { jobs.clear(); queue.length = 0; lanes.copy = null; lanes.encode = null; encodeAsk = null; } } };
+module.exports = { status, prepare, cancel, fileFor, options, wishOptions, sweep, load, onReady, DIR, MAX_BYTES, QUALITIES, STALL_MS, _internals: { repackNote, toRemove, KEEP_MS, isDirect, originalMode, argsFor, normQuality, outFileFor, DIRECT_CONTAINERS, isEncode, spawner, jobs, queue, lanes, pump, checkStalls, waitOf, _reset: () => { jobs.clear(); queue.length = 0; lanes.copy = null; lanes.encode = null; encodeAsk = null; } } };
