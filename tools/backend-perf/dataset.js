@@ -123,7 +123,7 @@ const build = (opts = {}) => {
   const rows = +(opts.rows ?? 1500);
   const usageMb = +(opts.usageMb ?? 0.5);
   const lib = buildLibrary({ films, shows, episodes });
-  const key = `seed3-${films}-${shows}x${episodes}-p${nProfiles}-r${rows}-u${usageMb}`;
+  const key = `seed4-${films}-${shows}x${episodes}-p${nProfiles}-r${rows}-u${usageMb}`;
   const seedDir = path.join(WORK, key);
   const infoFile = path.join(seedDir, ".dataset.json");
   const blurReady = path.join(WORK, `blur2-${films}-${shows}x${episodes}`);
@@ -191,12 +191,16 @@ const build = (opts = {}) => {
 
   // --- title-page metadata for everything on disk + part of the catalogue (meta.json, META_V 4)
   const meta = {};
+  // Air dates: seasons 1-2 long out; season 3 airs weekly around today (some
+  // out, some coming), so the Calendar, Follows and "new episode" paths have
+  // real work (2026-11-10, perf-server).
+  const relDate = (it, n, e) => n < 3 ? "2021-03-04T00:00:00.000Z" : new Date(Math.floor(now / DAY) * DAY + (((parseInt(String(it.imdbId).slice(-3), 10) || 0) % 30) - 35 + e * 7) * DAY).toISOString();
   const metaOf = (it, isShow, nEps) => ({
     id: it.imdbId, type: isShow ? "show" : "movie", imdbId: it.imdbId, title: it.title, year: it.year || 2015,
     poster: `https://images.metahub.space/poster/small/${it.imdbId}/img`, backdrop: `https://images.metahub.space/background/medium/${it.imdbId}/img`,
     logo: `https://images.metahub.space/logo/medium/${it.imdbId}/img`, synopsis: syn(it.title), genres: [pick(GENRES), pick(GENRES)], rating: 7.1, runtime: "112 min",
     cast: [pick(NAMES), pick(NAMES), pick(NAMES), pick(NAMES)], director: pick(NAMES),
-    seasons: isShow ? [1, 2, 3].map((n) => ({ number: n, episodes: Array.from({ length: nEps }, (_, e) => ({ season: n, episode: e + 1, title: `${pick(W1)} ${pick(W2)}`, overview: `${it.title} ${n}x${e + 1}: ${LOREM}`, thumbnail: `https://episodes.metahub.space/${it.imdbId}/${n}/${e + 1}/w780.jpg`, released: "2021-03-04T00:00:00.000Z" })) })) : null,
+    seasons: isShow ? [1, 2, 3].map((n) => ({ number: n, episodes: Array.from({ length: nEps }, (_, e) => ({ season: n, episode: e + 1, title: `${pick(W1)} ${pick(W2)}`, overview: `${it.title} ${n}x${e + 1}: ${LOREM}`, thumbnail: `https://episodes.metahub.space/${it.imdbId}/${n}/${e + 1}/w780.jpg`, released: relDate(it, n, e) })) })) : null,
     episodeCount: isShow ? nEps * 3 : null, tmdbId: 100000 + Math.floor(R() * 800000), trailers: ["dQw4w9WgXcQ"], certificate: "12+", kidsAge: 12, originalLanguage: "en",
   });
   for (const f of lf) meta[`movie|${f.imdbId}`] = { at: now, v: 4, data: metaOf(f, false) };
@@ -345,6 +349,12 @@ const build = (opts = {}) => {
     for (let k = 0; k < 40; k++) {
       if (k % 2 && lf.length) s.watchlist.push(lf[Math.floor(R() * lf.length)].id);
       else { const c = catAll[Math.floor(R() * catAll.length)]; s.watchlist.push({ stream: true, imdbId: c.imdbId, type: c.type, title: c.title, poster: c.poster, year: c.year }); }
+    }
+    // follows: a dozen shows, library and catalogue (profiles.js follow(): { imdbId, at })
+    p.follows = [];
+    for (let k = 0; k < 12; k++) {
+      const imdbId = k % 2 && ls.length ? ls[(pi * 5 + k) % ls.length].imdbId : catAll.filter((c) => c.type === "show")[(pi * 7 + k) % 150].imdbId;
+      if (!p.follows.some((f) => f.imdbId === imdbId)) p.follows.push({ imdbId, at: now - (k + 1) * 9 * DAY });
     }
     for (let k = 0; k < 80 && lf.length; k++) s.ratings[lf[Math.floor(R() * lf.length)].id] = 1 + Math.floor(R() * 5);
     state[p.id] = s;
