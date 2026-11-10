@@ -120,17 +120,20 @@ let railLinks = 0;
 // 48 dp of shadow on every side of the pane; what falls off the screen is never
 // drawn.
 //
-// The pane STANDS ON THE SCREEN'S FOOT (it floated 11 dp above it): in those
-// 11 dp and round its two foot corners the page went on - the tops of the next
-// row of posters, "My downloads" - right under the profile pill (two judges,
-// 2026-11-10). A mask in the page's colour would have been a new layer and a
-// visible band (the page is a gradient there); the pane running to the foot is
-// the same one box and the same one picture, a little shorter.
+// The pane is a CLOSED shape that floats 11 dp above the screen's foot, round
+// at all four corners with its rim lit all round. In those 11 dp and round its
+// two foot corners the page used to go on - the tops of the next row of
+// posters, half of "My downloads" - right under the profile pill; for one build
+// the pane ran off the screen's foot instead, which hid the page and lost the
+// closed shape (two judges asked for both, 2026-11-10). So the SAME picture is
+// opaque there, in the page's own dark: under the foot and round the foot
+// corners, fading out beside the pane (gen_glass_edge.py, "the ground"). No new
+// view, no new layer, the same number of pixels drawn.
 const PANE_EDGE = require('../assets/glass-pane-edge.png');
 // The pane inside the 240 dp panel: 16 dp round the rows (which sit at 48..224
 // and from PAD_Y down), so its corner (38) is concentric with a row's (22).
 const PANE_X = 32;
-const PANE_Y = 11; // from the top only
+const PANE_Y = 11;
 const SHADOW_ROOM = 48;
 
 export default function NavRail({
@@ -683,19 +686,19 @@ const styles = StyleSheet.create({
   pane: {
     position: 'absolute',
     top: PANE_Y,
-    bottom: 0,
+    bottom: PANE_Y,
     left: PANE_X,
     width: nav.railOpen - PANE_X,
-    borderTopLeftRadius: 38,
-    borderTopRightRadius: 38,
+    borderRadius: 38,
     ...glassPane,
   },
-  // 48 dp outside the pane at its top and its sides (the file is 304 dp wide:
-  // 208 + 2 x 48), and cut where the screen ends
+  // 48 dp outside the pane on every side (the file is 304 dp wide: 208 + 2 x 48);
+  // what falls off the screen is never drawn. Under the pane's foot it is the
+  // ground: opaque, the page's dark.
   paneEdge: {
     position: 'absolute',
     top: PANE_Y - SHADOW_ROOM,
-    bottom: 0,
+    bottom: PANE_Y - SHADOW_ROOM,
     left: PANE_X - SHADOW_ROOM,
     width: nav.railOpen - PANE_X + 2 * SHADOW_ROOM,
     height: undefined,
