@@ -51,7 +51,7 @@ import {artSrc, FrameCard, PosterCard} from '../ui/Cards';
 import {PrimaryButton, GlassButton} from '../ui/Buttons';
 import Tap from '../ui/Tap';
 import Icon from '../ui/Icon';
-import TopBar from '../ui/TopBar';
+import TopBar, {TOP_BAR_H, useBarTop} from '../ui/TopBar';
 import {useSolidBar} from '../ui/PageHead';
 import {useTabBarSpace} from '../ui/TabBar';
 import {greeting} from '../greeting';
@@ -89,7 +89,7 @@ function greetLine(line: string, name?: string) {
 const kindOf = (it: HeroItem) => (it.type === 'show' || (it as {type?: string}).type === 'series' ? 'show' : 'movie');
 
 // ---------------------------------------------------------------- billboard
-const Slide = React.memo(function Slide({item, w, h, land, onPlay, onDetails, onTextH}: {item: HeroItem; w: number; h: number; land?: boolean; onPlay: (it: HeroItem) => void; onDetails: (it: HeroItem) => void; onTextH?: (h: number) => void}) {
+const Slide = React.memo(function Slide({item, w, h, top, land, noKicker, fadeH, onPlay, onDetails, onTextH}: {item: HeroItem; w: number; h: number; top: number; land?: boolean; noKicker?: boolean; fadeH: number; onPlay: (it: HeroItem) => void; onDetails: (it: HeroItem) => void; onTextH?: (h: number) => void}) {
   const show = kindOf(item) === 'show';
   const portrait = h > w;
   // a phone held upright: the POSTER (large) fills the billboard, as on the site (ui.js
@@ -100,14 +100,18 @@ const Slide = React.memo(function Slide({item, w, h, land, onPlay, onDetails, on
   const facts = [item.year, show ? 'Series' : 'Film', ...(item.genres || []).slice(0, 3)].filter(Boolean).join(' · ');
   const score = typeof item.rating === 'number' && item.rating > 0 ? item.rating.toFixed(1) : null;
   return (
-    <View style={{width: w, height: h + (land ? 12 : 8), paddingHorizontal: land ? 12 : 8}}>
-      <Tap flat onPress={() => onDetails(item)} style={[s.slide, {height: h}, land && s.slideLand]} accessibilityLabel={`${item.title}, details`}>
+    <View style={{width: w, height: h + top, paddingHorizontal: land ? 12 : 8}}>
+      <Tap flat onPress={() => onDetails(item)} style={[s.slide, {height: h, marginTop: top}, land && s.slideLand]} accessibilityLabel={`${item.title}, details`}>
         {src ? <Image source={src} style={StyleSheet.absoluteFill} resizeMode="cover" fadeDuration={FADE_MS} /> : null}
-        <View style={s.slideFade} pointerEvents="none" />
+        {/* the picture at its own brightness: a fade from the foot only as tall as the words on it
+            (elia 2026-11-10: "no shadow" on the hero, the letters carry their own) */}
+        <View style={[s.slideFade, {height: fadeH}]} pointerEvents="none" />
         <View style={s.slideText} onLayout={onTextH ? e => onTextH(Math.ceil(e.nativeEvent.layout.height)) : undefined}>
-          <View style={s.kicker}>
-            <Text style={[s.kickerText, {color: show ? colors.kindSeries : colors.kindFilm}]}>{show ? 'SERIES' : 'FILM'}</Text>
-          </View>
+          {noKicker ? null : (
+            <View style={s.kicker}>
+              <Text style={[s.kickerText, {color: show ? colors.kindSeries : colors.kindFilm}]}>{show ? 'SERIES' : 'FILM'}</Text>
+            </View>
+          )}
           <Text style={s.heroTitle} numberOfLines={2}>
             {item.title}
           </Text>
@@ -129,18 +133,45 @@ const Slide = React.memo(function Slide({item, w, h, land, onPlay, onDetails, on
   );
 });
 
-function Billboard({items, onPlay, onDetails, active}: {items: HeroItem[]; onPlay: (it: HeroItem) => void; onDetails: (it: HeroItem) => void; active: boolean}) {
+/** Held upright, the billboard starts under the top buttons and the greeting rides on the top
+ *  of its picture (elia 2026-11-10, the website's iphone-home: "A"). Everything hangs off the real
+ *  insets: the buttons' row starts at the status bar / cut-out (useBarTop), the slab 10 under it. */
+export const slabTop = (barTop: number) => barTop + TOP_BAR_H + 10;
+/** The greeting's step-down as room runs out (the site's data-room): 2 = the remark in up to two
+ *  lines, 1 = one, 0 = none, -1 = (the title is two lines at most already), -2 = no Film/Series tag. */
+type Room = 2 | 1 | 0 | -1 | -2;
+const GREET_TOP = 18; // .home-greeting on the slab: 18 down, 20 in
+const GREET_GAP = 12; // never closer than this to the slide's words
+
+function Billboard({items, onPlay, onDetails, active, greet}: {items: HeroItem[]; onPlay: (it: HeroItem) => void; onDetails: (it: HeroItem) => void; active: boolean; greet: {line: string; name?: string; sub: string} | null}) {
   const {width, height} = useWindowDimensions();
   // landscape: a shorter billboard, so the greeting sits above the tab bar at rest — but never
   // so short that a slide's words (kicker, name, buttons; measured) reach up under the top bar
   const insets = useSafeAreaInsets();
+  const barTop = useBarTop();
   const [textH, setTextH] = useState(0);
   const onTextH = useCallback((t: number) => setTextH(was => (t > was ? t : was)), []);
-  const floor = textH ? textH + 40 + insets.top + 8 + 46 + 12 : 0;
+  const land = width > height;
+  // upright: under the buttons, with the greeting on it; sideways as before
+  const top = land ? 12 : slabTop(barTop);
+  // it ends where the greeting under the old slab ended (the old slab: 8 down, min(60vh, 530)
+  // tall; the greeting under it took 93 here: 14 + its 33.6 line + 4 + a two-line remark - 6;
+  // 70 with the one-line remark of a short screen; the site's are 114 / 90), so the first shelf
+  // keeps its place; and never so short that the words cannot all be had
+  const greetRoom = height < 700 ? 70 : 93;
+  const floor = land ? (textH ? textH + 40 + insets.top + 8 + 46 + 12 : 0) : textH ? textH + 44 + GREET_TOP + 27 + GREET_GAP : 0;
   // the site's phone billboard: min(60vh, 530px) (glass.css)
   // sideways, the site's wide billboard: 12 from the edges and nearly the whole height (345 of 411)
-  const h = Math.max(Math.round(height > width ? Math.min(height * 0.6, 530) : height - 66), floor);
-  const land = width > height;
+  const h = Math.max(Math.round(land ? height - 66 : Math.min(height * 0.6, 530) + greetRoom - (top - 8)), floor);
+  // the fade from the foot: as tall as the words it carries, and a little over
+  const fadeH = textH ? Math.min(h, textH + 44 + 56) : Math.round(h * 0.55);
+  // the greeting gives way to a long title (measured): two lines of remark, one, none, then the tag
+  const [room, setRoom] = useState<Room>(2);
+  const [greetH, setGreetH] = useState(0);
+  useEffect(() => {
+    if (land || !greet || !textH || !greetH || room <= -2) return;
+    if (h - 44 - textH - (GREET_TOP + greetH) < GREET_GAP) setRoom(r => (r > -2 ? ((r - 1) as Room) : r));
+  }, [land, greet, h, textH, greetH, room]);
   const [idx, setIdx] = useState(0);
   const list = useRef<FlatList<HeroItem>>(null);
   const touchedAt = useRef(0);
@@ -179,7 +210,7 @@ function Billboard({items, onPlay, onDetails, active}: {items: HeroItem[]; onPla
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         keyExtractor={(it, i) => `${it.id || it.imdbId || it.title}-${i}`}
-        renderItem={({item}) => <Slide item={item} w={width} h={h} land={land} onPlay={onPlay} onDetails={onDetails} onTextH={onTextH} />}
+        renderItem={({item}) => <Slide item={item} w={width} h={h} top={top} land={land} noKicker={!land && room <= -2} fadeH={fadeH} onPlay={onPlay} onDetails={onDetails} onTextH={onTextH} />}
         getItemLayout={(_, i) => ({length: width, offset: width * i, index: i})}
         onScrollBeginDrag={() => {
           touchedAt.current = Date.now();
@@ -187,7 +218,7 @@ function Billboard({items, onPlay, onDetails, active}: {items: HeroItem[]; onPla
         onMomentumScrollEnd={onEnd}
         initialNumToRender={2}
         windowSize={3}
-        extraData={width}
+        extraData={`${width}|${h}|${room}|${fadeH}`}
         onContentSizeChange={snap}
       />
       <View style={s.dots} pointerEvents="none">
@@ -195,6 +226,26 @@ function Billboard({items, onPlay, onDetails, active}: {items: HeroItem[]; onPla
           <View key={i} style={[s.dot, i === idx && s.dotOn]} />
         ))}
       </View>
+      {!land && greet ? (
+        // over the pager, so it stays put while the slides go by; no shade behind it, a shadow on
+        // the letters only (elia 2026-11-10)
+        <View
+          pointerEvents="none"
+          style={[s.slabGreet, {top: top + GREET_TOP}]}
+          onLayout={e => {
+            const g = Math.ceil(e.nativeEvent.layout.height);
+            setGreetH(was => (Math.abs(was - g) > 1 ? g : was));
+          }}>
+          <Text style={[s.slabGreetLine, s.letterShadow]} numberOfLines={2} accessibilityRole="header">
+            {greetLine(greet.line, greet.name)}
+          </Text>
+          {room >= 1 ? (
+            <Text style={[s.slabGreetSub, s.letterShadow]} numberOfLines={room}>
+              {greet.sub}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -295,6 +346,7 @@ export default function Home() {
   const {profileId} = useApp();
   const me = useMe(profileId);
   const bottom = useTabBarSpace();
+  const {width: winW, height: winH} = useWindowDimensions();
   const first = useRef<HomeData | null | undefined>(undefined);
   if (first.current === undefined) first.current = snapshotFor(profileId, primedSnapshot(profileId));
   const [data, setData] = useState<HomeData | null>(first.current);
@@ -489,10 +541,13 @@ export default function Home() {
     return out;
   }, [data]);
   const g = greeting(me?.name || '');
+  // held upright the greeting rides on the billboard (with no billboard, or sideways, it stays under)
+  const greetOnSlab = winH > winW && !!data?.hero?.length;
+  const slabGreet = useMemo(() => (me ? {line: g.line, name: me.name, sub: g.sub} : null), [me, g.line, g.sub]);
   const renderBlock = ({item}: {item: Block}) => {
-    if (item.key === 'hero') return <Billboard items={data?.hero || []} onPlay={heroPlay} onDetails={openDetail} active={focused && heroOn} />;
+    if (item.key === 'hero') return <Billboard items={data?.hero || []} onPlay={heroPlay} onDetails={openDetail} active={focused && heroOn} greet={greetOnSlab ? slabGreet : null} />;
     if (item.key === 'greet')
-      return me ? (
+      return me && !greetOnSlab ? (
         <View style={s.greet}>
           <Text style={s.greetLine}>{greetLine(g.line, me.name)}</Text>
           <Text style={s.greetSub}>{g.sub}</Text>
@@ -559,18 +614,27 @@ const s = StyleSheet.create({
   slide: {borderRadius: 24, overflow: 'hidden', backgroundColor: '#11131f', marginTop: 8},
   slideLand: {borderRadius: 32, marginTop: 12},
   slideFade: {
-    ...StyleSheet.absoluteFill,
-    experimental_backgroundImage: 'linear-gradient(0deg, rgba(7,8,17,0.95) 0%, rgba(7,8,17,0.4) 50%, rgba(7,8,17,0) 80%)',
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    experimental_backgroundImage: 'linear-gradient(0deg, rgba(7,8,17,0.92) 0%, rgba(7,8,17,0.62) 45%, rgba(7,8,17,0) 100%)',
   },
+  // a shadow on the letters only, no box behind them: dark and soft enough to read on white art
+  letterShadow: {textShadowColor: 'rgba(5,6,12,0.85)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 10},
+  // the greeting on the slab (the site's .hero > .home-greeting): 18 down, 20 in from the slab
+  slabGreet: {position: 'absolute', left: 8 + 20, right: 8 + 20},
+  slabGreetLine: {color: colors.text, fontSize: 22.4, fontWeight: '900', letterSpacing: -0.22, lineHeight: 26.9},
+  slabGreetSub: {color: 'rgba(243,244,248,0.92)', fontSize: 15.68, fontWeight: '600', lineHeight: 21.2, marginTop: 4},
   // .hero-inner: 20 in, 44 above the foot (the dots sit under the buttons)
   slideText: {position: 'absolute', left: 20, right: 20, bottom: 44},
   // .hero-kicker: a white veil with a hairline ring, 11.2/800 in the kind's colour
   kicker: {alignSelf: 'flex-start', paddingHorizontal: 12, height: 28.8, borderRadius: 14.4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center'},
   kickerText: {fontSize: 11.2, fontWeight: '800', letterSpacing: 0.9},
-  heroTitle: {color: colors.text, fontSize: 33.6, fontWeight: '900', letterSpacing: -1, lineHeight: 36, marginTop: 13},
+  heroTitle: {color: colors.text, fontSize: 33.6, fontWeight: '900', letterSpacing: -1, lineHeight: 36, marginTop: 13, textShadowColor: 'rgba(5,6,12,0.85)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 10},
   heroMetaRow: {flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 11},
-  heroMeta: {flexShrink: 1, color: colors.textDim, fontSize: 14.4, fontWeight: '600', lineHeight: 21.6},
-  star: {color: colors.star, fontSize: 14.4, fontWeight: '800', lineHeight: 21.6},
+  heroMeta: {flexShrink: 1, color: colors.textDim, fontSize: 14.4, fontWeight: '600', lineHeight: 21.6, textShadowColor: 'rgba(5,6,12,0.85)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 10},
+  star: {color: colors.star, fontSize: 14.4, fontWeight: '800', lineHeight: 21.6, textShadowColor: 'rgba(5,6,12,0.85)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 10},
   // (wraps: with the phone's font turned up, Details goes under Play instead of off the edge)
   heroBtns: {flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 12},
   heroBtn: {paddingHorizontal: 26},
