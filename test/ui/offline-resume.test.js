@@ -15,7 +15,8 @@ const { suite, DESKTOP, PHONE } = require("./helpers");
 const ui = suite();
 const PART = 131072;
 
-const open = async (srv, profile, viewport, context = null) => {
+// `bg`: let the browser's Background Fetch take the parts (off: the page's own loop, which these tests watch)
+const open = async (srv, profile, viewport, context = null, { bg = false, part = PART } = {}) => {
   const phone = viewport.width < 600;
   const ctx = context || await ui.browser.newContext({ viewport, serviceWorkers: "allow", ...(phone ? { hasTouch: true, isMobile: true, deviceScaleFactor: 2 } : {}) });
   if (!context) await ctx.route((url) => url.origin !== srv.url && /^https?:$/.test(url.protocol), (route) => route.fulfill({ status: 404, body: "" }).catch(() => {}));
@@ -23,16 +24,17 @@ const open = async (srv, profile, viewport, context = null) => {
   page.setDefaultTimeout(20000);
   const errors = [];
   page.on("pageerror", (e) => errors.push(String((e && e.stack) || e)));
-  await page.addInitScript(({ id, part }) => {
+  await page.addInitScript(({ id, part, bg }) => {
     try {
       localStorage.setItem("aurora-offline-part-bytes", String(part));
+      localStorage.setItem("aurora-offline-bg", bg ? "1" : "0");
       if (sessionStorage.getItem("ui-test-seeded")) return;
       sessionStorage.setItem("ui-test-seeded", "1");
       localStorage.setItem("aurora-profile", id);
       localStorage.setItem("aurora-kbd-hint", "1");
       localStorage.setItem("aurora-nav-hinted", "1");
     } catch {}
-  }, { id: profile.id, part: PART });
+  }, { id: profile.id, part, bg });
   const go = async (hash, selector = "#app .screen") => {
     if (!page.url().startsWith(srv.url)) await page.goto(`${srv.url}/${hash}`, { waitUntil: "domcontentloaded" });
     else await page.evaluate((h) => { location.hash = h; }, hash);
@@ -53,7 +55,8 @@ const until = async (fn, what, ms = 60000) => {
     await new Promise((r) => setTimeout(r, 300));
   }
 };
-const savedRecord = (page, id) => page.evaluate(async (x) => (await import("/js/offline.js")).getSaved(x), id);
+// (a record still `pending` is a save whose parts are landing — not a saved copy)
+const savedRecord = (page, id) => page.evaluate(async (x) => { const r = await (await import("/js/offline.js")).getSaved(x); return r && !r.pending ? r : null; }, id);
 const partCount = (page) => page.evaluate(async () => (await (await caches.open("aurora-media")).keys()).filter((r) => r.url.includes("/offline/part/")).length);
 const jobState = (page) => page.evaluate(() => (JSON.parse(localStorage.getItem("aurora-offline-jobs") || "[]")[0] || {}).state || null);
 
@@ -188,6 +191,56 @@ ui.test("phone: minutes watched after a cold start with no server are kept for t
     await kidPage.page.waitForTimeout(1500);
     assert.ok(!/#\/play\//.test(kidPage.page.url()), "and cannot play it by its address");
     assert.deepEqual(plane.errors, []);
+  } finally {
+    await context.close().catch(() => {});
+  }
+});
+
+ui.test("phone with Background Fetch: Aurora goes to the background mid-save and the tab is then closed — the browser finishes the save with no Aurora page open", { allow: [/Failed to load resource/, /net::ERR/] }, async ({ srv, freshProfile }) => {
+  const profile = await freshProfile();
+  const film = srv.lib.film1;
+  const { context, page, go } = await open(srv, profile, PHONE, null, { bg: true });
+  try {
+    await go(`#/movie/${film.id}`, '[data-ui="detail.offline"]');
+    await controlled(page);
+    if (!(await page.evaluate(() => "BackgroundFetchManager" in window))) return; // (a browser without it: the page's own loop, tested above)
+    // the page's own requests: four parts, then the line "freezes" for the page
+    let seen = 0;
+    await page.route("**/stream/video/**", (route) => { if (++seen <= 4) route.continue().catch(() => {}); });
+    await page.locator('[data-ui="detail.offline"]').first().click();
+    await pick(page, "Original");
+    await until(async () => (await partCount(page)) >= 4, "four parts in");
+    // the phone's screen goes off: Aurora is in the background
+    await page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await until(() => page.evaluate(async () => (await (await navigator.serviceWorker.ready).backgroundFetch.getIds()).length > 0), "the browser to take the rest", 30000);
+    await page.close();
+    // a page of the same address that does not run Aurora: only its storage is looked at
+    const look = await context.newPage();
+    await look.goto(`${srv.url}/sw-manifest.json`);
+    const state = () => look.evaluate(async (id) => {
+      const c = await caches.open("aurora-media");
+      const parts = (await c.keys()).filter((r) => r.url.includes(`/offline/part/${id}/`)).length;
+      const manifest = !!(await c.match(`/offline/manifest/${id}`));
+      const rec = await new Promise((res) => { const r = indexedDB.open("aurora-offline", 1); r.onsuccess = () => { const g = r.result.transaction("items").objectStore("items").get(id); g.onsuccess = () => res(g.result || null); g.onerror = () => res(null); }; r.onerror = () => res(null); });
+      return { parts, manifest, pending: rec ? !!rec.pending : null, byBrowser: rec ? !!rec.byBrowser : null, subs: rec ? (rec.subtitles || []).length : 0 };
+    }, film.id);
+    let last = null;
+    await until(async () => { last = await state(); return last.manifest; }, "the browser and the worker to finish the save", 90000).catch((e) => { throw new Error(`${e.message}: ${JSON.stringify(last)}`); });
+    const st = await state();
+    assert.equal(st.parts, 20, "every part");
+    assert.equal(st.pending, false, "the copy's record is a saved title now");
+    assert.equal(st.byBrowser, true, "finished by the worker, with no page");
+    assert.ok(st.subs >= 1, "its subtitles went with it (taken before the bytes)");
+    // and Aurora, opened again, lists it and plays it with the network cut
+    const back = await open(srv, profile, PHONE, context, { bg: true });
+    await back.go("#/saved", '[data-ui="saved.play"]');
+    await context.setOffline(true);
+    await back.page.locator('[data-ui="saved.play"]').first().click();
+    await back.page.waitForFunction(() => { const v = document.querySelector(".player video"); return v && v.currentTime > 0.5; }, null, { timeout: 30000 });
+    await context.setOffline(false);
   } finally {
     await context.close().catch(() => {});
   }

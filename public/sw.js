@@ -201,6 +201,88 @@ const partsResponse = (c, id, m, rangeHeader) => {
   return new Response(body, { status: r ? 206 : 200, headers });
 };
 
+// ---- saves the browser finishes by itself (Background Fetch, js/offline.js) ----
+// The rest of a save's parts, fetched by the browser on a phone once Aurora
+// went to the background (the screen off, another app) — with or without a
+// page open. Each part goes into the media cache as it is read; when every
+// part is in, the manifest is written and the copy's record (made by the page
+// before the bytes, `pending`) becomes a saved title. (A worker may not START
+// a Background Fetch — Chrome refuses it here — so the page hands over every
+// part still missing at once.) What this does not finish — a fetch that
+// failed, a worker stopped half-way through storing — the page carries on
+// the next time Aurora is open. The fetch's id carries what this needs:
+//   aurora-save~<item id>~<part bytes>~<size>~<validator hash>~<n>~<url>~<title>
+const fnv = (text) => {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(36);
+};
+const parseBgId = (bid) => {
+  const f = String(bid || "").split("~");
+  if (f.length < 8 || f[0] !== "aurora-save") return null;
+  return { id: f[1], part: Number(f[2]), size: Number(f[3]), v: f[4], batch: Number(f[5]) || 0, url: decodeURIComponent(f[6]), title: decodeURIComponent(f[7]) };
+};
+const partsOf = async (c, id) => {
+  const have = new Set();
+  for (const k of await c.keys()) {
+    const m = /^\/offline\/part\/([^/]+)\/(\d+)$/.exec(new URL(k.url).pathname);
+    if (m && m[1] === id) have.add(Number(m[2]));
+  }
+  return have;
+};
+const savedRecordDone = (id) => new Promise((resolve) => {
+  // the page's IndexedDB (js/offline.js "aurora-offline", store "items")
+  try {
+    const r = indexedDB.open("aurora-offline", 1);
+    r.onupgradeneeded = () => {
+      const db = r.result;
+      if (!db.objectStoreNames.contains("items")) db.createObjectStore("items", { keyPath: "id" });
+      if (!db.objectStoreNames.contains("progress")) db.createObjectStore("progress", { keyPath: "itemId" });
+    };
+    r.onerror = () => resolve(false);
+    r.onsuccess = () => {
+      const t = r.result.transaction("items", "readwrite");
+      const s = t.objectStore("items");
+      const g = s.get(id);
+      g.onsuccess = () => {
+        const it = g.result;
+        if (it && it.pending) s.put({ ...it, pending: false, savedAt: Date.now(), byBrowser: true });
+      };
+      t.oncomplete = () => resolve(true);
+      t.onerror = () => resolve(false);
+    };
+  } catch { resolve(false); }
+});
+const storeBatch = async (e, ok) => {
+  const bg = e.registration;
+  const m = parseBgId(bg.id);
+  if (!m || !(m.part > 0) || !(m.size > 0)) return;
+  const c = await caches.open(MEDIA);
+  for (const rec of await bg.matchAll()) {
+    const res = await rec.responseReady.catch(() => null);
+    if (!res || res.status !== 206) continue;
+    const r = /bytes (\d+)-(\d+)\/(\d+)/.exec(res.headers.get("content-range") || "");
+    if (!r || Number(r[3]) !== m.size || Number(r[1]) % m.part) continue;
+    // a file that changed on the server since the save began is not this copy
+    const v = res.headers.get("etag") || res.headers.get("last-modified") || "";
+    if (m.v && v && fnv(v) !== m.v) continue;
+    const n = Number(r[1]) / m.part;
+    await c.put(`/offline/part/${m.id}/${n}`, new Response(res.body, { status: 200, headers: { "Content-Type": "application/octet-stream", "Content-Length": String(Number(r[2]) - Number(r[1]) + 1) } }));
+  }
+  const have = await partsOf(c, m.id);
+  const count = Math.ceil(m.size / m.part);
+  if (have.size >= count) {
+    await c.put(`/offline/manifest/${m.id}`, new Response(JSON.stringify({ v: 2, size: m.size, part: m.part, count, type: "video/mp4" }), { headers: { "Content-Type": "application/json" } }));
+    manifests.delete(m.id);
+    await savedRecordDone(m.id);
+    if (ok && e.updateUI) await e.updateUI({ title: `“${m.title}” is saved on this device` }).catch(() => {});
+    return;
+  }
+};
+self.addEventListener("backgroundfetchsuccess", (e) => e.waitUntil(storeBatch(e, true)));
+self.addEventListener("backgroundfetchfail", (e) => e.waitUntil(storeBatch(e, false)));
+self.addEventListener("backgroundfetchclick", (e) => e.waitUntil(self.clients.openWindow("/#/saved")));
+
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   // Entering or leaving a kids profile changes what every kept answer may

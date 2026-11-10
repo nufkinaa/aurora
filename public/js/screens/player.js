@@ -805,6 +805,7 @@ export const renderPlayer = async (root, { id }) => {
     // a kids profile plays only what it saved itself (offline.js listSavedFor)
     const who = state.profile ? { id: state.profile.id, kids: !!state.profile.kids } : offline.lastWho();
     if (saved && who && who.kids && saved.profileId !== who.id) saved = null;
+    if (saved && saved.pending) saved = null; // its parts are still landing
     if (!saved) {
       toast("That title isn't saved on this device", "📱");
       return navigate("#/saved");

@@ -83,11 +83,12 @@ export const lastWho = () => {
 };
 const visibleTo = (who) => (it) => !who || !who.kids || it.profileId === who.id;
 
-export const listSaved = async () => (available() ? (await getAll("items")).sort((a, b) => b.savedAt - a.savedAt) : []);
+// (a copy whose parts are still landing is `pending`: not a saved title yet)
+export const listSaved = async () => (available() ? (await getAll("items")).filter((it) => !it.pending).sort((a, b) => b.savedAt - a.savedAt) : []);
 // What THIS person may see and play (`who`: { id, kids } — the profile, or lastWho()).
 export const listSavedFor = async (who) => (await listSaved()).filter(visibleTo(who));
 export const getSaved = async (id) => (available() ? tx("items", "readonly", (s) => s.get(id)) : null);
-export const isSaved = async (id) => !!(await getSaved(id));
+export const isSaved = async (id) => { const it = await getSaved(id); return !!(it && !it.pending); };
 
 // Every piece of a copy: the one entry of an old save, the parts, the
 // manifest, the subtitles, the record.
@@ -102,6 +103,17 @@ const dropBytes = async (id) => {
     if (p.startsWith(`/offline/part/${id}/`)) await c.delete(k).catch(() => {});
   }
 };
+// A save given up on: its parts, and its record if it never became a copy.
+const dropUnfinished = async (id) => {
+  await dropBytes(id);
+  const it = await getSaved(id).catch(() => null);
+  if (it && it.pending) {
+    const c = await caches.open(MEDIA);
+    for (const sub of it.subtitles || []) if (sub.url) await c.delete(sub.url).catch(() => {});
+    await tx("items", "readwrite", (s) => s.delete(id)).catch(() => {});
+  }
+};
+const nameFor = (it) => (it.showTitle && it.season != null ? `${it.showTitle} · S${it.season} E${it.episode}` : it.title || "Aurora");
 export const removeSaved = async (id) => {
   await dropBytes(id);
   const it = await getSaved(id);
@@ -236,7 +248,7 @@ export const cancelJob = (id) => {
   if (c) return c.abort();
   const j = jobs.get(id);
   dismissJob(id);
-  if (j && j.state !== "queued") isSaved(id).then((done) => { if (!done) dropBytes(id).catch(() => {}); }).catch(() => {});
+  if (j && j.state !== "queued") isSaved(id).then((done) => { if (!done) { stopBackground(id).catch(() => {}); dropUnfinished(id).catch(() => {}); } }).catch(() => {});
 };
 // "Waiting for its turn" — the episodes of "Save the next 3" after the first.
 export const queueJob = (item) => {
@@ -309,7 +321,7 @@ export const saveItem = async (item, onProgress = () => {}, choose = null, signa
     return saved;
   } catch (e) {
     if (started) {
-      if (e && e.name === "AbortError") { dismissJob(item.id); dropBytes(item.id).catch(() => {}); }
+      if (e && e.name === "AbortError") { dismissJob(item.id); stopBackground(item.id).catch(() => {}); dropUnfinished(item.id).catch(() => {}); }
       else if (e && e.name === "BusyElsewhere") { /* the other tab's job is the truth */ }
       else if (e && e.pause) setJob(item.id, { state: "paused", why: e.pause, error: null, speed: 0, note: "" });
       else setJob(item.id, { state: "failed", error: (e && e.message) || String(e), speed: 0 });
@@ -441,31 +453,34 @@ const saveOne = async (item, onProgress, choose, signal) => {
     }
     if (aborted()) bail();
     if (st.state !== "ready") throw new Error(st.error || "the server couldn't prepare it");
-    // 2. the bytes, in parts (see the top of this file)
-    const meta = await oneAtATime(
-      () => transfer(item.id, st, onProgress, signal),
-      () => onProgress({ phase: "queued", pct: 0, note: "after the one saving now", waiting: true }),
-    );
-    // 3. subtitles that already exist as text tracks (best effort). Stored
-    // under /offline/subs/… — the worker serves that prefix from this cache.
+    // 2. what goes with the picture, while the server is in reach: the
+    // subtitles that exist as text tracks (stored under /offline/subs/… —
+    // the worker serves that prefix from this cache) and what the player asks
+    // the server for while a film runs (see extrasFor). Then the copy's
+    // record, marked `pending` until every part is in: a save the browser
+    // finishes in the background (Background Fetch, below) is complete on
+    // this device even if Aurora is next opened with no line at all.
     const c = await caches.open(MEDIA);
-    const subtitles = [];
-    let n = 0;
-    for (const t of (item.subtitles || []).slice(0, 8)) {
-      if (!t.url) continue;
-      try {
-        const res = await fetch(t.url, { cache: "no-store" });
-        if (!res.ok) continue;
-        const key = `/offline/subs/${item.id}/${n++}`;
-        await c.put(key, new Response(await res.blob(), { status: 200, headers: { "Content-Type": res.headers.get("Content-Type") || "text/vtt" } }));
-        subtitles.push({ label: t.label, lang: t.lang, url: key });
-      } catch {}
+    const had = await getSaved(item.id).catch(() => null);
+    let subtitles = had && had.pending && had.quality === quality ? had.subtitles || [] : null;
+    if (!subtitles) {
+      subtitles = [];
+      let n = 0;
+      for (const t of (item.subtitles || []).slice(0, 8)) {
+        if (!t.url) continue;
+        try {
+          const res = await fetch(t.url, { cache: "no-store" });
+          if (!res.ok) continue;
+          const key = `/offline/subs/${item.id}/${n++}`;
+          await c.put(key, new Response(await res.blob(), { status: 200, headers: { "Content-Type": res.headers.get("Content-Type") || "text/vtt" } }));
+          subtitles.push({ label: t.label, lang: t.lang, url: key });
+        } catch {}
+      }
     }
-    // 4. what the player asks the server for while a film runs — taken along
-    // now, because there will be no server to ask (see extrasFor)
-    const extras = await extrasFor(item).catch(() => ({}));
+    const extras = had && had.pending && had.extrasAt ? {} : await extrasFor(item).catch(() => ({}));
     const who = await whoNow();
     const saved = {
+      ...(had && had.pending ? had : {}),
       ...extras,
       id: item.id,
       title: item.title,
@@ -476,16 +491,26 @@ const saveOne = async (item, onProgress, choose, signal) => {
       year: item.year || null,
       cover: item.cover || null,
       duration: item.duration || 0,
-      sizeBytes: meta.size || st.sizeBytes || 0,
+      sizeBytes: st.sizeBytes || 0,
       direct: !!st.direct,
       quality,
       format: 2,
       profileId: who ? who.id : null,
       kids: !!(who && who.kids),
-      controlled: await workerControls(),
       subtitles,
+      pending: true,
       savedAt: Date.now(),
     };
+    if (!had || had.pending) await tx("items", "readwrite", (s) => s.put(saved));
+    // 3. the bytes, in parts (see the top of this file) — one save at a time
+    const meta = await oneAtATime(
+      () => transfer(item.id, st, onProgress, signal, { title: nameFor(item), quality }),
+      () => onProgress({ phase: "queued", pct: 0, note: "after the one saving now", waiting: true }),
+    );
+    saved.sizeBytes = meta.size || saved.sizeBytes;
+    saved.pending = false;
+    saved.controlled = await workerControls();
+    saved.savedAt = Date.now();
     await tx("items", "readwrite", (s) => s.put(saved));
     warmForOffline(who && who.id).catch(() => {});
     onProgress({ phase: "done", pct: 1 });
@@ -529,7 +554,7 @@ const setSaveMeta = (id, m) => {
 // The parts: a few in flight, each retried while the line is away (it waits
 // for the browser's "online" when the device says it has none), the whole
 // save paused after RETRY_FOR_MS without a single part landing.
-const transfer = async (id, st, onProgress, signal) => {
+const transfer = async (id, st, onProgress, signal, opts = {}) => {
   if (signal && signal.aborted) { const e = new Error("cancelled"); e.name = "AbortError"; throw e; }
   const c = await caches.open(MEDIA);
   const url = st.url;
@@ -539,7 +564,8 @@ const transfer = async (id, st, onProgress, signal) => {
   let fatal = null;
   const aborted = () => !!(signal && signal.aborted);
   const bail = () => { const e = new Error("cancelled"); e.name = "AbortError"; throw e; };
-  const stopped = () => { if (aborted()) bail(); if (fatal) throw fatal; };
+  let handoff = false; // (set below: the page went to the background on a phone)
+  const stopped = () => { if (aborted()) bail(); if (fatal) throw fatal; if (handoff) throw Object.assign(new Error("handed to the browser"), { handoff: true }); };
   // the size and the identity of the file, from the first part's answer
   // (or the save under way's, when it carries on)
   let meta = savesMeta()[id] || null;
@@ -641,6 +667,25 @@ const transfer = async (id, st, onProgress, signal) => {
       throw e;
     }
   }
+  // A save the browser was finishing by itself (the page went to the
+  // background, or was closed): watched to the end, then whatever it could
+  // not do is done below.
+  const bgMeta = () => ({ url, size, validator: (meta && meta.validator) || "", part: PART_BYTES, title: opts.title || "", signal, onProgress });
+  {
+    const running = await bgRunning(id);
+    if (running) {
+      const how = await watchBackground(id, running, bgMeta());
+      for (const n of await partsHere(id)) done.add(n);
+      if (how === "cancelled") bail();
+    }
+  }
+  // On a phone that has it: Aurora going to the background hands the rest to the browser.
+  const onHidden = () => {
+    if (document.visibilityState !== "hidden" || handoff || !bgAvailable() || !opts.title) return;
+    handoff = true;
+    inner.abort(); // (the parts in flight are dropped and handed over with the rest)
+  };
+  document.addEventListener("visibilitychange", onHidden);
   // then the rest, a few at a time, each retried; the whole save pauses when
   // nothing has landed for RETRY_FOR_MS
   for (let round = 0; ; round++) {
@@ -654,6 +699,7 @@ const transfer = async (id, st, onProgress, signal) => {
         try {
           await withRetry(() => fetchPart(n));
         } catch (e) {
+          if (e && e.handoff) return;
           if (e && e.changed) { restart = true; inner.abort(); return; }
           if (!fatal) { fatal = e; inner.abort(); }
           throw e;
@@ -664,8 +710,25 @@ const transfer = async (id, st, onProgress, signal) => {
       await Promise.all(Array.from({ length: Math.min(PARTS_AT_ONCE, todo.length) }, worker));
       if (fatal) throw fatal;
     } catch (e) {
+      document.removeEventListener("visibilitychange", onHidden);
       if (e && e.name === "QuotaExceededError") { await dropBytes(id); setSaveMeta(id, null); throw new Error(plain(e)); }
       throw e;
+    }
+    if (handoff) {
+      if (aborted()) bail();
+      await new Promise((r) => setTimeout(r, 50)); // (the parts in flight let go of the cache)
+      for (const n of await partsHere(id)) done.add(n);
+      let bg = null;
+      try { bg = await startBackground(id, bgMeta(), done); } catch {}
+      if (bg) {
+        const how = await watchBackground(id, bg, bgMeta());
+        for (const n of await partsHere(id)) done.add(n);
+        if (how === "cancelled") { document.removeEventListener("visibilitychange", onHidden); bail(); }
+      }
+      // (the browser could not take it, or left parts out: the page goes on)
+      handoff = false;
+      inner = freshSwitch();
+      continue;
     }
     if (restart) {
       // (the parts in flight were stopped: a fresh switch for the next round)
@@ -673,8 +736,9 @@ const transfer = async (id, st, onProgress, signal) => {
       if (aborted()) bail();
       inner = freshSwitch();
     }
-    if (restart) { await changed(); if (round > 2) throw new Error("the file keeps changing on the server — try again later"); await withRetry(() => fetchPart(0)); }
+    if (restart) { await changed(); if (round > 2) throw new Error("the file keeps changing on the server — try again later"); await withRetry(() => fetchPart(0)).catch((e) => { if (!(e && e.handoff)) throw e; }); }
   }
+  document.removeEventListener("visibilitychange", onHidden);
   // all here: the manifest makes it playable
   await c.put(manifestKey(id), new Response(JSON.stringify({ v: 2, size, part: PART_BYTES, count: count(), type: "video/mp4" }), { headers: { "Content-Type": "application/json" } }));
   await c.delete(mediaKey(id)).catch(() => {}); // an older one-entry copy of the same title
@@ -704,6 +768,97 @@ const transfer = async (id, st, onProgress, signal) => {
         await waitForLine(Math.min(30000, 1500 * 2 ** Math.min(attempt, 5)), signal);
       }
     }
+  }
+};
+
+// ---------- Background Fetch (phones) ----------
+// A phone stops a page soon after the screen goes off or another app comes to
+// the front. Where the browser has Background Fetch (Android Chrome), the
+// moment Aurora goes to the background in the middle of a save, every part
+// still missing is handed to the BROWSER, which fetches them with the page
+// frozen or closed (its own notification shows the progress; it waits out a
+// lost line by itself), and the service worker stores them as they come in
+// (sw.js). While Aurora is on screen the page's own loop is used: it is about
+// four times faster (the browser holds a background fetch whole before handing
+// it over — measured on this PC: 2.7 GB in 13 min against 3 min). A computer
+// keeps the page's loop (a reload carries on anyway).
+// (A worker may not START a background fetch — Chrome refuses it — so it is
+// one fetch for everything that is missing, not batches.)
+// The id carries what the worker needs:
+//   aurora-save~<item id>~<part bytes>~<size>~<validator hash>~<n>~<url>~<title>
+const bgKnob = () => { try { return localStorage.getItem("aurora-offline-bg"); } catch { return null; } };
+const bgAvailable = () => {
+  if (typeof window === "undefined" || !("BackgroundFetchManager" in window) || !("serviceWorker" in navigator)) return false;
+  const k = bgKnob(); // "0" never, "1" always (tests), else phones only
+  if (k === "0") return false;
+  if (k === "1") return true;
+  try { return matchMedia("(pointer: coarse)").matches; } catch { return false; }
+};
+export const hashOf = (text) => {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(36);
+};
+const bgPrefix = (id) => `aurora-save~${id}~`;
+// The browser's fetch of this save that is running now, if any.
+const bgRunning = async (id) => {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    for (const bid of await reg.backgroundFetch.getIds()) if (bid.startsWith(bgPrefix(id))) return reg.backgroundFetch.get(bid);
+  } catch {}
+  return null;
+};
+const startBackground = async (id, m, have) => {
+  const reg = await navigator.serviceWorker.ready;
+  const count = Math.ceil(m.size / m.part);
+  const todo = [];
+  for (let n = 0; n < count; n++) if (!have.has(n)) todo.push(n);
+  if (!todo.length) return null;
+  const total = todo.reduce((t, n) => t + Math.min(m.part, m.size - n * m.part), 0);
+  // the browser holds it all until the end: room for it twice, or the page's loop
+  try {
+    const est = await navigator.storage.estimate();
+    if (est && est.quota && est.quota - (est.usage || 0) < total * 2.1) return null;
+  } catch {}
+  const bid = ["aurora-save", id, m.part, m.size, hashOf(m.validator || ""), Date.now() % 1e9, encodeURIComponent(m.url), encodeURIComponent(String(m.title || "").slice(0, 80))].join("~");
+  const reqs = todo.map((n) => new Request(m.url, { headers: { Range: `bytes=${n * m.part}-${Math.min(m.size, (n + 1) * m.part) - 1}` } }));
+  return reg.backgroundFetch.fetch(bid, reqs, {
+    title: `Saving “${m.title}” to this device`,
+    icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+    downloadTotal: total,
+  });
+};
+// Stop the browser's own fetch of this save (Cancel).
+const stopBackground = async (id) => {
+  if (typeof window === "undefined" || !("BackgroundFetchManager" in window)) return;
+  const bg = await bgRunning(id);
+  if (bg) await bg.abort().catch(() => {});
+};
+// Watch the browser's fetch: → "complete" (every part in) | "fallback" (it
+// failed, or stored only part of it — the page carries on) | "cancelled".
+const watchBackground = async (id, bg, m) => {
+  const count = Math.ceil(m.size / m.part);
+  const t0 = Date.now();
+  const landedOf = (have) => [...have].reduce((t, n) => t + Math.min(m.part, m.size - n * m.part), 0);
+  const base = landedOf(await partsHere(id));
+  let lastCount = -1;
+  let still = 0;
+  for (;;) {
+    if (m.signal && m.signal.aborted) { await bg.abort().catch(() => {}); return "cancelled"; }
+    const have = await partsHere(id);
+    if (have.size >= count) return "complete";
+    const landed = landedOf(have);
+    // (its bytes count once, held by the browser or stored by the worker)
+    const now = Math.max(landed, base + (bg.downloaded || 0));
+    const secs = (Date.now() - t0) / 1000;
+    const speed = secs > 2 ? Math.max(0, now - base) / secs : 0;
+    m.onProgress({ phase: "saving", pct: Math.min(0.999, now / m.size), note: "the browser is saving it — it carries on with Aurora closed", speed, eta: speed > 0 ? Math.round((m.size - now) / speed) : 0 });
+    if (bg.result) {
+      // finished: the worker is storing the parts — until nothing more comes
+      if (have.size === lastCount) still++; else { still = 0; lastCount = have.size; }
+      if (still >= 15) return "fallback";
+    }
+    await new Promise((r) => setTimeout(r, 1000));
   }
 };
 
