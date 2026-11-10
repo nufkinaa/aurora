@@ -295,6 +295,9 @@ ui.test("a rating given on the title page is kept", async ({ page, goto, signIn,
   await goto(`#/movie/${lib.film2.id}`);
   await page.click('.star-rating .star[aria-label="4 stars"]');
   await page.waitForFunction(() => document.querySelectorAll(".star-rating .star.on").length === 4);
+  // the stars light at once and the save follows: its toast says it is in (reading the
+  // server before that was a race the save sometimes lost under load)
+  await page.waitForFunction(() => /4★/.test(document.getElementById("toasts").innerText));
   const { ratings } = await api.state(me);
   assert.deepEqual(Object.values(ratings), [4]);
   await page.reload();
