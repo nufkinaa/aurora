@@ -1,0 +1,96 @@
+{
+ "note": "which look each letter is, per scene: before = the glass at 2cd75c12, after = this branch",
+ "scenes": {
+  "02": {
+   "A": "after",
+   "B": "before"
+  },
+  "04": {
+   "A": "before",
+   "B": "after"
+  },
+  "05": {
+   "A": "before",
+   "B": "after"
+  },
+  "06": {
+   "A": "before",
+   "B": "after"
+  },
+  "08": {
+   "A": "before",
+   "B": "after"
+  },
+  "09": {
+   "A": "before",
+   "B": "after"
+  },
+  "11": {
+   "A": "before",
+   "B": "after"
+  },
+  "18": {
+   "A": "after",
+   "B": "before"
+  },
+  "19": {
+   "A": "after",
+   "B": "before"
+  },
+  "20": {
+   "A": "after",
+   "B": "before"
+  },
+  "22": {
+   "A": "before",
+   "B": "after"
+  },
+  "23": {
+   "A": "before",
+   "B": "after"
+  },
+  "26": {
+   "A": "after",
+   "B": "before"
+  },
+  "28": {
+   "A": "after",
+   "B": "before"
+  },
+  "29": {
+   "A": "before",
+   "B": "after"
+  },
+  "30": {
+   "A": "after",
+   "B": "before"
+  }
+ },
+ "items": {
+  "1 (plain white behind the bars: the outside line and the shadow) — commit 531224c8": [
+   "09",
+   "02",
+   "22"
+  ],
+  "2 (menus, sheets, toast, suggestions: deeper floor, more through, light on the rim) — commit bf63f897": [
+   "05",
+   "18",
+   "06",
+   "19",
+   "11",
+   "20"
+  ],
+  "3 (panes in the page: episode rows, settings, chips) — commit 89deaef2": [
+   "26",
+   "04",
+   "08",
+   "23"
+  ],
+  "6 (the Remote screen's pads, rows and dock) — commit c5f51f78": [
+   "28",
+   "29",
+   "30"
+  ]
+ },
+ "items_note": "Item 1 changes the rim and the shadow of every pane, so it is in every scene a little; the scenes listed under an item are the ones where that item is the main difference."
+}

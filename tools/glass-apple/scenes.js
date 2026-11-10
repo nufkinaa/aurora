@@ -151,5 +151,29 @@ add({ size: "desktop", route: (inst) => `#/play/${inst.lib.film1}`, routeName: "
   crops: [".player-top", ".player-bottom"],
   look: "The dock of controls at the foot and the buttons at the top, over the film." });
 
+// ---- the Remote screen (remote.css; a simulated TV is on: `tv`) -------------
+// shoot.js keeps a SimTV (test/ui/support/sim-tv.js) on the instance for
+// these and takes it off again for every other scene (a TV that is on puts a
+// Remote button in the bar).
+const remoteView = (view, mode) => async (page) => {
+  await page.waitForSelector(".remote-screen", { timeout: 20000 });
+  await page.waitForSelector('.remote-screen[data-state="playing"]', { timeout: 20000 });
+  await page.locator(`.rm-seg-btn[data-view="${view}"]`).click();
+  if (mode) await page.locator(`.rm-seg-btn[data-mode="${mode}"]`).click();
+  await page.waitForTimeout(1200);
+};
+add({ size: "phone", route: "#/remote", routeName: "remote", tv: "playing", title: "The remote, a film paused on the TV", worst: false,
+  stage: [remoteView("now")],
+  crops: [".rm-top", ".rm-transport, .rm-chips", ".rm-dock"],
+  look: "The round buttons, the row of pills under them, the TV's name at the top and the dock at the foot, over the film's own colours." });
+add({ size: "phone", route: "#/remote", routeName: "remote", tv: "playing", title: "The remote, the touchpad", worst: false,
+  stage: [remoteView("pad", "touch")],
+  crops: [".rm-padmode", ".rm-touch", ".rm-keys, .rm-dock"],
+  look: "The large pad, the three keys under it, the dock." });
+add({ size: "phone", route: "#/remote", routeName: "remote", tv: "playing", title: "The remote, the arrow buttons", worst: false,
+  stage: [remoteView("pad", "buttons")],
+  crops: [".rm-padmode", ".rm-dpad", ".rm-keys, .rm-dock"],
+  look: "The round pad with OK in its middle, the three keys, the dock." });
+
 S.forEach((s, i) => { s.n = i + 1; });
 module.exports = { SCENES: S };

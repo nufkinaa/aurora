@@ -18,6 +18,18 @@ const { SCENES } = require("./scenes");
   const scenes = SCENES.filter((s) => !pick || pick.includes(s.n));
   fs.mkdirSync(out, { recursive: true });
   const b = await launch();
+  // a simulated TV, on only while a scene asks for one (s.tv)
+  let tv = null;
+  const tvOff = async () => { if (tv) { await tv.stop(); tv = null; await sleep(600); } };
+  const tvOn = async (h, state) => {
+    if (!tv) {
+      const { SimTV } = require("../../test/ui/support/sim-tv");
+      tv = new SimTV({ url: h.inst.url, profile: h.inst.profiles.glass, name: "Living room TV", deviceId: "tv-sim-glass-apple" });
+      await tv.start();
+    }
+    if (state === "playing") { await tv.open_(h.inst.lib.film2, { position: 21 }); tv.now.paused = true; } else { tv.now = null; tv.screen = "home"; }
+    tv.announce();
+  };
   try {
     for (const side of sides) {
       for (const size of [...new Set(scenes.map((s) => s.size))]) {
@@ -26,6 +38,7 @@ const { SCENES } = require("./scenes");
         for (const s of scenes.filter((x) => x.size === size)) {
           const nn = String(s.n).padStart(2, "0");
           try {
+            if (s.tv) await tvOn(h, s.tv); else await tvOff();
             await go(h, typeof s.route === "function" ? s.route(h.inst) : s.route);
             for (const step of s.stage || []) { await step(page); await sleep(250); }
             await settle(page, h.pending, { quietMs: 500, capMs: 8000 });
@@ -55,8 +68,9 @@ const { SCENES } = require("./scenes");
             console.log(side, nn, s.size, s.title, "crops", crops.length);
           } catch (e) { console.log(side, nn, "FAILED", e.message.split("\n")[0]); }
         }
+        await tvOff();
         await h.ctx.close();
       }
     }
-  } finally { await b.close(); }
+  } finally { await tvOff().catch(() => {}); await b.close(); }
 })();

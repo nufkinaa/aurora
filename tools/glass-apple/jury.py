@@ -67,14 +67,17 @@ def strip(im, rects, dpr):
     return sheet
 
 keyf = os.path.join(out, "key.json")
-key = {}
+key, keydoc = {}, {}
 if os.path.exists(keyf):
-    key = json.load(open(keyf, encoding="utf-8")).get("scenes", {})
+    keydoc = json.load(open(keyf, encoding="utf-8"))  # anything else in it (which fix a scene is for) is kept
+    key = keydoc.get("scenes", {})
+# a second round: GA_BEFORE_REF names what "before" was photographed from
+before_ref = os.environ.get("GA_BEFORE_REF")
 
 DEVICE = {"phone": "Phone, 402 × 874", "tablet": "Tablet, 1024 × 768", "desktop": "Desktop, 1440 × 900", "desktop-2560": "Desktop, 2560 × 1440"}
 md = ["# The scenes", "",
       "Each scene is one moment of the website photographed twice — the same data, the same scroll position, the sky and every animation held still — once with each of two looks for the glass. `scene-NN-A.png` and `scene-NN-B.png` are the whole screen; `scene-NN-A-crop.png` and `scene-NN-B-crop.png` are the glass parts of the same two photographs at twice their size on the page, stacked in the order listed. Which look is A changes from scene to scene.", "",
-      "`reference-1-…` and `reference-2-…` are frames of Apple's own glass on an iPhone (the Apple TV app's tab bar, at rest and under a finger), for the comparison “which of the two is closer to this, and on which do the words read better”. Three more frames (WhatsApp's tab bar over a list of chats: `reference-3.jpg`, `-4`, `-5`) show private names and faces, so they are NOT in the repository; on the PC the photographs were made on they are in the agent's scratch folder, `aurora-agents/glass-apple/jury-private/`.", ""]
+      ("`reference-1-…` and `reference-2-…` are frames of Apple's own glass on an iPhone (the Apple TV app's tab bar, at rest and under a finger), for the comparison “which of the two is closer to this, and on which do the words read better”. Three more frames (WhatsApp's tab bar over a list of chats: `reference-3.jpg`, `-4`, `-5`) show private names and faces, so they are NOT in the repository; on the PC the photographs were made on they are in the agent's scratch folder, `aurora-agents/glass-apple/jury-private/`.") if ref else "The frames of Apple's own glass are the ones in `../jury/` (`reference-1-…`, `reference-2-…`).", ""]
 n_ok = 0
 for jf in sorted(glob.glob(os.path.join(shots, "scene-*.json"))):
     j = json.load(open(jf, encoding="utf-8"))
@@ -103,7 +106,8 @@ for jf in sorted(glob.glob(os.path.join(shots, "scene-*.json"))):
     n_ok += 1
     print("scene", nn, "full x%.2f" % s, len(pb) // 1024, len(pa) // 1024, "KB; crop", ("x%.2f" % cs) if cs else "-", (len(qb) // 1024, len(qa) // 1024) if cs else "")
 
-json.dump({"note": "which look each letter is, per scene: before = today's glass (origin/master), after = the new material", "scenes": dict(sorted(key.items()))}, open(keyf, "w", encoding="utf-8"), indent=1)
+note = ("which look each letter is, per scene: before = the glass at %s, after = this branch" % before_ref) if before_ref else "which look each letter is, per scene: before = today's glass (origin/master), after = the new material"
+json.dump({**keydoc, "note": note, "scenes": dict(sorted(key.items()))}, open(keyf, "w", encoding="utf-8"), indent=1)
 open(os.path.join(out, "scenes.md"), "w", encoding="utf-8", newline="\n").write("\n".join(md) + "\n")
 
 if ref:
