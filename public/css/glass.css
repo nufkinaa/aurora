@@ -3396,7 +3396,12 @@ html[data-look="glass"]:root .card.wide .card-progress {
   html[data-look="glass"]:root .nav-items {
     left: max(12px, env(safe-area-inset-left, 0px));
     right: max(12px, env(safe-area-inset-right, 0px));
-    bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) - 14px));
+    /* (inset - 14px clears an iPhone's home indicator, which sits low in its
+       34px. An Android gesture bar reports 16-24px with its handle in the
+       middle of it: there 3/4 of the inset clears the handle — 18px over a
+       24px bar, where inset - 14px left the tab bar on top of the handle.
+       2026-11-10) */
+    bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) - 14px), calc(min(env(safe-area-inset-bottom, 0px), 26px) * 0.75));
   }
   /* The tab bar keeps a dark floor under its sheen (elia's photo,
      2026-11-03): over a row of bright posters the thin glass — a blur that

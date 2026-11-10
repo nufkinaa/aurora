@@ -132,6 +132,22 @@ ui.test("SE (1st) in a Safari tab, a long title: the greeting gives way, nothing
   assert.ok(Number(roomLeft) < 2, `the remark kept its two lines (room ${roomLeft})`);
 });
 
+// The tab bar clears what the phone keeps at the bottom: an iPhone's home
+// indicator (34px inset: the bar 20px up, as before) and an Android gesture
+// bar (24px inset: 18px up — it used to sit 10px up, on the handle).
+const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36";
+for (const [name, ua, inset, bottomInset, want] of [["an iPhone from the Home Screen", IPHONE, 59, 34, 20], ["an Android phone, installed, gesture bar", ANDROID, 36, 24, 18], ["an Android phone in Chrome", ANDROID, 0, 0, 10]]) {
+  ui.test(`${name}: the tab bar sits ${want}px up`, { viewport: { width: 393, height: 852 }, device: { screen: { width: 393, height: 852 }, deviceScaleFactor: 3, userAgent: ua } }, async ({ page, context, signIn, freshProfile, goto }) => {
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: inset, topMax: inset, bottom: bottomInset, bottomMax: bottomInset } });
+    await signIn(await freshProfile());
+    await openHome(page, goto);
+    const m = await measure(page);
+    assert.ok(Math.abs(m.vh - m.tabbar.bottom - want) <= 0.5, `the tab bar ends ${m.vh - m.tabbar.bottom}px above the bottom (want ${want})`);
+    assert.ok(Math.abs(m.hero.top - (m.buttonsBottom + 10)) <= 1, `the billboard starts at ${m.hero.top}, the buttons end at ${m.buttonsBottom}`);
+  });
+}
+
 // Elsewhere the greeting stays where it was: under the billboard.
 ui.test("a desktop: the greeting under the billboard, the logo with its word", { viewport: DESKTOP }, async ({ page, signIn, freshProfile, goto }) => {
   await signIn(await freshProfile());
