@@ -78,6 +78,7 @@ test("the website's helpers hold the apps' cases", async () => {
   assert.equal(monthPick(grid, "2026-10-31", "2026-11", "2026-11-09"), "2026-11-09");
   assert.equal(monthPick(grid, "2026-12-31", "2026-10", "2026-11-09"), "2026-10-31");
   assert.equal(monthPick(grid, "2027-01-31", "2026-12", "2026-11-09"), "2026-12-31");
+  assert.equal(monthPick(grid, "2026-12-15", "2026-11", "2026-11-09", true), "2026-11-15");
   const c = cellOf(cal(["2026-11-09"]).grid, "2026-11-09", "2026-11", "2026-11-09");
   assert.deepEqual([c.n, c.inMonth, c.past, c.today, c.items.length], [9, true, false, true, 1]);
 });

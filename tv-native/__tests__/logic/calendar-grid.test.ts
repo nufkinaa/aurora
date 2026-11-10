@@ -96,6 +96,7 @@ test('monthPick: today in today’s month, else the same day of the month (the 3
   expect(monthPick(g, '2026-12-31', '2026-10', '2026-11-09')).toBe('2026-10-31');
   expect(monthPick(g, '2027-01-31', '2026-12', '2026-11-09')).toBe('2026-12-31');
   expect(monthPick(g, '2026-10-31', '2026-12', '2026-11-09')).toBe('2026-12-31');
+  expect(monthPick(g, '2026-12-15', '2026-11', '2026-11-09', true)).toBe('2026-11-15'); // (keepDay: PageUp / PageDown)
   expect(monthPick({...g, months: g.months.map(m => (m.key === '2026-12' ? {...m, last: '2026-12-30'} : m))}, '2026-10-31', '2026-12', '2026-11-09')).toBe('2026-12-30');
 });
 

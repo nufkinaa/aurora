@@ -44,7 +44,7 @@ import {
   SAVING_WORD,
 } from '../calendar';
 import type {Calendar, CalendarCell, CalendarEntry, CalendarGrid} from '../calendar';
-import {noteOwnFocusMove, useTVKeys} from '../focus';
+import {noteOwnFocusMove, useFocusFallback, useTVKeys} from '../focus';
 import theme from '../theme';
 
 const {colors, fontSize, radius, spacing} = theme;
@@ -155,12 +155,29 @@ const PanelRow = memo(function CalendarPanelRow({
 }) {
   const art = artSrc(e.poster || e.item?.cover || null, 44).src;
   const play = canPlay(e);
+  // The Save button goes once its answer is in: focus on it lands on the row (the list's rule)
+  const rowRef = useRef<NodeRef>(null);
+  const saveFocused = useRef(false);
+  useEffect(() => {
+    if (!e.canSave && saveFocused.current) {
+      saveFocused.current = false;
+      noteOwnFocusMove();
+      rowRef.current?.requestTVFocus?.();
+    }
+  }, [e.canSave]);
+  const setRow = useCallback(
+    (n: NodeRef) => {
+      rowRef.current = n;
+      if (first && firstRef && typeof firstRef === 'object') (firstRef as React.MutableRefObject<NodeRef>).current = n;
+    },
+    [first, firstRef],
+  );
   const tone = e.state === 'have' || e.state === 'partial' ? KIND_COLORS.have : e.state === 'waiting' ? colors.star : colors.accent;
   return (
     <View style={styles.row}>
       <Focusable
         uiId="calendar.open"
-        ref={first ? (firstRef as never) : undefined}
+        ref={setRow as never}
         scaleTo={1.02}
         highlightColor={colors.surfaceHover}
         accessibilityLabel={entryLabel(e)}
@@ -206,7 +223,17 @@ const PanelRow = memo(function CalendarPanelRow({
         <View style={styles.rowActions}>
           {play ? <Btn uiId="calendar.play" primary small label={PLAY_WORD} onFocusChange={onFocusPanel} onPress={() => onPlay(e)} /> : null}
           {e.canSave ? (
-            <Btn uiId="calendar.save" small dim={saving} label={saving ? SAVING_WORD : SAVE_WORD} onFocusChange={onFocusPanel} onPress={() => !saving && onSave(e)} />
+            <Btn
+              uiId="calendar.save"
+              small
+              dim={saving}
+              label={saving ? SAVING_WORD : SAVE_WORD}
+              onFocusChange={f => {
+                saveFocused.current = f;
+                onFocusPanel(f);
+              }}
+              onPress={() => !saving && onSave(e)}
+            />
           ) : null}
         </View>
       ) : null}
@@ -272,8 +299,23 @@ export default function CalendarMonth({
   const [claiming, setClaiming] = useState(claimFocus);
   const pickNow = useRef(pick);
   pickNow.current = pick;
+  // focus lost (a button that goes, a re-read): the picked day
+  useFocusFallback(pickRef);
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
+  }, []);
+  // The picked day takes the focus on arrival. hasTVPreferredFocus alone loses to
+  // the screen's loading chrome going away (its focus fallback answers 120 ms
+  // later), so the claim is made again just after that.
+  useEffect(() => {
+    if (!claimFocus) return;
+    const t = setTimeout(() => {
+      if (inGrid.current) return;
+      noteOwnFocusMove();
+      pickRef.current?.requestTVFocus?.();
+    }, 200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const onFocusDay = useCallback((key: string) => {
     setClaiming(false);

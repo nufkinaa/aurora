@@ -224,9 +224,9 @@ export const firstPick = (cal: Calendar | null): string | null => {
   return today;
 };
 
-/** The day to pick when the month changes to `to`: today in today's month, else the same day of the month. */
-export const monthPick = (grid: CalendarGrid | null | undefined, pick: string, to: string, today: string) => {
-  if (to === monthOf(today)) return today;
+/** The day to pick when the month changes to `to`: today in today's month (unless `keepDay`), else the same day of the month. */
+export const monthPick = (grid: CalendarGrid | null | undefined, pick: string, to: string, today: string, keepDay = false) => {
+  if (to === monthOf(today) && !keepDay) return today;
   const info = monthInfo(grid, to);
   const lastN = Number(((info && info.last) || `${to}-28`).slice(8, 10));
   return `${to}-${String(Math.min(Number(pick.slice(8, 10)), lastN)).padStart(2, '0')}`;

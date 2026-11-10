@@ -366,7 +366,10 @@ const mountMonth = async (c: Calendar = withGrid(CAL())) => {
   await act(async () => {
     r = TestRenderer.create(<CalendarScreen navigation={nav as never} route={{key: 'cal-1', name: 'Calendar'} as never} />, {
       // every focusable can be asked to take the focus
-      createNodeMock: el => ({requestTVFocus: () => mockFocus(el.props.uiId, el.props.accessibilityLabel)}),
+      createNodeMock: el => {
+        const p = el.props as {uiId?: string; accessibilityLabel?: string};
+        return {requestTVFocus: () => mockFocus(p.uiId, p.accessibilityLabel)};
+      },
     });
   });
   await flush();

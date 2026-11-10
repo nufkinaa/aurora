@@ -63,6 +63,9 @@ const readView = () => {
 const keepView = (v) => {
   try { localStorage.setItem(VIEW_KEY, v); } catch {}
 };
+const hoverPointer = () => {
+  try { return matchMedia("(hover: hover)").matches; } catch { return false; }
+};
 const reducedMotion = () => {
   try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; }
 };
@@ -330,7 +333,7 @@ export const renderCalendar = async (root) => {
     const legend = el("div", { class: "calg-legend", "aria-hidden": "true" },
       ...KINDS.map((k) => el("span", { class: `calg-key k-${k}` }, el("i"), CAL_WORDS[k])),
       el("span", { class: "calg-key calg-key-have" }, el("i", { html: icons.check }), CAL_WORDS.have));
-    const panel = el("aside", { class: "calg-panel", "aria-live": "polite" });
+    const panel = el("aside", { class: "calg-panel" });
     const main = el("div", { class: "calg-main" }, bar, el("div", { class: "calg-frame" }, gridEl, blank), legend);
     // (next up sits over the day's list beside the grid; above the grid when there is one column)
     const wrap = el("div", { class: "calg" }, nextUp, main, panel);
@@ -383,14 +386,26 @@ export const renderCalendar = async (root) => {
       return cell;
     };
 
-    // ---- a month's six weeks ----
+    // ---- a month's weeks ----
     let sheet = null;
+    // A new month under a mouse that has not moved: the site's hover-is-focus
+    // (focus.js) would hand the focus to whichever day lands under it, away from
+    // the day the keys just picked. Until the mouse moves, its "mouseover" on
+    // the new days stops here.
+    let still = false;
+    const onMouseMove = (e) => { if (e.movementX || e.movementY) still = false; };
+    const onMouseOver = (e) => { if (still && sheet && sheet.contains(e.target)) e.stopPropagation(); };
+    window.addEventListener("mousemove", onMouseMove, true);
+    window.addEventListener("mouseover", onMouseOver, true);
     const paintSheet = (anim) => {
       const weeks = monthWeeks(shown, grid.weekStart);
       const fresh = el("div", { class: `calg-sheet${fan ? " fan" : " fill"}` },
         ...weeks.map((w, r) => el("div", { class: "calg-row", role: "row" }, ...w.map((key, c) => cellFor(key, r + c)))));
       if (anim && !reducedMotion()) fresh.classList.add(anim);
-      if (sheet) sheet.replaceWith(fresh); else sheetHolder.append(fresh);
+      // (a new month under a mouse that has not moved: see `still` below)
+      if (sheet) still = hoverPointer();
+      if (sheet) sheet.replaceWith(fresh);
+      else sheetHolder.append(fresh);
       sheet = fresh;
       const info = monthInfo(grid, shown);
       monthName.textContent = info ? info.month : shown;
@@ -442,11 +457,11 @@ export const renderCalendar = async (root) => {
         if (b) b.focus({ preventScroll: true });
       }
     };
-    const goMonth = (dir) => {
+    const goMonth = (dir, keepDay = false) => {
       const i = months.indexOf(shown) + dir;
       if (i < 0 || i >= months.length) return;
       // the same day of the month there (the 31st: that month's last), today in today's month
-      pickDay(monthPick(grid, pick, months[i], today), { focus: false });
+      pickDay(monthPick(grid, pick, months[i], today, keepDay), { focus: false });
     };
     // Enter on the picked day: into its releases
     const openDay = () => {
@@ -478,7 +493,7 @@ export const renderCalendar = async (root) => {
       } else if (ev.key === "PageUp" || ev.key === "PageDown") {
         ev.preventDefault();
         if (at !== pick) pickDay(at);
-        goMonth(ev.key === "PageUp" ? -1 : 1);
+        goMonth(ev.key === "PageUp" ? -1 : 1, true);
         const b = buttonOf(pick);
         if (b) b.focus({ preventScroll: true });
       } else if (ev.key === "Home" || ev.key === "End") {
@@ -543,6 +558,8 @@ export const renderCalendar = async (root) => {
       },
       stop: () => {
         document.removeEventListener("nav-move", onNavMove);
+        window.removeEventListener("mousemove", onMouseMove, true);
+        window.removeEventListener("mouseover", onMouseOver, true);
         if (ro) ro.disconnect();
       },
     };

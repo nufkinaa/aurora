@@ -92,6 +92,7 @@ const BADGE_TONE: Record<string, string> = {
 };
 
 type NodeRef = {requestTVFocus?: () => void} | null;
+const NO_REF = {current: null};
 type Row =
   | {t: 'day'; key: string; text: string; today: boolean; first: boolean}
   | {t: 'entry'; key: string; e: CalendarEntry; n: number};
@@ -284,8 +285,10 @@ export default function Calendar({navigation}: NativeStackScreenProps<RootStackP
   const atTop = useRef(false);
   const tabRef = useRef(null);
   const viewRef = useRef(null);
+  const month = view === 'month' && hasGrid(cal);
   useFocusFallback(tabRef);
-  useFocusFallback(viewRef);
+  // (the month view's own fallback is its picked day — screens/CalendarMonth.tsx)
+  useFocusFallback(month ? NO_REF : viewRef);
   useTVKeys(
     useCallback((evt: {eventType: string}) => {
       if (evt.eventType !== 'up' || railOpen() || pressMovedFocus()) return;
@@ -365,7 +368,6 @@ export default function Calendar({navigation}: NativeStackScreenProps<RootStackP
     setView(v);
     saveCalendarView(v);
   };
-  const month = view === 'month' && hasGrid(cal);
   const retry = () => {
     setFailed(false);
     setReload(n => n + 1);

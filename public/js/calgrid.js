@@ -74,10 +74,11 @@ export const firstPick = (cal) => {
   return today;
 };
 
-// The day to pick when the month changes to `to`: today in today's month,
-// else the same day of the month as `pick` (the 31st: that month's last).
-export const monthPick = (grid, pick, to, today) => {
-  if (to === monthOf(today)) return today;
+// The day to pick when the month changes to `to`: today in today's month
+// (unless `keepDay`: PageUp / PageDown keep the day of the month), else the
+// same day of the month as `pick` (the 31st: that month's last).
+export const monthPick = (grid, pick, to, today, keepDay = false) => {
+  if (to === monthOf(today) && !keepDay) return today;
   const info = monthInfo(grid, to);
   const lastN = Number(((info && info.last) || `${to}-28`).slice(8, 10));
   return `${to}-${String(Math.min(Number(pick.slice(8, 10)), lastN)).padStart(2, "0")}`;

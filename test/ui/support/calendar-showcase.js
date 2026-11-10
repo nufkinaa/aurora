@@ -28,6 +28,7 @@ const TITLES = [
   ["tt8300010", "Signal Lost", "movie", "list", ["#10312a", "#050b09", "#9dffb0"], "ring"],
   ["tt8300011", "Arcadia Bay", "movie", "list", ["#1b5e6b", "#06171b", "#fff4d6"], "sun"],
   ["tt8300012", "Paper Lanterns", "movie", "list", ["#6b1d1d", "#170606", "#ffd9a8"], "crown"],
+  ["tt8300013", "Midnight Signal", "show", "list", ["#14213d", "#04060c", "#fca311"], "ring"],
 ];
 
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -64,7 +65,12 @@ const SCHEDULE = {
   tt8300006: [[1, 8, -200], [2, 1, 26, "Rouge"]],
   tt8300007: [[1, 3, -4], [1, 4, 3], [1, 5, 10]],
   tt8300008: [[1, 2, 1], [1, 3, 8]],
+  // an air TIME, not a date: 02:00 UTC five days from today — that day east of
+  // Greenwich, the evening before in the Americas (the time-zone test's title)
+  tt8300013: [[1, 3, { in: 5, utc: "02:00" }, "Static"]],
 };
+// 02:00 UTC n days from today, as a source writes an air time
+const airTime = ({ in: n, utc }) => `${day(n).slice(0, 10)}T${utc}:00.000Z`;
 const FILMS = {
   tt8300009: { theatrical: -12, home: 24 },
   tt8300010: { theatrical: 14, home: 70 },
@@ -79,7 +85,7 @@ const series = (imdbId, title, poster, eps) => ({
     id: imdbId, type: "show", imdbId, title, year: 2025, poster, backdrop: null, logo: null,
     synopsis: "", genres: [], rating: null, runtime: null, cast: [], director: null,
     seasons: Object.values(eps.reduce((acc, [s, e, n, name]) => {
-      (acc[s] = acc[s] || { number: s, episodes: [] }).episodes.push({ season: s, episode: e, title: name || `Episode ${e}`, overview: "", thumbnail: null, released: day(n) });
+      (acc[s] = acc[s] || { number: s, episodes: [] }).episodes.push({ season: s, episode: e, title: name || `Episode ${e}`, overview: "", thumbnail: null, released: typeof n === "object" ? airTime(n) : day(n) });
       return acc;
     }, {})),
     episodeCount: eps.length, tmdbId: null, trailers: [], certificate: null, kidsAge: null, originalLanguage: null,
@@ -126,4 +132,5 @@ const fill = async (api, profile, showLibId, { posterUrl = (id, svg) => dataUrl(
   }
 };
 
-module.exports = { seed, fill, posters, TITLES, SCHEDULE, FILMS, dataUrl };
+const IDS = Object.fromEntries(TITLES.map(([id, title]) => [title, id]));
+module.exports = { seed, fill, posters, TITLES, SCHEDULE, FILMS, IDS, dataUrl, airTime };
