@@ -35,7 +35,8 @@ test("the round's New cards are the same on the website and the TV", () => {
   const all = roundCards(web);
   const w = all.filter((c) => !c.webOnly);
   const t = roundCards(tv);
-  assert.ok(w.length >= 2, `website round cards: ${w.length}`);
+  // (one is a round too: 1.15.27 had the Calendar's month for all three, and two cards for the website alone)
+  assert.ok(w.length >= 1, `website round cards: ${w.length}`);
   assert.ok(t.every((c) => !c.webOnly), "a TV card is never web-only");
   // every `since: ROUND` on either side is a card this test read
   assert.equal(all.length, (web.match(/since: ROUND,/g) || []).length, "every website round card is read");

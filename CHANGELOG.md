@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.27 — 2026-11-10
+
+- **The Calendar is a real month** on the website, the TV and the phone app (Aurora TV 5.9.2, Aurora for Android phones 1.1.2). Each day shows its releases as posters (fanned on wide screens, one poster filling the day on phones and the TV), with the kind on a coloured edge and a tick for what's already on the server. The picked day's releases sit beside or under the month with Play and Save & watch. There is a Next up line, a Month / List switch remembered per device, the keyboard, D-pad and swipe to move between days and months, and reduced motion is honoured. Days and "today" follow the device's own time zone and week start. Older apps keep their unchanged lists.
+- **Posters ready as you scroll (computers).** Scrolling Home with a mouse met empty tiles and a screenful of posters sharpening at once. Now the posters further down are fetched, a few at a time, once the top of the page is in; a poster that arrives out of sight is simply there when you reach it; and a shelf the mouse rests on gets the rest of its row ready, so its arrow pages onto pictures. Measured 70 ms from the server at a brisk scroll: posters in place on arrival 66 % → 100 %. Not on slow lines, under Data saver, or on phones (which already load two screens ahead). Nothing looks different once a picture is in.
+- **Icons in the phone menu.** On the website on phones, every line in More now leads with an icon, the Android app's own glyph for that place, lined up in one column. Words, order and tap targets are unchanged, and the icons are skipped by screen readers.
+
 ## 1.15.26 — 2026-11-09
 
 **Aurora TV 5.9.1 and Aurora for Android phones 1.1.1** (checked on the Mi TV and the phone) — the apps catch up with the website:

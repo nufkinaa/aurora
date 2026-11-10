@@ -37,11 +37,14 @@ const PROFILE: Record<string, string[]> = {
   'phone/remote/controller.ts': ['devices', 'household', 'watchId'],
   // [phone-nav] AI pick: whether this profile has the recommender, and its last answer
   'phone/aiStatus.ts': ['known', 'asking'],
+  // [calendar-grid] the day picked on the month: Back from a title lands on it, the next profile starts fresh
+  'phone/screens/Calendar.tsx': ['lastPick'],
   'phone/screens/Pick.tsx': ['last'],
   'prefetch.ts': ['profileId', 'idleTimer', 'idleRest', 'warmedSections', 'dwell'],
   'realtime.ts': ['identity', 'lastActivity', 'lastLibraryMsg'],
   // [phone-remote] this TV as the profile's target (device_leave when the profile is left)
   'remote/target.ts': ['session'],
+  'screens/CalendarMonth.tsx': ['lastPick'],
   'screens/Detail.tsx': ['seasonPicks'],
   'screens/Pick.tsx': ['last'],
   // (telemetry's unsent books — errors, timings, control counts — are objects

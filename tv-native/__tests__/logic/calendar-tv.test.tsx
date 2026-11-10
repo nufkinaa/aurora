@@ -47,6 +47,7 @@ jest.mock('../../src/prefetch', () => ({warmItem: () => {}}));
 const mockGoSection = jest.fn();
 jest.mock('../../src/navSection', () => ({goSection: (...a: unknown[]) => mockGoSection(...a)}));
 jest.mock('../../src/navLock', () => ({canNavigate: () => true}));
+const mockKeys: {current: ((evt: {eventType: string}) => void) | null} = {current: null};
 jest.mock('../../src/focus', () => {
   const R = jest.requireActual('react');
   return {
@@ -54,7 +55,10 @@ jest.mock('../../src/focus', () => {
     pressMovedFocus: () => false,
     railOpen: () => false,
     useFocusFallback: () => {},
-    useTVKeys: () => true,
+    useTVKeys: (fn: (evt: {eventType: string}) => void) => {
+      mockKeys.current = fn;
+      return true;
+    },
     // focus.ts's own rule: the first cell, once, on the first fill
     useListClaim: (key: string, ready: boolean) => {
       const spent = R.useRef(null);
@@ -454,6 +458,37 @@ describe('the month', () => {
     await act(async () => arrows()[0].props.onPress());
     await act(async () => arrows()[0].props.onPress());
     expect(texts(r)).toContain('October ');
+  });
+
+  test('fast-forward / rewind turn the month, and the focus stays on the picked day', async () => {
+    await mountMonth();
+    await act(async () => btn(r, 'calendar.today')[0].props.onPress()); // (the last test's month is remembered)
+    await wait(250); // the arrival claim is done
+    await act(async () => dayOf(/^Today/).props.onFocusChange(true));
+    mockFocus.mockClear();
+    await act(async () => mockKeys.current!({eventType: 'fastForward'}));
+    expect(texts(r)).toContain('December ');
+    // the day that held the focus went with November: December's picked day takes it,
+    // at once and again after Android's own hand-off
+    expect(mockFocus.mock.calls).toEqual([['calendar.day', expect.stringMatching(/^Day 09/)]]);
+    await wait(200);
+    expect(mockFocus).toHaveBeenCalledTimes(2);
+    await act(async () => dayOf(/^Day 09/).props.onFocusChange(true));
+    mockFocus.mockClear();
+    await act(async () => mockKeys.current!({eventType: 'fastForward'})); // December is the last month
+    await wait(200);
+    expect(mockFocus).not.toHaveBeenCalled();
+    await act(async () => mockKeys.current!({eventType: 'rewind'}));
+    expect(texts(r)).toContain('November ');
+    expect(mockFocus).toHaveBeenCalledTimes(1);
+    await wait(200);
+    // from an arrow the focus is the arrow's
+    await act(async () => byUi(r, 'calendar.month')[0].props.onFocusChange?.(true));
+    mockFocus.mockClear();
+    await act(async () => mockKeys.current!({eventType: 'rewind'}));
+    expect(texts(r)).toContain('October ');
+    await wait(200);
+    expect(mockFocus).not.toHaveBeenCalled();
   });
 
   test('Next up picks its day', async () => {

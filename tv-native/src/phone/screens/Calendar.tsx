@@ -55,6 +55,7 @@ import {
 import type {Calendar as Cal, CalendarDay, CalendarEntry, CalendarTab, CalendarView} from '../../calendar';
 import {canNavigate} from '../../navLock';
 import {openItem} from '../../openItem';
+import {registerProfileCache} from '../../profileScope';
 import {showToast} from '../../toast';
 import {useRouteShown} from '../../useRouteShown';
 import {usePNav} from '../nav';
@@ -78,8 +79,13 @@ const BADGE: Partial<Record<CalendarEntry['state'], {pill: object; text: object}
 
 type Section = {key: string; title: string; today: boolean; data: CalendarEntry[]};
 
-// kept for the session: Back from a title lands on the same day of the month view
+// kept while this profile is here: Back from a title lands on the same day of
+// the month view. The next profile starts on its own next release
+// (profileScope.ts).
 let lastPick: string | null = null;
+registerProfileCache('phone/screens/Calendar', () => {
+  lastPick = null;
+});
 
 function Entry({e, saving, onOpen, onPlay, onSave}: {e: CalendarEntry; saving: boolean; onOpen: (e: CalendarEntry) => void; onPlay: (e: CalendarEntry) => void; onSave: (e: CalendarEntry) => void}) {
   const src = e.poster ? artSrc(e.poster, PIC_W).src : null;

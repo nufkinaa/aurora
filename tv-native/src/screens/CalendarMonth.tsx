@@ -45,6 +45,7 @@ import {
 } from '../calendar';
 import type {Calendar, CalendarCell, CalendarEntry, CalendarGrid} from '../calendar';
 import {noteOwnFocusMove, useFocusFallback, useTVKeys} from '../focus';
+import {registerProfileCache} from '../profileScope';
 import theme from '../theme';
 
 const {colors, fontSize, radius, spacing} = theme;
@@ -56,8 +57,13 @@ const PICK_AFTER_MS = 110; // a held direction does not redraw the panel on ever
 
 type NodeRef = {requestTVFocus?: () => void} | null;
 
-// kept for the session: Back from a title lands on the same day (and so its month)
+// kept while this profile is here: Back from a title lands on the same day
+// (and so its month). The next profile starts on its own next release
+// (profileScope.ts).
 let lastPick: string | null = null;
+registerProfileCache('CalendarMonth', () => {
+  lastPick = null;
+});
 
 const kindColor = (e: CalendarEntry) => KIND_COLORS[e.kind] || KIND_COLORS.episode;
 
@@ -340,16 +346,34 @@ export default function CalendarMonth({
     // OK: into the day's releases
     setTimeout(() => panelFirst.current?.requestTVFocus?.(), 0);
   }, []);
+  // A month turned from the remote while a day held the focus: that day goes with
+  // its month, and Android hands the focus to whatever is nearest (the Month /
+  // List switch). The new month's picked day takes it instead.
+  const turned = useRef(false);
   const goMonth = useCallback(
     (dir: -1 | 1) => {
       setClaiming(false);
       const j = months.indexOf(monthOf(pickNow.current)) + dir;
       if (j < 0 || j >= months.length) return;
       if (timer.current) clearTimeout(timer.current);
+      // (an arrow pressed keeps the focus itself: inGrid is false there)
+      turned.current = inGrid.current;
       setPick(monthPick(grid, pickNow.current, months[j], today));
     },
     [months, grid, today],
   );
+  useEffect(() => {
+    if (!turned.current) return;
+    turned.current = false;
+    const claim = () => {
+      noteOwnFocusMove();
+      pickRef.current?.requestTVFocus?.();
+    };
+    claim();
+    // …and once more, after Android's own hand-off has landed
+    const t = setTimeout(claim, 150);
+    return () => clearTimeout(t);
+  }, [shown]);
   const toToday = useCallback(() => {
     setClaiming(false);
     if (timer.current) clearTimeout(timer.current);

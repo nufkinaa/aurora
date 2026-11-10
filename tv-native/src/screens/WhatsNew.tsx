@@ -21,7 +21,7 @@ const {colors, fontSize, spacing, radius} = theme;
 // one place to change: its cards say `since: ROUND`, and NEW_FROM = ROUND puts the New
 // ribbon on them alone. (The website has the same cards: public/js/screens/whatsnew.js,
 // ROUND there; its `webOnly` cards — AirPlay from an iPhone — have nothing to do on a TV.)
-export const ROUND = '5.9.1';
+export const ROUND = '5.9.2';
 const NEW_FROM = ROUND;
 const cmpVersion = (a: string, b: string) => {
   const pa = a.split('.').map(Number);
@@ -33,6 +33,15 @@ export const isNewCard = (f: {since?: string}) => !!f.since && cmpVersion(f.sinc
 
 type Feature = {since?: string; glyph: string; title: string; what: string; how: string; go?: {label: string; act: string}};
 export const FEATURES: Feature[] = [
+  // ---- the 2026-11-10 round: the same card, the same words, on the website ----
+  {
+    since: ROUND,
+    glyph: '🗓️',
+    title: "The Calendar is a real month",
+    what: "See the whole month at a glance: each release's poster on its day, a coloured edge for premieres, new episodes and films, and a tick for what's already on the server. Pick a day to see it in full, and Next up shows what's coming soonest. The list is still there: switch between Month and List.",
+    how: "Press Left for the menu → Calendar. On the phone: More → Calendar.",
+    go: {label: 'Go home', act: 'home'},
+  },
   // ---- [play-on-tv] Play on TV / Continue on this phone: the same card, the same words, on the website ----
   {
     since: '5.9.0',
@@ -44,7 +53,7 @@ export const FEATURES: Feature[] = [
   },
   // ---- the 2026-11-09 round: the same cards, the same words, on the website ----
   {
-    since: ROUND,
+    since: '5.9.1',
     glyph: '🎚️',
     title: "Pictures on the timeline",
     what: "Drag or skip and you see the moment you will land on. On the TV, hold left or right to glide, faster the longer you hold. The Next episode countdown is back at the credits, with Watch credits to stay.",
@@ -52,7 +61,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Go home', act: 'home'},
   },
   {
-    since: ROUND,
+    since: '5.9.1',
     glyph: '📅',
     title: "Calendar",
     what: "New episodes, season premieres and film release dates for everything in your list and the shows you follow, by day: Coming up and Recently out. It shows what is already on the server, with Play, and Save & watch for what is not.",
@@ -60,7 +69,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Go home', act: 'home'},
   },
   {
-    since: ROUND,
+    since: '5.9.1',
     glyph: '🎞️',
     title: "Watch franchises in order",
     what: "A film's page now says where it sits in its franchise. Watch in order lists every film and series in order, with what's on the server and what you've seen, in release or story order. At the end of a film the next one is offered, and Home has Continue the franchise.",

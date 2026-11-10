@@ -21,9 +21,31 @@ import { showReportSheet } from "../report.js";
 // (The TV has the same cards: tv-native/src/screens/WhatsNew.tsx, ROUND there.
 // A card about something only a browser has says `webOnly: true` first —
 // test/whatsnew-parity.test.js leaves it out of the comparison.)
-export const ROUND = "1.15.26";
+export const ROUND = "1.15.27";
 const NEW_FROM = ROUND;
 const FEATURES = [
+  // ---- the 2026-11-10 round: the month on the website, the TV and the phone app; two for the website alone ----
+  {
+    since: ROUND, cue: "tap", glyph: "🗓️",
+    title: "The Calendar is a real month",
+    what: "See the whole month at a glance: each release's poster on its day, a coloured edge for premieres, new episodes and films, and a tick for what's already on the server. Pick a day to see it in full, and Next up shows what's coming soonest. The list is still there: switch between Month and List.",
+    how: "The menu → Calendar (on a phone: More → Calendar).",
+    go: { label: "Open Calendar", to: "#/calendar" },
+  },
+  {
+    webOnly: true, since: ROUND, cue: "tap", glyph: "🖼️",
+    title: "Posters ready as you scroll",
+    what: "On a computer, the posters further down the page are fetched while you look at the top, so a quick scroll meets pictures instead of empty tiles. A shelf your mouse rests on gets the rest of its row ready too.",
+    how: "Scroll Home with a mouse, or rest it on a shelf.",
+    go: { label: "Go home", to: "#/" },
+  },
+  {
+    webOnly: true, since: ROUND, cue: "tap", glyph: "🧭",
+    title: "Icons in the phone menu",
+    what: "Every line in More now has its icon, the same ones as the Aurora phone app, so you find your place at a glance.",
+    how: "On a phone: More.",
+    go: { label: "Go home", to: "#/" },
+  },
   // ---- [play-on-tv] Play on TV / Continue on this phone: the same card, the same words, on the TV ----
   {
     since: "1.15.20", cue: "tap", glyph: "📺",
@@ -34,21 +56,21 @@ const FEATURES = [
   },
   // ---- the 2026-11-09 round: the same cards, the same words, on the TV ----
   {
-    since: ROUND, cue: "tap", glyph: "🎚️",
+    since: "1.15.26", cue: "tap", glyph: "🎚️",
     title: "Pictures on the timeline",
     what: "Drag or skip and you see the moment you will land on. On the TV, hold left or right to glide, faster the longer you hold. The Next episode countdown is back at the credits, with Watch credits to stay.",
     how: "In the player: drag the bar, or use the arrow keys.",
     go: { label: "Go home", to: "#/" },
   },
   {
-    since: ROUND, cue: "tap", glyph: "📅",
+    since: "1.15.26", cue: "tap", glyph: "📅",
     title: "Calendar",
     what: "New episodes, season premieres and film release dates for everything in your list and the shows you follow, by day: Coming up and Recently out. It shows what is already on the server, with Play, and Save & watch for what is not.",
     how: "The menu → Calendar (on a phone: More → Calendar).",
     go: { label: "Open Calendar", to: "#/calendar" },
   },
   {
-    since: ROUND, cue: "tap", glyph: "🎞️",
+    since: "1.15.26", cue: "tap", glyph: "🎞️",
     title: "Watch franchises in order",
     what: "A film's page now says where it sits in its franchise. Watch in order lists every film and series in order, with what's on the server and what you've seen, in release or story order. At the end of a film the next one is offered, and Home has Continue the franchise.",
     how: "Open a film from a franchise → Part of … → Watch in order.",
