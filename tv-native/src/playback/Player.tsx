@@ -163,7 +163,7 @@ import {personNow} from '../personSync';
 import {track} from '../usage';
 import {clearImageMemory, isLowRam} from '../perfTier';
 import {RootStackParamList} from '../navigation';
-import {glassMenu, ink} from '../glass';
+import {glassMenu, ink, inkOnWhite} from '../glass';
 import GlassEdge from '../components/GlassEdge';
 import theme, {useTvMetrics} from '../theme';
 // [android-phone] the phone app draws its own touch controls over this same
@@ -513,10 +513,19 @@ const MenuItem = React.forwardRef<
     uiId?: string; // [analytics] which control this is (Focusable.uiId)
   }
 >(function PlayerMenuItem({label, tag, on, star, sub, icon, dim, hasTVPreferredFocus, onPress, onFocusChange, uiId}, ref) {
+  // The TV: the focused row is the white fill with dark words - the rail's focused item, the
+  // transport's focused button - and not a slightly lighter grey pill on a grey menu (which the
+  // set row's lilac word made weaker still: two judges, 2026-11-10). The fill rides on
+  // highlightColor, natively; the words need this one bit of state, as PBtn's icon does - a
+  // handful of rows that exist while a menu is open. The phone: nothing changes.
+  const [focused, setFocused] = useState(false);
+  const lit = focused && !PHONE;
   const name = (
-    <Text style={[styles.menuItemText, on && styles.menuItemTextOn, dim && styles.menuItemDim]} numberOfLines={1}>
+    <Text
+      style={[styles.menuItemText, on && styles.menuItemTextOn, dim && styles.menuItemDim, lit && (dim ? styles.menuLitDim : styles.menuLit)]}
+      numberOfLines={1}>
       {label}
-      {star ? <Text style={styles.menuStar}>{'  ★'}</Text> : null}
+      {star ? <Text style={[styles.menuStar, lit && styles.menuLitStar]}>{'  ★'}</Text> : null}
     </Text>
   );
   return (
@@ -525,28 +534,79 @@ const MenuItem = React.forwardRef<
       round
       noScale
       ring="none"
-      highlightColor={colors.surfaceHover}
+      highlightColor={PHONE ? colors.surfaceHover : colors.white}
       hasTVPreferredFocus={hasTVPreferredFocus}
-      onFocusChange={onFocusChange}
+      onFocusChange={
+        PHONE
+          ? onFocusChange
+          : f => {
+              setFocused(f);
+              onFocusChange?.(f);
+            }
+      }
       uiId={uiId}
       onPress={onPress}
       style={styles.menuItem}>
-      <Text style={[styles.menuCheck, !on && styles.menuCheckOff]}>✓</Text>
-      {icon ? <Icon name={icon} size={14} color={PHONE ? (on ? colors.text : colors.textDim) : on ? ink.on : ink.text} /> : null}
+      <Text style={[styles.menuCheck, !on && styles.menuCheckOff, lit && styles.menuLit]}>✓</Text>
+      {icon ? (
+        <Icon
+          name={icon}
+          size={14}
+          color={PHONE ? (on ? colors.text : colors.textDim) : lit ? inkOnWhite.text : on ? ink.on : ink.text}
+        />
+      ) : null}
       {sub ? (
         <View style={styles.menuItemCol}>
           {name}
-          <Text style={styles.menuSub} numberOfLines={dim ? 2 : 1}>
+          <Text style={[styles.menuSub, lit && styles.menuLitSecond]} numberOfLines={dim ? 2 : 1}>
             {sub}
           </Text>
         </View>
       ) : (
         name
       )}
-      {tag ? <Text style={styles.menuTag}>{tag}</Text> : null}
+      {tag ? <Text style={[styles.menuTag, lit && styles.menuLitSecond]}>{tag}</Text> : null}
     </Focusable>
   );
 });
+
+// A nudge of the subtitle timing ("-5s", "+0.5s", "Reset"): on the TV the same white fill and
+// dark word under focus as a menu row; on the phone as it was.
+function SyncBtn({
+  label,
+  a11y,
+  onPress,
+  onFocusChange,
+}: {
+  label: string;
+  a11y: string;
+  onPress: () => void;
+  onFocusChange?: (f: boolean) => void;
+}) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <Focusable
+      round
+      noScale
+      ring="none"
+      highlightColor={PHONE ? colors.surfaceHover : colors.white}
+      accessibilityLabel={a11y}
+      onFocusChange={
+        PHONE
+          ? onFocusChange
+          : f => {
+              setFocused(f);
+              onFocusChange?.(f);
+            }
+      }
+      onPress={onPress}
+      style={styles.syncBtn}>
+      <Text style={[styles.syncBtnText, focused && !PHONE && styles.menuLit]} numberOfLines={1}>
+        {label}
+      </Text>
+    </Focusable>
+  );
+}
 
 // A subtitle track as the player uses it: the server's track plus `key`, a
 // stable unique id for the menu and the current selection (subTracks.ts
@@ -5543,47 +5603,27 @@ export default function Player({
                 <MenuTitle icon="forward10" label="SUBTITLE TIMING" gap />
                 <View style={styles.syncRow}>
                   {[-5, -0.5].map(d => (
-                    <Focusable
+                    <SyncBtn
                       key={d}
-                      round
-                      noScale
-                      ring="none"
-                      highlightColor={colors.surfaceHover}
-                      accessibilityLabel={`Subtitles ${Math.abs(d)} seconds earlier`}
+                      label={`−${Math.abs(d)}s`}
+                      a11y={`Subtitles ${Math.abs(d)} seconds earlier`}
                       onFocusChange={markZone('menu')}
                       onPress={() => nudgeSubs(d)}
-                      style={styles.syncBtn}>
-                      <Text style={styles.syncBtnText} numberOfLines={1}>{`−${Math.abs(d)}s`}</Text>
-                    </Focusable>
+                    />
                   ))}
                   <Text style={styles.syncValue} numberOfLines={1}>
                     {`${subOffset >= 0 ? '+' : '−'}${Math.abs(subOffset).toFixed(1)}s`}
                   </Text>
                   {[0.5, 5].map(d => (
-                    <Focusable
+                    <SyncBtn
                       key={d}
-                      round
-                      noScale
-                      ring="none"
-                      highlightColor={colors.surfaceHover}
-                      accessibilityLabel={`Subtitles ${d} seconds later`}
+                      label={`+${d}s`}
+                      a11y={`Subtitles ${d} seconds later`}
                       onFocusChange={markZone('menu')}
                       onPress={() => nudgeSubs(d)}
-                      style={styles.syncBtn}>
-                      <Text style={styles.syncBtnText} numberOfLines={1}>{`+${d}s`}</Text>
-                    </Focusable>
+                    />
                   ))}
-                  <Focusable
-                    round
-                    noScale
-                    ring="none"
-                    highlightColor={colors.surfaceHover}
-                    accessibilityLabel="Reset subtitle timing"
-                    onFocusChange={markZone('menu')}
-                    onPress={resetSubDelay}
-                    style={styles.syncBtn}>
-                    <Text style={styles.syncBtnText} numberOfLines={1}>Reset</Text>
-                  </Focusable>
+                  <SyncBtn label="Reset" a11y="Reset subtitle timing" onFocusChange={markZone('menu')} onPress={resetSubDelay} />
                 </View>
               </>
             ) : null}
@@ -6585,4 +6625,10 @@ const styles = StyleSheet.create({
   // [player-options]
   stylePreview: {marginHorizontal: 8, marginTop: 4, marginBottom: 6},
   menuItemDim: {opacity: 0.5},
+  // [glass] the TV's FOCUSED menu row: dark words on the white fill (glass.ts inkOnWhite)
+  menuLit: {color: inkOnWhite.text},
+  menuLitSecond: {color: inkOnWhite.second},
+  menuLitStar: {color: inkOnWhite.star},
+  // a row that cannot apply here: a solid grey on white, not black at half strength
+  menuLitDim: {color: inkOnWhite.dim, opacity: 1},
 });

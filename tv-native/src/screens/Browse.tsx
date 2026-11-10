@@ -998,7 +998,9 @@ const styles = StyleSheet.create({
     zIndex: 101,
   },
   // The pane: 14-16 dp round the controls (which sit at 18..252 and 18..513 of
-  // the panel), so it floats clear of the screen's edges like the rail's. Its
+  // the panel), clear of the screen's top and side like the rail's, and like the
+  // rail's standing on the screen's foot (it floated 11 dp above it, and the
+  // grid's posters showed in those 11 dp and round its foot corners). Its
   // corner is 28, not the rail's 38: the kicker is plain text in the top-left
   // corner, and under a 38 corner it sat against the curve (Mi TV). Opaque,
   // like the rail: measured on the Streamer, a 3% see-through reads as ghost
@@ -1007,17 +1009,18 @@ const styles = StyleSheet.create({
   pane: {
     position: 'absolute',
     top: 4,
-    bottom: 11,
+    bottom: 0,
     left: 2,
     right: 32,
-    borderRadius: 28,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     ...glassPane,
   },
-  // 48 dp outside the pane on every side
+  // 48 dp outside the pane at its top and its sides, and cut where the screen ends
   paneEdge: {
     position: 'absolute',
     top: 4 - 48,
-    bottom: 11 - 48,
+    bottom: 0,
     left: 2 - 48,
     right: 32 - 48,
     width: undefined,

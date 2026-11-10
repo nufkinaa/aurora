@@ -29,7 +29,7 @@ the pane's round corners, exactly what the gradients drew:
 
     a menu, a sheet      top 22 % -> 0 over 15 dp, each side 7 % -> 0 over
                          12 dp, foot 10 % -> 0 over 13 dp
-    the rail, the        top 18 % -> 0 over 9 dp, foot 8 % -> 0 over 8 dp
+    the rail, the        top 18 % -> 0 over 9 dp (they have no foot, see below)
     filter panel
 
 The rail and the filter panel slide in over the page, so their one picture
@@ -37,10 +37,17 @@ holds the rest of the glass as well, and the pane under it is a plain round box
 with no border and no gradient:
 
     the rim              a 1 dp line just inside the edge: white 28 % on top,
-                         12 % at the foot, 5.5 % down the sides (glass.ts
-                         `rim`); round a corner it turns from the one to the
-                         other with the slope of the curve
+                         5.5 % down the sides (glass.ts `rim`); round a corner
+                         it turns from the one to the other with the slope of
+                         the curve
     the sheen            white 5 % at the top -> 0 at 48 % of the height
+
+Those two STAND ON THE SCREEN'S FOOT: round corners at the top, straight sides
+down to the last row of the screen, no foot of their own. (They floated 11 dp
+above it, and the page's cards showed in those 11 dp and round the two foot
+corners - right under the rail's profile pill.) Their picture is baked for a
+taller pane and cut where the screen ends, so the sides, their line and the
+shadow beside them run on to the cut unchanged.
 
 Geometry, in dp: a pane W x H with corner radius R, and MARGIN dp of room on
 every side. A picture is laid out as (W + 2*MARGIN) x (H + 2*MARGIN) with the
@@ -51,9 +58,10 @@ the picture - past the light - is empty.
 Two kinds:
 
   * one whole picture for a pane of a known size - the nav rail, Browse's
-    filter panel (`glass-pane-edge*.png`): shadow, rim, glow and sheen.
-    `resizeMode="stretch"` lets the one file serve any panel height (every TV
-    is 540 dp tall today, so it is drawn pixel for pixel).
+    filter panel (`glass-pane-edge*.png`): shadow, rim, glow and sheen. It is
+    (W + 2*MARGIN) x (MARGIN + H): no room under the pane, which ends with the
+    screen. `resizeMode="stretch"` lets the one file serve any panel height
+    (every TV is 540 dp tall today, so it is drawn pixel for pixel).
   * nine pieces for a pane of ANY size - a sheet, a player menu, the genre
     popup, X-Ray (components/GlassEdge.tsx): a corner picture per corner radius
     (the top one and the foot one, mirrored for the right side) and three runs
@@ -81,11 +89,15 @@ LIGHT_CHROME = {'top': (0.18, 9), 'side': None, 'foot': (0.08, 8)}
 RIM_CHROME = {'top': 0.28, 'side': 0.055, 'foot': 0.12}
 SHEEN = (0.05, 0.48)  # strength at the top, the share of the height it fades over
 
-# name, pane width, pane height (the height a 540dp panel gives; stretched otherwise), corner radius
+# name, pane width, pane height down to the screen's foot (the height a 540dp panel gives;
+# stretched otherwise), corner radius (the top corners: these panes have no foot)
 PANES = [
-    ('glass-pane-edge', 208, 518, 38),      # NavRail: left 32, top 11, bottom 11
-    ('glass-pane-edge-wide', 266, 525, 28), # Browse filter panel: left 2, right 32, top 4, bottom 11
+    ('glass-pane-edge', 208, 529, 38),      # NavRail: left 32, top 11, to the foot
+    ('glass-pane-edge-wide', 266, 536, 28), # Browse filter panel: left 2, right 32, top 4, to the foot
 ]
+# how much taller than what shows such a pane is baked: past its soft shadow (14 dp down, a
+# blur of 34), its corner and its foot's light, so none of the foot reaches the cut
+FOOT_OFF = 160
 
 # the nine pieces: corner radii, and how far the pictures reach into the pane
 SLICE_RADII = (14, 18, 22, 24)  # the genre popup, a player menu, a sheet, a sheet on the screen's foot
@@ -193,8 +205,11 @@ def rim(w, h, radius, scale, lines):
     return out
 
 
-def light(w, h, scale, bands, sheen=None):
-    """The bands of light (and the sheen), as the alpha of white over the pane's whole box (not yet cut to its corners)."""
+def light(w, h, scale, bands, sheen=None, sheen_h=None):
+    """The bands of light (and the sheen), as the alpha of white over the pane's whole box (not yet cut to its corners).
+
+    `sheen_h`: the height the sheen's share is of, where it is not the baked height (a pane cut at the screen's foot).
+    """
     s = scale
     size, x0, y0, x1, y1 = geometry(w, h, s)
 
@@ -210,18 +225,18 @@ def light(w, h, scale, bands, sheen=None):
     for y in range(y0, y1 + 1):
         down = 1 - (1 - band(y - y0, bands['top'])) * (1 - band(y1 - y, bands['foot']))
         if sheen:
-            down = 1 - (1 - down) * (1 - band(y - y0, (sheen[0], sheen[1] * h)))
+            down = 1 - (1 - down) * (1 - band(y - y0, (sheen[0], sheen[1] * (sheen_h or h))))
         row = y * size[0] + x0
         for i, a in enumerate(across):
             data[row + i] = round(255 * (1 - (1 - down) * (1 - a)))
     return Image.frombytes('L', size, bytes(data))
 
 
-def edge(w, h, radius, scale, bands, lines=None, sheen=None):
+def edge(w, h, radius, scale, bands, lines=None, sheen=None, sheen_h=None):
     """The whole picture: black shadow outside the pane, white light inside it."""
     out = outside(w, h, radius, scale)
     dark = shadow(w, h, radius, scale)
-    lit = light(w, h, scale, bands, sheen)
+    lit = light(w, h, scale, bands, sheen, sheen_h)
     if lines:
         lit = over(lit, rim(w, h, radius, scale, lines))
     data = bytearray()
@@ -271,6 +286,8 @@ def bake_slices(scale):
 if __name__ == '__main__':
     for name, w, h, radius in PANES:
         for scale in (1, 2):
-            save(edge(w, h, radius, scale, LIGHT_CHROME, RIM_CHROME, SHEEN), name, scale)
+            # baked taller, cut at the screen's foot: the picture ends with the pane
+            whole = edge(w, h + FOOT_OFF, radius, scale, LIGHT_CHROME, RIM_CHROME, SHEEN, sheen_h=h)
+            save(whole.crop((0, 0, whole.size[0], (MARGIN + h) * scale)), name, scale)
     for scale in (1, 2):
         bake_slices(scale)

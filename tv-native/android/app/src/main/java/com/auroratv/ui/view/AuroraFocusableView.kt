@@ -215,7 +215,9 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
       BackgroundStyleApplicator.setBorderWidth(lr, LogicalEdge.ALL, LIGHT_RING.toFloat())
       BackgroundStyleApplicator.setBorderColor(lr, LogicalEdge.ALL, lightRingColor ?: ringColor ?: FOCUS_RING_COLOR)
       BackgroundStyleApplicator.setBorderRadius(lr, BorderRadiusProp.BORDER_RADIUS, dp(ringRadius + LIGHT_GAP + LIGHT_RING))
-      val lightShadow = shadowArray(0.0, 10.0, 24.0, 0.0, TOKEN_SHADOW_COLOR)
+      // a transparent `shadowColor` = "no drop shadow" (Focusable.tsx FlatFocus: a ring inside an
+      // opaque sheet, whose scroll box cut the shadow to a square)
+      val lightShadow: ReadableArray? = if (flatShadow()) null else shadowArray(0.0, 10.0, 24.0, 0.0, TOKEN_SHADOW_COLOR)
       if (SHADOW_CACHE) syncRingShadow(lr, lightShadow, dp(ringRadius + LIGHT_GAP + LIGHT_RING))
       else BackgroundStyleApplicator.setBoxShadow(lr, lightShadow)
     } else {
@@ -240,7 +242,8 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
         BackgroundStyleApplicator.setBorderWidth(r, LogicalEdge.ALL, ringWidth.toFloat())
         BackgroundStyleApplicator.setBorderColor(r, LogicalEdge.ALL, ringColor ?: FOCUS_RING_COLOR)
         BackgroundStyleApplicator.setBorderRadius(r, BorderRadiusProp.BORDER_RADIUS, dp(ringRadius))
-        val ringShadowArray = shadowArray(shadowOffsetX, shadowOffsetY, shadowBlur, shadowSpread, shadowColor ?: TOKEN_SHADOW_COLOR)
+        val ringShadowArray: ReadableArray? =
+          if (flatShadow()) null else shadowArray(shadowOffsetX, shadowOffsetY, shadowBlur, shadowSpread, shadowColor ?: TOKEN_SHADOW_COLOR)
         if (SHADOW_CACHE) syncRingShadow(r, ringShadowArray, dp(ringRadius))
         else BackgroundStyleApplicator.setBoxShadow(r, ringShadowArray)
       }
@@ -292,6 +295,9 @@ class AuroraFocusableView(context: Context) : ReactViewGroup(context) {
   private fun dp(v: Double) = LengthPercentage(v.toFloat(), LengthPercentageType.POINT)
 
   /** The map RN's own `boxShadow` prop setter receives (processBoxShadow's output, in dp). */
+  /** The caller asked for no drop shadow: a fully transparent `shadowColor`. */
+  private fun flatShadow(): Boolean = shadowColor?.let { (it ushr 24) == 0 } ?: false
+
   private fun shadowArray(ox: Double, oy: Double, blur: Double, spread: Double, color: Int): ReadableArray {
     val m: WritableMap = Arguments.createMap()
     m.putDouble("offsetX", ox)

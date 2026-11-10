@@ -7,6 +7,7 @@ import {useKeyTrap} from '../focus';
 import {sheetMaxHeight} from '../popupFit';
 import {glassMenu, ink} from '../glass';
 import GlassEdge from './GlassEdge';
+import {FlatFocus} from './Focusable';
 import theme, {useTvMetrics} from '../theme';
 
 const {colors, fontSize, spacing} = theme;
@@ -64,10 +65,14 @@ export default function Sheet({
         {accent ? null : <GlassEdge radius={22} />}
         {kicker ? <Text style={styles.kicker}>{kicker}</Text> : null}
         {title ? <Text style={styles.title}>{title}</Text> : null}
-        <ScrollView ref={scrollRef} style={styles.body} contentContainerStyle={styles.bodyIn} showsVerticalScrollIndicator={false}>
-          {children}
-        </ScrollView>
-        {footer ? <View style={styles.footer}>{footer}</View> : null}
+        {/* FlatFocus: on this opaque card a focused button keeps its ring and loses the ring's
+            drop shadow, which the body's scroll box cut to a square (Focusable.tsx) */}
+        <FlatFocus.Provider value={true}>
+          <ScrollView ref={scrollRef} style={styles.body} contentContainerStyle={styles.bodyIn} showsVerticalScrollIndicator={false}>
+            {children}
+          </ScrollView>
+          {footer ? <View style={styles.footer}>{footer}</View> : null}
+        </FlatFocus.Provider>
       </TVFocusGuideView>
     </View>
   );

@@ -61,9 +61,41 @@ export const ink = {
   second: '#D0D5E2',
   /** the third voice: a label, a hint - 7.3:1 on the body (the page's faint grey is 2.7:1 there) */
   third: '#B2B8CA',
-  /** the CHOSEN word and icon: the accent mixed 60 % with white */
+  /** the SET word, tick and icon (a chip, a menu row), and a kicker: the accent mixed 60 % with white */
   on: '#B9B0FF',
+  /**
+   * the CHOSEN section in the rail: full white, and heavier (CHOSEN_WEIGHT). In
+   * `on` it measured 8.86:1 in its well and still read as switched off beside the
+   * resting white labels - a tint is dimmer than white, whatever its ratio.
+   */
+  chosen: '#FFFFFF',
 } as const;
+/** The chosen rail label's weight; a resting one is 600. */
+export const CHOSEN_WEIGHT = '800';
+
+/**
+ * What is written on a FOCUSED row of a player menu - the white fill, as the
+ * rail's focused item. The ratios on white are measured in docs/glass-tv.md.
+ */
+export const inkOnWhite = {
+  /** the word, the tick, the icon */
+  text: '#0B0C14',
+  /** the second line, the tag */
+  second: '#454A5C',
+  /** the word of a row that cannot apply here (it was white at half strength) */
+  dim: '#62677A',
+  /** the star of the matching subtitle track (the score gold is 1.6:1 on white) */
+  star: '#7A5C00',
+} as const;
+
+/**
+ * No drop shadow under a focus ring: what a Focusable inside an opaque sheet
+ * asks for (components/Focusable.tsx FlatFocus). The shadow is there to lift a
+ * focused element off a PICTURE; on a flat grey sheet it did nothing but show
+ * where the sheet's scroll boxes cut it - a square dark box round a round
+ * button (Mi TV, the title sheet's Play and X-Ray's first face).
+ */
+export const NO_SHADOW = '0 0 0 rgba(0,0,0,0)';
 
 // The sheen: white 5 % at the top -> 0 at 48 % of the pane's height. The one
 // gradient a pane carries.
@@ -76,13 +108,14 @@ const SHEEN_SMALL = 'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255
 //                         side white  7 % -> 0 over 12 dp
 //                         foot white 10 % -> 0 over 13 dp  (not on a sheet that stands on the screen's foot)
 //   the rail, the         top  white 18 % -> 0 over 9 dp
-//   filter panel          foot white  8 % -> 0 over 8 dp
+//   filter panel          (no foot: they run off the screen's foot)
 // A menu's is thicker, as the website's second pass gave it: it is what tells
 // the pane from the page now that nothing shows through it.
 
 /**
  * The rim of the chrome (the rail, the filter panel): a bright hairline on top,
- * a dimmer one at the foot, barely a line at the sides. These panes do not draw
+ * barely a line at the sides (and a dimmer one at the foot, for a pane that has
+ * a foot - these two run off the screen's). These panes do not draw
  * it themselves - it is in their edge picture (gen_glass_edge.py reads the same
  * three numbers); kept here as the one place the values are written.
  */
@@ -111,7 +144,8 @@ export const HAIRLINE = '0 0 0 0.5px rgba(0,0,0,0.30)';
 
 /**
  * A pane of the chrome over the bare page (the rail, the filter panel): the
- * body alone. Add a radius, and lay the pane's edge picture
+ * body alone. Add a radius at its top corners (it stands on the screen's foot:
+ * under a floating foot the page's cards showed in the 11 dp left), and lay the pane's edge picture
  * (assets/glass-pane-edge*.png) OVER it - the picture holds the shadow, the
  * rim, the glow and the sheen.
  */
@@ -147,7 +181,7 @@ export const glassToast = {
 /**
  * "Chosen" on glass: a darker well pressed into the pane - black 40 %, a shadow
  * falling in from its top edge, a light line at its foot - with the word in
- * `ink.on`. Laid as an absolutely-positioned child UNDER the label (a border on
+ * `ink.on` (a chip) or `ink.chosen` (the rail). Laid as an absolutely-positioned child UNDER the label (a border on
  * a Focusable itself eats the 3 dp its ring is drawn in). The well is never the
  * focus cue: focus stays the white fill / white ring it always was.
  */
