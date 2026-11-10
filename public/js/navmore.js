@@ -8,21 +8,19 @@
 // off the end of it). More opens the TV's side menu (tv-native
 // src/components/NavRail.tsx), made for a finger: it comes in from the left
 // over the page, the Aurora mark and wordmark on top, the TV's places in the
-// TV's order and words (Search and Settings with the TV's icons, the rest
-// words), then every other place a person reaches on the TV or the phone app,
-// with Settings and the profile at the foot. The map: docs/web-nav.md.
+// TV's order and words, then every other place a person reaches on the TV or
+// the phone app, with Settings and the profile at the foot. Every line wears
+// the phone app's icon for it (js/navicons.js; elia 2026-11-10: "on the side
+// panel on web mobile put icons also"). The map: docs/web-nav.md.
 // The tab itself is in index.html; desktop and tablet never show it.
 import { el, $ } from "./ui.js";
 import { navigate, hasRoute } from "./router.js";
 import { pushScope, popScope } from "./focus.js";
-
-// The TV's two icons (the rail's search 18 and gear 19, the site's own glyphs).
-const SEARCH = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
-const GEAR = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+import { navIcon, MIRRORED } from "./navicons.js";
 
 // The menu, top to bottom: [id, words, where it goes, options]. To add a
-// place, add a line (and its id to TAG below); `when` keeps a line out until
-// it applies.
+// place, add a line (its id to TAG below, and its icon to js/navicons.js);
+// `when` keeps a line out until it applies.
 //   - the TV's rail, in its order and words: Search, Home, Movies, Shows,
 //     My List, (Calendar), AI
 //   - then, under a hairline, the places the TV and the phone app reach from
@@ -30,7 +28,7 @@ const GEAR = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke
 //   - then the three things that are not pages
 //   - at the foot, as on the TV: Settings, and you
 export const MENU = [
-  ["search", "Search", "#/search", { icon: SEARCH }],
+  ["search", "Search", "#/search"],
   ["home", "Home", "#/", { exact: true }],
   ["movies", "Movies", "#/movies"],
   ["shows", "Shows", "#/shows"],
@@ -54,7 +52,7 @@ export const MENU = [
   ["report", "Report a problem", "event:aurora-report"],
 ];
 export const FOOT = [
-  ["settings", "Settings", "#/preferences", { icon: GEAR }],
+  ["settings", "Settings", "#/preferences"],
   ["profile", "Profile", "profile"],
 ];
 // each line's data-ui id, written out (the controls contract reads literals)
@@ -91,13 +89,13 @@ const row = ([id, words, to, opts = {}]) => {
     "data-more": id,
     ...(on ? { "aria-current": "page" } : {}),
   };
-  let lead = null;
-  if (opts.icon) lead = el("span", { class: "nav-more-icon", html: opts.icon });
+  // the line's icon, in a column of its own so the words line up
+  let lead = el("span", { class: "nav-more-icon" + (MIRRORED.has(id) ? " flip" : ""), "aria-hidden": "true", html: navIcon(id) });
   if (id === "profile") {
     // you, as the TV draws you: the avatar and your name on a pill
     const chip = document.getElementById("nav-avatar");
-    lead = chip ? chip.cloneNode(true) : el("span", { class: "avatar" }, "🍿");
-    lead.removeAttribute("id");
+    // (the person's avatar is the line's picture; without one, the person glyph)
+    if (chip) { lead = chip.cloneNode(true); lead.removeAttribute("id"); lead.setAttribute("aria-hidden", "true"); }
     words = (document.getElementById("nav-profile-name")?.textContent || "").trim() || words;
   }
   const body = [

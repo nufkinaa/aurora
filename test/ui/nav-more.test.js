@@ -248,6 +248,121 @@ for (const look of ["glass", "legacy"]) {
   }
 }
 
+// Every line wears its icon (elia, 2026-11-10: "on the side panel on web
+// mobile put icons also"): the phone app's glyph for that place
+// (js/navicons.js), one per line, all in one box, in a column so the words
+// start at one line — the profile's avatar ends where that column does. The
+// icons are decoration: hidden from assistive tech, the line's name is its
+// words. With AI and the Calendar listed, at 320, 360 and 414, in both looks,
+// and once read right to left. SHOTS: the open menu, scrolled to its top and
+// to its foot.
+for (const look of ["glass", "legacy"]) {
+  for (const [width, height] of [[320, 568], [360, 780], [414, 896]]) {
+    ui.test(`${look}, ${width} px: every line of More has its icon, the words line up`, { viewport: { width, height }, device: { screen: { width, height }, deviceScaleFactor: 2, userAgent: IPHONE } }, async ({ page, api, signIn, freshProfile, goto }) => {
+      const me = await freshProfile();
+      if (look === "legacy") await api.ok("PUT", `/api/profiles/${me.id}`, { look: "legacy" }, await api.as(me));
+      await aiOn(page);
+      await signIn(me);
+      await goto("#/movies");
+      await page.waitForFunction(() => !document.getElementById("nav-pick").classList.contains("hidden"));
+      await page.evaluate(() => document.getElementById("nav-new").classList.add("has-new"));
+      await openSheet(page);
+      const read = () => page.evaluate(() => [...document.querySelectorAll(".nav-more-item")].map((row) => {
+        const icon = row.querySelector(":scope > .nav-more-icon");
+        const avatar = row.querySelector(":scope > .avatar");
+        const label = row.querySelector(".nav-more-label");
+        const b = row.getBoundingClientRect();
+        const i = icon && icon.getBoundingClientRect();
+        const s = icon && icon.querySelector("svg").getBoundingClientRect();
+        const l = label.getBoundingClientRect();
+        const range = document.createRange();
+        range.selectNodeContents(label);
+        return {
+          id: row.dataset.more, words: label.textContent,
+          svgs: row.querySelectorAll("svg").length, iconHidden: !!icon && icon.getAttribute("aria-hidden") === "true",
+          avatarHidden: !!avatar && avatar.getAttribute("aria-hidden") === "true",
+          box: i ? [Math.round(i.width * 10) / 10, Math.round(i.height * 10) / 10] : null,
+          glyph: s ? [Math.round(s.width * 10) / 10, Math.round(s.height * 10) / 10] : null,
+          iconColor: icon ? getComputedStyle(icon.querySelector("svg")).color : null, rowColor: getComputedStyle(row).color,
+          // the icon centred on the words' block, and in the row
+          iconMid: i ? i.top + i.height / 2 : null, textMid: l.top + l.height / 2,
+          iconIn: !i || (i.left >= b.left && i.right <= b.right && i.top >= b.top && i.bottom <= b.bottom),
+          wordsAt: Math.round(range.getClientRects()[0].left * 10) / 10,
+          wordsEnd: Math.max(...[...range.getClientRects()].map((r) => r.right)), right: b.right,
+          lines: new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size,
+          tall: b.height, active: row.classList.contains("active"),
+        };
+      }));
+      const rows = await read();
+      const want = MENU.map(([id, w]) => [id, w || me.name]);
+      assert.deepEqual(rows.map((r) => [r.id, r.words]), want, "the lines and their words, unchanged");
+      for (const r of rows) {
+        const where = `${look} ${width}: ${r.id}`;
+        // its accessible name is its words alone (the icon and the avatar are not read)
+        assert.equal(await page.locator(".nav-more-sheet").getByRole(r.id === "apps" ? "link" : "button", { name: r.words, exact: true }).count(), 1, `${where}: no line is named "${r.words}"`);
+        assert.ok(r.tall >= 44, `${where}: ${r.tall}px is smaller than a finger`);
+        assert.ok(r.wordsEnd <= r.right + 0.5, `${where}: the words run out of the line`);
+        if (r.id === "profile") {
+          assert.equal(r.svgs, 0, `${where}: the profile wears the avatar, not a glyph`);
+          assert.ok(r.avatarHidden, `${where}: the avatar is read out as part of the name`);
+          continue;
+        }
+        assert.equal(r.svgs, 1, `${where}: ${r.svgs} icons`);
+        assert.ok(r.iconHidden, `${where}: the icon is not hidden from assistive tech`);
+        assert.deepEqual(r.box, [22, 22], `${where}: the icon's box`);
+        assert.deepEqual(r.glyph, [20, 20], `${where}: the glyph's size`);
+        assert.equal(r.iconColor, r.rowColor, `${where}: the icon is not drawn in the line's colour`);
+        assert.ok(r.iconIn, `${where}: the icon leaves its line`);
+        assert.ok(Math.abs(r.iconMid - r.textMid) <= 1.5, `${where}: the icon sits off the words (${r.iconMid} / ${r.textMid})`);
+      }
+      // one column: every line's words start at the same x (the avatar's pill too)
+      const at = rows.map((r) => r.wordsAt);
+      assert.ok(Math.max(...at) - Math.min(...at) <= 1, `${look} ${width}: the words start at ${JSON.stringify(rows.map((r) => [r.id, r.wordsAt]))}`);
+      // the long line: wraps no worse than to two lines, the icon beside the pair
+      const hh = rows.find((r) => r.id === "household");
+      assert.ok(hh.lines <= 2, `${look} ${width}: "Recommended by your household" runs to ${hh.lines} lines`);
+      // the lit line is the screen we are on, and its icon is lit with it
+      assert.deepEqual(rows.filter((r) => r.active).map((r) => r.id), ["movies"]);
+      // the news dot still follows What's new's words
+      const dot = await page.evaluate(() => {
+        const row = document.querySelector('.nav-more-item[data-more="new"]');
+        const d = row.querySelector(".nav-more-dot");
+        return d && { dot: d.getBoundingClientRect().left, words: row.querySelector(".nav-more-label").getBoundingClientRect().right };
+      });
+      assert.ok(dot && dot.dot >= dot.words, `${look} ${width}: the news dot ${JSON.stringify(dot)}`);
+      await shot(page, `more-icons-${look}-${width}-top`);
+      // a keyboard's focus: the line inverts, its icon with it
+      // (a key first, so the browser draws the focus as a keyboard's)
+      await page.keyboard.press("Shift");
+      await page.locator('.nav-more-item[data-more="downloads"]').focus();
+      const focused = await page.evaluate(() => {
+        const row = document.querySelector('.nav-more-item[data-more="downloads"]');
+        return { row: getComputedStyle(row).color, icon: getComputedStyle(row.querySelector("svg")).color, visible: row.matches(":focus-visible") };
+      });
+      if (focused.visible) assert.equal(focused.icon, focused.row, "the focused line's icon is drawn in its inverted colour");
+      await page.evaluate(() => { const l = document.querySelector(".nav-more-list"); l.scrollTop = l.scrollHeight; });
+      await page.waitForTimeout(150);
+      await shot(page, `more-icons-${look}-${width}-foot`);
+      await page.keyboard.press("Escape");
+      await page.waitForSelector(".nav-more-wrap", { state: "detached" });
+      // read right to left: the icon leads on the right, the paper plane turned round
+      if (width === 360) {
+        await page.evaluate(() => document.documentElement.setAttribute("dir", "rtl"));
+        await openSheet(page);
+        const rtl = await page.evaluate(() => [...document.querySelectorAll(".nav-more-item:not(.nav-more-profile)")].map((row) => {
+          const i = row.querySelector(".nav-more-icon").getBoundingClientRect();
+          const l = row.querySelector(".nav-more-label").getBoundingClientRect();
+          return { id: row.dataset.more, iconFirst: i.left >= l.right, flip: getComputedStyle(row.querySelector("svg")).transform };
+        }));
+        for (const r of rtl) assert.ok(r.iconFirst, `rtl: ${r.id}'s icon is not ahead of its words`);
+        assert.notEqual(rtl.find((r) => r.id === "household").flip, "none", "rtl: the paper plane points the way the words read");
+        assert.equal(rtl.find((r) => r.id === "home").flip, "none");
+        await shot(page, `more-icons-${look}-${width}-rtl`);
+      }
+    });
+  }
+}
+
 // Larger words (a reader's text zoom): the bar fits itself instead of cutting.
 for (const look of ["glass", "legacy"]) {
   // (26px a rem at 320: the bar cannot hold the words without its steps)
