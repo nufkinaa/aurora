@@ -133,3 +133,97 @@ destroyed, timers are cleared, the burst's canvas removes itself.
 
 Server, routes, the answer rules and thresholds, the texts of the heading, the
 buttons, the stamps and the end sentence, the Edit list screen (`#/taste/list`).
+
+---
+
+# As built (2026-11-10)
+
+Everything above was the design on paper. This part says what was built where
+it differs, what the three look passes found, what was measured, and what is
+still weak.
+
+## Where the build differs from the paper
+
+- **Wide screens grow.** The paper said "capped at 640 px"; at 1920 and 2560
+  the deck, the keys and the end panel looked tiny with an empty lower half.
+  From 1800 px (and again from 2400 px) they scale up.
+- **A phone on its side has its own layout** (the card beside the keys). It
+  used to cut the card and push the keys off the screen — that was so before
+  this work too.
+- **Short phones (320 px)**: the card, the keys and the end panel are sized
+  from the height that is left; on a short end panel the constellation goes
+  first so the learned tags stay in view.
+- **Clear of the tab bar without a written-down height.** Where the shared
+  stylesheet hands the screen `--ts-reserve`, that is used. Where no rule
+  does (the legacy look on a phone), the screen reads the room the page
+  already keeps for the bar (`#app`'s bottom padding). Before, in the legacy
+  look on a phone, the labels of the answer keys sat under the tab bar.
+- **The ribbon is revealed, not squeezed**: its colours stay in place and more
+  of it shows as the round goes on.
+- **"0 / 24" stays on one line** at 375 px (a test holds it).
+- **One burst per round**: a full one for the first round, a smaller one for
+  later rounds, never a second one for the same round (Undo and answering
+  again does not repeat it).
+- **The end panel's keys**: Keep going is the aurora key, Done is the gold one.
+- **Two ends that were wrong before and are right now**: a profile with no
+  cards at all no longer keeps a spinner over "That's every title we had for
+  you"; a round with no answers no longer shows a row of noughts.
+- **"Keep going"** goes straight back to swiping with a fresh deck (the
+  server's rule, unchanged).
+
+## The three look passes
+
+**Pass 1 — the weak list**
+1. A phone on its side: the card cut, the keys off the screen — fixed.
+2. 320 px: a tiny card with the caption over the picture — fixed.
+3. 1920 / 2560: everything tiny, an empty lower half — fixed.
+4. The end panel's Keep going / Done cut on phones — fixed.
+5. Legacy look on a phone: key labels under the tab bar — fixed.
+6. The ribbon's colours squeezed rather than revealed — fixed.
+7. A spinner over the empty-deck end — fixed.
+8. A row of "0" chips on an empty round — fixed.
+9. At 1440 the head row is wider than the card — minor; left.
+10. The test poster's own title under the LOVE stamp — the test catalogue's
+    drawn posters, not the product.
+
+**Pass 2** — 812 x 375: the head, the deck and the number touched the top bar;
+the milestone pill sat under the top bar on a phone on its side and was cut at
+667 px; 320 x 640 end: the constellation pushed the learned tags out of view;
+667 x 375 end: the tally chips cut under the keys; "Haven't seen" wrapping at
+667 px; the end panel small at 2560. All fixed.
+
+**Pass 3** — every size and both looks re-shot; no overflow, no page errors.
+
+## Measured
+
+A phone-sized window (390 x 844), the processor slowed four times. This PC was
+busy, and slowed-down runs of the same code differ by up to two times, so the
+numbers are ranges. 60 is perfect.
+
+| Moment | Before the pacing fixes | After (two runs) | Normal speed, after |
+|---|---|---|---|
+| Six answers with the keys | 59 | 44 – 59 | 65 |
+| A drag and a throw | 58 | 55 – 58 | 62 |
+| The round ends (constellation, number, burst) | 49 | 47 – 57 | 63 |
+
+After leaving the page: the same number of frame callbacks as before entering
+(the site's own loop), no node of the game left, no animation of the game.
+
+## Still weak (accepted, or not verified)
+
+- One long frame when the end panel is built, in the last answer's key press
+  (70 – 365 ms slowed four times; not seen at normal speed).
+- At 667 x 375 (a phone on its side, with the tab bar) the card is small
+  (about 110 x 150). At 320 x 568 the card is small and the milestone pill
+  covers the top of it for its two and a half seconds.
+- **A kids deck with cards is not verified**: in the test catalogues a young
+  kids profile gets an empty deck. The empty-deck end is tested.
+- Real phones and a real TV browser were not used; the checks are in a
+  headless browser at those sizes, with touch and with the keys.
+- The shots use the test catalogue, which has no real posters.
+
+## Shots and recording
+
+docs/play/shots/taste/: `before-*` and `after-*` at 375, 768 and 1440 for
+card, drag, mid, end; `after-milestone-*`; `taste.webm` (26 s on a phone: three
+throws with the stamps, the keys, the three milestone lines, the round's end).

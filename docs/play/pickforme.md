@@ -114,3 +114,111 @@ tween is cancelled, the loop is a CSS animation on an element that is gone).
 
 The request, the filters' meaning, the remembered answer and who may see it,
 the texts of the status line and the errors, `.pfm-pick` cards (one per pick).
+
+---
+
+# As built (2026-11-10)
+
+Everything above was the design on paper. This part says what was built where
+it differs, what the three look passes found, what was measured, and what is
+still weak.
+
+## Where the build differs from the paper
+
+- **Gold is kept for the prize.** The ask button is an aurora key ("Find me
+  something"), not gold. The gold things are the ring round the winning card,
+  the "Tonight's pick" line and the Open key.
+- **No skeleton cards.** While Aurora thinks, card backs turn in the reel; the
+  old grey placeholders are gone.
+- **The gold "Tonight's pick" line shows while the reel slows**, so the side
+  next to the reel is not empty during the landing. It fades in on every ask.
+- **On a phone, asking now shows something.** Before, pressing "Find me
+  something" on a phone changed nothing you could see (the wait and the
+  answer were below the fold, under the keyboard). Now the keyboard closes and
+  the stage is brought into view, clear of the top buttons and the tab bar
+  (their sizes are measured where they stand; no height is written down).
+- **Focus goes to Open only when the question was asked with the keys**
+  (Enter, a remote). A finger or a mouse keeps its place.
+- **The whole hand**: the cards fan out from the middle in even rows (6 cards
+  = 3 + 3, never 5 + 1; `handCols()` in public/js/play/reel.js). On a phone
+  the hand is a list: a small poster and the reason in full.
+- **The hand is dealt unseen while the reel turns** and shown at the win, so
+  the heavy part is not built in the middle of the prize moment. Unseen means
+  unseen: the keys cannot reach a card before it shows.
+- **The page column is centred**, and the "Pick together" ticket at the top
+  lines up with the question card under it (it used to run edge to edge).
+- **Wide screens**: from 1800 px the stage, the prize and the hand grow (the
+  paper said "capped at 980 px"; at 1920 and 2560 that looked tiny).
+- **A phone on its side and short phones** have their own layout: the reel is
+  sized from the height that is left, and the stage settles itself into view.
+- **The question box no longer pulls the page up.** The box takes the focus a
+  moment after the page shows. A question asked inside that moment had the
+  box take the focus back afterwards and the page jumped up, away from the
+  draw. Now the box is left alone once a question is asked. A test asks at
+  that instant every time.
+- Two new controls are in the controls vocabulary: `pick.open`, `pick.another`.
+- New words that exist only on the website (the `DRAW` list in pickforme.js):
+  "Tonight's pick", "1 of 6", "Open", "Another one", "The whole hand".
+
+## The three look passes
+
+**Pass 1 — the weak list**
+1. Tiny at 1920 / 2560 — fixed (wide-screen sizes).
+2. A phone on its side: the stage sat under the top bar — fixed.
+3. 320 x 640 with a long title: the keys ended behind the tab bar — fixed
+   (the reel is sized from the height; the stage settles into view).
+4. The hand was 5 cards and 1 orphan — fixed (even rows).
+5. An empty side while the reel lands — fixed (the gold line).
+6. Dots still animating, unseen, on a still return — fixed (stopped).
+7. A hover ring left on a card after "Another one" — the site's own hover; left.
+8. The empty page on a phone on its side scrolls to the question box — the
+   browser's own behaviour, as before; left.
+
+Checked and fine: a Hebrew title (right to left), a very long title (three
+lines, then cut), a missing poster (the drawn tile), one pick only (no
+"Another one", no pips), an empty answer, an error, coming back (the prize
+still, no burst), reduced motion, the legacy look, a kids profile.
+
+**Pass 2** — the fixes of pass 1 re-shot at every size; nothing new.
+
+**Pass 3** — no overflow, no page errors; after coming back only the site's
+own animations run; one burst per question, none on return.
+
+## Measured
+
+A phone-sized window (390 x 844), the processor slowed four times. This PC was
+busy, and slowed-down runs of the same code differ by up to two times, so the
+numbers are ranges. 60 is perfect.
+
+| Moment | Before the pacing fixes | After (two runs) | Normal speed, after |
+|---|---|---|---|
+| Thinking (card backs) | 53 | 52 – 55 | 57 |
+| The reel lands, prize, burst | 41 | 51 – 55 | 60 |
+| Another one | 39 | 37 – 55 | 60 |
+| Scrolling the hand | 49 | 60 – 63 | 66 |
+
+After leaving the page: the same number of frame callbacks as before entering
+(the site's own loop), no node of the game left, no animation of the game.
+
+## Still weak (accepted, or not mine)
+
+- One long frame when the reel stops on "Another one" (50 – 270 ms slowed four
+  times; not seen at normal speed): the new words are laid out at that moment.
+- The site's own always-running work (the sky, the measuring of what is behind
+  the top bar) takes a visible share of every frame when the processor is
+  slowed. It is shared plumbing; not changed here.
+- At 320 px the "Try" chips, once scrolled up, peek under the floating top
+  buttons; a three-line title at 320 px slides the reel's corner a little
+  under them.
+- At 2560 px the question box and the chips keep the site's size while the
+  prize grows.
+- Coming back to the page starts at the top (the router's rule); the prize is
+  restored, still.
+- The shots use the test catalogue, which has no real posters.
+
+## Shots and recording
+
+docs/play/shots/pickforme/: `before-*` and `after-*` at 375, 768 and 1440 for
+empty, waiting, result, result-scrolled; `after-landing-*`, `after-another-*`;
+`pickforme.webm` (21 s: the question, the card backs, the landing, the burst,
+"Another one" twice, the hand).
