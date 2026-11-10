@@ -283,6 +283,8 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
     node.addEventListener("focus", intent);
     node.addEventListener("pointerdown", intent, { passive: true });
   }
+  // [offline-look] the "on this device" mark — only set while this device holds something (js/offlineUi.js)
+  if (state.cardMark) state.cardMark(node, item);
   return node;
 };
 

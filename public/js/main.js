@@ -518,6 +518,13 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     // the first screen is done, so its install — which copies the app's code
     // into its cache — does not share a thin line with that screen.
     firstScreen.then(() => offline.registerWorker());
+    // [offline-look] what "on this device" looks like — the mark on posters,
+    // the ring in the nav, a save landing (js/offlineUi.js). After the first
+    // screen: nothing of it is in the way of that screen.
+    const look = firstScreen.then(() => import("./offlineUi.js")).then((ui) => { ui.start(); return ui; });
+    look.catch(() => {});
+    // minutes watched with no line reach the server when it is back; said once
+    const deliver = () => offline.flushProgress().then((n) => { if (n > 0) look.then((ui) => ui.delivered(n)).catch(() => {}); }).catch(() => {});
     const nav = $("#nav-saved");
     const paint = async () => {
       let any = false;
@@ -546,12 +553,12 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && navigator.onLine !== false) carryOn(); });
     onMessage("offline_wish", (m) => import("./offlineWish.js").then((w) => w.onWishMessage(m)).catch(() => {}));
     onMessage("offline_wish_removed", (m) => import("./offlineWish.js").then((w) => w.onWishMessage(m)).catch(() => {}));
-    window.addEventListener("online", () => { paint(); offline.flushProgress().catch(() => {}); carryOn(); });
+    window.addEventListener("online", () => { paint(); deliver(); carryOn(); });
     // the socket coming back is the surest "server is there" signal — also
     // the moment to fetch skip-intro / X-Ray for copies saved before those
     // travelled with them
     onMessage("welcome", () => {
-      offline.flushProgress().catch(() => {});
+      deliver();
       offline.backfillExtras().catch(() => {});
       carryOn();
       paint();

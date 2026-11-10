@@ -17,6 +17,7 @@ import { el, $ } from "./ui.js";
 import { navigate, hasRoute } from "./router.js";
 import { pushScope, popScope } from "./focus.js";
 import { navIcon, MIRRORED } from "./navicons.js";
+import { state } from "./state.js";
 
 // The menu, top to bottom: [id, words, where it goes, options]. To add a
 // place, add a line (its id to TAG below, and its icon to js/navicons.js);
@@ -82,9 +83,11 @@ let open = null; // { wrap, panel, list }
 
 const row = ([id, words, to, opts = {}]) => {
   const on = to.startsWith("#/") && isHere(to, opts.exact);
-  const sub = id === "remote" ? tvLine() : null;
+  // [offline-look] "Saved on this device" says what is there or under way (js/offlineUi.js)
+  const dev = id === "saved" && state.deviceLine ? state.deviceLine() : null;
+  const sub = id === "remote" ? tvLine() : dev ? dev.text : null;
   const attrs = {
-    class: "nav-more-item focusable" + (on ? " active" : "") + (sub ? " live" : "") + (id === "profile" ? " nav-more-profile" : ""),
+    class: "nav-more-item focusable" + (on ? " active" : "") + (sub && (!dev || dev.live) ? " live" : "") + (id === "profile" ? " nav-more-profile" : ""),
     "data-ui": TAG[id],
     "data-more": id,
     ...(on ? { "aria-current": "page" } : {}),
