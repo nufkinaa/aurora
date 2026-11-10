@@ -1503,6 +1503,12 @@ html:not([data-look="glass"]) body:has(.player) #toasts {
   justify-content: center;
   flex-wrap: wrap;
 }
+/* a phone: two buttons that do not fit side by side each take the full
+   width ("Keep going" 140px over "Cancel the download" 220px, centred, read
+   as a mistake) */
+@media (max-width: 480px) {
+  .look-notice:not(.report):not(.offline-sheet) > .look-notice-actions > .btn { flex: 1 1 auto; justify-content: center; }
+}
 
 /* ---- the confirm sheet (ui.confirmSheet) rides the look-notice card ---- */
 .look-notice.sheet .look-notice-text { margin-top: 8px; }
