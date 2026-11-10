@@ -210,4 +210,58 @@ ui.test("phone: 'and every new episode of season 1' — each episode that lands 
   }
 });
 
+ui.test("phone: Save & watch on a film's title page — the 'Downloading now!' sheet offers 'This device too', and the page then says it will be saved to this device", async ({ srv, freshProfile }) => {
+  // (no network here: the film's metadata and its sources are answered in the
+  // browser, and the download request is caught — test/ui/release.test.js's way)
+  const FILM = "tt9810009";
+  const profile = await freshProfile();
+  // (no service worker here: the answers below are given to the page itself,
+  // and a worker would ask the server instead — the wish needs none)
+  const own = await ui.browser.newContext({ viewport: PHONE, serviceWorkers: "block", hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await own.route((url) => url.origin !== srv.url && /^https?:$/.test(url.protocol), (route) => route.fulfill({ status: 404, body: "" }).catch(() => {}));
+  const { context, page, errors, go } = await open(srv, profile, PHONE, own);
+  try {
+    const H = "e".repeat(40);
+    await page.route(`**/api/discover/meta/movie/${FILM}`, (route) =>
+      route.fulfill({ json: { imdbId: FILM, type: "movie", title: "Plane Film", year: 2025, runtime: "100 min", synopsis: "For the flight.", genres: ["Drama"], cast: [], trailers: [] } }));
+    const best = {
+      infoHash: H, fileIdx: 0, filename: "Plane.Film.2025.1080p.WEB-DL.mkv", release: "Plane.Film.2025.1080p.WEB-DL", provider: "test", quality: "1080p", qualityLabel: "1080p", tags: [], cam: false,
+      prerelease: null, hardsub: false, badge: null, warning: null, dubbed: false, seeders: 40, sizeString: "2.0 GB", sizeBytes: 2e9, languages: ["EN"], pack: false, recommended: true,
+    };
+    await page.route(/\/api\/torrents\/sources\?/, (route) => route.fulfill({ json: { imdbId: FILM, streams: [best], best } }));
+    await page.route(/\/api\/downloads(\?|$)/, (route) => {
+      if (route.request().method() !== "POST") return route.fulfill({ json: [] });
+      const b = route.request().postDataJSON();
+      return route.fulfill({ json: { job: { id: "abcabcabcabc", status: "approved", progress: 0, infoHash: b.infoHash, fileIdx: 0, imdbId: b.imdbId, title: b.title, type: "movie", mine: true } } });
+    });
+    await go(`#/discover/movie/${FILM}`, '[data-ui="detail.save"]');
+    await page.locator(".sources-section .src-card").first().waitFor({ state: "attached" });
+    await page.locator('[data-ui="detail.save"]').click();
+    const sheetBtn = page.locator('.dl-confirm [data-ui="detail.offline.wish"]');
+    await sheetBtn.waitFor();
+    assert.match(await sheetBtn.innerText(), /This device too/);
+    if (process.env.UI_SHOTS) await page.screenshot({ path: path.join(process.env.UI_SHOTS, "wish-downloading-now-sheet.png") });
+    await sheetBtn.click();
+    await page.waitForSelector(".offline-sheet .offline-opt");
+    // a 100-minute film: the sizes are estimated from its running time
+    assert.match(await page.locator(".offline-sheet .offline-opt", { hasText: "720p" }).innerText(), /GB|MB/);
+    await pick(page, "720p");
+    await until(async () => (await wishesOf(srv, profile)).length === 1, "the wish on the server");
+    const w = (await wishesOf(srv, profile))[0];
+    assert.equal(w.imdbId, FILM);
+    assert.equal(w.jobId, "abcabcabcabc");
+    assert.equal(w.quality, "720");
+    await page.waitForFunction(() => /Will be saved to this device/.test((document.querySelector('.dl-confirm [data-ui="detail.offline.wish"]') || {}).innerText || ""));
+    // the sheet closed: the title page says it too, beside the download
+    await page.locator(".dl-confirm .btn-primary").click();
+    const hero = page.locator('.detail-actions [data-ui="detail.offline.wish"], .screen [data-ui="detail.offline.wish"]').first();
+    await hero.waitFor();
+    assert.match(await hero.getAttribute("title"), /Will be saved to this device when it arrives/);
+    if (process.env.UI_SHOTS) { await page.waitForTimeout(600); await page.screenshot({ path: path.join(process.env.UI_SHOTS, "wish-title-hero.png") }); }
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close().catch(() => {});
+  }
+});
+
 ui.run({ concurrency: 2 });
