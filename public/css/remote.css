@@ -238,10 +238,6 @@ html[data-look="glass"] .rm-dock {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-/* a short phone held upright: a smaller poster leaves room for the rest */
-@media (orientation: portrait) and (max-height: 700px) {
-  .rm-art { height: min(24vh, 300px); }
-}
 .remote-screen[data-view="now"] .rm-view-pad,
 .remote-screen[data-view="pad"] .rm-view-now {
   display: none;
@@ -277,6 +273,14 @@ html[data-look="glass"] .rm-dock {
   background: linear-gradient(160deg, rgba(var(--accent-rgb, 139, 123, 255), 0.5), rgba(64, 196, 186, 0.25));
   box-shadow: 0 30px 60px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.1);
   transition: transform 420ms var(--ease), filter 420ms var(--ease);
+}
+/* a short phone held upright: a smaller poster leaves room for the rest */
+@media (orientation: portrait) and (max-height: 700px) {
+  .rm-art { height: min(24vh, 300px); }
+}
+/* 320px: the dock is two rows there — a smaller poster still */
+@media (orientation: portrait) and (max-width: 340px) {
+  .rm-art { height: min(18vh, 300px); }
 }
 .rm-art.wide {
   aspect-ratio: 16 / 9;
