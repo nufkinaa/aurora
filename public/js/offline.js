@@ -366,7 +366,7 @@ const plain = (e) => {
   if (/quota|storage/i.test(m) && /exceed|full|room/i.test(m)) return "this device ran out of room for it — free some space, or pick a smaller size";
   return m || "something went wrong";
 };
-const isNetError = (e) => e && (e.name === "TypeError" || e.net) && !(e.name === "AbortError");
+const isNetError = (e) => e && (e.name === "TypeError" || e.net || e.timeout) && !(e.name === "AbortError");
 
 // Save one library item. `onProgress({phase, pct, note, speed, eta})` keeps the
 // button honest: "preparing" (the server converts, with its own percentage),
@@ -423,6 +423,8 @@ const saveOne = async (item, onProgress, choose, signal) => {
     for (let misses = 0; ; ) {
       try { st = await api.offlinePrepare(item.id, quality, hevc); break; } catch (e) {
         if (aborted()) bail();
+        // the server answered with a reason (a full disk…): that is the answer
+        if (!isNetError(e) && navigator.onLine !== false) throw e;
         if (++misses >= 3) throw Object.assign(new Error("can't reach the server"), { pause: "offline" });
         onProgress({ phase: "retrying", pct: 0, note: "can't reach the server — trying again" });
         await nap(3000);
