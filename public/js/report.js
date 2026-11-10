@@ -38,7 +38,7 @@ export const setPlayingContext = (ctx) => { playing = ctx; };
 let version = null;
 const versionP = api.version ? api.version().then((c) => { version = (c && c.version) || null; }).catch(() => {}) : Promise.resolve();
 
-// (Get another version files its report with the same version: replaceCopy.js)
+// (Get another version files its report with this whole context: replaceCopy.js → reportContext)
 export const appVersion = () => versionP.then(() => version);
 
 // ---------- what goes with a report besides the words (docs/report-trail.md) ----------
