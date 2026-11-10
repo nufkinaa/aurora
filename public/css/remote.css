@@ -94,6 +94,26 @@ html[data-look="glass"] .rm-pick-ico {
 html[data-look="glass"] .rm-pick-caret {
   opacity: 0.85;
 }
+/* the not-chosen half of a switch (the dock's other tab, Swipe / Buttons):
+   one step brighter than the second voice, so it reads at a glance; the chosen
+   one keeps the full white and its lifted pill */
+html[data-look="glass"] .rm-seg-btn:not(.on) {
+  color: #dce0ea;
+}
+/* Play/Pause wears the big play button's 34px drawing; in a key it takes the
+   22px row of Back and Home (drawn at 26px, as a filled shape is smaller than
+   their outlines), so the three icons and the three words sit level */
+html[data-look="glass"] .rm-key-pp-ico svg {
+  width: 26px;
+  height: 26px;
+  margin: -2px 0;
+}
+/* the volume level: clear of the dock's lower rim and inside its round ends */
+html[data-look="glass"] .rm-vol-level {
+  left: 21px;
+  right: 21px;
+  bottom: -4px;
+}
 /* classic: solid, square-ish */
 html:not([data-look="glass"]) .remote-screen {
   --rm-radius: 14px;

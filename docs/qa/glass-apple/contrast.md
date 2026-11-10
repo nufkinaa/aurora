@@ -124,6 +124,31 @@ pass's dark panes, "third" the version made after the second jury.
 | **lowest of the 46 labels on a pane / under 4.5:1** | **1.7 / 9** | **2.7 / 5** | **4.8 / 0** |
 | the same on the usual art | 2.2 / 7 | 3.9 / 5 | 5.9 / 0 |
 
+The third jury chose the third version. Both judges then named the same
+small faults in it, and three plain fixes went on top (no pane's body, tint,
+rim or blur was touched; crops in `docs/qa/glass-apple/r4/`). The not-chosen
+half of the two switches went from the page's second voice (`#C2C7D6`) to
+`#DCE0EA`:
+
+| what | all-white picture, before → after | usual art, before → after |
+|---|---:|---:|
+| the dock: the other tab | 8.4 → 10.8 | 9.4–9.6 → 12.1–12.3 |
+| Swipe / Buttons: the other | 5.9–6.0 → 7.6–7.7 | 6.6–7.9 → 8.4–10.1 |
+| the dock: the chosen tab (not touched) | 7.6 | 8.7–9.0 |
+| Swipe / Buttons: the chosen one (not touched) | 5.4 | 6.0–7.1 |
+| the touchpad's hints (not touched) | 7.3 | 8.3–8.6 |
+| the picker's TV icon (not touched) | 4.8 | 5.9 |
+| Play/Pause's icon, now the size of Back and Home | 8.4–10.3 → 9.6–11.1 | 10.2–11.8 → 11.5–12.9 |
+
+The chosen half is told apart by its lifted pill and its full white, not by
+a higher number: a white word on the lighter pill measures lower than a
+light grey word on the dark body beside it. The picker's TV icon stays pale:
+the accent itself (`#8B7BFF`) would read about 2.3:1 there on a white
+picture and 2.8:1 on the usual art, and a mix with more accent in it (52 %)
+measured 4.2 — under the line — so it keeps 42 % accent in white, 4.8. The
+46 labels on a pane: lowest 4.8 on a white picture and 5.9 on the usual art,
+none under 4.5:1, as before.
+
 On no pane, straight on the film, the same in all three and not touched: the
 title 4.8, the time left 7.0, the elapsed time 3.5 ✗ over the all-white
 picture (5.7, 7.7 and 8.0 on the usual art).

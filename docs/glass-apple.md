@@ -612,3 +612,24 @@ neither judge preferred the approved glass.
   only — item 6 and the third version on top of it — so the Remote can stay
   at any of the three: as it is; item 6 by reverting the third version; the
   approved look by reverting both.
+- **After the third jury.** Both judges, blind, put the third version first
+  in all three scenes, so it is the Remote's look. They named the same small
+  faults in it, and three plain fixes went on top — colours of words and
+  places of two small things, no pane's body, tint, rim or blur, and the
+  same ten `backdrop-filter` lines:
+  the not-chosen half of the two switches (the dock's other tab, the other
+  of Swipe / Buttons) is `#DCE0EA` instead of the page's second voice, so it
+  reads at 7.6:1 or better on an all-white picture and 8.4:1 or better on the
+  usual art, while the chosen half keeps its full white and its lifted pill;
+  the volume level under the three volume buttons runs from the middle of
+  the first button to the middle of the last and sits 1 px higher, so its
+  ends no longer run into the round ends of the dock and it clears the lower
+  rim; the Play/Pause key's drawing (the big play button's, 34 px) takes the
+  22 px row of Back and Home, so the three icons and the three words sit on
+  the same lines. Left as they were, with the reason: the touchpad's hints
+  (8.3–8.6:1 on the usual art, 7.3 on white — over the 7:1 asked for) and the
+  picker's TV icon (the accent itself would read near 2.3–2.8:1 on that pill;
+  it stays 42 % accent in white, 4.8:1 worst case). These three rules are
+  for the glass look only; the classic look has the same lower Play/Pause
+  word and was not touched. Before and after: `docs/qa/glass-apple/r4/`;
+  the numbers: `docs/qa/glass-apple/contrast.md`, the Remote screen.
