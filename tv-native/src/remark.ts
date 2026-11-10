@@ -12,6 +12,7 @@
 // Every local line is also in the server's bank (test/remarks.test.js checks).
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {apiRequest} from './api';
+import {registerProfileCache} from './profileScope';
 
 export const REMARK_HOLD_MS = 10 * 60 * 1000;
 const SEEN_MAX = 40;
@@ -142,6 +143,10 @@ export async function fetchRemark(
   AsyncStorage.setItem(KEY(profileId), JSON.stringify({held: k.held, seen: k.seen})).catch(() => {});
   return {id: r.id, text: r.text, kind: r.kind};
 }
+
+// A profile change drops what was kept in memory (the next profile's own
+// hold comes back from AsyncStorage, keyed by its id).
+registerProfileCache('remark', () => kept.clear());
 
 // tests only
 export const _resetRemarks = () => kept.clear();

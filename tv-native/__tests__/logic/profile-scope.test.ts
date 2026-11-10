@@ -30,6 +30,8 @@ const PROFILE: Record<string, string[]> = {
   'householdLive.ts': ['profile', 'newest', 'asking'],
   'navSection.ts': ['cache', 'cacheAt', 'loading'],
   'party.ts': ['pending'],
+  // [remarks] Home's remark: the line held and the ids shown, per profile (AsyncStorage keeps them)
+  'remark.ts': ['kept'],
   'personSync.ts': ['active', 'asking', 'entering'],
   // [android-phone] the tab the phone's bottom bar is on goes back to Home for the next profile
   'phone/tabs.ts': ['current'],
