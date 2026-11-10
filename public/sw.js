@@ -29,7 +29,13 @@ const LIVE_ONLY = [/^\/stream\//, /^\/api\/admin\//, /^\/proxy/, /^\/avatars\//,
 // Re-run whenever the manifest's version moves (the page pings "precache" on
 // every load; a deploy costs one refetch).
 //
-// Each file is asked for with `cache: "no-cache"`: the browser checks with
+// A file at a content-addressed address (`?v=<hash of its content>`, every
+// module and the stylesheet) is asked for with the browser's own cache rule:
+// what the HTTP cache holds under that address IS that content (the server
+// marks it immutable), so it is copied from there with no request at all —
+// asked with "no-cache", each was a round trip to the server for a "not
+// modified" (some fifty on a first visit, four at a time). Anything else
+// ("/") is asked for with `cache: "no-cache"`: the browser checks with
 // the server (so the copy is current) but reuses what it already holds when
 // the server says it has not changed. It used to be "reload", which threw
 // away what the page had downloaded seconds earlier and fetched all of it a
@@ -56,7 +62,7 @@ const precache = async () => {
       const key = typeof f === "string" ? f : f.url;
       const from = typeof f === "string" ? f : f.from || f.url;
       try {
-        const r = await fetch(new Request(from, { cache: "no-cache", priority: "low" }));
+        const r = await fetch(new Request(from, { cache: /[?&]v=/.test(from) ? "default" : "no-cache", priority: "low" }));
         if (r.ok) await c.put(key, r);
         else failed++;
       } catch { failed++; }
