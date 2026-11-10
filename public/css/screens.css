@@ -3228,6 +3228,14 @@ body:has(.player) #nav {
 .quality-pill.hide {
   opacity: 0;
 }
+/* a phone: the title card (24–105px) is as wide as the middle of the
+   screen — "Resumed at 0:21 · Start over" lay across its year and format
+   row. Below it instead. */
+@media (max-width: 600px) {
+  .player .quality-pill.resume-pill {
+    top: calc(118px + env(safe-area-inset-top));
+  }
+}
 .quality-pill button {
   padding: 5px 11px;
   border-radius: 999px;
