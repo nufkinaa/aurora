@@ -217,7 +217,9 @@ initAurora($("#nav-aurora")); // the aurora in the nav's empty stretch
       import("./aurora-sky.js").then((m) => {
         if (document.documentElement.dataset.look !== "glass" || stopSky) return;
         const canvas = $("#glass-sky");
-        stopSky = m.initAuroraSky(canvas, { pace: 0.95 });
+        // (offMain: a computer paints this sky in a worker — it used to stand
+        // still for as long as the page was scrolled; see aurora-sky.js)
+        stopSky = m.initAuroraSky(canvas, { pace: 0.95, offMain: true });
         canvas.classList.add("on"); // the CSS fade covers the first frame's arrival
       });
     } else if (!glass && stopSky) {

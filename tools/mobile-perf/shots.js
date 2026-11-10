@@ -55,6 +55,8 @@ const FREEZE = (fixedNow) => {
   const realInterval = window.setInterval;
   window.setInterval = (fn, ms, ...rest) => (ms === 9000 ? 0 : realInterval(fn, ms, ...rest));
   // the living canvases: a fixed picture on the page, the painter sent elsewhere
+  // (and kept on the page's thread: a sky handed to a worker cannot be stood in for)
+  delete HTMLCanvasElement.prototype.transferControlToOffscreen;
   const realGet = HTMLCanvasElement.prototype.getContext;
   HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
     if ((this.id === "glass-sky" || this.id === "nav-aurora") && type === "2d") {
