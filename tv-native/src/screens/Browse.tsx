@@ -922,6 +922,7 @@ export default function Browse({
             </View>
             <View style={styles.rule} />
             <Picker
+              glass
               label="Genre"
               value={genre}
               options={[{label: 'All genres', value: ''}, ...genreList.map(g => ({label: g, value: g}))]}
