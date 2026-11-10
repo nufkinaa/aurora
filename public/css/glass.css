@@ -3734,35 +3734,58 @@ html[data-look="glass"]:root .card.wide .card-progress {
     z-index: 2;
     margin: 0;
     padding: 18px 20px 0;
-    text-shadow: var(--letter-shadow);
+    text-shadow: 0 1px 2px rgba(5, 6, 12, 0.45);
   }
-  /* (nothing here clips: a box that hides its overflow — a line clamp —
-     cuts the words' shadows into grey bands at its edges. A long name wraps;
-     a remark that would meet the title steps down in home.js instead) */
+  /* The shade from the top (elia, 2026-11-10: "a shadow from the top that
+     makes the text more visible, not a shadow that is right on the text"):
+     drawn by the greeting itself, so it is always as deep as the greeting
+     is — a name that wraps, a remark of two lines or none — plus a 56px
+     tail. Darkest at the slab's top edge, eased out (no band where it ends);
+     it stops short of the middle of the picture. */
+  html[data-look="glass"]:root .hero > .home-greeting::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: calc(100% + 56px);
+    pointer-events: none;
+    background: linear-gradient(to bottom,
+      rgba(7, 8, 17, 0.58) 0%,
+      rgba(7, 8, 17, 0.56) 30%,
+      rgba(7, 8, 17, 0.52) 50%,
+      rgba(7, 8, 17, 0.45) 63%,
+      rgba(7, 8, 17, 0.34) 73%,
+      rgba(7, 8, 17, 0.21) 82%,
+      rgba(7, 8, 17, 0.1) 89%,
+      rgba(7, 8, 17, 0.035) 95%,
+      rgba(7, 8, 17, 0) 100%);
+  }
   html[data-look="glass"]:root .hero > .home-greeting .greet-line {
     color: #fff;
     line-height: 1.2;
-    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2; /* a very long name */
+    overflow: hidden;
   }
-  /* (a text-shadow under see-through letters shows THROUGH them: the
-     shining name casts its shadow as a filter instead) */
+  /* (a shadow under see-through letters shows THROUGH them: the shining
+     name goes without) */
   html[data-look="glass"]:root .hero > .home-greeting .greet-name {
     text-shadow: none;
-    filter: drop-shadow(0 0 1px rgba(4, 5, 10, 0.55)) drop-shadow(0 1px 3px rgba(4, 5, 10, 0.6)) drop-shadow(0 2px 12px rgba(4, 5, 10, 0.45));
   }
   html[data-look="glass"]:root .hero > .home-greeting .greet-sub {
     color: #fff;
     font-weight: 700;
     line-height: 1.35;
-  }
-  /* one line, cut with "…" — the clipping box padded out so the shadow
-     still has room round the words */
-  html[data-look="glass"]:root .hero[data-room="1"] > .home-greeting .greet-sub {
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
-    margin: -16px -20px;
-    padding: 16px 20px;
+  }
+  html[data-look="glass"]:root .hero[data-room="1"] > .home-greeting .greet-sub {
+    -webkit-line-clamp: 1;
   }
   html[data-look="glass"]:root .hero:is([data-room="0"], [data-room="-1"], [data-room="-2"]) > .home-greeting .greet-sub {
     display: none;
@@ -3773,42 +3796,28 @@ html[data-look="glass"]:root .card.wide .card-progress {
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     overflow: hidden;
-    margin-left: -16px;
-    margin-right: -16px;
-    padding: 0 16px;
   }
   html[data-look="glass"]:root .hero[data-room="-2"] .hero-kicker {
     display: none;
   }
 }
 
-/* ---------- The phone billboard without a shade (2026-11-10) ----------
+/* ---------- The phone billboard at its own brightness (2026-11-10) ----------
    elia: "the hero itself should have no shadow and be as bright as it needs
-   to be and the drop shadow should be only on the text to the top and of
-   course from the bottom". On a phone the picture shows at its own
-   brightness (it was drawn at 86%), nothing is laid over its top, and the
-   words carry their own shadow instead — a tight dark edge and a wide soft
-   one, the way a lock-screen clock reads on any wallpaper. The fade from the
-   bottom stays, only as high as the words there need (it climbed to 80% of
-   the slab). Tablets and desktops keep theirs, and so does the classic
-   look: its top bar is a plain strip that reads on the dimmed picture, not
-   pills of its own — over a bright poster its buttons were lost. */
+   to be". On a phone the picture is no longer dimmed (it was drawn at 86%);
+   the only shades on it are the greeting's from the top (above) and the
+   fade from the bottom, only as high as the words there need (it climbed
+   to 80% of the slab). Tablets and desktops keep theirs, and so does the
+   classic look: its top bar is a plain strip that reads on the dimmed
+   picture, not pills of its own — over a bright poster its buttons were
+   lost. */
 @media (max-width: 720px) {
-  :root {
-    --letter-shadow: 0 0 1px rgba(4, 5, 10, 0.95), 0 0 3px rgba(4, 5, 10, 0.85), 0 0 6px rgba(4, 5, 10, 0.75), 0 1px 12px rgba(4, 5, 10, 0.65), 0 2px 24px rgba(4, 5, 10, 0.55), 0 3px 44px rgba(4, 5, 10, 0.45);
-  }
   html[data-look="glass"]:root .hero .hero-backdrop {
     filter: saturate(1.1);
     -webkit-filter: saturate(1.1);
   }
   html[data-look="glass"]:root .hero-fade {
     background: linear-gradient(to top, rgba(7, 8, 17, 0.92) 0, rgba(7, 8, 17, 0.68) 110px, rgba(7, 8, 17, 0.4) 210px, rgba(7, 8, 17, 0) 300px);
-  }
-  html[data-look="glass"]:root .hero-kicker,
-  html[data-look="glass"]:root .hero-title,
-  html[data-look="glass"]:root .hero-meta,
-  html[data-look="glass"]:root .hero-progress {
-    text-shadow: var(--letter-shadow);
   }
 }
 /* The logo's glass fits the mark (2026-11-10): where the word "Aurora" is

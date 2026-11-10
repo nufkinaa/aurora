@@ -510,7 +510,7 @@ export const renderHome = async (root) => {
     // then one, then none — and stays that way for this visit, so the
     // greeting does not jump from one slide to the next.
     const upright = matchMedia("(max-width: 720px) and (orientation: portrait)");
-    // (room: 2 = the remark as it wraps, 1 = one line, 0 = none, -1 = and
+    // (room: 2 = the remark in up to two lines, 1 = one, 0 = none, -1 = and
     // the title in two lines, -2 = and no Film/Series tag — glass.css)
     let room = 2;
     const fitGreet = () => {
