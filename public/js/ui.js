@@ -1,6 +1,7 @@
 // Small DOM + formatting helpers shared by every screen.
 import { lite } from "./net.js";
 import { blurOf } from "./blur.js";
+import { warmOffer, warmReset, warmGo } from "./warm.js";
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -305,6 +306,8 @@ const picOpen = () => {
   for (const start of go) start();
   const after = pic.after.splice(0);
   for (const fn of after) { try { fn(); } catch {} }
+  // (and now the pictures further down the page, a few at a time — warm.js)
+  warmGo();
 };
 const picProgress = () => {
   clearTimeout(pic.stall);
@@ -320,7 +323,8 @@ const picCheck = () => {
 // A screen is being opened: hold what it does not show (router.js
 // "aurora-route-start", and the first screen at load).
 const picClose = () => {
-  if (typeof IntersectionObserver === "undefined") return;
+  warmReset(); // (what the last screen still wanted ahead is dropped)
+  if (typeof IntersectionObserver === "undefined") return warmGo();
   if (!pic.open) return picProgress();
   pic.open = false;
   clearTimeout(pic.max);
@@ -435,6 +439,22 @@ export const afterPictures = (fn) => {
   if (pic.open) fn();
   else pic.after.push(fn);
 };
+// Can the person see this poster right now? (A shelf further down the page,
+// a card past its shelf's edge, a shelf the browser is not drawing yet: no.)
+const inSight = (img) => {
+  try {
+    if (!img.isConnected) return false;
+    // (a shelf far from the screen is not laid out at all — content-visibility)
+    if (img.checkVisibility && !img.checkVisibility({ contentVisibilityAuto: true })) return false;
+    const b = img.getBoundingClientRect();
+    if (!(b.width > 0 && b.height > 0)) return false;
+    if (b.bottom <= 0 || b.top >= window.innerHeight || b.right <= 0 || b.left >= window.innerWidth) return false;
+    const clip = img.closest(".row-scroller");
+    const c = clip ? clip.getBoundingClientRect() : null;
+    return !(c && (b.right <= c.left || b.left >= c.right));
+  } catch { return true; }
+};
+
 if (typeof window !== "undefined" && window.addEventListener && typeof document !== "undefined") {
   picClose(); // the first screen
   window.addEventListener("aurora-route-start", picClose);
@@ -461,9 +481,19 @@ export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-f
   // cache, and fading THAT in made every revisit of Home look like the rows
   // were loading again (elia: "the list takes time to look ok"). Cached
   // images can even be complete before this handler attaches.
+  // The same goes for a picture that arrives while its card is out of sight
+  // (further down the page, past its shelf's edge): there is nothing to
+  // sharpen in front of anyone, and a card that scrolls into view half-way
+  // through its fade is what made a brisk scroll look like the page was
+  // still loading (2026-11-10). Only a picture that lands in front of the
+  // person comes into focus.
   let t0 = performance.now();
   const reveal = () => {
-    if (performance.now() - t0 < 120) img.classList.add("img-now");
+    // (`img-late`: it did take a moment — glass.css keeps such a poster's
+    // place in its card's stacking order as it always was)
+    const late = performance.now() - t0 >= 120;
+    if (late) img.classList.add("img-late");
+    if (!late || !inSight(img)) img.classList.add("img-now");
     img.classList.add("img-in");
     if (pic.known.size > 3000) pic.known.clear();
     pic.known.add(src);
@@ -471,18 +501,25 @@ export const posterImg = (src, title, cls = "card-poster", fallbackCls = "card-f
     if (blur) setTimeout(() => { img.style.backgroundImage = ""; }, 500);
   };
   img.onload = reveal;
+  // (a lazy one may be asked for before the scroll reaches it — warm.js;
+  // offered once it has its address)
+  const ahead = () => { if (!eager && src && !img.classList.contains("img-in")) warmOffer(img); };
   if (hold) {
     pic.held.set(img, () => {
       t0 = performance.now();
       img.src = src;
       if (img.complete && img.naturalWidth > 0) reveal();
+      ahead();
     });
     pic.unseen.add(img);
     if (pic.held.size === 1) picProgress(); // (the stall clock: from now)
     pic.io.observe(img);
     if (pic.ro) pic.ro.observe(img);
     if (!pic.raf) pic.raf = requestAnimationFrame(picSweep);
-  } else if (img.complete && img.naturalWidth > 0) reveal();
+  } else {
+    if (img.complete && img.naturalWidth > 0) reveal();
+    ahead();
+  }
   let retried = false;
   img.onerror = () => {
     if (!retried) {

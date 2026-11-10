@@ -4418,14 +4418,21 @@ html[data-look="glass"] .player .menu,
   background-position: center;
   background-repeat: no-repeat;
 }
-.img-blurup.img-in:not(.img-now) { animation: blurup-in 0.4s var(--ease) both; }
+/* (no fill: a finished animation that holds `filter: blur(0)` keeps every
+   poster it ever sharpened on a compositor layer of its own — 170 layers on
+   Home after one scroll, 47 without. What the held filter also did was paint
+   the poster as a layer of its own in the card's stacking order, over the
+   card's hairline; `img-late` — the picture arrived late, ui.js posterImg —
+   keeps exactly that, without the layer: tools/webperf/fillproof.js.) */
+.img-blurup.img-in:not(.img-now) { animation: blurup-in 0.4s var(--ease); }
+.img-blurup.img-in.img-late { isolation: isolate; }
 @keyframes blurup-in {
   from { filter: blur(10px); }
   to { filter: blur(0); }
 }
-html[data-fx="lite"] .img-blurup.img-in { animation: none; }
+html[data-fx="lite"] .img-blurup.img-in { animation: none; isolation: auto; }
 @media (prefers-reduced-motion: reduce) {
-  .img-blurup.img-in { animation: none !important; }
+  .img-blurup.img-in { animation: none !important; isolation: auto; }
 }
 
 .pbtn.next-btn.hidden { display: none; }

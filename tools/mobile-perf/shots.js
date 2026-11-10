@@ -94,8 +94,11 @@ const FREEZE = (fixedNow) => {
     // timing: shown at once (no filter), faded in (no filter), or sharpened in
     // from its placeholder and left with `filter: blur(0px)` — which does not
     // rasterise quite like no filter. Which one is not the site's version
-    // speaking, so all pictures are held to the plain state.
-    " .img-blurup, .img-fade { animation: none !important; filter: none !important; -webkit-filter: none !important; opacity: 1 !important; background-image: none !important; }";
+    // speaking, so all pictures are held to the plain state. (`isolation`:
+    // a late picture keeps the held filter's place in its card's stacking
+    // order that way since 2026-11-10 — docs/web-scroll-pictures.md; plain
+    // here too, or the two sides of that change differ by every card's hairline.)
+    " .img-blurup, .img-fade { animation: none !important; filter: none !important; -webkit-filter: none !important; opacity: 1 !important; background-image: none !important; isolation: auto !important; }";
   const add = () => { const s = document.createElement("style"); s.id = "mp-freeze"; s.textContent = css; (document.head || document.documentElement).append(s); };
   if (document.documentElement) add(); else new MutationObserver((_, mo) => { if (document.documentElement) { mo.disconnect(); add(); } }).observe(document, { childList: true });
 };
