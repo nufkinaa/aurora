@@ -67,6 +67,10 @@ export default function Search({
   const [answer, setAnswer] = useState<SearchAnswer>(EMPTY);
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [recent, setRecent] = useState<string[]>([]);
+  // The field's own focus mark. A focused TextInput shows only its caret, and the
+  // caret blinks: half the time the screen showed nothing focused at all (Mi TV,
+  // 2026-11-10). Only a colour changes, so nothing moves.
+  const [fieldFocused, setFieldFocused] = useState(false);
   const [popular, setPopular] = useState<HeroItem[]>([]);
   // searching / done, told apart on screen; once done, what to say about it
   // (searchFlow.ts — the website says the same): a catalogue that could not
@@ -456,7 +460,7 @@ export default function Search({
       <View style={styles.fieldRow}>
       <TextInput
         ref={inputRef}
-        style={[styles.input, listening && styles.inputInterim]}
+        style={[styles.input, fieldFocused && styles.inputFocused, listening && styles.inputInterim]}
         value={q}
         onChangeText={t => {
           // typing takes over from the microphone
@@ -476,7 +480,9 @@ export default function Search({
           inGrid.current = false;
           inChips.current = false;
           noteFocus(null, false);
+          setFieldFocused(true);
         }}
+        onBlur={() => setFieldFocused(false)}
         placeholder="Search movies & shows…"
         placeholderTextColor={colors.textFaint}
       />
@@ -558,7 +564,7 @@ export default function Search({
         </View>
       ) : null}
       {nothing ? <Text style={styles.empty}>{note === 'short' ? shortText(query) : noResultsText(query)}</Text> : null}
-      {!query && popular.length > 0 ? <Text style={styles.heading}>Popular in this house</Text> : null}
+      {!query && popular.length > 0 ? <Text style={[styles.heading, styles.headingOverGrid]}>Popular in this house</Text> : null}
       <FlatList
         data={data}
         style={styles.listFill}
@@ -604,6 +610,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
   },
   // the words heard so far, while the microphone is still listening
+  inputFocused: {borderColor: colors.focusRing},
   inputInterim: {color: colors.textDim, borderColor: colors.accent},
   // voice search: a dot that moves with the voice, what is happening, the other language
   voice: {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginTop: -spacing.sm, marginBottom: spacing.md},
@@ -617,6 +624,10 @@ const styles = StyleSheet.create({
   bandLabel: {color: colors.textFaint, fontSize: fontSize.small, fontWeight: '700', marginRight: 4},
   // a row heading, as the site's `.row-title` over the related tail and the popular shelf
   heading: {color: colors.text, fontSize: fontSize.row, fontWeight: '800', marginTop: spacing.sm, marginBottom: spacing.md},
+  // Over the grid the list's own top padding (CLEARANCE.above, the room for a focused
+  // card's scale) already stands between them: the heading sat 40dp over its posters
+  // where every Home shelf has 15 (Mi TV, 2026-11-10). This hands back the difference.
+  headingOverGrid: {marginBottom: 15 - CLEARANCE.above},
   empty: {color: colors.textDim, fontSize: fontSize.body, marginBottom: spacing.md},
   // a failure and its Try again, on one line
   failRow: {flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md},

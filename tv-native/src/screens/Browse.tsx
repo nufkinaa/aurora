@@ -996,7 +996,9 @@ const styles = StyleSheet.create({
   // picker 48 + chip 48 + Surprise 48 + 27 = 510. The first cut had 27/8/6 here
   // and came to 543 — Surprise me sat clipped below the safe inset.
   panelInner: {flex: 1, paddingLeft: 18, paddingRight: spacing.pageX, paddingTop: 18, paddingBottom: 27},
-  kicker: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 3, marginBottom: 4},
+  // marginBottom 10 (was 4): the focused category's ring reached up into the kicker's
+  // letters (Mi TV, 2026-11-10). The spacer above Surprise me gives the 6dp back.
+  kicker: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 3, marginBottom: 10},
   cats: {alignItems: 'flex-start'},
   rule: {height: 1, backgroundColor: colors.line, marginVertical: 4},
   toolRow: {flexDirection: 'row', alignItems: 'center'},

@@ -6128,7 +6128,9 @@ const styles = StyleSheet.create({
     fontSize: fontSize.small,
     fontWeight: '600',
     marginTop: 1,
-    textShadowColor: 'rgba(0,0,0,0.6)',
+    // darker than the title's: the episode line is grey, thinner and smaller, and at
+    // 0.6 it went under on a bright frame where the white title still read
+    textShadowColor: 'rgba(0,0,0,0.85)',
     textShadowOffset: {width: 0, height: 1},
     textShadowRadius: 10,
   },
@@ -6217,7 +6219,20 @@ const styles = StyleSheet.create({
     boxShadow: '0 0 0 4px rgba(255,255,255,0.22), 0 0 24px rgba(140,255,190,0.7)',
   },
   headBig: {right: -8, marginTop: -8, width: 16, height: 16, borderRadius: 8},
-  time: {color: colors.textDim, fontSize: 13, fontWeight: '700', minWidth: 44, fontVariant: ['tabular-nums']},
+  // the title's text shadow too: on a bright frame the grey clock beside the bar all but
+  // vanished (a test card's lilac, Mi TV 2026-11-10) — the bottom scrim is a fade, not a plate
+  time: {
+    // lighter than --text-dim: even with the shadow the grey clock went under on a
+    // bright frame (a test card's cyan and lilac, Mi TV 2026-11-10)
+    color: 'rgba(243,244,248,0.82)',
+    fontSize: 13,
+    fontWeight: '700',
+    minWidth: 44,
+    fontVariant: ['tabular-nums'],
+    textShadowColor: 'rgba(0,0,0,0.85)',
+    textShadowOffset: {width: 0, height: 1},
+    textShadowRadius: 8,
+  },
   timeRight: {textAlign: 'right'},
   buttons: {flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: 6},
   // .pbtn — a circle, transparent until focused. The bg is transparent rather
@@ -6316,7 +6331,9 @@ const styles = StyleSheet.create({
     // A little of the room's light in the glass (elia, 2026-10-07: "give the
     // background there a bit hue"): the site's violet from the top-left, the
     // aurora's green from the foot, over a near-opaque navy.
-    backgroundColor: 'rgba(16,15,30,0.97)',
+    // fully opaque: at 0.97 a bright cue under the sheet still read through it
+    // ("Knox! Sto|p!" — Mi TV, 2026-11-10)
+    backgroundColor: 'rgb(16,15,30)',
     experimental_backgroundImage:
       'linear-gradient(140deg, rgba(104,86,226,0.30) 0%, rgba(16,15,30,0) 48%, rgba(70,200,150,0.20) 100%)',
     borderRadius: radius.l,
@@ -6399,7 +6416,9 @@ const styles = StyleSheet.create({
   upNext: {
     position: 'absolute',
     right: PHONE ? 16 : spacing.pageX, // [android-phone]
-    bottom: PHONE ? 104 : 60,
+    // 124 on the TV, where the menus sit: at 60 the card lay over the scrubber, the bar
+    // running in under it and the time left hidden behind it (Mi TV, 2026-11-10)
+    bottom: PHONE ? 104 : 124,
     backgroundColor: 'rgba(13,14,24,0.97)',
     borderRadius: radius.l,
     padding: spacing.lg,

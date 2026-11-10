@@ -3187,8 +3187,12 @@ const styles = StyleSheet.create({
   // Versions, "Problem with this copy?", X-Ray, Watched) sit on ONE line. At the lockup's
   // width a library film's row wrapped into two, and with a long title and a household
   // banner under the row the synopsis was pushed off the screen (Mi TV, 5.7.0 pass);
-  // more than six still wrap.
-  actionsSecondary: {flexDirection: 'row', gap: 2, marginTop: spacing.sm, marginLeft: -16, flexWrap: 'wrap', width: 66 * 5 + 92 + 2 * 5 + 8},
+  // Seven now (six and the wide one): a library film WITH a trailer has seven — My List,
+  // Recommend, Trailer, Versions, "Problem with this copy?", X-Ray, Watched — and the
+  // seventh alone on a second line pushed the synopsis under the screen's foot, cut
+  // through its third line at rest (Mi TV 2026-11-10: Avatar Fire and Ash, Palmer).
+  // More than seven still wrap.
+  actionsSecondary: {flexDirection: 'row', gap: 2, marginTop: spacing.sm, marginLeft: -16, flexWrap: 'wrap', width: 66 * 6 + 92 + 2 * 6 + 8},
   playBtn: {backgroundColor: colors.white, paddingVertical: 9, paddingHorizontal: 22, minHeight: 40, justifyContent: 'center'},
   // under the film's Play: the download's strip and the one-line hint
   // clear of the focused Play's ring (it reaches ~6dp past the button)

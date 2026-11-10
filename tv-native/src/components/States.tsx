@@ -94,7 +94,10 @@ const styles = StyleSheet.create({
   },
   // `.empty .glyph { font-size: 3rem }` = 48px → 35dp at the display factor; it is
   // artwork, not reading-tier type.
-  glyph: {fontSize: 35, marginBottom: -2},
+  // color: a TEXT glyph (My downloads' ⬇) takes it, as the site's `.glyph` inherits
+  // the page's light text — without one it drew black on the dark page, all but
+  // invisible (Mi TV, 2026-11-10). Colour emoji (🍿 🗓️) ignore it.
+  glyph: {fontSize: 35, marginBottom: -2, color: colors.textDim},
   message: {color: colors.textDim, fontSize: 16, textAlign: 'center'},
   heading: {color: colors.text, fontSize: 18, fontWeight: '700', textAlign: 'center'},
   // `.pw-error`'s #ff7a7a at weight 700, raised to the 16dp reading tier.

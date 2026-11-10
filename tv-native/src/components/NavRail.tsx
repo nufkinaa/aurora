@@ -814,8 +814,11 @@ const styles = StyleSheet.create({
   },
   spacer: {flex: 1},
   // `.nav-profile { padding: 5px 14px 5px 6px; gap: 10px }` at x1.0.
+  // marginTop 6: the focused Settings row's ring (scaled, 3dp outside the row) sat ON
+  // the pill's top edge (Mi TV, 2026-11-10). The spacer above Settings gives it.
   profile: {
     alignSelf: 'stretch',
+    marginTop: 6,
     minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
