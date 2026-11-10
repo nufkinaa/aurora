@@ -88,7 +88,26 @@ const lanes = { copy: null, encode: null }; // the job key running in each lane
 let encodeAsk = null; // a place at cpuwork's gate is being asked for (which job gets it is chosen when it comes)
 const STALL_MS = 10 * 60 * 1000; // no word from ffmpeg for this long (not paused): it is stuck
 
-const normQuality = (q) => (QUALITIES.includes(String(q)) ? String(q) : "720");
+// A copy is a quality AND a sound (2026-11-10 round 2: one copy = one
+// language). The sound rides in the quality as a VARIANT — "720~a1" is 720p
+// with the file's second audio stream — so everything keyed by the quality
+// (jobs, the queue, the file name, /offline/file?q=) keeps working, and a
+// plain "720" is the first audio stream, as it always was (the phone app
+// 1.1.2 and older never send one).
+//   normQuality(q, a?) → "720" | "720~a2" …   splitV(v) → { q: "720", a: 2 }
+const VARIANT_RE = /^(original|1080|720|480)~a(\d{1,2})$/;
+const normQuality = (q, a = 0) => {
+  const s = String(q);
+  const m = VARIANT_RE.exec(s);
+  if (m) return Number(m[2]) > 0 ? `${m[1]}~a${Number(m[2])}` : m[1];
+  const base = QUALITIES.includes(s) ? s : "720";
+  const n = Number(a) > 0 ? Math.min(63, Math.floor(Number(a))) : 0;
+  return n ? `${base}~a${n}` : base;
+};
+const splitV = (v) => {
+  const m = VARIANT_RE.exec(String(v));
+  return m ? { q: m[1], a: Number(m[2]) } : { q: String(v), a: 0 };
+};
 const jobKey = (id, q) => `${id}|${q}`;
 
 const entryFor = (id) => {
@@ -103,7 +122,7 @@ const mtimeOf = (p) => {
 // 720 keeps the pre-quality file name, so copies prepared before this
 // existed are still found.
 const outFileFor = (id, srcPath, q = "720") =>
-  path.join(DIR, `${id}-${mtimeOf(srcPath)}${q === "720" ? "" : `-${q}`}.mp4`);
+  path.join(DIR, `${id}-${mtimeOf(srcPath)}${q === "720" ? "" : `-${String(q).replace("~", "-")}`}.mp4`);
 
 // Can a browser play the file as it is? Only when we KNOW the codecs are
 // H.264 + AAC/MP3 in an MP4-family container; an unprobed MP4 is assumed
@@ -269,7 +288,12 @@ const options = (id, caps = {}) => {
       });
     }
   }
-  return { options: out, duration, ffmpeg: !!config.ffmpegAvailable };
+  // the sounds a copy can carry (one each): listed when there is a choice
+  const streams = (m && m.audioStreams) || [];
+  const audio = streams.length > 1
+    ? streams.map((a, i) => ({ index: i, language: a.language || null, title: a.title || null, codec: a.codec || null, channels: a.channels || 2, commentary: !!a.commentary }))
+    : [];
+  return { options: out, duration, ffmpeg: !!config.ffmpegAvailable, audio };
 };
 
 // The choices for a title that is NOT in the library yet (a device's wish,
@@ -347,13 +371,17 @@ const waitOf = (key, job) => {
 
 // Where the device should fetch from, and whether it exists yet.
 const status = (id, quality, caps = {}) => {
-  const q = normQuality(quality);
+  const v = normQuality(quality);
+  const { q: base, a: audio } = splitV(v);
+  const q = v; // (jobs and files are keyed by the variant; answers say the plain quality)
   const e = entryFor(id);
   if (!e) return { state: "error", error: "not found" };
-  if (q === "original") {
+  if (base === "original") {
     const mode = originalMode(e.path, caps);
-    if (mode === "direct") {
-      return { state: "ready", quality: q, direct: true, url: `/stream/video/${id}`, sizeBytes: fs.statSync(e.path).size };
+    // the file as it is — unless another of its sounds was asked for: then a
+    // repackaging with that one (seconds, the picture copied)
+    if (mode === "direct" && !audio) {
+      return { state: "ready", quality: base, direct: true, url: `/stream/video/${id}`, sizeBytes: fs.statSync(e.path).size };
     }
     if (!mode) return { state: "error", error: "this device can't play the original's video — pick 1080p or lower" };
   }
@@ -364,14 +392,14 @@ const status = (id, quality, caps = {}) => {
   // "ready" with no file behind it used to send a device to a 404 for good
   if (job && job.state === "ready" && !fs.existsSync(file)) { jobs.delete(key); job = null; }
   if (fs.existsSync(file) && (!job || job.state !== "working")) {
-    return { state: "ready", quality: q, direct: false, url: `/offline/file/${id}?q=${q}`, sizeBytes: fs.statSync(file).size };
+    return { state: "ready", quality: base, ...(audio ? { audio } : {}), direct: false, url: `/offline/file/${id}?q=${encodeURIComponent(q)}`, sizeBytes: fs.statSync(file).size };
   }
   if (job) {
     const wait = waitOf(key, job);
-    return { state: job.state, quality: q, progress: job.progress || 0, error: job.error || null, lane: job.lane || null, ...(wait ? { wait } : {}) };
+    return { state: job.state, quality: base, ...(audio ? { audio } : {}), progress: job.progress || 0, error: job.error || null, lane: job.lane || null, ...(wait ? { wait } : {}) };
   }
   if (!config.ffmpegAvailable) return { state: "unavailable", error: "the server has no ffmpeg, so this file can't be converted for this device" };
-  return { state: "idle", quality: q };
+  return { state: "idle", quality: base };
 };
 
 // `keepMs`: keep the finished copy at least this long (preconvert.js) —
@@ -416,11 +444,11 @@ const prepare = (id, quality, caps = {}, { keepMs = 0, person: asPerson = null }
   // the disk the library and the downloads live on.
   sweep();
   const e = entryFor(id);
-  const opt = (options(id, caps).options || []).find((o) => o.quality === q);
+  const opt = (options(id, caps).options || []).find((o) => o.quality === splitV(q).q);
   const need = (opt && opt.sizeBytes) || (e ? fs.statSync(e.path).size : 0);
   if (roomFor(need) === false) {
     console.warn(`[offline] ${id} at ${q}: not made — the server is short on disk space`);
-    return { state: "error", quality: q, error: "the server is short on disk space — try a smaller size, or again later" };
+    return { state: "error", quality: splitV(q).q, error: "the server is short on disk space — try a smaller size, or again later" };
   }
   const lane = isEncode(e.path, q, caps) ? "encode" : "copy";
   jobs.set(key, { state: "queued", progress: 0, caps, keepMs, ahead: !person, wanted: person ? 1 : 0, lane, queuedAt: Date.now() });
@@ -453,7 +481,7 @@ const cancel = (id, quality) => {
   const q = normQuality(quality);
   const key = jobKey(id, q);
   const job = jobs.get(key);
-  if (!job || (job.state !== "queued" && job.state !== "working")) return { state: "idle", quality: q, cancelled: false };
+  if (!job || (job.state !== "queued" && job.state !== "working")) return { state: "idle", quality: splitV(q).q, cancelled: false };
   if (job.wanted > 0) job.wanted--;
   if (job.wanted > 0) return { ...status(id, q, job.caps || {}), cancelled: false };
   if (job.keepMs > 0) {
@@ -471,21 +499,24 @@ const cancel = (id, quality) => {
     try { if (job.child) job.child.kill("SIGKILL"); } catch {}
   }
   pump();
-  return { state: "idle", quality: q, cancelled: true };
+  return { state: "idle", quality: splitV(q).q, cancelled: true };
 };
 
 // The ffmpeg arguments for one job. Exported for tests: this is where
 // "original" becomes a copy instead of an encode.
 // `threads` (the background cap, cpuwork.js): decoder, filters and encoder
 // alike — without it ffmpeg takes every core for each.
-const argsFor = (srcPath, tmp, q, caps = {}, { threads = 0 } = {}) => {
+const argsFor = (srcPath, tmp, v, caps = {}, { threads = 0 } = {}) => {
+  const { q, a: audio } = splitV(v);
   const m = metadata.getCached(srcPath);
   const cap = threads > 0 ? ["-threads", String(threads)] : [];
-  const head = ["-v", "error", "-nostdin", "-y", ...cap, ...(threads > 0 ? ["-filter_threads", String(threads)] : []), "-i", srcPath, "-map", "0:v:0", "-map", "0:a:0?"];
+  // (the sound asked for — the first when none was)
+  const head = ["-v", "error", "-nostdin", "-y", ...cap, ...(threads > 0 ? ["-filter_threads", String(threads)] : []), "-i", srcPath, "-map", "0:v:0", "-map", `0:a:${audio}?`];
   const tail = ["-movflags", "+faststart", "-progress", "pipe:1", "-f", "mp4", tmp];
-  if (q === "original" && originalMode(srcPath, caps) === "remux") {
+  const mode = q === "original" ? originalMode(srcPath, caps) : null;
+  if (mode === "remux" || (mode === "direct" && audio > 0)) {
     const hevc = m && m.video && m.video.codec === "hevc";
-    const a = m && (m.audioStreams || [])[0];
+    const a = m && (m.audioStreams || [])[audio];
     const audioOk = a && DIRECT_AUDIO.has(a.codec);
     return [
       ...head,
@@ -508,7 +539,12 @@ const argsFor = (srcPath, tmp, q, caps = {}, { threads = 0 } = {}) => {
 
 // Does this job re-encode the picture (heavy), or only repackage it (the
 // disk's speed)?
-const isEncode = (srcPath, q, caps) => !(q === "original" && originalMode(srcPath, caps) === "remux");
+const isEncode = (srcPath, v, caps) => {
+  const { q, a } = splitV(v);
+  if (q !== "original") return true;
+  const mode = originalMode(srcPath, caps);
+  return !(mode === "remux" || (mode === "direct" && a > 0));
+};
 
 const cpuwork = require("./cpuwork");
 const spawner = { spawn }; // (replaceable: the tests start no ffmpeg)
@@ -757,4 +793,4 @@ const load = () => {
   return { running: running || null, since: j ? j.startedAt : null, progress: j ? j.progress || 0 : 0, queued: queue.length, waitingSince: oldest };
 };
 
-module.exports = { status, prepare, cancel, fileFor, options, wishOptions, sweep, load, onReady, DIR, MAX_BYTES, QUALITIES, STALL_MS, _internals: { repackNote, toRemove, KEEP_MS, isDirect, originalMode, argsFor, normQuality, outFileFor, DIRECT_CONTAINERS, isEncode, spawner, jobs, queue, lanes, pump, checkStalls, waitOf, _reset: () => { jobs.clear(); queue.length = 0; lanes.copy = null; lanes.encode = null; encodeAsk = null; } } };
+module.exports = { normQuality, splitV, status, prepare, cancel, fileFor, options, wishOptions, sweep, load, onReady, DIR, MAX_BYTES, QUALITIES, STALL_MS, _internals: { repackNote, toRemove, KEEP_MS, isDirect, originalMode, argsFor, normQuality, outFileFor, DIRECT_CONTAINERS, isEncode, spawner, jobs, queue, lanes, pump, checkStalls, waitOf, _reset: () => { jobs.clear(); queue.length = 0; lanes.copy = null; lanes.encode = null; encodeAsk = null; } } };

@@ -23,6 +23,7 @@
 // app comes back to the front; a file that changed on the server meanwhile
 // (its validator moved) starts again from zero.
 import { api } from "./api.js";
+import { sameAudio } from "./lang.js";
 
 const DB = "aurora-offline";
 const MEDIA = "aurora-media";
@@ -216,7 +217,7 @@ const jobItem = (item) => ({
   id: item.id, title: item.title, showId: item.showId || null, showTitle: item.showTitle || null,
   season: item.season ?? null, episode: item.episode ?? null, year: item.year || null, cover: item.cover || null,
   duration: item.duration || 0, imdbId: item.imdbId || null,
-  subtitles: (item.subtitles || []).filter((t) => t && t.url).slice(0, 8).map((t) => ({ label: t.label, lang: t.lang, url: t.url })),
+  subtitles: (item.subtitles || []).filter((t) => t && t.url).slice(0, 64).map((t) => ({ label: t.label, lang: t.lang, url: t.url })),
 });
 const emitJobs = (store = true) => {
   if (store) { try { localStorage.setItem(JOBS_KEY, JSON.stringify([...jobs.values()])); } catch {} }
@@ -263,8 +264,10 @@ export const queueJob = (item) => {
 export const retryJob = (id, choose = null) => {
   const j = jobs.get(id);
   if (!j) return Promise.resolve(null);
-  return saveItem(j.item, () => {}, async (options) =>
-    options.some((o) => o.quality === j.quality) ? j.quality : choose ? choose(options) : (options[0] || {}).quality);
+  return saveItem(j.item, () => {}, async (options) => {
+    if (Number.isInteger(j.audio)) options.chosenAudio = j.audio; // (the same sound as the first time)
+    return options.some((o) => o.quality === j.quality) ? j.quality : choose ? choose(options) : (options[0] || {}).quality;
+  });
 };
 
 // One save lands at a time (the first episode is watchable sooner than if
@@ -307,7 +310,8 @@ export const saveItem = async (item, onProgress = () => {}, choose = null, signa
       started = true;
       jobCtl.set(item.id, ctl);
       const was = jobs.get(item.id) || {};
-      setJob(item.id, { item: jobItem(item), title: item.title, cover: item.cover || null, quality: q, state: "preparing", pct: was.quality === q ? was.pct || 0 : 0, note: "", error: null, speed: 0, eta: 0, why: null, at: was.at || Date.now() });
+      const audio = Number.isInteger(options.chosenAudio) ? options.chosenAudio : 0;
+      setJob(item.id, { item: jobItem(item), title: item.title, cover: item.cover || null, quality: q, audio, state: "preparing", pct: was.quality === q && (was.audio || 0) === audio ? was.pct || 0 : 0, note: "", error: null, speed: 0, eta: 0, why: null, at: was.at || Date.now() });
     }
     return q;
   };
@@ -372,6 +376,38 @@ const plain = (e) => {
 };
 const isNetError = (e) => e && (e.name === "TypeError" || e.net || e.timeout) && !(e.name === "AbortError");
 
+// The sound a copy is made with when the person does not choose: their own
+// language (the dub they pick in the player, which follows the profile),
+// else the film's original language, else the file's first.
+const defaultSound = async (item, sounds) => {
+  let liked = null;
+  try {
+    const { state } = await import("./state.js");
+    liked = (state.profile && state.profile.prefs && state.profile.prefs.audioLang) || null;
+  } catch {}
+  if (!liked) { try { liked = JSON.parse(localStorage.getItem("aurora-player") || "{}").audioLang || null; } catch {} } // (the player keeps it here too)
+  const fit = (t) => t && !t.commentary;
+  if (liked) {
+    const i = sounds.findIndex((t) => fit(t) && sameAudio(t.language, liked));
+    if (i >= 0) return i;
+  }
+  const orig = ((item && item.audioTracks) || []).find((t) => t && t.original);
+  if (orig) {
+    const i = sounds.findIndex((t) => fit(t) && sameAudio(t.language, orig.language));
+    if (i >= 0) return i;
+  }
+  return 0;
+};
+// "English", "Hebrew · 5.1", "Commentary" — a sound, in words.
+export const soundLabel = (t) => {
+  if (!t) return "";
+  let name = "";
+  try { if (t.language && t.language !== "und") name = new Intl.DisplayNames(["en"], { type: "language" }).of(t.language) || ""; } catch {}
+  if (!name || name === t.language) name = t.title || (t.language ? String(t.language).toUpperCase() : `Sound ${Number(t.index || 0) + 1}`);
+  const extra = [t.commentary ? "commentary" : null, t.channels > 2 ? (t.channels === 6 ? "5.1" : t.channels === 8 ? "7.1" : `${t.channels} ch`) : null].filter(Boolean);
+  return [name, ...extra].join(" · ");
+};
+
 // Save one library item. `onProgress({phase, pct, note, speed, eta})` keeps the
 // button honest: "preparing" (the server converts, with its own percentage),
 // "saving" (parts landing), "retrying" (no line — it carries on by itself).
@@ -391,14 +427,20 @@ const saveOne = async (item, onProgress, choose, signal) => {
   const hevc = canHevc();
   // 0. what can be made, and which one
   let options;
+  let sounds = [];
   try {
-    ({ options = [] } = await api.offlineOptions(item.id, hevc));
+    ({ options = [], audio: sounds = [] } = await api.offlineOptions(item.id, hevc));
   } catch (e) {
     // no server right now: a save that was under way waits for the next chance
     if (isNetError(e) || (typeof navigator !== "undefined" && navigator.onLine === false)) throw Object.assign(new Error("no connection"), { pause: "offline" });
     throw e;
   }
   if (!options.length) throw new Error("the server can't make an offline copy of this file (no ffmpeg, and it isn't playable as it is)");
+  // ONE sound per copy (2026-11-10 round 2): when the file has several, the
+  // size sheet shows them (options.audio) with the person's language picked
+  // (options.chosenAudio — the sheet may change it)
+  options.audio = sounds && sounds.length > 1 ? sounds : [];
+  if (options.audio.length && !Number.isInteger(options.chosenAudio)) options.chosenAudio = await defaultSound(item, options.audio);
   const picked = choose ? await choose(options) : (options.find((o) => o.quality === "720") || options[0]).quality;
   if (!picked) {
     onProgress({ phase: "cancelled", pct: 0 });
@@ -406,6 +448,9 @@ const saveOne = async (item, onProgress, choose, signal) => {
   }
   const option = options.find((o) => o.quality === picked) || options[0];
   const quality = option.quality;
+  const audio = options.audio.length && Number.isInteger(options.chosenAudio) && options.chosenAudio > 0 && options.chosenAudio < options.audio.length ? options.chosenAudio : 0;
+  const sound = options.audio.length ? options.audio[audio] : null;
+  const variant = audio ? `${quality}~a${audio}` : quality; // (the server's name for this quality with this sound)
   return withLock(item.id, async () => {
     // room for it? (an honest "not enough space" beats a save that dies at 90%)
     const have = await partsHere(item.id);
@@ -422,10 +467,10 @@ const saveOne = async (item, onProgress, choose, signal) => {
     }
     // 1. a playable file at that quality. A copy that has to wait says why;
     // a Cancel tells the server too.
-    const stopServer = () => { api.offlineCancel(item.id, quality).catch(() => {}); };
+    const stopServer = () => { api.offlineCancel(item.id, variant).catch(() => {}); };
     let st;
     for (let misses = 0; ; ) {
-      try { st = await api.offlinePrepare(item.id, quality, hevc); break; } catch (e) {
+      try { st = await api.offlinePrepare(item.id, variant, hevc); break; } catch (e) {
         if (aborted()) bail();
         // the server answered with a reason (a full disk…): that is the answer
         if (!isNetError(e) && navigator.onLine !== false) throw e;
@@ -448,7 +493,7 @@ const saveOne = async (item, onProgress, choose, signal) => {
       await nap(repackage && st.state === "working" ? 800 : 2000);
       if (aborted()) { stopServer(); bail(); }
       try {
-        st = await api.offlineStatus(item.id, quality, hevc);
+        st = await api.offlineStatus(item.id, variant, hevc);
         misses = 0;
       } catch (e) {
         // a phone on the move loses the line for a moment: the copy goes on
@@ -468,11 +513,11 @@ const saveOne = async (item, onProgress, choose, signal) => {
     // this device even if Aurora is next opened with no line at all.
     const c = await caches.open(MEDIA);
     const had = await getSaved(item.id).catch(() => null);
-    let subtitles = had && had.pending && had.quality === quality ? had.subtitles || [] : null;
+    let subtitles = had && had.pending && had.quality === quality && (had.audio || 0) === audio ? had.subtitles || [] : null;
     if (!subtitles) {
       subtitles = [];
       let n = 0;
-      for (const t of (item.subtitles || []).slice(0, 8)) {
+      for (const t of (item.subtitles || []).slice(0, 64)) { // (every text track the title has — a copy kept 6, then 8, and dropped the rest)
         if (!t.url) continue;
         try {
           const res = await fetch(t.url, { cache: "no-store" });
@@ -500,6 +545,10 @@ const saveOne = async (item, onProgress, choose, signal) => {
       sizeBytes: st.sizeBytes || 0,
       direct: !!st.direct,
       quality,
+      // the one sound this copy carries (null: the file had only one)
+      audio,
+      audioLang: sound ? sound.language || null : null,
+      audioLabel: sound ? soundLabel(sound) : null,
       format: 2,
       profileId: who ? who.id : null,
       kids: !!(who && who.kids),
@@ -510,7 +559,7 @@ const saveOne = async (item, onProgress, choose, signal) => {
     if (!had || had.pending) await tx("items", "readwrite", (s) => s.put(saved));
     // 3. the bytes, in parts (see the top of this file) — one save at a time
     const meta = await oneAtATime(
-      () => transfer(item.id, st, onProgress, signal, { title: nameFor(item), quality }),
+      () => transfer(item.id, st, onProgress, signal, { title: nameFor(item), quality, variant }),
       () => onProgress({ phase: "queued", pct: 0, note: "after the one saving now", waiting: true }),
     );
     saved.sizeBytes = meta.size || saved.sizeBytes;
@@ -770,7 +819,7 @@ const transfer = async (id, st, onProgress, signal, opts = {}) => {
         if (e && (e.changed || e.name === "QuotaExceededError")) throw e;
         if (e && e.gone) {
           // the server's copy was cleared (it keeps them half a day): made again
-          const again = await api.offlinePrepare(id, st.quality || "720", canHevc()).catch(() => null);
+          const again = await api.offlinePrepare(id, opts.variant || st.quality || "720", canHevc()).catch(() => null);
           if (!again || again.state === "error") throw new Error((again && again.error) || "the copy is no longer on the server");
           onProgress({ phase: "preparing", pct: again.progress || 0, note: "the server is making the copy again", waiting: again.state === "queued" });
           await new Promise((r) => setTimeout(r, 3000));

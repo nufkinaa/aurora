@@ -187,7 +187,8 @@ router.get("/img/still/:id", async (req, res) => {
 // it in parts compares them, and a moving date read as "the file changed" on
 // every part (2026-11-10).
 router.get("/offline/file/:id", (req, res) => {
-  const file = require("../media/offline").fileFor(req.params.id, req.query.q);
+  const off = require("../media/offline");
+  const file = off.fileFor(req.params.id, off.normQuality(req.query.q, req.query.a));
   if (!file) return res.status(404).send("Not prepared");
   res.setHeader("Cache-Control", "private, max-age=0");
   let etag = null;

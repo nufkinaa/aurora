@@ -7,7 +7,7 @@
 // as the standing preference (Preferences → Offline changes it back to Ask).
 import { el, fmtBytes } from "./ui.js";
 import { pushScope, popScope } from "./focus.js";
-import { preferredQuality, setPreferredQuality } from "./offline.js";
+import { preferredQuality, setPreferredQuality, soundLabel } from "./offline.js";
 
 const LAST_KEY = "aurora-offline-last";
 const lastPicked = () => {
@@ -68,10 +68,26 @@ export const pickOfflineQuality = (options, { title = "", lead = "", toggle = nu
         toggleBtn.setAttribute("aria-pressed", toggle.value ? "true" : "false");
       },
     }, toggle.label);
+    // The sound, when the file has more than one (one copy = one language):
+    // options.audio from the server, options.chosenAudio picked for the
+    // person (offline.js) — a press here changes it.
+    const sounds = Array.isArray(options.audio) && options.audio.length > 1 ? options.audio : [];
+    const soundBtns = sounds.map((t, i) => el("button", {
+      class: "chip focusable offline-sound" + (i === options.chosenAudio ? " on" : ""),
+      "aria-pressed": i === options.chosenAudio ? "true" : "false",
+      dir: "auto",
+      onclick: () => {
+        options.chosenAudio = i;
+        soundBtns.forEach((b, k) => { b.classList.toggle("on", k === i); b.setAttribute("aria-pressed", k === i ? "true" : "false"); });
+      },
+    }, soundLabel(t)));
+    const soundRow = sounds.length ? el("div", { class: "offline-sounds", role: "group", "aria-label": "Sound" },
+      el("span", { class: "offline-sounds-label" }, "Sound"), soundBtns) : null;
     const card = el("div", { class: "look-notice sheet offline-sheet", role: "dialog", "aria-modal": "true", "aria-label": "Save offline" },
       el("div", { class: "sheet-icon" }, "📱"),
       el("div", { class: "look-notice-title" }, "Save offline — which size?"),
       el("p", { class: "look-notice-text" }, lead || (title ? `“${title}” will be kept inside Aurora on this device and play with no server in reach.` : "It will be kept inside Aurora on this device and play with no server in reach.")),
+      soundRow,
       el("div", { class: "offline-opts" }, rows),
       el("div", { class: "look-notice-actions offline-sheet-actions" },
         toggleBtn,
