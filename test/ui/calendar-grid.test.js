@@ -141,27 +141,33 @@ ui.test("desktop: the arrows, Today, the keyboard (arrows, PageUp/PageDown, Home
   // the keyboard, from the picked day
   const sel = () => page.$eval("#app .calg-day.sel", (b) => b.dataset.day);
   const focused = () => page.evaluate(() => document.activeElement?.dataset?.day || null);
+  // (polled: a loaded machine may answer a key a frame late)
+  const selIs = (k) => page.waitForFunction((k) => document.querySelector("#app .calg-day.sel")?.dataset.day === k && document.activeElement?.dataset?.day === k, k);
+  const focusDay = async (k) => {
+    await page.focus(`#app .calg-day[data-day="${k}"]`);
+    await page.waitForFunction((k) => document.activeElement?.dataset?.day === k, k);
+  };
   await pickKey(page, `${m0}-15`);
-  await page.focus(`#app .calg-day[data-day="${m0}-15"]`);
+  await focusDay(`${m0}-15`);
   await page.keyboard.press("ArrowRight");
-  assert.equal(await sel(), `${m0}-16`);
+  await selIs(`${m0}-16`);
   assert.equal(await focused(), `${m0}-16`);
   await page.keyboard.press("ArrowDown");
-  assert.equal(await sel(), `${m0}-23`);
+  await selIs(`${m0}-23`);
   await page.keyboard.press("ArrowUp");
   await page.keyboard.press("ArrowLeft");
-  assert.equal(await sel(), `${m0}-15`);
+  await selIs(`${m0}-15`);
+  const selWeekday = (d) => page.waitForFunction((d) => new Date(`${document.querySelector("#app .calg-day.sel").dataset.day}T00:00:00Z`).getUTCDay() === d, d);
   await page.keyboard.press("Home"); // the week's first day (Sunday)
-  assert.equal(new Date(`${await sel()}T00:00:00Z`).getUTCDay(), 0);
+  await selWeekday(0);
   await page.keyboard.press("End");
-  assert.equal(new Date(`${await sel()}T00:00:00Z`).getUTCDay(), 6);
+  await selWeekday(6);
   await pickKey(page, `${m0}-15`);
-  await page.focus(`#app .calg-day[data-day="${m0}-15"]`);
+  await focusDay(`${m0}-15`);
   await page.keyboard.press("PageDown"); // the same day, the month after
-  assert.equal(await sel(), `${m1}-15`);
-  assert.equal(await focused(), `${m1}-15`);
+  await selIs(`${m1}-15`);
   await page.keyboard.press("PageUp");
-  assert.equal(await sel(), `${m0}-15`);
+  await selIs(`${m0}-15`);
   // Enter on the picked day: into its releases
   await pickKey(page, dayKey(5)); // Salt Road S2 E3 and Midnight Signal
   await page.focus(`#app .calg-day[data-day="${dayKey(5)}"]`);
