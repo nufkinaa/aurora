@@ -95,6 +95,7 @@ export const isSaved = async (id) => { const it = await getSaved(id); return !!(
 // manifest, the subtitles, the record.
 const dropBytes = async (id) => {
   setSaveMeta(id, null);
+  await opfsDrop(id).catch(() => {});
   try { navigator.serviceWorker.controller && navigator.serviceWorker.controller.postMessage({ type: "offline-removed", id }); } catch {}
   const c = await caches.open(MEDIA);
   await c.delete(mediaKey(id)).catch(() => {});
@@ -584,6 +585,7 @@ const saveOne = async (item, onProgress, choose, signal) => {
       () => onProgress({ phase: "queued", pct: 0, note: "after the one saving now", waiting: true }),
     );
     saved.sizeBytes = meta.size || saved.sizeBytes;
+    saved.store = meta.store || "cache"; // (where its parts live: "opfs" the file system, "cache" the Cache API)
     saved.pending = false;
     saved.controlled = await workerControls();
     saved.savedAt = Date.now();
@@ -604,9 +606,9 @@ const whoNow = async () => {
   return lastWho();
 };
 
-// The part numbers of this copy already in the cache.
+// The part numbers of this copy already here (the faster store and the cache).
 const partsHere = async (id) => {
-  const out = new Set();
+  const out = await opfsParts(id).catch(() => new Set());
   try {
     const c = await caches.open(MEDIA);
     for (const k of await c.keys()) {
@@ -615,6 +617,74 @@ const partsHere = async (id) => {
     }
   } catch {}
   return out;
+};
+
+// ---------- the faster store: the browser's own file system (OPFS) ----------
+// Round 2, measured on the 2.7 GB film on this PC (same page, same server,
+// twice each): parts into the Cache API 124–138 s (20–22 MB/s); the same
+// parts as files of the Origin Private File System 34–52 s (52–80 MB/s) —
+// 2.7–3.7× — because the Cache API writes every byte twice. A copy saved this
+// way is the same parts (one file each, `aurora-offline/<id>/<n>`, written to
+// a temporary name and moved in once whole) with the same manifest in the
+// cache saying `store: "opfs"`; the worker serves its Range from those files
+// (sw.js). Only for NEW saves, and only where it was proven here: Chromium
+// (desktop Chrome, Android Chrome). Safari and Firefox keep the cache. Copies
+// saved before stay where they are and keep playing; a save that began in the
+// cache carries on in the cache; parts the browser fetched in the background
+// (Background Fetch) land in the cache — the worker reads either.
+// (localStorage "aurora-offline-opfs": "0" never, "1" always — the tests)
+const OPFS_DIR = "aurora-offline";
+export const opfsUsed = () => {
+  try {
+    const k = localStorage.getItem("aurora-offline-opfs");
+    if (k === "0") return false;
+    const has = typeof navigator !== "undefined" && navigator.storage && typeof navigator.storage.getDirectory === "function" &&
+      typeof FileSystemFileHandle !== "undefined" && "createWritable" in FileSystemFileHandle.prototype && "move" in FileSystemFileHandle.prototype;
+    if (!has) return false;
+    if (k === "1") return true;
+    const ua = navigator.userAgent || "";
+    return /Chrome\/|Chromium\//.test(ua) && !/Firefox\//.test(ua);
+  } catch { return false; }
+};
+const opfsDir = async (id, create = false) => {
+  const root = await navigator.storage.getDirectory();
+  const base = await root.getDirectoryHandle(OPFS_DIR, { create });
+  return base.getDirectoryHandle(String(id), { create });
+};
+const opfsParts = async (id) => {
+  const out = new Set();
+  if (typeof navigator === "undefined" || !navigator.storage || typeof navigator.storage.getDirectory !== "function") return out;
+  let dir;
+  try { dir = await opfsDir(id, false); } catch { return out; }
+  for await (const [name] of dir.entries()) if (/^\d+$/.test(name)) out.add(Number(name));
+  return out;
+};
+const opfsDrop = async (id) => {
+  if (typeof navigator === "undefined" || !navigator.storage || typeof navigator.storage.getDirectory !== "function") return;
+  try {
+    const root = await navigator.storage.getDirectory();
+    const base = await root.getDirectoryHandle(OPFS_DIR);
+    await base.removeEntry(String(id), { recursive: true });
+  } catch {}
+};
+// One part into the file system: written under a temporary name, moved to
+// its number only once whole — a part is there whole, or not at all.
+const opfsPut = async (id, n, body) => {
+  const dir = await opfsDir(id, true);
+  const tmp = `${n}.tmp`;
+  const fh = await dir.getFileHandle(tmp, { create: true });
+  const w = await fh.createWritable();
+  try {
+    await body.pipeTo(w);
+  } catch (e) {
+    try { await w.abort(); } catch {}
+    await dir.removeEntry(tmp).catch(() => {});
+    throw e;
+  }
+  await fh.move(String(n));
+};
+const opfsDelete = async (id, n) => {
+  try { const dir = await opfsDir(id, false); await dir.removeEntry(String(n)).catch(() => {}); await dir.removeEntry(`${n}.tmp`).catch(() => {}); } catch {}
 };
 
 // The file's identity, as the server states it: a copy whose identity moved
@@ -697,7 +767,7 @@ const transfer = async (id, st, onProgress, signal, opts = {}) => {
     const v = validatorOf(res);
     if (!meta) {
       size = total || size;
-      meta = { url, size, validator: v };
+      meta = { url, size, validator: v, store: opfsUsed() ? "opfs" : "cache" };
       setSaveMeta(id, meta);
     } else if ((meta.validator && v && meta.validator !== v) || (total && total !== meta.size)) {
       res.body && res.body.cancel().catch(() => {});
@@ -718,12 +788,14 @@ const transfer = async (id, st, onProgress, signal, opts = {}) => {
         ctl.enqueue(chunk);
       },
     }));
+    const inFiles = meta && meta.store === "opfs";
     try {
-      await c.put(partKey(id, n), new Response(counted, { status: 200, headers: { "Content-Type": "application/octet-stream", "Content-Length": String(want) } }));
+      if (inFiles) await opfsPut(id, n, counted);
+      else await c.put(partKey(id, n), new Response(counted, { status: 200, headers: { "Content-Type": "application/octet-stream", "Content-Length": String(want) } }));
     } catch (e) {
       inflight.delete(n);
       got -= mine;
-      await c.delete(partKey(id, n)).catch(() => {});
+      if (inFiles) await opfsDelete(id, n); else await c.delete(partKey(id, n)).catch(() => {});
       stopped();
       if (e && e.name === "QuotaExceededError") throw e;
       throw Object.assign(e, { net: true });
@@ -731,7 +803,7 @@ const transfer = async (id, st, onProgress, signal, opts = {}) => {
     inflight.delete(n);
     if (mine !== want) { // came up short: not a part
       got -= mine;
-      await c.delete(partKey(id, n)).catch(() => {});
+      if (inFiles) await opfsDelete(id, n); else await c.delete(partKey(id, n)).catch(() => {});
       throw Object.assign(new Error("a part came up short"), { net: true });
     }
     done.add(n);
@@ -824,10 +896,11 @@ const transfer = async (id, st, onProgress, signal, opts = {}) => {
   }
   document.removeEventListener("visibilitychange", onHidden);
   // all here: the manifest makes it playable
-  await c.put(manifestKey(id), new Response(JSON.stringify({ v: 2, size, part: PART_BYTES, count: count(), type: "video/mp4" }), { headers: { "Content-Type": "application/json" } }));
+  const store = meta && meta.store === "opfs" ? "opfs" : "cache";
+  await c.put(manifestKey(id), new Response(JSON.stringify({ v: 2, size, part: PART_BYTES, count: count(), type: "video/mp4", store }), { headers: { "Content-Type": "application/json" } }));
   await c.delete(mediaKey(id)).catch(() => {}); // an older one-entry copy of the same title
   setSaveMeta(id, null);
-  return { size };
+  return { size, store };
 
   // A part's own patience: the line away → wait for it (and say so), the
   // server gone → ask again with a growing pause; a copy swept from the
