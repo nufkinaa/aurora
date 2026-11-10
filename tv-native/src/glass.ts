@@ -15,14 +15,26 @@
 // ("written and directed by ...") stood readable inside the sheet. So every
 // pane here is OPAQUE; the glass is in the rim, the sheen and the shadow.
 //
-// Cost: borders and CSS gradients are drawn into the view's own background once;
-// nothing here animates and nothing is added per frame. There is no blurred
-// boxShadow in the glass: the box blurs it again on every frame it draws, even
-// on a pane that stands still (three layers on the player's menu took opening
-// it from 14 ms to 23 ms a frame on the Mi TV). The soft shadow is baked
-// pictures (tools/gen_glass_shadow.py): one whole picture for a pane of a known
-// size (the rail, the filter panel: assets/glass-pane-shadow*.png), nine pieces
-// round a pane of any size (components/GlassShadow.tsx).
+// Cost. The box draws a pane's blurred boxShadow and every CSS gradient of its
+// background again on each frame the screen draws while the pane is up - it is
+// not drawn once and kept. Measured on the Mi TV, opening and closing the
+// player's menu (median frame, share of late frames):
+//
+//     before the glass (one gradient, no shadow)          15 ms   2.3 %
+//     three blurred shadow layers + five gradients        23 ms   6.5 %
+//     the shadow as pictures + five gradients             20 ms   5.0 %
+//     the shadow as pictures + ONE gradient               16 ms   3.1 %   (15.5 ms / 2.8 % with no pictures at all)
+//
+// So: no blurred boxShadow anywhere in the glass, and at most ONE gradient on a
+// pane (the sheen, which is as tall as half the pane and so cannot be a fixed
+// picture). Everything along a pane's edge - the soft shadow outside it, the
+// glow of light inside its rim - is still pictures (tools/gen_glass_edge.py),
+// which the box only composites:
+//   * a pane of any size (a sheet, a menu, the genre popup, X-Ray): eight
+//     pieces round it, components/GlassEdge.tsx;
+//   * a pane of a known size (the rail, the filter panel): ONE picture over the
+//     whole pane, with its rim and its sheen in it too - those two slide in
+//     over the page, and the pane under the picture is a plain round box.
 //
 // Consts only: no state lives here (profile-scope.test.ts).
 
@@ -46,35 +58,27 @@ export const ink = {
   on: '#B9B0FF',
 } as const;
 
+// The sheen: white 5 % at the top -> 0 at 48 % of the pane's height. The one
+// gradient a pane carries.
 const SHEEN = 'linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 48%)';
+// A toast is 40 dp tall: a little more of it, over a little more of the pill.
+const SHEEN_SMALL = 'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0) 60%)';
 
-// The light on a pane of the CHROME (the rail, the filter panel), three layers
-// in one background (dp stops):
-//   the glow under the top hairline   white 18 % -> 0 over 9 dp
-//   the glow over the foot line       white  8 % -> 0 over 8 dp
-//   the sheen                         white  5 % -> 0 at 48 % of the height
-const LIGHT =
-  'linear-gradient(180deg, rgba(255,255,255,0.18) 0px, rgba(255,255,255,0) 9px), ' +
-  'linear-gradient(0deg, rgba(255,255,255,0.08) 0px, rgba(255,255,255,0) 8px), ' +
-  SHEEN;
-// The light on a MENU or a SHEET - a thicker rim, as the website's second pass
-// gave them: it is what tells the pane from the page now that nothing shows
-// through it.
-//   the glow under the top line       white 22 % -> 0 over 15 dp
-//   a faint glow down each side       white  7 % -> 0 over 12 dp
-//   the glow over the foot line       white 10 % -> 0 over 13 dp   (not on a sheet that stands on the screen's foot)
-//   the sheen
-const GLOW_TOP = 'linear-gradient(180deg, rgba(255,255,255,0.22) 0px, rgba(255,255,255,0) 15px)';
-const GLOW_SIDES =
-  'linear-gradient(90deg, rgba(255,255,255,0.07) 0px, rgba(255,255,255,0) 12px), ' +
-  'linear-gradient(270deg, rgba(255,255,255,0.07) 0px, rgba(255,255,255,0) 12px)';
-const GLOW_FOOT = 'linear-gradient(0deg, rgba(255,255,255,0.10) 0px, rgba(255,255,255,0) 13px)';
-const LIGHT_MENU = GLOW_TOP + ', ' + GLOW_SIDES + ', ' + GLOW_FOOT + ', ' + SHEEN;
-const LIGHT_FOOT_SHEET = GLOW_TOP + ', ' + GLOW_SIDES + ', ' + SHEEN;
-// A toast: the sheen only - it is 40 dp tall, a 15 dp glow would fill it.
-const LIGHT_SMALL = 'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0) 60%)';
+// The light inside the rim is baked into the edge pictures (gen_glass_edge.py):
+//   a menu, a sheet       top  white 22 % -> 0 over 15 dp
+//                         side white  7 % -> 0 over 12 dp
+//                         foot white 10 % -> 0 over 13 dp  (not on a sheet that stands on the screen's foot)
+//   the rail, the         top  white 18 % -> 0 over 9 dp
+//   filter panel          foot white  8 % -> 0 over 8 dp
+// A menu's is thicker, as the website's second pass gave it: it is what tells
+// the pane from the page now that nothing shows through it.
 
-/** The rim of the chrome: a bright hairline on top, a dimmer one at the foot, barely a line at the sides. */
+/**
+ * The rim of the chrome (the rail, the filter panel): a bright hairline on top,
+ * a dimmer one at the foot, barely a line at the sides. These panes do not draw
+ * it themselves - it is in their edge picture (gen_glass_edge.py reads the same
+ * three numbers); kept here as the one place the values are written.
+ */
 export const rim = {
   borderWidth: 1,
   borderColor: 'rgba(255,255,255,0.055)',
@@ -92,42 +96,45 @@ export const rimMenu = {
 /**
  * The glass's shadow is a soft one (0 14 34, black 34 %), a near one (0 3 8,
  * black 22 %), a tight one (0 1 2, black 22 %) and a dark hairline just outside
- * the rim - baked into pictures, see the head of this file. This is the
- * hairline alone, for a pane too small for the pictures (a toast): no blur in
- * it, so it costs a rounded line.
+ * the rim - baked into the edge pictures, see the head of this file. This is
+ * the hairline alone, for a pane too small for the pictures (a toast): no blur
+ * in it, so it costs a rounded line.
  */
 export const HAIRLINE = '0 0 0 0.5px rgba(0,0,0,0.30)';
 
-/** A pane of the chrome over the bare page (the rail, the filter panel). Add a radius; its shadow is a baked picture. */
+/**
+ * A pane of the chrome over the bare page (the rail, the filter panel): the
+ * body alone. Add a radius, and lay the pane's edge picture
+ * (assets/glass-pane-edge*.png) OVER it - the picture holds the shadow, the
+ * rim, the glow and the sheen.
+ */
 export const glassPane = {
   backgroundColor: BODY,
-  ...rim,
-  experimental_backgroundImage: LIGHT,
 } as const;
-/** A menu or a sheet (the player's menus, Sheet). Add a radius, and <GlassShadow> as its first child. */
+/** A menu or a sheet (the player's menus, Sheet). Add a radius, and <GlassEdge> as its first child. */
 export const glassMenu = {
   backgroundColor: BODY,
   ...rimMenu,
-  experimental_backgroundImage: LIGHT_MENU,
+  experimental_backgroundImage: SHEEN,
 } as const;
 /** A menu that opens on another pane (the genre popup): the raised body. */
 export const glassRaised = {
   backgroundColor: BODY_RAISED,
   ...rimMenu,
-  experimental_backgroundImage: LIGHT_MENU,
+  experimental_backgroundImage: SHEEN,
 } as const;
-/** A sheet that stands on the screen's foot (X-Ray, a person's page): no foot line, no foot glow. */
+/** A sheet that stands on the screen's foot (X-Ray, a person's page): no foot line. <GlassEdge radius={24}> first inside it. */
 export const glassFootSheet = {
   backgroundColor: BODY,
   ...rimMenu,
   borderBottomWidth: 0,
-  experimental_backgroundImage: LIGHT_FOOT_SHEET,
+  experimental_backgroundImage: SHEEN,
 } as const;
 /** A toast: the menu's lines and the sheen. Add HAIRLINE as its boxShadow. */
 export const glassToast = {
   backgroundColor: BODY,
   ...rimMenu,
-  experimental_backgroundImage: LIGHT_SMALL,
+  experimental_backgroundImage: SHEEN_SMALL,
 } as const;
 
 /**

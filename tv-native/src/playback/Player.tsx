@@ -164,7 +164,7 @@ import {track} from '../usage';
 import {clearImageMemory, isLowRam} from '../perfTier';
 import {RootStackParamList} from '../navigation';
 import {glassMenu, ink} from '../glass';
-import GlassShadow from '../components/GlassShadow';
+import GlassEdge from '../components/GlassEdge';
 import theme, {useTvMetrics} from '../theme';
 // [android-phone] the phone app draws its own touch controls over this same
 // player (docs/android-phone/PLAN.md); on a TV `PHONE` is false and none of it runs
@@ -5436,7 +5436,7 @@ export default function Player({
           stray D-pad press wanders to the transport bar behind the overlay. */}
       {menu === 'cc' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
-          {PHONE ? null : <GlassShadow radius={18} />}
+          {PHONE ? null : <GlassEdge radius={18} />}
           <MenuTitle icon="cc" label="SUBTITLES" />
           <ScrollView ref={ccScroll} style={styles.menuScroll}>
             {/* The site's first CC entry: one press that drops any manual delay
@@ -5579,7 +5579,7 @@ export default function Player({
       {/* Speed — the site's SPEEDS menu. */}
       {menu === 'speed' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
-          {PHONE ? null : <GlassShadow radius={18} />}
+          {PHONE ? null : <GlassEdge radius={18} />}
           <MenuTitle icon="speed" label="SPEED" />
           <ScrollView style={styles.menuScroll}>
             {SPEEDS.map(sp => (
@@ -5607,7 +5607,7 @@ export default function Player({
           you set mid-film. */}
       {menu === 'settings' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
-          {PHONE ? null : <GlassShadow radius={18} />}
+          {PHONE ? null : <GlassEdge radius={18} />}
           {/* Its own scroller (it had none: a film with several dubs and an
               intro to mark ran past the top of the screen). */}
           <ScrollView ref={gearScroll} style={styles.menuScroll} showsVerticalScrollIndicator={false}>
@@ -5791,7 +5791,7 @@ export default function Player({
       ))}
       {menu === 'party' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
-          {PHONE ? null : <GlassShadow radius={18} />}
+          {PHONE ? null : <GlassEdge radius={18} />}
           <MenuTitle icon="people" label="WATCH TOGETHER" />
           <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>
           {partyInfo ? (
@@ -6304,8 +6304,8 @@ const styles = StyleSheet.create({
     bottom: PHONE ? 104 : 124,
     maxHeight: '62%',
     // THE TV: a menu of the app's glass (glass.ts, docs/glass-tv.md) - the
-    // neutral body, the rim of light and its glow, the sheen; the soft shadow is
-    // <GlassShadow>, pictures (a blurred boxShadow cost frames here). Fully opaque:
+    // neutral body, the rim of light, the sheen; the glow and the soft shadow are
+    // <GlassEdge>, pictures (a blurred boxShadow and a stack of gradients cost frames here). Fully opaque:
     // at 0.97 a bright cue under the sheet still read through it ("Knox! Sto|p!"
     // - Mi TV, 2026-11-10). It was a navy body with the room's violet and green
     // in it (elia, 2026-10-07: "give the background there a bit hue"); the glass

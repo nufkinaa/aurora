@@ -73,8 +73,9 @@ const GRID_GAP = 13;
 // browse.js:352 — the placeholder count is fixed, not derived from the viewport.
 const SKELETONS = 18;
 // The filter panel's glass (glass.ts, docs/glass-tv.md): a floating pane like
-// the rail's, with its shadow as a baked picture because the panel slides.
-const PANE_SHADOW = require('../assets/glass-pane-shadow-wide.png');
+// the rail's - a plain round body with one baked picture over it (the shadow,
+// the rim, the glow, the sheen), because the panel slides.
+const PANE_EDGE = require('../assets/glass-pane-edge-wide.png');
 // The filter panel: wide enough for "Downloaded" and the genre picker at row
 // type, narrow enough to leave four columns of the grid showing behind it.
 const PANEL_W = 300;
@@ -892,9 +893,9 @@ export default function Browse({
             styles.panel,
             {transform: [{translateX: slide.interpolate({inputRange: [0, 1], outputRange: [PANEL_W, 0]})}]},
           ]}>
-          {/* The glass: its baked shadow, then the pane. Under the controls. */}
-          <Image source={PANE_SHADOW} resizeMode="stretch" fadeDuration={0} style={styles.paneShadow} />
+          {/* The glass: the pane's body, then its baked edge over it. Under the controls. */}
           <View style={styles.pane} pointerEvents="none" />
+          <Image source={PANE_EDGE} resizeMode="stretch" fadeDuration={0} style={styles.paneEdge} />
           {/* Traps all four directions: the grid behind is unreachable while the
               panel is up; LEFT is handled above as "close". The active category
               claims focus on open — the most useful place to start. */}
@@ -1011,7 +1012,7 @@ const styles = StyleSheet.create({
     ...glassPane,
   },
   // 48 dp outside the pane on every side
-  paneShadow: {
+  paneEdge: {
     position: 'absolute',
     top: 4 - 48,
     bottom: 11 - 48,

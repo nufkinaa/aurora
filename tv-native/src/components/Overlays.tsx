@@ -9,6 +9,7 @@ import ReplaceSheet from './ReplaceSheet';
 import RecommendSheet from './RecommendSheet'; // [household]
 import Sheet from './Sheet';
 import {glassFootSheet, glassToast, HAIRLINE, ink} from '../glass';
+import GlassEdge from './GlassEdge';
 import TrailerFrame, {TrailerState} from './Trailer';
 import {prepareTrailer, ResolvedTrailer} from '../trailers';
 import type {ActionItem} from '../overlay';
@@ -743,6 +744,7 @@ function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; on
     <View style={styles.xrBackdrop}>
       <Animated.View style={[styles.xrWash, washStyle]} />
       <Animated.View style={[styles.xrPanel, panelStyle, {maxHeight: bottomSheetMaxHeight(winH, 446)}]}>
+        <GlassEdge radius={24} />
         <TVFocusGuideView autoFocus trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.xrGuide}>
           <View style={styles.xrHead}>
             <View style={styles.xrHeadText}>
@@ -998,13 +1000,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingBottom: 22,
     // The glass of a sheet that stands on the screen's foot (glass.ts): the
-    // neutral body, the rim of light and its glow, the sheen.
-    // Opaque: a bright subtitle line under a 96% panel still read through it.
-    // (It carried the player menus' violet-and-green hue; the glass is neutral
-    // and the picture behind brings the colour.) The panel rises and scales as
-    // it opens, so its shadow is the lighter half of the old one, not a new one.
+    // neutral body, the rim of light, the sheen; its glow and its soft shadow
+    // are <GlassEdge>, pictures. Opaque: a bright subtitle line under a 96%
+    // panel still read through it. (It carried the player menus'
+    // violet-and-green hue; the glass is neutral and the picture behind brings
+    // the colour.) The panel rises and scales as it opens: the 70 dp blurred
+    // shadow it had was blurred again on every frame of that.
     ...glassFootSheet,
-    boxShadow: '0 -12px 32px rgba(0,0,0,0.32)',
   },
   xrGuide: {flexShrink: 1},
   xrHead: {flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg},

@@ -10,7 +10,7 @@ import {View, Text, ScrollView, StyleSheet, TVFocusGuideView, BackHandler} from 
 import Focusable from './Focusable';
 import {useKeyTrap} from '../focus';
 import {glassRaised, ink} from '../glass';
-import GlassShadow from './GlassShadow';
+import GlassEdge from './GlassEdge';
 import theme, {useTvMetrics} from '../theme';
 
 const {colors, radius} = theme;
@@ -115,7 +115,7 @@ export default function Picker({
             place.up ? styles.panelUp : styles.panelDown,
             {maxHeight: place.max},
           ]}>
-          <GlassShadow radius={14} />
+          <GlassEdge radius={14} />
           <ScrollView>
             {options.map((o, i) => (
               <Focusable uiId="picker.pick"
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 14,
     // A menu of the glass (glass.ts): opaque, the rim of light, the sheen; its
-    // soft shadow is <GlassShadow>, pictures and not a blur. The RAISED body: it
+    // glow and its soft shadow are <GlassEdge>, pictures and not a blur. The RAISED body: it
     // opens on the filter pane, and with the pane's own body the two ran into
     // each other (Mi TV).
     ...glassRaised,

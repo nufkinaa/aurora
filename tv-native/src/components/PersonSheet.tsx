@@ -29,6 +29,7 @@ import Focusable from './Focusable';
 import {api, artSrc, HeroItem, LIST_ADDED, PersonCredit, PersonData, StreamRef, XrayPerson} from '../api';
 import {useFocusFallback, useKeyTrap} from '../focus';
 import {glassFootSheet, ink} from '../glass';
+import GlassEdge from './GlassEdge';
 import {rootNav} from '../rootNav';
 import {showToast} from '../toast';
 import {track} from '../usage';
@@ -274,6 +275,7 @@ export default function PersonSheet({
     <View style={styles.backdrop}>
       <Animated.View style={[styles.wash, washStyle]} />
       <Animated.View style={[styles.panel, panelStyle, {maxHeight: bottomSheetMaxHeight(winH, 500)}]}>
+        <GlassEdge radius={24} />
         <TVFocusGuideView autoFocus trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.guide}>
           <View style={styles.head}>
             <View style={styles.face}>
@@ -360,7 +362,7 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingHorizontal: 28,
     paddingBottom: 18,
-    // the glass, as X-Ray's (glass.ts): neutral body, rim of light, sheen
+    // the glass, as X-Ray's (glass.ts): neutral body, rim of light, sheen; <GlassEdge> for its glow and shadow
     ...glassFootSheet,
   },
   guide: {flexShrink: 1},

@@ -112,11 +112,14 @@ let railLinks = 0;
 // purpose - the page and the pictures bring the colour, and white words read
 // the same over all of it. Nothing in the pane moves: the two loops are gone.
 //
-// The shadow is a baked picture (tools/gen_glass_shadow.py), not a boxShadow: the
-// panel slides, and a blurred shadow on a moving surface is the cost the perf
-// rules forbid. 48 dp of it on every side of the pane; what falls off the screen
-// is never drawn.
-const PANE_SHADOW = require('../assets/glass-pane-shadow.png');
+// Everything of the glass but its body is ONE baked picture laid over the pane
+// (tools/gen_glass_edge.py): the soft shadow outside it, and inside it the rim,
+// the glow under the rim and the sheen. The panel slides in over the page, and
+// a blurred boxShadow, a stack of gradients and a three-colour round border are
+// all drawn again on every frame of that; a round box and a picture are not.
+// 48 dp of shadow on every side of the pane; what falls off the screen is never
+// drawn.
+const PANE_EDGE = require('../assets/glass-pane-edge.png');
 // The pane inside the 240 dp panel: 16 dp round the rows (which sit at 48..224
 // and from PAD_Y down), so its corner (38) is concentric with a row's (22).
 const PANE_X = 32;
@@ -440,12 +443,12 @@ export default function NavRail({
     </TVFocusGuideView>
   );
 
-  // The glass: its baked shadow, then the pane itself. Under the rows, and
-  // nothing in it takes a key or a touch.
+  // The glass: the pane's body, then its baked edge over it. Under the rows,
+  // and nothing in it takes a key or a touch.
   const pane = (
     <>
-      <Image source={PANE_SHADOW} resizeMode="stretch" fadeDuration={0} style={styles.paneShadow} />
       <View style={styles.pane} pointerEvents="none" />
+      <Image source={PANE_EDGE} resizeMode="stretch" fadeDuration={0} style={styles.paneEdge} />
     </>
   );
 
@@ -676,7 +679,7 @@ const styles = StyleSheet.create({
     ...glassPane,
   },
   // 48 dp outside the pane on every side (the file is 304 dp wide: 208 + 2 x 48)
-  paneShadow: {
+  paneEdge: {
     position: 'absolute',
     top: PANE_Y - SHADOW_ROOM,
     bottom: PANE_Y - SHADOW_ROOM,
