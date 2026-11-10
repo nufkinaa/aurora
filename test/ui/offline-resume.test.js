@@ -283,4 +283,42 @@ ui.test("desktop: an MKV's Original (repackaged on the server) saved in many par
   }
 });
 
+ui.test("desktop: Pause keeps what is saved and waits — no carrying on by itself after a reload; Resume finishes it from there", { allow: [/Failed to load resource/, /net::ERR/] }, async ({ srv, freshProfile }) => {
+  const profile = await freshProfile();
+  const film = srv.lib.film1;
+  const { context, page, errors, go } = await open(srv, profile, DESKTOP);
+  try {
+    await go(`#/movie/${film.id}`, '[data-ui="detail.offline"]');
+    await controlled(page);
+    let n = 0;
+    let release;
+    const held = new Promise((r) => { release = r; });
+    await context.route("**/stream/video/**", async (route) => { if (++n > 5) await held; route.continue().catch(() => {}); });
+    await page.locator('[data-ui="detail.offline"]').first().click();
+    await pick(page, "Original");
+    await until(async () => (await partCount(page)) >= 5, "five parts in");
+    assert.equal(await page.evaluate(async (id) => (await import("/js/offline.js")).pauseJob(id), film.id), true);
+    await until(async () => (await jobState(page)) === "paused", "paused");
+    release();
+    const kept = await partCount(page);
+    assert.ok(kept >= 5, `${kept} parts kept`);
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("aurora-offline-jobs"))[0].why), "user");
+    // a reload: it stays paused (the person's own pause), nothing more is fetched
+    const before = n;
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(5000);
+    assert.equal(await jobState(page), "paused");
+    assert.equal(n, before, "nothing fetched while paused");
+    assert.equal(await partCount(page), kept);
+    // Resume
+    await page.evaluate(async (id) => { (await import("/js/offline.js")).retryJob(id); }, film.id);
+    await until(async () => !!(await savedRecord(page, film.id)), "finished after Resume");
+    assert.equal(await partCount(page), 20);
+    assert.ok(n - before <= 20 - kept + 1, `only the missing parts were asked (${n - before} for ${20 - kept})`);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close().catch(() => {});
+  }
+});
+
 ui.run({ concurrency: 2 });

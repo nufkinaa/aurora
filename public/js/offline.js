@@ -209,7 +209,7 @@ for (const j of readJobs()) {
   // nothing runs across a page load: what was under way stopped — and its
   // parts are still here, so it is paused, not lost ("interrupted" was the
   // old word for it, from before saves could carry on)
-  if (ACTIVE_JOB.has(j.state) || j.state === "interrupted") { j.state = "paused"; j.why = "stopped"; }
+  if (ACTIVE_JOB.has(j.state) || j.state === "interrupted") { j.state = "paused"; j.why = "stopped"; } // (a pause the person chose keeps its why: "user")
   j.speed = 0;
   jobs.set(j.id, j);
 }
@@ -252,6 +252,23 @@ export const cancelJob = (id) => {
   const j = jobs.get(id);
   dismissJob(id);
   if (j && j.state !== "queued") isSaved(id).then((done) => { if (!done) { stopBackground(id).catch(() => {}); dropUnfinished(id).catch(() => {}); } }).catch(() => {});
+};
+// Pause (2026-11-10 round 2, for the screens): a save stops and KEEPS what it
+// has saved — "paused", why "user"; it does not carry on by itself (only
+// Resume = retryJob(id) does). A queued one is paused the same way.
+const pausing = new Set();
+export const pauseJob = (id) => {
+  const j = jobs.get(id);
+  if (!j) return false;
+  const c = jobCtl.get(id);
+  if (c) {
+    pausing.add(id);
+    c.abort();
+  } else if (j.state !== "failed") {
+    setJob(id, { state: "paused", why: "user", speed: 0, note: "" });
+  }
+  stopBackground(id).catch(() => {}); // (the browser's own fetch of it, too — what it stored stays)
+  return true;
 };
 // "Waiting for its turn" — the episodes of "Save the next 3" after the first.
 export const queueJob = (item) => {
@@ -327,7 +344,8 @@ export const saveItem = async (item, onProgress = () => {}, choose = null, signa
     return saved;
   } catch (e) {
     if (started) {
-      if (e && e.name === "AbortError") { dismissJob(item.id); stopBackground(item.id).catch(() => {}); dropUnfinished(item.id).catch(() => {}); }
+      if (e && e.name === "AbortError" && pausing.has(item.id)) setJob(item.id, { state: "paused", why: "user", speed: 0, note: "", error: null });
+      else if (e && e.name === "AbortError") { dismissJob(item.id); stopBackground(item.id).catch(() => {}); dropUnfinished(item.id).catch(() => {}); }
       else if (e && e.name === "BusyElsewhere") { /* the other tab's job is the truth */ }
       else if (e && e.pause) setJob(item.id, { state: "paused", why: e.pause, error: null, speed: 0, note: "" });
       else setJob(item.id, { state: "failed", error: (e && e.message) || String(e), speed: 0 });
@@ -335,6 +353,7 @@ export const saveItem = async (item, onProgress = () => {}, choose = null, signa
     throw e;
   } finally {
     if (jobCtl.get(item.id) === ctl) jobCtl.delete(item.id);
+    pausing.delete(item.id);
   }
 };
 
@@ -347,13 +366,14 @@ export const resumeSaves = async () => {
   // (and keep the next episode ready, where that is switched on — below)
   if (available()) Promise.resolve().then(() => smartNext.check()).catch(() => {});
   if (!available() || resuming || (typeof navigator !== "undefined" && navigator.onLine === false)) return 0;
-  const todo = listJobs().filter((j) => j.state === "paused" && !jobCtl.has(j.id) && j.quality);
+  // (one the person paused waits for their Resume)
+  const todo = listJobs().filter((j) => j.state === "paused" && j.why !== "user" && !jobCtl.has(j.id) && j.quality);
   if (!todo.length) return 0;
   resuming = true;
   let n = 0;
   try {
     for (const j of todo) {
-      if (!jobs.has(j.id) || jobs.get(j.id).state !== "paused") continue; // cancelled meanwhile
+      if (!jobs.has(j.id) || jobs.get(j.id).state !== "paused" || jobs.get(j.id).why === "user") continue; // cancelled or paused meanwhile
       try {
         await retryJob(j.id);
         n++;
@@ -467,7 +487,8 @@ const saveOne = async (item, onProgress, choose, signal) => {
     }
     // 1. a playable file at that quality. A copy that has to wait says why;
     // a Cancel tells the server too.
-    const stopServer = () => { api.offlineCancel(item.id, variant).catch(() => {}); };
+    // (a pause leaves the server's copy being made: Resume finds it further on)
+    const stopServer = () => { if (!pausing.has(item.id)) api.offlineCancel(item.id, variant).catch(() => {}); };
     let st;
     for (let misses = 0; ; ) {
       try { st = await api.offlinePrepare(item.id, variant, hevc); break; } catch (e) {
