@@ -163,7 +163,7 @@ import {personNow} from '../personSync';
 import {track} from '../usage';
 import {clearImageMemory, isLowRam} from '../perfTier';
 import {RootStackParamList} from '../navigation';
-import {glassMenu, ink, inkOnWhite} from '../glass';
+import {glassMenu, ink, inkOnWhite, NO_SHADOW, quietFocus} from '../glass';
 import GlassEdge from '../components/GlassEdge';
 import theme, {useTvMetrics} from '../theme';
 // [android-phone] the phone app draws its own touch controls over this same
@@ -518,11 +518,17 @@ const MenuItem = React.forwardRef<
   // set row's lilac word made weaker still: two judges, 2026-11-10). The fill rides on
   // highlightColor, natively; the words need this one bit of state, as PBtn's icon does - a
   // handful of rows that exist while a menu is open. The phone: nothing changes.
+  //   the SET row under focus keeps its accent: the tick, the icon and the second line in
+  //     inkOnWhite.set (a black tick alone was all that said "set");
+  //   a row that CANNOT be chosen gets the quiet focus - an outline, no white fill - and keeps
+  //     light words, its title as strong as its note (glass.ts quietFocus).
   const [focused, setFocused] = useState(false);
-  const lit = focused && !PHONE;
+  const lit = focused && !PHONE && !dim; // on the white fill
+  const quiet = focused && !PHONE && !!dim; // in the outline
+  const litSet = lit && on ? styles.menuLitSet : null;
   const name = (
     <Text
-      style={[styles.menuItemText, on && styles.menuItemTextOn, dim && styles.menuItemDim, lit && (dim ? styles.menuLitDim : styles.menuLit)]}
+      style={[styles.menuItemText, on && styles.menuItemTextOn, dim && styles.menuItemDim, lit && styles.menuLit, quiet && styles.menuQuiet]}
       numberOfLines={1}>
       {label}
       {star ? <Text style={[styles.menuStar, lit && styles.menuLitStar]}>{'  ★'}</Text> : null}
@@ -533,8 +539,11 @@ const MenuItem = React.forwardRef<
       ref={ref}
       round
       noScale
-      ring="none"
-      highlightColor={PHONE ? colors.surfaceHover : colors.white}
+      ring={!PHONE && dim ? 'white' : 'none'}
+      ringWidth={!PHONE && dim ? quietFocus.ringWidth : undefined}
+      ringColor={!PHONE && dim ? quietFocus.ring : undefined}
+      shadow={!PHONE && dim ? NO_SHADOW : undefined}
+      highlightColor={PHONE ? colors.surfaceHover : dim ? quietFocus.fill : colors.white}
       hasTVPreferredFocus={hasTVPreferredFocus}
       onFocusChange={
         PHONE
@@ -547,18 +556,18 @@ const MenuItem = React.forwardRef<
       uiId={uiId}
       onPress={onPress}
       style={styles.menuItem}>
-      <Text style={[styles.menuCheck, !on && styles.menuCheckOff, lit && styles.menuLit]}>✓</Text>
+      <Text style={[styles.menuCheck, !on && styles.menuCheckOff, lit && styles.menuLit, litSet]}>✓</Text>
       {icon ? (
         <Icon
           name={icon}
           size={14}
-          color={PHONE ? (on ? colors.text : colors.textDim) : lit ? inkOnWhite.text : on ? ink.on : ink.text}
+          color={PHONE ? (on ? colors.text : colors.textDim) : lit ? (on ? inkOnWhite.set : inkOnWhite.text) : on ? ink.on : ink.text}
         />
       ) : null}
       {sub ? (
         <View style={styles.menuItemCol}>
           {name}
-          <Text style={[styles.menuSub, lit && styles.menuLitSecond]} numberOfLines={dim ? 2 : 1}>
+          <Text style={[styles.menuSub, lit && styles.menuLitSecond, litSet]} numberOfLines={dim ? 2 : 1}>
             {sub}
           </Text>
         </View>
@@ -6629,6 +6638,8 @@ const styles = StyleSheet.create({
   menuLit: {color: inkOnWhite.text},
   menuLitSecond: {color: inkOnWhite.second},
   menuLitStar: {color: inkOnWhite.star},
-  // a row that cannot apply here: a solid grey on white, not black at half strength
-  menuLitDim: {color: inkOnWhite.dim, opacity: 1},
+  // the SET row under focus: its tick and second line keep an accent, deep enough for white
+  menuLitSet: {color: inkOnWhite.set},
+  // a row that cannot apply here, under its quiet focus (an outline): the title solid, as its note
+  menuQuiet: {color: ink.third, opacity: 1},
 });

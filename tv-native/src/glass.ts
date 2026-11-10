@@ -78,14 +78,34 @@ export const CHOSEN_WEIGHT = '800';
  * rail's focused item. The ratios on white are measured in docs/glass-tv.md.
  */
 export const inkOnWhite = {
-  /** the word, the tick, the icon */
+  /** the word, and the tick and icon of a row that is not the set one */
   text: '#0B0C14',
   /** the second line, the tag */
   second: '#454A5C',
-  /** the word of a row that cannot apply here (it was white at half strength) */
-  dim: '#62677A',
-  /** the star of the matching subtitle track (the score gold is 1.6:1 on white) */
-  star: '#7A5C00',
+  /**
+   * the SET row's tick, icon and second line: the accent, deep enough for white
+   * (6.4:1; the accent itself is 3.3:1, `ink.on` 1.9:1). All in dark ink, the
+   * set row under focus kept a black tick as its only sign of "set".
+   */
+  set: '#5A3FE6',
+  /**
+   * the star of the matching subtitle track: a clear amber, 5.0:1 (the score
+   * gold is 1.6:1 on white; #7A5C00, the first try, read as a muddy olive)
+   */
+  star: '#B45309',
+} as const;
+
+/**
+ * The focus of a player-menu row that CANNOT be chosen here (Night mode on a
+ * track it does not apply to): an outline and a breath of white, not the white
+ * fill - "you are here" and "not available" together. Its words stay light on
+ * the dark body: the title in `ink.third`, as its note (it was white at half
+ * strength, paler than the note).
+ */
+export const quietFocus = {
+  ring: 'rgba(255,255,255,0.85)',
+  ringWidth: 2,
+  fill: 'rgba(255,255,255,0.08)',
 } as const;
 
 /**
@@ -108,14 +128,13 @@ const SHEEN_SMALL = 'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255
 //                         side white  7 % -> 0 over 12 dp
 //                         foot white 10 % -> 0 over 13 dp  (not on a sheet that stands on the screen's foot)
 //   the rail, the         top  white 18 % -> 0 over 9 dp
-//   filter panel          (no foot: they run off the screen's foot)
+//   filter panel          foot white  8 % -> 0 over 8 dp
 // A menu's is thicker, as the website's second pass gave it: it is what tells
 // the pane from the page now that nothing shows through it.
 
 /**
  * The rim of the chrome (the rail, the filter panel): a bright hairline on top,
- * barely a line at the sides (and a dimmer one at the foot, for a pane that has
- * a foot - these two run off the screen's). These panes do not draw
+ * a dimmer one at the foot, barely a line at the sides. These panes do not draw
  * it themselves - it is in their edge picture (gen_glass_edge.py reads the same
  * three numbers); kept here as the one place the values are written.
  */
@@ -144,10 +163,11 @@ export const HAIRLINE = '0 0 0 0.5px rgba(0,0,0,0.30)';
 
 /**
  * A pane of the chrome over the bare page (the rail, the filter panel): the
- * body alone. Add a radius at its top corners (it stands on the screen's foot:
- * under a floating foot the page's cards showed in the 11 dp left), and lay the pane's edge picture
+ * body alone. Add a radius, and lay the pane's edge picture
  * (assets/glass-pane-edge*.png) OVER it - the picture holds the shadow, the
- * rim, the glow and the sheen.
+ * rim, the glow, the sheen, and the ground: under the pane's foot (it floats
+ * 11 dp above the screen's) the picture is opaque in the page's dark, so no
+ * scrap of the page shows there.
  */
 export const glassPane = {
   backgroundColor: BODY,

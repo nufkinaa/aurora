@@ -185,6 +185,22 @@ These lines replace the ones above for the build after it (90f03315):
 The focused row of a player menu against the menu round it: 1.42 before,
 14.65 now.
 
+## The second follow-up of 2026-11-10
+
+Four more were mended after the second jury (docs/glass-tv.md, section 9).
+These lines replace the ones above for the build after it (3b6ed52e,
+versionCode 249):
+
+| pair | above | now |
+|---|---|---|
+| the star on the focused set row | 6.25 (`#7A5C00`, olive) | 5.02 (`#B45309`, amber) |
+| the focused set row's tick | 19.50 (black) | 6.39 (`#5A3FE6`) |
+| the focused set row's second line | 8.80 | 6.39 (`#5A3FE6`) |
+| the focused set row's word | 19.50 | 19.50 |
+| an unavailable row's title, with focus on it | 5.61 (grey on the white fill) | 5.28 (`#B2B8CA` on the quiet fill `#3F3F45`) |
+| its second line and its tag "Not here" | 8.80 | 5.36 |
+| that row's focus against the menu round it | 14.65 (white fill) | 10.96 (a 2 dp outline, measured `#E3E3E3`); its fill 1.35 |
+
 ## Not measured one by one
 
 These use the same sheet and the same inks as the sheets above, so the same
