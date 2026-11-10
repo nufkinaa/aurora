@@ -5579,11 +5579,6 @@ html[data-look="glass"] .kids-field { background: rgba(255, 255, 255, 0.05); bor
   .lf-attach { grid-column: 1 / -1; grid-row: 2; max-width: none; width: 100%; }
   .lf-x { grid-column: 3; grid-row: 1; }
 }
-/* a small phone: two of your files a row — three left 88px for a name and
-   "2019 · 0:20 · 1…", both cut */
-@media (max-width: 400px) {
-  .lf .grid.lf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
 
 /* the glass look: the same material as every other raised surface */
 html[data-look="glass"] .lf-drop { background: var(--g-fill); box-shadow: var(--g-edge); border-color: rgba(255, 255, 255, 0.26); border-radius: var(--g-radius); }
