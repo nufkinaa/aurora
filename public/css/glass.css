@@ -28,8 +28,9 @@ html[data-look="glass"] {
                        pills, the player's dock)
        --g-fill-thick  what carries a list or a paragraph (menus, sheets,
                        dialogs, toasts) — a deeper floor (--g-tint-deep)
-       --g-fill-sheet  the same over the dimmed page (a dialog, the profile
-                       menu)
+       --g-fill-sheet  the same over the dimmed page (a dialog)
+       --g-fill-menu   a drop-down menu (the profile menu, a picker's list,
+                       the player's menus): the chrome's own body, fuller
        --g-fill-slab   panes that lie in the page, over the sky only
        --g-lift        a hover / pressed step, laid over any of the three
        --g-well        the chosen tab: a darker capsule pressed into the bar,
@@ -50,6 +51,17 @@ html[data-look="glass"] {
      black, so nothing behind it is brighter than a grey of 118): 70 % is
      enough for the same floor, and twice as much shows through as before */
   --g-fill-sheet: var(--g-sheen), linear-gradient(rgba(var(--g-tint-deep), 0.7), rgba(var(--g-tint-deep), 0.7));
+  /* A drop-down MENU is not let through more. Its lines are short, close
+     together and sit right over whatever the page has there — through the
+     deeper floor a poster showed as a smudge behind a word and a button as a
+     ghost (the second jury, scenes 05 and 18). So a menu keeps the body, the
+     rim and the shadow the first jury approved: 84 % of the chrome's grey,
+     the plain rim with its 1 px outside line, the two-layer shadow. */
+  --g-fill-menu: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.84), rgba(var(--g-tint), 0.84));
+  --g-edge-menu: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.055), inset 0 8px 10px -8px rgba(255, 255, 255, 0.18),
+    inset 0 -7px 9px -8px rgba(255, 255, 255, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.26);
+  --g-shadow-menu: 0 12px 32px rgba(0, 0, 0, 0.32), 0 2px 6px rgba(0, 0, 0, 0.2);
   /* A pane in the page has no blur and only the sky behind it. A grey body
      laid a grey veil over the sky's colour (a row went muddy); a near-black
      one at 67 % only darkens it, so the row keeps the sky's own hue — a third
@@ -2179,14 +2191,19 @@ html[data-look="glass"] #nav-new.has-new .nav-new-dot {
    out keeps its red. */
 html[data-look="glass"] .dropdown,
 html[data-look="glass"] .menu,
-html[data-look="glass"] .nav-menu,
+html[data-look="glass"] .nav-menu {
+  /* the menu's own body, and the rim and shadow every rule above gives it
+     read these two (see --g-fill-menu) */
+  --g-edge: var(--g-edge-menu);
+  --g-shadow: var(--g-shadow-menu);
+  background: var(--g-fill-menu);
+}
 html[data-look="glass"] .suggest-list {
   background: var(--g-fill-thick);
   box-shadow: var(--g-edge-thick), var(--g-shadow);
 }
 /* over the dimmed page (see --g-fill-sheet) */
-html[data-look="glass"] .modal-backdrop > .modal,
-html[data-look="glass"] .nav-menu-wrap > .nav-menu {
+html[data-look="glass"] .modal-backdrop > .modal {
   background: var(--g-fill-sheet);
 }
 html[data-look="glass"] .dropdown-item,
