@@ -244,7 +244,12 @@ const lum = ([r, g, b]) => {
   return 0.2126 * c(r) + 0.7152 * c(g) + 0.0722 * c(b);
 };
 const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
-const parseColor = (s) => { const m = s.match(/[\d.]+/g).map(Number); return { rgb: m.slice(0, 3), a: m.length > 3 ? m[3] : 1 }; };
+// (a colour made by color-mix() computes to "color(srgb r g b)", channels 0..1)
+const parseColor = (s) => {
+  const m = s.match(/[\d.]+/g).map(Number);
+  const unit = /^color\(srgb/.test(s);
+  return { rgb: m.slice(0, 3).map((v) => (unit ? Math.round(v * 255) : v)), a: m.length > 3 ? m[3] : 1 };
+};
 const over = (fg, bg) => fg.rgb.map((v, i) => v * fg.a + bg[i] * (1 - fg.a));
 
 // (not pointer-events: none — navTone.js reads what is under the nav the way

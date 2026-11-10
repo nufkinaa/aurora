@@ -967,10 +967,23 @@ html:not([data-look="glass"]) .rm-touch {
   transform: translateY(100%);
   transition: transform 260ms var(--ease);
 }
+/* glass: the thick pane every menu and sheet is (glass.css --g-fill-thick):
+   the words read on its body alone, the blur only softens what is behind */
 html[data-look="glass"] .rm-sheet {
-  background: rgba(18, 20, 34, 0.78);
-  -webkit-backdrop-filter: blur(22px) saturate(1.6);
-  backdrop-filter: blur(22px) saturate(1.6);
+  background: var(--g-fill-thick, rgba(40, 40, 46, 0.84));
+  box-shadow: var(--g-edge, inset 0 1px 0 rgba(255, 255, 255, 0.28)), 0 -20px 60px rgba(0, 0, 0, 0.5);
+  -webkit-backdrop-filter: var(--g-blur, blur(6px) saturate(1.8));
+  backdrop-filter: var(--g-blur, blur(6px) saturate(1.8));
+}
+html[data-look="glass"][data-fx="lite"] .rm-sheet {
+  background: rgba(var(--g-tint, 40, 40, 46), 0.94);
+}
+@media (prefers-reduced-transparency: reduce) {
+  html[data-look="glass"] .rm-sheet {
+    background: rgba(var(--g-tint, 40, 40, 46), 0.94);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 .rm-sheet-wrap.on .rm-sheet {
   transform: none;

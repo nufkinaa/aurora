@@ -1,0 +1,437 @@
+# The glass: measured contrast, before and after
+
+Branch `glass-apple`, 2026-11-10. "Before" is today's glass (origin/master's
+stylesheet), "after" is this branch's — both drawn by the same GPU-backed
+Chrome against the same private server, the sky and every animation held
+still.
+
+## How it was measured
+
+For each surface the worst things that can be behind it were staged on the
+page itself (`tools/glass-apple/stage.js`):
+
+- **white poster / white picture** — a plain white sheet behind the glass
+  (the picture a button sits on turned white);
+- **bright poster** — a cream and lemon poster wall;
+- **mid grey** — the backdrop where the old dark-or-light word flip sat on
+  the fence;
+- **white text under** — lines of bold white text running behind the glass;
+- **bright sky band** — the whole sky painted in the aurora's brightest
+  green (the real sky is never all of it at once: this is its ceiling);
+- **the sky** — the sky as it usually is; **black** — nothing behind.
+
+Then the page was photographed twice — once as it is and once with the
+surface's own words and icons hidden — and for every label the two
+photographs give the ink's colour (the pixels that changed most) and the
+colour right behind it (the same pixels with the words gone). The number in
+the table is the WCAG contrast of those two, and each cell is the WORST
+label of its kind on that surface. Painted controls (a white primary button,
+a switch, a badge, an avatar) are left out: they are not this material.
+
+- **words** — the surface's main words; **chosen** — the selected tab / chip;
+- **icons** — its icons; **quiet words** — the second and third voice (a
+  note, a count, a hint).
+
+A cell marked ✗ is under 4.5:1.
+
+Run it again: `node tools/glass-apple/contrast.js both <dir>` then
+`python tools/glass-apple/contrast.py <dir> <table file>`.
+
+## The result
+
+**214 measured cells. Under 4.5:1 — before: 61, after: 9.**
+
+- Every main word, every chosen label and every word or icon on the chrome
+  (tab bar, nav island, top buttons, menus, sheets, the peek, toasts, the
+  buttons on a picture) is at 5.0:1 or better after, over every backdrop.
+  The lowest is 5.0 (an episode's title on a phone with the sky all bright)
+  and 5.1 (the nav island over a plain white poster).
+- The nine that remain are all one case: **the second voice on a pane in
+  the page while the WHOLE sky is its brightest green** — a chip's quiet
+  label (3.8–3.9), small grey icons on a settings row, an episode and the
+  search list (3.6–4.4; an icon needs 3:1), an episode's "Episode 1" line on
+  a phone (3.6) and the kind of a search suggestion (3.9). On the sky as it
+  is, all of them are at 5.2:1 or better (before: 2.0–4.3). To carry them
+  over an all-bright sky the pane would have to be nearly opaque (it stopped
+  reading as glass) or the quiet grey as bright as the main words (the page
+  lost its second voice); neither was done.
+- Where "after" is LOWER than "before" and both pass, it is by design:
+  today's nav flips its words to dark ink over a bright poster (14–20:1) and
+  to white over a dark one, and the flip is what failed in between (3.2–4.5
+  over white text or a bright sky). Apple's bar does not flip; ours now keeps
+  white words on a body that is dark enough over anything (5.1–5.9 over
+  white, 8–16 elsewhere).
+
+## The type tag on a hero ("SERIES" / "FILM")
+
+Not one of the 214 cells: measured apart, by `tools/glass-apple/fixes.js`
+(the pill photographed with its letters and without; the letters' own colour
+against the darkest and the lightest point of the ground under them).
+"A plain white sheet" is white laid directly behind a copy of the pill, with
+none of the hero's own fades over it — the case of a phone hero at full
+brightness over a white picture.
+
+| where | letters | behind it | before | after |
+|---|---|---|---:|---:|
+| Home's hero, phone 402 | gold `#f0c67e` | a plain white sheet | 1.6 ✗ | 5.4 |
+| Home's hero, phone 402 | gold | the hero's picture turned white (its fades over it) | 2.1 ✗ | 7.5 |
+| Home's hero, phone 402 | gold | the hero as it is | 2.9 ✗ | 7.9 |
+| Home's hero, desktop 1440 | gold | a plain white sheet | 1.6 ✗ | 5.4 |
+| Home's hero, desktop 1440 | gold | the picture turned white | 5.3 | 8.8 |
+| Home's hero, desktop 1440 | gold | the hero as it is | 6.0 | 8.9 |
+| a film's page, phone 402 | cyan `#7fd1e8` | the page as it is | 4.3 ✗ | 8.0 |
+| a film's page, desktop 1440 | cyan | the picture turned white | 1.3 ✗ | 6.3 |
+| a film's page, desktop 1440 | cyan | the page as it is | 1.7 ✗ | 6.7 |
+| a show's page, desktop 1440 | cyan | the picture turned white | 1.4 ✗ | 6.4 |
+| a show's page, desktop 1440 | cyan | the page as it is | 4.2 ✗ | 8.2 |
+| a show's page, phone 402 | cyan | the page as it is | 5.4 | 8.3 |
+
+## Not measured here
+
+- Safari on an iPhone: there is no WebKit on this PC. The body alone (no
+  backdrop filter at all) holds 4.5:1 by arithmetic — a white backdrop
+  behind `rgba(40,40,46,0.72)` is a grey of 100, luminance 0.127, 5.9:1
+  against white words — so a browser that drops the filter is covered.
+- The player's dock: it sits on a scrim of its own over the film and takes
+  the same body; its words are white on it.
+
+## The table
+
+### Chips (desktop 1440)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| chosen | bright sky band | 1.6 ✗ | 6.6 |
+| chosen | the sky | 8.7 | 8.8 |
+| quiet words | bright sky band | 1.3 ✗ | 3.9 ✗ |
+| quiet words | the sky | 3.4 ✗ | 6.9 |
+
+### Chips (phone 402)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| chosen | bright sky band | 1.7 ✗ | 6.7 |
+| chosen | the sky | 6.2 | 8.5 |
+| quiet words | bright sky band | 1.3 ✗ | 3.8 ✗ |
+| quiet words | the sky | 2.0 ✗ | 6.0 |
+
+### Episodes and the season bar (desktop 1440)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | bright sky band | 1.3 ✗ | 5.9 |
+| words | the sky | 4.5 | 9.0 |
+| icons | bright sky band | 1.1 ✗ | 4.4 ✗ |
+| icons | the sky | 4.3 ✗ | 7.3 |
+| quiet words | bright sky band | 1.2 ✗ | 4.7 |
+| quiet words | the sky | 3.3 ✗ | 7.3 |
+
+### Episodes and the season bar (phone 402)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | bright sky band | 1.4 ✗ | 5.0 |
+| words | the sky | 4.8 | 7.6 |
+| icons | bright sky band | 1.1 ✗ | 3.6 ✗ |
+| icons | the sky | 2.6 ✗ | 5.2 |
+| quiet words | bright sky band | 1.2 ✗ | 3.6 ✗ |
+| quiet words | the sky | 2.9 ✗ | 5.3 |
+
+### Details button on the hero (desktop 1440)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | white picture | 16.2 | 14.1 |
+| icons | white picture | 15.4 | 13.9 |
+
+### Details button on the hero (phone 402)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | white picture | 13.2 | 13.0 |
+| icons | white picture | 12.2 | 12.9 |
+
+### Profile menu (desktop 1440)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | white poster | 11.4 | 9.7 |
+| words | white text under | 12.2 | 10.4 |
+| words | bright sky band | 12.1 | 10.3 |
+| words | black | 12.6 | 10.8 |
+
+### Profile menu (phone 402)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | white poster | 11.4 | 9.7 |
+| words | white text under | 12.3 | 10.5 |
+| words | bright sky band | 12.0 | 10.2 |
+| words | black | 12.6 | 10.8 |
+
+### Nav island, logo, profile (desktop 1440)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | white poster | 14.9 | 5.1 |
+| words | bright poster | 14.7 | 5.2 |
+| words | mid grey | 6.6 | 8.1 |
+| words | white text under | 4.5 ✗ | 10.1 |
+| words | bright sky band | 5.6 | 10.6 |
+| words | black | 17.9 | 14.6 |
+| chosen | white poster | 20.1 | 5.5 |
+| chosen | bright poster | 20.0 | 5.6 |
+| chosen | mid grey | 11.7 | 7.2 |
+| chosen | white text under | 4.6 | 8.4 |
+| chosen | bright sky band | 4.9 | 8.6 |
+| chosen | black | 12.6 | 9.5 |
+| icons | white poster | 14.2 | 5.5 |
+| icons | bright poster | 14.2 | 5.6 |
+| icons | mid grey | 6.3 | 8.7 |
+| icons | white text under | 3.8 ✗ | 11.7 |
+| icons | bright sky band | 4.4 ✗ | 11.7 |
+| icons | black | 11.3 | 15.6 |
+| quiet words | white text under | 3.6 ✗ | 11.3 |
+| quiet words | bright sky band | 3.8 ✗ | 11.8 |
+| quiet words | black | 11.9 | 16.2 |
+
+### Nav island, logo, profile (desktop 2560)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | white poster | 14.9 | 5.1 |
+| words | bright poster | 14.7 | 5.2 |
+| words | mid grey | 6.6 | 8.1 |
+| words | white text under | 4.1 ✗ | 10.0 |
+| words | bright sky band | 5.9 | 10.6 |
+| words | black | 17.9 | 14.6 |
+| chosen | white poster | 20.1 | 5.5 |
+| chosen | bright poster | 20.1 | 5.5 |
+| chosen | mid grey | 11.7 | 7.2 |
+| chosen | white text under | 4.1 ✗ | 8.2 |
+| chosen | bright sky band | 5.0 | 8.6 |
+| chosen | black | 12.6 | 9.5 |
+| icons | white poster | 14.2 | 5.5 |
+| icons | bright poster | 14.2 | 5.6 |
+| icons | mid grey | 6.3 | 8.7 |
+| icons | white text under | 3.2 ✗ | 11.0 |
+| icons | bright sky band | 4.4 ✗ | 11.8 |
+| icons | black | 11.3 | 15.6 |
+| quiet words | white text under | 3.5 ✗ | 11.1 |
+| quiet words | bright sky band | 4.4 ✗ | 12.3 |
+| quiet words | black | 11.9 | 16.2 |
+
+### Nav island, logo, profile (tablet 1024)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | white poster | 14.2 | 5.1 |
+| words | bright poster | 14.0 | 5.2 |
+| words | mid grey | 6.4 | 8.1 |
+| words | white text under | 4.6 | 10.4 |
+| words | bright sky band | 5.3 | 10.8 |
+| words | black | 17.9 | 14.6 |
+| chosen | white poster | 20.1 | 5.5 |
+| chosen | bright poster | 19.9 | 5.6 |
+| chosen | mid grey | 11.7 | 7.2 |
+| chosen | white text under | 3.9 ✗ | 8.1 |
+| chosen | bright sky band | 5.8 | 8.8 |
+| chosen | black | 12.6 | 9.5 |
+| icons | white poster | 14.2 | 5.5 |
+| icons | bright poster | 14.2 | 5.6 |
+| icons | mid grey | 6.3 | 8.8 |
+| icons | white text under | 3.6 ✗ | 11.5 |
+| icons | bright sky band | 4.2 ✗ | 11.8 |
+| icons | black | 11.3 | 15.8 |
+| quiet words | white text under | 3.7 ✗ | 11.3 |
+| quiet words | bright sky band | 3.8 ✗ | 11.7 |
+| quiet words | black | 11.9 | 16.2 |
+
+### Peek sheet (desktop 1440)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | white poster | 3.9 ✗ | 11.6 |
+| words | white text under | 10.0 | 12.7 |
+| words | bright sky band | 10.8 | 12.8 |
+| words | black | 15.5 | 13.0 |
+| icons | white poster | 4.0 ✗ | 12.2 |
+| icons | white text under | 10.4 | 12.8 |
+| icons | bright sky band | 11.5 | 12.8 |
+| icons | black | 15.8 | 13.0 |
+| quiet words | white poster | 2.8 ✗ | 8.4 |
+| quiet words | white text under | 7.5 | 9.3 |
+| quiet words | bright sky band | 6.8 | 9.6 |
+| quiet words | black | 11.3 | 10.1 |
+
+### Peek sheet (phone 402)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | white poster | 3.9 ✗ | 11.4 |
+| words | white text under | 11.0 | 12.8 |
+| words | bright sky band | 5.0 | 12.3 |
+| words | black | 11.6 | 12.8 |
+| icons | white poster | 4.0 ✗ | 12.3 |
+| icons | white text under | 8.4 | 12.6 |
+| icons | bright sky band | 4.8 | 12.4 |
+| icons | black | 8.8 | 12.8 |
+| quiet words | white poster | 2.8 ✗ | 8.4 |
+| quiet words | white text under | 7.9 | 9.6 |
+| quiet words | bright sky band | 3.6 ✗ | 8.6 |
+| quiet words | black | 11.3 | 10.1 |
+
+### Settings panes (desktop 1440)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | bright sky band | 1.2 ✗ | 5.9 |
+| words | the sky | 3.8 ✗ | 9.2 |
+| chosen | bright sky band | 1.2 ✗ | 5.9 |
+| chosen | the sky | 4.5 | 9.4 |
+| icons | bright sky band | 1.3 ✗ | 4.0 ✗ |
+| icons | the sky | 3.0 ✗ | 6.4 |
+| quiet words | bright sky band | 1.3 ✗ | 4.7 |
+| quiet words | the sky | 2.8 ✗ | 7.4 |
+
+### Settings panes (phone 402)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | bright sky band | 1.2 ✗ | 6.1 |
+| words | the sky | 4.6 | 10.2 |
+| icons | bright sky band | 1.3 ✗ | 3.9 ✗ |
+| icons | the sky | 2.7 ✗ | 6.5 |
+| quiet words | bright sky band | 1.2 ✗ | 4.7 |
+| quiet words | the sky | 3.0 ✗ | 7.7 |
+
+### Confirm sheet (desktop 1440)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | white poster | 3.7 ✗ | 10.3 |
+| words | white text under | 10.1 | 12.0 |
+| words | bright sky band | 11.5 | 12.2 |
+| words | black | 15.9 | 13.0 |
+| quiet words | white poster | 2.5 ✗ | 8.2 |
+| quiet words | white text under | 7.0 | 9.4 |
+| quiet words | bright sky band | 6.6 | 9.5 |
+| quiet words | black | 10.9 | 10.4 |
+
+### Confirm sheet (phone 402)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | white poster | 3.7 ✗ | 10.3 |
+| words | white text under | 11.2 | 12.1 |
+| words | bright sky band | 5.1 | 12.3 |
+| words | black | 15.9 | 13.0 |
+| quiet words | white poster | 2.5 ✗ | 8.2 |
+| quiet words | white text under | 7.3 | 9.6 |
+| quiet words | bright sky band | 3.5 ✗ | 8.9 |
+| quiet words | black | 10.9 | 10.4 |
+
+### Search suggestions (desktop 1440)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | bright sky band | 7.6 | 7.1 |
+| words | the sky | 11.4 | 9.6 |
+| icons | bright sky band | 1.2 ✗ | 3.8 ✗ |
+| icons | the sky | 3.6 ✗ | 6.7 |
+| quiet words | bright sky band | 2.5 ✗ | 3.9 ✗ |
+| quiet words | the sky | 3.9 ✗ | 5.3 |
+
+### Tab bar (phone 402)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| chosen | white poster | 5.4 | 5.5 |
+| chosen | bright poster | 5.5 | 5.7 |
+| chosen | mid grey | 6.5 | 7.2 |
+| chosen | white text under | 7.4 | 8.3 |
+| chosen | bright sky band | 6.4 | 6.8 |
+| chosen | black | 8.3 | 9.5 |
+| icons | white poster | 6.9 | 5.6 |
+| icons | bright poster | 7.1 | 5.9 |
+| icons | mid grey | 8.3 | 9.0 |
+| icons | white text under | 9.5 | 11.9 |
+| icons | bright sky band | 7.9 | 7.7 |
+| icons | black | 10.4 | 16.0 |
+| quiet words | white poster | 5.6 | 5.8 |
+| quiet words | bright poster | 5.8 | 6.1 |
+| quiet words | mid grey | 6.9 | 9.2 |
+| quiet words | white text under | 8.0 | 11.0 |
+| quiet words | bright sky band | 6.8 | 7.3 |
+| quiet words | black | 9.0 | 16.4 |
+
+### Tab bar (phone 320)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| chosen | white poster | 5.5 | 5.5 |
+| chosen | bright poster | 5.6 | 5.7 |
+| chosen | mid grey | 6.5 | 7.2 |
+| chosen | white text under | 7.4 | 8.2 |
+| chosen | bright sky band | 7.0 | 7.8 |
+| chosen | black | 8.4 | 9.5 |
+| icons | white poster | 6.9 | 5.6 |
+| icons | bright poster | 7.1 | 5.9 |
+| icons | mid grey | 8.3 | 9.0 |
+| icons | white text under | 10.3 | 16.0 |
+| icons | bright sky band | 9.1 | 11.0 |
+| icons | black | 10.4 | 16.0 |
+| quiet words | white poster | 5.7 | 5.8 |
+| quiet words | bright poster | 5.9 | 6.1 |
+| quiet words | mid grey | 7.0 | 9.2 |
+| quiet words | white text under | 7.9 | 10.8 |
+| quiet words | bright sky band | 7.6 | 10.1 |
+| quiet words | black | 9.1 | 16.4 |
+
+### Buttons on a title page (desktop 1440)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | white picture | 8.1 | 11.6 |
+| icons | white picture | 7.6 | 11.4 |
+| quiet words | white picture | 2.6 ✗ | 5.5 |
+
+### Buttons on a title page (phone 402)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| icons | white picture | 7.0 | 7.0 |
+| quiet words | white picture | 5.7 | 5.7 |
+
+### Toast (desktop 1440)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | white poster | 5.8 | 5.7 |
+| words | bright poster | 5.9 | 5.8 |
+| words | mid grey | 7.7 | 7.2 |
+| words | white text under | 9.2 | 8.4 |
+| words | bright sky band | 6.6 | 6.2 |
+| words | black | 11.4 | 10.0 |
+
+### Toast (phone 402)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| words | white poster | 5.9 | 5.7 |
+| words | bright poster | 6.1 | 5.9 |
+| words | mid grey | 8.0 | 7.2 |
+| words | white text under | 9.8 | 8.7 |
+| words | bright sky band | 9.5 | 8.3 |
+| words | black | 11.9 | 10.0 |
+
+### Top buttons: settings (phone 402)
+
+| what | behind it | before | after |
+|---|---|---:|---:|
+| icons | white poster | 14.3 | 5.5 |
+| icons | bright poster | 14.2 | 5.7 |
+| icons | mid grey | 6.3 | 8.8 |
+| icons | white text under | 4.6 | 12.0 |
+| icons | bright sky band | 4.7 | 9.2 |
+| icons | black | 11.4 | 15.9 |
