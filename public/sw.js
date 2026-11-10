@@ -34,7 +34,7 @@ const LIVE_ONLY = [/^\/stream\//, /^\/api\/admin\//, /^\/proxy/, /^\/avatars\//,
 // what the HTTP cache holds under that address IS that content (the server
 // marks it immutable), so it is copied from there with no request at all —
 // asked with "no-cache", each was a round trip to the server for a "not
-// modified" (some fifty on a first visit, four at a time). Anything else
+// modified" (81 on a first visit to Home, four at a time). Anything else
 // ("/") is asked for with `cache: "no-cache"`: the browser checks with
 // the server (so the copy is current) but reuses what it already holds when
 // the server says it has not changed. It used to be "reload", which threw
