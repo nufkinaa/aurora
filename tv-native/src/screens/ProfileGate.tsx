@@ -331,11 +331,15 @@ export default function ProfileGate({
 }
 
 const styles = StyleSheet.create({
+  // The password and PIN prompts. Top-aligned, not centred: the TV's keyboard rises
+  // over the lower half of the screen, and with the prompt centred it covered Back
+  // and "Forgot password?" and the foot of the field (Mi TV — an old finding, seen
+  // again 2026-11-10). From the top, field and buttons sit clear above it.
   root: {
     flex: 1,
     backgroundColor: colors.bg,
     padding: spacing.pageX,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   // The grid is top-aligned: with many profiles it scrolls, so centring it would
   // shift every tile as the list grows.

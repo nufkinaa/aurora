@@ -3,6 +3,8 @@
 // (phone/screens/Downloads.tsx). Moved out of screens/Downloads.tsx as it was.
 import type {MyDownload} from './api';
 import {replaceJobLine} from './replaceLogic';
+// (the same twelve as detailLogic's MONTHS — not imported from there: that file pulls in api.ts)
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export const ACTIVE = ['approved', 'downloading'];
 export const fmtBytes = (b?: number) => {
@@ -17,7 +19,12 @@ export const when = (iso?: string | null) => {
   if (d < 60e3) return 'just now';
   if (d < 3600e3) return `${Math.round(d / 60e3)} min ago`;
   if (d < 86400e3) return `${Math.round(d / 3600e3)} h ago`;
-  return new Date(t).toLocaleDateString();
+  // the website's own words (screens/downloads.js `when`): days for a week, then the
+  // day and month — not the TV's locale default, which read "10/18/2026" (Mi TV,
+  // 2026-11-10). By hand, as fmtAirDate does: no reliance on the TV's Intl data.
+  if (d < 7 * 86400e3) return `${Math.round(d / 86400e3)} d ago`;
+  const day = new Date(t);
+  return `${day.getDate()} ${MONTHS[day.getMonth()]}`;
 };
 export const eta = (j: MyDownload) => {
   // the server's own figure first (its speed is smoothed and this file's share)

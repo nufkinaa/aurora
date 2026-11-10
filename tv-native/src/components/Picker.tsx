@@ -113,7 +113,8 @@ export default function Picker({
             place.up ? styles.panelUp : styles.panelDown,
             {maxHeight: place.max},
           ]}>
-          <ScrollView>
+          {/* the last row in view fades out instead of being cut through its words */}
+          <ScrollView fadingEdgeLength={24}>
             {options.map((o, i) => (
               <Focusable uiId="picker.pick"
                 key={o.value || ' '}

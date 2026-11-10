@@ -418,7 +418,8 @@ export default function WhatsNew({navigation}: NativeStackScreenProps<RootStackP
   return (
     <View style={styles.root}>
       <NavRail active="new" />
-      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, {paddingBottom: safeBottom + spacing.xl}]}>
+      {/* fadingEdgeLength: a focused card kept off the screen's edge, the page faded there (see Settings) */}
+      <ScrollView style={styles.scroll} fadingEdgeLength={36} contentContainerStyle={[styles.content, {paddingBottom: safeBottom + spacing.xl}]}>
         <Text style={styles.kicker}>{`AURORA TV ${APP_VERSION}`}</Text>
         <Text style={styles.h1}>New in Aurora</Text>
         <Text style={styles.sub}>{`Hi ${me?.name || 'there'} — here's what this TV can do now, and how.`}</Text>

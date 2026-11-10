@@ -1653,7 +1653,10 @@ export default function Home({
     hero?.genres?.length ? hero.genres.slice(0, 3).join(' · ') : null,
   ]
     .filter(Boolean)
-    .join('   ·   ');
+    // one separator all along the line, as the site's `.hero-meta` and the title
+    // page write it: with a wide one between the parts and a narrow one between
+    // the genres, "2026   ·   Comedy · Romance" read as uneven (Mi TV, 2026-11-10)
+    .join(' · ');
 
   // The trailer layer: the same element over the JS art or the native one.
   const trailerLayer = trailer ? (
@@ -1779,7 +1782,7 @@ export default function Home({
               <Text style={styles.facts}>
                 {score ? <Text style={styles.star}>{'★ '}</Text> : null}
                 {score ? <Text style={styles.score}>{score}</Text> : null}
-                {score && facts ? '   ·   ' : null}
+                {score && facts ? ' · ' : null}
                 {facts}
               </Text>
             ) : null}

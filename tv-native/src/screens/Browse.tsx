@@ -68,6 +68,8 @@ const EASE = Easing.bezier(...(focus.ease as unknown as [number, number, number,
 
 // P17. 18px x 0.70 — the grid gap, not spacing.md.
 const GRID_GAP = 13;
+// how far from the grid's ends a focused card is kept (fadingEdgeLength, see the list)
+const GRID_FADE = 36;
 // browse.js:352 — the placeholder count is fixed, not derived from the viewport.
 const SKELETONS = 18;
 // The filter panel: wide enough for "Downloaded" and the genre picker at row
@@ -849,6 +851,11 @@ export default function Browse({
             // numColumns cannot be changed in place, so the list is re-keyed.
             key={`${kind}-${cols}`}
             style={styles.listFill}
+            // Android scrolls a focused card only JUST into view: a row reached with DOWN
+            // sat on the screen's foot, outside the safe area, its ring at the very edge
+            // (Mi TV, 2026-11-10). The fading edge keeps it this far in and fades the
+            // grid out there instead of cutting it (Household / Calendar / Franchise).
+            fadingEdgeLength={GRID_FADE}
             numColumns={cols}
             // keyOf ALONE. With the index in the key, appending a page would
             // remount every card behind the insertion.
@@ -996,7 +1003,9 @@ const styles = StyleSheet.create({
   // picker 48 + chip 48 + Surprise 48 + 27 = 510. The first cut had 27/8/6 here
   // and came to 543 — Surprise me sat clipped below the safe inset.
   panelInner: {flex: 1, paddingLeft: 18, paddingRight: spacing.pageX, paddingTop: 18, paddingBottom: 27},
-  kicker: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 3, marginBottom: 4},
+  // marginBottom 10 (was 4): the focused category's ring reached up into the kicker's
+  // letters (Mi TV, 2026-11-10). The spacer above Surprise me gives the 6dp back.
+  kicker: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 3, marginBottom: 10},
   cats: {alignItems: 'flex-start'},
   rule: {height: 1, backgroundColor: colors.line, marginVertical: 4},
   toolRow: {flexDirection: 'row', alignItems: 'center'},

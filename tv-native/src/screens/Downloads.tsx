@@ -23,6 +23,7 @@ import {ActivityIndicator, Image, ScrollView, StyleSheet, Text, View} from 'reac
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {useIsFocused} from '@react-navigation/native';
 import Focusable from '../components/Focusable';
+import Icon from '../components/Icon';
 import NavRail from '../components/NavRail';
 import {Empty} from '../components/States';
 import {api, ApiError, artSrc, HeroItem, ImgSource, MyDownload} from '../api';
@@ -281,7 +282,15 @@ export default function Downloads({navigation}: NativeStackScreenProps<RootStack
         onLongPress={acts.all.length > 1 ? () => menu(j, acts.all) : undefined}
         style={[styles.row, j.status === 'done' && styles.rowDone]}>
         <View style={styles.poster}>
-          {art ? <Image source={art as ImgSource} style={styles.posterImg} resizeMode="cover" fadeDuration={0} /> : null}
+          {art ? (
+            <Image source={art as ImgSource} style={styles.posterImg} resizeMode="cover" fadeDuration={0} />
+          ) : (
+            // no poster on the job (it happens: Ann Droid, Mi TV 2026-11-10) — the kind
+            // of title in its place, not an empty box that reads as a picture still coming
+            <View style={styles.posterNone}>
+              <Icon name={j.season != null || j.type === 'show' ? 'series' : 'film'} size={20} color={colors.textFaint} />
+            </View>
+          )}
         </View>
         <View style={styles.info}>
           <View style={styles.titleLine}>
@@ -320,7 +329,8 @@ export default function Downloads({navigation}: NativeStackScreenProps<RootStack
   return (
     <View style={styles.root}>
       <NavRail active="settings" />
-      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, {paddingBottom: safeBottom + spacing.xl}]}>
+      {/* fadingEdgeLength: a focused row kept off the screen's edge, the page faded there (see Settings) */}
+      <ScrollView style={styles.scroll} fadingEdgeLength={36} contentContainerStyle={[styles.content, {paddingBottom: safeBottom + spacing.xl}]}>
         <Text style={styles.h1}>My downloads</Text>
         {mine.length ? <Text style={styles.summary}>{countLine(downloadCounts(mine))}</Text> : null}
         {mine.length ? (
@@ -375,6 +385,7 @@ const styles = StyleSheet.create({
   rowDone: {borderColor: 'rgba(74,222,128,0.35)'},
   poster: {width: 44, height: 66, borderRadius: radius.s, backgroundColor: colors.bgRaised, overflow: 'hidden'},
   posterImg: {width: '100%', height: '100%'},
+  posterNone: {flex: 1, alignItems: 'center', justifyContent: 'center'},
   info: {flex: 1, minWidth: 0},
   titleLine: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm},
   title: {color: colors.text, fontSize: fontSize.body, fontWeight: '700', flexShrink: 1},

@@ -237,6 +237,8 @@ const SCRIM_BOTTOM = require('../assets/player-bottom.png');
 // where a test holds them to the website's.)
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const SKIP_CHAIN_MS = 900;
+// the player menus' lists: the last row in view fades out rather than being cut through its words
+const MENU_FADE = 24;
 // The site hides its chrome 3200ms after the last input. That is a mouse-era
 // number and it does not survive a remote: reaching Subtitles is six D-pad
 // presses from the scrubber, and every pause to think threw the chrome away and
@@ -5435,7 +5437,7 @@ export default function Player({
       {menu === 'cc' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
           <MenuTitle icon="cc" label="SUBTITLES" />
-          <ScrollView ref={ccScroll} style={styles.menuScroll}>
+          <ScrollView ref={ccScroll} style={styles.menuScroll} fadingEdgeLength={MENU_FADE}>
             {/* The site's first CC entry: one press that drops any manual delay
                 and re-downloads the track. Cheap insurance for "the subs look off
                 and I don't want to fiddle with ±0.5s". */}
@@ -5577,7 +5579,7 @@ export default function Player({
       {menu === 'speed' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
           <MenuTitle icon="speed" label="SPEED" />
-          <ScrollView style={styles.menuScroll}>
+          <ScrollView style={styles.menuScroll} fadingEdgeLength={MENU_FADE}>
             {SPEEDS.map(sp => (
               <MenuItem uiId="player.speed.pick"
                 key={sp}
@@ -5605,7 +5607,7 @@ export default function Player({
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
           {/* Its own scroller (it had none: a film with several dubs and an
               intro to mark ran past the top of the screen). */}
-          <ScrollView ref={gearScroll} style={styles.menuScroll} showsVerticalScrollIndicator={false}>
+          <ScrollView ref={gearScroll} style={styles.menuScroll} fadingEdgeLength={MENU_FADE} showsVerticalScrollIndicator={false}>
           {/* [player-options] AUDIO is always here now: the dub list (with
               more than one track) and the two sound switches under it. */}
           <MenuTitle icon="volume" label="AUDIO" />
@@ -5787,7 +5789,7 @@ export default function Player({
       {menu === 'party' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
           <MenuTitle icon="people" label="WATCH TOGETHER" />
-          <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.menuScroll} fadingEdgeLength={MENU_FADE} showsVerticalScrollIndicator={false}>
           {partyInfo ? (
             <>
               <Text style={styles.partyCode}>{partyInfo.code.split('').join(' ')}</Text>
@@ -6285,7 +6287,9 @@ const styles = StyleSheet.create({
     // A little of the room's light in the glass (elia, 2026-10-07: "give the
     // background there a bit hue"): the site's violet from the top-left, the
     // aurora's green from the foot, over a near-opaque navy.
-    backgroundColor: 'rgba(16,15,30,0.97)',
+    // fully opaque: at 0.97 a bright cue under the sheet still read through it
+    // ("Knox! Sto|p!" — Mi TV, 2026-11-10)
+    backgroundColor: 'rgb(16,15,30)',
     experimental_backgroundImage:
       'linear-gradient(140deg, rgba(104,86,226,0.30) 0%, rgba(16,15,30,0) 48%, rgba(70,200,150,0.20) 100%)',
     borderRadius: radius.l,
