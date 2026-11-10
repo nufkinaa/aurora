@@ -213,6 +213,17 @@ ui.test("a photo enlarges inside the sheet; arrows step through; Escape closes t
   await page.locator(`${sheet} .person-photo.in`).first().waitFor();
   const height = (await strip.boundingBox()).height;
   assert.ok(height > 100, `the photo strip is ${height}px tall`);
+  // (the large photo comes in ON TOP of the small one: a slide is never without a picture — watched from here on)
+  await page.evaluate(() => {
+    const w = (window.__slides = { least: Infinity, most: 0 });
+    new MutationObserver(() => {
+      for (const s of document.querySelectorAll(".person-viewer-slide")) {
+        const n = s.querySelectorAll("img").length;
+        w.least = Math.min(w.least, n);
+        w.most = Math.max(w.most, n);
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  });
   await page.locator(`${sheet} .person-photo`).nth(0).click();
   const viewer = page.locator(`${sheet} .person-viewer`);
   await viewer.waitFor();
@@ -224,6 +235,15 @@ ui.test("a photo enlarges inside the sheet; arrows step through; Escape closes t
   assert.equal(await viewer.locator(".person-viewer-nav.next").isDisabled(), true);
   // the sharp picture is asked for through the server's image proxy, sized
   await page.waitForFunction(() => [...document.querySelectorAll(".person-viewer-slide img")].some((i) => /^\/img\/ext\?u=.*original.*&w=960$/.test(i.getAttribute("src"))));
+  // …and it arrives over the small one, which goes only afterwards: never an empty slide, and nothing of the arrival is left
+  await page.waitForFunction(() => {
+    const large = [...document.querySelectorAll(".person-viewer-slide img")].filter((i) => /&w=960$/.test(i.getAttribute("src")));
+    return large.length === 3 && [...document.querySelectorAll(".person-viewer-slide")].every((s) => s.querySelectorAll("img").length === 1) && !document.querySelector(".person-viewer-up");
+  }, null, { timeout: 15000 });
+  const slides = await page.evaluate(() => ({ ...window.__slides, inline: [...document.querySelectorAll(".person-viewer-slide img")].map((i) => i.style.opacity) }));
+  assert.equal(slides.least, 1, "a photo was taken away before its larger one was there");
+  assert.equal(slides.most, 2, "the larger photo did not come in over the small one");
+  assert.deepEqual(slides.inline, ["", "", ""]);
   await page.keyboard.press("Escape");
   await viewer.waitFor({ state: "detached" });
   assert.equal(await page.locator(sheet).count(), 1, "Escape on the photo closed the whole sheet");

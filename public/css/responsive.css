@@ -356,7 +356,10 @@
     align-self: stretch;
     width: auto;
   }
-  .detail-head::before {
+  /* (`> .art-up`: the same cover a moment later, sharper — artUpgrade.js
+     lays it over this one, so it takes this one's box) */
+  .detail-head::before,
+  .detail-head > .art-up {
     content: "";
     position: absolute;
     inset: 0;
