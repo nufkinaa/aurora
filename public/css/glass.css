@@ -3729,30 +3729,35 @@ html[data-look="glass"]:root .card.wide .card-progress {
     z-index: 2;
     margin: 0;
     padding: 18px 20px 0;
-    text-shadow: 0 1px 2px rgba(5, 6, 12, 0.5), 0 2px 16px rgba(5, 6, 12, 0.55);
+    text-shadow: var(--letter-shadow);
   }
+  /* (nothing here clips: a box that hides its overflow — a line clamp —
+     cuts the words' shadows into grey bands at its edges. A long name wraps;
+     a remark that would meet the title steps down in home.js instead) */
   html[data-look="glass"]:root .hero > .home-greeting .greet-line {
+    color: #fff;
     line-height: 1.2;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2; /* a very long name */
-    overflow: hidden;
+    overflow-wrap: anywhere;
   }
-  /* (a shadow under see-through letters shows THROUGH them: the shining name
-     goes without, and reads on the scrim below) */
+  /* (a text-shadow under see-through letters shows THROUGH them: the
+     shining name casts its shadow as a filter instead) */
   html[data-look="glass"]:root .hero > .home-greeting .greet-name {
     text-shadow: none;
+    filter: drop-shadow(0 0 1px rgba(4, 5, 10, 0.55)) drop-shadow(0 1px 3px rgba(4, 5, 10, 0.6)) drop-shadow(0 2px 12px rgba(4, 5, 10, 0.45));
   }
   html[data-look="glass"]:root .hero > .home-greeting .greet-sub {
-    color: rgba(243, 244, 248, 0.9);
+    color: #fff;
+    font-weight: 700;
     line-height: 1.35;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    overflow: hidden;
   }
+  /* one line, cut with "…" — the clipping box padded out so the shadow
+     still has room round the words */
   html[data-look="glass"]:root .hero[data-room="1"] > .home-greeting .greet-sub {
-    -webkit-line-clamp: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: -16px -20px;
+    padding: 16px 20px;
   }
   html[data-look="glass"]:root .hero:is([data-room="0"], [data-room="-1"], [data-room="-2"]) > .home-greeting .greet-sub {
     display: none;
@@ -3763,19 +3768,44 @@ html[data-look="glass"]:root .card.wide .card-progress {
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     overflow: hidden;
+    margin-left: -16px;
+    margin-right: -16px;
+    padding: 0 16px;
   }
   html[data-look="glass"]:root .hero[data-room="-2"] .hero-kicker {
     display: none;
   }
-  /* a soft shade at the top of the picture, only as deep as the greeting,
-     over the phone's own shade at the bottom (above) */
-  html[data-look="glass"]:root .hero.greeted .hero-fade {
-    background:
-      linear-gradient(to bottom, rgba(7, 8, 17, 0.62) 0, rgba(7, 8, 17, 0.42) 84px, rgba(7, 8, 17, 0) 160px),
-      linear-gradient(to top, rgba(7, 8, 17, 0.95) 0%, rgba(7, 8, 17, 0.4) 50%, transparent 80%);
-  }
 }
 
+/* ---------- The phone billboard without a shade (2026-11-10) ----------
+   elia: "the hero itself should have no shadow and be as bright as it needs
+   to be and the drop shadow should be only on the text to the top and of
+   course from the bottom". On a phone the picture shows at its own
+   brightness (it was drawn at 86%), nothing is laid over its top, and the
+   words carry their own shadow instead — a tight dark edge and a wide soft
+   one, the way a lock-screen clock reads on any wallpaper. The fade from the
+   bottom stays, only as high as the words there need (it climbed to 80% of
+   the slab). Tablets and desktops keep theirs, and so does the classic
+   look: its top bar is a plain strip that reads on the dimmed picture, not
+   pills of its own — over a bright poster its buttons were lost. */
+@media (max-width: 720px) {
+  :root {
+    --letter-shadow: 0 0 1px rgba(4, 5, 10, 0.95), 0 0 3px rgba(4, 5, 10, 0.85), 0 0 6px rgba(4, 5, 10, 0.75), 0 1px 12px rgba(4, 5, 10, 0.65), 0 2px 24px rgba(4, 5, 10, 0.55), 0 3px 44px rgba(4, 5, 10, 0.45);
+  }
+  html[data-look="glass"]:root .hero .hero-backdrop {
+    filter: saturate(1.1);
+    -webkit-filter: saturate(1.1);
+  }
+  html[data-look="glass"]:root .hero-fade {
+    background: linear-gradient(to top, rgba(7, 8, 17, 0.92) 0, rgba(7, 8, 17, 0.68) 110px, rgba(7, 8, 17, 0.4) 210px, rgba(7, 8, 17, 0) 300px);
+  }
+  html[data-look="glass"]:root .hero-kicker,
+  html[data-look="glass"]:root .hero-title,
+  html[data-look="glass"]:root .hero-meta,
+  html[data-look="glass"]:root .hero-progress {
+    text-shadow: var(--letter-shadow);
+  }
+}
 /* The logo's glass fits the mark (2026-11-10): where the word "Aurora" is
    hidden (860px and down) the pill was 50 x 40 around a 26px mark, wider than
    its round neighbours. Now it is one of them: a 42px circle, the mark in

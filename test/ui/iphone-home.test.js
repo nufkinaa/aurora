@@ -7,8 +7,9 @@
 //      slab: 8px down, min(60vh, 530px) tall; then the greeting: 114px, or
 //      90px on a screen under 700px), and the first shelf is 12px under it;
 //   3. the greeting is ON the billboard, clear of the billboard's own words.
-// Plus the top-left logo is a 42px circle level with the gear, and the tab
-// bar at the bottom is 59px tall (53 before).
+// Plus the top-left logo is a 42px circle level with the gear, the tab bar
+// at the bottom is 59px tall (53 before), and the picture is not dimmed:
+// one fade from the bottom, the shadow on the letters.
 //
 // The insets are Chrome's own safe-area emulation (as in iphone-topbar.test.js),
 // on a 3x screen with an iPhone's user agent and screen size.
@@ -45,6 +46,9 @@ const measure = (page) => page.evaluate(() => {
     row: box(row),
     logo: box(".nav-logo"), gear: box(".nav-gear"), mark: box(".nav-logo .logo-mark"),
     tabbar: box(".nav-items"),
+    picFilter: (() => { const e = document.querySelector(".hero .hero-backdrop.on"); return e ? getComputedStyle(e).filter : null; })(),
+    fade: getComputedStyle(document.querySelector(".hero .hero-fade")).backgroundImage,
+    greetShadow: greet ? getComputedStyle(greet.querySelector(".greet-sub")).textShadow : null,
     cls: window.__cls,
     sw: document.documentElement.scrollWidth, vw: document.documentElement.clientWidth,
   };
@@ -91,6 +95,12 @@ for (const [name, width, height, inset, screenH] of CASES) {
     assert.ok(m.greet.top >= m.hero.top - 0.5 && m.greet.bottom <= m.hero.bottom, "the greeting runs out of the billboard");
     assert.ok(m.info.top - m.greet.bottom >= 11.5, `the greeting (ends ${m.greet.bottom}) runs into the billboard's words (from ${m.info.top})`);
     assert.ok(m.title.top >= m.hero.top, "the title runs out of the top of the billboard");
+    // no shade on the picture (elia, 2026-11-10): full brightness, one fade
+    // from the bottom, the shadow on the letters
+    assert.ok(!/brightness/.test(m.picFilter || ""), `the picture is dimmed (${m.picFilter})`);
+    assert.equal((m.fade.match(/linear-gradient/g) || []).length, 1, `more than the bottom fade over the picture: ${m.fade}`);
+    assert.match(m.fade, /to top|0deg/, "the fade is not from the bottom");
+    assert.ok(m.greetShadow && m.greetShadow !== "none", "the remark has no shadow on its letters");
     // nothing jumped while it came in
     assert.ok(m.cls < 0.01, `Home's layout shifted by ${m.cls.toFixed(4)} while it loaded`);
 
