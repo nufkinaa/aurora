@@ -18,6 +18,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   FlatList,
+  BackHandler,
 } from 'react-native';
 import Focusable from '../components/Focusable';
 import {imgSrc, Profile} from '../api';
@@ -82,6 +83,9 @@ export default function ProfileGate({
   } = wall;
   // [auth-round] "Forgot password?" on the password prompt: the reset, on its own screen
   const [forgot, setForgot] = React.useState(false);
+  // the prompt's field shows that it has focus (a TextInput shows only its caret, and
+  // the caret blinks) — as Search's field does; only a colour changes
+  const [fieldOn, setFieldOn] = React.useState(false);
 
   // ---------- [play-on-tv] "Play on TV" from a phone while the wall is up ----------
   // This wall is a target too (remote/wall.ts): a phone sends a title, and the
@@ -117,6 +121,23 @@ export default function ProfileGate({
     clearPendingPlay();
     setAsk(null);
   };
+  // The remote's Back on the password / PIN prompt does what the prompt's own Back
+  // button does: back to the wall. Unhandled, it left the app altogether (Mi TV,
+  // 2026-11-10). With the keyboard up, the system's Back closes the keyboard first.
+  React.useEffect(() => {
+    if (!pwFor && !pinFor) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (forgot) return false; // the reset screen answers its own Back
+      clearAsk.current?.();
+      if (pinFor) {
+        setPinFor(null);
+        setPin('');
+        setPinError('');
+      } else setPwFor(null);
+      return true;
+    });
+    return () => sub.remove();
+  }, [pwFor, pinFor, forgot, setPinFor, setPin, setPinError, setPwFor]);
   // a tile pressed by hand: whatever a phone sent is not what is wanted
   const pressTile = (p: Profile) => {
     clearAsk.current?.();
@@ -182,7 +203,9 @@ export default function ProfileGate({
             : `“${pinFor.profile.name}” has no password, so the household PIN opens it.`}
         </Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, fieldOn && styles.inputOn]}
+          onFocus={() => setFieldOn(true)}
+          onBlur={() => setFieldOn(false)}
           value={pin}
           onChangeText={t => setPin(t.replace(/\D/g, '').slice(0, 6))}
           secureTextEntry
@@ -240,7 +263,9 @@ export default function ProfileGate({
         <Text style={styles.heading}>{playing ? askToPlay('password', playing.title) : 'Enter password'}</Text>
         <Text style={styles.sub}>{playing ? `${pwFor.name} · sent from ${playing.who}` : pwFor.name}</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, fieldOn && styles.inputOn]}
+          onFocus={() => setFieldOn(true)}
+          onBlur={() => setFieldOn(false)}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -302,7 +327,7 @@ export default function ProfileGate({
         windowSize={5}
         ListHeaderComponent={
           <View>
-            <Text style={styles.heading}>Who's watching?</Text>
+            <Text style={[styles.heading, styles.headingGrid]}>Who's watching?</Text>
             {/* why the wall is up again: an admin's sign-out, a sign-out from another device */}
             {notice ? <Text style={styles.notice}>{notice}</Text> : null}
             {profiles === null && !loadError ? (
@@ -348,6 +373,9 @@ const styles = StyleSheet.create({
   gridRow: {gap: spacing.lg, marginBottom: spacing.lg},
   heading: {color: colors.text, fontSize: fontSize.hero, fontWeight: '900'},
   sub: {color: colors.textDim, fontSize: fontSize.row, marginTop: spacing.sm},
+  // the wall's heading over the first row: the focused tile's ring (and its 1.07 scale)
+  // ran up against the words (Mi TV, 2026-11-10)
+  headingGrid: {marginBottom: spacing.md},
   tile: {
     alignItems: 'center',
     padding: spacing.md,
@@ -393,6 +421,7 @@ const styles = StyleSheet.create({
     maxWidth: 480,
     marginTop: spacing.lg,
   },
+  inputOn: {borderColor: colors.focusRing},
   row: {flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg},
   retry: {alignSelf: 'flex-start', marginTop: spacing.md},
   btnPrimary: {

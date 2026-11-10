@@ -753,8 +753,6 @@ export function SourcesPanel({
         // remounted them all — dropping focus and scroll position mid-list.
         keyExtractor={s => dlKey(s.infoHash, s.fileIdx)}
         style={styles.listFill}
-        // a focused row kept off the screen's edge, the list faded there (see Settings)
-        fadingEdgeLength={36}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         renderItem={renderStream}

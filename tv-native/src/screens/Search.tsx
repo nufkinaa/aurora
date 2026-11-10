@@ -40,7 +40,6 @@ import {personNow, setPersonPref} from '../personSync';
 import {noResultsText, runSearch, SEARCH_TEXT, SettleNote, shortText} from '../searchFlow';
 
 const {colors, radius, fontSize, spacing, CLEARANCE} = theme;
-const GRID_FADE = 36;
 const EMPTY: SearchAnswer = {results: [], related: [], relatedLabel: null, pending: false};
 // A chip is one line: a long title is cut, the year tells two "Dune"s apart.
 const clip = (s: string) => (s.length > 30 ? `${s.slice(0, 29)}…` : s);
@@ -569,11 +568,6 @@ export default function Search({
       <FlatList
         data={data}
         style={styles.listFill}
-        // Android scrolls a focused card only JUST into view: the next row's card sat on
-        // the screen's foot, outside the safe area, its ring at the edge (Mi TV,
-        // 2026-11-10). The fading edge keeps it this far in, and fades the grid out there
-        // instead of cutting it (as Household / Calendar / Franchise do).
-        fadingEdgeLength={GRID_FADE}
         numColumns={cols}
         key={`cols-${cols}`}
         keyExtractor={(it, i) => `${it.id || it.imdbId}-${i}`}

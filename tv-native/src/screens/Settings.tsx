@@ -326,11 +326,6 @@ export default function Settings({
       <NavRail active="settings" />
       <ScrollView
         style={styles.scroll}
-        // Android scrolls a focused row only JUST into view: going down, each row
-        // stopped on the screen's foot, its ring on the edge, outside the safe area
-        // (going up, on the top edge) — Mi TV, 2026-11-10. The fading edge keeps it
-        // this far in, and fades the page out there instead of cutting it.
-        fadingEdgeLength={36}
         contentContainerStyle={[styles.content, {paddingBottom: safeBottom + spacing.xl}]}>
         <Text style={styles.h1}>Settings</Text>
         <Text style={styles.sub}>for {me?.name || 'this profile'}</Text>

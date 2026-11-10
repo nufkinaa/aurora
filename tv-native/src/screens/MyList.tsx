@@ -308,8 +308,6 @@ export default function MyList({
                 data={shown}
                 key={`cols-${cols}`}
                 style={styles.listFill}
-                // a focused card kept off the screen's foot, the grid faded there (see Browse)
-                fadingEdgeLength={36}
                 numColumns={cols}
                 keyExtractor={it => it.id || it.imdbId || it.title}
                 columnWrapperStyle={styles.rowGap}

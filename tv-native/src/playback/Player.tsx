@@ -237,8 +237,6 @@ const SCRIM_BOTTOM = require('../assets/player-bottom.png');
 // where a test holds them to the website's.)
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const SKIP_CHAIN_MS = 900;
-// the player menus' lists: the last row in view fades out rather than being cut through its words
-const MENU_FADE = 24;
 // The site hides its chrome 3200ms after the last input. That is a mouse-era
 // number and it does not survive a remote: reaching Subtitles is six D-pad
 // presses from the scrubber, and every pause to think threw the chrome away and
@@ -5437,7 +5435,7 @@ export default function Player({
       {menu === 'cc' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
           <MenuTitle icon="cc" label="SUBTITLES" />
-          <ScrollView ref={ccScroll} style={styles.menuScroll} fadingEdgeLength={MENU_FADE}>
+          <ScrollView ref={ccScroll} style={styles.menuScroll}>
             {/* The site's first CC entry: one press that drops any manual delay
                 and re-downloads the track. Cheap insurance for "the subs look off
                 and I don't want to fiddle with ±0.5s". */}
@@ -5579,7 +5577,7 @@ export default function Player({
       {menu === 'speed' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
           <MenuTitle icon="speed" label="SPEED" />
-          <ScrollView style={styles.menuScroll} fadingEdgeLength={MENU_FADE}>
+          <ScrollView style={styles.menuScroll}>
             {SPEEDS.map(sp => (
               <MenuItem uiId="player.speed.pick"
                 key={sp}
@@ -5607,7 +5605,7 @@ export default function Player({
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
           {/* Its own scroller (it had none: a film with several dubs and an
               intro to mark ran past the top of the screen). */}
-          <ScrollView ref={gearScroll} style={styles.menuScroll} fadingEdgeLength={MENU_FADE} showsVerticalScrollIndicator={false}>
+          <ScrollView ref={gearScroll} style={styles.menuScroll} showsVerticalScrollIndicator={false}>
           {/* [player-options] AUDIO is always here now: the dub list (with
               more than one track) and the two sound switches under it. */}
           <MenuTitle icon="volume" label="AUDIO" />
@@ -5789,7 +5787,7 @@ export default function Player({
       {menu === 'party' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
           <MenuTitle icon="people" label="WATCH TOGETHER" />
-          <ScrollView style={styles.menuScroll} fadingEdgeLength={MENU_FADE} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>
           {partyInfo ? (
             <>
               <Text style={styles.partyCode}>{partyInfo.code.split('').join(' ')}</Text>
@@ -6099,7 +6097,9 @@ const styles = StyleSheet.create({
     fontSize: fontSize.small,
     fontWeight: '600',
     marginTop: 1,
-    textShadowColor: 'rgba(0,0,0,0.6)',
+    // darker than the title's: the episode line is grey, thinner and smaller, and at
+    // 0.6 it went under on a bright frame where the white title still read
+    textShadowColor: 'rgba(0,0,0,0.85)',
     textShadowOffset: {width: 0, height: 1},
     textShadowRadius: 10,
   },
@@ -6188,7 +6188,18 @@ const styles = StyleSheet.create({
     boxShadow: '0 0 0 4px rgba(255,255,255,0.22), 0 0 24px rgba(140,255,190,0.7)',
   },
   headBig: {right: -8, marginTop: -8, width: 16, height: 16, borderRadius: 8},
-  time: {color: colors.textDim, fontSize: 13, fontWeight: '700', minWidth: 44, fontVariant: ['tabular-nums']},
+  // the title's text shadow too: on a bright frame the grey clock beside the bar all but
+  // vanished (a test card's lilac, Mi TV 2026-11-10) — the bottom scrim is a fade, not a plate
+  time: {
+    color: colors.textDim,
+    fontSize: 13,
+    fontWeight: '700',
+    minWidth: 44,
+    fontVariant: ['tabular-nums'],
+    textShadowColor: 'rgba(0,0,0,0.85)',
+    textShadowOffset: {width: 0, height: 1},
+    textShadowRadius: 8,
+  },
   timeRight: {textAlign: 'right'},
   buttons: {flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: 6},
   // .pbtn — a circle, transparent until focused. The bg is transparent rather
@@ -6372,7 +6383,9 @@ const styles = StyleSheet.create({
   upNext: {
     position: 'absolute',
     right: PHONE ? 16 : spacing.pageX, // [android-phone]
-    bottom: PHONE ? 104 : 60,
+    // 124 on the TV, where the menus sit: at 60 the card lay over the scrubber, the bar
+    // running in under it and the time left hidden behind it (Mi TV, 2026-11-10)
+    bottom: PHONE ? 104 : 124,
     backgroundColor: 'rgba(13,14,24,0.97)',
     borderRadius: radius.l,
     padding: spacing.lg,

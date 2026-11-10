@@ -140,7 +140,9 @@ export default function Downloads({navigation}: NativeStackScreenProps<RootStack
   const play = (j: MyDownload) => {
     if (!j.libraryId || !canNavigate(navigation)) return;
     if (!j.seenAt) api.downloadSeen(j.id, profileId).catch(() => {});
-    navigation.push('Player', {id: j.libraryId, title: j.label || j.title || 'Download'});
+    // epTitle: the episode's own name under the player's title ("S3 E5 · Memory"), as
+    // Continue Watching and the title page start it — from here it read "S3 E5" alone
+    navigation.push('Player', {id: j.libraryId, title: j.label || j.title || 'Download', epTitle: j.epTitle || undefined});
   };
   const cancel = async (j: MyDownload) => {
     try {
@@ -329,8 +331,7 @@ export default function Downloads({navigation}: NativeStackScreenProps<RootStack
   return (
     <View style={styles.root}>
       <NavRail active="settings" />
-      {/* fadingEdgeLength: a focused row kept off the screen's edge, the page faded there (see Settings) */}
-      <ScrollView style={styles.scroll} fadingEdgeLength={36} contentContainerStyle={[styles.content, {paddingBottom: safeBottom + spacing.xl}]}>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, {paddingBottom: safeBottom + spacing.xl}]}>
         <Text style={styles.h1}>My downloads</Text>
         {mine.length ? <Text style={styles.summary}>{countLine(downloadCounts(mine))}</Text> : null}
         {mine.length ? (
