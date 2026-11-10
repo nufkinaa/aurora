@@ -931,6 +931,11 @@
     #tv-problems, #phone-problems, #mx-limits, #lim-status, #dc-last-restore {
       padding: 3px 2px; color: var(--text-dim); font-size: 0.9rem; line-height: 1.5; }
     #tel-starts-line, #tel-u-totals, #rm-status { font-size: 0.84rem; line-height: 1.5; }
+    /* Overnight and Free up space settings: the number and time boxes in the
+       page's own dark style (they were the browser's small white boxes) */
+    #pane-downloads :is(.fs-set, .on-set, .fs-days) :is(input[type="number"], input[type="time"]) {
+      padding: 7px 10px; border-radius: 9px; background: var(--surface); border: 1px solid var(--line); color: var(--text);
+      font: inherit; font-size: 0.9rem; color-scheme: dark; min-height: 38px; }
     /* Encoding: its two pickers in the page's own dark style (they were the
        browser's small white boxes) */
     #en-limit, #en-hwmode { padding: 7px 10px; border-radius: 9px; background: var(--surface); border: 1px solid var(--line); color: var(--text);
