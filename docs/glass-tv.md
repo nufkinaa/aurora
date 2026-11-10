@@ -16,8 +16,9 @@ every surface, before and after: `docs/qa/glass-tv/jury/`. Measured contrast:
 `docs/qa/glass-tv/contrast.md`.
 
 Section 8 is the follow-up round of 2026-11-10: four faults both judges named
-in this look, mended. Where it changed something said in sections 1 to 3 the
-line says so.
+in this look, mended. Section 9 is the second, the same day: four more, one of
+them the foot of the rail and the filter pane, which section 8 had changed.
+Where either changed something said in sections 1 to 3 the line says so.
 
 ## 1. The values
 
@@ -28,12 +29,14 @@ line says so.
 | sheen | white 5 % at the top to 0 at 48 % of the pane's height (a toast: 7 % to 0 at 60 %) |
 | rim of a menu, a sheet, a toast | top line white 36 %, foot line white 16 %, sides white 7.5 %, 1 dp |
 | light inside that rim | top white 22 % to 0 over 15 dp, sides 7 % over 12 dp, foot 10 % over 13 dp |
-| rim of the chrome (rail, filter pane) | top line white 28 %, sides white 5.5 % (no foot: since section 8 these two panes run to the screen's foot) |
-| light inside that rim | top white 18 % to 0 over 9 dp |
+| rim of the chrome (rail, filter pane) | top line white 28 %, foot line white 12 %, sides white 5.5 % |
+| light inside that rim | top white 18 % to 0 over 9 dp, foot 8 % over 8 dp |
+| the ground under those two panes (section 9) | `rgb(11,12,20)`, the page's dark: opaque under the pane's foot and round its foot corners, from 1.15 corner radii above the foot (whole from 0.45), fading out beside the pane over 24 dp |
 | shadow | `0 14 34` black 34 %, `0 3 8` black 22 %, `0 1 2` black 22 %, a dark hairline `0 0 0 0.5` black 30 % |
 | chosen | a well: black 40 %, a 2 dp black 40 % line on top, a white 9 % line at the foot; the word and icon `#B9B0FF` on a chip, `#FFFFFF` at weight 800 in the rail (section 8) |
 | words | `#FFFFFF`; second voice `#D0D5E2`; third voice `#B2B8CA` |
-| words on a focused player-menu row (white fill, section 8) | `#0B0C14`; second line and tag `#454A5C`; a row that cannot be chosen `#62677A`; the star `#7A5C00` |
+| words on a focused player-menu row (white fill, section 8) | `#0B0C14`; second line and tag `#454A5C`; the set row's tick, icon and second line `#5A3FE6`; the star `#B45309` (section 9) |
+| focus on a player-menu row that cannot be chosen (section 9) | no white fill: a 2 dp outline, white 85 %, a fill of white 8 %; its title `#B2B8CA`, as its note |
 
 Two things differ from the website's recipe, both because a TV panel has no
 blur behind it:
@@ -156,7 +159,7 @@ Home code have not changed since).
   drifting glows: cheap frames that made the share look smaller. The new rail
   draws nothing when nothing moves.
 - **S4 (the rail): this one is not equal, and it is said plainly.** (Measured
-  again after the follow-up, section 8.3: 26 before it, 27 after it.) Late
+  again after the follow-ups, sections 8.3 and 9.3: 26, then 27, then 23.5.) Late
   frames per run went from about 13 to about 26. Frames late by more than
   3 ms: 2.3 per open-and-close before, 2.5 now. The extra ones are barely
   late and come just after the rail closes: the GPU has gone idle and wakes
@@ -246,6 +249,10 @@ Commit 90f03315, versionCode 248 on the Mi TV. "Before" here is the glass the
 first jury saw (versionCode 247). Pictures: `docs/qa/glass-tv/followup/`
 (twelve scenes, two of them controls; `scenes.md`, `key.json`).
 
+Section 9 changed two of these again: fix 2 (the panes float once more, over a
+ground in their edge picture) and, in fix 4, the star, the set row and the row
+that cannot be chosen. The tables below are this round as it was built.
+
 ### 8.1 What changed
 
 | fault | what it was | what it is now | files |
@@ -319,3 +326,104 @@ controls: the two screencaps are identical pixel for pixel. In the player
 scenes the film is paused at 2:59 in one picture and 3:06 in the other, and in
 the title sheet the "watched" line moved from 1 % to 2 %: the film had to be
 played between the two sets.
+
+## 9. The second follow-up: four more both judges named (2026-11-10)
+
+Commit 3b6ed52e, versionCode 249 on the Mi TV. "Before" here is the build
+after section 8 (versionCode 248). Pictures: `docs/qa/glass-tv/followup2/` (ten
+scenes, two of them controls; `scenes.md`, `key.json`).
+
+### 9.1 What changed
+
+| fault | what it was | what it is now | files |
+|---|---|---|---|
+| 1. The rail and Browse's filter pane ran off the screen's foot: no round lower corners, no rim along the foot, not a closed floating shape | section 8's fix for the page showing under the foot: `bottom: 0`, top corners only | closed and floating again: `bottom: 11`, `borderRadius` 38 (rail) and 28 (filter pane), the foot's rim (white 12 %) and foot light (8 % over 8 dp) back. What hides the page is **the ground**, baked into the same edge picture: under the pane's foot and round its two foot corners the picture is opaque in the page's own dark, `rgb(11,12,20)`. It starts 1.15 corner radii above the foot and is whole from 0.45 radii down; beside the pane it fades to nothing over 24 dp, so the page next to the foot goes dark as under a shadow and nothing is cut with a line. No new view, no new layer, no more pixels drawn than before section 8: the picture already lay there with the pane's shadow in it | `tools/gen_glass_edge.py` (`GROUND`, `GROUND_SIDE`, `GROUND_RISE`, `ground()`), `assets/glass-pane-edge*.png`, `components/NavRail.tsx`, `screens/Browse.tsx` |
+| 2. The star on the white focus pill was a muddy olive | `inkOnWhite.star` `#7A5C00` | `#B45309`, a clear amber, 5.0:1 on white | `glass.ts` |
+| 3. The set row under focus kept a black tick as its only sign of "set" | tick, icon and second line in the dark inks | the set row's tick, its icon and its second line in `inkOnWhite.set` `#5A3FE6`: the accent, deep enough for white (6.4:1; the accent itself is 3.3:1). The word stays `#0B0C14` | `glass.ts`, `playback/Player.tsx` (behind `PHONE`) |
+| 4. A focused row that cannot be chosen: its title paler than its note, its white pill as loud as on a row you can pick | the white fill, the title `#62677A` on it, the note `#454A5C` | the quiet focus, `quietFocus`: a 2 dp outline, white 85 %, a fill of white 8 %, no drop shadow, no white fill. The words stay light on the dark body; the title is `ink.third` `#B2B8CA`, the colour of its note and its tag (it was white at half strength at rest, and still is at rest) | `glass.ts`, `playback/Player.tsx` (behind `PHONE`) |
+
+`inkOnWhite.dim` is gone: nothing that cannot be chosen sits on the white fill
+any more.
+
+The pictures are 304 x 614 and 362 x 621 dp now (the pane and 48 dp on every
+side); the four files grew from 33 KB to 59 KB together. Section 8's taller
+bake and its cut (`FOOT_OFF`) are gone.
+
+What the ground does to the page, seen on the TV: straight under the pane and
+in its foot corners the page is gone; for 24 dp to each side of the foot it
+goes dark the way it does under the pane's shadow. A card or a poster that
+reaches the screen's foot right beside the pane (Home's rows, the Movies grid)
+is dimmed toward the pane in its lowest 45 to 55 dp, and whole beyond those
+24 dp. No band shows over the page's own gradient: the ground is the colour
+the page already has there.
+
+### 9.2 Contrast, measured on the Mi TV's screencaps
+
+| pair | before (vc248) | after (vc249) |
+|---|---|---|
+| the focused set row's word (unchanged) | 19.50 | 19.50 |
+| its star | 6.25, olive `rgb(122,92,0)` | 5.02, amber `rgb(180,83,9)` |
+| its tick | 19.50, black | 6.39, `rgb(90,63,230)` |
+| its second line | 8.80, grey | 6.39, `rgb(90,63,230)` |
+| a row that cannot be chosen, with focus on it: its title | 5.61, dark grey on white | 5.28, `rgb(178,184,202)` on the quiet fill `rgb(63,63,69)` |
+| its note | 8.80 | 5.36 |
+| its tag "Not here" | 8.80 | 5.36 |
+| the same row's outline against the menu round it | (no outline) | 10.96 (the outline measures `rgb(227,227,227)`, 4 px) |
+| its fill against the menu round it | 14.65 | 1.35 |
+| the same title at rest (unchanged) | 4.72 | 4.72 |
+
+Every pair passes 4.5. The title and the note of the unavailable row are the
+same ink now; the 0.08 between them is the thinner strokes of the title's
+weight on a screencap.
+
+### 9.3 Frames: the rail, open and close five times (S4)
+
+As in section 8.3: a cold start for every run, the same TV, the same evening.
+
+| build | runs | late frames per run | median | mean | frames per run (mean) | late share (mean) | p50 / p90 / p95 / p99 |
+|---|---|---|---|---|---|---|---|
+| the old look (section 3.3) | | about 13 | | | 422 | 3.1 % | 30 / 40 / 53 / 97 ms |
+| glass before the first follow-up (vc247) | 10 | 27, 26, 25, 26, 26, 25, 27, 25, 27, 24 | 26 | 25.8 | 264 | 9.78 % | 32 / 48 / 53 / 113 |
+| after the first follow-up (vc248) | 10 | 24, 24, 28, 29, 27, 24, 24, 31, 28, 28 | 27.5 | 26.7 | 274 | 9.77 % | 32 / 48 / 53 / 109 |
+| after the second (vc249) | 10 | 20, 23, 27, 23, 22, 26, 28, 26, 24, 14 | 23.5 | 23.3 | 257 | 9.07 % | 32 / 46 / 53 / 111 |
+
+Read: not worse. 23.5 against 27.5 late frames a run and 9.1 % against 9.8 %
+of frames late; the difference is inside what two starts differ by (about
+15 %), so it is "the same", not "better". The last run of the ten drew fewer
+frames than the others (223; 14 late) and pulls the mean down a little;
+without it the median is 24 and the mean 24.3. The ground costs nothing this
+test can see: the picture is the same size on screen as before section 8 and
+is drawn once, in the same place.
+
+### 9.4 The phone
+
+- `Player.tsx`: every line of fixes 3 and 4 is behind `PHONE`. The phone's
+  menu rows keep `ring="none"`, `colors.surfaceHover` and their colours.
+- `glass.ts`, `NavRail.tsx`, `Browse.tsx`, the edge pictures: the TV only.
+- Nothing under `tv-native/src/phone` was touched.
+
+### 9.5 The pictures
+
+`docs/qa/glass-tv/followup2`: every BEFORE picture is versionCode 248
+(90f03315), every AFTER picture versionCode 249 (3b6ed52e). Scenes 01 to 05
+are the foot (the rail over Home's hero, over Home's rows, over the Movies
+grid, the filter pane, the rail over Settings): the two screencaps of each
+are identical above the lowest 94 px of the screen. Scenes 06 to 08 are the
+player's menus; the film is paused at 3:06 in one set and 3:05 in the other,
+so the time and the subtitle line differ. Scenes 09 (the Movies grid) and 10
+(the Settings page) are controls: identical pixel for pixel.
+
+### 9.6 Named by one judge only, left alone
+
+- The focus ring touches the chosen well in the rail; the stacking there is
+  tight.
+- "English 7" is cut at the foot of the subtitles menu.
+- The filter pane's resting labels are grey where the rail's are white.
+- The ring of the focused "Play" comes close to "Details".
+- Focus in the rail is a pill and a ring; in the player's menus a pill only.
+
+### 9.7 Seen on the TV, not from this work
+
+Settings opened from the rail shows no focus ring until a key is pressed, and
+the first Left there does not open the rail. The same on versionCode 247, 248
+and 249.
