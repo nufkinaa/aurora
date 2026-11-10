@@ -3314,6 +3314,11 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* a sound switch's line under its name starts where the name does (past
+   the 13px tick column and the 10px gap), not under the tick */
+.menu-item.fx-row .sub-note {
+  padding-left: 23px;
+}
 
 /* Up Next card */
 /* "Skip intro" — floats above the control bar and OUTSIDE .player-bottom, so
@@ -4491,6 +4496,11 @@ a.nav-menu-item { text-decoration: none; box-sizing: border-box; }
   flex-direction: column;
   gap: 10px;
 }
+/* on a big screen a row ran 2,400px wide — its buttons a long way from the
+   title they act on, the bar a stripe across the room */
+.screen.downloads .dl-list {
+  max-width: 1400px;
+}
 .dl-row {
   --dl-tone: #9aa3b8;
   position: relative;
@@ -4609,6 +4619,19 @@ a.nav-menu-item { text-decoration: none; box-sizing: border-box; }
 }
 .dl-status .dl-line {
   min-width: 0;
+}
+/* My downloads: the state and its details read as one sentence that wraps
+   like text — as flex items a long line dropped to a row of its own that
+   began with its "·", and the gap doubled the space before every "·" */
+.dl-status.dl-flow {
+  display: block;
+  line-height: 1.45;
+}
+.dl-status.dl-flow > .dl-dot,
+.dl-status.dl-flow > .mini-spinner {
+  display: inline-block;
+  vertical-align: middle;
+  margin: -2px 8px 0 0;
 }
 .dl-status .mini-spinner {
   flex: none;

@@ -1852,6 +1852,18 @@ html[data-look="glass"] .season-bar::-webkit-scrollbar { display: none; }
   html[data-look="glass"] .pc-transport { order: 0; }
   html[data-look="glass"] .pc-tools { order: 1; justify-self: center; }
   html[data-look="glass"] .vol-group { display: none; }
+  /* eight tools are 364px: on a 320–375px phone the row ran past the dock
+     (Fullscreen cut at the screen's edge) — the buttons give a little
+     width instead (never under 32px), the row stays one row */
+  html[data-look="glass"] .pc-tools { max-width: 100%; min-width: 0; gap: 2px; }
+  html[data-look="glass"] .pc-tools > .pbtn { flex: 0 1 42px; min-width: 32px; }
+}
+/* a phone held sideways (no volume slider there — responsive.css): the
+   transport at the left, the tools at the right edge, instead of the tools
+   squeezed up against the transport with the right third of the dock empty */
+@media (hover: none) and (max-height: 500px) and (min-width: 721px) {
+  html[data-look="glass"] .player-controls { grid-template-columns: auto 1fr; }
+  html[data-look="glass"] .pc-transport { justify-self: start; }
 }
 
 /* ---------- card focus in Apple Horror: the ring, nothing else ----------

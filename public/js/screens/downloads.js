@@ -108,7 +108,7 @@ const describeBase = (job) => {
       return { tone: "bad", head: "Declined", line: [`${state.adminName} said no to this one`, stays(job)].filter(Boolean).join(" · ") };
     case "canceled":
       // (who did it: only the person who asked or the admin can)
-      return { tone: "bad", head: job.canceledBy === "admin" ? `Cancelled by ${state.adminName}` : job.canceledBy === "self" ? "Cancelled by you" : "Canceled", line: [stays(job), when(job.resolvedAt || job.at)].filter(Boolean).join(" · ") };
+      return { tone: "bad", head: job.canceledBy === "admin" ? `Cancelled by ${state.adminName}` : job.canceledBy === "self" ? "Cancelled by you" : "Cancelled", line: [stays(job), when(job.resolvedAt || job.at)].filter(Boolean).join(" · ") };
     case "error":
       return { tone: "bad", head: "Failed", line: [stays(job), job.error || "The download stopped and couldn't recover"].filter(Boolean).join(" · ") };
     default:
@@ -279,7 +279,7 @@ const row = (job, { others = false } = {}) => {
       sub.length > 0 && el("div", { class: "dl-sub" }, sub.join(" · ")),
       el(
         "div",
-        { class: "dl-status" },
+        { class: "dl-status dl-flow" },
         d.spin ? el("span", { class: "mini-spinner" }) : el("i", { class: "dl-dot", "aria-hidden": "true" }),
         el("b", {}, d.head),
         d.line && el("span", { class: "dl-line" }, ` · ${d.line}`),

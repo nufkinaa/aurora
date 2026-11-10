@@ -2241,6 +2241,11 @@ html[data-look="glass"] .hh-tabs .chip.on { background: rgba(255, 255, 255, 0.18
   --calg-gap: 6px;
 }
 .cal-head { align-items: center; justify-content: space-between; flex-wrap: wrap; row-gap: 10px; }
+/* the Month / List switch ends where the page under it ends (the list is
+   980px at most, the month 1500px) — on a wide screen it stood alone at the
+   window's far edge */
+.screen.calendar .cal-head { max-width: 980px; }
+.screen.calendar.cal-month-view .cal-head { max-width: calc(1500px + 2 * var(--page-x)); }
 .cal-views[hidden], .cal-tabs[hidden] { display: none; }
 .cal-views .chip { min-width: 84px; }
 .cal-month-view .cal-body { max-width: none; }
@@ -2333,7 +2338,7 @@ html[data-look="glass"] .hh-tabs .chip.on { background: rgba(255, 255, 255, 0.18
   min-width: 0;
 }
 .calg-year { font-weight: 300; color: var(--text-dim); letter-spacing: -0.02em; }
-.calg-line { grid-area: line; margin: 6px 0 0; font-size: 0.9rem; font-weight: 650; color: var(--text-dim); }
+.calg-line { grid-area: line; margin: 6px 0 0; font-size: 0.9rem; font-weight: 650; color: var(--text-dim); text-wrap: pretty; } /* (no lone "films" on a line of its own at 320px) */
 .calg-line.quiet { color: var(--text-faint); font-weight: 600; }
 .calg-today { grid-area: today; }
 .calg-nav { grid-area: nav; display: flex; gap: 6px; }
