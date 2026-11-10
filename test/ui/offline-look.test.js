@@ -286,4 +286,104 @@ ui.test("in the player: Settings has Save to this device — one press, the size
   }
 });
 
+ui.test("a kids profile on the same device: the grown-up's copy is not on its place, not on a poster, not in its nav — and is still there for the grown-up afterwards", async ({ srv, freshProfile }) => {
+  const grown = await freshProfile();
+  const kid = await freshProfile({ kids: { maxAge: 7 } });
+  const { context, page, errors } = await open(srv, grown, DESKTOP);
+  const as = async (profile, hash) => {
+    await page.evaluate((id) => { localStorage.setItem("aurora-profile", id); }, profile.id);
+    await page.goto(`${srv.url}/${hash}`, { waitUntil: "domcontentloaded" });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForSelector("#app .screen", { timeout: 30000 });
+  };
+  try {
+    assert.ok(await save(page, srv.lib.film1.id));
+    await repaint(page);
+    await page.waitForSelector(".dev-row");
+    // the same browser, the child's profile
+    await as(kid, "#/saved");
+    await page.waitForSelector(".saved-section, .dev-empty", { timeout: 20000 });
+    await until(() => page.evaluate(() => !!document.querySelector(".dev-empty")), "the child's place is empty");
+    assert.deepEqual(await page.evaluate(async () => { const { state } = await import("/js/state.js"); return state.profile && { id: state.profile.id, kids: !!state.profile.kids }; }), { id: kid.id, kids: true }, "the page is the child's");
+    assert.equal(await page.locator(".dev-row, .dev-group").count(), 0, "none of the grown-up's copies");
+    const words = await page.locator(".saved-screen").innerText();
+    assert.doesNotMatch(words, /Test Film One/);
+    assert.doesNotMatch(words, /saved here/, "no count of somebody else's copies");
+    await page.evaluate(() => { location.hash = "#/movies"; });
+    await page.waitForSelector("#app .screen:not(.saved-screen)");
+    await page.waitForTimeout(1500); // (the marks come a moment after the cards)
+    assert.equal(await page.locator('#app .dev-mark[data-state="saved"]').count(), 0, "no mark on a poster");
+    assert.equal(await page.locator('#nav-saved .dev-mark[data-state="saved"], .nav-dev-ring[data-state="saved"]').count(), 0, "no mark in the nav");
+    // nothing was taken away: the grown-up still has it
+    await as(grown, "#/saved");
+    await page.waitForSelector(".dev-row", { timeout: 20000 });
+    assert.match(await page.locator(".dev-row").first().innerText(), /Test Film One/);
+    assert.deepEqual(await savedIds(page), [srv.lib.film1.id]);
+    // (the test changes profile by hand, not through the picker: on the way back the
+    // first questions for the grown-up go out before its door is opened again)
+    assert.deepEqual(errors.filter((e) => !(/403/.test(e) && e.includes(`/api/profiles/${grown.id}/`))), []);
+  } finally {
+    await context.close().catch(() => {});
+  }
+});
+
+ui.test("reduced motion and the keyboard: nothing of the mark moves; Tab reaches Play, Remove, the switch and Pack for a trip, each with a ring to see", async ({ srv, freshProfile }) => {
+  const profile = await freshProfile();
+  const { context, page, errors } = await open(srv, profile, DESKTOP);
+  try {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    // the place with nothing on it: its mark settles without moving
+    await page.waitForSelector(".dev-empty-mark");
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector(".dev-empty-mark")).animationName), "none");
+    // the mark while a save is prepared, and as it lands
+    const still = await page.evaluate(async () => {
+      const ui = await import("/js/offlineUi.js");
+      const a = ui.mark("preparing");
+      const b = ui.mark("saved");
+      b.classList.add("landed");
+      document.body.append(a, b);
+      const spin = a.querySelector(".dm-spin");
+      const out = {
+        spin: spin ? getComputedStyle(spin).animationName : "none",
+        land: getComputedStyle(b.querySelector("svg")).animationName,
+        ring: getComputedStyle(b, "::after").animationName,
+      };
+      a.remove(); b.remove();
+      return out;
+    });
+    assert.deepEqual(still, { spin: "none", land: "none", ring: "none" });
+    // the keyboard: everything on the place within reach, and seen
+    assert.ok(await save(page, srv.lib.film1.id));
+    assert.ok(await save(page, srv.lib.e1.id)); // (an episode: the switch has something to say)
+    await repaint(page);
+    await page.waitForSelector(".dev-row");
+    await page.waitForSelector('[data-ui="saved.smartnext"]');
+    await page.evaluate(() => { document.getElementById("toasts").replaceChildren(); if (document.activeElement) document.activeElement.blur(); });
+    const reached = {};
+    for (let i = 0; i < 60; i++) {
+      await page.keyboard.press("Tab");
+      const at = await page.evaluate(() => {
+        const e = document.activeElement;
+        if (!e || e === document.body) return null;
+        const cs = getComputedStyle(e);
+        return { ui: e.getAttribute("data-ui") || "", name: (e.getAttribute("aria-label") || e.innerText || e.title || "").trim().slice(0, 60), ring: (cs.outlineStyle !== "none" && parseFloat(cs.outlineWidth) > 0) || cs.boxShadow !== "none" };
+      });
+      if (at && at.ui && !(at.ui in reached)) reached[at.ui] = at;
+    }
+    for (const id of ["saved.pack", "saved.play", "saved.remove", "saved.smartnext"]) {
+      assert.ok(reached[id], `Tab reaches ${id} (reached: ${Object.keys(reached).join(", ")})`);
+      assert.ok(reached[id].ring, `${id} shows where the keyboard is`);
+      assert.ok(reached[id].name || id === "saved.smartnext", `${id} has a name`);
+    }
+    // the switch says what it is and what it does to a screen reader
+    const sw = page.locator('[data-ui="saved.smartnext"]');
+    assert.equal(await sw.getAttribute("role"), "switch");
+    assert.match(await page.locator(`#${await sw.getAttribute("aria-labelledby")}`).innerText(), /Keep the next episode ready/);
+    assert.match(await page.locator(`#${await sw.getAttribute("aria-describedby")}`).innerText(), /Nothing is removed/);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close().catch(() => {});
+  }
+});
+
 ui.run({ concurrency: 1 });
