@@ -354,6 +354,12 @@ module.exports = {
   "signin.submit": "tp",
   // state
   "state.action": "t",
+  // story (the Aurora Play story frame: public/js/play/story.js — Wrapped and any other story)
+  "story.close": "w",
+  "story.next": "w",
+  "story.pause": "w",
+  "story.prev": "w",
+  "story.skip": "w", // Skip to the summary
   // update
   "update.install": "tp",
   "update.later": "tp",

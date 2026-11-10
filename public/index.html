@@ -145,6 +145,7 @@
        in that order) as one minified file, built and hashed by the server
        (src/lib/cssbundle.js). One render-blocking request instead of six. -->
   <link rel="stylesheet" href="/css/aurora.css" />
+  <!-- Aurora Play (js/play/room.js): inert until a play screen clones it in; here so the server versions it --><template id="play-css"><link rel="stylesheet" href="/css/play.css" /></template>
 
   <!-- The eager module graph. Without this the browser has to fetch main.js,
        parse it, discover its imports, fetch those, parse them, discover the

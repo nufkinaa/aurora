@@ -1,0 +1,135 @@
+<!doctype html>
+<!-- The Aurora Play kit, every piece on one page (not shipped; see serve.js). -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Aurora Play — kit demo</title>
+  <link rel="stylesheet" href="/css/play.css" data-play-css />
+  <style>
+    body { margin: 0; background: #03040c; }
+    .demo { position: relative; min-height: 100vh; }
+    .demo-in { position: relative; z-index: 1; max-width: 1040px; margin: 0 auto; padding: 48px var(--play-pad-x) 80px; display: grid; gap: 56px; }
+    .demo-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+    .demo h2 { margin: 0 0 18px; }
+    .demo .play-room { position: fixed; }
+    .demo-card-face { position: absolute; inset: 0; display: grid; place-items: center; background: linear-gradient(160deg, #1c1550, #071a2a); color: var(--play-gold); font-weight: 900; font-size: 1.6rem; border: 3px solid rgba(255, 209, 102, 0.6); border-radius: 20px; }
+    .demo-burst-host { position: relative; height: 220px; border-radius: 22px; overflow: hidden; display: grid; place-items: center; }
+    #story-host .play-story { position: absolute; }
+    #story-host { position: relative; height: 520px; border-radius: 22px; overflow: hidden; transform: translateZ(0); }
+    canvas.demo-share { width: 216px; height: 384px; border-radius: 14px; box-shadow: var(--play-shadow); }
+  </style>
+</head>
+<body>
+  <div class="demo play-surface">
+    <div class="demo-in">
+      <header>
+        <span class="play-eyebrow">Aurora Play · kit</span>
+        <h1 class="play-h1" style="margin-top:10px">The night-sky arcade</h1>
+        <p class="play-lede" style="margin-top:12px">Every piece of public/js/play and css/play.css, live. Press things.</p>
+      </header>
+
+      <section>
+        <h2 class="play-h2">Controls — press.js</h2>
+        <div class="demo-row">
+          <button class="play-btn play-btn--gold play-press">Gold — the one win</button>
+          <button class="play-btn play-btn--aurora play-press">Aurora</button>
+          <button class="play-btn play-press">Glass</button>
+          <button class="play-btn play-btn--quiet play-press">Quiet</button>
+          <button class="play-chip play-press">Chip</button>
+          <button class="play-chip play-chip--gold play-press">Gold chip</button>
+          <span class="play-badge">7</span>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="play-h2">Numbers — count.js</h2>
+        <div class="demo-row" style="font-size:var(--play-fs-xxl);font-weight:900;letter-spacing:-0.04em">
+          <span id="odo1"></span><span id="odo2" style="font-size:0.5em"></span>
+        </div>
+        <div class="demo-row"><button id="odo-go" class="play-chip play-press">Roll again</button> <span class="play-small">count-up: <b id="cu"></b> sittings</span></div>
+      </section>
+
+      <section>
+        <h2 class="play-h2">Progress — .play-ribbon</h2>
+        <div class="play-ribbon" style="max-width:420px"><i id="rib"></i></div>
+      </section>
+
+      <section>
+        <h2 class="play-h2">Collectible — tilt.js</h2>
+        <div class="play-collectible" id="card"><div class="play-tilt"><div class="play-face"><div class="demo-card-face">The Night Owl</div><div class="play-foil"></div><div class="play-glare"></div></div></div></div>
+      </section>
+
+      <section>
+        <h2 class="play-h2">Reward — burst.js</h2>
+        <div class="demo-burst-host play-card" id="bh"><button class="play-btn play-btn--gold play-press" id="burst">Meteor burst</button></div>
+      </section>
+
+      <section>
+        <h2 class="play-h2">Story — story.js</h2>
+        <div id="story-host"></div>
+        <div class="demo-row" style="margin-top:12px"><button id="story-go" class="play-chip play-press">Start the story</button></div>
+      </section>
+
+      <section>
+        <h2 class="play-h2">Share card — sharecard.js</h2>
+        <div class="demo-row"><canvas class="demo-share" id="share" width="1080" height="1920"></canvas><button id="share-go" class="play-btn play-press">Share or save</button></div>
+      </section>
+    </div>
+  </div>
+  <script type="module">
+    import { room } from "/js/play/room.js";
+    import { pressAll } from "/js/play/press.js";
+    import { odometer, countUp } from "/js/play/count.js";
+    import { tilt } from "/js/play/tilt.js";
+    import { meteorBurst } from "/js/play/burst.js";
+    import { createStory } from "/js/play/story.js";
+    import { paintStars, roundRect, wrapLines, shareOrSave } from "/js/play/sharecard.js";
+    import { el } from "/js/ui.js";
+
+    const demo = document.querySelector(".demo");
+    demo.prepend(room().el);
+    pressAll(document);
+
+    const o1 = odometer("1,204", { ms: 1800 });
+    o1.el.classList.add("play-gold-text");
+    const o2 = odometer("3:41", { ms: 1400, delay: 200 });
+    document.getElementById("odo1").append(o1.el);
+    document.getElementById("odo2").append(o2.el);
+    const roll = () => { o1.start(); o2.start(); countUp(document.getElementById("cu"), 152); document.getElementById("rib").style.setProperty("--p", String(0.2 + Math.random() * 0.8)); };
+    document.getElementById("odo-go").onclick = roll;
+    setTimeout(roll, 300);
+
+    tilt(document.querySelector("#card .play-tilt"));
+    document.getElementById("burst").onclick = () => meteorBurst(document.getElementById("bh"));
+
+    document.getElementById("story-go").onclick = () => {
+      const host = document.getElementById("story-host");
+      host.innerHTML = "";
+      const chapter = (id, title, line) => ({ id, label: title, ms: 4500, build: (stage) => {
+        stage.append(el("div", { style: { textAlign: "center", display: "grid", gap: "14px", justifyItems: "center" } },
+          el("span", { class: "play-eyebrow", "data-in": "" }, id),
+          el("h2", { class: "play-h1", "data-in": "", style: { "--d": "120" } }, title),
+          el("p", { class: "play-lede", "data-in": "", style: { "--d": "260" } }, line)));
+      } });
+      let s;
+      s = createStory({ host, label: "Demo", top: el("span", { class: "play-chip" }, "Demo story"),
+        chapters: [chapter("one", "Tap right for next", "Left third goes back. Hold to pause."), chapter("two", "Arrows work too", "Space pauses, Esc leaves."), { ...chapter("three", "The end", "This one holds."), hold: true }],
+        onExit: () => s.destroy(), onSkip: () => s.go(2) });
+      s.el.prepend(room({ seed: 4 }).el);
+    };
+
+    const c = document.getElementById("share");
+    const ctx = c.getContext("2d");
+    const g = ctx.createLinearGradient(0, 0, 0, 1920);
+    g.addColorStop(0, "#120e34"); g.addColorStop(1, "#03040c");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 1080, 1920);
+    paintStars(ctx, 1080, 1920, { count: 220 });
+    roundRect(ctx, 90, 1180, 900, 520, 48); ctx.fillStyle = "rgba(255,255,255,0.08)"; ctx.fill();
+    ctx.fillStyle = "#ffd166"; ctx.font = "900 220px system-ui"; ctx.fillText("136", 120, 1000);
+    ctx.fillStyle = "#fff"; ctx.font = "800 64px system-ui";
+    wrapLines((s) => ctx.measureText(s).width, "A long title that has to wrap onto a second line nicely", 820, 2).forEach((l, i) => ctx.fillText(l, 130, 1300 + i * 80));
+    document.getElementById("share-go").onclick = () => shareOrSave(c, { filename: "aurora-play-demo.png" });
+  </script>
+</body>
+</html>
