@@ -13,6 +13,11 @@
 //                            scoring rule wins, ties to the table's order
 //   roastsFor(w, name)       the intervention (up to four, worst first)
 //   kindWordsFor(w, name)    the same moment for a kids profile: no stings
+//   interventionFor(w, name, { kids })  what the chapter says: the server's
+//                            own pick (`w.roasts`, a bank that says something
+//                            different each visit — branch `remarks`) when it
+//                            sends one, else roastsFor; a kids profile always
+//                            gets kindWordsFor
 //   chaptersFor(w)           the story's chapters that have data, in order
 //   skyLayout(w, wide)       the streak chapter's sky: every night a star on
 //                            a calendar grid; the best streak rises into a
@@ -265,6 +270,16 @@ export const kindWordsFor = (w, name) => {
   if (w.finished >= 1) out.push(`${plural(w.finished, "story", "stories")} watched all the way to the end.`);
   if (!out.length) out.push(`Your sky is just getting started, ${name}. Every show you watch adds a star!`);
   return out.slice(0, 4);
+};
+
+// The intervention's lines. The server's `roasts` (up to four ready strings,
+// chosen per visit) are used as sent — order kept, only the empty ones
+// dropped and the layout's four kept; an older server sends none and the
+// rules above speak instead. Never roasts to a kids profile.
+export const interventionFor = (w, name, { kids = false } = {}) => {
+  if (kids) return kindWordsFor(w, name);
+  const sent = Array.isArray(w.roasts) ? w.roasts.filter((x) => typeof x === "string" && x.trim()) : [];
+  return sent.length ? sent.slice(0, 4) : roastsFor(w, name);
 };
 
 // ---------- the chapters ----------

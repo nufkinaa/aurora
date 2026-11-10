@@ -183,7 +183,7 @@ const skyChart = (w, { still = false, wide = true } = {}) => {
     const c = lay.con[lay.brightest];
     const day = new Date(`${w.nightsFrom}T12:00:00`);
     day.setDate(day.getDate() + w.nights[c.i][0]);
-    const label = el("span", { class: `wr-sky-label${c.y < 0.3 ? " is-below" : ""}${c.x > 0.75 ? " is-left" : c.x < 0.25 ? " is-right" : ""}`, style: { left: `${c.x * 100}%`, top: `${c.y * 100}%`, "--n": String(n) } },
+    const label = el("span", { class: `wr-sky-label${c.y < 0.3 ? " is-below" : ""}${c.x > 0.75 ? " is-left" : c.x < 0.25 ? " is-right" : ""}${c.x > 0.5 ? " is-flip" : ""}`, style: { left: `${c.x * 100}%`, top: `${c.y * 100}%`, "--n": String(n) } },
       el("b", {}, "Brightest night"), ` ${shortDay(day.toLocaleDateString("sv"))} · ${R.fmtH(lay.stars[c.i].m * 60)}`);
     lines.append(label);
   }
@@ -466,7 +466,7 @@ const chapterBuilders = (ctx) => {
       const hand = el("div", { class: `wr-fan n${n}`, "aria-hidden": "true", "data-in": "fade" },
         ...order.map((t, k) => {
           const off = k - (n - 1) / 2;
-          return el("div", { class: `wr-fan-card${t === win ? " is-win" : ""}`, style: { "--k": String(k), "--r": `${off * 9}deg`, "--x": `${off * 46}%`, "--s": String(k % 2 ? 1 : -1), "--ox": `${off * 64}%` } },
+          return el("div", { class: `wr-fan-card${t === win ? " is-win" : ""}`, style: { "--k": String(k), "--r": `${off * 9}deg`, "--x": `calc(${off * 46}% * var(--spread))`, "--s": String(k % 2 ? 1 : -1), "--ox": `calc(${off * 64}% * var(--spread))` } },
             el("div", { class: "wr-fan-flip" },
               el("div", { class: "wr-fan-face" }, posterArt(t, { w: 260 })),
               el("div", { class: "wr-fan-face wr-fan-back" }, el("i", { html: STAR }))));
@@ -490,7 +490,7 @@ const chapterBuilders = (ctx) => {
       const t = w.topTitles;
       const step = (rank, item, delay) => el("div", { class: `wr-step wr-step--${rank}` },
         el("div", { class: "wr-step-top", "data-in": "drop", style: d(delay) },
-          posterArt(item, { w: 240 }),
+          posterArt(item, { w: 260 }),
           el("div", { class: "wr-step-name", dir: "auto" }, item.name),
           el("div", { class: "wr-step-h play-num" }, R.fmtH(item.sec))),
         el("div", { class: "wr-step-block", "data-in": "grow", style: d(rank * 90) }, el("span", {}, String(rank))));
@@ -510,7 +510,7 @@ const chapterBuilders = (ctx) => {
       const g = R.genreShares(w);
       stage.append(el("div", { class: "wr-ch wr-dna" },
         el("span", { class: "play-eyebrow", "data-in": "" }, "Your genre DNA"),
-        el("h2", { class: "play-h1", "data-in": "", style: d(120) }, `Mostly ${g[0].name}`, g[1] ? el("span", { class: "wr-soft" }, `, with a ${g[1].name} streak.`) : "."),
+        el("h2", { class: "play-h1", "data-in": "", style: d(120) }, "Mostly ", el("span", { class: "wr-nobr" }, g[0].name), g[1] ? el("span", { class: "wr-soft" }, ", with a ", el("span", { class: "wr-nobr" }, g[1].name), " streak.") : "."),
         el("div", { class: "wr-dna-bars", "data-in": "fade", style: d(300) }, genreBars(w)),
       ));
     },
@@ -572,7 +572,7 @@ const chapterBuilders = (ctx) => {
       stage.append(el("div", { class: "wr-ch wr-long" },
         el("span", { class: "play-eyebrow", "data-in": "" }, "Your longest sitting"),
         el("div", { class: "wr-long-row" },
-          top ? el("div", { "data-in": "pop", style: d(200) }, posterArt(top, { w: 220, cls: "wr-long-poster" })) : null,
+          top ? el("div", { "data-in": "pop", style: d(200) }, posterArt(top, { w: 260, cls: "wr-long-poster" })) : null,
           el("div", { class: "wr-long-text" },
             el("div", { class: "wr-big wr-big--clock", "data-in": "", style: d(60) }, odo.el),
             el("div", { class: "wr-unit", "data-in": "", style: d(900) }, "hours, in one go"),
@@ -617,21 +617,34 @@ const chapterBuilders = (ctx) => {
     },
   };
 
-  const words = kids ? R.kindWordsFor(w, name) : R.roastsFor(w, name);
+  const words = R.interventionFor(w, name, { kids });
+  // The intervention, one at a time: each line slams down on top of the
+  // last, which is pushed back into a pile (a deck: it fits any screen). A
+  // still story shows the plain list.
   B.roasts = {
     label: kids ? "The highlights" : "The intervention",
     ms: 1600 + words.length * 2700 + 1800,
     say: words.join(" "),
-    build: (stage) => {
+    build: (stage, api) => {
+      api.at(200, () => ctx.card());
+      const items = words.map((r, i) => el("li", { class: "wr-roast", "data-depth": api.still ? "0" : "", style: { "--i": String(i) } },
+        el("span", { class: "wr-roast-q", "aria-hidden": "true" }, "“"),
+        el("span", { class: "wr-roast-text" }, r),
+        el("span", { class: "wr-roast-n play-num", "aria-hidden": "true" }, `${i + 1}/${words.length}`)));
       stage.append(el("div", { class: "wr-ch wr-roast-ch" },
         el("span", { class: "play-eyebrow", "data-in": "" }, kids ? "The highlights" : "The intervention"),
         el("h2", { class: "play-h1", "data-in": "", style: d(120) }, kids ? `Look at you go, ${name}!` : `We need to talk, ${name}.`),
-        el("ol", { class: "wr-roasts", "data-in": "fade" },
-          ...words.map((r, i) => el("li", { class: "wr-roast", style: { "--t": String(1300 + i * 2700), "--last": i === words.length - 1 ? "1" : "0" } },
-            el("span", { class: "wr-roast-q", "aria-hidden": "true" }, "“"),
-            el("span", { class: "wr-roast-text" }, r),
-            el("span", { class: "wr-roast-n play-num", "aria-hidden": "true" }, `${i + 1}/${words.length}`)))),
+        el("ol", { class: `wr-roasts${api.still ? "" : " is-deck"}` }, ...items),
       ));
+      if (api.still) return null;
+      return {
+        enter: () => {
+          words.forEach((_, k) => api.at(1300 + k * 2700, () => {
+            items.forEach((li, i) => { if (i <= k) li.setAttribute("data-depth", String(Math.min(3, k - i))); });
+            try { if (coarse()) haptic(10); } catch {}
+          }));
+        },
+      };
     },
   };
 
@@ -676,7 +689,7 @@ const renderPage = (screen, ctx) => {
   const page = el("div", { class: "wr-page" });
   const { card, inner } = typeCard(ctx);
   card.classList.add("is-revealed");
-  const words = kids ? R.kindWordsFor(w, name) : R.roastsFor(w, name);
+  const words = R.interventionFor(w, name, { kids });
   const g = R.genreShares(w);
   const hasNight = Array.isArray(w.byHour) && w.byHour.some(Boolean);
   const sky = w.streak && Array.isArray(w.nights) && w.nights.length > 1 ? skyChart(w, { still: true, wide: true }) : null;
@@ -836,19 +849,39 @@ export const renderWrapped = async (root) => {
       start,
       still: reduced(),
       top: el("span", { class: "play-chip wr-story-chip" }, el("span", { class: "wr-story-dot", html: STAR }), el("span", { dir: "auto" }, name)),
-      onExit: closeStory,
+      onExit: () => ctx.closeStory(),
       onSkip: () => story && story.go(chapters.length - 1, 1),
-      onEnd: closeStory,
+      onEnd: () => ctx.closeStory(),
     });
     story.el.classList.add("wr-story");
     story.el.prepend(storyRoom.el);
-    ctx.card(); // painted while the story plays: ready by the finale
+    // (the share card is painted at the intervention — a calm chapter whose
+    // motion is all on the compositor — so it is ready by the finale without
+    // a long task landing in the middle of the deal or the reveal)
+    // the top five's pictures, fetched now: they are dealt in the third chapter
+    for (const t of (w.topTitles || []).slice(0, 5)) if (t.poster) { const i = new Image(); i.decoding = "async"; i.src = artUrl(t.poster, 260); }
   };
   ctx.openStory = () => openStory(0);
   ctx.closeStory = closeStory;
   cleanups.push(() => closeStory());
 
-  cleanups.push(renderPage(screen, ctx));
+  // The page is drawn when it is to be seen: under a playing story it would
+  // be a full first layout (posters, the sky, the card — measured at ~0.5 s
+  // on a throttled phone) in the middle of the opening, for a page nobody can
+  // see yet. Until then the screen holds its name, for screen readers and
+  // the route's own check. Reduced motion: the page at once.
+  let undoPage = null;
+  const holder = el("div", { class: "wr-holder" }, el("h1", { class: "play-eyebrow play-sr" }, "Aurora Wrapped"));
+  screen.append(holder);
+  const drawPage = () => {
+    if (undoPage || !screen.isConnected) return;
+    holder.remove();
+    undoPage = renderPage(screen, ctx);
+  };
+  cleanups.push(() => { if (undoPage) undoPage(); });
+  const close = ctx.closeStory;
+  ctx.closeStory = () => { drawPage(); close(); };
   if (!reduced()) openStory(0);
+  else drawPage();
   return cleanup;
 };

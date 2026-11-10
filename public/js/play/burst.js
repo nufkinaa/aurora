@@ -83,17 +83,28 @@ export const meteorBurst = (host, { x = 0.5, y = 0.5, count = 42, colors = ["#ff
         const g = ctx.createLinearGradient(hx, hy, tx, ty);
         g.addColorStop(0, colors[m.color % colors.length]);
         g.addColorStop(1, "rgba(255,255,255,0)");
-        ctx.globalAlpha = Math.max(0, alpha);
+        ctx.globalAlpha = Math.max(0, alpha) * 0.85;
         ctx.strokeStyle = g;
-        ctx.lineWidth = m.size * 1.1;
+        ctx.lineWidth = m.size * 1.5;
         ctx.lineCap = "round";
         ctx.beginPath();
         ctx.moveTo(hx, hy);
         ctx.lineTo(tx, ty);
         ctx.stroke();
+        // the head: a soft glow, then a white core
+        const hr = m.size * (1 - k * 0.5);
+        const glow = ctx.createRadialGradient(hx, hy, 0, hx, hy, hr * 4);
+        glow.addColorStop(0, colors[m.color % colors.length]);
+        glow.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.globalAlpha = Math.max(0, alpha) * 0.6;
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(hx, hy, hr * 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = Math.max(0, alpha);
         ctx.fillStyle = "#fff";
         ctx.beginPath();
-        ctx.arc(hx, hy, m.size * (1 - k * 0.5), 0, Math.PI * 2);
+        ctx.arc(hx, hy, hr, 0, Math.PI * 2);
         ctx.fill();
       }
       // sparks: where a third of the meteors burn out, a star blinks twice

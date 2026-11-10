@@ -152,3 +152,15 @@ test("small words: the clock, the hour, the prime hour, shares", async () => {
   const g = genreShares(base());
   assert.deepEqual(g.map((x) => Math.round(x.share * 100)), [67, 33]);
 });
+
+test("the intervention's lines: the server's pick as sent, else the rules; kids never roasted", async () => {
+  const { interventionFor, roastsFor, kindWordsFor } = await load();
+  const w = base({ lateNightSessions: 9 });
+  assert.deepEqual(interventionFor(w, "Maya"), roastsFor(w, "Maya")); // an older server: no roasts
+  const sent = ["B first, as sent.", "A second.", "x".repeat(140), "Four.", "Five is past the layout."];
+  assert.deepEqual(interventionFor({ ...w, roasts: sent }, "Maya"), sent.slice(0, 4));
+  assert.deepEqual(interventionFor({ ...w, roasts: ["", "  ", null, "Only this."] }, "Maya"), ["Only this."]);
+  assert.deepEqual(interventionFor({ ...w, roasts: [] }, "Maya"), roastsFor(w, "Maya"));
+  assert.deepEqual(interventionFor({ ...w, roasts: "nope" }, "Maya"), roastsFor(w, "Maya"));
+  assert.deepEqual(interventionFor({ ...w, roasts: sent }, "Pip", { kids: true }), kindWordsFor(w, "Pip"));
+});

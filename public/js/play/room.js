@@ -41,7 +41,7 @@ export const room = ({ seed = 11 } = {}) => {
   el.setAttribute("aria-hidden", "true");
   el.innerHTML = '<div class="play-room-ribbon play-room-ribbon--a"></div><div class="play-room-ribbon play-room-ribbon--b"></div><canvas class="play-room-stars"></canvas>' +
     // the twinkling few: fixed spots, staggered by CSS
-    Array.from({ length: 9 }, (_, i) => `<i class="play-twinkle" style="--i:${i}"></i>`).join("");
+    Array.from({ length: 7 }, (_, i) => `<i class="play-twinkle" style="--i:${i}"></i>`).join("");
   const canvas = el.querySelector("canvas");
   let w = 0, h = 0;
   const paint = () => {

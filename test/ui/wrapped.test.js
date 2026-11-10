@@ -33,7 +33,7 @@ const waitChapter = (page, id) => page.waitForFunction((want) => {
   return c && c.classList.contains(`play-chapter--${want}`);
 }, id);
 const openStory = async (h) => {
-  await h.goto("#/wrapped", { selector: ".wr-page" });
+  await h.goto("#/wrapped", { selector: ".screen.wr" });
   await h.page.waitForSelector(".play-story .play-chapter--opening");
 };
 
@@ -57,6 +57,9 @@ ui.test("the story: arrows move, Space pauses, the summary is one press away, th
   await signIn(profiles.rich);
   await openStory(h);
   // the whole frame: one segment a chapter, the name, the buttons
+  // (the page underneath is drawn when the story closes)
+  assert.equal(await page.locator(".wr-page").count(), 0);
+  assert.match(await page.locator("#app .screen.wr").innerText(), /AURORA WRAPPED/i);
   const segs = await page.locator(".play-story .play-seg").count();
   assert.equal(segs, 11);
   assert.match(await page.locator(".play-story-title").innerText(), /Wren/);
@@ -120,7 +123,8 @@ ui.test("the share card: a 1080×1920 picture, handed to the share sheet where t
     };
   });
   await signIn(profiles.rich);
-  await h.goto("#/wrapped", { selector: ".wr-page" });
+  await h.goto("#/wrapped", { selector: ".screen.wr" });
+  await page.waitForSelector(".play-story .play-chapter");
   await page.keyboard.press("Escape");
   await page.waitForSelector(".play-story", { state: "detached" });
   assert.match(await page.locator(".wr-page-actions [data-ui='wrapped.share']").innerText(), /Share the picture/);
@@ -135,7 +139,8 @@ ui.test("the share card without a share sheet: the picture is downloaded", async
   const { page, signIn, profiles } = h;
   await page.addInitScript(() => { navigator.canShare = undefined; navigator.share = undefined; });
   await signIn(profiles.rich);
-  await h.goto("#/wrapped", { selector: ".wr-page" });
+  await h.goto("#/wrapped", { selector: ".screen.wr" });
+  await page.waitForSelector(".play-story .play-chapter");
   await page.keyboard.press("Escape");
   await page.waitForSelector(".play-story", { state: "detached" });
   assert.match(await page.locator(".wr-page-actions [data-ui='wrapped.share']").innerText(), /Save the picture/);
@@ -221,6 +226,40 @@ ui.test("one sitting: the chapters that need more are left out", async (h) => {
   }
   assert.deepEqual(ids, ["opening", "hours", "top", "type", "roasts", "finale"]);
   assert.match(await page.locator(".play-chapter--finale").innerText(), /That's a wrap/i);
+});
+
+ui.test("the server's own roasts are what the intervention says — four long ones still fit a phone", { viewport: PHONE }, async (h) => {
+  const { page, signIn, profiles } = h;
+  const long = (n) => `Roast ${n}: you watched so much that the couch files its own taxes now, the remote asked for a holiday and the fridge knows you by first name.`;
+  const lines = [1, 2, 3, 4].map(long);
+  assert.ok(lines.every((l) => l.length >= 135 && l.length <= 140), String(lines[0].length));
+  await page.route(/\/api\/profiles\/[^/]+\/wrapped$/, async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    route.fulfill({ response: res, json: { ...body, roasts: lines } });
+  });
+  await signIn(profiles.rich);
+  await openStory(h);
+  await page.keyboard.press("End");
+  await waitChapter(page, "finale");
+  await page.keyboard.press("ArrowLeft");
+  await waitChapter(page, "roasts");
+  const texts = await page.locator(".play-chapter--roasts .wr-roast-text").allInnerTexts();
+  assert.deepEqual(texts, lines);
+  // each line lands in time; the last one on top, whole, inside the screen
+  await page.waitForFunction(() => document.querySelector(".play-chapter--roasts .wr-roast:last-child[data-depth='0']"), null, { timeout: 15000 });
+  await page.waitForTimeout(800);
+  const box = await page.evaluate(() => {
+    const li = document.querySelector(".play-chapter--roasts .wr-roast:last-child");
+    const t = li.querySelector(".wr-roast-text");
+    const r = li.getBoundingClientRect();
+    return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, vw: innerWidth, vh: innerHeight, clipped: t.scrollHeight > t.clientHeight + 1 || t.scrollWidth > t.clientWidth + 1 };
+  });
+  assert.ok(box.left >= 0 && box.right <= box.vw && box.top >= 0 && box.bottom <= box.vh, JSON.stringify(box));
+  assert.equal(box.clipped, false);
+  // the page says them too
+  await page.click("[data-ui='story.close']");
+  assert.deepEqual(await page.locator(".wr-roastlist li").allInnerTexts(), lines);
 });
 
 ui.test("a kids profile: the highlights, never the intervention", async (h) => {
