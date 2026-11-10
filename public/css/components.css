@@ -1414,6 +1414,12 @@ html:not([data-look="glass"]) body:has(.player) #toasts {
 .look-pick:focus {
   box-shadow: var(--focus-ring);
 }
+/* a phone: the look and theme cards in one even column (each was as wide
+   as its own words — 190, 272 and 214px one under the other at 320px) */
+@media (max-width: 480px) {
+  .look-pick,
+  .theme-pick { flex: 1 1 100%; }
+}
 .look-pick-swatch {
   display: flex;
   flex-direction: column;

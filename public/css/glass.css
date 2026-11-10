@@ -2294,6 +2294,11 @@ html[data-look="glass"] .pref-item-value.pref-switch.on {
      the next one, at the right */
   .pref-item { flex-wrap: wrap; }
   .pref-icon ~ .pref-item-text { flex: 1 1 110px; }
+  /* …which it never did: 110px always fitted, so "Match frame rate" read
+     down a column of 3 words a line, eight lines tall. A row with a
+     sentence under its name now gives the button the next line; a bare
+     name ("Subtitle size") keeps it beside. (Switches always stay beside.) */
+  .pref-item:has(> .pref-item-value:not(.pref-switch)):has(.pref-item-note) > .pref-icon ~ .pref-item-text { flex: 1 1 calc(100% - 46px); }
 }
 
 /* ---------- X-Ray (2026-10-04) ----------
