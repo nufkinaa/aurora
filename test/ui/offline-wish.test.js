@@ -1,0 +1,213 @@
+// "Save it to this device too" — before the server has it (elia, 2026-11-10:
+// "…schedule download to phone before it downloaded to the server").
+// docs/offline-wishes.md; the server side is test/offline-wish*.test.js.
+//
+// A download is STAGED on the private instance with a fake engine
+// (support/wish-stage.js — nothing leaves the machine) and made to land; the
+// page, opened or not, saves the title by itself. These pages have a service
+// worker, so they make their own contexts (as offline.test.js does).
+const path = require("path");
+const fs = require("fs");
+const assert = require("node:assert/strict");
+const { suite, DESKTOP, PHONE } = require("./helpers");
+
+const ui = suite({
+  server: { preload: [path.join(__dirname, "support", "wish-stage.js")], env: { UI_WISH_STAGE: "1" } },
+});
+
+let n = 0;
+const stage = async (srv, cmd) => {
+  const dir = path.join(srv.root, "wish-stage");
+  for (let i = 0; i < 100 && !fs.existsSync(dir); i++) await new Promise((r) => setTimeout(r, 100));
+  const name = `${Date.now()}${String(++n).padStart(3, "0")}`;
+  fs.writeFileSync(path.join(dir, `${name}.tmp`), JSON.stringify(cmd));
+  fs.renameSync(path.join(dir, `${name}.tmp`), path.join(dir, `${name}.json`));
+  const done = path.join(dir, `${name}.done.json`);
+  for (let i = 0; i < 300; i++) {
+    if (fs.existsSync(done)) {
+      const out = JSON.parse(fs.readFileSync(done, "utf-8"));
+      assert.ok(out.ok, `stage ${cmd.op}: ${out.error}`);
+      return out;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error(`stage ${cmd.op}: no answer`);
+};
+const hashOf = (s) => require("crypto").createHash("sha1").update(s + Date.now() + Math.random()).digest("hex");
+const filmFile = (srv) => path.join(srv.media, "movies", "Test Film One (2020)", "Test Film One (2020).mp4");
+const episodeFile = (srv, e) => path.join(srv.media, "shows", "Test Show", "Season 1", `Test Show S01E0${e}.mp4`);
+
+const seedSignIn = async (page, profile) => {
+  await page.addInitScript(({ id }) => {
+    try {
+      if (sessionStorage.getItem("ui-test-seeded")) return;
+      sessionStorage.setItem("ui-test-seeded", "1");
+      localStorage.setItem("aurora-profile", id);
+      localStorage.setItem("aurora-kbd-hint", "1");
+      localStorage.setItem("aurora-nav-hinted", "1");
+    } catch {}
+  }, { id: profile.id });
+};
+const open = async (srv, profile, viewport, context = null) => {
+  const phone = viewport.width < 600;
+  const ctx = context || await ui.browser.newContext({ viewport, serviceWorkers: "allow", ...(phone ? { hasTouch: true, isMobile: true, deviceScaleFactor: 2 } : {}) });
+  if (!context) await ctx.route((url) => url.origin !== srv.url && /^https?:$/.test(url.protocol), (route) => route.fulfill({ status: 404, body: "" }).catch(() => {}));
+  const page = await ctx.newPage();
+  page.setDefaultTimeout(20000);
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(String((e && e.stack) || e)));
+  await seedSignIn(page, profile);
+  const go = async (hash, selector = "#app .screen") => {
+    if (!page.url().startsWith(srv.url)) await page.goto(`${srv.url}/${hash}`, { waitUntil: "domcontentloaded" });
+    else await page.evaluate((h) => { location.hash = h; }, hash);
+    await page.waitForSelector(selector, { timeout: 30000 });
+  };
+  return { context: ctx, page, errors, go };
+};
+const controlled = (page) => page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 30000 });
+const pick = async (page, label) => {
+  await page.waitForSelector(".offline-sheet .offline-opt");
+  await page.locator(".offline-sheet .offline-opt", { hasText: label }).first().click();
+  await page.waitForSelector(".offline-sheet", { state: "detached" });
+};
+const savedHere = (page, title) => page.evaluate(async (t) => (await (await import("/js/offline.js")).listSaved()).some((s) => s.title === t), title);
+const until = async (fn, what, ms = 60000) => {
+  const end = Date.now() + ms;
+  for (;;) {
+    if (await fn()) return;
+    if (Date.now() > end) throw new Error(`timed out: ${what}`);
+    await new Promise((r) => setTimeout(r, 300));
+  }
+};
+const wishesOf = async (srv, profile) => (await srv.api.get(`/api/profiles/${profile.id}/offline-wishes`, await srv.api.as(profile))).wishes;
+
+ui.test("phone: a film on its way → 'This device too' on My downloads → it lands → saved here by itself, and plays with the network cut", { allow: [/Failed to load resource/, /ERR_INTERNET_DISCONNECTED/, /WebSocket/] }, async ({ srv, freshProfile }) => {
+  const profile = await freshProfile();
+  const hash = hashOf("film");
+  await stage(srv, { op: "create", hash, src: filmFile(srv), fields: { type: "movie", imdbId: "tt9810001", title: "Wish Film", year: 2024, quality: "1080p", profile: profile.id } });
+  const { context, page, errors, go } = await open(srv, profile, PHONE);
+  try {
+    await go("#/downloads", '[data-ui="downloads.offline.wish"]');
+    await controlled(page);
+    const btn = page.locator('[data-ui="downloads.offline.wish"]').first();
+    assert.match(await btn.innerText(), /This device too/);
+    await btn.click();
+    await page.waitForSelector(".offline-sheet .offline-opt");
+    assert.match(await page.locator(".offline-sheet").innerText(), /isn't on the server yet[\s\S]*saved inside Aurora on this device as soon as it arrives/);
+    await pick(page, "Original");
+    await page.waitForFunction(() => /Will be saved here/.test(document.querySelector('[data-ui="downloads.offline.wish"]').innerText));
+    // the row that says what this device waits for
+    const row = page.locator('.device-wish[data-state="wish-waiting"]');
+    await row.waitFor();
+    assert.match(await row.innerText(), /Wish Film[\s\S]*Waiting for the server's copy[\s\S]*saved here by itself/);
+    const w = await wishesOf(srv, profile);
+    assert.equal(w.length, 1);
+    assert.equal(w[0].state, "waiting");
+    assert.equal(w[0].quality, "original");
+    await go("#/saved", '.device-wish[data-state="wish-waiting"]');
+    // it lands: saved here with nobody pressing anything
+    await stage(srv, { op: "land", hash });
+    await until(() => savedHere(page, "Wish Film"), "the title to be saved by itself");
+    await page.waitForSelector(".device-jobs.hidden", { state: "attached", timeout: 30000 });
+    await until(async () => (await wishesOf(srv, profile)).length === 0, "the wish to end");
+    await page.locator("#toasts .toast", { hasText: "arrived and is saved on this device" }).first().waitFor();
+    await page.locator(".saved-section .dl-row", { hasText: "Wish Film" }).waitFor();
+    // and it plays from here, with no network
+    await context.setOffline(true);
+    await page.locator(".saved-section .dl-row", { hasText: "Wish Film" }).locator('[data-ui="saved.play"]').click();
+    await page.waitForFunction(() => { const v = document.querySelector(".player video"); return v && v.currentTime > 1 && /\/offline\/media\//.test(v.currentSrc); }, null, { timeout: 30000 });
+    await context.setOffline(false);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close().catch(() => {});
+  }
+});
+
+ui.test("desktop: the wish is made, the page is closed, the film lands — the next time Aurora is opened it saves by itself", async ({ srv, freshProfile }) => {
+  const profile = await freshProfile();
+  const hash = hashOf("closed");
+  await stage(srv, { op: "create", hash, src: filmFile(srv), fields: { type: "movie", imdbId: "tt9810002", title: "Later Film", year: 2024, quality: "720p", profile: profile.id } });
+  const first = await open(srv, profile, DESKTOP);
+  const { context } = first;
+  try {
+    await first.go("#/downloads", '[data-ui="downloads.offline.wish"]');
+    await controlled(first.page);
+    await first.page.locator('[data-ui="downloads.offline.wish"]').first().click();
+    await pick(first.page, "Original");
+    await until(async () => (await wishesOf(srv, profile)).length === 1, "the wish");
+    await first.page.close();
+    await stage(srv, { op: "land", hash });
+    await until(async () => (await wishesOf(srv, profile))[0].state === "ready", "the wish to be ready on the server");
+    // Aurora opened again, on Home: nothing to press
+    const again = await open(srv, profile, DESKTOP, context);
+    await again.go("#/", "#app .screen");
+    await until(() => savedHere(again.page, "Later Film"), "saved by itself on opening", 60000);
+    await until(async () => (await wishesOf(srv, profile)).length === 0, "the wish to end");
+    assert.deepEqual(again.errors, []);
+  } finally {
+    await context.close().catch(() => {});
+  }
+});
+
+ui.test("phone: a download that is cancelled — the wish says it won't arrive, Dismiss clears it here and on the server", async ({ srv, freshProfile }) => {
+  const profile = await freshProfile();
+  const hash = hashOf("cancel");
+  const { jobId } = await stage(srv, { op: "create", hash, src: filmFile(srv), fields: { type: "movie", imdbId: "tt9810003", title: "Gone Film", year: 2024, quality: "720p", profile: profile.id } });
+  const { context, page, errors, go } = await open(srv, profile, PHONE);
+  try {
+    await go("#/downloads", '[data-ui="downloads.offline.wish"]');
+    await controlled(page);
+    await page.locator('[data-ui="downloads.offline.wish"]').first().click();
+    await pick(page, "720p");
+    await page.locator('.device-wish[data-state="wish-waiting"]').waitFor();
+    await go("#/saved", '.device-wish[data-state="wish-waiting"]');
+    await stage(srv, { op: "fail", jobId });
+    const row = page.locator('.device-wish[data-state="wish-failed"]');
+    await row.waitFor({ timeout: 30000 });
+    assert.match(await row.innerText(), /Won't arrive[\s\S]*cancelled — there is nothing to save/);
+    await row.locator('[data-ui="saved.wish.dismiss"]').click();
+    await page.waitForSelector(".device-jobs.hidden", { state: "attached" });
+    await until(async () => (await wishesOf(srv, profile)).length === 0, "the wish gone on the server");
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close().catch(() => {});
+  }
+});
+
+ui.test("phone: 'and every new episode of season 1' — each episode that lands is saved by itself; Cancel ends it", async ({ srv, freshProfile }) => {
+  const profile = await freshProfile();
+  const h1 = hashOf("e1");
+  await stage(srv, { op: "create", hash: h1, src: episodeFile(srv, 1), fields: { type: "show", imdbId: "tt9810004", title: "Wish Show", season: 1, episode: 1, quality: "720p", profile: profile.id } });
+  const { context, page, errors, go } = await open(srv, profile, PHONE);
+  try {
+    await go("#/downloads", '[data-ui="downloads.offline.wish"]');
+    await controlled(page);
+    await page.locator('[data-ui="downloads.offline.wish"]').first().click();
+    await page.waitForSelector(".offline-sheet .offline-toggle");
+    assert.match(await page.locator(".offline-sheet .offline-toggle").innerText(), /And every new episode of season 1/);
+    await page.locator(".offline-sheet .offline-toggle").click();
+    await pick(page, "Original");
+    await go("#/saved", '.device-wish[data-state="wish-season"]');
+    assert.match(await page.locator('.device-wish[data-state="wish-season"]').innerText(), /Wish Show · S1[\s\S]*Every new episode of season 1/);
+    const w = await wishesOf(srv, profile);
+    assert.equal(w.length, 1);
+    assert.equal(w[0].scope, "season");
+    await stage(srv, { op: "land", hash: h1 });
+    await until(() => page.evaluate(async () => (await (await import("/js/offline.js")).listSaved()).filter((s) => s.showTitle === "Wish Show").length === 1), "episode 1 saved by itself");
+    // a second episode, downloaded later by anybody, lands too
+    const h2 = hashOf("e2");
+    await stage(srv, { op: "create", hash: h2, src: episodeFile(srv, 2), fields: { type: "show", imdbId: "tt9810004", title: "Wish Show", season: 1, episode: 2, quality: "720p" } });
+    await stage(srv, { op: "land", hash: h2 });
+    await until(() => page.evaluate(async () => (await (await import("/js/offline.js")).listSaved()).filter((s) => s.showTitle === "Wish Show").length === 2), "episode 2 saved by itself");
+    // the season wish waits on; Cancel ends it
+    const season = page.locator('.device-wish[data-state="wish-season"]');
+    await season.waitFor();
+    await season.locator('[data-ui="saved.wish.cancel"]').click();
+    await until(async () => (await wishesOf(srv, profile)).length === 0, "the season wish gone");
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close().catch(() => {});
+  }
+});
+
+ui.run({ concurrency: 2 });

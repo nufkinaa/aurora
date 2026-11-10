@@ -60,6 +60,8 @@ if (process.env.UI_WISH_STAGE === "1" && !process.send && require("worker_thread
       torrents.set(cmd.hash, { infoHash: cmd.hash, gid: null, state: "active", files: [{ index: 1, path: p, length, completed: Math.floor(length / 3), selected: false }] });
       const r = downloads.create({ infoHash: cmd.hash, fileIdx: 0, sizeBytes: length, ...cmd.fields });
       if (!r.job) return { ok: false, error: r.error || JSON.stringify(r) };
+      // (a nearly full test disk asks for an admin's approval: given here)
+      if (r.needsApproval) downloads.approve(r.job.id);
       return { ok: true, jobId: r.job.id };
     }
     if (cmd.op === "land") {
