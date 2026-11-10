@@ -98,12 +98,16 @@ const FREEZE = ([fixedNow, sky]) => {
 const DEFAULT_SKY = ["#0b1030", "#1f6a5a", "#5b3fa0", "#070811"];
 const FIXED_NOW = new Date("2026-10-10T19:30:00").getTime();
 
+// What "before" is: origin/master's look by default. For a second round,
+// GA_BEFORE_REF names the commit to compare against and GA_BEFORE_CSS the
+// bundle built from that commit's public/css (src/lib/cssbundle get()).
+const BEFORE_REF = process.env.GA_BEFORE_REF || "origin/master";
 let beforeCache = null;
 const beforeFiles = () => {
   if (beforeCache) return beforeCache;
   beforeCache = {
-    bundle: fs.readFileSync(path.join(SCRATCH, "before.css")),
-    git: (rel) => execFileSync("git", ["-C", ROOT, "show", `origin/master:${rel}`], { maxBuffer: 64 << 20 }),
+    bundle: fs.readFileSync(process.env.GA_BEFORE_CSS || path.join(SCRATCH, "before.css")),
+    git: (rel) => execFileSync("git", ["-C", ROOT, "show", `${BEFORE_REF}:${rel}`], { maxBuffer: 64 << 20 }),
   };
   return beforeCache;
 };
