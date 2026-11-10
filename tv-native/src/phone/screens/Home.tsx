@@ -86,6 +86,21 @@ function greetLine(line: string, name?: string) {
   );
 }
 
+/** Words on a picture with no shade under them: two shadows on the letters (Android draws one
+ *  per Text) — a tight dark edge and a wide soft one, the second from an identical layer on top. */
+function Shadowed({style, lines, header, children}: {style: object; lines: number; header?: boolean; children: React.ReactNode}) {
+  return (
+    <View>
+      <Text style={[style, s.shadowWide]} numberOfLines={lines} accessibilityRole={header ? 'header' : undefined}>
+        {children}
+      </Text>
+      <Text style={[style, s.shadowTight, StyleSheet.absoluteFill]} numberOfLines={lines} importantForAccessibility="no-hide-descendants">
+        {children}
+      </Text>
+    </View>
+  );
+}
+
 const kindOf = (it: HeroItem) => (it.type === 'show' || (it as {type?: string}).type === 'series' ? 'show' : 'movie');
 
 // ---------------------------------------------------------------- billboard
@@ -236,13 +251,13 @@ function Billboard({items, onPlay, onDetails, active, greet}: {items: HeroItem[]
             const g = Math.ceil(e.nativeEvent.layout.height);
             setGreetH(was => (Math.abs(was - g) > 1 ? g : was));
           }}>
-          <Text style={[s.slabGreetLine, s.letterShadow]} numberOfLines={2} accessibilityRole="header">
+          <Shadowed style={s.slabGreetLine} lines={2} header>
             {greetLine(greet.line, greet.name)}
-          </Text>
+          </Shadowed>
           {room >= 1 ? (
-            <Text style={[s.slabGreetSub, s.letterShadow]} numberOfLines={room}>
+            <Shadowed style={s.slabGreetSub} lines={room}>
               {greet.sub}
-            </Text>
+            </Shadowed>
           ) : null}
         </View>
       ) : null}
@@ -620,8 +635,9 @@ const s = StyleSheet.create({
     bottom: 0,
     experimental_backgroundImage: 'linear-gradient(0deg, rgba(7,8,17,0.92) 0%, rgba(7,8,17,0.62) 45%, rgba(7,8,17,0) 100%)',
   },
-  // a shadow on the letters only, no box behind them: dark and soft enough to read on white art
-  letterShadow: {textShadowColor: 'rgba(5,6,12,0.85)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 10},
+  // a shadow on the letters only, no box behind them (Shadowed): wide and soft, then tight and dark
+  shadowWide: {textShadowColor: 'rgba(5,6,12,0.9)', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 14},
+  shadowTight: {textShadowColor: 'rgba(5,6,12,0.75)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 3},
   // the greeting on the slab (the site's .hero > .home-greeting): 18 down, 20 in from the slab
   slabGreet: {position: 'absolute', left: 8 + 20, right: 8 + 20},
   slabGreetLine: {color: colors.text, fontSize: 22.4, fontWeight: '900', letterSpacing: -0.22, lineHeight: 26.9},

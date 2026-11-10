@@ -261,11 +261,11 @@ export default function Settings() {
         </Section>
 
         <Section icon="play" title="Playback">
-          <ListRow uiId="settings.autoplay" title="Autoplay next episode" detail="Start the next episode automatically when one finishes." right={<Toggle value={!!prefs.autoplayNext} onChange={v => set('autoplayNext', v)} />} />
+          <ListRow uiId="settings.autoplay" title="Autoplay next episode" detail="Start the next episode automatically when one finishes." right={<Toggle value={!!prefs.autoplayNext} onChange={v => set('autoplayNext', v)} />} onPress={() => set('autoplayNext', !(!!prefs.autoplayNext))} />
         </Section>
 
         <Section icon="cc" title="Subtitles">
-          <ListRow uiId="settings.subs.auto" title="Turn subtitles on automatically" detail="When a title offers subtitles, switch one on without asking." right={<Toggle value={!!prefs.subsDefault} onChange={v => set('subsDefault', v)} />} />
+          <ListRow uiId="settings.subs.auto" title="Turn subtitles on automatically" detail="When a title offers subtitles, switch one on without asking." right={<Toggle value={!!prefs.subsDefault} onChange={v => set('subsDefault', v)} />} onPress={() => set('subsDefault', !(!!prefs.subsDefault))} />
           <ListRow uiId="settings.subs.lang" title="Preferred subtitle language" detail="The language to pick. If a title doesn't have it, Aurora goes and gets it." right={<Value text={SUB_LANG_LABEL[prefs.subLang] || SUB_LANG_LABEL.any} />} onPress={() => cycle('subLang', SUB_LANGS)} />
           <View style={s.preview}>
             <SubStylePreview style={subStyle} sizePx={{S: 16, M: 20, L: 24, XL: 28}[subStyle.subSize]} />
@@ -289,8 +289,8 @@ export default function Settings() {
 
         {me?.kids ? null : (
           <Section icon="download" title="Downloads">
-            <ListRow title="Get the next episode ready" detail="While you watch, Aurora fetches the next episode so it starts at once." right={<Toggle value={!!prefs.smartDownloads} onChange={v => set('smartDownloads', v)} />} />
-            <ListRow title="Tidy up after watching" detail="Episodes Aurora fetched for you are removed once you've watched them. Nothing you saved yourself is touched." right={<Toggle value={!!prefs.smartCleanup} onChange={v => set('smartCleanup', v)} />} />
+            <ListRow title="Get the next episode ready" detail="While you watch, Aurora fetches the next episode so it starts at once." right={<Toggle value={!!prefs.smartDownloads} onChange={v => set('smartDownloads', v)} />} onPress={() => set('smartDownloads', !(!!prefs.smartDownloads))} />
+            <ListRow title="Tidy up after watching" detail="Episodes Aurora fetched for you are removed once you've watched them. Nothing you saved yourself is touched." right={<Toggle value={!!prefs.smartCleanup} onChange={v => set('smartCleanup', v)} />} onPress={() => set('smartCleanup', !(!!prefs.smartCleanup))} />
           </Section>
         )}
 
@@ -340,7 +340,7 @@ export default function Settings() {
 
         <Section icon="bell" title="Notifications">
           {/* the person's (follows them to the website and the TV) */}
-          <ListRow uiId="settings.ready" title={READY_LABEL} detail={READY_NOTE} right={<Toggle value={prefs.readyNotice !== false} onChange={v => set('readyNotice', v)} />} />
+          <ListRow uiId="settings.ready" title={READY_LABEL} detail={READY_NOTE} right={<Toggle value={prefs.readyNotice !== false} onChange={v => set('readyNotice', v)} />} onPress={() => set('readyNotice', !(prefs.readyNotice !== false))} />
           <ListRow
             title="Tell me when a download lands"
             detail={notifyNote || 'When something you asked for or follow has downloaded, this phone says so.'}
@@ -367,7 +367,7 @@ export default function Settings() {
           <ListRow uiId="settings.usagestats"
             title="Usage stats"
             detail="Which screens and features get used, and how long they took — to your own server only, never anything typed. Off here is off for you on every device."
-            right={<Toggle value={prefs.usageStats !== false} onChange={v => set('usageStats', v)} />}
+            right={<Toggle value={prefs.usageStats !== false} onChange={v => set('usageStats', v)} />} onPress={() => set('usageStats', !(prefs.usageStats !== false))}
           />
         </Section>
 
