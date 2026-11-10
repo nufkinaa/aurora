@@ -591,6 +591,27 @@
     flex-wrap: wrap;
     justify-content: center;
   }
+  /* the tools stay one row (Fullscreen sat alone on a third row at 320px):
+     the buttons give a little width instead, never under 32px */
+  html:not([data-look="glass"]) .player-controls .pc-tools { flex-wrap: nowrap; }
+  html:not([data-look="glass"]) .player-controls .pc-tools > .pbtn { flex: 0 1 42px; min-width: 32px; }
+  /* Up next and Skip intro ride above the dock's real height, as the menu
+     does: Up next (320px wide, 36px from the right) ran off the left edge
+     of a 320px phone over the scrubber, Skip intro sat on the time labels */
+  html:not([data-look="glass"]) .upnext {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    bottom: calc(var(--dock-h, 160px) + 12px);
+  }
+  html:not([data-look="glass"]) .player .skip-intro,
+  html:not([data-look="glass"]) .player .mark-chip {
+    right: 16px;
+    bottom: calc(var(--dock-h, 160px) + 12px);
+  }
+  html:not([data-look="glass"]) .player.controls-hidden .skip-intro {
+    bottom: max(28px, env(safe-area-inset-bottom));
+  }
 }
 
 /* ---------- The nav on a phone, classic look (2026-10-20) ----------
