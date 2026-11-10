@@ -735,7 +735,7 @@
     /* screens */
     .act-screens, .act-recent { display: grid; border-radius: 14px; border: 1px solid var(--act-edge); background: var(--act-glass); overflow: hidden; }
     .act-screens:empty, .act-recent:empty { display: none; }
-    .act-scr { display: grid; grid-template-columns: 32px minmax(0, 1.2fr) minmax(0, 1.5fr) 6.4rem 5.4rem 7.4rem; gap: 12px; align-items: center;
+    .act-scr { display: grid; grid-template-columns: 32px minmax(0, 1.2fr) minmax(0, 1.5fr) 9.6rem 5.4rem 7.4rem; gap: 12px; align-items: center;
       padding: 9px 12px; min-height: 54px; border-top: 1px solid var(--act-edge); }
     .act-scr:first-child { border-top: 0; }
     .act-ico { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: rgba(255, 255, 255, 0.05); color: var(--text-dim); }
@@ -911,6 +911,176 @@
     .drv-opt.rm { background: rgba(248, 113, 113, 0.12); color: #f9a3a3; text-decoration: line-through; }
     .drv-cmd { margin: 8px 0 0; padding: 10px; border-radius: 10px; background: rgba(0,0,0,0.35); font: 0.76rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-all; color: var(--text); user-select: all; }
     .drv-line.good { color: #6ee7a0; font-weight: 700; }
+
+    /* ================= UI check 2026-11-10 (elia: "find bugs, misalignments,
+       cuts on elements, and polish") — every tab at 320 to 1920 wide, with
+       many people, long and Hebrew names, downloads in every state ================= */
+    /* the keyboard: every button, link, field and fold shows where it is
+       (the site's base style takes every outline away; only the side nav,
+       the Details rows and a few others had their own) */
+    :is(button, a[href], input, select, textarea, summary, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    /* a healthy healer group opened by hand: its class "ok" also matched the
+       page's green "ok" word style, so every line in it turned green and bold */
+    .hl-group.ok { color: inherit; font-weight: inherit; }
+    /* the drive cards keep their own height (a short card stretched to its
+       neighbour's, with an empty block at the bottom) */
+    .drv-grid { align-items: start; }
+    /* state lines that borrowed the empty-state style: no 16 px gaps, readable */
+    #ac-bk-advice, #ac-bk-where, #ac-bk-drill, #dc-state, #ds-state, #ac-al-delivery, #sv-update, #en-sentence, #en-running,
+    #tv-problems, #phone-problems, #mx-limits, #lim-status, #dc-last-restore {
+      padding: 3px 2px; color: var(--text-dim); font-size: 0.9rem; line-height: 1.5; }
+    #tel-starts-line, #tel-u-totals, #rm-status { font-size: 0.84rem; line-height: 1.5; }
+    /* Overnight and Free up space settings: the number and time boxes in the
+       page's own dark style (they were the browser's small white boxes) */
+    #pane-downloads :is(.fs-set, .on-set, .fs-days) :is(input[type="number"], input[type="time"]) {
+      padding: 7px 10px; border-radius: 9px; background: var(--surface); border: 1px solid var(--line); color: var(--text);
+      font: inherit; font-size: 0.9rem; color-scheme: dark; min-height: 38px; }
+    /* Encoding: its two pickers in the page's own dark style (they were the
+       browser's small white boxes) */
+    #en-limit, #en-hwmode { padding: 7px 10px; border-radius: 9px; background: var(--surface); border: 1px solid var(--line); color: var(--text);
+      font: inherit; font-size: 0.9rem; color-scheme: dark; min-height: 38px; min-width: 120px; }
+    /* a long "More than one copy" badge wraps instead of running out of the card */
+    #cp-groups .cp-head .pill { white-space: normal; max-width: 100%; }
+    /* the sign-in notes: a long Google error wraps inside its chip */
+    .ro-note .chip { white-space: normal; max-width: 100%; }
+    /* dense number tables keep words whole (they used to break one letter a
+       line on a phone: "L E V E L") and scroll sideways in their box instead */
+    .table-scroll.dense td, .table-scroll.dense th { overflow-wrap: normal; word-break: normal; }
+    .table-scroll.dense th { white-space: nowrap; }
+    /* App health → alert rules: the number boxes their own small size (the
+       filter bar's 160 px minimum made each one as wide as a search field) */
+    #tel-rules input[type="number"] { flex: none; min-width: 0; padding: 7px 8px; }
+    #tel-rules label { display: inline-flex; align-items: center; gap: 6px; }
+    .tel-rules summary .note:not(:empty)::before { content: "— "; }
+    /* On a tablet or a computer a table cell breaks between words, not inside
+       them: "anywhere" (for phones) let a table squeeze a column to a few
+       letters a line ("The Livin/g Roo/m"). Addresses, e-mails, paths and
+       file names may still break anywhere. */
+    @media (min-width: 701px) {
+      td { overflow-wrap: break-word; }
+      td .muted, td small, td .copy, td code, td.wide, td .dc-why, td .dc-drive small { overflow-wrap: anywhere; }
+    }
+    /* column heads are one or two words: never split one ("LAS/T SEE/N") */
+    th { white-space: nowrap; overflow-wrap: normal; }
+    /* a phone on its side: the screen's one-line explanation goes, so the
+       title and its buttons are one short row instead of half the screen */
+    @media (max-height: 500px) and (max-width: 1023px) {
+      .page-head p { display: none; }
+      .page-head { flex-wrap: nowrap; align-items: center; }
+      .page-head > div:first-child { min-width: 0; }
+    }
+    /* Needs you: a card never wider than the screen (it was 300 px at least,
+       and on a 320 px phone its Decline button was cut off) */
+    .now-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
+    /* a pill and a number in a table keep their words whole ("don/e", "4.0/GB") */
+    td .pill { white-space: nowrap; overflow-wrap: normal; }
+    td.num, td .mini { white-space: nowrap; }
+    td .mini { overflow-wrap: normal; }
+    /* (on a tablet or a small laptop the tables with many columns do not
+       fit: Finished, People, Connected now, device errors, problem reports —
+       their rows are small cards there, as on a phone, three fields to a line) */
+    @media (min-width: 701px) and (max-width: 1279px) {
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) { overflow: visible; }
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table, .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > tbody { display: block; width: 100%; }
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > thead { display: none; }
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > tbody > tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 16px; padding: 12px 14px;
+        margin-bottom: 8px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255, 255, 255, 0.025); }
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > tbody > tr > td { display: block; padding: 0 !important; border: 0; min-width: 0; max-width: none !important;
+        white-space: normal !important; text-align: left !important; font-size: 0.88rem; }
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > tbody > tr:hover > td { background: none; }
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > tbody > tr > td[data-label]::before { content: attr(data-label); display: block; font-size: 0.64rem;
+        font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 2px; }
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > tbody > tr > :is(td.wide, td[colspan]),
+      #dl-done td:first-child, #people-table td:first-child, #people-live td:first-child { grid-column: 1 / -1; }
+      .table-scroll.cards-mid .person-row td:last-child { display: none; }
+      #tel-errors td.wide:not(:nth-child(3)) { grid-column: auto; }
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > tbody > tr > td.acts { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; }
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > tbody > tr > td.acts:empty { display: none; }
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > tbody > tr > td .pill { white-space: normal; }
+      #dl-done td:nth-child(6) .muted { display: block; margin-top: 4px; font-size: 0.8rem; }
+    }
+    /* Finished, on a computer: it fits the card again (its buttons ran off the
+       right edge): narrower title and who, the error under its pill, the two
+       buttons stacked when they must */
+    @media (min-width: 1280px) {
+      #dl-done td, #dl-done th { padding-left: 9px; padding-right: 9px; }
+      #dl-done td:first-child { max-width: 240px !important; }
+      #dl-done td.dl-who { max-width: 150px !important; }
+      #dl-done td:nth-child(6) .muted { display: block; margin-top: 4px; font-size: 0.78rem; line-height: 1.35; min-width: 9rem; overflow-wrap: normal; }
+      #dl-done td:last-child { white-space: normal !important; }
+      #dl-done td:last-child .mini { margin: 2px 0 2px 4px; }
+    }
+    /* In flight: the tags beside a title (watching now, copy 2 of 4,
+       replaces …) stay in view; a long title gives way to them, not the other way */
+    .fl-by { flex: 0 0 auto; max-width: 60%; }
+    /* who asked: a long name gives way, "asked 2h ago" stays */
+    .fl-who-n { display: inline-block; max-width: calc(100% - 7.5rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+    /* a long name or address in a person's sheet wraps instead of running off it */
+    .person-head .sub > span { max-width: 100%; min-width: 0; }
+    .person-head .sub .copy { overflow-wrap: anywhere; min-width: 0; }
+    @media (max-width: 700px) {
+      /* the person and log chips: one row that slides, not a wall above the list */
+      .dl-who-chips, #log-tags, #log-levels { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+      .dl-who-chips::-webkit-scrollbar, #log-tags::-webkit-scrollbar, #log-levels::-webkit-scrollbar { display: none; }
+      .dl-who-chips button, #log-tags button, #log-levels button { flex: none; white-space: nowrap; }
+      /* In flight: the tags (watching now, copy 2 of 4, replaces …) on their
+         own line under the title instead of cut off at the edge, and a note
+         in two lines instead of one cut one */
+      .fl-name { flex-wrap: wrap; height: auto; row-gap: 4px; white-space: normal; }
+      .fl-title { flex: 1 1 100%; white-space: nowrap; }
+      .fl-by { white-space: normal; flex: 0 1 auto; max-width: 100%; }
+      .fl-by:empty { display: none; }
+      .fl-note .one { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+      /* sub tabs and the analytics range: one line each */
+      .subtabs button { white-space: nowrap; padding: 8px 10px; }
+      #range-chips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; }
+      #range-chips button { padding: 6px 4px; }
+      /* the heat map's hour labels stay on one line */
+      .heatmap .lab-h { white-space: nowrap; }
+      /* phone cards: a device with an icon wraps instead of running over the next cell */
+      .table-scroll:not(.dense) td .cell-ico { white-space: normal; align-items: flex-start; }
+      .table-scroll:not(.dense) td .pill { white-space: normal; }
+      #tel-errors td.wide:not(:nth-child(3)) { grid-column: auto; }
+      .person-head h3 { font-size: 1.05rem; }
+      .person-head .pav.big { width: 44px; height: 44px; font-size: 1.35rem; border-radius: 13px; }
+      .person-head .x { width: 40px; height: 40px; }
+    }
+    @media (max-width: 640px) {
+      /* drive buttons two to a row, not four slivers */
+      .drv-acts .mini { flex: 1 1 calc(50% - 4px); }
+      /* On disk: a title has its own line; badges, size and Delete go under it
+         (the title shrank to nothing beside them, and the row ran off the screen) */
+      #lib-tree .lib-row { flex-wrap: wrap; row-gap: 6px; }
+      #lib-tree .lib-row > .grow { flex: 1 1 calc(100% - 42px) !important; min-width: 0; }
+      #lib-tree .lib-row:has(> .lib-ep-check) > .grow { flex-basis: calc(100% - 92px) !important; }
+      #lib-tree .lib-row:has(> .lib-season-check) > .grow { flex-basis: calc(100% - 30px) !important; }
+      #lib-tree .lib-row > span.num:last-of-type { margin-left: auto; }
+      /* the suggestion lists grow with the page: a box that scrolls inside a
+         page that scrolls was a trap for the thumb */
+      #pane-downloads :is(.fs-list, .fp-list, .on-list, .fs-rm) { max-height: none; }
+    }
+    @media (max-width: 560px) {
+      .act-n span { white-space: normal; letter-spacing: 0.06em; line-height: 1.25; }
+      /* Screens: name, what it is doing, then its state and buttons — each with room */
+      .act-scr { grid-template-columns: 32px minmax(0, 1fr) auto; grid-template-areas: "ico two two" "ico doing doing" "ico chip acts"; }
+      .act-scr .act-chip { justify-self: start; min-width: 0; max-width: 100%; }
+      .act-scr .act-chip span { overflow: hidden; text-overflow: ellipsis; }
+      /* Recent plays: the title across the row */
+      .act-rec { grid-template-areas: "two two" "who when" "got got"; }
+      .act-rec .got { width: auto; }
+    }
+    @media (max-width: 400px) {
+      /* (too narrow for the state and both buttons on one line: the state above them) */
+      .act-scr { grid-template-areas: "ico two two" "ico doing doing" "ico chip chip" "ico acts acts"; }
+      .act-scr .acts { justify-content: flex-start; }
+    }
+    @media (max-width: 380px) {
+      /* the screen's name had to give way to Restart ("Ho…"): the button keeps its icon */
+      .restart-btn span { display: none; }
+      .restart-btn { padding: 8px 11px; }
+      .rollout .ro-seg .ico { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -933,7 +1103,7 @@
       <div class="actions">
         <button class="hpill" id="hstate" data-state="checking" title="Is everything working? Press for the details on Home"><i></i><span class="long" id="hstate-long">Checking…</span><span class="short" id="hstate-short">…</span></button>
         <button class="icon-btn" id="refresh-btn" title="Refresh this page's numbers" aria-label="Refresh"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 10-2.300 6.300"/><path d="M20 4v7h-7"/></svg></button>
-        <button class="btn small restart-btn" id="restart-btn" title="Restart the server — asks first"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1011.4 0"/></svg><span>Restart</span></button>
+        <button class="btn small restart-btn" id="restart-btn" title="Restart the server — asks first" aria-label="Restart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1011.4 0"/></svg><span>Restart</span></button>
         <a class="btn small open-app" href="/">Open app</a>
       </div>
     </header>
@@ -1272,7 +1442,7 @@
           <select id="tel-f-level" aria-label="Level"><option value="">Errors and warnings</option><option value="error">Errors</option><option value="warn">Warnings</option></select>
         </div>
         <div class="empty-note hidden" id="tel-errors-empty">Nothing here.</div>
-        <div class="table-scroll dense"><table>
+        <div class="table-scroll cards-mid"><table>
           <thead><tr><th>Level</th><th>App</th><th>What</th><th>Count</th><th>Devices</th><th>First seen</th><th>Last</th><th>14 days</th><th></th></tr></thead>
           <tbody id="tel-errors"></tbody>
         </table></div>
@@ -1302,7 +1472,7 @@
           <select id="tel-t-net" aria-label="Connection"><option value="">Every connection</option><option value="slow">Slow</option><option value="ok">OK</option><option value="fast">Fast</option></select>
         </div>
         <div class="empty-note hidden" id="tel-timings-empty">Nothing measured yet.</div>
-        <div class="table-scroll dense"><table>
+        <div class="table-scroll"><table>
           <thead><tr><th>What</th><th>App</th><th>Split</th><th>Version</th><th>Count</th><th>p50</th><th>p90</th><th>p99</th><th>vs previous</th></tr></thead>
           <tbody id="tel-timings"></tbody>
         </table></div>
@@ -1319,7 +1489,7 @@
           <thead><tr><th>Step</th><th>p50</th><th>p90</th><th>Slowest in</th></tr></thead>
           <tbody id="tel-starts-steps"></tbody>
         </table></div>
-        <div class="table-scroll dense" style="margin-top:10px"><table>
+        <div class="table-scroll" style="margin-top:10px"><table>
           <thead><tr><th>Slow start</th><th>Step by step</th></tr></thead>
           <tbody id="tel-starts-recent"></tbody>
         </table></div>
@@ -1418,7 +1588,7 @@
           <button type="button" class="copy4c" data-copy-for="p-people" aria-label="Copy the people for Claude"><span>Copy for Claude</span></button>
         </h2>
         <div class="range-chips pfilters" id="people-filters"></div>
-        <div class="table-scroll"><table>
+        <div class="table-scroll cards-mid"><table>
           <thead><tr><th>Person</th><th>Sign-in</th><th>Last seen</th><th>Devices</th><th>Downloads</th><th>Status</th><th></th></tr></thead>
           <tbody id="people-table"><tr><td colspan="7" class="people-loading">Loading people…</td></tr></tbody>
         </table></div>
@@ -1438,7 +1608,7 @@
         <div class="more-body">
       <section class="card">
         <h2>Connected now <span class="pill" id="live-count">0</span> <span class="note">every open app or browser tab — and, for a device that hasn't opened a profile, who has used that address before</span></h2>
-        <div class="table-scroll"><table>
+        <div class="table-scroll cards-mid"><table>
           <thead><tr><th>Device</th><th>Address</th><th>Who</th><th>Doing</th><th>Since</th><th></th></tr></thead>
           <tbody id="people-live"></tbody>
         </table></div>
@@ -1666,10 +1836,10 @@
         <div class="more-body">
           <div class="bar-row" style="align-items:center;margin-top:10px;flex-wrap:wrap">
             <span class="muted" style="font-size:0.8rem">Speed limits:</span>
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">↓
-              <input type="text" id="lim-down" placeholder="0" style="max-width:110px;flex:none" /></label>
-            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">↑
-              <input type="text" id="lim-up" placeholder="0" style="max-width:110px;flex:none" /></label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">↓ Download
+              <input type="text" id="lim-down" placeholder="0" aria-label="Download speed limit" style="max-width:110px;flex:none" /></label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">↑ Upload
+              <input type="text" id="lim-up" placeholder="0" aria-label="Upload speed limit" style="max-width:110px;flex:none" /></label>
             <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-dim)">Downloads at once
               <input type="number" id="lim-slots" min="1" max="6" step="1" inputmode="numeric" aria-label="Downloads at once" style="max-width:70px;flex:none" /></label>
             <button class="btn small btn-primary" id="lim-apply">Apply</button>
@@ -1681,7 +1851,7 @@
       </details>
       <details class="more" data-more="d-done" data-title="Finished" data-sub="done, declined or failed — remove rows you're done with" data-pill-id="dl-done-count">
         <div class="more-body">
-          <div class="table-scroll"><table>
+          <div class="table-scroll cards-mid"><table>
             <thead><tr><th>Title</th><th>Who</th><th>When</th><th>Quality</th><th>Size</th><th>Status</th><th></th></tr></thead>
             <tbody id="dl-done"></tbody>
           </table></div>
@@ -1773,7 +1943,7 @@
         @media (max-width: 640px) {
           #lib-tree { max-height: 58vh; }
           /* Thumb-sized targets on phones. */
-          #pane-downloads .mini { padding: 7px 12px; min-height: 30px; }
+          #pane-downloads .mini { padding: 7px 12px; min-height: 40px; }
           .lib-ep-check, .lib-season-check { width: 20px; height: 20px; }
         }
       </style>
@@ -2180,6 +2350,9 @@
       const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw) || raw;
       const ticks = [];
       for (let v = 0; v <= max + step * 0.001; v += step) ticks.push(v);
+      // the top line at or above the highest value: lines and bars above the
+      // last tick were drawn past the top of the chart and cut off
+      while (ticks[ticks.length - 1] < max) ticks.push(ticks[ticks.length - 1] + step);
       return ticks;
     };
 
@@ -2586,12 +2759,13 @@
     async function loadOverview() {
       const o = await json("/api/admin/overview");
       // the quiet line under the Activity section: the library and the server's day
+      const n1 = (v, one, many) => [v, v === 1 ? one : many];
       $("#ov-facts").innerHTML = [
-        [o.movieCount, "movies"],
-        [o.showCount, "shows"],
-        [o.episodeCount, "episodes"],
+        n1(o.movieCount, "movie", "movies"),
+        n1(o.showCount, "show", "shows"),
+        n1(o.episodeCount, "episode", "episodes"),
         [o.peakConcurrent, "peak at once"],
-        [o.totalConnections, "visits ever"],
+        n1(o.totalConnections, "visit ever", "visits ever"),
         [fmtUptime((Date.now() - o.startedAt) / 1000), "uptime"],
       ].map(([v, k]) => `<span><b>${esc(v)}</b>${esc(k)}</span>`).join("");
     }
@@ -3558,16 +3732,22 @@
       if (withTime) Object.assign(o, c.hourCycle ? { hourCycle: c.hourCycle, hour: /^h2[34]$/.test(c.hourCycle) ? "2-digit" : "numeric" } : { hour: "2-digit" }, { minute: "2-digit" });
       return fmt(o);
     }
+    // A right-to-left name (Hebrew, Arabic) in a line of English, followed by
+    // a number or another name, pulled them into its own direction: "2 —
+    // נתנאל downloads", "1 · שירה d ago". Isolated, it keeps its place. Only
+    // such names get the (invisible) isolate marks; others are left as they are.
+    const RTL = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+    const iso = (s) => (s && RTL.test(s) ? `\u2068${s}\u2069` : s);
     const AUTO_FOR = { next: (n) => `${n}'s next episode`, follow: (n) => `a new episode of a show ${n} follows` };
     // { key: "p" | "auto" | "unknown", words, people } — people: the names it counts for
     function dlWho(j) {
       const auto = j.autoFor || (j.smart ? "next" : null);
       if (auto) {
         const f = AUTO_FOR[auto];
-        return { key: "auto", words: "Automatic" + (j.by ? ` · ${f ? f(j.by) : `for ${j.by}`}` : ""), people: j.by ? [j.by] : [] };
+        return { key: "auto", words: "Automatic" + (j.by ? ` · ${f ? f(iso(j.by)) : `for ${iso(j.by)}`}` : ""), people: j.by ? [j.by] : [] };
       }
       const people = [...new Set([j.by, ...(j.alsoBy || [])].filter(Boolean))];
-      return people.length ? { key: "p", words: people.join(" + "), people } : { key: "unknown", words: "Unknown", people: [] };
+      return people.length ? { key: "p", words: people.map(iso).join(" + "), people } : { key: "unknown", words: "Unknown", people: [] };
     }
     // "asked 2h ago" with the date as its tooltip (rel), or "landed Nov 6, 21:14" with how long ago as its tooltip
     function dlWhenHTML(word, t, rel = false, more = "") {
@@ -3616,7 +3796,7 @@
       const bits = [`${r.n} download${r.n === 1 ? "" : "s"}${r.key.startsWith("p:") && r.auto ? ` (${r.auto} automatic)` : ""}`];
       if (r.bytes) bits.push(fmtBytes(r.bytes));
       bits.push(r.last != null ? `last ${houseDate(r.last, false)}` : "last: Unknown");
-      return `${r.name} — ${bits.join(" · ")}`;
+      return `${iso(r.name)} — ${bits.join(" · ")}`;
     }
     const dlPersonDetail = (r) => [[r.done, "finished"], [r.live, "in flight"], [r.waiting, "waiting for approval"], [r.ended, "failed, declined or canceled"]]
       .filter(([n]) => n).map(([n, w]) => `${n} ${w}`).join(" · ");
@@ -4595,7 +4775,7 @@
         <tr>
           <td>${esc(i.title || (i.key.startsWith("imdb:") ? "Streamed show " + i.key.slice(5) : "—"))}</td>
           <td class="num">${fmtClock(i.start)} – ${fmtClock(i.end)}</td>
-          <td class="muted">${esc(i.by || "—")}${i.at ? " · " + ago(new Date(i.at).toISOString()) : ""}</td>
+          <td class="muted"><bdi>${esc(i.by || "—")}</bdi>${i.at ? " · " + ago(new Date(i.at).toISOString()) : ""}</td>
           <td class="muted" style="font-family:ui-monospace,monospace;font-size:0.72rem">${esc(i.key)}</td>
           <td style="text-align:right"><button class="mini danger" data-intro-del="${esc(i.key)}">Delete</button></td>
         </tr>`).join("");
@@ -5335,14 +5515,14 @@
       setText(r.title, label);
       if (r.title.title !== label) r.title.title = label;
       // who asked, and when: "Anna · asked 2h ago" (the date as its tooltip)
-      setHTML(r.who, `${esc(dlWho(j).words)} · ${dlWhenHTML("asked", j.at, true)}`);
+      setHTML(r.who, `<span class="fl-who-n">${esc(dlWho(j).words)}</span> · ${dlWhenHTML("asked", j.at, true)}`);
       setHTML(r.by, `${prioTag(j)}${j.replaces ? ` <span class="pill warn" title="Replaces the copy in the library when it lands">replaces · ${esc(j.replaces.reasonLabel || j.replaces.reason || "")}</span>` : ""}`);
       const p = Math.max(0, Math.min(1, j.progress || 0));
       const tf = `scaleX(${p.toFixed(4)})`;
       if (r.bar.style.transform !== tf) r.bar.style.transform = tf;
       setText(r.pct, `${Math.round(p * 100)}%`);
       setText(r.size, fmtBytes(j.sizeBytes));
-      setText(r.speed, j.status === "downloading" ? fmtSpeed(j.downloadSpeed) : "");
+      setText(r.speed, j.status === "downloading" && (!j.phase || j.phase === "downloading" || j.phase === "stalled") ? fmtSpeed(j.downloadSpeed) : "");
       setText(r.eta, dlEta(j));
       const st = flightState(j);
       setText(r.state, st.word);
@@ -5396,7 +5576,7 @@
       if (DL_WHO !== "all" && !people.some((r) => r.key === DL_WHO)) DL_WHO = "all";
       $("#dl-who-chips").classList.toggle("hidden", all.length === 0);
       setHTML($("#dl-who-chips"), [{ key: "all", name: "Everyone", n: all.length }, ...people].map((r) =>
-        `<button type="button" data-dl-who="${esc(r.key)}" class="${r.key === DL_WHO ? "active" : ""}" aria-pressed="${r.key === DL_WHO}">${esc(r.name)}<span class="n">${r.n}</span></button>`).join(""));
+        `<button type="button" data-dl-who="${esc(r.key)}" class="${r.key === DL_WHO ? "active" : ""}" aria-pressed="${r.key === DL_WHO}"><bdi>${esc(r.name)}</bdi><span class="n">${r.n}</span></button>`).join(""));
       setText($("#dl-who-count"), people.filter((r) => r.key.startsWith("p:")).length);
       setHTML($("#dl-who-lines"), people.length
         ? people.map((r) => `<div class="dl-who-line" data-who="${esc(r.key)}" title="${esc(dlPersonDetail(r))}">${esc(dlPersonLine(r))}</div>`).join("")
@@ -5442,7 +5622,7 @@
           <td class="dl-end" style="white-space:nowrap">${dlWhenHTML(end.word, end.at, false, `asked ${houseDate(j.at) || "Unknown"}`)}</td>
           <td>${esc(j.quality || "—")}</td>
           <td class="num">${fmtBytes(j.sizeBytes)}</td>
-          <td><span class="pill ${DL_STATUS_PILL[j.status] || ""}">${esc(j.status)}</span>${j.error ? " <span class='muted' title='" + esc(j.error) + "'>" + esc(j.error.slice(0, 40)) + "</span>" : ""}</td>
+          <td><span class="pill ${DL_STATUS_PILL[j.status] || ""}">${esc(j.status)}</span>${j.error ? " <span class='muted' title='" + esc(j.error) + "'>" + esc(j.error.length > 60 ? j.error.slice(0, 57).trimEnd() + "…" : j.error) + "</span>" : ""}</td>
           <td style="text-align:right;white-space:nowrap">
             ${j.status === "error" ? `<button class="mini" onclick="approveDownload('${esc(j.id)}')">Retry</button>` : ""}
             <button class="mini" onclick="removeDownload('${esc(j.id)}')">Remove</button>
@@ -5916,8 +6096,8 @@
       const sort = $("#lib-sort").value;
       const match = (s) => !q || (s || "").toLowerCase().includes(q);
       $("#lib-toolbar").innerHTML =
-        `<b>${fmtBytes(t.totalBytes)}</b> in the library` +
-        (t.disk && t.disk.free != null ? ` · ${fmtBytes(t.disk.free)} free` : "");
+        `<b>${fmtDrive(t.totalBytes)}</b> in the library` +
+        (t.disk && t.disk.free != null ? ` · ${fmtDrive(t.disk.free)} free` : "");
       let items = [
         ...t.movies.map((m) => ({ kind: "movie", ...m })),
         ...t.shows.map((s) => ({
@@ -5960,7 +6140,7 @@
         if (it.kind === "movie") {
           return libRow(
             libThumb(it.cover, "🎬") +
-            `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)}${it.year ? ` <span class="muted">(${it.year})</span>` : ""}${libDlLine([it.id])}</span>` +
+            `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}"><bdi>${esc(it.title)}</bdi>${it.year ? ` <span class="muted">(${it.year})</span>` : ""}${libDlLine([it.id])}</span>` +
             watchedBadge(it.watched) + myListBadge(it.mylist) + copyPill(it.id) +
             `<span class="num muted">${fmtBytes(it.sizeBytes)}</span>` +
             `<button class="mini danger" data-del-type="movie" data-del-id="${esc(it.id)}" data-del-title="${esc(it.title)}">Delete</button>`);
@@ -5986,7 +6166,7 @@
         return `<details class="lib-show" data-key="${esc(it.id)}"${open}>
           <summary style="list-style:none;cursor:pointer">${libRow(
             libThumb(it.cover, "📺") +
-            `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}">${esc(it.title)} <span class="muted">${it.epCount} ep${it.epWatched ? ` · ${it.epWatched} watched` : ""}</span>${libDlLine(it.seasons.flatMap((se) => se.episodes.map((e) => e.id)))}</span>` +
+            `<span class="grow" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(it.title)}"><bdi>${esc(it.title)}</bdi> <span class="muted">${it.epCount} ep${it.epWatched ? ` · ${it.epWatched} watched` : ""}</span>${libDlLine(it.seasons.flatMap((se) => se.episodes.map((e) => e.id)))}</span>` +
             `<span class="num muted">${fmtBytes(it.sizeBytes)}</span>` +
             `<button class="mini danger" data-del-type="show" data-del-id="${esc(it.id)}" data-del-title="${esc(it.title)}">Delete</button>`)}</summary>
           ${seasons}
@@ -6037,7 +6217,7 @@
       else if (g.files === 1) parts.push("1 on disk");
       if (g.downloads.length) parts.push(`${g.downloads.length} downloading`);
       if (g.copies.some((c) => c.jobs.length > 1)) parts.push("downloaded twice");
-      return `<span class="pill warn" style="flex:none">${esc(parts.join(" + "))}</span>`;
+      return `<span class="pill warn">${esc(parts.join(" + "))}</span>`;
     };
     const cpJobLine = (j) => [
       j.by ? `by ${esc(j.by)}` : j.smart ? "by the server" : "",
