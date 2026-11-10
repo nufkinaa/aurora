@@ -12,6 +12,7 @@
 //       [--speed 3000]  (px/s: one steady wheel gesture, a free-spinning wheel)
 //       [--settle 4000] (ms at the top of the page before the scroll starts)
 //       [--extra k=v,k=v] (localStorage, e.g. aurora-data-mode=saver)
+//       [--sky page] (the page sky kept on the page's thread instead of its worker)
 //       [--bare]  (frame times only: lateFrames / worstFrame without the cost
 //                  of watching the posters — the picture numbers read 0)
 //   --live <url> --rules <file>: this PC's own server instead of an instance,
@@ -122,6 +123,8 @@ const pct = (a, p) => { const s = [...a].sort((x, y) => x - y); return s.length 
     const page = await ctx.newPage();
     const cdp = await ctx.newCDPSession(page);
     await page.addInitScript(WATCH);
+    // (the page sky painted on the page's own thread, as before 2026-11-10 — see aurora-sky.js)
+    if (argv("sky") === "page") await page.addInitScript(() => { delete HTMLCanvasElement.prototype.transferControlToOffscreen; });
     if (live) await signIn(page);
     else await prime(page, inst, { look, extra: Object.fromEntries(argv("extra", "").split(",").filter(Boolean).map((kv) => kv.split("="))) });
     await clearCaches(cdp, inst.url);

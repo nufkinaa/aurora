@@ -6,388 +6,76 @@
 // desktop the stars go on a full-resolution layer so they stay points. The
 // loop stops the moment the canvas leaves the DOM or the tab hides.
 // Reduced motion: one still frame, no drift.
-// Kept close to the height a column is actually drawn at (~55-80px here), so
-// the cross-section is interpolated UP rather than aliased down — the same
-// fix the nav painter needed (see js/aurora.js).
-const RAMP_H = 32;
+//
+// The painter and its clock live in aurora-sky-core.js; this file is the
+// page's side of it — what the page knows (is the sky shown, is motion
+// wanted, how big is the canvas) and WHERE the painting happens:
+//   - on the page's own thread, as it always did (phones, the sign-in and
+//     install skies, any browser without OffscreenCanvas), or
+//   - in a worker (`offMain`: the glass look's page sky on a computer).
+// Why a worker (2026-11-10 — elia: "when scrolling on desktop the background
+// stops and then comes back… it looks not so good"): on a computer one paint
+// of a full-window sky costs 12–30 ms, which is "dear", and a dear sky holds
+// its frame for as long as the page is being scrolled (the hold below) — it
+// has to, or its paint lands in the scroll's own frames. Measured, 1440 to
+// 4K: no paint at all through a six-second scroll. In a worker the paint
+// costs the page's thread nothing, so the sky never has to stop.
+import { makeSky, makeLoop } from "./aurora-sky-core.js";
 
-const makeRamp = (stops) => {
-  const c = document.createElement("canvas");
-  c.width = 1;
-  c.height = RAMP_H;
-  const ctx = c.getContext("2d");
-  const g = ctx.createLinearGradient(0, 0, 0, RAMP_H);
-  for (const [at, color] of stops) g.addColorStop(at, color);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 1, RAMP_H);
-  return c;
-};
-
-const rand = (a, b) => a + Math.random() * (b - a);
-const CORE_AT = 0.36;
-
-// Two cross-sections: the signature green and a violet one (the login mood —
-// it echoes the app's accent without shouting).
-const greenRamp = (s) =>
-  makeRamp([
-    [0, "rgba(120, 160, 255, 0)"],
-    [0.1, `rgba(110, 160, 255, ${0.08 * s})`],
-    [0.24, `rgba(60, 235, 150, ${0.4 * s})`],
-    [CORE_AT, `rgba(140, 255, 190, ${0.85 * s})`],
-    [0.55, `rgba(60, 225, 150, ${0.46 * s})`],
-    [0.78, `rgba(35, 180, 130, ${0.24 * s})`],
-    [1, "rgba(20, 150, 115, 0)"],
-  ]);
-const violetRamp = (s) =>
-  makeRamp([
-    [0, "rgba(150, 130, 255, 0)"],
-    [0.1, `rgba(150, 130, 255, ${0.07 * s})`],
-    [0.24, `rgba(150, 120, 255, ${0.32 * s})`],
-    [CORE_AT, `rgba(190, 160, 255, ${0.66 * s})`],
-    [0.58, `rgba(130, 100, 235, ${0.34 * s})`],
-    [1, "rgba(90, 70, 190, 0)"],
-  ]);
-
-const makeBand = ({ hero = false, violet = false, y = 0.3 } = {}) => ({
-  hero,
-  violet,
-  ramp: violet ? violetRamp(rand(0.75, 0.9)) : greenRamp(hero ? rand(0.9, 1.05) : rand(0.7, 0.9)),
-  speed: rand(0.1, 0.2) * (Math.random() < 0.5 ? -1 : 1), // half the nav's pace — a sky, not a strip
-  meander: rand(0.0012, 0.002),
-  mAmp: rand(0.05, 0.09), // of the CANVAS height
-  curlF: rand(0.004, 0.007),
-  thick: rand(0.2, 0.3), // of the canvas height — tall, hanging curtains
-  sMin: hero ? 0.72 : 0.6,
-  sVar: hero ? 0.28 : 0.4,
-  yBase: y,
-  phase: rand(0, Math.PI * 2),
-  presF: rand(0.02, 0.045),
-  presOff: rand(0, Math.PI * 2),
-  lenF: rand(0.015, 0.03),
-  lenOff: rand(0, Math.PI * 2),
-  alpha: hero ? rand(1.45, 1.7) : rand(1.2, 1.5),
-});
-
-// `pace` scales every band's drift: 1 is the sign-in sky, ~0.45 the glass
-// look's page sky (elia: "a bit slower" — a sky behind everything must
-// breathe, not drift). `stars` toggles the starfield.
-export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
-  if (!canvas) return () => {};
-  const ctx = canvas.getContext("2d");
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
+// What the page knows about one sky.
+const look = (canvas) => {
   const calm = matchMedia("(prefers-reduced-motion: reduce)");
   // Phones (and anything else with a finger, or a small screen) paint at a
   // quarter of the resolution and 12fps instead of a third and 20: the
   // curtains are as soft either way — the blur IS the upscale — and the
   // per-frame column loop costs less than half as much on a weak CPU.
   const mobile = matchMedia("(pointer: coarse)").matches || innerWidth < 900;
-  // The cadence ADAPTS to what a frame costs here (2026-10-07 — elia, on an
-  // iPhone 18 Pro: "the aurora effect looks choppy when scrolling"): the
-  // fixed 12fps a phone used to get reads as a slideshow on a 120Hz screen
-  // that can paint this in a millisecond. Start at 20fps; after a few frames
-  // the measured cost picks 30fps (cheap), 20 (fine) or 12 (dear).
-  let FRAME_MS = 50;
-  let cost = 0; // smoothed ms per paint
-  const retune = (ms) => {
-    cost = cost ? cost * 0.8 + ms * 0.2 : ms;
-    FRAME_MS = cost < 4 ? 33 : cost < 9 ? 50 : 83;
-  };
   // A genuinely weak device (2 GB, two cores, or data saver on) gets one still
   // frame of the sky, like reduced-motion does — the look, without the loop.
   const weak =
     (navigator.deviceMemory && navigator.deviceMemory <= 2) ||
     (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2) ||
     !!(navigator.connection && navigator.connection.saveData);
-  const still = () => calm.matches || weak;
+  // The player covers the whole viewport with black — a sky animating under
+  // it is pure battery. While one is open the loop sleeps and checks back
+  // once a second (a full-screen overlay, not a page, so no route event).
+  // (a live list: asking it is not a search of the whole page, as
+  // querySelector was — and this is asked every frame)
+  const players = document.getElementsByClassName("player");
+  // A playing story (Wrapped) covers the viewport with a night of its own:
+  // the same nap (2026-11-10: under it the sky cost the story its frames).
+  const stories = document.getElementsByClassName("play-story");
+  const state = () =>
+    !canvas.isConnected || document.hidden
+      ? "stop"
+      : calm.matches || weak
+        ? "still"
+        : players.length > 0 || stories.length > 0
+          ? "nap"
+          : "run";
+  const size = () => [canvas.clientWidth, canvas.clientHeight, window.devicePixelRatio || 1];
+  return { calm, mobile, weak, state, size };
+};
 
-  // Four curtains spread over the WHOLE height (the page sky sits behind
-  // every screen, not just the top of one), thicker and a touch brighter
-  // than the sign-in sky.
-  const BANDS = [
-    makeBand({ hero: true, y: rand(0.18, 0.26) }),
-    makeBand({ violet: true, y: rand(0.38, 0.46) }),
-    makeBand({ y: rand(0.06, 0.12) }),
-    makeBand({ violet: true, y: rand(0.58, 0.66) }),
-    makeBand({ y: rand(0.78, 0.88) }),
-  ];
-  // A phone is a tall, narrow window: five thick curtains stacked down it read
-  // as stripes, not a sky (elia: "the app background on mobile looks really
-  // bad"). There it is three — one bright near the top, a violet behind the
-  // middle, a faint one low — thinner and quieter, with dark sky between.
-  if (mobile) {
-    BANDS.splice(3, 2);
-    BANDS[0].yBase = rand(0.12, 0.18);
-    BANDS[1].yBase = rand(0.46, 0.56);
-    BANDS[2].yBase = rand(0.84, 0.92);
-    for (const b of BANDS) {
-      b.thick *= 0.8;
-      b.alpha *= 0.72;
-      b.mAmp *= 0.7;
-    }
-  } else {
-    for (const b of BANDS) {
-      b.thick *= 1.3;
-      b.alpha *= 1.25;
-    }
-  }
-  for (const b of BANDS) b.speed *= pace;
-  // A sparse, fixed starfield (twinkle via alpha wave — no reshuffling).
-  // A fuller field, twinkling the way stars do: most flicker faintly, a few
-  // bright ones swell and dim with a soft halo, each on its own slow clock.
-  // On a phone the stars ARE the sky (no curtains there — see paint), so the
-  // field is fuller, with more bright ones, and each star swings further
-  // between dim and lit (elia, 2026-10-07: "more stars that get bright and dim").
-  const STARS = Array.from({ length: mobile ? 210 : 260 }, () => {
-    const bright = Math.random() < (mobile ? 0.2 : 0.15);
-    return {
-      x: Math.random(),
-      y: Math.random(),
-      r: bright ? rand(1.1, 1.7) : rand(0.3, 1.0),
-      tw: bright ? rand(0.25, 0.7) : rand(0.4, 1.6),
-      off: rand(0, Math.PI * 2),
-      bright,
-    };
+// tools/webperf/skywatch.js and the cadence test count the sky's paints (a
+// canvas whose drawing went to a worker cannot be watched from the page).
+const watching = () => !!window.__auroraSkyWatch;
+// (`at`: when, on the painter's own clock — a worker's word reaches the page late when the page is busy)
+const tell = (cost, at) => window.dispatchEvent(new CustomEvent("aurora-sky-paint", { detail: { cost, at } }));
+
+// ---- on the page's own thread ---------------------------------------------
+const onPage = (canvas, env, { pace, stars, seed, frames }) => {
+  const sky = makeSky(canvas, {
+    mobile: env.mobile,
+    pace,
+    stars,
+    seed,
+    makeCanvas: (w, h) => Object.assign(document.createElement("canvas"), { width: w, height: h }),
   });
-
-  // Shooting stars (elia, 2026-10-07: "maybe add more stars and shooting
-  // stars"): one every 7–16 s, a bright head with a tail that fades to
-  // nothing, crossing a tenth of the sky in under a second. Drawn on the
-  // star layer, so they are crisp. None in the still sky.
-  const METEORS = [];
-  let nextMeteorAt = 5 + Math.random() * 6;
-  const spawnMeteor = (t) => {
-    const dir = Math.random() < 0.5 ? 1 : -1; // left→right or right→left
-    const ang = rand(0.3, 0.6); // radians below horizontal
-    const speed = rand(0.22, 0.34); // of the width per second
-    METEORS.push({
-      t0: t,
-      life: rand(0.7, 1.1),
-      x0: dir > 0 ? rand(-0.05, 0.55) : rand(0.45, 1.05),
-      y0: rand(0.02, 0.5),
-      vx: dir * speed * Math.cos(ang),
-      vy: speed * Math.sin(ang),
-      len: rand(0.07, 0.13), // tail, of the width
-    });
+  const paint = (t, still) => {
+    sky.size(...env.size());
+    sky.paint(t, still);
   };
-
-  let raf = null;
-  let last = 0;
-  const DOWN = mobile ? 4 : 3;
-  // Two layers: the curtains at 1/3 (1/4 on a phone) on an OFFSCREEN canvas
-  // (the blur IS the upscale, and the per-column loop stays cheap), blitted
-  // onto a visible canvas at full resolution where the stars are drawn as
-  // real points. One layer at 1/3 made every star a 3px block (elia: "I can
-  // see the stars' pixels") — and on a phone, where that single low-res
-  // canvas lasted longer, a 6px smudge, with the curtains' columns showing
-  // as a grid. Phones paint the same two layers now: one extra blit a frame.
-  const HI = true;
-  const off = document.createElement("canvas");
-  const bctx = off.getContext("2d");
-  let PX = 1; // canvas pixels per CSS pixel on the visible layer
-  // A height change alone of under a third is a browser toolbar coming or
-  // going (iPhone Safari while scrolling), not a new viewport: the canvas
-  // keeps its size rather than reallocating — which clears it — mid-scroll.
-  let sizedW = 0, sizedH = 0;
-  const size = () => {
-    const cw0 = canvas.clientWidth, ch0 = canvas.clientHeight;
-    if (sizedW === cw0 && sizedH && Math.abs(ch0 - sizedH) < sizedH * 0.34) return;
-    sizedW = cw0; sizedH = ch0;
-    const w = Math.max(1, Math.round(canvas.clientWidth / DOWN));
-    const h = Math.max(1, Math.round(canvas.clientHeight / DOWN));
-    const low = off || canvas;
-    if (low.width !== w || low.height !== h) {
-      low.width = w;
-      low.height = h;
-    }
-    if (HI) {
-      // full CSS resolution, capped — a 4K desktop needs no 4K sky. A phone
-      // gets its real pixels (to 2x): it is a small canvas, and a star drawn
-      // at CSS resolution on a 3x screen is a soft dot again.
-      const scale = mobile
-        ? Math.min(2, window.devicePixelRatio || 1)
-        : Math.min(1, 1920 / Math.max(1, canvas.clientWidth));
-      PX = scale;
-      const fw = Math.max(1, Math.round(canvas.clientWidth * scale));
-      const fh = Math.max(1, Math.round(canvas.clientHeight * scale));
-      if (canvas.width !== fw || canvas.height !== fh) {
-        canvas.width = fw;
-        canvas.height = fh;
-      }
-    }
-  };
-
-  const paint = (t, still = false) => {
-    size();
-    const low = off || canvas;
-    const W = low.width;
-    const H = low.height;
-    const cw = W * DOWN;
-    bctx.clearRect(0, 0, W, H);
-    if (HI) ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Stars on the visible layer — crisp points at full resolution on
-    // desktop, the old blocks on the low-res phone canvas.
-    const sctx = ctx;
-    const SW = canvas.width;
-    const SH = canvas.height;
-    // star sizes were tuned at the desktop's low resolution (1/3); a phone
-    // draws them a little smaller, in its own pixels
-    const K = mobile ? 2 * PX * 0.62 : SW / W;
-    sctx.fillStyle = "rgba(230, 238, 255, 1)";
-    for (const s of stars ? STARS : []) {
-      // a slow swell with a sharper glint on top — real twinkle isn't a sine
-      const w = Math.sin(t * s.tw + s.off);
-      const glint = Math.max(0, Math.sin(t * s.tw * 3.1 + s.off * 1.7)) ** 6;
-      const a = still
-        ? 0.55
-        : mobile
-          ? Math.max(0, 0.12 + 0.55 * w + 0.45 * glint) // deeper dips, brighter peaks
-          : Math.max(0, 0.22 + 0.45 * w + 0.35 * glint);
-      if (a <= 0.05) continue;
-      const x = s.x * SW, y = s.y * SH;
-      if (HI) {
-        const r = Math.max(0.6, s.r * K * 0.5);
-        if (s.bright) {
-          // a soft round halo that grows with the glow
-          // (tighter and fainter on a phone, where the full-size one reads
-          // as a bubble around the star)
-          sctx.globalAlpha = a * (mobile ? 0.1 : 0.18);
-          sctx.beginPath();
-          sctx.arc(x, y, r + (mobile ? 1.1 : 2.2) * K, 0, Math.PI * 2);
-          sctx.fill();
-        }
-        sctx.globalAlpha = Math.min(1, a * (s.bright ? 1 : 0.75));
-        sctx.beginPath();
-        sctx.arc(x, y, r, 0, Math.PI * 2);
-        sctx.fill();
-        continue;
-      }
-      if (s.bright) {
-        // a soft halo that grows with the glow
-        sctx.globalAlpha = a * 0.18;
-        sctx.fillRect(x - 1.5, y - 1.5, s.r + 3, s.r + 3);
-      }
-      sctx.globalAlpha = Math.min(1, a * (s.bright ? 1 : 0.75));
-      sctx.fillRect(x, y, s.r, s.r);
-    }
-    sctx.globalAlpha = 1;
-
-    if (stars && !still) {
-      if (t >= nextMeteorAt) {
-        spawnMeteor(t);
-        nextMeteorAt = t + rand(7, 16);
-      }
-      for (let i = METEORS.length - 1; i >= 0; i--) {
-        const m = METEORS[i];
-        const p = (t - m.t0) / m.life;
-        if (p >= 1 || p < 0) {
-          METEORS.splice(i, 1);
-          continue;
-        }
-        // in fast, out slow: a meteor flares at once and dies away
-        const env = p < 0.15 ? p / 0.15 : 1 - (p - 0.15) / 0.85;
-        const hx = (m.x0 + m.vx * p * m.life) * SW;
-        const hy = (m.y0 + m.vy * p * m.life) * SH;
-        const norm = Math.hypot(m.vx, m.vy) || 1;
-        const tailLen = m.len * SW * (0.4 + 0.6 * Math.min(1, p / 0.3));
-        const tx = hx - (m.vx / norm) * tailLen;
-        const ty = hy - (m.vy / norm) * tailLen;
-        const g = sctx.createLinearGradient(hx, hy, tx, ty);
-        g.addColorStop(0, `rgba(255, 255, 255, ${(0.95 * env).toFixed(3)})`);
-        g.addColorStop(0.25, `rgba(220, 230, 255, ${(0.5 * env).toFixed(3)})`);
-        g.addColorStop(1, "rgba(200, 215, 255, 0)");
-        sctx.strokeStyle = g;
-        sctx.lineWidth = Math.max(1, K * 0.5);
-        sctx.lineCap = "round";
-        sctx.beginPath();
-        sctx.moveTo(hx, hy);
-        sctx.lineTo(tx, ty);
-        sctx.stroke();
-        // the head
-        sctx.fillStyle = `rgba(255, 255, 255, ${(0.95 * env).toFixed(3)})`;
-        sctx.beginPath();
-        sctx.arc(hx, hy, Math.max(0.8, K * 0.6), 0, Math.PI * 2);
-        sctx.fill();
-      }
-      sctx.fillStyle = "rgba(230, 238, 255, 1)";
-    }
-
-    // No curtains on a phone (2026-10-07). They are painted as 1px columns at
-    // quarter resolution and rely on the upscale's smoothing to blend; iOS
-    // Safari ignores imageSmoothingQuality, so on a real iPhone the columns
-    // showed as vertical cuts across the band (elia's photo — not visible in
-    // a desktop browser's phone emulation). A phone gets a faint, still wash
-    // of the same colours so the glass keeps its tone, and the stars do the
-    // living. Two gradients at low resolution: nothing to stutter.
-    if (mobile) {
-      const g1 = bctx.createRadialGradient(W * 0.25, H * 0.22, 0, W * 0.25, H * 0.22, Math.max(W, H) * 0.55);
-      g1.addColorStop(0, "rgba(120, 80, 220, 0.22)");
-      g1.addColorStop(1, "rgba(120, 80, 220, 0)");
-      const g2 = bctx.createRadialGradient(W * 0.8, H * 0.45, 0, W * 0.8, H * 0.45, Math.max(W, H) * 0.5);
-      g2.addColorStop(0, "rgba(60, 190, 140, 0.16)");
-      g2.addColorStop(1, "rgba(60, 190, 140, 0)");
-      bctx.globalAlpha = 1;
-      bctx.fillStyle = g1;
-      bctx.fillRect(0, 0, W, H);
-      bctx.fillStyle = g2;
-      bctx.fillRect(0, 0, W, H);
-    }
-    if (!mobile) for (const b of BANDS) {
-      let presence = Math.min(1, Math.max(0, 1.6 * Math.sin(t * b.presF + b.presOff) + 0.35));
-      if (b.hero) presence = Math.max(presence, 0.85);
-      presence = Math.max(presence, b.violet ? 0.55 : 0.3); // nothing vanishes for long
-      if (still) presence = Math.max(presence, 0.7);
-      if (presence < 0.04) continue;
-
-      const center = cw * (0.5 + 0.3 * Math.sin(t * b.lenF + b.lenOff));
-      // On a phone a curtain always runs off both edges: one that ends inside
-      // a 375px window is not a curtain, it is a glowing lozenge with a tip.
-      const halfLen = cw * (mobile ? 1.25 + 0.2 * Math.sin(t * b.lenF * 0.73 + b.lenOff * 1.9) : 0.72 + 0.28 * Math.sin(t * b.lenF * 0.73 + b.lenOff * 1.9));
-      const s = t * b.speed;
-      const curlAmp = 0.04 * Math.max(0, Math.sin(t * 0.11 + b.phase * 2.3));
-
-      for (let x = 0; x < W; x++) {
-        const cx = x * DOWN;
-        const u = (cx - center) / halfLen;
-        if (u < -1 || u > 1) continue;
-        // same feathered ends as the nav painter — sqrt alone cuts a clean
-        // vertical edge at the tips (see aurora.js)
-        const dome = Math.sqrt(1 - u * u);
-        const a = Math.abs(u);
-        let feather = 1;
-        if (a > 0.85) {
-          const t = (1 - a) / 0.15;
-          feather = t * t * (3 - 2 * t);
-        }
-        const endTaper = dome * feather;
-        const yC =
-          H *
-          (b.yBase +
-            b.mAmp *
-              Math.sin(cx * b.meander + s * 0.9 + b.phase + 2.6 * Math.sin(cx * b.meander * 0.31 + s * 0.3)) +
-            curlAmp * Math.sin(cx * b.curlF + s * 1.6 + b.phase * 3));
-        const swell = b.sMin + b.sVar * Math.sin(cx * 0.0009 + s * 0.7 + b.phase * 1.6);
-        const th = H * b.thick * swell * (0.3 + 0.7 * endTaper);
-        if (th < 1) continue;
-        const flow = 0.7 + 0.3 * Math.sin(cx * 0.0012 + s + b.phase);
-        const streak = 0.9 + 0.1 * Math.sin(cx * 0.03 + s * 1.8);
-        const bright = flow * swell * streak * endTaper * presence;
-        if (bright < 0.02) continue;
-        bctx.globalAlpha = Math.min(1, Math.pow(bright, 1.25) * b.alpha + 0.02 * feather);
-        bctx.drawImage(b.ramp, 0, 0, 1, RAMP_H, x, yC - th * CORE_AT, 1, th);
-      }
-    }
-    bctx.globalAlpha = 1;
-    // The curtains, upscaled over the stars: the same soft blur as before,
-    // one blit per frame.
-    if (HI) {
-      ctx.globalAlpha = 1;
-      ctx.drawImage(off, 0, 0, W, H, 0, 0, canvas.width, canvas.height);
-    }
-  };
-
-  const alive = () => canvas.isConnected && !document.hidden;
   // While the page is being scrolled, the sky holds its frame. Every repaint
   // of the canvas re-blurs the glass above it (the nav island, the hero
   // slab), and on a phone that work landed in the same frames as the
@@ -401,75 +89,167 @@ export const initAuroraSky = (canvas, { pace = 1, stars = true } = {}) => {
   let scrolledAt = 0;
   const onScroll = () => { scrolledAt = performance.now(); };
   document.addEventListener("scroll", onScroll, { passive: true, capture: true });
-  const scrolling = (now) => cost > 9 && now - scrolledAt < 150;
-  // The player covers the whole viewport with black — a sky animating under
-  // it is pure battery. While one is open the loop sleeps and checks back
-  // once a second (a full-screen overlay, not a page, so no route event).
-  // (a live list: asking it is not a search of the whole page, as
-  // querySelector was — and this is asked every frame)
-  const players = document.getElementsByClassName("player");
-  const covered = () => players.length > 0;
-  let napTimer = null;
-  // The sky paints every FRAME_MS (33–83 ms), not every frame. Where the
-  // wait is long (a paint that is dear here: 83 ms) the loop sleeps on a
-  // timer between two paints and wakes three frames before the next one is
-  // due, so it still paints on exactly the frame it always did (the first
-  // one at or after the due time) — a margin wide enough that a busy main
-  // thread delays the wake no more than it would delay the frame itself.
-  // Asking for every frame kept the page producing 60 (or 120) frames a
-  // second for a picture that changes 12 times.
-  const WAKE_EARLY_MS = 50;
-  let wakeTimer = 0;
-  const next = (now) => {
-    let due = last + FRAME_MS;
-    if (scrolling(now)) due = Math.max(due, scrolledAt + 150);
-    // (from the clock as it is NOW: `now` is when this frame began, and the
-    // paint just made in it may have used up a good part of the wait)
-    const wait = due - performance.now() - WAKE_EARLY_MS;
-    if (wait > 4) {
-      wakeTimer = setTimeout(() => {
-        wakeTimer = 0;
-        if (raf == null) raf = requestAnimationFrame(loop);
-      }, wait);
-    } else raf = requestAnimationFrame(loop);
-  };
-  const loop = (now) => {
-    raf = null;
-    if (!alive() || still()) return;
-    if (covered()) {
-      clearTimeout(napTimer);
-      napTimer = setTimeout(kick, 1000);
-      return;
-    }
-    if (now - last >= FRAME_MS && !scrolling(now)) {
-      last = now;
-      const t0 = performance.now();
-      paint(now / 1000);
-      retune(performance.now() - t0);
-    }
-    next(now);
-  };
-  const kick = () => {
-    if (!alive()) return;
-    if (still()) {
-      paint(6, true);
-      return;
-    }
-    if (raf == null && !wakeTimer) raf = requestAnimationFrame(loop);
-  };
-  document.addEventListener("visibilitychange", kick);
-  window.addEventListener("resize", kick);
-  kick();
+  const hold = (now, cost) => (cost > 9 && now - scrolledAt < 150 ? scrolledAt + 150 : 0);
+  const loop = makeLoop(paint, { state: env.state, hold, report: watching() ? tell : null, frames });
+  document.addEventListener("visibilitychange", loop.kick);
+  window.addEventListener("resize", loop.kick);
+  loop.kick();
 
   // teardown for when the overlay is removed
   return () => {
-    if (raf != null) cancelAnimationFrame(raf);
-    raf = null;
-    clearTimeout(wakeTimer);
-    wakeTimer = 0;
-    clearTimeout(napTimer);
-    document.removeEventListener("visibilitychange", kick);
+    loop.stop();
+    document.removeEventListener("visibilitychange", loop.kick);
     document.removeEventListener("scroll", onScroll, { capture: true });
-    window.removeEventListener("resize", kick);
+    window.removeEventListener("resize", loop.kick);
   };
+};
+
+// ---- in a worker ------------------------------------------------------------
+// A canvas hands its drawing to a worker once and for good, so the worker
+// outlives a teardown: stopping the sky puts it to sleep, starting it again
+// on the same canvas wakes it (the look switched away from glass and back).
+const working = new WeakMap(); // canvas -> its worker's controller
+const pageOnly = new WeakSet(); // canvases whose worker could not start: they paint here
+
+// The versioned address the page itself loads a module from (the import map
+// in the page's head) — a worker has no import map of its own.
+const address = (file) => {
+  try {
+    return import.meta.resolve(file);
+  } catch {
+    return new URL(file, import.meta.url).href;
+  }
+};
+
+const canWork = (canvas) =>
+  !pageOnly.has(canvas) && typeof Worker === "function" && typeof canvas.transferControlToOffscreen === "function";
+
+const HELLO_MS = 4000; // a worker that has not answered by now is not coming
+
+const startWorker = (canvas, opts) => {
+  const env = look(canvas);
+  let on = false; // between an init and its teardown
+  let ready = false; // the worker holds the canvas
+  let sent = "";
+  let pageStop = null; // the fallback's teardown, once the worker has failed
+  let poll = 0;
+  let hello = 0;
+  let worker = null;
+  let watcher = null;
+
+  const sync = () => {
+    if (!ready) return;
+    const s = on ? env.state() : "stop";
+    if (s === sent) return;
+    sent = s;
+    worker.postMessage({ state: s });
+  };
+  const listen = (yes) => {
+    const f = yes ? "addEventListener" : "removeEventListener";
+    document[f]("visibilitychange", sync);
+    env.calm[f]("change", sync);
+    clearInterval(poll);
+    // (a player opening or closing, the canvas leaving the page: nothing
+    // announces those — the page-thread loop asks every frame, this asks
+    // once a second)
+    poll = yes ? setInterval(sync, 1000) : 0;
+  };
+
+  // The worker failed: the sky paints here, as it would have without one.
+  // A canvas already handed over cannot be drawn on again, so a fresh copy
+  // takes its place in the page.
+  const fail = () => {
+    if (!worker) return;
+    clearTimeout(hello);
+    worker.terminate();
+    worker = null;
+    if (watcher) watcher.disconnect();
+    listen(false);
+    working.delete(canvas);
+    let target = canvas;
+    if (ready) {
+      target = canvas.cloneNode(false);
+      canvas.replaceWith(target);
+    }
+    ready = false;
+    pageOnly.add(target);
+    if (on) pageStop = onPage(target, look(target), opts);
+  };
+
+  try {
+    worker = new Worker(address("./aurora-sky-worker.js"), { type: "module" });
+  } catch {
+    return null;
+  }
+  hello = setTimeout(fail, HELLO_MS);
+  worker.addEventListener("error", fail);
+  worker.addEventListener("messageerror", fail);
+  worker.addEventListener("message", ({ data }) => {
+    if (data.paint != null) return tell(data.paint, data.at);
+    if (data.ready === false) return fail();
+    if (data.ready !== true || ready) return;
+    clearTimeout(hello);
+    try {
+      const off = canvas.transferControlToOffscreen();
+      sent = on ? env.state() : "stop";
+      worker.postMessage(
+        {
+          canvas: off,
+          pace: opts.pace,
+          stars: opts.stars,
+          seed: opts.seed,
+          frames: opts.frames,
+          size: env.size(),
+          state: sent,
+          watch: watching(),
+        },
+        [off],
+      );
+      ready = true;
+    } catch {
+      return fail();
+    }
+    watcher = new ResizeObserver(() => {
+      if (worker) worker.postMessage({ size: env.size() });
+    });
+    watcher.observe(canvas);
+  });
+  worker.postMessage({ hello: address("./aurora-sky-core.js") });
+
+  return {
+    start() {
+      if (!worker) return onPage(canvas, look(canvas), opts); // (it failed while asleep)
+      on = true;
+      listen(true);
+      sync();
+      return () => {
+        on = false;
+        if (pageStop) pageStop();
+        pageStop = null;
+        listen(false);
+        sync();
+      };
+    },
+  };
+};
+
+// `pace` scales every band's drift: 1 is the sign-in sky, ~0.45 the glass
+// look's page sky (elia: "a bit slower" — a sky behind everything must
+// breathe, not drift). `stars` toggles the starfield. `offMain` asks for the
+// worker where there is one (see the top of this file). `seed` and `frames`
+// are for tools/webperf/skyproof.js: the same sky twice, at given moments.
+export const initAuroraSky = (canvas, { pace = 1, stars = true, offMain = false, seed = null, frames = null } = {}) => {
+  if (!canvas) return () => {};
+  const opts = { pace, stars, seed, frames };
+  const env = look(canvas);
+  let ctl = working.get(canvas);
+  // A phone keeps its sky on the page's thread: its paint is cheap enough to
+  // run at 20–30 a second there, and a second thread is not free on one. A
+  // weak device paints one still frame — no loop to move anywhere.
+  if (!ctl && offMain && !env.mobile && !env.weak && canWork(canvas)) {
+    ctl = startWorker(canvas, opts);
+    if (ctl) working.set(canvas, ctl);
+    else pageOnly.add(canvas);
+  }
+  return ctl ? ctl.start() : onPage(canvas, env, opts);
 };
