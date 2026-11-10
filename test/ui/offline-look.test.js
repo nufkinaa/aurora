@@ -161,7 +161,7 @@ ui.test("with copies: a show's episodes together and in order with the next one 
     const sw = page.locator('[data-ui="saved.smartnext"]');
     assert.equal(await sw.getAttribute("role"), "switch");
     assert.equal(await sw.getAttribute("aria-checked"), "false");
-    assert.match(await page.locator(".dev-next").innerText(), /Keep the next episode ready[\s\S]*saved here by itself/);
+    assert.match(await page.locator(".dev-next").innerText(), /Keep the next episode ready[\s\S]*When you finish a saved episode, the next one saves itself\. Nothing is removed\./);
     await sw.click();
     assert.equal(await sw.getAttribute("aria-checked"), "true");
     assert.equal(await page.evaluate(async () => (await import("/js/offline.js")).smartNext.get()), true);

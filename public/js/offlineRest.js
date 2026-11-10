@@ -6,6 +6,10 @@
 //                           it is on this device, and the one button that helps
 //   restPlay(id)            the player's side: the copy on this device plays;
 //                           with none, one calm line and back where you were
+//   restBlank()             a screen that could not be built at all: the same
+//                           resting page in its place — never a blank
+//   away()                  is Aurora out of reach right now? (asked before
+//                           the player opens on an answer the worker kept)
 //
 // Loaded only on those failure paths (a dynamic import) — nothing of it is in
 // the way of a page that opens. Values and words: docs/offline-look.md.
@@ -83,6 +87,32 @@ export const restTitle = async (screen, { id, source = "library" } = {}) => {
   screen.replaceChildren(page);
   const first = page.querySelector(".rest-actions .focusable");
   if (first && document.activeElement === document.body) { try { first.focus({ preventScroll: true }); } catch {} }
+};
+
+// A screen whose making failed because Aurora is out of reach, and that drew
+// nothing: the resting page in its place. It goes when the next screen opens.
+export const restBlank = () => {
+  const app = document.getElementById("app");
+  if (!app || app.querySelector(".screen, .player") || (app.innerText || "").trim()) return null;
+  const host = app.querySelector(".route-host") || app;
+  const screen = el("div", { class: "screen" });
+  host.replaceChildren(screen);
+  window.addEventListener("aurora-route-start", () => screen.remove(), { once: true });
+  return restTitle(screen, { id: null, source: "page" });
+};
+
+// Is Aurora out of reach now? The device says so itself (no connection); when
+// only the line at the bottom says so, one request that asks nothing settles it.
+export const away = async () => {
+  if (navigator.onLine === false) return true;
+  if (!document.documentElement.classList.contains("net-off")) return false;
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 2500);
+    const res = await fetch("/api/server-info", { method: "HEAD", cache: "no-store", signal: ctl.signal });
+    clearTimeout(t);
+    return !res.ok;
+  } catch { return true; }
 };
 
 // The player was asked for a title and Aurora did not answer. True when this

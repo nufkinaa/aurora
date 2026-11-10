@@ -203,18 +203,24 @@ export const renderSaved = async (root) => {
         const on = !offline.smartNext.get();
         offline.smartNext.set(on);
         set();
-        toast(on ? "On — finish a saved episode and the next one is saved here by itself" : "Off — episodes are saved only when you ask", mark(on ? "saved" : "none"), null, { quiet: true });
+        toast(on ? "On — when you finish a saved episode, the next one saves itself" : "Off — episodes are saved only when you ask", mark(on ? "saved" : "none"), null, { quiet: true });
       };
       set();
       parts.push(el("div", { class: "dev-next" },
         el("div", { class: "dev-next-words" },
           el("b", { id: "dev-next-name" }, "Keep the next episode ready"),
-          el("span", { id: "dev-next-text" }, "Finish a saved episode and the next one is saved here by itself."),
+          el("span", { id: "dev-next-text" }, "When you finish a saved episode, the next one saves itself. Nothing is removed."),
           last ? el("span", { class: "dev-next-last" }, mark("saved", 1, "dev-next-mark"), `Saved by itself: ${last.name}`) : null),
         sw));
     }
     const note = noteSeen() ? keepNote(sum, kept, false) : null;
     if (note) parts.push(note);
+    // Said only where it is true: this browser writes a save straight into
+    // the device's storage (Chrome, on a computer and on Android) — elsewhere
+    // nothing is said and nothing is promised.
+    let quick = false;
+    try { quick = !!offline.opfsUsed(); } catch {}
+    if (quick && items.length) parts.push(el("p", { class: "saved-keep dev-quick" }, "Saving is quicker in this browser — Chrome writes a film straight onto the device."));
     return parts.length ? el("div", { class: "dev-foot" }, parts) : null;
   };
 

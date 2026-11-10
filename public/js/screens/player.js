@@ -793,6 +793,16 @@ export const renderPlayer = async (root, { id }) => {
   // so every rule for a saved copy (no probe, no transcode, no server marks)
   // holds; `_local` hides what needs the server even when it is there.
   const localMode = location.hash.includes("local=1");
+  // [offline-look] No connection: the copy on this device plays in its place
+  // (or one calm line says it is not here) — never a player opened on an
+  // answer the worker kept, waiting for a server that is not there.
+  if (!localMode && !offlineMode && (navigator.onLine === false || document.documentElement.classList.contains("net-off"))) {
+    const rest = await import("../offlineRest.js").catch(() => null);
+    if (rest && (await rest.away())) {
+      if (location.hash !== entryHash) return;
+      return rest.restPlay(itemId);
+    }
+  }
   // Torrent sources are handed over directly by the Discover page (no server
   // round-trip); fall back to the API for library items or a page refresh.
   if (localMode) {

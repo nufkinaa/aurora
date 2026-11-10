@@ -5513,7 +5513,7 @@ html[data-look="glass"] .saved-section .dl-row { border-radius: var(--g-radius);
   }
 }
 .saved-keep { margin: 0 0 12px; color: var(--text-dim); font-size: 0.85rem; }
-.offline-toggle.on, .offline-sheet-actions .chip.on { color: #0b0c14; background: #6ee7b7; border-color: #6ee7b7; }
+/* (.offline-toggle.on and the sheet's chosen chips: the offline-look block "the sheet's choices") */
 .device-summary .local-play-link { margin: 6px 0 0; }
 
 /* ==== offline-look (2026-11-10) — the buttons that put a title on this device
@@ -5614,7 +5614,6 @@ html[data-look="glass"] .saved-section .dl-row { border-radius: var(--g-radius);
   text-transform: uppercase;
   color: var(--text-faint);
 }
-.offline-sound.on { color: #0b0c14; background: #6ee7b7; border-color: #6ee7b7; }
 
 @media (max-width: 720px) {
   /* the title page's tiles: the mark in the tile's circle, the short word under it */
@@ -5734,6 +5733,8 @@ html[data-look="glass"] .dev-foot {
 .dev-next .pref-switch { flex: none; }
 .dev-room .saved-keep, .dev-foot .saved-keep { margin: 0; line-height: 1.45; }
 .dev-room .saved-keep, .dev-foot .dev-next + .saved-keep { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.dev-foot > * + .dev-quick { margin-top: 12px; }
+.saved-keep.dev-quick { color: var(--text-faint); font-size: 0.8rem; }
 .saved-keep.fresh { display: flex; align-items: center; gap: 10px 16px; }
 .saved-keep.fresh > span { flex: 1 1 auto; min-width: 0; }
 .saved-keep .dev-note-ok { flex: none; }
@@ -6121,3 +6122,114 @@ html.net-off #app .card:not([data-dev="saved"]):is(:hover, :focus-visible) { opa
 .rest-actions .btn { display: inline-flex; align-items: center; gap: 8px; }
 .rest-actions .btn svg { width: 18px; height: 18px; flex: none; }
 /* ==== end offline-look (no connection) ==== */
+
+/* ==== offline-look (2026-11-10) — the sheet's choices, a paused save, what
+   waits for the server's copy. The markup is the system lane's
+   (offlinePicker.js, devicejobs.js); only the look is here.
+   Mint = chosen / here, amber = waiting. Values: docs/offline-look.md ==== */
+
+/* the sheet never outgrows the screen: it scrolls inside itself */
+.look-notice-wrap:has(> .offline-sheet) {
+  padding: max(16px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px));
+}
+html:root .offline-sheet {
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.offline-sheet .look-notice-title { text-wrap: balance; }
+.offline-sheet .look-notice-text { text-wrap: pretty; }
+
+/* a choice that is made says so twice: mint, and a tick */
+html:root .offline-sheet .chip { gap: 6px; }
+html:root .offline-sheet .chip.on {
+  color: #dcfcef;
+  background: rgba(110, 231, 183, 0.16);
+  border-color: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(110, 231, 183, 0.72);
+}
+html:root .offline-sheet .chip.on::before {
+  content: "";
+  flex: none;
+  width: 14px;
+  height: 14px;
+  background: #6ee7b7;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.6 4.6L19 7.7'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.6 4.6L19 7.7'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* Sound: its name on a line of its own, the sounds under it */
+html:root .offline-sounds { gap: 8px; margin-top: 16px; }
+html:root .offline-sounds-label { flex: 1 0 100%; margin: 0 0 -2px; }
+html:root .offline-sound { padding: 8px 14px; }
+
+/* under the sizes: "and every new episode of …" — two rows, one at most —
+   then the standing choice and the way out */
+html:root .offline-sheet .offline-sheet-actions {
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 14px;
+}
+html:root .offline-sheet .offline-toggle {
+  flex: 1 1 100%;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: 14px;
+  white-space: normal;
+  text-align: left;
+}
+/* an empty ring until it is chosen */
+html:root .offline-sheet .offline-toggle::before {
+  content: "";
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.42);
+  background: none;
+  -webkit-mask: none;
+  mask: none;
+}
+html:root .offline-sheet .offline-toggle.on::before {
+  width: 16px;
+  height: 16px;
+  -webkit-mask: none;
+  mask: none;
+  box-shadow: none;
+  background: #6ee7b7 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230b0c14' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.6 4.6L19 7.7'/%3E%3C/svg%3E") center / 11px no-repeat;
+}
+html:root .offline-sheet .offline-toggle + .chip:not(.offline-toggle) { margin-top: 4px; }
+
+/* a save the person paused: its bar rests in amber, it does not glow */
+html:root .device-job[data-state="paused"] .dl-bar-fill { background: rgba(245, 197, 66, 0.62); box-shadow: none; }
+/* Resume is the one button that carries on; Pause is a quiet one */
+.device-job .dl-actions { gap: 8px; }
+
+/* what waits for the server's copy has no picture yet: the waiting sign in
+   its frame — not its name squeezed into a stamp */
+.device-wish .dl-poster .card-fallback {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 0;
+  color: transparent;
+  background: rgba(245, 197, 66, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(245, 197, 66, 0.2);
+}
+.device-wish .dl-poster .card-fallback::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 26px;
+  height: 26px;
+  background: #f5c542;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9.6' fill='none' stroke='%23000' stroke-width='1.8' stroke-dasharray='4.6 2.94'/%3E%3Cpath d='M10.9 5.7h2.2v5.2h2.8L12 15.7l-3.9-4.8h2.8zM7.6 17h8.8v1.7H7.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9.6' fill='none' stroke='%23000' stroke-width='1.8' stroke-dasharray='4.6 2.94'/%3E%3Cpath d='M10.9 5.7h2.2v5.2h2.8L12 15.7l-3.9-4.8h2.8zM7.6 17h8.8v1.7H7.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.device-wish[data-state="wish-failed"] .dl-poster .card-fallback { background: rgba(255, 122, 122, 0.07); box-shadow: inset 0 0 0 1px rgba(255, 122, 122, 0.22); }
+.device-wish[data-state="wish-failed"] .dl-poster .card-fallback::before { background: #ff7a7a; }
+/* ==== end offline-look (choices, paused, waiting) ==== */

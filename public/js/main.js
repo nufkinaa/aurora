@@ -523,6 +523,19 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     // screen: nothing of it is in the way of that screen.
     const look = firstScreen.then(() => import("./offlineUi.js")).then((ui) => { ui.start(); return ui; });
     look.catch(() => {});
+    // [offline-look] a screen that could not be made with no connection (its
+    // making failed with the worker's "offline" and it drew nothing) rests —
+    // never a blank page (js/offlineRest.js)
+    window.addEventListener("unhandledrejection", (e) => {
+      const err = e.reason;
+      if (!err || !(err.message === "offline" || navigator.onLine === false)) return;
+      const at = location.hash;
+      setTimeout(() => {
+        const app = document.getElementById("app");
+        if (location.hash !== at || !app || app.querySelector(".screen, .player") || (app.innerText || "").trim()) return;
+        import("./offlineRest.js").then((rest) => rest.restBlank()).catch(() => {});
+      }, 300);
+    });
     // minutes watched with no line reach the server when it is back; said once
     const deliver = () => offline.flushProgress().then((n) => { if (n > 0) look.then((ui) => ui.delivered(n)).catch(() => {}); }).catch(() => {});
     const nav = $("#nav-saved");
