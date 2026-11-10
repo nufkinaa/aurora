@@ -137,17 +137,17 @@ A control is tagged where it is built:
 - website: `"data-ui": "detail.play"` on the element (one delegated click listener reads it; nothing is ever guessed from a control's text). A control that is not a click on an element — a keyboard shortcut, a tap zone — calls `uiHit("player.seek.fwd")`.
 - TV: `uiId="detail.play"` on a `Focusable`, `Btn` or `Chip` (and the small wrappers that pass it through). Without it nothing happens.
 
-The vocabulary (`src/lib/tel/controls-vocab.js`) — 404 ids: 226 on the website, 190 on the TV, 106 on both. 223 on the phone app (letter `p`, the table after this one).
+The vocabulary (`src/lib/tel/controls-vocab.js`) — 410 ids: 232 on the website, 190 on the TV, 106 on both. 223 on the phone app (letter `p`, the table after this one).
 
 | Area | Website only | TV app only | Both |
 |---|---|---|---|
 | actions | – | `actions.pick` | – |
 | browse | `browse.chip.pick` `browse.filter.clear` `browse.genre.open` `browse.loadmore` `browse.option.pick` `browse.sort.open` | `browse.retry` | `browse.category.pick` `browse.surprise` `browse.unwatched` |
 | card | `card.remove` `card.hh.add` | – | `card.open` |
-| detail | `detail.download.device` `detail.episode.download` `detail.episode.offline` `detail.episode.playontv` `detail.episode.watched` `detail.offline.season` `detail.offline.seasonall` `detail.offline` `detail.playontv` `detail.rollagain` `detail.save` `detail.season.open` `detail.sources.fold` `detail.sources.more` `detail.sources.retry` `detail.synopsis.more` `detail.trailer.close` `detail.trailer.pick` | `detail.season.pick` `detail.season.watched` `detail.similar` `detail.source.pick` | `detail.download.cancel` `detail.episode.play` `detail.episode.replace` `detail.follow` `detail.mylist` `detail.play` `detail.replace` `detail.restart` `detail.source.download` `detail.source.play` `detail.sources` `detail.trailer` `detail.watched` `detail.xray` `detail.hh.dismiss` `detail.recommend` `detail.franchise` |
+| detail | `detail.download.device` `detail.episode.download` `detail.episode.offline` `detail.episode.playontv` `detail.episode.watched` `detail.offline.season` `detail.offline.seasonall` `detail.offline` `detail.offline.wish` `detail.episode.wish` `detail.playontv` `detail.rollagain` `detail.save` `detail.season.open` `detail.sources.fold` `detail.sources.more` `detail.sources.retry` `detail.synopsis.more` `detail.trailer.close` `detail.trailer.pick` | `detail.season.pick` `detail.season.watched` `detail.similar` `detail.source.pick` | `detail.download.cancel` `detail.episode.play` `detail.episode.replace` `detail.follow` `detail.mylist` `detail.play` `detail.replace` `detail.restart` `detail.source.download` `detail.source.play` `detail.sources` `detail.trailer` `detail.watched` `detail.xray` `detail.hh.dismiss` `detail.recommend` `detail.franchise` |
 | calendar | – | – | `calendar.day` `calendar.month` `calendar.next` `calendar.open` `calendar.play` `calendar.retry` `calendar.save` `calendar.tab` `calendar.today` `calendar.view` |
 | downloadpicker | `downloadpicker.confirm` | – | – |
-| downloads | `downloads.another` `downloads.cancel` `downloads.open` `downloads.play` `downloads.remove` `downloads.retry` | `downloads.row` | – |
+| downloads | `downloads.another` `downloads.cancel` `downloads.offline.save` `downloads.offline.wish` `downloads.open` `downloads.play` `downloads.remove` `downloads.retry` | `downloads.row` | – |
 | home | `home.hero.pick` | `home.hero.party` `home.switchprofile` | `home.hero.details` `home.hero.mute` `home.hero.play` `home.retry` `home.hh.all` |
 | mylist | – | `mylist.filter` | – |
 | nav | `nav.downloads` `nav.getapps` `nav.more` `nav.new` `nav.remote` `nav.saved` | – | `nav.ai` `nav.calendar` `nav.home` `nav.movies` `nav.mylist` `nav.profile` `nav.search` `nav.settings` `nav.shows` |
@@ -168,7 +168,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 404 ids: 226 on the website
 | replace | `replace.other.note` | `replace.cancel.ask` `replace.early` `replace.other.voice` | `replace.cancel` `replace.next` `replace.other` `replace.other.another` `replace.other.next` `replace.other.send` `replace.pick` `replace.reason` |
 | report | – | – | `report.send` |
 | row | `row.arrow` | – | – |
-| saved | `saved.play` `saved.remove` | – | – |
+| saved | `saved.play` `saved.remove` `saved.wish.cancel` `saved.wish.dismiss` | – | – |
 | search | `search.clear` | – | `search.recent.pick` `search.suggestion.pick` `search.voice` `search.voice.lang` `search.retry` |
 | settings | `settings.accent` `settings.done` `settings.link` `settings.look` `settings.rows.hide` `settings.theme` `settings.toggle` | `settings.audio.dialogue` `settings.audio.night` `settings.autoplay` `settings.av.fps` `settings.av.surround` `settings.downloads` `settings.genre` `settings.notices` `settings.party` `settings.ready` `settings.report` `settings.signout` `settings.taste` `settings.subs.auto` `settings.subs.bg` `settings.subs.color` `settings.subs.lang` `settings.subs.opacity` `settings.subs.pos` `settings.subs.size` `settings.subs.weight` `settings.trailers` `settings.tvname` `settings.tvname.pick` `settings.update` `settings.usagestats` `settings.whatsnew` `settings.hh.sent` `settings.hh.toggle` | `settings.hh.mute` |
 | taste | `taste.back` `taste.edit` `taste.key` `taste.swipe` `taste.unnope` | – | `taste.done` `taste.love` `taste.more` `taste.nope` `taste.skip` `taste.undo` |

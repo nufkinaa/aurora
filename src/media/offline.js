@@ -215,6 +215,20 @@ const roomFor = (bytes) => {
   } catch { return null; }
 };
 
+// What a repackaging costs, honestly (audit 2026-11-10): the picture is
+// copied in seconds, but a sound the device can't play (AC-3, DTS, E-AC-3 —
+// most films) is converted, at roughly 20× real time on a busy server: a
+// 2-hour film is minutes, not the "seconds" this used to promise.
+const AUDIO_SPEED = 20;
+const repackNote = (srcPath, duration) => {
+  const m = metadata.getCached(srcPath);
+  const a = m && (m.audioStreams || [])[0];
+  if (!a || DIRECT_AUDIO.has(a.codec) || !(duration > 0)) return "The picture untouched, repackaged in seconds.";
+  const secs = duration / AUDIO_SPEED;
+  const t = secs < 60 ? "under a minute" : `about ${Math.round(secs / 60)} min`;
+  return `The picture untouched; the sound is converted on the server first — ${t} for this one.`;
+};
+
 // The choices for one title, sizes included, for the client's sheet.
 const options = (id, caps = {}) => {
   const e = entryFor(id);
@@ -234,7 +248,7 @@ const options = (id, caps = {}) => {
       sizeBytes: srcSize,
       estimated: mode !== "direct",
       instant: true,
-      note: mode === "direct" ? "The file as it is — nothing to convert." : "The picture untouched, repackaged in seconds.",
+      note: mode === "direct" ? "The file as it is — nothing to convert." : repackNote(e.path, duration),
       ready: mode === "direct" || fs.existsSync(outFileFor(id, e.path, "original")),
     });
   }

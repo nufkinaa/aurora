@@ -26,7 +26,12 @@ import { api } from "./api.js";
 
 const DB = "aurora-offline";
 const MEDIA = "aurora-media";
-export const PART_BYTES = 16 * 1024 * 1024;
+// (the browser tests save their short films in many small parts:
+// localStorage "aurora-offline-part-bytes", 64 KB at the least)
+export const PART_BYTES = (() => {
+  try { const n = Number(localStorage.getItem("aurora-offline-part-bytes")); if (n >= 65536) return n; } catch {}
+  return 16 * 1024 * 1024;
+})();
 const PARTS_AT_ONCE = 3; // parts in flight for one save (a far server: several streams fill the line)
 const RETRY_FOR_MS = 15 * 60 * 1000; // a save keeps retrying a dead line this long before it pauses
 const partKey = (id, n) => `/offline/part/${id}/${n}`;

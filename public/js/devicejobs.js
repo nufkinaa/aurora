@@ -107,9 +107,13 @@ const wishStatus = (w) => {
 const wishRow = (w) => {
   const s = wishStatus(w);
   const actions = [];
-  const btn = (text, onclick, ui) => el("button", { class: "btn small focusable", "data-ui": ui, onclick }, text);
-  if (w.state === "failed") actions.push(btn("Dismiss", () => wishes.removeWish(w.id), "saved.wish.dismiss"));
-  else actions.push(btn("Cancel", () => { wishes.removeWish(w.id); toast(`“${wishName(w)}” won't be saved to this device`, "📱"); }, "saved.wish.cancel"));
+  if (w.state === "failed") actions.push(el("button", { class: "btn small focusable", "data-ui": "saved.wish.dismiss", onclick: () => wishes.removeWish(w.id) }, "Dismiss"));
+  else {
+    actions.push(el("button", { class: "btn small focusable", "data-ui": "saved.wish.cancel", onclick: () => {
+      wishes.removeWish(w.id);
+      toast(`“${wishName(w)}” won't be saved to this device`, "📱");
+    } }, "Cancel"));
+  }
   return el("div", { class: `dl-row device-job device-wish tone-${s.tone}`, "data-id": `wish:${w.id}`, "data-state": `wish-${w.scope === "season" ? "season" : w.state}` },
     el("div", { class: "dl-poster" }, w.poster ? el("img", { src: w.poster, alt: "" }) : el("div", { class: "card-fallback" }, wishName(w))),
     el("div", { class: "dl-info" },

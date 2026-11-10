@@ -36,6 +36,7 @@ module.exports = {
   "detail.download.device": "w",
   "detail.episode.download": "w",
   "detail.episode.offline": "w",
+  "detail.episode.wish": "w", // offline wish: an episode on its way, saved to this phone when it lands
   "detail.episode.play": "wtp",
   "detail.episode.replace": "wt",
   "detail.episode.playontv": "w", // [phone-remote]
@@ -47,6 +48,7 @@ module.exports = {
   "detail.offline": "w",
   "detail.offline.season": "w",
   "detail.offline.seasonall": "w",
+  "detail.offline.wish": "w", // offline wish: "This device too" beside a download on its way
   "detail.play": "wtp",
   "detail.replace": "wtp",
   "detail.playontv": "w", // [phone-remote]
@@ -76,6 +78,8 @@ module.exports = {
   // downloads
   "downloads.another": "w",
   "downloads.cancel": "w",
+  "downloads.offline.save": "w", // a ready download saved to this device
+  "downloads.offline.wish": "w", // a download on its way: "This device too"
   "downloads.open": "w",
   "downloads.play": "w",
   "downloads.remove": "w",
@@ -267,6 +271,8 @@ module.exports = {
   // saved
   "saved.play": "w",
   "saved.remove": "w",
+  "saved.wish.cancel": "w",
+  "saved.wish.dismiss": "w",
   // search
   "search.clear": "wp",
   "search.recent.pick": "wtp",

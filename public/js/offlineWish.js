@@ -89,6 +89,7 @@ export const removeWish = async (id) => {
 // out the choices: /api/offline/wish-options), then the wish. A standing
 // size preference skips the sheet. → the wish, or null when dismissed.
 export const askWish = async (target, label = "") => {
+  target = { ...target };
   const q = {
     type: target.type === "show" || target.type === "series" ? "show" : "movie",
     imdbId: target.imdbId || "",
@@ -100,11 +101,18 @@ export const askWish = async (target, label = "") => {
   let options = [];
   try { options = (await api.offlineWishOptions(q)).options || []; } catch {}
   if (!options.length) options = [{ quality: "720", label: "720p", detail: "", sizeBytes: 0, estimated: true }];
+  // an episode: "and every new episode of this season" — one wish for the season
+  const isEp = q.type === "show" && target.season != null && target.episode != null && target.scope !== "season";
+  const toggle = isEp ? { label: `And every new episode of season ${target.season}`, value: false } : null;
   const quality = await pickOfflineQuality(options, {
     title: label,
-    lead: `“${label}” isn't on the server yet. It will be saved inside Aurora on this device as soon as it arrives — by itself, the next time Aurora is open here.`,
+    lead: target.scope === "season"
+      ? `Every episode of season ${target.season} that arrives on the server is saved inside Aurora on this device — by itself, the next time Aurora is open here.`
+      : `“${label}” isn't on the server yet. It will be saved inside Aurora on this device as soon as it arrives — by itself, the next time Aurora is open here.`,
+    toggle,
   });
   if (!quality) return null;
+  if (toggle && toggle.value) target = { ...target, scope: "season", episode: undefined };
   const w = await addWish(target, quality);
   toast(target.scope === "season" ? `Every new episode of season ${target.season} will be saved to this device as it arrives` : `“${label}” will be saved to this device when it arrives`, "📱");
   return w;
@@ -186,4 +194,53 @@ export const onWishMessage = (msg) => {
   if (!mine(w)) return;
   upsert(w);
   if (w.state === "ready") syncWishes().catch(() => {});
+};
+
+// ---------- the button ----------
+// "📱 This device too" for a title on its way to the server; it follows this
+// device's wishes live ("📱 Will be saved here" — press again to stop).
+//   target: as addWish · label: the title's words · { ep: true } the small
+//   round button of a phone's episode card · `onLeave`: the screen's untilLeave
+export const wishButton = (target, label, { ep = false, onLeave = null } = {}) => {
+  if (!offline.available() || !target || !target.imdbId) return null;
+  const btn = document.createElement("button");
+  btn.setAttribute("data-ui", ep ? "detail.episode.wish" : "detail.offline.wish");
+  btn.className = ep ? "ep-action ep-offline focusable btn-offline ep-wish" : "btn focusable btn-offline detail-wish";
+  const paint = () => {
+    const w = wishFor(target);
+    const on = !!w && w.state !== "failed";
+    btn.classList.toggle("on", on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    const words = on ? (w.scope === "season" ? `Every new episode of season ${w.season} will be saved to this device` : "Will be saved to this device when it arrives") : "Save to this device too, as soon as it arrives";
+    btn.title = on ? `${words} — press to stop that` : words;
+    btn.setAttribute("aria-label", ep ? `${label}: ${words}` : words);
+    btn.innerHTML = "";
+    const icon = document.createElement("span");
+    icon.textContent = on ? "📲" : "📱";
+    btn.append(icon);
+    if (!ep) {
+      const t = document.createElement("span");
+      t.textContent = on ? "Will be saved to this device" : "This device too";
+      btn.append(t);
+    }
+  };
+  btn.onclick = async () => {
+    const w = wishFor(target);
+    btn.disabled = true;
+    try {
+      if (w && w.state !== "failed") {
+        await removeWish(w.id);
+        toast(`“${label}” won't be saved to this device`, "📱");
+      } else await askWish(target, label);
+    } catch (e) {
+      toast(`Couldn't: ${e.message}`, "⚠️");
+    } finally {
+      btn.disabled = false;
+      paint();
+    }
+  };
+  paint();
+  const off = onWishes(paint);
+  if (onLeave) onLeave(off);
+  return btn;
 };

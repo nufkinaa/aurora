@@ -51,6 +51,7 @@ import { pushScope, popScope } from "../focus.js";
 import { showDownloadPicker } from "../downloadPicker.js";
 import { askCancelDownload } from "../dlcancel.js";
 import { pickOfflineQuality } from "../offlinePicker.js";
+import { wishButton } from "../offlineWish.js"; // [offline-wish] "this device too" before the server has it
 import { onMessage } from "../ws.js";
 import { attachHold } from "../peek.js";
 import * as narrator from "../narrator.js";
@@ -642,7 +643,8 @@ const playStream = (stream, base, label, season, episode, alts = []) => {
 // miss, and this is the moment to set expectations (a few minutes; and on the
 // rare low-disk request, that an admin has to wave it through first).
 // Same modal pattern as profiles.js: ui-overlay class + focus scope + Back.
-const showDownloadRequested = (label, needsApproval, onStream = null) => {
+// [offline-wish] `wish`: the title, for "Also save it to this device" (offlineWish.js)
+const showDownloadRequested = (label, needsApproval, onStream = null, wish = null) => {
   const close = () => {
     document.removeEventListener("ui-back", onBack);
     popScope(backdrop);
@@ -692,6 +694,8 @@ const showDownloadRequested = (label, needsApproval, onStream = null) => {
             "Stream it meanwhile",
           ),
       ),
+      // [offline-wish] the moment to say "and onto this phone, please"
+      wish && offline.available() && el("div", { class: "dl-confirm-wish" }, wishButton(wish, label, { onLeave: untilLeave })),
     ),
   );
   document.body.append(backdrop);
@@ -740,7 +744,10 @@ const requestDownload = async (stream, base, label, season, episode, { onStream 
     // quiet: the episode card shows the state (and its percent as it comes),
     // so the "Downloading now!" modal would be a second announcement.
     if (quiet) toast(res.needsApproval ? "Requested — waiting for approval" : "Saving — the episode shows its progress", "⬇️");
-    else showDownloadRequested(label, !!res.needsApproval, onStream);
+    else showDownloadRequested(label, !!res.needsApproval, onStream, base.imdbId ? {
+      type, imdbId: base.imdbId, jobId: res.job && res.job.id, season: season || undefined, episode: episode || undefined,
+      title: label, showTitle: type === "show" ? base.title : undefined, poster: base.poster || undefined, duration: runtimeToSeconds(base.runtime),
+    } : null);
     return res;
   } catch (e) {
     // the server's own reason when it gave one ("the download engine isn't
@@ -1442,6 +1449,7 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
   let saveBtn = null;
   let cancelBtn = null;
   let cancelFor = null;
+  let wishBtn = null; // [offline-wish] "This device too" beside a download on its way
   let sourcesP = null; // set by the movie branch (loadSources' answer)
   const saveState = (job) => {
     if (!saveBtn) return;
@@ -1464,10 +1472,16 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
       cancelBtn = el("button", { "data-ui": "detail.download.cancel", class: "btn focusable detail-cancel-dl", onclick: () => cancelFor && askCancelDownload(cancelFor) }, "Cancel download");
       saveBtn.after(cancelBtn);
     } else if (!cancelFor && cancelBtn) { cancelBtn.remove(); cancelBtn = null; }
+    // [offline-wish] saved to this device too, by itself, once it lands (offlineWish.js)
+    if (!wishBtn && saveBtn.parentNode && imdbId) {
+      wishBtn = wishButton({ type: "movie", imdbId, jobId: job.id || undefined, title: view.title, poster: view.poster || undefined, duration: runtimeToSeconds(meta && meta.runtime) }, view.title, { onLeave: untilLeave });
+      if (wishBtn) (cancelBtn || saveBtn).after(wishBtn);
+    }
   };
   const saveReset = () => {
     cancelFor = null;
     if (cancelBtn) { cancelBtn.remove(); cancelBtn = null; }
+    if (wishBtn) { wishBtn.remove(); wishBtn = null; }
   };
   if (imdbId && !isShow && !lib && canSource) {
     saveBtn = el("button", { "data-ui": "detail.save",
@@ -2632,7 +2646,12 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
           { ...local, showId: lib && lib.id, showTitle: view.title, season: row.season, episode: row.episode, title: row.title || local.title, cover: local.cover || (lib && lib.cover) || view.cover },
           { ep: { label: `episode ${row.episode}` } })
         : null;
+      // [offline-wish] on its way to the server: saved to this phone by itself when it lands
+      const epWish = !epOffline && !local && job && imdbId && savesInsideApp()
+        ? wishButton({ type: "show", imdbId, jobId: job.id, season: row.season, episode: row.episode, title: row.title || `Episode ${row.episode}`, showTitle: view.title, poster: view.poster || undefined }, `${view.title} S${row.season} E${row.episode}`, { ep: true, onLeave: untilLeave })
+        : null;
       if (epOffline) extras.push(epOffline);
+      else if (epWish) extras.push(epWish);
       else if (local && local.downloadUrl) {
         extras.push(
           el("button", { "data-ui": "detail.episode.download",

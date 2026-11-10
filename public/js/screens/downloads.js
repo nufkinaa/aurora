@@ -17,6 +17,8 @@ import { state, downloads, myDownloads } from "../state.js";
 import { onMessage } from "../ws.js";
 import * as offline from "../offline.js";
 import { deviceJobsSection } from "../devicejobs.js";
+import * as wishes from "../offlineWish.js";
+import { pickOfflineQuality } from "../offlinePicker.js";
 import { askCancelDownload, downloadCountLine } from "../dlcancel.js";
 import { openReplaceSheet } from "../replaceCopy.js";
 
@@ -158,6 +160,76 @@ const retry = async (job, btn) => {
   }
 };
 
+// ---------- onto THIS device (offline.js, offlineWish.js) ----------
+// A download that is still on its way: "This device too" — saved here by
+// itself once it lands (a wish, docs/offline-wishes.md). One that is in:
+// "Save to this device" — the same save as the title page's.
+const wishTarget = (job) => ({
+  type: job.type === "show" ? "show" : "movie",
+  imdbId: job.imdbId || null,
+  jobId: job.id,
+  season: job.type === "show" ? job.season : undefined,
+  episode: job.type === "show" ? job.episode : undefined,
+  title: job.label || job.title,
+  showTitle: job.type === "show" ? job.title : undefined,
+  poster: job.poster || undefined,
+});
+const deviceButtons = (job) => {
+  if (!offline.available() || !job.mine) return [];
+  const live = ["pending", "approved", "downloading"].includes(job.status);
+  const ready = job.status === "done" && job.libraryId;
+  if (live && job.imdbId) {
+    const w = wishes.wishFor(wishTarget(job));
+    const on = !!w && w.state !== "failed";
+    return [el("button", { "data-ui": "downloads.offline.wish",
+      class: `btn focusable dl-wish${on ? " on" : ""}`,
+      "aria-pressed": on ? "true" : "false",
+      title: on ? "It will be saved inside Aurora on this device when it arrives — press to stop that" : "Save it inside Aurora on this device as soon as it arrives",
+      html: `<span>📱 ${on ? "Will be saved here" : "This device too"}</span>`,
+      onclick: async (e) => {
+        const b = e.currentTarget;
+        b.disabled = true;
+        try {
+          if (on) {
+            await wishes.removeWish(w.id);
+            toast(`“${job.label || job.title}” won't be saved to this device`, "📱");
+          } else await wishes.askWish(wishTarget(job), job.label || job.title);
+        } catch (err) {
+          toast(`Couldn't: ${err.message}`, "⚠️");
+        } finally { b.disabled = false; }
+      },
+    })];
+  }
+  if (ready) {
+    const b = el("button", { "data-ui": "downloads.offline.save",
+      class: "btn focusable dl-save-device",
+      title: "Keep a copy inside Aurora on this device, playable with no connection",
+      html: "<span>📱 Save to this device</span>",
+      onclick: async () => {
+        if (b.classList.contains("on")) return navigate("#/saved");
+        const j = offline.jobFor(job.libraryId);
+        if (j && offline.ACTIVE_JOB.has(j.state)) return navigate("#/saved");
+        b.disabled = true;
+        try {
+          const item = await api.item(job.libraryId);
+          const saved = await offline.saveItem(item, () => {}, (options) => pickOfflineQuality(options, { title: job.label || job.title }));
+          if (saved) toast(`“${job.label || job.title}” is saved on this device`, "📱", { label: "Open", onClick: () => navigate("#/saved") });
+        } catch (err) {
+          if (!(err && err.name === "AbortError")) toast(`Couldn't save: ${err.message}`, "⚠️");
+        } finally { b.disabled = false; }
+      },
+    });
+    offline.isSaved(job.libraryId).then((yes) => {
+      if (!yes) return;
+      b.classList.add("on");
+      b.innerHTML = "<span>📱 On this device ✓</span>";
+      b.title = "Saved inside Aurora on this device — open On this device";
+    }).catch(() => {});
+    return [b];
+  }
+  return [];
+};
+
 const row = (job, { others = false } = {}) => {
   const d = describe(job);
   const ready = job.status === "done" && job.libraryId;
@@ -188,6 +260,7 @@ const row = (job, { others = false } = {}) => {
         }),
       );
     }
+    actions.push(...deviceButtons(job));
     // Yours, and not landed yet: you can take it back (a mis-tap on a 60 GB pack
     // shouldn't be an admin's problem). It asks first, every time.
     if (job.mine && ["pending", "approved", "downloading"].includes(job.status)) {
@@ -297,7 +370,7 @@ const row = (job, { others = false } = {}) => {
 // it, and only rows whose state actually changed are rebuilt.
 const rowCache = new Map(); // id -> { sig, node }
 const rowSig = (j, others) =>
-  [j.status, j.phase || "", j.libraryId || "", !!j.seenAt, j.error || "", j.holdReason || "", j.label || j.title, others, busy.has(j.id), j.by || "", !!j.replaceWait, j.note || "", j.retryAt || ""].join("|");
+  [j.status, j.phase || "", j.libraryId || "", !!j.seenAt, j.error || "", j.holdReason || "", j.label || j.title, others, busy.has(j.id), j.by || "", !!j.replaceWait, j.note || "", j.retryAt || "", (() => { const w = j.imdbId && wishes.wishFor(wishTarget(j)); return w ? w.state : ""; })()].join("|");
 const rowFor = (j, others) => {
   const sig = rowSig(j, others);
   const hit = rowCache.get(j.id);
@@ -351,6 +424,8 @@ export const renderDownloads = async (root) => {
         el("p", { class: "dl-note" }, items.length
           ? `${items.length} title${items.length > 1 ? "s" : ""} saved here${total ? ` · ${fmtBytes(total)}` : ""} — they play with no server in reach.`
           : "Nothing saved here yet. You can also play a video from this computer or phone — nothing is uploaded."),
+        // plain http: the reason the Save-offline buttons are nowhere, where people look for them
+        !offline.available() && el("p", { class: "dl-note offline-insecure" }, "🔒 Saving titles inside Aurora to watch with no connection needs a secure address (https). On this address, a title's Download button gives you the file instead."),
         el("div", { class: "local-play-link" },
           el("button", { class: "btn small focusable", onclick: () => navigate("#/saved") }, "📱 Open On this device"))),
     );
@@ -436,6 +511,8 @@ export const renderDownloads = async (root) => {
     if (!screen.isConnected) return unsubRead();
     paint();
   });
+  // this device's wishes came or went: the "This device too" buttons follow
+  untilLeave(wishes.onWishes(() => { if (screen.isConnected) paint(); }));
   const unsubRemoved = onMessage("download_removed", ({ id }) => {
     if (!screen.isConnected) return unsubRemoved();
     rowCache.delete(id);

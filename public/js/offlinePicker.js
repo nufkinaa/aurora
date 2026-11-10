@@ -18,7 +18,9 @@ const lastPicked = () => {
 // A standing preference that this file can honour skips the sheet.
 // `lead`: the sheet's sentence, when the usual one does not fit (a title that
 // is not on the server yet — offlineWish.js).
-export const pickOfflineQuality = (options, { title = "", lead = "" } = {}) =>
+// `toggle`: { label, value } — one more choice as a chip (offlineWish.js: "and
+// every new episode of season N"); its `value` is set when pressed.
+export const pickOfflineQuality = (options, { title = "", lead = "", toggle = null } = {}) =>
   new Promise((resolve) => {
     const pref = preferredQuality();
     if (pref !== "ask" && options.some((o) => o.quality === pref)) return resolve(pref);
@@ -57,12 +59,22 @@ export const pickOfflineQuality = (options, { title = "", lead = "" } = {}) =>
         alwaysBtn.setAttribute("aria-pressed", always ? "true" : "false");
       },
     }, "Always use the size I pick");
+    const toggleBtn = toggle && el("button", {
+      class: "chip focusable offline-toggle",
+      "aria-pressed": "false",
+      onclick: () => {
+        toggle.value = !toggle.value;
+        toggleBtn.classList.toggle("on", toggle.value);
+        toggleBtn.setAttribute("aria-pressed", toggle.value ? "true" : "false");
+      },
+    }, toggle.label);
     const card = el("div", { class: "look-notice sheet offline-sheet", role: "dialog", "aria-modal": "true", "aria-label": "Save offline" },
       el("div", { class: "sheet-icon" }, "📱"),
       el("div", { class: "look-notice-title" }, "Save offline — which size?"),
       el("p", { class: "look-notice-text" }, lead || (title ? `“${title}” will be kept inside Aurora on this device and play with no server in reach.` : "It will be kept inside Aurora on this device and play with no server in reach.")),
       el("div", { class: "offline-opts" }, rows),
       el("div", { class: "look-notice-actions offline-sheet-actions" },
+        toggleBtn,
         alwaysBtn,
         el("button", { class: "btn focusable", onclick: () => finish(null) }, "Not now")));
     const wrap = el("div", { class: "look-notice-wrap ui-overlay", onclick: (e) => e.target === wrap && finish(null) }, card);
