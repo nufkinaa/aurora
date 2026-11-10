@@ -828,16 +828,41 @@ router.get("/api/profiles/:id/wrapped", gate, (req, res) => {
   const w = telemetry.wrappedFor(p.name);
   if (w.empty) return res.json({ empty: true });
 
-  // genres: match the watched titles against the library, weight by seconds
-  const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  const genreOf = new Map();
-  for (const item of scanner.allItems()) genreOf.set(norm(item.title), item.genres || []);
+  // genres: match the watched titles against the library, weight by seconds.
+  // A title no longer on disk (or played from elsewhere) falls back to what
+  // the metadata cache still knows about that name (media/online.js) — so a
+  // deleted favourite still counts towards its genres.
+  // (\p{L}: a Hebrew or accented title is letters, not punctuation — the old
+  // a-z0-9 rule folded every Hebrew title to "" and so to each other)
+  const norm = (s) => String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const online = require("../media/online");
+  const cached = (name) => online.get("show", name) || online.get("movie", name);
+  const libOf = new Map();
+  for (const item of scanner.allItems()) if (!libOf.has(norm(item.title))) libOf.set(norm(item.title), item);
   const genreSec = new Map();
   for (const t of w.titlesFull || []) {
-    for (const g of genreOf.get(norm(t.name)) || []) {
+    const item = libOf.get(norm(t.name));
+    const genres = (item && item.genres && item.genres.length ? item.genres : (cached(t.name) || {}).genres) || [];
+    for (const g of genres) {
       genreSec.set(g, (genreSec.get(g) || 0) + t.sec);
     }
   }
+  // The top five's pictures (the story deals them like cards): the library
+  // copy's cover and id, else the poster this profile played it with (a
+  // streamed title's kept play-item), else the cached metadata poster. None of
+  // these asks anything of the network; a title with none of them has none.
+  const streamed = new Map();
+  try {
+    for (const meta of Object.values(profiles.stateOf(req.params.id).streamItems || {})) {
+      if (meta && meta.title && meta.poster && !streamed.has(norm(meta.title))) streamed.set(norm(meta.title), meta.poster);
+    }
+  } catch {}
+  w.topTitles = (w.topTitles || []).map((t) => {
+    const item = libOf.get(norm(t.name));
+    const c = cached(t.name);
+    const poster = (item && item.cover) || streamed.get(norm(t.name)) || (c && c.poster ? `/img/meta/${c.poster}` : null);
+    return { ...t, ...(item ? { id: item.id } : {}), ...(poster ? { poster } : {}) };
+  });
   w.topGenres = [...genreSec.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
     .map(([name, sec]) => ({ name, sec }));
   delete w.titlesFull;

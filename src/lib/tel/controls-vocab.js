@@ -368,6 +368,13 @@ module.exports = {
   // whatsnew
   "whatsnew.go": "wt",
   "whatsnew.log": "t",
+  // wrapped (Aurora Wrapped, #/wrapped: public/js/screens/wrapped.js)
+  "wrapped.all": "w", // the story's finale: All the numbers
+  "wrapped.browse": "w", // Back to browsing / Find something to watch
+  "wrapped.replay": "w",
+  "wrapped.retry": "w",
+  "wrapped.share": "w", // Share / Save the picture (the summary card)
+  "wrapped.story": "w", // the page's Play the story
   // xray
   "xray.more": "w",
   // phone — the Android phone app's own controls (tv-native/src/phone)

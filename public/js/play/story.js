@@ -34,11 +34,14 @@
 // Moving: tap the right two thirds / swipe left / Right arrow / the > button
 // for next; tap the left third / swipe right / Left arrow for back; press
 // and hold anywhere to pause (let go to carry on); Space or K pauses too;
-// Home goes to the first chapter, End to the summary, Esc leaves. Controls
+// Home goes to the first chapter, End to the summary, Esc / Back leaves
+// (the arrows and Back arrive through the app's key hub, focus.js: a TV
+// remote works the same; the frame is a .ui-overlay with its own focus scope). Controls
 // inside a chapter (buttons, links, [data-no-tap]) keep their own presses.
 // The frame's own buttons are tagged story.* for the usage stats (the screen
 // they were pressed on says which story).
 import { el } from "../ui.js";
+import { pushScope, popScope } from "../focus.js";
 import { reduced } from "./motion.js";
 import { pressable } from "./press.js";
 
@@ -73,13 +76,15 @@ export const createStory = ({ host, label = "Story", chapters, start = 0, still 
   const segs = chapters.map((c) => el("div", { class: "play-seg" }, el("i", { class: "play-seg-fill" })));
   const live = el("div", { class: "play-sr", "aria-live": "polite", role: "status" });
   const stage = el("div", { class: "play-story-stage" });
-  const pauseBtn = el("button", { class: "play-icon-btn play-press", type: "button", "aria-label": "Pause", "data-ui": "story.pause", html: ICON.pause });
-  const skipBtn = el("button", { class: "play-chip play-chip--ghost play-press", type: "button", "data-ui": "story.skip" }, skipLabel);
-  const closeBtn = el("button", { class: "play-icon-btn play-press", type: "button", "aria-label": "Close", "data-ui": "story.close", html: ICON.close });
+  const pauseBtn = el("button", { class: "play-icon-btn play-press focusable", type: "button", "aria-label": "Pause", "data-ui": "story.pause", html: ICON.pause });
+  // (a phone has room for "Skip" only: the long words stay its name)
+  const skipBtn = el("button", { class: "play-chip play-chip--ghost play-press focusable play-skip", type: "button", "data-ui": "story.skip", "aria-label": skipLabel },
+    el("span", { class: "play-skip-long", "aria-hidden": "true" }, skipLabel), el("span", { class: "play-skip-short", "aria-hidden": "true" }, "Skip"));
+  const closeBtn = el("button", { class: "play-icon-btn play-press focusable", type: "button", "aria-label": "Close", "data-ui": "story.close", html: ICON.close });
   const prevBtn = el("button", { class: "play-story-nav play-story-nav--prev", type: "button", "aria-label": "Previous", "data-ui": "story.prev", html: ICON.prev });
   const nextBtn = el("button", { class: "play-story-nav play-story-nav--next", type: "button", "aria-label": "Next", "data-ui": "story.next", html: ICON.next });
   const root = el("div", {
-    class: `play-story play-surface${still ? " is-still" : ""}`,
+    class: `play-story play-surface ui-overlay${still ? " is-still" : ""}`,
     role: "dialog", "aria-modal": "true", "aria-label": label, tabindex: "-1",
   },
     el("div", { class: "play-story-chrome" },
@@ -232,26 +237,41 @@ export const createStory = ({ host, label = "Story", chapters, start = 0, still 
   skipBtn.addEventListener("click", () => onSkip && onSkip());
   closeBtn.addEventListener("click", () => onExit && onExit());
 
+  // The app's key hub (focus.js) turns the arrows into "nav-move" and Esc /
+  // Back / Backspace into "ui-back": the story takes left/right and Back
+  // (up/down still move the focus among its buttons — its own focus scope).
+  const onMoveKey = (e) => {
+    const dir = e.detail;
+    if (dir !== "left" && dir !== "right") return;
+    e.preventDefault();
+    if (dir === "right") next();
+    else prev();
+  };
+  const onBack = (e) => {
+    e.preventDefault();
+    if (onExit) onExit();
+  };
   const onKey = (e) => {
     if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
     const k = e.key;
-    if (k === "ArrowRight" || k === "PageDown") { e.preventDefault(); next(); }
-    else if (k === "ArrowLeft" || k === "PageUp") { e.preventDefault(); prev(); }
+    if (k === "PageDown") { e.preventDefault(); next(); }
+    else if (k === "PageUp") { e.preventDefault(); prev(); }
     else if ((k === " " || k === "k" || k === "K") && !interactive(document.activeElement) && !still) { e.preventDefault(); userPaused = !userPaused; setRunning(); }
-    else if (k === "Escape" || k === "Backspace" || k === "GoBack" || k === "BrowserBack") { e.preventDefault(); onExit && onExit(); }
     else if (k === "Home") { e.preventDefault(); go(0, -1); }
-    else if (k === "End") { e.preventDefault(); onSkip ? onSkip() : go(chapters.length - 1, 1); }
+    else if (k === "End") { e.preventDefault(); if (onSkip) onSkip(); else go(chapters.length - 1, 1); }
     else if (k === "Tab") {
       // keep the keyboard inside the story (it covers the page)
-      const f = [...root.querySelectorAll("button:not([disabled]), a[href], [tabindex='0']")].filter((n) => n.offsetParent !== null || n === document.activeElement);
+      const f = [...root.querySelectorAll("button:not([disabled]), a[href], [tabindex='0']")].filter((n) => n.getClientRects().length);
       if (!f.length) return;
       const i = f.indexOf(document.activeElement);
-      if (e.shiftKey && (i <= 0)) { e.preventDefault(); f[f.length - 1].focus(); }
+      if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
       else if (!e.shiftKey && (i === -1 || i === f.length - 1)) { e.preventDefault(); f[0].focus(); }
     }
   };
   const onVis = () => { hiddenPause = document.hidden; setRunning(); };
   document.addEventListener("keydown", onKey);
+  document.addEventListener("nav-move", onMoveKey);
+  document.addEventListener("ui-back", onBack);
   document.addEventListener("visibilitychange", onVis);
   document.documentElement.classList.add("play-story-open");
 
@@ -260,8 +280,11 @@ export const createStory = ({ host, label = "Story", chapters, start = 0, still 
     leaveCurrent(1);
     destroyed = true;
     document.removeEventListener("keydown", onKey);
+    document.removeEventListener("nav-move", onMoveKey);
+    document.removeEventListener("ui-back", onBack);
     document.removeEventListener("visibilitychange", onVis);
     document.documentElement.classList.remove("play-story-open");
+    popScope(root);
     root.remove();
   };
 
@@ -273,6 +296,7 @@ export const createStory = ({ host, label = "Story", chapters, start = 0, still 
     get paused() { return paused(); },
   };
   host.append(root);
+  pushScope(root); // (the D-pad stays inside; this focuses the first button)
   try { root.focus({ preventScroll: true }); } catch {}
   go(Math.max(0, Math.min(start, chapters.length - 1)), 1);
   return handle;

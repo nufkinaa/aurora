@@ -11,6 +11,10 @@
 //   stagger(nodes, step, base)  each node's --d (ms) for the CSS entrances:
 //                             [data-in] children rise in that order
 //   wait(ms, signal)          a timer as a promise, dropped with the signal
+//   cssVars({ "--d": 120, left: "4%" })  -> "--d:120;left:4%" — a style
+//                             STRING: ui.js el() takes a style object with
+//                             Object.assign, which silently drops custom
+//                             properties, so pass vars as this string
 //
 // The rules the kit keeps (elia's brief, 2026-11-10): motion moves transform
 // and opacity only; nothing runs while its screen is not showing; under
@@ -84,3 +88,5 @@ export const wait = (ms, signal) =>
     const t = setTimeout(resolve, ms);
     if (signal) signal.addEventListener("abort", () => { clearTimeout(t); reject(signal.reason || new Error("aborted")); }, { once: true });
   });
+
+export const cssVars = (o) => Object.entries(o).map(([k, v]) => `${k.startsWith("--") ? k : k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase())}:${v}`).join(";");

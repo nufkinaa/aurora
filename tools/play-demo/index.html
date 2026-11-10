@@ -109,8 +109,8 @@
       const chapter = (id, title, line) => ({ id, label: title, ms: 4500, build: (stage) => {
         stage.append(el("div", { style: { textAlign: "center", display: "grid", gap: "14px", justifyItems: "center" } },
           el("span", { class: "play-eyebrow", "data-in": "" }, id),
-          el("h2", { class: "play-h1", "data-in": "", style: { "--d": "120" } }, title),
-          el("p", { class: "play-lede", "data-in": "", style: { "--d": "260" } }, line)));
+          el("h2", { class: "play-h1", "data-in": "", style: "--d:120" }, title),
+          el("p", { class: "play-lede", "data-in": "", style: "--d:260" }, line)));
       } });
       let s;
       s = createStory({ host, label: "Demo", top: el("span", { class: "play-chip" }, "Demo story"),

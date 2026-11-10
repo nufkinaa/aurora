@@ -40,7 +40,9 @@ const ROUTES = (lib) => ({
   // none in reach the page must say so and leave, not hang or throw.
   "/discover/:type/:id": { hash: "#/discover/movie/tt0000001", lands: null, toast: "Couldn't load that title" },
   "/preferences": { hash: "#/preferences", text: "Settings" },
-  "/wrapped": { hash: "#/wrapped", text: "Aurora Wrapped" },
+  // (the page, or the teaser for a year with nothing in it; its words are
+  // the eyebrow's, upper case on screen)
+  "/wrapped": { hash: "#/wrapped", selector: ".screen.wr .wr-page", text: "AURORA WRAPPED" },
   "/taste": { hash: "#/taste", text: "What's your taste?" },
   "/taste/list": { hash: "#/taste/list", text: "What do you love?" },
   "/pick": { hash: "#/pick" },

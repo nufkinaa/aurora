@@ -535,6 +535,16 @@ const analytics = (days = 14) => {
 // Honesty note baked into the payload: the session store is a ring buffer of
 // MAX_SESSIONS, so `since` is the oldest surviving session — the UI says
 // "since <date>", never "this year".
+// What the story draws (2026-11-10, all additive — older apps read none of it):
+//   byWeekday  seconds per weekday, Sunday first (the week as seven columns)
+//   byHour     seconds per hour the sittings STARTED in, 0–23 (the day as a dial)
+//   nights     every day with any watching, oldest first, as [days after
+//              nightsFrom, minutes] — the sky of stars (at most WRAP_NIGHTS,
+//              the most recent)
+//   streak     the best streak's span { from, to } (the latest one when two
+//              are as long) — those stars are joined into a constellation
+//   topTitles[].show  true when it was an episode of a show
+const WRAP_NIGHTS = 400;
 const wrappedFor = (profileName) => {
   const mine = sessions.data.filter((s) => s.profile === profileName && s.watchedSec > 0);
   if (!mine.length) return { empty: true };
@@ -543,6 +553,8 @@ const wrappedFor = (profileName) => {
   const byDay = new Map();
   const byTitle = new Map();
   const byWeekday = Array(7).fill(0);
+  const byHour = Array(24).fill(0);
+  const shows = new Set();
   const byDevice = new Map();
   let totalSec = 0;
   let lateNightSessions = 0; // starting between midnight and 5am
@@ -558,9 +570,11 @@ const wrappedFor = (profileName) => {
     byDay.set(dayKey(s.startedAt), (byDay.get(dayKey(s.startedAt)) || 0) + s.watchedSec);
     // shows log as "Title · S1 E2" — fold episodes into their show
     const title = String(s.content || "").replace(/\s*·\s*S\d+\s*E\d+.*$/i, "").trim() || "?";
+    if (title !== String(s.content || "").trim()) shows.add(title);
     byTitle.set(title, (byTitle.get(title) || 0) + s.watchedSec);
     const started = new Date(s.startedAt);
     byWeekday[started.getDay()] += s.watchedSec;
+    byHour[started.getHours()] += s.watchedSec;
     const dev = (s.device && s.device.device) || "?";
     byDevice.set(dev, (byDevice.get(dev) || 0) + s.watchedSec);
     if (started.getHours() < 5) lateNightSessions++;
@@ -576,18 +590,24 @@ const wrappedFor = (profileName) => {
 
   // longest run of consecutive days with ANY watching
   const days = [...byDay.keys()].sort();
+  // (the gap in whole days: a span over a clock change is 23 or 25 hours)
+  const gapOf = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000);
   let streak = 1;
   let bestStreak = days.length ? 1 : 0;
+  let bestEnd = 0; // index of the best streak's last day (the latest of equals)
   for (let i = 1; i < days.length; i++) {
-    const gap = (new Date(days[i]) - new Date(days[i - 1])) / 86400000;
-    streak = gap === 1 ? streak + 1 : 1;
-    if (streak > bestStreak) bestStreak = streak;
+    streak = gapOf(days[i - 1], days[i]) === 1 ? streak + 1 : 1;
+    if (streak >= bestStreak) { bestStreak = streak; bestEnd = i; }
   }
+  const recent = days.slice(-WRAP_NIGHTS);
+  const nightsFrom = recent[0];
+  const nights = recent.map((d) => [gapOf(nightsFrom, d), Math.round(byDay.get(d) / 60)]);
   let biggestDay = null;
   for (const [day, sec] of byDay) if (!biggestDay || sec > biggestDay.sec) biggestDay = { day, sec };
 
   const top = (m, n) => [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n)
     .map(([name, sec]) => ({ name, sec }));
+  const topTitles = top(byTitle, 5).map((t) => (shows.has(t.name) ? { ...t, show: true } : t));
 
   return {
     since: oldest,
@@ -595,7 +615,7 @@ const wrappedFor = (profileName) => {
     totalSec,
     plays: mine.length,
     distinctTitles: byTitle.size,
-    topTitles: top(byTitle, 5),
+    topTitles,
     titlesFull: top(byTitle, 500), // for route-side genre attribution; stripped from the response
     topWeekday: byWeekday.indexOf(Math.max(...byWeekday)),
     byDevice: top(byDevice, 3),
@@ -605,6 +625,11 @@ const wrappedFor = (profileName) => {
     latestFinish: latestFinishHour,
     longestSession: longest,
     activeDays: byDay.size,
+    byWeekday,
+    byHour,
+    nightsFrom,
+    nights,
+    streak: days.length ? { from: days[bestEnd - bestStreak + 1], to: days[bestEnd] } : null,
   };
 };
 
