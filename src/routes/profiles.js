@@ -852,7 +852,24 @@ router.get("/api/profiles/:id/wrapped", gate, (req, res) => {
   }
   w.started = started;
   w.finished = finished;
+  // ready roast cards, different takes per visit (src/lib/remarks/roasts.js)
+  try { w.roasts = remarksLib().roastsFor({ id: p.id, name: p.name, kids: !!profiles.kidsOf(p.id) }, w); } catch {}
   res.json(w);
+});
+
+// Home's remark (src/lib/remarks): one line in Aurora's voice, picked for this
+// person on this visit and held for ten minutes. The app sends its own clock
+// (?tzo= getTimezoneOffset minutes, ?tz= IANA zone — for which days are the
+// weekend) and the ids it was shown lately (?seen=a-1,b-2), nothing else.
+//   GET → { id, text, kind } (204 when there is nothing to say)
+router.get("/api/profiles/:id/remark", gate, (req, res) => {
+  const p = profiles.list().find((x) => x.id === req.params.id);
+  const tzo = req.query.tzo == null || req.query.tzo === "" ? undefined : Number(req.query.tzo);
+  const tz = /^[A-Za-z_]+(?:\/[A-Za-z0-9_+-]+){0,2}$/.test(String(req.query.tz || "")) ? String(req.query.tz) : "";
+  const r = remarksLib().remarkFor({ id: p.id, name: p.name, kids: !!profiles.kidsOf(p.id) }, { tzo, tz, seen: req.query.seen });
+  res.set("Cache-Control", "no-store");
+  if (!r) return res.status(204).end();
+  res.json(r);
 });
 
 // ---------- follow a show, push notifications, sign out everywhere (2026-10-07) ----------
@@ -879,6 +896,7 @@ router.post("/api/profiles/:id/follow", gate, (req, res) => {
 //   POST /calendar/save { imdbId, type, season?, episode? } → Save & watch for
 //        one entry (the title page's own pick and request); never by itself.
 const calendarLib = lazy(require, "../media/calendar");
+const remarksLib = lazy(require, "../lib/remarks");
 router.get("/api/profiles/:id/calendar", gate, (req, res) => {
   const cal = calendarLib();
   const locale = typeof req.query.locale === "string" ? req.query.locale.slice(0, 35) : null;
