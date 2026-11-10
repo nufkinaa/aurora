@@ -197,7 +197,7 @@ test("a file's tile: one link that downloads it by name, its facts, and the smal
   const html = ip.tileHtml(sample());
   assert.match(html, /^<li class="dl" data-id="tv" data-family="tv" data-for="tv">/);
   assert.match(html, /<a class="dl-hit" href="\/download\/tv\/latest" download="Aurora-TV-5\.8\.1\.apk"[^>]*aria-label="Download Aurora for Android TV, version 5\.8\.1, 45 MB">/);
-  assert.match(html, /<span class="dl-meta">5\.8\.1 · 45 MB <time datetime="2026-10-29">October 29, 2026<\/time><\/span>/);
+  assert.match(html, /<span class="dl-meta">5\.8\.1 · 45\u00a0MB <time datetime="2026-10-29">October 29, 2026<\/time><\/span>/);
   assert.match(html, /<a href="#tv">.*How to install.*<\/a>/);
   assert.match(html, /<a href="#new" data-notes="tab-tv">/);
   assert.match(html, /<details class="dl-verify"><summary>Verify<\/summary>.*<code id="sha-tv">(ab){32}<\/code>/);
