@@ -4428,6 +4428,17 @@ html[data-look="glass"] .player .menu,
 .player-error h3 { margin: 8px 0 6px; font-size: 1.15rem; }
 .player-error p { margin: 0 0 16px; color: var(--text-dim); font-size: 0.92rem; line-height: 1.45; }
 .player-error-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+/* in the middle of the picture ABOVE the dock (--dock-h, set by player.js),
+   not of the whole screen: on a phone the card sat on the dock's top row */
+.player > .player-error { top: calc((100% - var(--dock-h, 0px)) / 2); }
+/* a phone on its side: a slimmer card — at 390px tall it covered the dock
+   and the title together */
+@media (max-height: 500px) {
+  .player-error { padding: 14px 18px 14px; }
+  .player-error-glyph { display: none; }
+  .player-error h3 { margin-top: 0; }
+  .player-error p { margin-bottom: 12px; }
+}
 
 /* ---- a page on its way (2026-10-07) ---- */
 .route-skel { padding: calc(var(--nav-h, 64px) + 28px) var(--page-x) 40px; }
