@@ -621,6 +621,37 @@
   letter-spacing: 0.04em;
 }
 
+/* A strip that scrolls sideways fades on the side that has more (js/edgefade.js
+   sets .more-start / .more-end from what is wholly in view). A mask: nothing
+   is redrawn as it scrolls. Mirrored on a right-to-left page. */
+.fade-strip.more-end {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
+  mask-image: linear-gradient(to right, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
+}
+.fade-strip.more-start {
+  -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.12), #000 48px);
+  mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.12), #000 48px);
+}
+.fade-strip.more-start.more-end {
+  -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.12), #000 48px, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
+  mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.12), #000 48px, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
+}
+[dir="rtl"] .fade-strip.more-end,
+.fade-strip[dir="rtl"].more-end {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
+  mask-image: linear-gradient(to left, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
+}
+[dir="rtl"] .fade-strip.more-start,
+.fade-strip[dir="rtl"].more-start {
+  -webkit-mask-image: linear-gradient(to left, rgba(0, 0, 0, 0.12), #000 48px);
+  mask-image: linear-gradient(to left, rgba(0, 0, 0, 0.12), #000 48px);
+}
+[dir="rtl"] .fade-strip.more-start.more-end,
+.fade-strip[dir="rtl"].more-start.more-end {
+  -webkit-mask-image: linear-gradient(to left, rgba(0, 0, 0, 0.12), #000 48px, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
+  mask-image: linear-gradient(to left, rgba(0, 0, 0, 0.12), #000 48px, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
+}
+
 /* ---------- Rows (horizontal shelves) ---------- */
 .row {
   margin-top: 22px;

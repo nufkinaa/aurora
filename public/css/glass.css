@@ -2919,8 +2919,8 @@ html[data-look="glass"] .pbtn.big svg {
      (the band of widths keeps a tile 67–88 px wide), the strip's first tile
      starts at page-x − 8px and each one is followed by the 2px gap. A strip
      that holds fewer tiles than that simply ends — nothing is cut.
-     And the side that has more fades (details.js sets .more-start /
-     .more-end from what is in view; a mask, nothing redrawn as it scrolls). */
+     And the side that has more fades (js/edgefade.js, .fade-strip in
+     components.css). */
   html:root .detail-hero .detail-actions-more {
     --act-k: 4.5;
   }
@@ -2931,34 +2931,6 @@ html[data-look="glass"] .pbtn.big svg {
   html:root .detail-hero .detail-actions-more .btn {
     flex-basis: calc((100vw - var(--page-x) + 8px) / var(--act-k) - 2px);
     width: calc((100vw - var(--page-x) + 8px) / var(--act-k) - 2px);
-  }
-  html:root .detail-hero .detail-actions-more.more-end {
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
-    mask-image: linear-gradient(to right, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
-  }
-  html:root .detail-hero .detail-actions-more.more-start {
-    -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.12), #000 48px);
-    mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.12), #000 48px);
-  }
-  html:root .detail-hero .detail-actions-more.more-start.more-end {
-    -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.12), #000 48px, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
-    mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.12), #000 48px, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
-  }
-  /* a right-to-left page: its start is on the right */
-  html:root [dir="rtl"] .detail-hero .detail-actions-more.more-end,
-  html:root .detail-hero[dir="rtl"] .detail-actions-more.more-end {
-    -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
-    mask-image: linear-gradient(to left, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
-  }
-  html:root [dir="rtl"] .detail-hero .detail-actions-more.more-start,
-  html:root .detail-hero[dir="rtl"] .detail-actions-more.more-start {
-    -webkit-mask-image: linear-gradient(to left, rgba(0, 0, 0, 0.12), #000 48px);
-    mask-image: linear-gradient(to left, rgba(0, 0, 0, 0.12), #000 48px);
-  }
-  html:root [dir="rtl"] .detail-hero .detail-actions-more.more-start.more-end,
-  html:root .detail-hero[dir="rtl"] .detail-actions-more.more-start.more-end {
-    -webkit-mask-image: linear-gradient(to left, rgba(0, 0, 0, 0.12), #000 48px, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
-    mask-image: linear-gradient(to left, rgba(0, 0, 0, 0.12), #000 48px, #000 calc(100% - 64px), rgba(0, 0, 0, 0.12));
   }
   /* a film on disk has its other versions one row down — no button for it */
   .screen.has-sources-fold .detail-actions-more .btn-sources {
