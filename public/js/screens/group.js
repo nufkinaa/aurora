@@ -88,10 +88,15 @@ const seat = (m, { phase, deck = [] }, { fresh = false, i = 0, ribbon = false, h
   // the ribbon glides from where it stood at the last paint (`had`: profile -> { part, done })
   const was = had && had.get(m.profileId);
   const fill = el("i", { style: `--p:${(was && voting ? was.part : part).toFixed(3)}` });
-  if (voting && was && was.part !== part) requestAnimationFrame(() => requestAnimationFrame(() => fill.style.setProperty("--p", part.toFixed(3))));
+  // (it glides to where the person stands by then — a newer answer may have come in)
+  if (voting && was && was.part !== part) requestAnimationFrame(() => requestAnimationFrame(() => {
+    const now = had.get(m.profileId);
+    fill.style.setProperty("--p", (now ? now.part : part).toFixed(3));
+  }));
   const justDone = voting && m.done && !!was && !was.done;
   if (voting && had) had.set(m.profileId, { part, done: !!m.done });
-  return el("div", { class: `gp-person pg-seat${m.away ? " away" : ""}${m.done ? " done" : ""}${fresh ? " is-new" : ""}`, style: `--i:${i}` },
+  const count = voting && !m.done ? el("span", { class: "gp-badge dim" }, `${m.answered}/${deck.length}`) : null;
+  const node = el("div", { class: `gp-person pg-seat${m.away ? " away" : ""}${m.done ? " done" : ""}${fresh ? " is-new" : ""}`, style: `--i:${i}` },
     el("span", { class: "pg-seat-face" },
       avatarOf(m),
       m.host ? el("span", { class: "pg-seat-star", "aria-hidden": "true" }, star()) : "",
@@ -102,9 +107,21 @@ const seat = (m, { phase, deck = [] }, { fresh = false, i = 0, ribbon = false, h
       m.host && el("span", { class: "gp-badge" }, W.hostBadge),
       m.role === "screen" && el("span", { class: "gp-badge" }, W.screenBadge),
       m.away && el("span", { class: "gp-badge dim" }, W.awayBadge),
-      voting && (m.done
-        ? el("span", { class: "gp-badge ok" }, W.doneBadge)
-        : el("span", { class: "gp-badge dim" }, `${m.answered}/${deck.length}`))));
+      voting && (m.done ? el("span", { class: "gp-badge ok" }, W.doneBadge) : count)));
+  if (voting) { node._fill = fill; node._count = count; }
+  return node;
+};
+// words that have not changed are left alone (the page is not measured again for them)
+const setText = (n, t) => { if (n && n.textContent !== t) n.textContent = t; };
+// One more answer from a seat that is already on the page: its ribbon moves
+// on and its count changes — nothing is built again.
+const moveSeat = (node, m, { deck = [] }, had) => {
+  if (!node || !node._fill) return;
+  const part = m.done ? 1 : deck.length ? Math.max(0, Math.min(1, (m.answered || 0) / deck.length)) : 0;
+  const was = had && had.get(m.profileId);
+  if (had) had.set(m.profileId, { part, done: !!m.done });
+  if (!was || was.part !== part) node._fill.style.setProperty("--p", part.toFixed(3));
+  setText(node._count, `${m.answered}/${deck.length}`);
 };
 // the tally of a pick as stars: gold for a yes, an outline for a maybe, a dot for the rest
 const tallyRow = (pick) => {
@@ -265,7 +282,13 @@ export const renderGroup = async (root, params = {}) => {
   // stylesheet's (#app's bottom padding). The swipe stage and the show stand
   // clear of the bar by that much; no height of the bar is written here.
   const app = document.getElementById("app");
+  // (the window's size is read here and when it changes — never between two
+  // changes to the page, where asking for it makes the page measure itself)
+  let vw = window.innerWidth;
+  let vh = window.innerHeight;
   const fit = () => {
+    vw = window.innerWidth;
+    vh = window.innerHeight;
     const pad = app ? parseFloat(getComputedStyle(app).paddingBottom) || 0 : 0;
     screen.style.setProperty("--pg-reserve", `${pad}px`);
   };
@@ -273,7 +296,7 @@ export const renderGroup = async (root, params = {}) => {
   window.addEventListener("resize", fit);
   untilLeave(() => window.removeEventListener("resize", fit));
   // (a very wide screen draws the cards big: their pictures are asked for sharper)
-  const wide = () => window.innerWidth >= 1800 && window.innerHeight >= 1000;
+  const wide = () => vw >= 1800 && vh >= 1000;
   let options = null;
   try { options = await api.group.options(pid); } catch {
     body.append(el("div", { class: "empty" }, "Couldn't reach Aurora — try again in a moment."));
@@ -410,7 +433,8 @@ export const renderGroup = async (root, params = {}) => {
     // the time left: its words, and the ribbon that drains (rose for the last 20 seconds)
     const paintTime = (within = screen) => {
       const since = Date.now() - follow.receivedAt();
-      for (const n of within.querySelectorAll(".gp-time")) n.textContent = G.timeLeft(s, since);
+      const words = G.timeLeft(s, since);
+      for (const n of within.querySelectorAll(".gp-time")) setText(n, words);
       for (const n of within.querySelectorAll(".gp-timebar-fill")) {
         const total = (s.limitSec || 180) * 1000;
         const left = G.secondsLeft(s, since) * 1000;
@@ -599,19 +623,41 @@ export const renderGroup = async (root, params = {}) => {
 
       waiting: () => {
         const node = el("div", { class: `gp-waiting${isScreen() ? " screen" : ""}` });
+        // Every answer in the room arrives here. An answer changes a line of
+        // words, one ribbon and one count, so only those are touched; the view
+        // is built again only when who is here (or who is done) changes.
+        let shape = "";
+        let title = null;
+        let progress = null;
+        const seats = new Map(); // profile -> its seat on the page
         return {
           step: "waiting", node,
           update: (x) => {
-            const focusKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : null;
             const host = isHost();
+            const voters = G.peopleOf(x).filter((m) => m.role === "voter");
+            const now = JSON.stringify([isScreen(), host, !!(x.you && x.you.role === "voter"), x.phase, (x.deck || []).length,
+              voters.map((m) => [m.profileId, m.name, m.avatar, m.avatarImage, !!m.host, !!m.away, !!m.done])]);
+            if (now === shape && node.firstChild) {
+              setText(title, isScreen() ? G.progressLine(x) || W.waiting : W.doneWaiting);
+              setText(progress, G.progressLine(x));
+              for (const m of voters) moveSeat(seats.get(m.profileId), m, x, farAlong);
+              paintTime(node);
+              return;
+            }
+            shape = now;
+            const focusKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : null;
+            title = el("h1", { class: "gp-wait-title play-h2" }, isScreen() ? G.progressLine(x) || W.waiting : W.doneWaiting);
+            progress = !isScreen() ? el("div", { class: "gp-progress" }, G.progressLine(x)) : null;
+            seats.clear();
+            for (const m of voters) seats.set(m.profileId, seat(m, x, { ribbon: true, had: farAlong }));
             node.replaceChildren(
               el("div", { class: "gp-kicker play-eyebrow" }, star(), W.feature),
-              el("h1", { class: "gp-wait-title play-h2" }, isScreen() ? G.progressLine(x) || W.waiting : W.doneWaiting),
+              title,
               el("div", { class: "gp-timebar", "aria-hidden": "true" }, el("span", { class: "gp-timebar-fill" })),
               el("div", { class: "gp-time", "aria-live": "off" }, G.timeLeft(x, Date.now() - follow.receivedAt())),
-              !isScreen() ? el("div", { class: "gp-progress" }, G.progressLine(x)) : "",
+              progress || "",
               // the room's votes coming in: every seat with its own ribbon
-              el("div", { class: "gp-people big pg-seats" }, ...G.peopleOf(x).filter((m) => m.role === "voter").map((m) => seat(m, x, { ribbon: true, had: farAlong }))),
+              el("div", { class: "gp-people big pg-seats" }, ...voters.map((m) => seats.get(m.profileId))),
               host && el("div", { class: "gp-actions" },
                 fk(btn({ "data-ui": "group.extend", class: KEY }, W.oneMore, () => act("extend")), "extend"),
                 fk(btn({ "data-ui": "group.finish", class: KEY_GO, "data-autofocus": "" }, W.showNow, () => act("finish")), "finish")),
@@ -827,8 +873,14 @@ export const renderGroup = async (root, params = {}) => {
       const answers = el("div", { class: "ts-answers gp-answers" }, answerBtn("no"), answerBtn("maybe"), answerBtn("yes"));
       const hint = el("p", { class: "ts-hint" }, "← No · → Yes · ↓ Maybe · Z undo");
       node.append(head, bar, stage, answers, hint);
-      const paintMinis = (x) => minis.replaceChildren(...G.peopleOf(x).filter((m) => m.role === "voter").slice(0, 8).map((m) =>
-        el("span", { class: `pg-mini${m.done ? " done" : ""}${m.away ? " away" : ""}` }, avatarOf(m))));
+      let minisAre = null; // (drawn again only when a face, or its state, changes)
+      const paintMinis = (x) => {
+        const people = G.peopleOf(x).filter((m) => m.role === "voter").slice(0, 8);
+        const are = people.map((m) => [m.profileId, m.done ? 1 : 0, m.away ? 1 : 0, m.avatarImage || m.avatar || m.name || ""].join("|")).join("\n");
+        if (are === minisAre) return;
+        minisAre = are;
+        minis.replaceChildren(...people.map((m) => el("span", { class: `pg-mini${m.done ? " done" : ""}${m.away ? " away" : ""}` }, avatarOf(m))));
+      };
 
       let queue = [];
       const nodes = new Map();
@@ -859,10 +911,13 @@ export const renderGroup = async (root, params = {}) => {
         return n;
       };
       let total = 0; // the hand: every card of the deck this person has to answer
+      const warmed = new Set(); // the cards whose picture was asked for ahead of their turn
       const paintDeck = () => {
-        undoBtn.disabled = !answeredHere.length;
-        hand.textContent = queue.length ? SHOW.card(Math.max(1, Math.min(total, total - queue.length + 1)), total) : "";
-        deck.dataset.depth = depthOf(queue.length);
+        const none = !answeredHere.length;
+        if (undoBtn.disabled !== none) undoBtn.disabled = none;
+        setText(hand, queue.length ? SHOW.card(Math.max(1, Math.min(total, total - queue.length + 1)), total) : "");
+        const depth = String(depthOf(queue.length));
+        if (deck.dataset.depth !== depth) deck.dataset.depth = depth;
         const want = queue.slice(0, 2);
         for (const [k, n] of nodes) if (!want.some((c) => c.key === k) && !n.classList.contains("leaving")) { n.remove(); nodes.delete(k); }
         want.forEach((c, i) => {
@@ -878,23 +933,28 @@ export const renderGroup = async (root, params = {}) => {
           n.classList.toggle("behind", i === 1);
           if (i === 0) { n.tabIndex = 0; n.classList.add("focusable"); bindDrag(n, c); } else { n.tabIndex = -1; n.classList.remove("focusable"); }
         });
-        for (const c of queue.slice(0, 4)) if (c.poster) { try { new Image().src = artUrl(c.poster, wide() ? 620 : 360); } catch {} }
+        for (const c of queue.slice(0, 4)) {
+          if (!c.poster || warmed.has(c.key)) continue;
+          warmed.add(c.key);
+          try { new Image().src = artUrl(c.poster, wide() ? 620 : 360); } catch {}
+        }
         const top = want.length ? nodes.get(want[0].key) : null;
-        const onDeck = !document.activeElement || document.activeElement === document.body || node.contains(document.activeElement);
-        if (top && onDeck && !(document.activeElement && document.activeElement.closest && document.activeElement.closest(".gp-swipe-tools"))) top.focus({ preventScroll: true });
+        const at = document.activeElement;
+        const onDeck = !at || at === document.body || node.contains(at);
+        if (top && at !== top && onDeck && !(at && at.closest && at.closest(".gp-swipe-tools"))) top.focus({ preventScroll: true });
       };
       const fly = (n, verdict, from) => {
         n.classList.remove("top", "behind", "focusable");
         n.classList.add("leaving");
         n.tabIndex = -1;
-        const w = Math.max(window.innerWidth, 600);
+        const w = Math.max(vw, 600);
         if (calm()) { n.style.transition = "opacity 140ms linear"; n.style.opacity = "0"; }
         else {
           const dx = from ? from.dx : 0;
           const dy = from ? from.dy : 0;
           const to = verdict === "yes" ? `translate(${w}px, ${dy * 1.5}px) rotate(24deg)`
             : verdict === "no" ? `translate(${-w}px, ${dy * 1.5}px) rotate(-24deg)`
-            : `translate(${dx * 1.5}px, ${Math.max(window.innerHeight, 700)}px) rotate(${dx * 0.03}deg)`;
+            : `translate(${dx * 1.5}px, ${Math.max(vh, 700)}px) rotate(${dx * 0.03}deg)`;
           const stamp = n.querySelector(`.ts-stamp.${verdict === "yes" ? "love" : verdict === "no" ? "nope" : "skip"}`);
           const go = () => {
             n.style.transition = "transform 300ms cubic-bezier(.2,.7,.3,1), opacity 300ms ease-in";
@@ -1036,8 +1096,8 @@ export const renderGroup = async (root, params = {}) => {
           for (const [k, v] of [...local]) if (v == null ? !x.mine[k] : x.mine[k] === v) local.delete(k);
           takeDeck(x);
           total = x.deck.length;
-          time.textContent = G.timeLeft(x, Date.now() - follow.receivedAt());
-          progress.textContent = G.progressLine(x);
+          setText(time, G.timeLeft(x, Date.now() - follow.receivedAt()));
+          setText(progress, G.progressLine(x));
           paintMinis(x);
           paintDeck();
           if (!queue.length && ![...local.values()].some((v) => v == null)) setTimeout(() => paint(), 0);

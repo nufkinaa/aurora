@@ -92,7 +92,13 @@ export const renderTaste = async (root) => {
   // stylesheet's (#app's bottom padding). The glass look hands it to this
   // screen by name; where no rule does, it is read from where it stands.
   const app = document.getElementById("app");
+  // (the window's size is read here and when it changes — never between two
+  // changes to the page, where asking for it makes the page measure itself)
+  let vw = window.innerWidth;
+  let vh = window.innerHeight;
   const fit = () => {
+    vw = window.innerWidth;
+    vh = window.innerHeight;
     screen.style.removeProperty("--ts-reserve");
     if (parseFloat(getComputedStyle(screen).getPropertyValue("--ts-reserve")) > 0) return;
     const pad = app ? parseFloat(getComputedStyle(app).paddingBottom) || 0 : 0;
@@ -102,7 +108,7 @@ export const renderTaste = async (root) => {
   window.addEventListener("resize", fit);
   untilLeave(() => window.removeEventListener("resize", fit));
   // (a very wide screen draws the card big: its picture is asked for sharper)
-  const artW = window.innerWidth >= 1800 && window.innerHeight >= 1000 ? 620 : 360;
+  const artW = vw >= 1800 && vh >= 1000 ? 620 : 360;
 
   // ---------- the deck ----------
   let queue = [];          // cards, [0] on show
@@ -301,7 +307,7 @@ export const renderTaste = async (root) => {
       stage.contains(document.activeElement) || answers.contains(document.activeElement);
     if (top && (onDeck || !focusedOnce)) {
       focusedOnce = true;
-      top.focus({ preventScroll: true });
+      if (document.activeElement !== top) top.focus({ preventScroll: true });
     }
   };
 
@@ -320,7 +326,7 @@ export const renderTaste = async (root) => {
     node.classList.remove("top", "behind", "focusable");
     node.classList.add("leaving");
     node.tabIndex = -1;
-    const w = Math.max(window.innerWidth, 600);
+    const w = Math.max(vw, 600);
     if (calm()) {
       node.style.transition = "opacity 140ms linear";
       node.style.opacity = "0";
@@ -329,7 +335,7 @@ export const renderTaste = async (root) => {
       const dy = from ? from.dy : 0;
       const to = verdict === "love" ? `translate(${w}px, ${dy * 1.5}px) rotate(24deg)`
         : verdict === "nope" ? `translate(${-w}px, ${dy * 1.5}px) rotate(-24deg)`
-        : `translate(${dx * 1.5}px, ${-Math.max(window.innerHeight, 700)}px) rotate(${dx * 0.03}deg)`;
+        : `translate(${dx * 1.5}px, ${-Math.max(vh, 700)}px) rotate(${dx * 0.03}deg)`;
       const stamp = node.querySelector(`.ts-stamp.${verdict}`);
       const go = () => {
         node.style.transition = "transform 300ms cubic-bezier(.2,.7,.3,1), opacity 300ms ease-in";
@@ -423,9 +429,9 @@ export const renderTaste = async (root) => {
     const n = makeCard(card);
     n.classList.add("top");
     if (!calm()) {
-      const w = Math.max(window.innerWidth, 600);
+      const w = Math.max(vw, 600);
       n.style.transition = "none";
-      n.style.transform = verdict === "love" ? `translate(${w}px, 0) rotate(24deg)` : verdict === "nope" ? `translate(${-w}px, 0) rotate(-24deg)` : `translate(0, ${-Math.max(window.innerHeight, 700)}px)`;
+      n.style.transform = verdict === "love" ? `translate(${w}px, 0) rotate(24deg)` : verdict === "nope" ? `translate(${-w}px, 0) rotate(-24deg)` : `translate(0, ${-Math.max(vh, 700)}px)`;
     }
     n.style.opacity = "0";
     deck.append(n);

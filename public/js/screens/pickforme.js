@@ -334,17 +334,23 @@ export const renderPickForMe = async (root) => {
     });
   };
 
+  // (words that are already there are left alone: the prize is painted when
+  // the reel starts to slow and again when it stops, and the second time
+  // must cost nothing)
+  const put = (n, t) => { if (n.textContent !== t) n.textContent = t; };
   const paintPrize = () => {
     const item = items[draw];
     if (!item) return;
-    wonCount.textContent = items.length > 1 ? ` · ${DRAW.of(draw + 1, items.length)}` : "";
-    wonTitle.textContent = item.title;
-    wonMeta.textContent = [item.year, item.type === "show" ? "Series" : "Film"].filter(Boolean).join(" · ");
-    wonWhy.textContent = item.why || "";
+    put(wonCount, items.length > 1 ? ` · ${DRAW.of(draw + 1, items.length)}` : "");
+    put(wonTitle, item.title == null ? "" : String(item.title));
+    put(wonMeta, [item.year, item.type === "show" ? "Series" : "Film"].filter(Boolean).join(" · "));
+    put(wonWhy, item.why || "");
     wonWhy.hidden = !item.why;
     againBtn.hidden = items.length < 2;
     pips.hidden = items.length < 2 || items.length > 12;
-    pips.replaceChildren(...items.map((_, i) => el("i", { class: i === draw ? "on" : "" })));
+    // (the dots are made once for an answer; a draw only moves the lit one)
+    if (pips.children.length !== items.length) pips.replaceChildren(...items.map(() => el("i")));
+    [...pips.children].forEach((n, i) => n.classList.toggle("on", i === draw));
     [...results.children].forEach((n, i) => n.classList.toggle("is-drawn", i === draw));
   };
   // the prize: `fresh` is the first landing of an answer — the flow's one reward
@@ -354,9 +360,14 @@ export const renderPickForMe = async (root) => {
     reelWin.classList.add("is-won");
     said.textContent = DRAW.said(items[draw] ? items[draw].title : "");
     if (still) return;
-    wonBox.classList.remove("is-in");
-    flash.classList.remove("on");
-    void wonBox.offsetWidth; // (the words rise again for the next draw)
+    // The words rise again for every draw: for that their class has to have
+    // been seen off first. The wait and the respin take it off as they begin,
+    // frames ago — only if it is somehow still on is the page asked to look now.
+    if (wonBox.classList.contains("is-in") || flash.classList.contains("on")) {
+      wonBox.classList.remove("is-in");
+      flash.classList.remove("on");
+      void wonBox.offsetWidth;
+    }
     wonBox.classList.toggle("is-fresh", !!fresh); // (its top line was already up while the reel slowed)
     wonBox.classList.add("is-in");
     flash.classList.add("on");
@@ -370,8 +381,10 @@ export const renderPickForMe = async (root) => {
   };
 
   // The whole hand: every pick with its reason, as the page always listed them.
-  const paintHand = (statusText) => {
-    status.textContent = statusText;
+  // `unseen`: dealt ahead of the prize (the reel is still going), in its place
+  // but not to be seen until showHand().
+  const dealHand = (unseen = false) => {
+    screen.classList.toggle("is-dealing", unseen);
     handTitle.hidden = false;
     // Each card keeps its own reason directly beneath it, so the link between
     // pick and justification survives any wrapping of the grid.
@@ -387,10 +400,16 @@ export const renderPickForMe = async (root) => {
     );
     dealCols();
   };
+  const showHand = (statusText) => {
+    status.textContent = statusText;
+    screen.classList.remove("is-dealing");
+  };
+  const paintHand = (statusText) => { dealHand(); showHand(statusText); };
   const clearAnswer = () => {
     status.textContent = "";
     results.replaceChildren();
     handTitle.hidden = true;
+    screen.classList.remove("is-dealing");
   };
   const fold = () => { halt(); stage.hidden = true; setStrip([]); };
 
@@ -402,6 +421,7 @@ export const renderPickForMe = async (root) => {
     stage.classList.remove("is-still");
     reelWin.classList.remove("is-won");
     flash.classList.remove("on");
+    wonBox.classList.remove("is-in"); // (the last prize's entrance: gone long before the next one)
     said.textContent = "";
     setStrip([back(), back()], true); // card backs going round until there is an answer
     waitMsg.textContent = STAGES[0];
@@ -436,18 +456,21 @@ export const renderPickForMe = async (root) => {
       return;
     }
     const cells = landingStrip(items.length, draw).map((i) => face(items[i]));
+    // The hand is dealt now, unseen, while the card backs still go round: when
+    // the reel stops there is nothing left to build, only to show.
+    dealHand(true);
     await pictures(cells);
     if (gone || mine !== run) return;
     // The prize's words take their place now, unseen but for the top line —
     // "Tonight's pick" — so nothing moves when the reel stops.
     paintPrize();
     stage.dataset.state = "landing";
-    settle();
     roll([back(), ...cells], LAND_MS, () => later(() => {
       if (gone || mine !== run) return;
-      paintHand(statusText);
+      showHand(statusText);
       win(true, { focus: byKeys });
     }, HOLD_MS));
+    settle(); // (after the strip is on: the page is measured once for both)
   };
 
   // "Another one": the next pick in the server's order, round to the first.
@@ -464,6 +487,7 @@ export const renderPickForMe = async (root) => {
     }
     const cells = respinStrip(items.length, from, draw).map((i) => face(items[i]));
     wonBox.classList.remove("is-in");
+    flash.classList.remove("on");
     wonBox.classList.add("is-out");
     await pictures(cells);
     if (gone || mine !== run) return;
@@ -593,8 +617,10 @@ export const renderPickForMe = async (root) => {
     if (last.scrollY) requestAnimationFrame(() => window.scrollTo(0, last.scrollY));
   } else {
     // (the screen is unseen until the play sheet is on the page; a field that
-    // cannot be seen cannot take the focus)
-    play.ready.then(() => { if (!gone) setTimeout(() => { if (!gone) input.focus(); }, 60); });
+    // cannot be seen cannot take the focus. If a question was asked before
+    // that — a quick hand, a slow network — the box is left alone: taking the
+    // focus then would pull the page back up from the draw.)
+    play.ready.then(() => { if (!gone) setTimeout(() => { if (!gone && !busy && stage.hidden) input.focus(); }, 60); });
   }
 
   // The router calls this before tearing the screen down.

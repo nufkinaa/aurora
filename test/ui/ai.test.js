@@ -193,6 +193,40 @@ ui.test("the draw on a phone that asked for less motion: the stage comes into vi
   await assertNoHorizontalOverflow(page, "the draw on a phone");
 });
 
+// The box takes the focus a moment after the page is shown. A question asked
+// inside that moment (the run of this file caught it once in a while) had the
+// box take the focus back afterwards — and the page went up with it, away
+// from the draw. Asked here from inside the page, in the same breath as the
+// screen is shown: sooner than any hand, the same order every time.
+ui.test("a question asked the moment the page shows: the box does not take the focus back and pull the page up from the draw", { viewport: PHONE, device: { reducedMotion: "reduce" } }, async ({ page, goto, signIn, profiles, lib }) => {
+  await answerAfter(page, picksOf(lib), 300);
+  await signIn(profiles.asker);
+  await page.addInitScript(() => {
+    const watch = new MutationObserver(() => {
+      const screen = document.querySelector("#app .screen.pfm");
+      const box = screen && screen.querySelector(".pfm-input");
+      if (!box || screen.style.visibility === "hidden") return;
+      watch.disconnect();
+      box.value = "asked at once, for a test";
+      // (a finger's press, not a key's: nothing else moves the focus afterwards)
+      screen.querySelector(".pfm-ask button").dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 }));
+      window.__askedAt = performance.now();
+    });
+    watch.observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ["style"] });
+  });
+  await goto("#/pick");
+  await page.waitForSelector('.pg-draw[data-state="won"]');
+  await page.waitForFunction(() => performance.now() - window.__askedAt > 700); // (well past the box's moment)
+  const seen = await page.evaluate(() => {
+    const title = document.querySelector(".pg-won-title").getBoundingClientRect();
+    const open = document.querySelector('[data-ui="pick.open"]').getBoundingClientRect();
+    return { titleTop: Math.round(title.top), openBottom: Math.round(open.bottom), h: window.innerHeight, y: Math.round(window.scrollY), onBox: document.activeElement === document.querySelector(".pfm-input") };
+  });
+  assert.equal(seen.onBox, false, "the question box took the focus after the question was asked");
+  assert.ok(seen.titleTop >= 0 && seen.openBottom <= seen.h, `the prize is not in view: ${JSON.stringify(seen)}`);
+  assert.equal((await prize(page)).title, lib.film1.title);
+});
+
 ui.test("the whole hand is dealt in even rows, whatever the window", { viewport: { width: 1280, height: 800 }, device: { reducedMotion: "reduce" } }, async ({ page, goto, signIn, profiles, lib }) => {
   const six = { items: Array.from({ length: 6 }, (_, i) => ({ ...lib.film1, id: `${lib.film1.id}-${i}`, title: `Pick number ${i + 1}`, why: `Reason ${i + 1}.` })), cached: false };
   await answerAfter(page, six, 100);

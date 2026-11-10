@@ -1935,6 +1935,9 @@ html[data-look="glass"] .screen.pg > * { animation: none; }
 .pg-hand-title { display: flex; justify-content: center; margin: 46px var(--page-x) 0; color: var(--play-ink-dim); }
 .pg-hand-title .pg-star { width: 13px; height: 13px; color: var(--play-violet); }
 .pg-pick .pfm-status { padding-top: 8px; color: var(--play-ink-faint); text-align: center; }
+/* the hand is dealt while the reel still turns: in its place, not to be seen
+   (or reached with the keys) until the prize is shown */
+.pg-pick.is-dealing :is(.pg-hand-title, .pfm-results) { visibility: hidden; }
 /* the cards fanned out from the middle, however many came back */
 /* (--cols: how many to a row so the rows come out even, set by the screen;
    the gutters close in until that many cards at their full size fill a row) */
