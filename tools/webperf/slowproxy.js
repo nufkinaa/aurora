@@ -7,6 +7,9 @@
 //
 //   node tools/webperf/slowproxy.js --to http://127.0.0.1:4000 [--port 0]
 //        [--rtt 70] [--mbit 50] [--state <file>]
+//        [--hold "poster%2Flarge=3000;w=1440=3000"]  requests whose address
+//            contains the text wait that many ms more (a picture that is
+//            late on purpose: tools/webperf/artswap.js)
 //
 // Prints (and writes to --state) { url, pid }. Looking only: every request is
 // passed on as it came. Stop it by its pid.
@@ -19,6 +22,8 @@ const { argv } = require("./lib");
 const to = new URL(argv("to", "http://127.0.0.1:4000"));
 const rtt = Number(argv("rtt", "70"));
 const bps = (Number(argv("mbit", "50")) * 1e6) / 8;
+const holds = String(argv("hold", "")).split(";").filter(Boolean).map((h) => ({ text: h.slice(0, h.lastIndexOf("=")), ms: Number(h.slice(h.lastIndexOf("=") + 1)) || 0 }));
+const holdFor = (url) => holds.reduce((ms, h) => (url.includes(h.text) ? Math.max(ms, h.ms) : ms), 0);
 
 // one line for everybody: bytes leave in 10 ms slices
 let waiting = [];
@@ -52,7 +57,7 @@ const server = http.createServer((req, res) => {
     });
     up.on("error", () => { if (!res.headersSent) res.writeHead(502); res.end(); });
     req.pipe(up);
-  }, rtt);
+  }, rtt + holdFor(req.url));
 });
 // (web sockets and the like: passed straight through)
 server.on("upgrade", (req, socket, head) => {

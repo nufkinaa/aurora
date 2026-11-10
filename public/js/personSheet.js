@@ -183,6 +183,42 @@ export const openPerson = (who, { inPlayer = false } = {}) => {
   const PHOTO_SLOTS = 5;
   const photoStrip = el("div", { class: "person-photos", "aria-label": `Photos of ${who.name}` },
     Array.from({ length: PHOTO_SLOTS }, () => el("div", { class: "person-photo skeleton" })));
+  // The small photo gives way to the large one the way a hero's picture does
+  // (artUpgrade.js "HOW IT COMES IN"): on top of it, never through an empty
+  // box. Giving the <img> its new address left the box EMPTY for a frame
+  // before the large photo was drawn (measured: brightness 122 -> 19 -> 122,
+  // on every photo opened). So the large one, decoded, is laid over the small
+  // one - same slot of the slide's grid, same box (glass.css) - unseen for a
+  // moment (drawn for the first time, it would come a few frames late), comes
+  // in over ~0.4 s (opacity only), and a moment later the small one is taken
+  // away: one picture again, nothing extra kept. With reduced motion or the
+  // light graphics tier: in one step - but still OVER the small one, which
+  // goes only once the large one has been drawn (taken away in the same
+  // frame, the box was empty for that frame all the same).
+  const sharpen = async (img, big) => {
+    try { await big.decode(); } catch {} // (cannot be decoded ahead: it still comes in over the small one)
+    if (!img.isConnected) return;
+    let over = false;
+    const done = () => {
+      if (over) return;
+      over = true;
+      big.classList.remove("person-viewer-up", "in");
+      big.style.opacity = "";
+      img.remove();
+    };
+    big.classList.add("person-viewer-up");
+    big.style.opacity = "0.01"; // (not 0: at 0 nothing is drawn, so nothing would be made ready)
+    img.after(big);
+    if (document.hidden) return done(); // (nobody is looking)
+    const soft = !(document.documentElement.dataset.fx === "lite" || matchMedia("(prefers-reduced-motion: reduce)").matches);
+    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => {
+      if (over) return;
+      if (soft) big.classList.add("in");
+      big.style.opacity = "1";
+      setTimeout(done, (soft ? 450 : 0) + 260); // (420 ms: glass.css; then the hold)
+    }, 120)));
+    setTimeout(done, 3000); // (whatever happens to frames and timers)
+  };
   const openViewer = (at) => {
     if (viewer || !data || !data.photos.length) return;
     const track2 = el("div", { class: "person-viewer-track" },
@@ -197,7 +233,7 @@ export const openPerson = (who, { inPlayer = false } = {}) => {
       // the sharp picture is fetched when its slide is the one on screen
       for (const s of [slide, track2.children[at2 + 1]]) {
         const img = s && s.querySelector("img");
-        if (img && img.dataset.full) { const full = img.dataset.full; delete img.dataset.full; const big = new Image(); big.onload = () => { img.src = full; }; big.src = full; }
+        if (img && img.dataset.full) { const full = img.dataset.full; delete img.dataset.full; const big = new Image(); big.decoding = "async"; big.alt = img.alt; big.onload = () => sharpen(img, big); big.src = full; }
       }
       track2.scrollTo({ left: slide.offsetLeft, behavior: smoothly ? "smooth" : "auto" });
       count.textContent = `${at2 + 1} / ${data.photos.length}`;

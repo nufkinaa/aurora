@@ -15,6 +15,9 @@
 //       [--sky page] (the page sky kept on the page's thread instead of its worker)
 //       [--bare]  (frame times only: lateFrames / worstFrame without the cost
 //                  of watching the posters — the picture numbers read 0)
+//       [--device phone-390]  (a size out of lib.js DEVICES instead of the
+//                  1440x900 desktop; a touch device is scrolled by a finger.
+//                  With --speed only)
 //   --live <url> --rules <file>: this PC's own server instead of an instance,
 //       signed in as the test profile through the page. For a server that is
 //       far away, put slowproxy.js in front of either.
@@ -33,7 +36,7 @@
 "use strict";
 const path = require("path");
 const fs = require("fs");
-const { OUT, argv, flag, launch, newContext, throttle, prime, clearCaches, sleep, median, writeJson } = require("./lib");
+const { OUT, argv, flag, launch, newContext, throttle, prime, clearCaches, sleep, median, writeJson, DEVICES } = require("./lib");
 
 const WATCH = () => {
   const w = (window.__sv = { frames: [], blank: [], soft: [], inview: [], late: [], on: false });
@@ -114,12 +117,15 @@ const pct = (a, p) => { const s = [...a].sort((x, y) => x - y); return s.length 
   const notch = Number(argv("notch", "100"));
   const every = Number(argv("every", "90"));
   const look = argv("look", "glass");
+  const device = argv("device", "desktop-1440");
+  const dev = DEVICES[device];
+  const at = { x: Math.round(dev.width / 2), y: Math.round(dev.height * 0.55) };
   const out = path.join(OUT, label);
   fs.mkdirSync(out, { recursive: true });
   const browser = await launch();
   const all = [];
   for (let r = 0; r < runs; r++) {
-    const ctx = await newContext(browser, "desktop-1440");
+    const ctx = await newContext(browser, device);
     const page = await ctx.newPage();
     const cdp = await ctx.newCDPSession(page);
     await page.addInitScript(WATCH);
@@ -146,7 +152,7 @@ const pct = (a, p) => { const s = [...a].sort((x, y) => x - y); return s.length 
       await page.waitForSelector(".row .card, .grid .card", { timeout: 30000 });
       await sleep(4000);
     }
-    await page.mouse.move(720, 500);
+    if (!dev.mobile) await page.mouse.move(at.x, at.y);
     await page.evaluate((bare) => { window.__sv.bare = bare; window.__sv.start(); }, flag("bare"));
     const height = async () => page.evaluate(() => {
       const sc = document.scrollingElement && document.scrollingElement.scrollHeight > innerHeight ? document.scrollingElement : document.body;
@@ -166,7 +172,7 @@ const pct = (a, p) => { const s = [...a].sort((x, y) => x - y); return s.length 
           await sleep(120);
         }
       })();
-      await cdp.send("Input.synthesizeScrollGesture", { x: 720, y: 500, yDistance: -max, speed, gestureSourceType: "mouse", repeatCount: 0 });
+      await cdp.send("Input.synthesizeScrollGesture", { x: at.x, y: at.y, yDistance: -max, speed, gestureSourceType: dev.mobile ? "touch" : "mouse", repeatCount: 0 });
       await shots;
     }
     for (let i = 0; i < (speed ? 0 : 400); i++) {
@@ -219,5 +225,5 @@ const pct = (a, p) => { const s = [...a].sort((x, y) => x - y); return s.length 
   const keys = Object.keys(all[0] || {});
   const med = Object.fromEntries(keys.map((k) => [k, median(all.map((x) => x[k]))]));
   console.log(`${label} median:`, JSON.stringify(med));
-  writeJson(path.join(out, "scrollview.json"), { label, route, line, cpu, notch, every, runs: all, median: med });
+  writeJson(path.join(out, "scrollview.json"), { label, route, device, line, cpu, notch, every, runs: all, median: med });
 })().catch((e) => { console.error(e); process.exit(1); });

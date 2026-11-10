@@ -3593,11 +3593,27 @@ html[data-look="glass"]:root .card.wide .card-progress {
     min-height: 52vh;
     overflow: hidden;
   }
-  html[data-look="glass"]:root .detail-head::before {
+  html[data-look="glass"]:root .detail-head::before,
+  html[data-look="glass"]:root .detail-head > .art-up {
     inset: -8% 0 -14%;
     transform: translate3d(0, calc(var(--py, 0) * 0.42px), 0) scale(calc(1 + var(--pz, 0)));
     transform-origin: 50% 30%;
     will-change: transform;
+  }
+  /* THE SHADOW IS NOT DECORATION (it cannot be seen: 0.4 % black, one pixel).
+     This cover is a layer of its own (it drifts), and a layer that draws
+     nothing but one picture Chrome keeps at the picture's own size and
+     stretches on the graphics card - softer than the same picture drawn onto
+     the page. Which of the two a visitor saw depended on timing: a
+     cover whose sharper picture had just arrived was drawn the sharp way, and
+     the soft way from its next redraw on (a turned phone, a second visit).
+     Measured, edges in the cover: 6.48 sharp, 5.24 soft. With one more thing
+     to draw it is always the sharp way - and the sharper picture on its way
+     in (".art-up", below, which has the same shadow) is then drawn exactly
+     as the cover it becomes: the same to the pixel while it covers, after it
+     is gone, and after a redraw. Keep it. */
+  html[data-look="glass"]:root .detail-head::before {
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.004);
   }
   html[data-look="glass"]:root .detail-head > * {
     opacity: calc(1 - var(--pf, 0));
@@ -4799,6 +4815,38 @@ html[data-fx="lite"] .img-blurup.img-in { animation: none; isolation: auto; }
   .img-blurup.img-in { animation: none !important; isolation: auto; }
 }
 
+/* ---- a hero's picture replaced by its sharper one (2026-11-10) ----
+   artUpgrade.js: the sharp picture is laid over the one that is there, as a
+   child of whatever draws it, with the very same background (size and place
+   inherited; the address set inline), and comes in by opacity alone — then
+   the element takes the address and this layer is removed. Its opacity is set
+   inline (next to nothing, then 1); here is only its box and how long that
+   takes. Lives under a second. (On a phone's title page it sits beside the cover the
+   heading paints — `.detail-head > .art-up`, in responsive.css and in the
+   cover's drift above, takes that cover's own box.)
+   THE SHADOW IS NOT DECORATION (it cannot be seen: one pixel, 1/255). A
+   layer of its own that holds nothing but one picture is drawn by Chrome at
+   the PICTURE's size and stretched by the compositor ("directly composited
+   image") — measured, ~17 % less detail than the very same picture on the
+   element under it, so the hero came into focus and then once more when
+   this layer was removed. Anything else drawn in the layer turns that off,
+   and the two are the same to the pixel. Keep it. */
+.art-up {
+  position: absolute;
+  inset: 0;
+  background-size: inherit;
+  background-position: inherit;
+  background-repeat: inherit;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.004);
+  pointer-events: none;
+  will-change: opacity;
+}
+.art-up.in { transition: opacity 420ms var(--ease); }
+html[data-fx="lite"] .art-up { transition: none; will-change: auto; }
+@media (prefers-reduced-motion: reduce) {
+  .art-up { transition: none !important; }
+}
+
 .pbtn.next-btn.hidden { display: none; }
 
 /* ---- AirPlay button (2026-10-08, 2026-10-17) ----
@@ -5295,6 +5343,17 @@ button.xr-person:focus-visible {
   object-fit: contain;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.04);
+}
+/* The large photo on its way in over the small one (personSheet.js
+   "sharpen"): the same slot of the slide's grid, so the same box; its opacity
+   is set inline (next to nothing, then 1). No ground of its own while it lies
+   over the small one's. Lives half a second. */
+.person-viewer-slide img { grid-area: 1 / 1; }
+.person-viewer-slide img.person-viewer-up { background: none; }
+.person-viewer-slide img.person-viewer-up.in { transition: opacity 420ms var(--ease); }
+html[data-fx="lite"] .person-viewer-slide img.person-viewer-up { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .person-viewer-slide img.person-viewer-up { transition: none !important; }
 }
 .person-viewer-close {
   position: absolute;
