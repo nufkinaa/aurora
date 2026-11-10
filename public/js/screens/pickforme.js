@@ -31,7 +31,7 @@ import { mountPlay, star } from "../play/stage.js";
 import { pressable } from "../play/press.js";
 import { meteorBurst } from "../play/burst.js";
 import { tween, reduced as calm } from "../play/motion.js";
-import { landingStrip, respinStrip, reelPos, cellAt, nextDraw, stripShift, LAND_MS, RESPIN_MS, HOLD_MS } from "../play/reel.js";
+import { landingStrip, respinStrip, reelPos, cellAt, nextDraw, stripShift, handCols, nudge, LAND_MS, RESPIN_MS, HOLD_MS } from "../play/reel.js";
 
 const EXAMPLES = [
   "something dumb and loud, I've had a long day",
@@ -242,6 +242,42 @@ export const renderPickForMe = async (root) => {
     el("div", { class: "pg-draw-side" }, waitBox, wonBox),
     said);
 
+  // The free band of the window: under the top bar and over a phone's tab
+  // bar, both measured where they stand (their heights differ by look and size).
+  const band = () => {
+    let top = 0;
+    let bottom = window.innerHeight;
+    for (const n of document.querySelectorAll("#nav, #nav > *, #nav .nav-items")) {
+      const r = n.getBoundingClientRect();
+      if (!r.width || !r.height) continue;
+      if (r.top >= window.innerHeight / 2) bottom = Math.min(bottom, r.top);
+      else if (r.bottom <= window.innerHeight / 2) top = Math.max(top, r.bottom);
+    }
+    return { top: top + 12, bottom: bottom - 12 };
+  };
+  const bring = (node, centre = false) => {
+    const { top, bottom } = band();
+    const r = node.getBoundingClientRect();
+    const dy = nudge(top, bottom, r.top, r.bottom, centre);
+    if (Math.abs(dy) > 2) window.scrollBy({ top: dy, behavior: calm() ? "auto" : "smooth" });
+  };
+  // The prize can be taller than the wait was: the whole stage in view when it
+  // fits, else the words and their keys (never under a bar).
+  const settle = () => {
+    const s = stage.getBoundingClientRect();
+    if (s.bottom < 0 || s.top > window.innerHeight) return; // (scrolled away to read something else: left alone)
+    const { top, bottom } = band();
+    bring(s.height <= bottom - top ? stage : wonBox);
+  };
+  // The hand's rows come out even: six cards where five fit are dealt 3 + 3.
+  const dealCols = () => {
+    const room = handTitle.clientWidth; // (the page between its own gutters)
+    if (!items.length || !room) return;
+    results.style.setProperty("--cols", String(handCols(items.length, room)));
+  };
+  const handWatch = typeof ResizeObserver === "function" ? new ResizeObserver(dealCols) : null;
+  if (handWatch) handWatch.observe(results);
+
   const back = () => el("div", { class: "pg-reel-cell pg-reel-back" }, star());
   // One poster on the reel: its title on a tile at once, the picture over it
   // when it is in hand (the cover, else the backup poster, else the tile stays).
@@ -321,8 +357,10 @@ export const renderPickForMe = async (root) => {
     wonBox.classList.remove("is-in");
     flash.classList.remove("on");
     void wonBox.offsetWidth; // (the words rise again for the next draw)
+    wonBox.classList.toggle("is-fresh", !!fresh); // (its top line was already up while the reel slowed)
     wonBox.classList.add("is-in");
     flash.classList.add("on");
+    settle();
     if (focus && !openBtn.contains(document.activeElement) && !againBtn.contains(document.activeElement)) openBtn.focus({ preventScroll: true });
     if (!fresh) { haptic(10); return; }
     haptic(18);
@@ -347,6 +385,7 @@ export const renderPickForMe = async (root) => {
         )
       )
     );
+    dealCols();
   };
   const clearAnswer = () => {
     status.textContent = "";
@@ -369,7 +408,7 @@ export const renderPickForMe = async (root) => {
     // The stage is under the question; on a phone that is under the fold, and
     // pressing the button used to look like nothing had happened.
     if (matchMedia("(pointer: coarse)").matches) input.blur(); // (and the keyboard is over it)
-    requestAnimationFrame(() => { if (!gone) stage.scrollIntoView({ block: "center", behavior: calm() ? "auto" : "smooth" }); });
+    requestAnimationFrame(() => { if (!gone) bring(stage, true); });
 
     let stageNo = 0;
     return setInterval(() => {
@@ -393,12 +432,17 @@ export const renderPickForMe = async (root) => {
       paintHand(statusText);
       win(false, { still: true });
       if (byKeys) openBtn.focus({ preventScroll: true });
+      settle();
       return;
     }
     const cells = landingStrip(items.length, draw).map((i) => face(items[i]));
     await pictures(cells);
     if (gone || mine !== run) return;
+    // The prize's words take their place now, unseen but for the top line —
+    // "Tonight's pick" — so nothing moves when the reel stops.
+    paintPrize();
     stage.dataset.state = "landing";
+    settle();
     roll([back(), ...cells], LAND_MS, () => later(() => {
       if (gone || mine !== run) return;
       paintHand(statusText);
@@ -558,6 +602,7 @@ export const renderPickForMe = async (root) => {
     gone = true;
     if (ticker) clearInterval(ticker);
     halt(); // (the reel, the beat before the prize: nothing goes on after the page)
+    if (handWatch) handWatch.disconnect();
     play.destroy();
     if (last) last.scrollY = window.scrollY;
   };

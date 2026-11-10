@@ -16,6 +16,13 @@
 //   cellAt(pos)  -> the cell at the payline (for the tick as each one passes).
 //   nextDraw(i, n)  -> the pick after i, round to the first again.
 //   stripShift(pos, cells)  -> the strip's translateY in % of its own height.
+//   handCols(n, room, min, gap)  -> how many of the hand's n cards go in one
+//       row of `room` px so the rows come out even (six cards where five fit
+//       are dealt 3 + 3, never 5 + 1).
+//   nudge(top, bottom, a, b, centre)  -> how far to scroll (px, + is down) so
+//       the block a..b sits in the free band top..bottom of the window: its
+//       head under the bar when it is taller than the band, the middle when
+//       `centre` is asked, else only as far as it takes to show all of it.
 export const LAND_MS = 1900;
 export const RESPIN_MS = 700;
 export const HOLD_MS = 260;
@@ -65,4 +72,21 @@ export const nextDraw = (i, n) => {
 export const stripShift = (pos, cells) => {
   const c = Math.max(1, whole(cells));
   return -((Number(pos) || 0) / c) * 100;
+};
+
+export const handCols = (n, room, min = 168, gap = 20) => {
+  n = whole(n);
+  if (!n) return 1;
+  const most = Math.max(1, Math.floor(((Number(room) || 0) + gap) / (min + gap)));
+  return Math.ceil(n / Math.ceil(n / most));
+};
+
+export const nudge = (top, bottom, a, b, centre = false) => {
+  const room = bottom - top;
+  const h = b - a;
+  if (!(room > 0) || h >= room) return a - top;
+  if (centre) return a - (top + (room - h) / 2);
+  if (a < top) return a - top;
+  if (b > bottom) return b - bottom;
+  return 0;
 };

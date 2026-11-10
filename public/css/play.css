@@ -1484,8 +1484,14 @@ html[data-look="glass"] .screen.pg > * { animation: none; }
 .pg-pick .pfm-wait-hint { max-width: 44ch; color: var(--play-ink-faint); font-size: var(--play-fs-s); line-height: 1.45; }
 .pg-draw[data-state="landing"] .pfm-wait { opacity: 0; }
 .pg-draw[data-state="won"] .pfm-wait { visibility: hidden; }
+.pg-draw:not([data-state="waiting"]) .pg-dots .pg-star { animation: none; } /* (nothing runs unseen) */
 .pg-won { display: flex; flex-direction: column; align-items: flex-start; visibility: hidden; transition: opacity 160ms ease; }
 .pg-draw[data-state="won"] .pg-won { visibility: visible; }
+/* the reel is slowing: the prize's words are in place but unseen, all except
+   the line that says what is being drawn */
+.pg-draw[data-state="landing"] .pg-won-kicker { visibility: visible; animation: play-fade 420ms 160ms ease backwards; }
+.pg-draw[data-state="landing"] .pg-won-count { visibility: hidden; }
+.pg-won.is-in.is-fresh > .pg-won-kicker { animation: none; }
 .pg-won.is-out { opacity: 0; }
 .pg-won.is-in > * { animation: play-rise 460ms var(--play-out) backwards; }
 .pg-won.is-in > :nth-child(2) { animation-delay: 60ms; }
@@ -1550,8 +1556,22 @@ html[data-look="glass"] .screen.pg > * { animation: none; }
 .pg-hand-title .pg-star { width: 13px; height: 13px; color: var(--play-violet); }
 .pg-pick .pfm-status { padding-top: 8px; color: var(--play-ink-faint); text-align: center; }
 /* the cards fanned out from the middle, however many came back */
-.pg-pick .pfm-results { display: flex; flex-wrap: wrap; justify-content: center; gap: 26px 20px; padding-top: 18px; }
-.pg-pick .pfm-pick { position: relative; flex: 0 0 clamp(168px, 14.2vw, 204px); min-width: 0; }
+/* (--cols: how many to a row so the rows come out even, set by the screen;
+   the gutters close in until that many cards at their full size fill a row) */
+.pg-pick .pfm-results {
+  --card-max: 204px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 26px 20px;
+  padding-top: 18px;
+  padding-inline: max(var(--page-x), calc((100% - var(--cols, 6) * var(--card-max) - (var(--cols, 6) - 1) * 20px) / 2));
+}
+.pg-pick .pfm-pick {
+  position: relative;
+  flex: 0 0 calc((100% - (var(--cols, 6) - 1) * 20px) / var(--cols, 6) - 0.5px);
+  min-width: 0;
+}
 .pg-pick .pfm-why { color: var(--play-ink-dim); border-left-color: rgba(58, 211, 230, 0.6); }
 .pg-pick .pfm-pick.is-drawn::before {
   content: "\2605";
@@ -1579,7 +1599,7 @@ html[data-look="glass"] .screen.pg > * { animation: none; }
   .pg-pick .pfm-go { min-height: 56px; padding: 0 20px; }
   .pg-pick .pfm-tune { gap: 12px 20px; }
   .pg-draw {
-    --reel-w: clamp(150px, 46vw, 200px);
+    --reel-w: clamp(120px, min(46vw, 21vh), 200px); /* (a short phone: room for the prize's keys under it) */
     grid-template-columns: minmax(0, 1fr);
     justify-items: center;
     gap: 20px;
@@ -1600,7 +1620,7 @@ html[data-look="glass"] .screen.pg > * { animation: none; }
 }
 /* a phone: the hand as a list — a small poster, its reason beside it in full */
 @media (max-width: 560px) {
-  .pg-pick .pfm-results { flex-direction: column; flex-wrap: nowrap; gap: 14px; }
+  .pg-pick .pfm-results { flex-direction: column; flex-wrap: nowrap; gap: 14px; padding-inline: var(--page-x); }
   .pg-pick .pfm-pick {
     flex: none;
     display: grid;
@@ -1626,4 +1646,20 @@ html[data-look="glass"] .screen.pg > * { animation: none; }
   .pg-won-actions { justify-content: flex-start; margin-top: 12px; }
   .pg-won-actions .play-btn { min-height: 46px; }
   .pg-pips { justify-content: flex-start; margin-top: 10px; }
+}
+/* a very wide screen: the stage grows with the room */
+@media (min-width: 1800px) {
+  .pg-pick > :is(.pfm-head, .gp-entry, .pfm-box, .pfm-examples, .pg-draw) { width: min(1280px, calc(100% - 2 * var(--page-x))); }
+  .pg-draw {
+    --reel-w: clamp(264px, 13.4vw, 344px);
+    grid-template-columns: var(--reel-w) minmax(0, 720px);
+    gap: 72px;
+    margin-top: 52px;
+  }
+  .pg-draw-side { min-height: 320px; }
+  .pg-won-title { font-size: clamp(3.6rem, 3.3vw, 5.2rem); }
+  .pg-won-why { margin-top: 18px; font-size: 1.32rem; }
+  .pg-won-actions { margin-top: 28px; }
+  .pg-won-actions .play-btn { min-height: 64px; padding: 0 34px; font-size: 1.16rem; }
+  .pg-pick .pfm-results { --card-max: 236px; }
 }
