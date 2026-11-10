@@ -994,24 +994,26 @@ const styles = StyleSheet.create({
     width: PANEL_W,
     zIndex: 101,
   },
-  // The pane: 16 dp round the controls (which sit at 18..252 and 18..513 of the
-  // panel), so it floats clear of the screen's edges like the rail's. Opaque,
+  // The pane: 14-16 dp round the controls (which sit at 18..252 and 18..513 of
+  // the panel), so it floats clear of the screen's edges like the rail's. Its
+  // corner is 28, not the rail's 38: the kicker is plain text in the top-left
+  // corner, and under a 38 corner it sat against the curve (Mi TV). Opaque,
   // like the rail: measured on the Streamer, a 3% see-through reads as ghost
   // posters behind the controls. It was a flat near-black slab to the screen's
   // edge with one hairline on its left.
   pane: {
     position: 'absolute',
-    top: 6,
+    top: 4,
     bottom: 11,
     left: 2,
     right: 32,
-    borderRadius: 38,
+    borderRadius: 28,
     ...glassPane,
   },
   // 48 dp outside the pane on every side
   paneShadow: {
     position: 'absolute',
-    top: 6 - 48,
+    top: 4 - 48,
     bottom: 11 - 48,
     left: 2 - 48,
     right: 32 - 48,

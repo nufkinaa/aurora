@@ -8,7 +8,7 @@ import PersonSheet from './PersonSheet';
 import ReplaceSheet from './ReplaceSheet';
 import RecommendSheet from './RecommendSheet'; // [household]
 import Sheet from './Sheet';
-import {glassPane, glassSmall, ink, SHADOW} from '../glass';
+import {glassFootSheet, glassToast, ink, SHADOW} from '../glass';
 import TrailerFrame, {TrailerState} from './Trailer';
 import {prepareTrailer, ResolvedTrailer} from '../trailers';
 import type {ActionItem} from '../overlay';
@@ -997,13 +997,13 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingHorizontal: 28,
     paddingBottom: 22,
-    // The glass pane (glass.ts): the neutral body, the rim of light, the sheen.
+    // The glass of a sheet that stands on the screen's foot (glass.ts): the
+    // neutral body, the rim of light and its glow, the sheen.
     // Opaque: a bright subtitle line under a 96% panel still read through it.
     // (It carried the player menus' violet-and-green hue; the glass is neutral
     // and the picture behind brings the colour.) The panel rises and scales as
     // it opens, so its shadow is the lighter half of the old one, not a new one.
-    ...glassPane,
-    borderBottomWidth: 0,
+    ...glassFootSheet,
     boxShadow: '0 -12px 32px rgba(0,0,0,0.32)',
   },
   xrGuide: {flexShrink: 1},
@@ -1073,9 +1073,9 @@ const styles = StyleSheet.create({
 
   // toasts — the glass pill, bottom centre, above everything
   toasts: {position: 'absolute', left: 0, right: 0, bottom: 28, alignItems: 'center', gap: 8, zIndex: 600, elevation: 600},
-  // opaque (nothing dims the page under a toast), the thin rim, the still shadow
+  // opaque (nothing dims the page under a toast), the rim's lines, the still shadow
   toast: {
-    ...glassSmall,
+    ...glassToast,
     boxShadow: SHADOW,
     borderRadius: radius.pill,
     flexDirection: 'row',

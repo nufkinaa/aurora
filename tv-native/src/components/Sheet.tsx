@@ -70,9 +70,10 @@ export default function Sheet({
   );
 }
 
-// The glass surface of a sheet: the neutral body at 94 % over the wash, a rim of
-// light, a quiet sheen, a soft shadow (glass.ts; docs/glass-tv.md). It was a
-// blue-black slab with one bright top edge.
+// The glass surface of a sheet: the neutral body, a rim of light with its glow,
+// a quiet sheen, a soft shadow (glass.ts; docs/glass-tv.md). Opaque: at the
+// recipe's 94 % the page's own words stood readable inside the sheet (Mi TV).
+// It was a blue-black slab with one bright top edge.
 export const glass = glassSheet;
 
 const styles = StyleSheet.create({

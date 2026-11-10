@@ -9,12 +9,11 @@
 // at the foot), a quiet sheen in the upper half, a soft shadow.
 //
 // What it is not: see-through. A TV panel has no blur behind it, and without a
-// blur a 6 % see-through shows the page as sharp ghost letters and posters
-// under the words (photographed on the Mi TV for the old rail, simulated again
-// for this body at 94 % and 97 %). So:
-//   - a pane with NOTHING dimming the page behind it is OPAQUE  (glassPane);
-//   - a sheet that sits on the 72 % wash takes the recipe's 94 % (glassSheet) -
-//     through the wash the ghost is below what the eye sees.
+// blur any see-through shows the page as SHARP ghost letters and posters under
+// the words. Photographed on the Mi TV: the old rail at 97 %, and this body at
+// the recipe's 94 % on a sheet over its 72 % wash - the title page's own words
+// ("written and directed by ...") stood readable inside the sheet. So every
+// pane here is OPAQUE; the glass is in the rim, the sheen and the shadow.
 //
 // Cost: borders and CSS gradients are drawn into the view's own background once;
 // nothing here animates and nothing is added per frame. A blurred boxShadow is
@@ -25,8 +24,11 @@
 
 /** The pane's body: rgb(40,40,46). */
 export const BODY = 'rgb(40,40,46)';
-/** The same body over the sheet's wash: 94 %. */
-export const BODY_OVER_WASH = 'rgba(40,40,46,0.94)';
+/**
+ * A pane that opens ON another pane (the genre popup over the filter panel): one
+ * step lighter, or the two bodies run into each other. White is 12.4:1 on it.
+ */
+export const BODY_RAISED = 'rgb(52,52,58)';
 
 /** What is written on glass. */
 export const ink = {
@@ -40,53 +42,91 @@ export const ink = {
   on: '#B9B0FF',
 } as const;
 
-// The light on the pane, three layers in one background (dp stops):
+const SHEEN = 'linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 48%)';
+
+// The light on a pane of the CHROME (the rail, the filter panel), three layers
+// in one background (dp stops):
 //   the glow under the top hairline   white 18 % -> 0 over 9 dp
 //   the glow over the foot line       white  8 % -> 0 over 8 dp
 //   the sheen                         white  5 % -> 0 at 48 % of the height
 const LIGHT =
   'linear-gradient(180deg, rgba(255,255,255,0.18) 0px, rgba(255,255,255,0) 9px), ' +
   'linear-gradient(0deg, rgba(255,255,255,0.08) 0px, rgba(255,255,255,0) 8px), ' +
-  'linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 48%)';
-// A small pane (a popup, a toast): the sheen only - a 9 dp glow would fill it.
+  SHEEN;
+// The light on a MENU or a SHEET - a thicker rim, as the website's second pass
+// gave them: it is what tells the pane from the page now that nothing shows
+// through it.
+//   the glow under the top line       white 22 % -> 0 over 15 dp
+//   a faint glow down each side       white  7 % -> 0 over 12 dp
+//   the glow over the foot line       white 10 % -> 0 over 13 dp   (not on a sheet that stands on the screen's foot)
+//   the sheen
+const GLOW_TOP = 'linear-gradient(180deg, rgba(255,255,255,0.22) 0px, rgba(255,255,255,0) 15px)';
+const GLOW_SIDES =
+  'linear-gradient(90deg, rgba(255,255,255,0.07) 0px, rgba(255,255,255,0) 12px), ' +
+  'linear-gradient(270deg, rgba(255,255,255,0.07) 0px, rgba(255,255,255,0) 12px)';
+const GLOW_FOOT = 'linear-gradient(0deg, rgba(255,255,255,0.10) 0px, rgba(255,255,255,0) 13px)';
+const LIGHT_MENU = GLOW_TOP + ', ' + GLOW_SIDES + ', ' + GLOW_FOOT + ', ' + SHEEN;
+const LIGHT_FOOT_SHEET = GLOW_TOP + ', ' + GLOW_SIDES + ', ' + SHEEN;
+// A toast: the sheen only - it is 40 dp tall, a 15 dp glow would fill it.
 const LIGHT_SMALL = 'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0) 60%)';
 
-/** The rim: a bright hairline on top, a dimmer one at the foot, barely a line at the sides. */
+/** The rim of the chrome: a bright hairline on top, a dimmer one at the foot, barely a line at the sides. */
 export const rim = {
   borderWidth: 1,
   borderColor: 'rgba(255,255,255,0.055)',
   borderTopColor: 'rgba(255,255,255,0.28)',
   borderBottomColor: 'rgba(255,255,255,0.12)',
 } as const;
-/** The rim of a small thing: thinner light, no glow. */
-export const rimThin = {
+/** The rim of a menu, a sheet, a toast: the same lines, brighter. */
+export const rimMenu = {
   borderWidth: 1,
-  borderColor: 'rgba(255,255,255,0.06)',
-  borderTopColor: 'rgba(255,255,255,0.20)',
-  borderBottomColor: 'rgba(255,255,255,0.07)',
+  borderColor: 'rgba(255,255,255,0.075)',
+  borderTopColor: 'rgba(255,255,255,0.36)',
+  borderBottomColor: 'rgba(255,255,255,0.16)',
 } as const;
 
-/** The shadow of a pane that STANDS STILL (never on one that slides or scales). */
-export const SHADOW = '0 12px 32px rgba(0,0,0,0.32), 0 2px 6px rgba(0,0,0,0.20), 0 0 0 1px rgba(0,0,0,0.26)';
+/**
+ * The shadow of a pane that STANDS STILL (never on one that slides or scales):
+ * a soft one, a near one, a tight one, and a dark hairline just outside the rim.
+ */
+export const SHADOW =
+  '0 14px 34px rgba(0,0,0,0.34), 0 3px 8px rgba(0,0,0,0.22), 0 1px 2px rgba(0,0,0,0.22), 0 0 0 0.5px rgba(0,0,0,0.30)';
 
-/** A pane over the bare page: opaque. Add a radius, and SHADOW if it stands still. */
+/** A pane of the chrome over the bare page (the rail, the filter panel). Add a radius; its shadow is a baked picture. */
 export const glassPane = {
   backgroundColor: BODY,
   ...rim,
   experimental_backgroundImage: LIGHT,
 } as const;
-/** A small pane over the bare page (popup, toast, the player's menus): opaque, thin rim, sheen. */
-export const glassSmall = {
+/** A menu (the player's menus). Add a radius, and SHADOW if it stands still. */
+export const glassMenu = {
   backgroundColor: BODY,
-  ...rimThin,
-  experimental_backgroundImage: LIGHT_SMALL,
+  ...rimMenu,
+  experimental_backgroundImage: LIGHT_MENU,
 } as const;
-/** A sheet on the wash: the body at 94 %, the rim, the light, the shadow. */
+/** A menu that opens on another pane (the genre popup): the raised body. */
+export const glassRaised = {
+  backgroundColor: BODY_RAISED,
+  ...rimMenu,
+  experimental_backgroundImage: LIGHT_MENU,
+} as const;
+/** A sheet in the middle of the screen, on its wash: the menu's glass and the shadow. */
 export const glassSheet = {
-  backgroundColor: BODY_OVER_WASH,
-  ...rim,
-  experimental_backgroundImage: LIGHT,
+  ...glassMenu,
   boxShadow: SHADOW,
+} as const;
+/** A sheet that stands on the screen's foot (X-Ray, a person's page): no foot line, no foot glow. */
+export const glassFootSheet = {
+  backgroundColor: BODY,
+  ...rimMenu,
+  borderBottomWidth: 0,
+  experimental_backgroundImage: LIGHT_FOOT_SHEET,
+} as const;
+/** A toast: the menu's lines and the sheen. */
+export const glassToast = {
+  backgroundColor: BODY,
+  ...rimMenu,
+  experimental_backgroundImage: LIGHT_SMALL,
 } as const;
 
 /**

@@ -163,7 +163,7 @@ import {personNow} from '../personSync';
 import {track} from '../usage';
 import {clearImageMemory, isLowRam} from '../perfTier';
 import {RootStackParamList} from '../navigation';
-import {glassSmall, ink, SHADOW} from '../glass';
+import {glassMenu, ink, SHADOW} from '../glass';
 import theme, {useTvMetrics} from '../theme';
 // [android-phone] the phone app draws its own touch controls over this same
 // player (docs/android-phone/PLAN.md); on a TV `PHONE` is false and none of it runs
@@ -6298,8 +6298,8 @@ const styles = StyleSheet.create({
     right: PHONE ? 16 : spacing.pageX,
     bottom: PHONE ? 104 : 124,
     maxHeight: '62%',
-    // THE TV: a small pane of the app's glass (glass.ts, docs/glass-tv.md) - the
-    // neutral body, a thin rim of light, the sheen, a soft shadow. Fully opaque:
+    // THE TV: a menu of the app's glass (glass.ts, docs/glass-tv.md) - the
+    // neutral body, the rim of light and its glow, the sheen, a soft shadow. Fully opaque:
     // at 0.97 a bright cue under the sheet still read through it ("Knox! Sto|p!"
     // - Mi TV, 2026-11-10). It was a navy body with the room's violet and green
     // in it (elia, 2026-10-07: "give the background there a bit hue"); the glass
@@ -6315,7 +6315,7 @@ const styles = StyleSheet.create({
           borderColor: 'rgba(255,255,255,0.10)',
           borderTopColor: 'rgba(255,255,255,0.20)',
         }
-      : {...glassSmall, boxShadow: SHADOW}),
+      : {...glassMenu, boxShadow: SHADOW}),
     borderRadius: radius.l,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,

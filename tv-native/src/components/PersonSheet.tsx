@@ -28,7 +28,7 @@ import Card, {COMPACT_H, COMPACT_W} from './Card';
 import Focusable from './Focusable';
 import {api, artSrc, HeroItem, LIST_ADDED, PersonCredit, PersonData, StreamRef, XrayPerson} from '../api';
 import {useFocusFallback, useKeyTrap} from '../focus';
-import {glassPane, ink} from '../glass';
+import {glassFootSheet, ink} from '../glass';
 import {rootNav} from '../rootNav';
 import {showToast} from '../toast';
 import {track} from '../usage';
@@ -360,9 +360,8 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingHorizontal: 28,
     paddingBottom: 18,
-    // the glass pane, as X-Ray's (glass.ts): neutral body, rim of light, sheen
-    ...glassPane,
-    borderBottomWidth: 0,
+    // the glass, as X-Ray's (glass.ts): neutral body, rim of light, sheen
+    ...glassFootSheet,
   },
   guide: {flexShrink: 1},
   head: {flexDirection: 'row', alignItems: 'center', gap: spacing.md},
