@@ -2976,7 +2976,8 @@ export const renderPlayer = async (root, { id }) => {
   const ccBtn = btn("Subtitles", icons.cc, () => toggleMenu("cc"));
   const speedBtn = btn("Speed", icons.speed, () => toggleMenu("speed"));
   const gearBtn = btn("Settings", icons.gear, () => toggleMenu("settings"));
-  const partyBtn = btn("Watch together", "👥", () => togglePartyPanel());
+  // (a drawn icon like its neighbours — the 👥 emoji was a purple, smaller glyph in a row of white ones)
+  const partyBtn = btn("Watch together", '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm-8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm0 2c-2.3 0-7 1.2-7 3.5V19h14v-2.5C15 14.2 10.3 13 8 13zm8 0c-.3 0-.6 0-1 .1 1.2.8 2 2 2 3.4V19h6v-2.5c0-2.3-4.7-3.5-7-3.5z"/></svg>', () => togglePartyPanel());
   // X-Ray over the film: the picture pauses, a sheet rises with who is in
   // this episode / film, who made it and how it is rated (js/xray.js — the
   // same panel as the title page's), and closing it picks the film back up.

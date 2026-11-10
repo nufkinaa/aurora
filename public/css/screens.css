@@ -2824,6 +2824,12 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
   background: #000;
   z-index: 200;
 }
+/* the page's own bar is under the player, out of sight — out of the Tab
+   order too: Tab past Fullscreen used to land on Home, Movies… behind the
+   film, with a ring on nothing you could see */
+body:has(.player) #nav {
+  visibility: hidden;
+}
 .player video {
   width: 100%;
   height: 100%;
@@ -3155,6 +3161,12 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
   width: 90px;
   opacity: 1;
   margin-right: 8px;
+}
+/* the slider had no focus mark at all: Tab landed on it invisibly */
+.vol-slider:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 5px;
+  border-radius: 4px;
 }
 @media (hover: none) {
   .vol-slider {

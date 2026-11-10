@@ -1271,6 +1271,11 @@ html[data-look="glass"] .pbtn:hover {
 html[data-look="glass"] .pbtn.big:hover {
   background: #fff;
 }
+/* Play / Pause is white already: turning white on focus showed nothing —
+   it takes the white buttons' violet ring instead */
+html[data-look="glass"] .pbtn.big:focus-visible {
+  box-shadow: var(--focus-ring-light);
+}
 html[data-look="glass"] .player-top .pbtn:hover {
   background: #fff;
   color: #0b0c14;
