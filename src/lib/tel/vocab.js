@@ -96,6 +96,7 @@ const SEGMENTS = new Set((
   "signout-everywhere signup similar sources start state stats status still stream sub subtitle subtitles suggest summary taste telemetry timeseries today torrent " +
   "torrents trailer transcode tree tv-app unban unlock update update-check upnext-dismiss usage video watch-history watchlist web web-callback web-finish " +
   "web-start websub wrapped xray errors alert-rules " +
+  "offline-wishes wish-options saved " + // a device's "save it here too" before the server has it (docs/offline-wishes.md)
   "scrub " + // the progress bar's preview pictures: /api/scrub/:id, /img/scrub/:id/:n.jpg (media/scrubsprites.js)
   "bye tuning tv " +
   "presence activity watched " + // watch time + presence (docs/watch-time.md): /api/presence/bye, /api/admin/activity, /api/profiles/:id/watched // the player's goodbye beacon (/stream/transcode/:id/jit/bye), /api/tv/tuning

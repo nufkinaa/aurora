@@ -569,6 +569,20 @@ const tellReplace = (job) => {
   }
 };
 
+// A device that asked for this title "to this device too" before it was in
+// the library (media/offlinewish.js): told when it lands, or why it will not.
+// (A replacement is for a title already in the library: nobody waits on it.)
+const tellWishes = (job, how, destPath = null) => {
+  if (!job || job.replaces) return;
+  try {
+    const wishes = require("./offlinewish");
+    if (how === "done") wishes.landed(job, destPath);
+    else wishes.ended(job, how);
+  } catch (e) {
+    console.warn("[offline-wish] not told:", e && e.message ? e.message : e);
+  }
+};
+
 const activeCount = () => active.size;
 
 const list = () => store.data.map(publicJob);
@@ -818,6 +832,7 @@ const decline = (id) => {
   broadcast(job);
   tellMyList(job);
   tellReplace(job);
+  tellWishes(job, "declined");
   endOfJob(job);
   purgeIfUnused(job.infoHash, job.id);
   return { job: publicJob(job) };
@@ -839,6 +854,7 @@ const cancel = (id, by = null) => {
   broadcast(job);
   tellMyList(job);
   tellReplace(job);
+  tellWishes(job, "canceled");
   // Order matters: pump() may start a queued sibling on this same pack, so decide
   // about the staging bytes FIRST (purgeIfUnused sees that sibling and keeps them).
   endOfJob(job);
@@ -877,6 +893,7 @@ const remove = (id, { by = null } = {}) => {
   endOfJob(gone);
   // a replacement taken off the queue before it landed: cancelled
   if (gone.replaces && LIVE_STATUSES.includes(gone.status)) tellReplace({ ...gone, status: "canceled", canceledBy: by });
+  if (LIVE_STATUSES.includes(gone.status)) tellWishes(gone, "removed");
   store.save();
   // Every open "My downloads" page drops the row now, not on its next reload.
   realtime.broadcastAll({ type: "download_removed", id });
@@ -1054,6 +1071,7 @@ const fail = (job, message) => {
   notify.send("Aurora: download failed", `"${job.label || job.title}" — ${job.error}${job.replaces ? " The copy in the library stays as it was." : ""}`);
   tellMyList(job);
   tellReplace(job);
+  tellWishes(job, "error");
   endOfJob(job);
   purgeIfUnused(job.infoHash, job.id); // before pump(), same reason as cancel()
   pump();
@@ -2894,6 +2912,7 @@ const finish = async (job, destPath) => {
   console.log(`[download] ${job.id.slice(0, 6)} done "${job.title}"`);
   tellMyList(job);
   tellReplace(job);
+  tellWishes(job, "done", destPath);
   if (job.replaces) notify.send("Aurora: copy replaced", `"${job.label || job.title}" — ${job.replaces.byName || "someone"} replaced the copy (${job.replaces.reasonLabel || job.replaces.reason}).`);
   else notify.send("Aurora: download ready", `"${job.label || job.title}" is downloaded and in the library.`);
   // …and the person who asked for it hears on the devices where they switched

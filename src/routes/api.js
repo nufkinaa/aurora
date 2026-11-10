@@ -608,6 +608,16 @@ router.post("/api/offline/prepare/:id", (req, res) => {
 router.get("/api/offline/status/:id", (req, res) => {
   res.json(require("../media/offline").status(req.params.id, req.query.q, offlineCaps(req)));
 });
+// The size sheet for a title NOT in the library yet ("save it to this device
+// too" — media/offlinewish.js): the same shape as /options, every size an
+// estimate (from the download's size and the running time the client knows).
+//   ?type=movie|show&imdbId=&season=&episode=&duration=<s>&hevc=1
+router.get("/api/offline/wish-options", (req, res) => {
+  res.json(require("../media/offline").wishOptions({
+    type: req.query.type, imdbId: req.query.imdbId, season: req.query.season, episode: req.query.episode,
+    duration: Number(req.query.duration) || 0, hevc: req.query.hevc === "1",
+  }));
+});
 // The phone's Cancel: the copy stops when nobody else is waiting for it.
 router.post("/api/offline/cancel/:id", (req, res) => {
   res.json(require("../media/offline").cancel(req.params.id, req.query.q));

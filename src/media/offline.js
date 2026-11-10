@@ -258,6 +258,51 @@ const options = (id, caps = {}) => {
   return { options: out, duration, ffmpeg: !!config.ffmpegAvailable };
 };
 
+// The choices for a title that is NOT in the library yet (a device's wish,
+// offlinewish.js). Nothing is known about the file but what the download
+// says: its size (the original), its resolution label; the re-encodes are
+// estimated from the running time when the client knows it. The picture's
+// codec is unknown until it lands — Original says what happens if this
+// device cannot play it.
+const wishOptions = ({ type, imdbId, season, episode, duration = 0 } = {}) => {
+  let job = null;
+  try {
+    const want = type === "show" ? "show" : "movie";
+    job = require("./downloads").list().find((j) =>
+      ["pending", "approved", "downloading", "done"].includes(j.status) && j.type === want && imdbId && j.imdbId === imdbId &&
+      (want !== "show" || (Number(j.season) === Number(season) && Number(j.episode) === Number(episode)))) || null;
+  } catch {}
+  const secs = Number(duration) > 0 ? Number(duration) : 0;
+  const per = (q) => `about ${((KBPS[q] * 1000 / 8) * 3600 / 1024 ** 3).toFixed(1)} GB an hour`;
+  const res = job && job.quality ? String(job.quality) : "";
+  const h = /2160|4k/i.test(res) ? 2160 : /1080/.test(res) ? 1080 : /720/.test(res) ? 720 : /480/.test(res) ? 480 : 0;
+  const out = [{
+    quality: "original",
+    label: "Original quality",
+    detail: [h ? (h >= 2000 ? "4K" : `${h}p`) : null, "as downloaded"].filter(Boolean).join(" · "),
+    sizeBytes: (job && job.sizeBytes) || 0,
+    estimated: true,
+    instant: true,
+    note: "The picture untouched. If this device can't play it, it is saved at 1080p instead.",
+    ready: false,
+  }];
+  if (config.ffmpegAvailable) {
+    for (const q of ["1080", "720", "480"].filter((x) => x === "480" || !h || Number(x) <= h * 1.15)) {
+      out.push({
+        quality: q,
+        label: `${q}p`,
+        detail: "H.264 · stereo — plays on anything",
+        sizeBytes: secs ? Math.round((KBPS[q] * 1000 / 8) * secs) : 0,
+        estimated: true,
+        instant: false,
+        note: secs ? "Converted on the server once it arrives; that takes a while for a long film." : `Converted on the server once it arrives — ${per(q)}.`,
+        ready: false,
+      });
+    }
+  }
+  return { options: out, duration: secs, ffmpeg: !!config.ffmpegAvailable, download: job ? { id: job.id, status: job.status, progress: job.progress || 0 } : null };
+};
+
 // Why a job that is not running yet (or is paused) is not making progress —
 // for the person looking at "Preparing…" (status().wait) and the log.
 //   → { reason: "behind" | "viewers" | "busy" | "paused", text, before } or null
@@ -319,10 +364,13 @@ const status = (id, quality, caps = {}) => {
 // stamped as a date in the future, which the sweep reads as "used then".
 // A request WITHOUT keepMs is a person's: it goes ahead of every copy made
 // ahead of time, and one of those running in its lane is set aside for it.
-const prepare = (id, quality, caps = {}, { keepMs = 0 } = {}) => {
+// `person: true` with a keepMs: somebody's request whose copy is still kept
+// that long — a device's wish (offlinewish.js): it waits for the phone to come
+// back, and it goes ahead of the copies made ahead of time like any person's.
+const prepare = (id, quality, caps = {}, { keepMs = 0, person: asPerson = null } = {}) => {
   const q = normQuality(quality);
   const key = jobKey(id, q);
-  const person = !(keepMs > 0);
+  const person = asPerson != null ? !!asPerson : !(keepMs > 0);
   // a copy that failed before is tried again when somebody asks again (it
   // used to answer the old error until the server restarted)
   const old = jobs.get(key);
@@ -630,6 +678,7 @@ const start = ({ id, q, ahead, e, job, place }) => {
       let mb = 0;
       try { mb = fs.statSync(out).size / 1e6; } catch {}
       console.log(`[offline] ready ${id} at ${q} (${mb.toFixed(0)} MB in ${((Date.now() - job.startedAt) / 1000).toFixed(0)}s)`);
+      for (const fn of readyListeners) { try { fn(id, q); } catch {} }
     } else {
       try { fs.unlinkSync(tmp); } catch {}
       job.state = "error";
@@ -643,6 +692,10 @@ const start = ({ id, q, ahead, e, job, place }) => {
   child.on("close", (code) => finish(code, null));
   child.on("error", (e2) => finish(null, e2.message));
 };
+
+// Somebody waits for a copy to be made (offlinewish.js: tell the device).
+const readyListeners = new Set();
+const onReady = (fn) => { readyListeners.add(fn); return () => readyListeners.delete(fn); };
 
 // Nothing from ffmpeg for STALL_MS, and not paused on purpose: stopped, as a
 // failure the phone can show (it used to say "Preparing" for ever).
@@ -690,4 +743,4 @@ const load = () => {
   return { running: running || null, since: j ? j.startedAt : null, progress: j ? j.progress || 0 : 0, queued: queue.length, waitingSince: oldest };
 };
 
-module.exports = { status, prepare, cancel, fileFor, options, sweep, load, DIR, MAX_BYTES, QUALITIES, STALL_MS, _internals: { toRemove, KEEP_MS, isDirect, originalMode, argsFor, normQuality, outFileFor, DIRECT_CONTAINERS, isEncode, spawner, jobs, queue, lanes, pump, checkStalls, waitOf, _reset: () => { jobs.clear(); queue.length = 0; lanes.copy = null; lanes.encode = null; encodeAsk = null; } } };
+module.exports = { status, prepare, cancel, fileFor, options, wishOptions, sweep, load, onReady, DIR, MAX_BYTES, QUALITIES, STALL_MS, _internals: { toRemove, KEEP_MS, isDirect, originalMode, argsFor, normQuality, outFileFor, DIRECT_CONTAINERS, isEncode, spawner, jobs, queue, lanes, pump, checkStalls, waitOf, _reset: () => { jobs.clear(); queue.length = 0; lanes.copy = null; lanes.encode = null; encodeAsk = null; } } };
