@@ -594,15 +594,20 @@ const paintNav = (list) => {
   const nav = document.getElementById("nav");
   if (!nav) return;
   let b = document.getElementById("nav-remote");
+  navOn = list.length > 0;
   if (!list.length) { if (b) b.hidden = true; return; }
-  ensureRemoteCss();
+  const css = ensureRemoteCss();
   if (!b) {
-    b = el("a", { id: "nav-remote", class: "nav-remote focusable", href: "#/remote", "data-nav": "", "data-ui": "nav.remote", "aria-label": "Your TVs", title: "Your TVs", html: ICONS.remote });
+    // (made hidden: its round glass lives in remote.css, and a page opened
+    // straight on a title showed a bare icon in the bar until that arrived)
+    b = el("a", { id: "nav-remote", class: "nav-remote focusable", href: "#/remote", "data-nav": "", "data-ui": "nav.remote", "aria-label": "Your TVs", title: "Your TVs", html: ICONS.remote, hidden: true });
     const anchor = document.getElementById("nav-dl") || nav.querySelector(".nav-gear");
     if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(b, anchor);
     else nav.append(b);
   }
-  b.hidden = false;
   const playing = list.find((d) => d.state && d.state.now);
   b.classList.toggle("live", !!playing);
+  const btn = b;
+  css.then(() => { if (navOn) btn.hidden = false; });
 };
+let navOn = false;

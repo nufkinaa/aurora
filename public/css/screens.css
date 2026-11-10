@@ -1339,6 +1339,11 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
 .search-related .row-title {
   margin-bottom: 4px;
 }
+/* no results yet (the empty field, Recent and Popular in this house): the
+   empty results grid kept its 62 px of padding as a hole above Popular */
+.search-wrap ~ .grid:empty {
+  display: none;
+}
 
 .search-wrap {
   padding: calc(var(--nav-h) + 42px) var(--page-x) 10px;
