@@ -1178,7 +1178,15 @@ const slim = (it) => ({
   savedAt: it.savedAt || 0, cover: it.cover || null, duration: it.duration || 0,
 });
 const tellIndex = () => { for (const fn of [...indexSubs]) { try { fn(); } catch {} } };
-const channel = (() => { try { return typeof BroadcastChannel === "function" ? new BroadcastChannel("aurora-offline") : null; } catch { return null; } })();
+// (only in a page: a channel open in Node — the tests that import this file — keeps the process alive)
+const channel = (() => {
+  try {
+    if (typeof window === "undefined" || typeof BroadcastChannel !== "function") return null;
+    const ch = new BroadcastChannel("aurora-offline");
+    if (typeof ch.unref === "function") ch.unref();
+    return ch;
+  } catch { return null; }
+})();
 const indexPut = (it) => {
   if (!it || it.pending) return;
   index.set(it.id, slim(it));
