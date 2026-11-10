@@ -149,8 +149,10 @@ module.exports = {
   "peek.playontv": "w", // [phone-remote]
   "peek.remove": "w",
   // pick
+  "pick.another": "w",
   "pick.example": "wtp",
   "pick.go": "wtp",
+  "pick.open": "w",
   "pick.option": "wtp",
   "pick.retry": "t",
   "pick.unfold": "t",
