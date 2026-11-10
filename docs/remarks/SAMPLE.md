@@ -23,7 +23,7 @@ A made-up person (zone Asia/Jerusalem) back after a month away, then hooked agai
 | 17 | 2026-11-13 18:00 (Fri) | streak=7, unwatchedDownloads=4 | ft-12 (friday-13) | Friday the 13th. Pick quickly. The longer you wait, the worse. |
 | 18 | 2026-11-13 22:00 (Fri) | streak=7, todayHours=4 | ee-28 (everyday-evening) | The evening is all yours. You'll give most of it to me. |
 | 19 | 2026-11-14 09:00 (Sat) | yesterdayHours=5, streak=8 | st-7 (streak) | 8 days. Each one started with "just one". Each one lied. |
-| 20 | 2026-11-14 14:00 (Sat) | streak=8, rewatch=Paddington 2 | rw-4 (rewatch) | Paddington 2: comfort watch or hostage situation? |
+| 20 | 2026-11-14 14:00 (Sat) | streak=8, rewatch=Paddington 2 | rw-4 (rewatch) | Paddington 2: comfort viewing, or a standing order? |
 | 21 | 2026-11-14 20:00 (Sat) | streak=8 | st-4 (streak) | 8 days running. I'd give you a medal if you'd stand up for it. |
 | 22 | 2026-11-15 07:00 (Sun) | streak=9, phoneMostly | wm-12 (workday-morning) | Whatever you start now, you finish tonight. That's the deal. |
 | 23 | 2026-11-15 13:00 (Sun) | — | ex-38 (everyday-any) | Your taste is consistent. I'm being polite. |

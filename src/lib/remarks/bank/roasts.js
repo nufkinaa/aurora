@@ -49,7 +49,7 @@ module.exports = {
     roast: true,
     lines: [
       "{n} sessions started after midnight. You and 3am are basically in a long-term arrangement.",
-      "{n} times you pressed play after midnight. Your pillow has filed a missing-person report.",
+      "{n} times you pressed play after midnight. Your pillow has learned to sleep without you.",
       "After midnight, {n} times. Most people use those hours for sleep. You use them for \"one more\".",
       "{n} late-night sessions. If owls had a streaming service, you'd be their best customer.",
       "You've started {n} things after midnight. The small hours know you by name.",
@@ -73,7 +73,7 @@ module.exports = {
     roast: true,
     lines: [
       "{n} days in a row. The couch has permanently taken your shape.",
-      "A {n}-day streak. Gyms would kill for your consistency. Wrong venue, though.",
+      "A {n}-day streak. Gyms would envy your consistency. Wrong venue, though.",
       "{n} consecutive days. At some point it stopped being a habit and became a lifestyle.",
       "{n} days without a break. Even the films took more days off than you.",
       "You watched something {n} days straight. The remote is considering unionising.",

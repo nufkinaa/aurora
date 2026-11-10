@@ -177,7 +177,7 @@ module.exports = {
       "{title} once more. Spoiler: it ends the same.",
       "{n} times through {title}. Same ending. Checked.",
       "{title} again. You could do the voices by now.",
-      "{title}: comfort watch or hostage situation?",
+      "{title}: comfort viewing, or a standing order?",
       "{title}, again. It holds no secrets. Nor do you.",
       "{title}, {n} times. Not a film now. Furniture.",
       "{title} again. Bold to still call it a rewatch.",
