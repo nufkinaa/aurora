@@ -972,32 +972,32 @@
     td .pill { white-space: nowrap; overflow-wrap: normal; }
     td.num, td .mini { white-space: nowrap; }
     td .mini { overflow-wrap: normal; }
-    /* Finished, on a computer: it fits the card again (its buttons ran off the
-       right edge): narrower title and who, the error under its pill, the two
-       buttons stacked when they must */
     /* (on a tablet or a small laptop the tables with many columns do not
        fit: Finished, People, Connected now, device errors, problem reports —
        their rows are small cards there, as on a phone, three fields to a line) */
     @media (min-width: 701px) and (max-width: 1279px) {
       .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) { overflow: visible; }
-      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) table, .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) tbody { display: block; width: 100%; }
-      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) thead { display: none; }
-      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 16px; padding: 12px 14px;
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table, .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > tbody { display: block; width: 100%; }
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > thead { display: none; }
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > tbody > tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 16px; padding: 12px 14px;
         margin-bottom: 8px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255, 255, 255, 0.025); }
-      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) td { display: block; padding: 0 !important; border: 0; min-width: 0; max-width: none !important;
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > tbody > tr > td { display: block; padding: 0 !important; border: 0; min-width: 0; max-width: none !important;
         white-space: normal !important; text-align: left !important; font-size: 0.88rem; }
-      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) tr:hover td { background: none; }
-      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) td[data-label]::before { content: attr(data-label); display: block; font-size: 0.64rem;
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > tbody > tr:hover > td { background: none; }
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > tbody > tr > td[data-label]::before { content: attr(data-label); display: block; font-size: 0.64rem;
         font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 2px; }
-      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) :is(td.wide, td[colspan]),
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > tbody > tr > :is(td.wide, td[colspan]),
       #dl-done td:first-child, #people-table td:first-child, #people-live td:first-child { grid-column: 1 / -1; }
       .table-scroll.cards-mid .person-row td:last-child { display: none; }
       #tel-errors td.wide:not(:nth-child(3)) { grid-column: auto; }
-      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) td.acts { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; }
-      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) td.acts:empty { display: none; }
-      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) td .pill { white-space: normal; }
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > tbody > tr > td.acts { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; }
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > tbody > tr > td.acts:empty { display: none; }
+      .table-scroll:is(.cards-mid, :where(:has(> table > #reports))) > table > tbody > tr > td .pill { white-space: normal; }
       #dl-done td:nth-child(6) .muted { display: block; margin-top: 4px; font-size: 0.8rem; }
     }
+    /* Finished, on a computer: it fits the card again (its buttons ran off the
+       right edge): narrower title and who, the error under its pill, the two
+       buttons stacked when they must */
     @media (min-width: 1280px) {
       #dl-done td, #dl-done th { padding-left: 9px; padding-right: 9px; }
       #dl-done td:first-child { max-width: 240px !important; }
