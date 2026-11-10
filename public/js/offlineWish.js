@@ -19,7 +19,10 @@ import { pickOfflineQuality } from "./offlinePicker.js";
 
 let wishes = [];
 const subs = new Set();
-const emit = () => { for (const fn of [...subs]) { try { fn(wishes); } catch {} } };
+const emit = () => {
+  try { offline._noteWishList(wishes); } catch {} // (stateOf / watchSaves in offline.js)
+  for (const fn of [...subs]) { try { fn(wishes); } catch {} }
+};
 export const listWishes = () => wishes;
 export const onWishes = (fn) => { subs.add(fn); return () => subs.delete(fn); };
 

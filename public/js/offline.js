@@ -112,6 +112,7 @@ const dropUnfinished = async (id) => {
     for (const sub of it.subtitles || []) if (sub.url) await c.delete(sub.url).catch(() => {});
     await tx("items", "readwrite", (s) => s.delete(id)).catch(() => {});
   }
+  indexDrop(id);
 };
 const nameFor = (it) => (it.showTitle && it.season != null ? `${it.showTitle} · S${it.season} E${it.episode}` : it.title || "Aurora");
 export const removeSaved = async (id) => {
@@ -120,6 +121,7 @@ export const removeSaved = async (id) => {
   const c = await caches.open(MEDIA);
   for (const sub of (it && it.subtitles) || []) if (sub.url) await c.delete(sub.url).catch(() => {});
   await tx("items", "readwrite", (s) => s.delete(id));
+  indexDrop(id);
 };
 
 // What this browser can take as "original": HEVC in an MP4 plays on Safari
@@ -312,7 +314,7 @@ export const saveItem = async (item, onProgress = () => {}, choose = null, signa
   const progress = (p) => {
     onProgress(p);
     if (started && ["queued", "preparing", "saving", "retrying"].includes(p.phase)) {
-      setJob(item.id, { state: p.phase, pct: p.pct || 0, note: p.note || "", speed: p.speed || 0, eta: p.eta || 0, waiting: !!p.waiting });
+      setJob(item.id, { state: p.phase, pct: p.pct || 0, note: p.note || "", speed: p.speed || 0, eta: p.eta || 0, waiting: !!p.waiting, ...(p.size ? { size: p.size } : {}) });
     }
   };
   try {
@@ -338,6 +340,8 @@ export const saveItem = async (item, onProgress = () => {}, choose = null, signa
 // A save running in another tab is left to it (withLock).
 let resuming = false;
 export const resumeSaves = async () => {
+  // (and keep the next episode ready, where that is switched on — below)
+  if (available()) Promise.resolve().then(() => smartNext.check()).catch(() => {});
   if (!available() || resuming || (typeof navigator !== "undefined" && navigator.onLine === false)) return 0;
   const todo = listJobs().filter((j) => j.state === "paused" && !jobCtl.has(j.id) && j.quality);
   if (!todo.length) return 0;
@@ -515,6 +519,7 @@ const saveOne = async (item, onProgress, choose, signal) => {
     saved.savedAt = Date.now();
     await tx("items", "readwrite", (s) => s.put(saved));
     warmForOffline(who && who.id).catch(() => {});
+    indexPut(saved);
     onProgress({ phase: "done", pct: 1 });
     return saved;
   });
@@ -595,7 +600,7 @@ const transfer = async (id, st, onProgress, signal, opts = {}) => {
     const have = landedBytes() + [...inflight.values()].reduce((a, b) => a + b, 0);
     const secs = (now - t0) / 1000;
     const speed = secs > 1 ? got / secs : 0;
-    onProgress({ phase: "saving", pct: size ? Math.min(0.999, have / size) : 0, note: "downloading to this device", speed, eta: speed > 0 && size ? Math.round((size - have) / speed) : 0 });
+    onProgress({ phase: "saving", pct: size ? Math.min(0.999, have / size) : 0, note: "downloading to this device", speed, eta: speed > 0 && size ? Math.round((size - have) / speed) : 0, size });
   };
   const changed = async () => {
     // the file on the server is not the one these parts came from: from zero
@@ -861,7 +866,7 @@ const watchBackground = async (id, bg, m) => {
     const now = Math.max(landed, base + (bg.downloaded || 0));
     const secs = (Date.now() - t0) / 1000;
     const speed = secs > 2 ? Math.max(0, now - base) / secs : 0;
-    m.onProgress({ phase: "saving", pct: Math.min(0.999, now / m.size), note: "the browser is saving it — it carries on with Aurora closed", speed, eta: speed > 0 ? Math.round((m.size - now) / speed) : 0 });
+    m.onProgress({ phase: "saving", pct: Math.min(0.999, now / m.size), note: "the browser is saving it — it carries on with Aurora closed", speed, eta: speed > 0 ? Math.round((m.size - now) / speed) : 0, size: m.size });
     if (bg.result) {
       // finished: the worker is storing the parts — until nothing more comes
       if (have.size === lastCount) still++; else { still = 0; lastCount = have.size; }
@@ -1011,3 +1016,277 @@ export const registerWorker = () => {
     })
     .catch((e) => { import("./telemetry.js").then((t) => t.reportError("sw", `service worker did not register: ${(e && e.name) || "error"}`)).catch(() => {}); }); // [analytics]
 };
+
+// ---------- one in-memory index of this device's copies (2026-11-10, round 2) ----------
+// Screens ask "is this saved here?" for every card of a shelf: answered from
+// memory (a Map kept fresh by every save, removal and the other tabs), never
+// an IndexedDB round trip per card.
+//   savedNow(id)  → true | false              (sync)
+//   stateOf(id)   → "saved" | "queued" | "preparing" | "saving" | "retrying" |
+//                   "paused" | "failed" | "waiting" (a wish: not on the server yet) | null   (sync)
+//   onIndex(fn)   → unsubscribe; fn() whenever any of that may have changed
+const index = new Map(); // id -> a copy's summary (slim below)
+let indexReady = false;
+const indexSubs = new Set();
+const wishStates = new Map(); // library id, or "imdb|season|episode" -> wish state (offlineWish.js tells)
+const slim = (it) => ({
+  id: it.id, title: it.title, showId: it.showId || null, showTitle: it.showTitle || null, season: it.season ?? null, episode: it.episode ?? null,
+  sizeBytes: it.sizeBytes || 0, quality: it.quality || null, audioLang: it.audioLang || null, profileId: it.profileId || null, kids: !!it.kids,
+  savedAt: it.savedAt || 0, cover: it.cover || null, duration: it.duration || 0,
+});
+const tellIndex = () => { for (const fn of [...indexSubs]) { try { fn(); } catch {} } };
+const channel = (() => { try { return typeof BroadcastChannel === "function" ? new BroadcastChannel("aurora-offline") : null; } catch { return null; } })();
+const indexPut = (it) => {
+  if (!it || it.pending) return;
+  index.set(it.id, slim(it));
+  tellIndex();
+  try { if (channel) channel.postMessage({ type: "changed" }); } catch {}
+};
+const indexDrop = (id) => {
+  if (index.delete(id)) tellIndex();
+  try { if (channel) channel.postMessage({ type: "changed" }); } catch {}
+};
+export const refreshIndex = async () => {
+  if (!available()) return index;
+  try {
+    const all = await listSaved();
+    index.clear();
+    for (const it of all) index.set(it.id, slim(it));
+  } catch {}
+  indexReady = true;
+  tellIndex();
+  return index;
+};
+if (channel) channel.onmessage = () => { refreshIndex().catch(() => {}); };
+if (typeof window !== "undefined" && available()) refreshIndex().catch(() => {});
+export const savedNow = (id) => index.has(id);
+export const stateOf = (id) => {
+  const j = jobs.get(id);
+  if (j && j.state) return j.state;
+  if (index.has(id)) return "saved";
+  return wishStates.get(id) || null;
+};
+export const onIndex = (fn) => { indexSubs.add(fn); return () => indexSubs.delete(fn); };
+// The wish state of a title that is not in the library yet (an episode card
+// on its way): stateOfTitle({ imdbId, season, episode }) → "waiting" | "failed" | null
+export const stateOfTitle = (t) => (t && t.imdbId ? wishStates.get(`${t.imdbId}|${t.season ?? ""}|${t.episode ?? ""}`) || null : null);
+// (offlineWish.js tells this device's wishes)
+let lastWishes = [];
+export const _noteWishList = (list) => {
+  lastWishes = list || [];
+  wishStates.clear();
+  for (const w of lastWishes) {
+    const st = w.state === "failed" ? "failed" : "waiting";
+    if (w.libraryId) { if (!index.has(w.libraryId)) wishStates.set(w.libraryId, st); }
+    if (w.imdbId) wishStates.set(`${w.imdbId}|${w.season ?? ""}|${w.episode ?? ""}`, st);
+  }
+  tellIndex();
+};
+
+// ---------- everything on this device, live ----------
+// watchSaves(fn) → unsubscribe. fn(rows) at once and whenever anything moves:
+//   rows: [{ id, kind, title, showTitle, season, episode, cover, state, pct, bytes, totalBytes, speed, eta, note, error, quality }]
+//   kind "save" (under way or stopped), "copy" (saved here), "wish" (waiting for the server's copy)
+//   state as stateOf(); pct 0..1; bytes / totalBytes in bytes (0 while not known); speed bytes/s; eta seconds
+const rowsNow = () => {
+  const rows = [];
+  for (const j of listJobs()) {
+    const it = j.item || {};
+    const total = j.size || 0;
+    rows.push({
+      id: j.id, kind: "save", title: j.title || it.title || "", showTitle: it.showTitle || null, season: it.season ?? null, episode: it.episode ?? null, cover: j.cover || it.cover || null,
+      state: j.state, pct: j.pct || 0, bytes: total ? Math.round((j.pct || 0) * total) : 0, totalBytes: total, speed: j.speed || 0, eta: j.eta || 0,
+      note: j.note || "", error: j.error || null, quality: j.quality || null,
+    });
+  }
+  const busy = new Set(rows.map((r) => r.id));
+  for (const it of index.values()) {
+    if (busy.has(it.id)) continue;
+    rows.push({ id: it.id, kind: "copy", title: it.title, showTitle: it.showTitle, season: it.season, episode: it.episode, cover: it.cover, state: "saved", pct: 1, bytes: it.sizeBytes, totalBytes: it.sizeBytes, speed: 0, eta: 0, note: "", error: null, quality: it.quality, audioLang: it.audioLang, profileId: it.profileId, kids: it.kids });
+  }
+  for (const w of lastWishes) {
+    if (w.state === "ready" && w.libraryId && (busy.has(w.libraryId) || index.has(w.libraryId))) continue;
+    rows.push({ id: `wish:${w.id}`, wishId: w.id, kind: "wish", title: w.title || "", showTitle: w.showTitle || null, season: w.season ?? null, episode: w.episode ?? null, cover: w.poster || null, state: w.state === "failed" ? "failed" : "waiting", scope: w.scope, pct: 0, bytes: 0, totalBytes: 0, speed: 0, eta: 0, note: w.note || "", error: w.error || null, quality: w.quality });
+  }
+  return rows;
+};
+export const watchSaves = (fn) => {
+  let t = null;
+  const send = () => { t = null; try { fn(rowsNow()); } catch {} };
+  const soon = () => { if (!t) t = setTimeout(send, 0); };
+  const a = onJobs(soon);
+  const b = onIndex(soon);
+  send();
+  return () => { a(); b(); if (t) clearTimeout(t); };
+};
+
+// Is this copy watched to the end? The server's rule: past 95 %, or marked
+// watched — from the app's history, or minutes watched here with no server.
+const finishedIn = (progress, queued) => (id) => {
+  const q = queued.get(id);
+  if (q && q.duration > 0 && q.position / q.duration > 0.95) return true;
+  const p = progress[id];
+  return !!(p && (p.finished || (p.duration > 0 && p.position / p.duration > 0.95)));
+};
+const historyNow = async () => {
+  let progress = {};
+  let me = null;
+  try {
+    const { state } = await import("./state.js");
+    progress = state.progress || {};
+    if (state.profile) me = { id: state.profile.id, kids: !!state.profile.kids };
+  } catch {}
+  const queued = new Map((await queuedProgress().catch(() => [])).map((r) => [r.itemId, r]));
+  return { progress, queued, me: me || lastWho() };
+};
+
+// Copies watched to the end — for a "Remove watched" button. Nothing is
+// removed here: the person decides.  → { copies: [copy], totalBytes }
+//   who: { id, kids } (a kids profile sees only its own) — default: the app's profile
+export const watchedCopies = async (who = null) => {
+  const h = await historyNow();
+  const done = finishedIn(h.progress, h.queued);
+  const copies = (await listSavedFor(who || h.me)).filter((it) => done(it.id));
+  return { copies, totalBytes: copies.reduce((n, it) => n + (it.sizeBytes || 0), 0) };
+};
+
+// The storage picture for a screen: Aurora's copies, the room left, whether
+// the browser keeps them, and Safari's 7-day rule.
+//   → { count, bytes, usage, quota, free, persisted: true | false | null, safariMayClear }
+export const storageSummary = async () => {
+  const items = available() ? (indexReady ? [...index.values()] : await listSaved().catch(() => [])) : [];
+  const est = await storageEstimate();
+  let persisted = null;
+  try { if (navigator.storage && navigator.storage.persisted) persisted = await navigator.storage.persisted(); } catch {}
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
+  const safari = /Safari\//.test(ua) && !/Chrome\/|Chromium\/|CriOS\/|FxiOS\/|Edg\//.test(ua);
+  const standalone = (() => { try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; } catch { return false; } })();
+  return {
+    count: items.length,
+    bytes: items.reduce((n, it) => n + (it.sizeBytes || 0), 0),
+    usage: (est && est.usage) || 0,
+    quota: (est && est.quota) || 0,
+    free: est && est.quota ? Math.max(0, est.quota - (est.usage || 0)) : 0,
+    persisted,
+    safariMayClear: safari && !standalone && persisted !== true,
+  };
+};
+
+// ---------- keep the next episode ready (2026-11-10, round 2) ----------
+// Opt-in, per device, off by default. When an episode saved here has been
+// watched to the end (the server's rule: past 95 %), the next episode of the
+// show is saved by itself at the same quality — or, when the server does not
+// have it yet, wished for (offlineWish.js: saved here by itself when it
+// lands). It only ADDS: nothing is ever removed by itself.
+//   smartNext.get() → true | false
+//   smartNext.set(on)
+//   smartNext.on(fn) → unsubscribe; fn({ type, from, next, error?, on? }):
+//     "saving"  the next episode is being saved here (next: { id, title, showTitle, season, episode })
+//     "saved"   it is here now
+//     "wished"  not on the server yet — saved here by itself when it arrives (next: { imdbId, season, episode, title, showTitle })
+//     "failed"  it could not be saved (error: the reason)
+//     "changed" the setting changed (on)
+//   smartNext.check() → looks now (Aurora opening / coming back / reconnecting
+//     call it through resumeSaves; leaving the player through hashchange)
+// Only episodes finished AFTER it was switched on count — switching it on is
+// not a flood of every episode watched before.
+const SMART_KEY = "aurora-offline-smartnext";
+const SMART_AT_KEY = "aurora-offline-smartnext-at";
+const SMART_DONE_KEY = "aurora-offline-smartnext-done";
+const smartSubs = new Set();
+const smartTell = (e) => { for (const fn of [...smartSubs]) { try { fn(e); } catch {} } };
+const smartDone = () => { try { return new Set(JSON.parse(localStorage.getItem(SMART_DONE_KEY) || "[]")); } catch { return new Set(); } };
+const smartMark = (id, on = true) => {
+  const d = smartDone();
+  if (on) d.add(id); else d.delete(id);
+  try { localStorage.setItem(SMART_DONE_KEY, JSON.stringify([...d].slice(-400))); } catch {}
+};
+let smartChecking = false;
+export const smartNext = {
+  get: () => { try { return localStorage.getItem(SMART_KEY) === "1"; } catch { return false; } },
+  set: (on) => {
+    try {
+      localStorage.setItem(SMART_KEY, on ? "1" : "0");
+      if (on) localStorage.setItem(SMART_AT_KEY, String(Date.now()));
+    } catch {}
+    smartTell({ type: "changed", on: !!on });
+    if (on) setTimeout(() => { smartNext.check().catch(() => {}); }, 0);
+  },
+  on: (fn) => { smartSubs.add(fn); return () => smartSubs.delete(fn); },
+  check: async () => {
+    if (!smartNext.get() || !available() || smartChecking) return 0;
+    smartChecking = true;
+    let n = 0;
+    try {
+      const since = Number(localStorage.getItem(SMART_AT_KEY)) || 0;
+      const h = await historyNow();
+      const done = smartDone();
+      // finished after it was switched on: the history's own date, or minutes watched here offline
+      const finishedSince = (id) => {
+        const q = h.queued.get(id);
+        if (q && q.at >= since && q.duration > 0 && q.position / q.duration > 0.95) return true;
+        const p = h.progress[id];
+        return !!(p && (p.updatedAt || 0) >= since && (p.finished || (p.duration > 0 && p.position / p.duration > 0.95)));
+      };
+      for (const it of await listSaved()) {
+        if (!it.showId || it.season == null || it.episode == null) continue;
+        if (done.has(it.id) || !finishedSince(it.id)) continue;
+        smartMark(it.id);
+        const r = await smartFor(it).catch(() => false);
+        if (r === "offline") { smartMark(it.id, false); break; } // no server: the next chance asks again
+        if (r) n++;
+      }
+    } finally {
+      smartChecking = false;
+    }
+    return n;
+  },
+};
+const qualityLike = (want, options) => {
+  if (options.some((o) => o.quality === want)) return want;
+  const order = ["original", "1080", "720", "480"];
+  const from = Math.max(0, order.indexOf(want));
+  return order.slice(from).find((q) => options.some((o) => o.quality === q)) || (options[0] || {}).quality;
+};
+const smartFor = async (it) => {
+  let r;
+  try { r = await api.nextEpisode({ id: it.id }); } catch { return "offline"; }
+  const next = r && r.next;
+  if (!next) return false;
+  const showTitle = it.showTitle || null;
+  if (next.kind === "library" && next.id) {
+    if (index.has(next.id) || ACTIVE_JOB.has((jobs.get(next.id) || {}).state)) return false;
+    let item;
+    try { item = await api.item(next.id); } catch { return "offline"; }
+    if (!item) return false;
+    const nx = { ...item, showTitle: item.showTitle || showTitle, showId: item.showId || it.showId };
+    const desc = { id: nx.id, title: nx.title, showTitle: nx.showTitle, season: nx.season, episode: nx.episode };
+    queueJob(nx);
+    smartTell({ type: "saving", from: it.id, next: desc });
+    try {
+      const saved = await saveItem(nx, () => {}, async (options) => qualityLike(it.quality || "720", options));
+      if (saved) smartTell({ type: "saved", from: it.id, next: desc });
+      return !!saved;
+    } catch (e) {
+      smartTell({ type: "failed", from: it.id, next: desc, error: (e && e.message) || String(e) });
+      return false;
+    }
+  }
+  if (next.kind === "stream" && next.imdbId) {
+    const target = { type: "show", imdbId: next.imdbId, season: next.season, episode: next.episode, title: next.title || `Episode ${next.episode}`, showTitle };
+    try {
+      const w = await import("./offlineWish.js");
+      await w.addWish(target, it.quality || "720");
+      smartTell({ type: "wished", from: it.id, next: target });
+      return true;
+    } catch (e) {
+      smartTell({ type: "failed", from: it.id, next: target, error: (e && e.message) || String(e) });
+      return false;
+    }
+  }
+  return false;
+};
+// Leaving the player (any screen change) is the moment an episode may just have been finished.
+if (typeof window !== "undefined") {
+  window.addEventListener("hashchange", () => { if (smartNext.get()) setTimeout(() => { smartNext.check().catch(() => {}); }, 1500); });
+}
