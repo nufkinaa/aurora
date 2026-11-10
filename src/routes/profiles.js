@@ -425,7 +425,22 @@ router.get("/api/profiles/:id/today", gate, (req, res) => {
   res.json({ watchSec: p ? telemetry.todayWatchSec(p.name) : 0 });
 });
 
+// The answer is kept (lib/answermemo.js, its own pool) until something it is
+// built from moves (profiles.stateStamp: any profiles.json write, this
+// profile's playback saves, the library, the IMDb ids) — it is asked on every
+// title page, My List and grid visit (the TV on every focus of a title page)
+// and was composed, serialised and compressed afresh each time: 6–15 ms of the
+// event loop and ~11 ms of compression for a profile with a long history
+// (perf-server 2026-11-10). The bytes are what the route sends. (It names no
+// picture — no cover, poster or backdrop field anywhere — so the blur-up
+// placeholders never add to it, and their generation is not in the stamp.)
+const answermemo = require("../lib/answermemo");
+const stateKept = answermemo.pool({ name: "profile state", maxEntries: 32, maxAgeMs: 120 * 1000 });
 router.get("/api/profiles/:id/state", gate, (req, res) => {
+  const id = req.params.id;
+  const kid = req.kids ? `${req.kids.profile}:${req.kids.maxAge}` : "";
+  const blur = req.get("X-Blur") === "1" ? "blur" : "";
+  if (stateKept.begin(req, res, { key: `state|${id}|${kid}|${blur}`, stamp: () => profiles.stateStamp(id) })) return;
   res.json({
     progress: profiles.getProgressView(req.params.id),
     ratings: profiles.getRatings(req.params.id),
