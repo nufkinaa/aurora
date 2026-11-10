@@ -4743,10 +4743,13 @@ html[data-look="glass"] .dl-bar.dl-bar-idle { overflow: hidden; }
 }
 
 /* ---------- trailer modal ---------- */
+/* Over the top bar, as every other dialog is (300): at 60 the bar's island
+   and buttons sat on the trailer's head on a computer; and the box is never
+   taller than the window (a 16:9 frame under its head) */
 .trailer-modal {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 300;
   background: rgba(0, 0, 0, 0.82);
   display: flex;
   align-items: center;
@@ -4754,7 +4757,7 @@ html[data-look="glass"] .dl-bar.dl-bar-idle { overflow: hidden; }
   padding: 24px;
 }
 .trailer-box {
-  width: min(1100px, 100%);
+  width: min(1100px, 100%, (100vh - 110px) * 16 / 9);
   background: #0b0c14;
   border-radius: 14px;
   overflow: hidden;

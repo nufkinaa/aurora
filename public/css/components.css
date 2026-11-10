@@ -2078,6 +2078,9 @@ html[data-look="glass"] .hh-tabs .chip.on { background: rgba(255, 255, 255, 0.18
 
 /* the franchise page */
 .franchise-summary { color: var(--text-dim); font-weight: 600; margin: -2px 0 6px; }
+/* a phone: the number stays beside the name (as on a computer) — dropped to
+   a line of its own it read as a stray "3" over "3 films · 2 on the server" */
+@media (max-width: 860px) { .browse-head.franchise-head .count { flex-basis: auto; order: 0; } }
 .franchise-orders:empty { display: none; }
 .franchise-orders .fr-orders-track { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 .franchise-orders .chip.on { background: var(--accent-strong); color: #fff; border-color: transparent; }
