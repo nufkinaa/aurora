@@ -743,6 +743,19 @@ html[data-look="glass"] .screen.pg > * { animation: none; }
   100% { opacity: 1; scale: 1; }
 }
 
+/* a short screen draws a small card: its caption is the title and one line,
+   so the picture still shows */
+@media (max-width: 599px) and (max-height: 700px), (max-height: 520px) {
+  .pg-deck .ts-info { padding: 46px 12px 12px; }
+  .pg-deck .ts-title { font-size: 1.06rem; -webkit-line-clamp: 2; }
+  .pg-deck .ts-meta { margin-top: 3px; font-size: 0.76rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pg-deck .ts-line { display: none; }
+  .pg-deck .ts-stamp { top: 14px; padding: 3px 9px; border-width: 3px; border-radius: 10px; font-size: 1.15rem; }
+  .pg-deck .ts-stamp.love { left: 12px; }
+  .pg-deck .ts-stamp.nope { right: 12px; }
+  .pg-deck .ts-stamp.skip { top: 34%; font-size: 0.9rem; }
+}
+
 /* the answer keys: arcade keys with a chunky bottom edge */
 .pg-key { gap: 8px; color: var(--play-ink-dim); font: 800 0.8rem/1.1 var(--play-font); }
 .pg-key .ts-answer-glyph {
@@ -835,7 +848,9 @@ html[data-look="glass"] .screen.pg > * { animation: none; }
 .pg-taste .ts-count { flex: none; white-space: nowrap; } /* ("0 / 24" stays on one line; the ribbon gives way) */
 .pg-meter { position: relative; flex: 1 1 auto; min-width: 90px; max-width: 400px; padding: 8px 0; margin-right: 6px; }
 .pg-taste .ts-bar { width: 100%; height: 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07); }
-.pg-taste .ts-bar-fill { background: var(--play-aurora); transition: transform 520ms var(--play-out); }
+.pg-taste .ts-bar-fill { border-radius: 999px; background: none; overflow: hidden; transform: translateX(-100%); transition: transform 520ms var(--play-out); }
+.pg-ribbon { display: block; width: 100%; height: 100%; background: var(--play-aurora); transform: translateX(100%); transition: transform 520ms var(--play-out); }
+.pg-taste .ts-stage { min-height: 150px; } /* (a very short phone: a small card, never keys off the screen) */
 .pg-pip {
   position: absolute;
   left: var(--at);
@@ -859,8 +874,9 @@ html[data-look="glass"] .screen.pg > * { animation: none; }
 }
 .pg-taste .ts-hint { color: var(--play-ink-faint); font-weight: 700; letter-spacing: 0.01em; }
 .pg-taste .ts-wait .spinner { opacity: 0.8; }
-@media (max-width: 599px) {
-  /* phones: the title's row carries Done; the meter's row Undo and Edit list */
+@media (max-width: 599px), (max-height: 520px) {
+  /* phones (and a phone on its side): the title's row carries Done; the
+     meter's row Undo and Edit list */
   .pg-taste .ts-head {
     grid-template-columns: minmax(0, 1fr) auto auto;
     grid-template-areas: "title title done" "progress undo edit";
@@ -884,8 +900,27 @@ html[data-look="glass"] .screen.pg > * { animation: none; }
 /* the end of a round: the reward */
 .pg-taste.is-over > .ts-answers,
 .pg-taste.is-over > .ts-hint { display: none; }
-.pg-reward { gap: 12px; padding: 6px 12px; justify-content: safe center; overflow-y: auto; scrollbar-width: none; }
-.pg-reward > * { flex: none; animation: play-rise 560ms var(--play-out) var(--d, 0ms) backwards; }
+.pg-reward { gap: 0; padding: 6px 12px; justify-content: center; }
+/* what is read gives way and scrolls when the screen is small (its last line
+   fades at the edge); the keys under it are always on the screen */
+.pg-reward-body {
+  flex: 0 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 22px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
+}
+.pg-reward-body::-webkit-scrollbar { display: none; }
+.pg-reward-body > *,
+.pg-reward > .ts-end-actions { flex: none; animation: play-rise 560ms var(--play-out) var(--d, 0ms) backwards; }
+.pg-reward.is-blank .ts-end-tally { display: none; }
 .pg-end-sky { width: min(100%, 400px); }
 .pg-const { display: block; width: 100%; height: auto; overflow: visible; }
 .pg-const-line { stroke: rgba(255, 242, 194, 0.4); stroke-width: 1; stroke-linecap: round; animation: play-fade 520ms ease calc(420ms + var(--d, 0ms)) backwards; }
@@ -919,11 +954,100 @@ html[data-look="glass"] .screen.pg > * { animation: none; }
 .pg-tag.lit { border: 1px solid rgba(255, 209, 102, 0.5); background: rgba(255, 209, 102, 0.12); color: var(--play-gold-hi); }
 .pg-tag.lit .pg-star { color: var(--play-gold); }
 .pg-tag.dim { border: 1px dashed rgba(255, 255, 255, 0.2); color: var(--play-ink-faint); }
-.pg-reward .ts-end-actions { margin-top: 6px; }
+.pg-reward .ts-end-actions { margin-top: 0; }
+@media (max-width: 599px) {
+  .pg-end-sky { width: min(80%, 300px); }
+  .pg-reward-body { gap: 10px; }
+  .pg-reward .ts-end-tally, .pg-tags { gap: 6px; }
+  .pg-tchip { padding: 5px 10px; font-size: 0.8rem; }
+  .pg-tag { padding: 6px 12px; font-size: 0.84rem; }
+}
 @media (max-height: 620px) {
   .pg-end-sky { display: none; }
   .pg-end-num { font-size: 3rem; }
-  .pg-reward { gap: 8px; }
+  .pg-reward-body { gap: 8px; padding-top: 2px; }
+}
+
+/* a short phone: the head and the keys give the card their room */
+@media (max-width: 599px) and (max-height: 700px) {
+  .pg-taste .ts-head { gap: 8px; margin-bottom: 8px; }
+  .pg-taste .ts-head h1 { font-size: 1.36rem; }
+  .pg-taste .ts-answers { margin-top: 6px; }
+  .pg-taste .pg-key { gap: 5px; font-size: 0.74rem; }
+  .pg-taste .pg-key .ts-answer-glyph { width: 54px; height: 54px; font-size: 1.5rem; }
+  .pg-taste .pg-key.skip .ts-answer-glyph { width: 42px; height: 42px; font-size: 1.1rem; }
+  .pg-taste .pg-end-sky { width: min(56%, 190px); }
+  .pg-taste .pg-end-num { font-size: 2.8rem; }
+  .pg-taste .pg-reward-body { gap: 8px; }
+}
+
+/* a phone on its side, a short window: the head and the keys on the left, the
+   deck on the right at the screen's full height */
+@media (max-height: 520px) and (min-width: 600px) {
+  .screen.pg.pg-taste {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    column-gap: 24px;
+    padding-top: calc(var(--nav-h) + 8px);
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+  .pg-taste > .ts-head { grid-column: 1; grid-row: 1; margin: 0; }
+  .pg-taste > .ts-stage { grid-column: 2; grid-row: 1 / -1; align-self: stretch; min-height: 0; max-height: none; }
+  .pg-taste > .ts-answers { grid-column: 1; grid-row: 2; align-self: center; margin: 0; }
+  .pg-taste > .ts-hint { grid-column: 1; grid-row: 3; margin: 0; }
+  /* the round is over: the meter on the left, the reward on the right */
+  .pg-taste.is-over > .ts-head { grid-row: 1 / -1; align-self: center; }
+  .pg-taste .pg-key { white-space: nowrap; }
+  .pg-taste .pg-callout { top: 8px; max-width: min(44vw, 300px); padding: 6px 12px; font-size: 0.8rem; }
+  .pg-taste .pg-end-num { font-size: 2.5rem; }
+  .pg-taste .pg-reward .pg-end-title { font-size: 1rem; }
+  .pg-taste .pg-reward-body { gap: 6px; padding-bottom: 14px; }
+}
+/* (the wide top bar stands lower than the phone's floating keys) */
+@media (max-height: 520px) and (min-width: 721px) {
+  .screen.pg.pg-taste { padding-top: calc(var(--nav-h) + 24px); }
+}
+
+/* a very wide screen: the deck, its keys and the reward grow with the room */
+@media (min-width: 1800px) and (min-height: 1000px) {
+  .pg-taste .ts-head { max-width: 940px; margin-bottom: 26px; }
+  .pg-taste .ts-head h1 { font-size: 2.7rem; }
+  .pg-taste .ts-progress { font-size: 1.1rem; }
+  .pg-taste .pg-meter { max-width: 520px; }
+  .pg-taste .ts-bar { height: 12px; }
+  .pg-taste .pg-tool { min-height: 48px; padding: 0 22px; font-size: 1rem; }
+  .pg-taste .ts-stage { max-height: min(66vh, 960px); }
+  .pg-taste .ts-answers { gap: 44px; margin-top: 26px; }
+  .pg-taste .pg-key { gap: 10px; font-size: 0.95rem; }
+  .pg-taste .pg-key .ts-answer-glyph { width: 84px; height: 84px; font-size: 2.2rem; }
+  .pg-taste .pg-key.skip .ts-answer-glyph { width: 62px; height: 62px; font-size: 1.5rem; }
+  .pg-taste .ts-hint { margin-top: 18px; font-size: 0.95rem; }
+  .pg-taste .pg-deck .ts-info { padding: 120px 26px 26px; }
+  .pg-taste .pg-deck .ts-title { font-size: 2.05rem; }
+  .pg-taste .pg-deck .ts-meta { margin-top: 6px; font-size: 1.05rem; }
+  .pg-taste .pg-deck .ts-line { margin-top: 8px; font-size: 1rem; }
+  .pg-taste .pg-deck .ts-stamp { top: 34px; padding: 6px 18px; border-width: 5px; font-size: 2.6rem; }
+  .pg-taste .pg-deck .ts-stamp.love { left: 26px; }
+  .pg-taste .pg-deck .ts-stamp.nope { right: 26px; }
+  .pg-taste .pg-deck .ts-stamp.skip { font-size: 1.7rem; }
+  .pg-taste .pg-callout { padding: 12px 24px; font-size: 1.15rem; top: -22px; }
+  .pg-taste .pg-end-sky { width: min(100%, 580px); }
+  .pg-taste .pg-end-num { font-size: 7.6rem; }
+  .pg-taste .pg-reward .pg-end-title { max-width: 660px; font-size: 1.55rem; }
+  .pg-taste .pg-reward-body { gap: 18px; }
+  .pg-taste .pg-tchip { padding: 8px 17px; font-size: 1.05rem; }
+  .pg-taste .pg-tags { max-width: 760px; gap: 10px; }
+  .pg-taste .pg-tag { padding: 9px 18px; font-size: 1.1rem; }
+  .pg-taste .pg-reward .play-btn { min-height: 60px; padding: 0 30px; font-size: 1.12rem; }
+}
+@media (min-width: 2400px) and (min-height: 1300px) {
+  .pg-taste .pg-end-sky { width: min(100%, 720px); }
+  .pg-taste .pg-end-num { font-size: 9.4rem; }
+  .pg-taste .pg-reward .pg-end-title { max-width: 780px; font-size: 1.85rem; }
+  .pg-taste .pg-tchip { font-size: 1.2rem; }
+  .pg-taste .pg-tag { padding: 11px 22px; font-size: 1.26rem; }
+  .pg-taste .pg-reward .play-btn { min-height: 68px; padding: 0 36px; font-size: 1.24rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   /* still and handsome: the remark stays until the next answer */

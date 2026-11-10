@@ -88,6 +88,22 @@ export const renderTaste = async (root) => {
   if (!state.profile) return noProfile(screen);
   const pid = state.profile.id;
 
+  // The room the page keeps under itself for a phone's tab bar is the
+  // stylesheet's (#app's bottom padding). The glass look hands it to this
+  // screen by name; where no rule does, it is read from where it stands.
+  const app = document.getElementById("app");
+  const fit = () => {
+    screen.style.removeProperty("--ts-reserve");
+    if (parseFloat(getComputedStyle(screen).getPropertyValue("--ts-reserve")) > 0) return;
+    const pad = app ? parseFloat(getComputedStyle(app).paddingBottom) || 0 : 0;
+    if (pad > 0) screen.style.setProperty("--ts-reserve", `${pad}px`);
+  };
+  fit();
+  window.addEventListener("resize", fit);
+  untilLeave(() => window.removeEventListener("resize", fit));
+  // (a very wide screen draws the card big: its picture is asked for sharper)
+  const artW = window.innerWidth >= 1800 && window.innerHeight >= 1000 ? 620 : 360;
+
   // ---------- the deck ----------
   let queue = [];          // cards, [0] on show
   let goal = 24;
@@ -102,7 +118,10 @@ export const renderTaste = async (root) => {
 
   // ---------- the page ----------
   const count = el("span", { class: "ts-count", "aria-live": "polite" });
-  const bar = el("span", { class: "ts-bar-fill" });
+  // (the ribbon lies still under the fill, which slides off it: its colours
+  // are uncovered from the green end to the violet one, never squeezed)
+  const ribbon = el("i", { class: "pg-ribbon" });
+  const bar = el("span", { class: "ts-bar-fill" }, ribbon);
   const undoBtn = tapButton({ "data-ui": "taste.undo", class: "pg-tool pg-tool--undo ts-tool focusable", disabled: true, "aria-label": "Undo the last answer" }, () => undo(),
     el("span", { class: "pg-tool-glyph", "aria-hidden": "true" }, "↶"), el("span", { class: "pg-tool-label" }, " Undo"));
   // the taste meter: the ribbon fills, and a star lights at each quarter
@@ -139,7 +158,9 @@ export const renderTaste = async (root) => {
   const paintProgress = () => {
     const n = Math.min(answered, goal);
     count.textContent = `${n} / ${goal}`;
-    bar.style.transform = `scaleX(${goal ? n / goal : 0})`;
+    const left = 100 - (goal ? (n / goal) * 100 : 0);
+    bar.style.transform = `translateX(${-left}%)`;
+    ribbon.style.transform = `translateX(${left}%)`;
     undoBtn.disabled = !history.length;
     const lit = litAt(n, goal);
     pips.forEach((p, i) => p.classList.toggle("on", i < lit));
@@ -152,7 +173,7 @@ export const renderTaste = async (root) => {
   const makeCard = (c) => {
     const meta = [c.year, c.type === "show" ? "Series" : "Film", ...(c.genres || []).slice(0, 2)].filter(Boolean).join(" · ");
     const node = el("div", { class: "ts-card", tabindex: "-1", role: "group", "aria-label": `${c.title}${c.year ? ` (${c.year})` : ""}` },
-      posterImg(c.poster, c.title, "ts-poster", "ts-poster-fallback", { w: 360, eager: true }),
+      posterImg(c.poster, c.title, "ts-poster", "ts-poster-fallback", { w: artW, eager: true }),
       el("span", { class: "ts-stamp love", "aria-hidden": "true" }, "LOVE"),
       el("span", { class: "ts-stamp nope", "aria-hidden": "true" }, "NOPE"),
       el("span", { class: "ts-stamp skip", "aria-hidden": "true" }, "HAVEN'T SEEN"),
@@ -169,7 +190,7 @@ export const renderTaste = async (root) => {
     if (warmed.has(c.imdbId) || !c.poster) return;
     warmed.add(c.imdbId);
     // the very address the card's <img> will ask for (posterImg → artUrl)
-    try { new Image().src = artUrl(c.poster, 360); } catch {}
+    try { new Image().src = artUrl(c.poster, artW); } catch {}
   };
 
   // The end of a round — the reward: the loved titles as a constellation, the
@@ -188,7 +209,8 @@ export const renderTaste = async (root) => {
       ...read.liked.slice(0, 4).map((g) => el("span", { class: "pg-tag lit" }, star(), `${g.genre}${g.n > 1 ? ` ×${g.n}` : ""}`)),
       ...read.less.slice(0, 2).map((g) => el("span", { class: "pg-tag dim" }, `less ${g.genre}`)),
     ];
-    const done = el("div", { class: "ts-end pg-reward", role: "status" },
+    // (what is read can scroll on a small screen; the keys under it never leave)
+    const body = el("div", { class: "pg-reward-body" },
       sky,
       exhausted
         ? el("h2", { class: "pg-end-title" }, "That's every title we had for you")
@@ -197,11 +219,13 @@ export const renderTaste = async (root) => {
         el("span", { class: "pg-tchip love" }, `♥ ${tally.love} loved`), sep(),
         el("span", { class: "pg-tchip nope" }, `✕ ${tally.nope} not for you`), sep(),
         el("span", { class: "pg-tchip skip" }, `${tally.skip} not seen`)),
-      tags.length ? el("div", { class: "pg-learned" }, el("span", { class: "play-eyebrow" }, "Aurora learned"), el("div", { class: "pg-tags" }, ...tags)) : null,
-      el("div", { class: "ts-end-actions" },
-        !exhausted && el("button", { "data-ui": "taste.more", class: "play-btn play-btn--aurora focusable", onclick: () => keepGoing() }, "Keep going"),
-        el("button", { "data-ui": "taste.done", class: "play-btn play-btn--gold focusable", onclick: leave }, "Done")));
-    [...done.children].forEach((c, i) => c.style.setProperty("--d", `${120 + i * 110}ms`));
+      tags.length ? el("div", { class: "pg-learned" }, el("span", { class: "play-eyebrow" }, "Aurora learned"), el("div", { class: "pg-tags" }, ...tags)) : null);
+    const keys = el("div", { class: "ts-end-actions" },
+      !exhausted && el("button", { "data-ui": "taste.more", class: "play-btn play-btn--aurora focusable", onclick: () => keepGoing() }, "Keep going"),
+      el("button", { "data-ui": "taste.done", class: "play-btn play-btn--gold focusable", onclick: leave }, "Done"));
+    // (nothing was asked — a profile with no titles to show: no row of noughts)
+    const done = el("div", { class: `ts-end pg-reward${answered ? "" : " is-blank"}`, role: "status" }, body, keys);
+    [...body.children, keys].forEach((c, i) => c.style.setProperty("--d", `${120 + i * 110}ms`));
     for (const b of done.querySelectorAll("button")) pressable(b);
     if (!calm() && !exhausted && !bursts.has(goal)) {
       const first = !bursts.size;
@@ -228,6 +252,8 @@ export const renderTaste = async (root) => {
       hush();
       for (const n of nodes.values()) n.remove();
       nodes.clear();
+      const waiting = stage.querySelector(".ts-wait");
+      if (waiting) waiting.remove(); // (a deck that came back empty: the wait is over)
       if (!old) {
         const panel = endPanel();
         stage.append(panel);
