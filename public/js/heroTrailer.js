@@ -86,7 +86,10 @@ const warmYt = () => {
 };
 
 export const createHeroTrailer = (heroEl, { onEnd }) => {
-  const layer = el("div", { class: "hero-video", "aria-hidden": "true" });
+  // `inert`: a picture, not a control (pointer-events: none in glass.css) —
+  // without it the keyboard's Tab walked into YouTube's player and stayed
+  // there, cycling its hidden controls, never reaching the shelves below
+  const layer = el("div", { class: "hero-video", "aria-hidden": "true", inert: "" });
   const mount = el("div"); // the API replaces this with the iframe
   layer.append(mount);
   const unmute = el("button", { "data-ui": "home.hero.mute",
@@ -226,6 +229,7 @@ export const createHeroTrailer = (heroEl, { onEnd }) => {
         onReady: (e) => {
           if (myGen !== gen) return;
           sizeFrame();
+          try { e.target.getIframe().setAttribute("tabindex", "-1"); } catch {} // (where `inert` is unknown)
           try { e.target.mute(); e.target.setPlaybackQuality("hd1080"); e.target.playVideo(); } catch {}
           startTimer = setTimeout(() => {
             // never got going (autoplay refused, no internet, an ad): the art stays

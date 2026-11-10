@@ -129,6 +129,7 @@ export const renderSearch = async (root) => {
     autocapitalize: "off",
     spellcheck: "false",
     placeholder: "Search movies and shows…",
+    dir: "auto", // a Hebrew search reads from the right, as it is typed
     class: "focusable",
     "aria-label": "Search",
   });

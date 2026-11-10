@@ -261,14 +261,49 @@ html[data-look="glass"] .nav-dl.ready {
   background: rgba(74, 222, 128, 0.16);
   box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.42), var(--g-shadow);
 }
-@media (max-width: 1100px) {
+/* The island leaves the centre while it would run into the right-hand
+   buttons: centred, it reached under the TV remote button from 1101 to
+   ~1210 px (measured with remote, downloads, settings and the profile all
+   shown, 2026-11-10) — left of centre it simply follows the logo. */
+@media (max-width: 1260px) {
   html[data-look="glass"] .nav-items {
     position: static;
     transform: none;
   }
+}
+@media (max-width: 1100px) {
   html[data-look="glass"] .nav-item {
     padding: 9px 11px;
   }
+}
+/* A tablet or a narrow window (721–1023 px): the bar did not fit — at 768
+   the profile button was cut by the screen's edge (the bar became a strip
+   you could swipe, with nothing saying so), and from 861 to ~930 it hung
+   off the right edge. The words tighten a little, the profile is its face
+   (as on a phone), and below 861 Calendar waits in the profile menu, which
+   has always carried it (as on a phone). */
+@media (min-width: 721px) and (max-width: 1023px) {
+  html[data-look="glass"] .nav-item {
+    padding: 9px 9px;
+  }
+  html[data-look="glass"] .nav-profile {
+    padding: 5px;
+  }
+  html[data-look="glass"] .nav-profile #nav-profile-name {
+    display: none;
+  }
+}
+@media (min-width: 721px) and (max-width: 860px) {
+  html[data-look="glass"] #nav-calendar {
+    display: none;
+  }
+}
+/* a long profile name ends in … instead of pushing the bar off the screen */
+html[data-look="glass"] .nav-profile #nav-profile-name {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 @media (max-width: 720px) {
   /* Phones: the island becomes a floating glass tab bar at the bottom, in
@@ -538,6 +573,25 @@ html[data-look="glass"] .hero-pick:focus {
     display: none;
   }
 }
+/* A 320 px phone: Play and Details no longer fit side by side and Details
+   dropped to a line of its own. A little less padding keeps them a pair. */
+@media (max-width: 359px) {
+  html[data-look="glass"] .hero-actions {
+    gap: 10px;
+  }
+  html[data-look="glass"] .hero-actions .btn {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+}
+/* A short window — a phone held sideways (844×390): the slab is ~330 px
+   tall and its words reached up under the top bar (the FILM tag sat behind
+   the logo). The synopsis steps aside, as it does on a phone held upright. */
+@media (max-height: 520px) {
+  html[data-look="glass"] .hero-synopsis {
+    display: none;
+  }
+}
 
 /* ---------- rows + cards ---------- */
 html[data-look="glass"] .row {
@@ -774,9 +828,31 @@ html[data-look="glass"] .search-box {
   border-radius: 999px;
   padding: 14px 22px;
 }
+/* The hint in an empty field: --text-faint was grey on grey glass and all
+   but vanished where the sky's green band ran behind it (Movies, Shows,
+   Search). A narrow phone's hint ends in … instead of being cut mid-word
+   ("Search movies and show" at 375 px). */
+html[data-look="glass"] .search-box input::placeholder {
+  color: rgba(243, 244, 248, 0.5);
+}
+html[data-look="glass"] .search-box input {
+  text-overflow: ellipsis;
+}
+@media (max-width: 400px) {
+  html[data-look="glass"] .search-box input {
+    font-size: 1.12rem;
+  }
+}
 html[data-look="glass"] .suggest-list,
 html[data-look="glass"] .dropdown {
   border-radius: var(--g-radius);
+}
+/* The suggestions' panel lines up with the search field above it: it ran
+   from the screen's left edge to its right (its rim drawn there, the rows
+   inset by the page margin), a step wider than the field it belongs to. */
+html[data-look="glass"] .suggest-list {
+  margin: 6px var(--page-x) 0;
+  padding: 8px;
 }
 html[data-look="glass"] .pref-section,
 html[data-look="glass"] .wrapped-card,
@@ -1011,6 +1087,13 @@ html[data-look="glass"] .episode-title {
 }
 html[data-look="glass"] .episode-bar {
   width: 160px;
+}
+/* a tablet (721–900 px): the 160 px bar left an episode's name 95 px —
+   "Who Are …", its "EPISODE 1 · 52 MIN" over two lines */
+@media (min-width: 721px) and (max-width: 900px) {
+  html[data-look="glass"] .episode-bar {
+    width: 72px;
+  }
 }
 /* the kicker already says "· 52 min"; the sub-line's runtime would say it twice */
 html[data-look="glass"] .episode-sub .ep-dur {
@@ -1839,9 +1922,13 @@ html[data-look="glass"] .dl-section .row-title .count { border-radius: 999px; }
     margin-top: 6px;
   }
 }
-/* the season island scrolls sideways when it can't fit */
-html[data-look="glass"] .season-bar { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-html[data-look="glass"] .season-bar::-webkit-scrollbar { display: none; }
+/* the season island scrolls sideways when it can't fit; the season actions
+   go to a line of their own when the bar is full (a tablet at 768 px had
+   "Mark season watched" cut by the screen's edge in a strip that scrolled
+   with nothing to say so — the phone rule below, for every width) */
+html[data-look="glass"] .season-bar { max-width: 100%; flex-wrap: wrap; row-gap: 10px; overflow: visible; }
+html[data-look="glass"] .season-island { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+html[data-look="glass"] .season-island::-webkit-scrollbar { display: none; }
 /* phones: the island scrolls on its own and the season actions wrap under
    it — one long strip put "Mark season watched" 300px off the right edge
    with nothing to say it was there */
@@ -2805,6 +2892,7 @@ html[data-look="glass"] .pbtn.big svg {
   html:root .detail-hero .detail-actions-more::-webkit-scrollbar {
     display: none;
   }
+  /* (narrow phones: the tiles are sized below, so half a tile peeks in) */
   html:root .detail-hero .detail-actions-more .btn {
     flex: 0 0 76px;
     width: 76px;
@@ -2851,12 +2939,42 @@ html[data-look="glass"] .pbtn.big svg {
   html:root .detail-hero .detail-actions-more .btn > span:not(:first-child),
   html:root .detail-hero .detail-actions-more .btn > .btn-label {
     color: rgba(243, 244, 248, 0.8);
+    /* two lines at most: "Play on Grandma's big living room TV upstairs 4K"
+       stood four lines tall and pushed the synopsis down */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
   html:root .detail-hero .detail-actions-more .btn-xray.on {
     background: none;
   }
   html:root .detail-hero .detail-actions-more .btn-xray.on > svg {
     background: var(--accent-strong);
+  }
+  /* The strip says it goes on (elia, 2026-11-10, his iPhone at 402 pt: five
+     whole buttons ended flush with the edge — "not clear enough that this
+     has more elements and can be scrolled horizontally"). The tiles are
+     sized so a whole number of them plus HALF of the next one fills the
+     screen, at any phone width: --act-k is how many and a half are in view
+     (the band of widths keeps a tile 67–88 px wide), the strip's first tile
+     starts at page-x − 8px and each one is followed by the 2px gap. A strip
+     that holds fewer tiles than that simply ends — nothing is cut.
+     And the side that has more fades (js/edgefade.js, .fade-strip in
+     components.css). */
+  html:root .detail-hero .detail-actions-more {
+    --act-k: 4.5;
+  }
+  @media (min-width: 410px) { html:root .detail-hero .detail-actions-more { --act-k: 5.5; } }
+  @media (min-width: 500px) { html:root .detail-hero .detail-actions-more { --act-k: 6.5; } }
+  @media (min-width: 590px) { html:root .detail-hero .detail-actions-more { --act-k: 7.5; } }
+  @media (min-width: 680px) { html:root .detail-hero .detail-actions-more { --act-k: 8.5; } }
+  html:root .detail-hero .detail-actions-more .btn {
+    flex-basis: calc((100vw - var(--page-x) + 8px) / var(--act-k) - 2px);
+    width: calc((100vw - var(--page-x) + 8px) / var(--act-k) - 2px);
   }
   /* a film on disk has its other versions one row down — no button for it */
   .screen.has-sources-fold .detail-actions-more .btn-sources {
@@ -3495,12 +3613,12 @@ html[data-look="glass"]:root .card.wide .card-progress {
   }
   html[data-look="glass"]:root .season-bar-trailing {
     display: flex;
-    flex-wrap: nowrap;
+    /* (wraps: on a 320 px phone the second pill was cut by the edge of a
+       strip that scrolled with nothing to say so) */
+    flex-wrap: wrap;
     gap: 8px;
     width: 100%;
     margin-left: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
   }
   html[data-look="glass"]:root .season-bar-trailing::-webkit-scrollbar { display: none; }
   html[data-look="glass"]:root .season-bar-trailing .btn,
@@ -4129,6 +4247,9 @@ html[data-look="glass"] .nav-dl.ready {
   box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.4);
   background: linear-gradient(90deg, rgba(74, 222, 128, 0.15), rgba(74, 222, 128, 0.03) 55%), rgba(255, 255, 255, 0.04);
   margin-bottom: 6px;
+  /* the same column as the list under it (.src-list): it ran to the page's
+     edge while the versions below stopped at 1040 px — two right edges */
+  max-width: 1040px;
 }
 .src-main {
   flex: 1;
@@ -4140,6 +4261,17 @@ html[data-look="glass"] .nav-dl.ready {
   background: none;
   color: var(--text);
   text-align: left;
+}
+/* Where the keyboard is in the Sources list: the row's words, its two
+   buttons and the quality filters showed no mark at all when tabbed to */
+.src-main:focus-visible {
+  border-radius: 12px;
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 4px;
+}
+.src-act:focus-visible,
+.src-filter:focus-visible {
+  box-shadow: var(--focus-ring);
 }
 .src-q {
   flex: none;
@@ -4320,6 +4452,15 @@ html[data-look="glass"] .nav-dl.ready {
   height: 17px;
   display: block;
 }
+/* Play and Save say their word like Download and Offline beside them: the
+   rail caption's small faint grey (.dl-cap, screens.css) read as a disabled
+   button on these white ones */
+.src-act .dl-cap {
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: 0;
+  color: inherit;
+}
 .src-save {
   background: rgba(255, 255, 255, 0.92);
   color: #0b0c14;
@@ -4411,6 +4552,20 @@ html[data-look="glass"] .nav-dl.ready {
   }
   .src-title {
     font-size: 0.94rem;
+    /* the BEST / PACK tags go under the name when both do not fit: at 320
+       px the name gave way instead — "Blu…", and the best version's name
+       was squeezed to nothing beside its two tags */
+    flex-wrap: wrap;
+    row-gap: 4px;
+    column-gap: 8px;
+  }
+  .src-name {
+    max-width: 100%;
+  }
+  @media (max-width: 359px) {
+    .src-card { gap: 8px; }
+    .src-main { gap: 9px; }
+    .src-q { min-width: 46px; padding: 6px 4px; }
   }
   .src-meta {
     gap: 9px;
@@ -4675,11 +4830,16 @@ button.xr-person:focus {
 button.xr-person:focus-visible {
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55);
 }
-/* …and so is a name in a title page's cast line */
-.detail-cast .cast-group + .cast-group::before {
-  content: "";
+/* …and so is a name in a title page's cast line. The space between Cast
+   and Director is the first group's end margin, not a box at the start of
+   the second: when Director wraps to a line of its own it starts on the
+   page's edge (it was 18px in, on a phone). */
+.detail-cast .cast-group:not(:last-child) {
+  margin-right: 18px;
+}
+/* …and "Director" never ends a line with its name on the next one */
+.detail-cast .cast-group + .cast-group {
   display: inline-block;
-  width: 18px;
 }
 .cast-name {
   border: 0;

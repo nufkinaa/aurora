@@ -51,7 +51,9 @@ const getJson = async (url, headers = {}) => {
 let failures = 0;
 const PARTIAL_TTL = 10 * 60 * 1000;
 const quiet = (p) => p.catch(() => null);
-const stripHtml = (s) => String(s || "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+// (the entities in TVMaze's HTML decoded too: see online.js)
+const { plainText } = require("../lib/htmltext");
+const stripHtml = (s) => plainText(String(s || "").replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim();
 const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const list = (v) => (Array.isArray(v) ? v : v ? String(v).split(/,\s*/) : []).map((s) => String(s).trim()).filter(Boolean);
 
@@ -371,4 +373,4 @@ const titleCasts = () => {
   return out;
 };
 
-module.exports = { get, titleCasts, _internals: { mergePeople, billedFirst, isAnthology, crewLine } };
+module.exports = { get, titleCasts, _internals: { stripHtml, mergePeople, billedFirst, isAnthology, crewLine } };

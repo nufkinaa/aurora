@@ -43,6 +43,7 @@ import {
   serverFacts,
 } from "../state.js";
 import { navigate, untilLeave } from "../router.js";
+import { edgeFade } from "../edgefade.js";
 import * as offline from "../offline.js";
 import { shelfRow } from "../components.js";
 import { heroBlock, watchlistButton } from "./details.js";
@@ -2771,6 +2772,7 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
       const island = el("div", { class: "season-island" }, nodes);
       island.dataset.picker = "1";
       seasonBar.prepend(island);
+      edgeFade(island); // more seasons than fit: the side that has more fades
     }
   };
   buildSeasonPicker();

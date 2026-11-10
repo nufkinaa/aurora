@@ -10,6 +10,7 @@ import { deviceDownloadedAt } from "../downloadPicker.js";
 import { pushScope, popScope } from "../focus.js";
 import { attachSuggest } from "../suggest.js";
 import { navigate } from "../router.js";
+import { edgeFade } from "../edgefade.js";
 import { onMessage } from "../ws.js";
 
 import * as narrator from "../narrator.js";
@@ -497,6 +498,7 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
       },
     }, c.label));
   catRow.append(...catPills);
+  edgeFade(catRow); // a phone: the categories run past the edge, and say so
   const paintCats = () => {
     catPills.forEach((p, i) => p.classList.toggle("on", CATEGORIES[i].id === st.category));
   };
@@ -548,6 +550,7 @@ const browseScreen = (title, type, localItems, { surprise = false, restore = nul
     type: "search", inputmode: "search", enterkeyhint: "search", autocomplete: "off", autocorrect: "off",
     autocapitalize: "off", spellcheck: "false", class: "focusable", value: st.query,
     placeholder: `Search ${title.toLowerCase()}…`, "aria-label": `Search ${title}`,
+    dir: "auto", // a Hebrew search reads from the right, as it is typed
   });
   const search = async (q) => {
     st.query = q;

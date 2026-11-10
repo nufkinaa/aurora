@@ -9,6 +9,7 @@ import { state } from "../state.js";
 import { starRating } from "../components.js";
 import { titleShown } from "../telemetry.js"; // [analytics]
 import { untilLeave } from "../router.js";
+import { edgeFade } from "../edgefade.js";
 // Exported for the unified detail page (discover-detail.js), which uses this
 // variant whenever the title has a library copy — the stream variant keys the
 // watchlist by IMDb id, this one by library id.
@@ -168,12 +169,16 @@ const heroNode = (item, actions, metaParts, { rateKey = null, serverInfo = null 
 // The one thing to do (Play, Resume, Save & watch) and everything else. On a
 // wide screen the inner wrapper is `display: contents` — one row of buttons,
 // as before; on a phone it is its own strip that scrolls sideways under a
-// full-width Play (responsive.css).
+// full-width Play (responsive.css). That strip says that it goes on (elia,
+// 2026-11-10): its tiles are sized so half of one is cut by the edge
+// (glass.css), and the side that has more fades (js/edgefade.js).
 const actionsBlock = (actions) => {
   const list = (actions || []).filter(Boolean);
   const primary = list.filter((b) => b.classList && b.classList.contains("btn-primary"));
   const rest = list.filter((b) => !primary.includes(b));
-  return el("div", { class: "detail-actions" }, primary, rest.length ? el("div", { class: "detail-actions-more" }, rest) : null);
+  const strip = rest.length ? el("div", { class: "detail-actions-more" }, rest) : null;
+  if (strip) edgeFade(strip, { when: "(max-width: 720px)" });
+  return el("div", { class: "detail-actions" }, primary, strip);
 };
 
 // Both pictures handed to CSS as variables (the same trick the home
