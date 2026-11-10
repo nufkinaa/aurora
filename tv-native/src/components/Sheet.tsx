@@ -5,6 +5,7 @@ import React, {useEffect} from 'react';
 import {BackHandler, ScrollView, StyleSheet, Text, TVFocusGuideView, View} from 'react-native';
 import {useKeyTrap} from '../focus';
 import {sheetMaxHeight} from '../popupFit';
+import {glassSheet, ink} from '../glass';
 import theme, {useTvMetrics} from '../theme';
 
 const {colors, fontSize, spacing} = theme;
@@ -69,15 +70,10 @@ export default function Sheet({
   );
 }
 
-// The glass surface, shared with the player's panels and the toasts.
-export const glass = {
-  backgroundColor: 'rgba(19,21,34,0.97)',
-  borderWidth: 1,
-  borderColor: 'rgba(255,255,255,0.10)',
-  // The top edge catches the light: the one glass cue that costs nothing.
-  borderTopColor: 'rgba(255,255,255,0.22)',
-  boxShadow: '0 30px 80px rgba(0,0,0,0.6)',
-} as const;
+// The glass surface of a sheet: the neutral body at 94 % over the wash, a rim of
+// light, a quiet sheen, a soft shadow (glass.ts; docs/glass-tv.md). It was a
+// blue-black slab with one bright top edge.
+export const glass = glassSheet;
 
 const styles = StyleSheet.create({
   backdrop: {
@@ -114,6 +110,7 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(199,191,255,0.8)',
     boxShadow: '0 0 0 1px rgba(139,123,255,0.25), 0 30px 90px rgba(0,0,0,0.7), 0 0 60px rgba(108,88,255,0.35)',
   },
-  kicker: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 3, marginBottom: 4},
-  title: {color: colors.text, fontSize: fontSize.title, fontWeight: '900', marginBottom: spacing.sm},
+  // the accent mixed with white: the accent itself is 4.5:1 on the glass body, this is 7.5:1
+  kicker: {color: ink.on, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 3, marginBottom: 4},
+  title: {color: ink.text, fontSize: fontSize.title, fontWeight: '900', marginBottom: spacing.sm},
 });

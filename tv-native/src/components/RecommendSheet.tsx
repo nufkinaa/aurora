@@ -24,6 +24,7 @@ import {showToast} from '../toast';
 import {track} from '../usage';
 import {householdChanged} from '../householdLive';
 import {acceptTvEvent} from '../focus';
+import {BODY, ink} from '../glass';
 import {
   NOTE_MAX,
   WORDS,
@@ -251,7 +252,7 @@ export default function RecommendSheet({title, imdbId}: {title: TitleLike; imdbI
                 onChangeText={v => setNote(typedNote(v))}
                 maxLength={NOTE_MAX * 2 /* code units; typedNote cuts at 140 code points */}
                 placeholder={WORDS.notePlaceholder}
-                placeholderTextColor={colors.textFaint}
+                placeholderTextColor={ink.third}
                 blurOnSubmit
                 // The keyboard's ✓ ends the typing: focus goes on to Send. Left to Android, the
                 // field's blur put focus on the page UNDER the sheet (Mi TV, 5.7.0 pass).
@@ -314,9 +315,9 @@ export default function RecommendSheet({title, imdbId}: {title: TitleLike; imdbI
 const FACE_W = 116;
 const AV = 56;
 const styles = StyleSheet.create({
-  line: {color: colors.textDim, fontSize: fontSize.body, marginBottom: spacing.md},
+  line: {color: ink.second, fontSize: fontSize.body, marginBottom: spacing.md},
   wait: {marginVertical: spacing.xl},
-  empty: {color: colors.textDim, fontSize: fontSize.body, marginVertical: spacing.md},
+  empty: {color: ink.second, fontSize: fontSize.body, marginVertical: spacing.md},
   faces: {flexDirection: 'row', flexWrap: 'wrap', gap: 6},
   face: {width: FACE_W, paddingVertical: 8, paddingHorizontal: 4, borderRadius: radius.m},
   faceIn: {alignItems: 'center'},
@@ -326,11 +327,11 @@ const styles = StyleSheet.create({
   avatarImg: {position: 'absolute', top: 0, left: 0, width: AV, height: AV},
   avatarGlyph: {fontSize: 27},
   avatarBox: {width: AV, height: AV},
-  tick: {position: 'absolute', right: -5, bottom: -3, width: 24, height: 24, borderRadius: 12, backgroundColor: colors.accent, borderWidth: 2, borderColor: '#131522', alignItems: 'center', justifyContent: 'center'},
+  tick: {position: 'absolute', right: -5, bottom: -3, width: 24, height: 24, borderRadius: 12, backgroundColor: colors.accent, borderWidth: 2, borderColor: BODY, alignItems: 'center', justifyContent: 'center'},
   tickText: {color: colors.white, fontSize: 12, fontWeight: '900', lineHeight: 15},
   name: {color: colors.text, fontSize: fontSize.body, fontWeight: '700', marginTop: 5, maxWidth: FACE_W - 8},
   // the face's whole width (past its 4dp padding): "recommendations" broke inside the word at 106
-  why: {color: colors.textDim, fontSize: fontSize.small, marginTop: 2, textAlign: 'center', width: FACE_W, marginHorizontal: -4},
+  why: {color: ink.second, fontSize: fontSize.small, marginTop: 2, textAlign: 'center', width: FACE_W, marginHorizontal: -4},
   noteRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.md},
   input: {
     flex: 1,
@@ -346,7 +347,7 @@ const styles = StyleSheet.create({
   },
   // focused: the white edge every focused control has (2dp, so 1dp less padding keeps the size)
   inputOn: {borderColor: colors.focusRing, borderWidth: 2, paddingVertical: 11, paddingHorizontal: 15, backgroundColor: 'rgba(255,255,255,0.09)'},
-  counter: {color: colors.textFaint, fontSize: fontSize.small, fontWeight: '700', minWidth: 56, textAlign: 'right'},
+  counter: {color: ink.third, fontSize: fontSize.small, fontWeight: '700', minWidth: 56, textAlign: 'right'},
   error: {color: '#ff8080', fontSize: fontSize.body, marginTop: spacing.sm},
   actions: {flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md, justifyContent: 'space-between'},
   primary: {backgroundColor: colors.white, paddingVertical: 12, paddingHorizontal: 26, minWidth: 150, alignItems: 'center'},

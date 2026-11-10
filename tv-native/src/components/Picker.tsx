@@ -9,6 +9,7 @@ import React, {useEffect, useRef, useState} from 'react';
 import {View, Text, ScrollView, StyleSheet, TVFocusGuideView, BackHandler} from 'react-native';
 import Focusable from './Focusable';
 import {useKeyTrap} from '../focus';
+import {glassSmall, ink, SHADOW} from '../glass';
 import theme, {useTvMetrics} from '../theme';
 
 const {colors, radius} = theme;
@@ -174,26 +175,28 @@ const styles = StyleSheet.create({
   // `.picker-btn.set` — a brighter edge once the filter is actually set, so an
   // active filter reads without having to read its value.
   edgeSet: {borderColor: 'rgba(255,255,255,0.35)'},
-  // All three at 16: --text-faint is 3.53:1 on --bg and P14 forbids it smaller.
-  label: {color: colors.textFaint, fontSize: 16, fontWeight: '600'},
+  // The button sits on the filter pane's glass, where the page's faint grey is
+  // 2.7:1 - the glass's third voice for its label and caret.
+  label: {color: ink.third, fontSize: 16, fontWeight: '600'},
   value: {color: colors.text, fontSize: 16, fontWeight: '700'},
-  caret: {color: colors.textFaint, fontSize: 16, fontWeight: '700'},
+  caret: {color: ink.third, fontSize: 16, fontWeight: '700'},
   panel: {
     position: 'absolute',
     left: 0,
     minWidth: 200,
     padding: 6,
     borderRadius: 14,
-    backgroundColor: colors.bgRaised,
-    borderWidth: 1,
-    borderColor: colors.line,
-    boxShadow: '0 22px 60px rgba(0,0,0,0.6)',
+    // A small pane of the glass (glass.ts): opaque, a thin rim, the sheen, the
+    // soft shadow - it stands still, so the shadow may be a real one.
+    ...glassSmall,
+    boxShadow: SHADOW,
     zIndex: 291,
   },
   panelDown: {top: '100%', marginTop: 6},
   panelUp: {bottom: '100%', marginBottom: 6},
   // 9/12 natural is 39.6; the site has no explicit height and the floor decides.
   item: {height: 48, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 9},
-  itemText: {color: colors.textDim, fontSize: 16, fontWeight: '600'},
-  itemTextOn: {color: colors.text, fontWeight: '800'},
+  // white words; the one that is set in ink.on (it was grey words, the set one white)
+  itemText: {color: ink.text, fontSize: 16, fontWeight: '600'},
+  itemTextOn: {color: ink.on, fontWeight: '800'},
 });
