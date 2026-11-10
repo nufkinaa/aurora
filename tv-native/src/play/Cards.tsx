@@ -3,7 +3,7 @@
 // for a title without a poster, and the answer's label beside the card.
 import React from 'react';
 import {Animated, Image, StyleSheet, Text, View, ViewStyle, StyleProp} from 'react-native';
-import {platesOf} from './deck';
+import {layerAt, platesOf} from './deck';
 import {Star} from './Star';
 import {PLAY} from './tokens';
 
@@ -27,17 +27,19 @@ export function Stamp({label, color, tilt = 0, size = 30}: {label: string; color
 export function Plates({left, width, height, radius = 18}: {left: number; width: number; height: number; radius?: number}) {
   const n = platesOf(left);
   if (!n) return null;
+  const a = layerAt(1, height);
+  const b = layerAt(2, height);
   return (
     <>
       {n > 1 ? (
         <View
           pointerEvents="none"
-          style={[styles.plate, {width, height, borderRadius: radius, backgroundColor: PLAY.plateLow, transform: [{translateY: 26}, {scale: 0.86}]}]}
+          style={[styles.plate, {width, height, borderRadius: radius, backgroundColor: PLAY.plateLow, transform: [{translateY: b.translateY}, {scale: b.scale}]}]}
         />
       ) : null}
       <View
         pointerEvents="none"
-        style={[styles.plate, {width, height, borderRadius: radius, backgroundColor: PLAY.plate, transform: [{translateY: 18}, {scale: 0.91}]}]}
+        style={[styles.plate, {width, height, borderRadius: radius, backgroundColor: PLAY.plate, transform: [{translateY: a.translateY}, {scale: a.scale}]}]}
       />
     </>
   );

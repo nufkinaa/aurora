@@ -14,8 +14,8 @@ export const PLAY = {
   // a card back / a plate / a tile, all opaque (nothing in the kit blurs or blends big areas)
   tile: '#17143a',
   tileHi: '#221d52',
-  plate: '#131130',
-  plateLow: '#0e0c26',
+  plate: '#211d50',
+  plateLow: '#171439',
   pill: '#1d1947',
   panel: '#0d0c24',
   // ink
