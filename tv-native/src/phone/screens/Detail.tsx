@@ -1012,6 +1012,9 @@ export default function Detail() {
     console.log(`[phone] title page ready +${Date.now() - t0.current}ms`);
   }
   const primaryStill = isShow && heroEp?.thumb ? artSrc(heroEp.thumb, 80).src : null;
+  // a still that cannot be had leaves the button: an empty dark box pushed its words off-centre
+  const stillKey = primaryStill ? JSON.stringify(primaryStill) : '';
+  const [stillFailed, setStillFailed] = useState('');
 
   // ---- more like this ----
   useEffect(() => {
@@ -1156,7 +1159,7 @@ export default function Detail() {
               else if (!isShow && !ownedMovieId) openSources();
             }}
             style={s.primary}
-            leading={primaryStill ? <Image source={primaryStill} style={s.primaryStill} /> : null}
+            leading={primaryStill && stillFailed !== stillKey ? <Image source={primaryStill} style={s.primaryStill} onError={() => setStillFailed(stillKey)} /> : null}
           />
           {statusLine ? (
             <View style={s.status}>

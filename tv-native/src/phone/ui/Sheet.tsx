@@ -57,7 +57,8 @@ export default function Sheet({
           {
             width: maxW,
             alignSelf: 'center',
-            maxHeight: kb ? height - kb - insets.bottom - insets.top - 8 : height * 0.86,
+            // (the keyboard's room is the padding below, inside this height)
+            maxHeight: kb ? height - insets.top - 8 : height * 0.86,
             paddingBottom: kb ? kb + insets.bottom + 8 : scroll ? 0 : insets.bottom + 12,
             transform: [{translateY: y.interpolate({inputRange: [0, 1], outputRange: [0, 400]})}],
           },
@@ -69,7 +70,7 @@ export default function Sheet({
           </Text>
         ) : null}
         {sub ? <Text style={s.sub}>{sub}</Text> : null}
-        <Body style={scroll ? {flexGrow: 0} : undefined} contentContainerStyle={scroll ? {paddingBottom: kb ? 4 : insets.bottom + 16} : undefined}
+        <Body style={scroll ? {flexGrow: 0, flexShrink: 1} : undefined} contentContainerStyle={scroll ? {paddingBottom: kb ? 4 : insets.bottom + 16} : undefined}
           keyboardShouldPersistTaps="handled">
           {children}
         </Body>
