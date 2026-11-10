@@ -2042,6 +2042,17 @@ html[data-look="glass"] #nav-new.has-new .nav-new-dot {
      instead of wrapping their own label onto two */
   .wn-foot .btn { flex: 1 1 100%; justify-content: center; }
 }
+/* a phone: the tile and the name share the first line and the words take
+   the card's whole width under them — beside a 76px tile they had a 158px
+   column at 320px ("The / Calendar is / a real / month") */
+@media (max-width: 480px) {
+  .wn-card { display: grid; grid-template-columns: 56px minmax(0, 1fr); column-gap: 14px; align-items: center; }
+  .wn-cue { width: 56px; height: 56px; border-radius: 17px; }
+  .wn-glyph { font-size: 1.6rem; }
+  .wn-body { display: contents; }
+  .wn-body > :not(.wn-head) { grid-column: 1 / -1; }
+  .wn-go { justify-self: start; }
+}
 
 /* ---------- legible menus (2026-09-23) ----------
    elia: "dropdown menus text should be contrasted a little bit better". The

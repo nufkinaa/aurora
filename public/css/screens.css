@@ -5380,7 +5380,7 @@ html[data-look="glass"] .kids-field { background: rgba(255, 255, 255, 0.05); bor
 .lf-drop-icon svg { width: 24px; height: 24px; }
 .lf-drop-words { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .lf-drop-title { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.01em; }
-.lf-drop-text { color: var(--text-dim); font-size: 0.92rem; line-height: 1.45; }
+.lf-drop-text { color: var(--text-dim); font-size: 0.92rem; line-height: 1.45; text-wrap: balance; } /* (no lone "name." on the last line) */
 .lf-drop-more { font-weight: 700; font-size: 0.95rem; }
 .lf-drop-safe { grid-column: 2 / -1; color: var(--text-faint); font-size: 0.8rem; }
 .lf-drop-btn { pointer-events: none; }
@@ -5525,6 +5525,11 @@ html[data-look="glass"] .kids-field { background: rgba(255, 255, 255, 0.05); bor
   .lf-loose-row { grid-template-columns: auto minmax(0, 1fr) auto; }
   .lf-attach { grid-column: 1 / -1; grid-row: 2; max-width: none; width: 100%; }
   .lf-x { grid-column: 3; grid-row: 1; }
+}
+/* a small phone: two of your files a row — three left 88px for a name and
+   "2019 · 0:20 · 1…", both cut */
+@media (max-width: 400px) {
+  .lf .grid.lf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* the glass look: the same material as every other raised surface */
