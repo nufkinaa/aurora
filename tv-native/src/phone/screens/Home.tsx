@@ -56,6 +56,7 @@ import {useSolidBar} from '../ui/PageHead';
 import {useTabBarSpace} from '../ui/TabBar';
 import {greeting} from '../greeting';
 import {heroCover} from '../heroArt';
+import {GreetFade, greetFade} from '../ui/greetFade';
 import {onReselect} from '../tabs';
 import {phoneNative} from '../native';
 import {FADE_MS, LISTS} from '../lowEnd';
@@ -86,25 +87,10 @@ function greetLine(line: string, name?: string) {
   );
 }
 
-/** Words on a picture with no shade under them: two shadows on the letters (Android draws one
- *  per Text) — a tight dark edge and a wide soft one, the second from an identical layer on top. */
-function Shadowed({style, lines, header, children}: {style: object; lines: number; header?: boolean; children: React.ReactNode}) {
-  return (
-    <View>
-      <Text style={[style, s.shadowWide]} numberOfLines={lines} accessibilityRole={header ? 'header' : undefined}>
-        {children}
-      </Text>
-      <Text style={[style, s.shadowTight, StyleSheet.absoluteFill]} numberOfLines={lines} importantForAccessibility="no-hide-descendants">
-        {children}
-      </Text>
-    </View>
-  );
-}
-
 const kindOf = (it: HeroItem) => (it.type === 'show' || (it as {type?: string}).type === 'series' ? 'show' : 'movie');
 
 // ---------------------------------------------------------------- billboard
-const Slide = React.memo(function Slide({item, w, h, top, land, noKicker, fadeH, onPlay, onDetails, onTextH}: {item: HeroItem; w: number; h: number; top: number; land?: boolean; noKicker?: boolean; fadeH: number; onPlay: (it: HeroItem) => void; onDetails: (it: HeroItem) => void; onTextH?: (h: number) => void}) {
+const Slide = React.memo(function Slide({item, w, h, top, land, noKicker, fadeH, topFade, onPlay, onDetails, onTextH}: {item: HeroItem; w: number; h: number; top: number; land?: boolean; noKicker?: boolean; fadeH: number; topFade?: GreetFade | null; onPlay: (it: HeroItem) => void; onDetails: (it: HeroItem) => void; onTextH?: (h: number) => void}) {
   const show = kindOf(item) === 'show';
   const portrait = h > w;
   // a phone held upright: the POSTER (large) fills the billboard, as on the site (ui.js
@@ -118,9 +104,11 @@ const Slide = React.memo(function Slide({item, w, h, top, land, noKicker, fadeH,
     <View style={{width: w, height: h + top, paddingHorizontal: land ? 12 : 8}}>
       <Tap flat onPress={() => onDetails(item)} style={[s.slide, {height: h, marginTop: top}, land && s.slideLand]} accessibilityLabel={`${item.title}, details`}>
         {src ? <Image source={src} style={StyleSheet.absoluteFill} resizeMode="cover" fadeDuration={FADE_MS} /> : null}
-        {/* the picture at its own brightness: a fade from the foot only as tall as the words on it
-            (elia 2026-11-10: "no shadow" on the hero, the letters carry their own) */}
+        {/* the picture at its own brightness (elia 2026-11-10): a fade from the foot only as tall
+            as the words on it, and, with the greeting on the slab, a soft one from the top edge
+            behind the greeting alone (ui/greetFade.ts); no shadow on the letters */}
         <View style={[s.slideFade, {height: fadeH}]} pointerEvents="none" />
+        {topFade ? <View style={[s.topFade, {height: topFade.height, experimental_backgroundImage: topFade.gradient}]} pointerEvents="none" /> : null}
         <View style={s.slideText} onLayout={onTextH ? e => onTextH(Math.ceil(e.nativeEvent.layout.height)) : undefined}>
           {noKicker ? null : (
             <View style={s.kicker}>
@@ -183,6 +171,8 @@ function Billboard({items, onPlay, onDetails, active, greet}: {items: HeroItem[]
   // the greeting gives way to a long title (measured): two lines of remark, one, none, then the tag
   const [room, setRoom] = useState<Room>(2);
   const [greetH, setGreetH] = useState(0);
+  // the top fade behind the greeting: as deep as its words (measured; a first guess before)
+  const topFade = useMemo(() => (land || !greet ? null : greetFade(GREET_TOP + (greetH || 27 + 4 + 42))), [land, greet, greetH]);
   useEffect(() => {
     if (land || !greet || !textH || !greetH || room <= -2) return;
     if (h - 44 - textH - (GREET_TOP + greetH) < GREET_GAP) setRoom(r => (r > -2 ? ((r - 1) as Room) : r));
@@ -225,7 +215,7 @@ function Billboard({items, onPlay, onDetails, active, greet}: {items: HeroItem[]
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         keyExtractor={(it, i) => `${it.id || it.imdbId || it.title}-${i}`}
-        renderItem={({item}) => <Slide item={item} w={width} h={h} top={top} land={land} noKicker={!land && room <= -2} fadeH={fadeH} onPlay={onPlay} onDetails={onDetails} onTextH={onTextH} />}
+        renderItem={({item}) => <Slide item={item} w={width} h={h} top={top} land={land} noKicker={!land && room <= -2} fadeH={fadeH} topFade={topFade} onPlay={onPlay} onDetails={onDetails} onTextH={onTextH} />}
         getItemLayout={(_, i) => ({length: width, offset: width * i, index: i})}
         onScrollBeginDrag={() => {
           touchedAt.current = Date.now();
@@ -233,7 +223,7 @@ function Billboard({items, onPlay, onDetails, active, greet}: {items: HeroItem[]
         onMomentumScrollEnd={onEnd}
         initialNumToRender={2}
         windowSize={3}
-        extraData={`${width}|${h}|${room}|${fadeH}`}
+        extraData={`${width}|${h}|${room}|${fadeH}|${topFade?.height || 0}`}
         onContentSizeChange={snap}
       />
       <View style={s.dots} pointerEvents="none">
@@ -242,8 +232,7 @@ function Billboard({items, onPlay, onDetails, active, greet}: {items: HeroItem[]
         ))}
       </View>
       {!land && greet ? (
-        // over the pager, so it stays put while the slides go by; no shade behind it, a shadow on
-        // the letters only (elia 2026-11-10)
+        // over the pager, so it stays put while the slides go by (each slide carries the fade)
         <View
           pointerEvents="none"
           style={[s.slabGreet, {top: top + GREET_TOP}]}
@@ -251,13 +240,13 @@ function Billboard({items, onPlay, onDetails, active, greet}: {items: HeroItem[]
             const g = Math.ceil(e.nativeEvent.layout.height);
             setGreetH(was => (Math.abs(was - g) > 1 ? g : was));
           }}>
-          <Shadowed style={s.slabGreetLine} lines={2} header>
+          <Text style={s.slabGreetLine} numberOfLines={2} accessibilityRole="header">
             {greetLine(greet.line, greet.name)}
-          </Shadowed>
+          </Text>
           {room >= 1 ? (
-            <Shadowed style={s.slabGreetSub} lines={room}>
+            <Text style={s.slabGreetSub} numberOfLines={room}>
               {greet.sub}
-            </Shadowed>
+            </Text>
           ) : null}
         </View>
       ) : null}
@@ -635,9 +624,7 @@ const s = StyleSheet.create({
     bottom: 0,
     experimental_backgroundImage: 'linear-gradient(0deg, rgba(7,8,17,0.92) 0%, rgba(7,8,17,0.62) 45%, rgba(7,8,17,0) 100%)',
   },
-  // a shadow on the letters only, no box behind them (Shadowed): wide and soft, then tight and dark
-  shadowWide: {textShadowColor: 'rgba(5,6,12,0.9)', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 14},
-  shadowTight: {textShadowColor: 'rgba(5,6,12,0.75)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 3},
+  topFade: {position: 'absolute', left: 0, right: 0, top: 0},
   // the greeting on the slab (the site's .hero > .home-greeting): 18 down, 20 in from the slab
   slabGreet: {position: 'absolute', left: 8 + 20, right: 8 + 20},
   slabGreetLine: {color: colors.text, fontSize: 22.4, fontWeight: '900', letterSpacing: -0.22, lineHeight: 26.9},
@@ -647,10 +634,10 @@ const s = StyleSheet.create({
   // .hero-kicker: a white veil with a hairline ring, 11.2/800 in the kind's colour
   kicker: {alignSelf: 'flex-start', paddingHorizontal: 12, height: 28.8, borderRadius: 14.4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center'},
   kickerText: {fontSize: 11.2, fontWeight: '800', letterSpacing: 0.9},
-  heroTitle: {color: colors.text, fontSize: 33.6, fontWeight: '900', letterSpacing: -1, lineHeight: 36, marginTop: 13, textShadowColor: 'rgba(5,6,12,0.85)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 10},
+  heroTitle: {color: colors.text, fontSize: 33.6, fontWeight: '900', letterSpacing: -1, lineHeight: 36, marginTop: 13},
   heroMetaRow: {flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 11},
-  heroMeta: {flexShrink: 1, color: colors.textDim, fontSize: 14.4, fontWeight: '600', lineHeight: 21.6, textShadowColor: 'rgba(5,6,12,0.85)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 10},
-  star: {color: colors.star, fontSize: 14.4, fontWeight: '800', lineHeight: 21.6, textShadowColor: 'rgba(5,6,12,0.85)', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 10},
+  heroMeta: {flexShrink: 1, color: colors.textDim, fontSize: 14.4, fontWeight: '600', lineHeight: 21.6},
+  star: {color: colors.star, fontSize: 14.4, fontWeight: '800', lineHeight: 21.6},
   // (wraps: with the phone's font turned up, Details goes under Play instead of off the edge)
   heroBtns: {flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 12},
   heroBtn: {paddingHorizontal: 26},
