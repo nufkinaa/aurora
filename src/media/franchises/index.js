@@ -183,7 +183,9 @@ const withLocal = () => {
 };
 
 // readAll's twin for warm(): the same files, the same order, the same
-// reading of each — with the file reads off the event loop.
+// reading of each — with the file reads off the event loop, ONE AT A TIME:
+// libuv's thread pool (4 threads by default) also serves every static file
+// and picture, and 165 reads queued at once would hold those up.
 const readAllAsync = async (dir = DATA_DIR) => {
   let files = [];
   try {
@@ -191,16 +193,22 @@ const readAllAsync = async (dir = DATA_DIR) => {
   } catch {
     return [];
   }
-  const texts = await Promise.all(files.map((f) => fs.promises.readFile(path.join(dir, f), "utf8").then((t) => ({ t }), (e) => ({ e }))));
-  return files.map((f, i) => {
-    const r = texts[i];
-    if (r.e) return { _file: f, _broken: r.e.message };
+  const out = [];
+  for (const f of files) {
+    let text;
     try {
-      return { ...JSON.parse(r.t), _file: f };
+      text = await fs.promises.readFile(path.join(dir, f), "utf8");
     } catch (e) {
-      return { _file: f, _broken: e.message };
+      out.push({ _file: f, _broken: e.message });
+      continue;
     }
-  });
+    try {
+      out.push({ ...JSON.parse(text), _file: f });
+    } catch (e) {
+      out.push({ _file: f, _broken: e.message });
+    }
+  }
+  return out;
 };
 
 let cache = null;

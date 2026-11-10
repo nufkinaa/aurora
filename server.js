@@ -826,7 +826,7 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   // The curated franchise list (165 small files), read now with the reads
   // off the event loop, instead of synchronously by the first Home after a
   // start (media/franchises warm: 3.3 s of the loop on a busy Windows box).
-  setTimeout(() => { try { require("./src/media/franchises").warm(); } catch {} }, 2000).unref();
+  setTimeout(() => { try { require("./src/media/franchises").warm(); } catch {} }, 5000).unref();
   // The code the apps' first requests load (lib/warmup.js), one module at a
   // time from 30 s on, instead of on the spot by the first visitor of each.
   try { require("./src/lib/warmup").warm(); } catch {}
