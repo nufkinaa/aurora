@@ -167,6 +167,24 @@ the glass is the same all the way down.
 | chip "Unwatched" | `#F3F4F8` on `#181922` | 15.91 | `#F3F4F8` on `#343439` | 11.26 | passes |
 | button "Surprise me" | `#F3F4F8` on `#181922` | 15.91 | `#F3F4F8` on `#35353A` | 11.10 | passes |
 
+## The follow-up of 2026-11-10
+
+Four faults were mended after the first jury (docs/glass-tv.md, section 8).
+These lines replace the ones above for the build after it (90f03315):
+
+| pair | above | now |
+|---|---|---|
+| the rail's chosen word in its well | 8.86 | 17.36 (white, weight 800) |
+| the set row of a player menu, with focus on it | 5.26 | 19.50 (dark on the white fill) |
+| another row of a player menu, with focus on it | 10.31 on today's picture of versionCode 247 (the table above has 7.19 for its focused row) | 19.50 |
+| the focused row's second line | 5.20 | 8.80 |
+| an unavailable row's title, with focus on it | 3.69 | 5.61 |
+| its second line and its tag "Not here" | 4.81 | 8.80 |
+| the star on the focused set row | | 6.25 |
+
+The focused row of a player menu against the menu round it: 1.42 before,
+14.65 now.
+
 ## Not measured one by one
 
 These use the same sheet and the same inks as the sheets above, so the same

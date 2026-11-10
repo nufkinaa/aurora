@@ -6,13 +6,18 @@ the real Mi TV. Branch `glass-tv`, from `ui-tv` a59c1b43 (that commit is the
 
 The look, in one line: a dark neutral pane, white words that read whatever is
 behind, a rim of light, a quiet sheen in its upper half, a soft shadow, and the
-chosen item in a darker well with its word in the accent mixed with white. The
-tvOS tab bar, in the TV app's own shapes.
+chosen item in a darker well (in the rail its word full white and heavier; a
+chosen chip's word in the accent mixed with white). The tvOS tab bar, in the TV
+app's own shapes.
 
 All of it lives in `tv-native/src/glass.ts` (the values) and
 `tv-native/src/components/GlassEdge.tsx` (the edge of a pane). Pictures of
 every surface, before and after: `docs/qa/glass-tv/jury/`. Measured contrast:
 `docs/qa/glass-tv/contrast.md`.
+
+Section 8 is the follow-up round of 2026-11-10: four faults both judges named
+in this look, mended. Where it changed something said in sections 1 to 3 the
+line says so.
 
 ## 1. The values
 
@@ -23,11 +28,12 @@ every surface, before and after: `docs/qa/glass-tv/jury/`. Measured contrast:
 | sheen | white 5 % at the top to 0 at 48 % of the pane's height (a toast: 7 % to 0 at 60 %) |
 | rim of a menu, a sheet, a toast | top line white 36 %, foot line white 16 %, sides white 7.5 %, 1 dp |
 | light inside that rim | top white 22 % to 0 over 15 dp, sides 7 % over 12 dp, foot 10 % over 13 dp |
-| rim of the chrome (rail, filter pane) | top line white 28 %, foot line white 12 %, sides white 5.5 % |
-| light inside that rim | top white 18 % to 0 over 9 dp, foot 8 % over 8 dp |
+| rim of the chrome (rail, filter pane) | top line white 28 %, sides white 5.5 % (no foot: since section 8 these two panes run to the screen's foot) |
+| light inside that rim | top white 18 % to 0 over 9 dp |
 | shadow | `0 14 34` black 34 %, `0 3 8` black 22 %, `0 1 2` black 22 %, a dark hairline `0 0 0 0.5` black 30 % |
-| chosen | a well: black 40 %, a 2 dp black 40 % line on top, a white 9 % line at the foot; the word and icon `#B9B0FF` |
+| chosen | a well: black 40 %, a 2 dp black 40 % line on top, a white 9 % line at the foot; the word and icon `#B9B0FF` on a chip, `#FFFFFF` at weight 800 in the rail (section 8) |
 | words | `#FFFFFF`; second voice `#D0D5E2`; third voice `#B2B8CA` |
+| words on a focused player-menu row (white fill, section 8) | `#0B0C14`; second line and tag `#454A5C`; a row that cannot be chosen `#62677A`; the star `#7A5C00` |
 
 Two things differ from the website's recipe, both because a TV panel has no
 blur behind it:
@@ -149,7 +155,8 @@ Home code have not changed since).
   base drew about 184 more frames a run, and those were the old rail's two
   drifting glows: cheap frames that made the share look smaller. The new rail
   draws nothing when nothing moves.
-- **S4 (the rail): this one is not equal, and it is said plainly.** Late
+- **S4 (the rail): this one is not equal, and it is said plainly.** (Measured
+  again after the follow-up, section 8.3: 26 before it, 27 after it.) Late
   frames per run went from about 13 to about 26. Frames late by more than
   3 ms: 2.3 per open-and-close before, 2.5 now. The extra ones are barely
   late and come just after the rail closes: the GPU has gone idle and wakes
@@ -232,3 +239,83 @@ The pictures are full size (1920x1080), saved as 256-colour PNGs with Python
 PIL to stay under 600 KB each (`sharp` is not in the repo); both pictures of a
 scene went through the same steps. A screencap does not hold the film, so the
 player scenes show flat dark grey behind the menus.
+
+## 8. The follow-up: four faults both judges named (2026-11-10)
+
+Commit 90f03315, versionCode 248 on the Mi TV. "Before" here is the glass the
+first jury saw (versionCode 247). Pictures: `docs/qa/glass-tv/followup/`
+(twelve scenes, two of them controls; `scenes.md`, `key.json`).
+
+### 8.1 What changed
+
+| fault | what it was | what it is now | files |
+|---|---|---|---|
+| 1. The chosen section in the rail read as switched off | its word and icon `#B9B0FF` in the well: 8.9:1, yet dimmer to the eye than the resting white labels | `ink.chosen` `#FFFFFF` at `CHOSEN_WEIGHT` 800 (a resting label is 600), the well as it was. Resting = white 600 on the pane; chosen = white 800 in the dark well; focused = dark words on the white fill | `glass.ts`, `components/NavRail.tsx` |
+| 2. The page showed under the foot of the rail and of Browse's filter pane | the panes floated 11 dp above the screen's foot with round foot corners; the next row's cards showed there | the panes run to the screen's foot: `bottom: 0`, only the top corners round (38 and 28). The edge picture is baked for a taller pane and cut where the screen ends (529 and 536 dp of pane; `FOOT_OFF` 160 in the script), so the sides, their line and the shadow run to the cut. No new layer: the same one box and one picture | `components/NavRail.tsx`, `screens/Browse.tsx`, `tools/gen_glass_edge.py`, `assets/glass-pane-edge*.png` |
+| 3. A square dark box behind the focused Play button and the focused face on the grey sheets | the focus ring's drop shadow, cut square by the sheet's scroll boxes | no drop shadow under a focus ring inside an opaque sheet: `FlatFocus` (a React context, `components/Focusable.tsx`) is set by `Sheet.tsx`, the X-Ray sheet and a person's page; a Focusable under it asks for `NO_SHADOW` (`0 0 0 rgba(0,0,0,0)`), and the native view reads a fully transparent shadow colour as "none". The ring itself is as it was | `components/Focusable.tsx`, `AuroraFocusableView.kt`, `components/Sheet.tsx`, `components/Overlays.tsx`, `components/PersonSheet.tsx`, `glass.ts` |
+| 4. Focus in the player's menus was a slightly lighter grey pill | fill `colors.surfaceHover`, 1.4:1 against the menu; the set row's lilac word on it 5.3:1 | the white fill with dark words, as on the rail: `highlightColor` white, the row's word, tick and icon `inkOnWhite.text`, second line and tag `.second`, a row that cannot be chosen `.dim`, the star `.star`. The three subtitle-timing buttons the same. TV only | `playback/Player.tsx` (behind `PHONE`), `glass.ts` |
+
+Left alone on purpose: the filter pane's chosen chip keeps `#B9B0FF` (the
+judges named the rail); the genre menu and the rail keep the ring's shadow
+(they are not sheets, and no box showed there); the party's reaction buttons
+keep their ring.
+
+With the panes on the screen's foot, 27 dp of the rail's pane is now under the
+profile pill where 16 dp were; nothing in the pane moved.
+
+### 8.2 Contrast, measured on the Mi TV's screencaps
+
+| pair | before | after |
+|---|---|---|
+| the rail's chosen word in its well ("Movies") | 8.86 | 17.36 |
+| the same, "Settings" | 9.03 | 17.70 |
+| a resting rail word (unchanged) | 14.14 | 14.14 |
+| the focused rail item (unchanged) | 19.50 | 19.50 |
+| a player menu's focused row against the menu round it | 1.42 | 14.65 |
+| the set row's word, with focus on it | 5.26 | 19.50 |
+| another row's word, with focus on it | 10.31 | 19.50 |
+| the focused row's second line | 5.20 | 8.80 |
+| the focused set row's tick | (lilac on grey) | 19.50 |
+| the focused set row's star | (gold on grey) | 6.25 |
+| a row that cannot be chosen, with focus on it: its word | 3.69 | 5.61 |
+| its note and its tag "Not here" | 4.81 | 8.80 |
+
+The one pair that was under 4.5 after the first round (3.69) now passes.
+
+### 8.3 Frames: the rail, open and close five times (S4)
+
+`tools/tv-bench/tv-bench.sh` S4, a cold start for every run, the same evening
+on the same TV. Late frames per run = frames drawn x the late share.
+
+| build | runs | late frames per run | median | mean | frames per run (mean) | late share (mean) | p50 / p90 / p95 / p99 |
+|---|---|---|---|---|---|---|---|
+| the old look (section 3.3) | | about 13 | | | 422 | 3.1 % | 30 / 40 / 53 / 97 ms |
+| glass before the follow-up (vc247) | 10 | 27, 26, 25, 26, 26, 25, 27, 25, 27, 24 | 26 | 25.8 | 264 | 9.78 % | 32 / 48 / 53 / 113 |
+| glass after the follow-up (vc248) | 10 | 24, 24, 28, 29, 27, 24, 24, 31, 28, 28 | 27.5 | 26.7 | 274 | 9.77 % | 32 / 48 / 53 / 109 |
+
+Read: 26 against 27 late frames a run, and the same share of late frames
+(9.78 % against 9.77 %); the new build drew about ten more frames a run. One
+run more or less is far inside what two starts differ by (about 15 %). The
+taller pane costs nothing that this test can see: it is 11 dp more of the same
+opaque box and the same picture, and nothing new is drawn.
+
+### 8.4 The phone
+
+- `Player.tsx`: every line of fix 4 is behind `PHONE`; the phone's menu rows
+  keep `colors.surfaceHover` and their colours.
+- `FlatFocus` is never set on the phone (it has its own sheets), and
+  `JsFocusable`, the only Focusable the phone uses, also checks `!isPhone()`.
+- `AuroraFocusableView.kt` is in the Android project both apps build from; the
+  new branch runs only when a shadow colour with alpha 0 is handed to it, which
+  nothing but `FlatFocus` does.
+- Nothing under `tv-native/src/phone` was touched.
+
+### 8.5 The pictures
+
+`docs/qa/glass-tv/followup`: every BEFORE picture is versionCode 247 (the build
+the first jury's winner was merged into), every AFTER picture versionCode 248
+(90f03315). Scenes 09 (the Movies grid) and 10 (the Settings page) are
+controls: the two screencaps are identical pixel for pixel. In the player
+scenes the film is paused at 2:59 in one picture and 3:06 in the other, and in
+the title sheet the "watched" line moved from 1 % to 2 %: the film had to be
+played between the two sets.

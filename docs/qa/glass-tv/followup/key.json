@@ -1,0 +1,62 @@
+{
+ "01": {
+  "new": "B",
+  "scene": "01-rail-home-hero",
+  "width": 1920
+ },
+ "02": {
+  "new": "A",
+  "scene": "02-rail-home-rows",
+  "width": 1920
+ },
+ "03": {
+  "new": "B",
+  "scene": "03-rail-movies",
+  "width": 1920
+ },
+ "04": {
+  "new": "B",
+  "scene": "04-filter-pane",
+  "width": 1920
+ },
+ "05": {
+  "new": "B",
+  "scene": "05-rail-settings",
+  "width": 1920
+ },
+ "06": {
+  "new": "A",
+  "scene": "06-title-sheet",
+  "width": 1920
+ },
+ "07": {
+  "new": "B",
+  "scene": "07-xray-sheet",
+  "width": 1920
+ },
+ "08": {
+  "new": "A",
+  "scene": "08-player-subs-set",
+  "width": 1920
+ },
+ "09": {
+  "new": "B",
+  "scene": "09-control-movies",
+  "width": 1920
+ },
+ "10": {
+  "new": "B",
+  "scene": "10-control-settings",
+  "width": 1920
+ },
+ "11": {
+  "new": "A",
+  "scene": "11-player-subs-other",
+  "width": 1920
+ },
+ "12": {
+  "new": "B",
+  "scene": "12-player-gear",
+  "width": 1920
+ }
+}
