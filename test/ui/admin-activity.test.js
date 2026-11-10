@@ -97,8 +97,14 @@ ui.test("Activity: the numbers on top, who is watching, every screen, watch time
   assert.match(await page.textContent("#sub-ov-activity"), /^1 watching · 1 paused · 3 screens open · 2h 42m watched today$/);
   // Copy for Claude: the same answer as text
   await page.click('[data-copy-for="ov-activity"]');
-  await page.waitForFunction(async () => (await navigator.clipboard.readText()).startsWith("## Activity"), null, { timeout: 15000 });
-  const clip = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
+  // (asked from here until the text is in: a waitForFunction whose function
+  // is async is over at once — a promise counts as true — so the read after
+  // it raced the copy, which asks the server first)
+  let clip = "";
+  for (let i = 0; i < 150 && !clip.startsWith("## Activity"); i++) {
+    clip = (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
+    if (!clip.startsWith("## Activity")) await page.waitForTimeout(100);
+  }
   assert.match(clip, /## Activity/);
   assert.match(clip, /Watch time counts only real play/);
   assert.match(clip, /\| Ann \| Silo S3 E2 \| playing \| 21:00 \/ 47:00 \| 20 min \|/);
