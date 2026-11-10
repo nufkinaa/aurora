@@ -31,7 +31,8 @@ const R = (seed) => () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; ret
   const weak = !!arg("weak");
   const profile = !!arg("profile");
   const label = arg("label") === true ? undefined : arg("label");
-  const srv = await start({ weak, ref, probe: "light", config: { scanIntervalMinutes: 24 * 60 } });
+  const full = !!arg("full"); // the full probe: data/ writes per file and blocking fs calls by call site (costs a little itself)
+  const srv = await start({ weak, ref, probe: full ? "full" : "light", config: { scanIntervalMinutes: 24 * 60 } });
   const out = { at: new Date().toISOString(), ref: ref || "working tree", minutes, think, weak, steps: [] };
   try {
     await srv.waitWarm();
@@ -110,6 +111,9 @@ const R = (seed) => () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; ret
       if (profile) await srv.probe("/cpu/start?us=500");
       const t0 = Date.now();
       const end = t0 + minutes * 60e3;
+      // memory every minute (a soak: --viewers 10 --minutes 15)
+      const memSeries = [];
+      const memTimer = setInterval(() => { srv.snap().then((m) => memSeries.push({ min: Math.round((Date.now() - t0) / 60000), rssMb: Math.round(m.mem.rss / 1048576), heapMb: Math.round(m.mem.heapUsed / 1048576), externalMb: Math.round(m.mem.external / 1048576) })).catch(() => {}); }, 60000);
       const watchers = Array.from({ length: Math.max(1, Math.round(n / 10)) }, (_, k) => (async () => {
         const P = srv.profile(k % nP);
         const d = { si: k % nP, agent: new http.Agent({ keepAlive: true, maxSockets: 1 }), etags: new Map(), app: "web" };
@@ -133,6 +137,7 @@ const R = (seed) => () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; ret
           await sleep((think * (0.5 + rnd())) * 1000);
         }
       })]);
+      clearInterval(memTimer);
       const secs = (Date.now() - t0) / 1000;
       const prof = profile ? await srv.probe("/cpu/stop?top=60") : null;
       const s = await srv.snap();
@@ -146,8 +151,12 @@ const R = (seed) => () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; ret
         loopP50: round(s.loopDelay.p50, 1), loopP99: round(s.loopDelay.p99, 1), loopMax: round(s.loopDelay.max, 1),
         healthzP50: round(median(hz), 1), healthzP99: round(pct(hz, 99), 1), healthzMax: round(Math.max(...hz), 1),
         rssMb: round(s.mem.rss / 1048576, 0), heapMb: round(s.mem.heapUsed / 1048576, 0), gcMs: round(Object.values(s.gc).reduce((a, g) => a + g.ms, 0), 0), gcMaxMs: round(Math.max(0, ...Object.values(s.gc).map((g) => g.maxMs)), 1),
-        errors, kinds: Object.entries(times).map(([k, t]) => ({ kind: k, n: t.length, p50: median(t), p95: pct(t, 95), p99: pct(t, 99), max: t.length ? Math.max(...t) : null })),
+        memSeries, errors, kinds: Object.entries(times).map(([k, t]) => ({ kind: k, n: t.length, p50: median(t), p95: pct(t, 95), p99: pct(t, 99), max: t.length ? Math.max(...t) : null })),
       };
+      if (full) {
+        row.writes = s.writes.slice(0, 12).map((w) => ({ file: w.key, kb: Math.round(w.bytes / 1024), n: w.n }));
+        row.syncFsSites = s.syncFs.filter((r) => / @ /.test(r.key)).sort((a, b) => b.ms - a.ms).slice(0, 12).map((r) => ({ site: r.key, n: r.n, ms: round(r.ms, 0) }));
+      }
       if (prof) row.profile = { busyMs: prof.busyMs, functions: prof.functions.filter((f) => !/^\((idle|program)\)/.test(f.name)).slice(0, 40) };
       return row;
     };
@@ -163,6 +172,8 @@ const R = (seed) => () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; ret
   for (const st of out.steps) {
     console.log(`\n${st.viewers} viewers ${JSON.stringify(st.errors)}`);
     console.log(table(st.kinds, [["screen", "kind"], ["n", "n"], ["p50 ms", "p50"], ["p95 ms", "p95"], ["p99 ms", "p99"], ["max ms", "max"]]));
+    if (st.writes) console.log(table(st.writes, [["file written", "file"], ["KB", "kb"], ["writes", "n"]]));
+    if (st.syncFsSites) console.log(table(st.syncFsSites, [["blocking fs site", "site"], ["n", "n"], ["ms", "ms"]]));
     if (st.profile) console.log(table(st.profile.functions.slice(0, 25), [["function", "name"], ["ms", "ms"]]));
   }
   console.log(`\n${f}`);
