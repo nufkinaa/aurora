@@ -15,6 +15,11 @@
 // A browser on a big screen can be the room's screen too ("Only show the
 // code and the result here"): it then shows the code, how far everyone has
 // got, and the pick — and plays it when someone presses Play on a phone.
+//
+// The look is Aurora Play ("Party night", docs/play/group.md): the room on
+// the night sky, people as seats, the deck of js/play/deck.js, and the reveal
+// as the one reward. Only the look and the motion live here; the rules, the
+// words (groupwords.js) and the server's answers are as they were.
 import { el, posterImg, artUrl, toast, haptic, debounce } from "../ui.js";
 import { api } from "../api.js";
 import { state } from "../state.js";
@@ -24,8 +29,21 @@ import { pushScope, popScope, currentScope } from "../focus.js";
 import { uiHit } from "../telemetry.js"; // [analytics]
 import { qrSvg } from "../qr.js";
 import * as G from "../groupwords.js";
+import { mountPlay, star } from "../play/stage.js";
+import { pullOf, setPull, depthOf, slam, SLAM_MS } from "../play/deck.js";
+import { pressable } from "../play/press.js";
+import { meteorBurst } from "../play/burst.js";
+import { tallyOf, isTie, tieJumps } from "../play/tally.js";
 
 const W = G.WORDS;
+// the words only this page says (the show around the result, the hand's count)
+const SHOW = {
+  votesIn: "The votes are in…",
+  tie: "A tie — the stars decide",
+  tieLine: "It was a tie — the stars decided",
+  skip: "Skip",
+  card: (n, of) => `Card ${n} of ${of}`,
+};
 const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 const DEVICE_KEY = "aurora-group-device";
 const deviceId = (() => {
@@ -48,19 +66,70 @@ const VERDICT_UI = { yes: "group.yes", maybe: "group.maybe", no: "group.no" }; /
 
 // ---------- small pieces ----------
 const fk = (node, key) => { node.dataset.fk = key; return node; };
-const btn = (attrs, label, onclick) => el("button", { class: "btn focusable", ...attrs, onclick }, label);
+// the page's buttons are play buttons (the sheets over it keep the site's)
+const KEY = "play-btn focusable"; // a quiet glass key
+const KEY_GO = "play-btn play-btn--aurora focusable"; // the step forward
+const KEY_WIN = "play-btn play-btn--gold focusable"; // the prize (Play on the result)
+const TOOL = "pg-tool focusable"; // small tools: Undo, Add, Leave…
+const btn = (attrs, label, onclick) => {
+  const b = el("button", { class: KEY, ...attrs, onclick }, label);
+  pressable(b);
+  return b;
+};
 const avatarOf = (m) => m.avatarImage
   ? el("img", { class: "gp-avatar", src: m.avatarImage, alt: "" })
   : el("span", { class: "gp-avatar gp-avatar-emoji", "aria-hidden": "true" }, m.avatar || (m.name || "?").slice(0, 1).toUpperCase());
-const personChip = (m, { phase, deck = [] }) => el("div", { class: `gp-person${m.away ? " away" : ""}${m.done ? " done" : ""}` },
-  avatarOf(m),
-  el("span", { class: "gp-person-name" }, m.name),
-  m.host && el("span", { class: "gp-badge" }, W.hostBadge),
-  m.role === "screen" && el("span", { class: "gp-badge" }, W.screenBadge),
-  m.away && el("span", { class: "gp-badge dim" }, W.awayBadge),
-  phase === "swiping" && m.role === "voter" && (m.done
-    ? el("span", { class: "gp-badge ok" }, W.doneBadge)
-    : el("span", { class: "gp-badge dim" }, `${m.answered}/${deck.length}`)));
+// A person in the room is a seat: the face, the name under it, what there is
+// to say about them. `fresh` pops it in (someone just arrived); `ribbon` adds
+// how far through the deck they are (while everyone swipes).
+const seat = (m, { phase, deck = [] }, { fresh = false, i = 0, ribbon = false, had = null } = {}) => {
+  const voting = ribbon && phase === "swiping" && m.role === "voter";
+  const part = m.done ? 1 : deck.length ? Math.max(0, Math.min(1, (m.answered || 0) / deck.length)) : 0;
+  // the ribbon glides from where it stood at the last paint (`had`: profile -> { part, done })
+  const was = had && had.get(m.profileId);
+  const fill = el("i", { style: `--p:${(was && voting ? was.part : part).toFixed(3)}` });
+  // (it glides to where the person stands by then — a newer answer may have come in)
+  if (voting && was && was.part !== part) requestAnimationFrame(() => requestAnimationFrame(() => {
+    const now = had.get(m.profileId);
+    fill.style.setProperty("--p", (now ? now.part : part).toFixed(3));
+  }));
+  const justDone = voting && m.done && !!was && !was.done;
+  if (voting && had) had.set(m.profileId, { part, done: !!m.done });
+  const count = voting && !m.done ? el("span", { class: "gp-badge dim" }, `${m.answered}/${deck.length}`) : null;
+  const node = el("div", { class: `gp-person pg-seat${m.away ? " away" : ""}${m.done ? " done" : ""}${fresh ? " is-new" : ""}`, style: `--i:${i}` },
+    el("span", { class: "pg-seat-face" },
+      avatarOf(m),
+      m.host ? el("span", { class: "pg-seat-star", "aria-hidden": "true" }, star()) : "",
+      voting && m.done ? el("span", { class: `pg-seat-tick${justDone ? " is-new" : ""}`, "aria-hidden": "true" }, "✓") : ""),
+    el("span", { class: "gp-person-name", dir: "auto" }, m.name),
+    voting ? el("span", { class: "pg-seat-ribbon", "aria-hidden": "true" }, fill) : "",
+    el("span", { class: "pg-seat-notes" },
+      m.host && el("span", { class: "gp-badge" }, W.hostBadge),
+      m.role === "screen" && el("span", { class: "gp-badge" }, W.screenBadge),
+      m.away && el("span", { class: "gp-badge dim" }, W.awayBadge),
+      voting && (m.done ? el("span", { class: "gp-badge ok" }, W.doneBadge) : count)));
+  if (voting) { node._fill = fill; node._count = count; }
+  return node;
+};
+// words that have not changed are left alone (the page is not measured again for them)
+const setText = (n, t) => { if (n && n.textContent !== t) n.textContent = t; };
+// One more answer from a seat that is already on the page: its ribbon moves
+// on and its count changes — nothing is built again.
+const moveSeat = (node, m, { deck = [] }, had) => {
+  if (!node || !node._fill) return;
+  const part = m.done ? 1 : deck.length ? Math.max(0, Math.min(1, (m.answered || 0) / deck.length)) : 0;
+  const was = had && had.get(m.profileId);
+  if (had) had.set(m.profileId, { part, done: !!m.done });
+  if (!was || was.part !== part) node._fill.style.setProperty("--p", part.toFixed(3));
+  setText(node._count, `${m.answered}/${deck.length}`);
+};
+// the tally of a pick as stars: gold for a yes, an outline for a maybe, a dot for the rest
+const tallyRow = (pick) => {
+  const marks = tallyOf(pick);
+  if (!marks.length) return "";
+  return el("div", { class: "pg-tally", "aria-hidden": "true" }, ...marks.map((kind, i) =>
+    el("span", { class: `pg-tmark ${kind}`, style: `--i:${i}` }, kind === "no" ? "" : star())));
+};
 
 // The four little drawings of the first-time explanation. Calm line art in
 // the page's own colours (currentColor + the accent).
@@ -194,7 +263,7 @@ const followSession = (pid, code, onSession, onLost) => {
 
 // ---------- the page ----------
 export const renderGroup = async (root, params = {}) => {
-  const screen = el("div", { class: "screen gp page-pad" });
+  const screen = el("div", { class: "screen gp page-pad pg-group" });
   root.append(screen);
   if (!state.profile) {
     screen.append(el("div", { class: "empty" }, el("div", { class: "glyph" }, "👤"), "Pick a profile first."));
@@ -203,6 +272,31 @@ export const renderGroup = async (root, params = {}) => {
   const pid = state.profile.id;
   const body = el("div", { class: "gp-body" });
   screen.append(body);
+  // the night sky behind the party; the page shows once its styles are in
+  const play = mountPlay(screen, { seed: 47 });
+  const timers = new Set(); // the page's own short waits (pops, the show): none outlives the screen
+  const later = (fn, ms) => { const t = setTimeout(() => { timers.delete(t); fn(); }, ms); timers.add(t); return t; };
+  const never = (t) => { clearTimeout(t); timers.delete(t); };
+  untilLeave(() => { play.destroy(); for (const t of timers) clearTimeout(t); timers.clear(); });
+  // The room the page keeps under itself for a phone's tab bar is the
+  // stylesheet's (#app's bottom padding). The swipe stage and the show stand
+  // clear of the bar by that much; no height of the bar is written here.
+  const app = document.getElementById("app");
+  // (the window's size is read here and when it changes — never between two
+  // changes to the page, where asking for it makes the page measure itself)
+  let vw = window.innerWidth;
+  let vh = window.innerHeight;
+  const fit = () => {
+    vw = window.innerWidth;
+    vh = window.innerHeight;
+    const pad = app ? parseFloat(getComputedStyle(app).paddingBottom) || 0 : 0;
+    screen.style.setProperty("--pg-reserve", `${pad}px`);
+  };
+  fit();
+  window.addEventListener("resize", fit);
+  untilLeave(() => window.removeEventListener("resize", fit));
+  // (a very wide screen draws the cards big: their pictures are asked for sharper)
+  const wide = () => vw >= 1800 && vh >= 1000;
   let options = null;
   try { options = await api.group.options(pid); } catch {
     body.append(el("div", { class: "empty" }, "Couldn't reach Aurora — try again in a moment."));
@@ -210,15 +304,18 @@ export const renderGroup = async (root, params = {}) => {
   }
   const code = G.tidyCode(params.code || "");
   if (!options.tutorialSeen) await showTutorial(pid);
+  await play.ready; // (the first paint takes the focus: it has to be on show)
   if (!screen.isConnected) return;
   if (code) return joinAndRun(code);
   paintChooser();
 
   // ---------- no session yet: join one, or start one here ----------
   function paintChooser(message = "") {
+    delete screen.dataset.step;
     body.replaceChildren();
     const head = el("div", { class: "gp-head" },
-      el("h1", {}, W.feature),
+      el("div", { class: "play-eyebrow" }, star(), W.entry),
+      el("h1", { class: "play-h1" }, W.feature),
       el("p", { class: "gp-lead" }, W.entryLine),
       el("button", { "data-ui": "group.howto", class: "gp-link focusable", onclick: () => showTutorial(null) }, W.howItWorks));
     // join
@@ -234,12 +331,17 @@ export const renderGroup = async (root, params = {}) => {
       if (!G.codeOk(c)) { input.focus(); return fail(W.codeWrong); }
       navigate(`#/group/${c}`);
     };
-    input.addEventListener("input", () => { input.value = G.tidyCode(input.value); err.classList.add("hidden"); });
+    const joinBtn = btn({ "data-ui": "group.join", class: KEY }, W.join, doJoin);
+    input.addEventListener("input", () => {
+      input.value = G.tidyCode(input.value);
+      err.classList.add("hidden");
+      joinBtn.classList.toggle("play-btn--aurora", G.codeOk(input.value)); // (four good letters: the key lights)
+    });
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") doJoin(); });
     const join = el("section", { class: "gp-panel gp-join" },
       el("h2", {}, W.joinCode),
       el("p", { class: "gp-dim" }, W.codeHelp),
-      el("div", { class: "gp-code-row" }, input, btn({ "data-ui": "group.join", class: "btn btn-primary focusable" }, W.join, doJoin)),
+      el("div", { class: "gp-code-row" }, input, joinBtn),
       err);
     // start
     const pick = { kind: "movie", mood: "any", length: "any", limitSec: (options.limits || [180])[1] || 180 };
@@ -250,7 +352,7 @@ export const renderGroup = async (root, params = {}) => {
         row.replaceChildren(...list.map((o) => {
           const v = o.id != null ? o.id : o;
           return el("button", {
-            "data-ui": "group.option", class: `gp-chip focusable${pick[key] === v ? " on" : ""}`, role: "radio",
+            "data-ui": "group.option", class: `gp-chip pg-chip focusable${pick[key] === v ? " on" : ""}`, role: "radio",
             "aria-checked": String(pick[key] === v), "data-fk": `pick-${key}-${v}`,
             onclick: () => { pick[key] = v; paint(); row.querySelector(`[data-fk="pick-${key}-${v}"]`)?.focus({ preventScroll: true }); },
           }, fmt(o));
@@ -263,7 +365,7 @@ export const renderGroup = async (root, params = {}) => {
       el("input", { type: "checkbox", "data-ui": "group.screen", class: "focusable", ...(asScreen ? { checked: "" } : {}), onchange: (e) => { asScreen = e.target.checked; } }),
       el("span", {}, W.justShow));
     let starting = false;
-    const startBtn = btn({ "data-ui": "group.start", class: "btn btn-primary focusable gp-big" }, W.startHere, async () => {
+    const startBtn = btn({ "data-ui": "group.start", class: `${KEY_GO} gp-big` }, W.startHere, async () => {
       if (starting) return;
       starting = true;
       startBtn.disabled = true;
@@ -289,7 +391,7 @@ export const renderGroup = async (root, params = {}) => {
   }
 
   async function joinAndRun(c) {
-    body.replaceChildren(el("div", { class: "gp-wait" }, el("div", { class: "spinner" })));
+    body.replaceChildren(el("div", { class: "gp-wait" }, el("div", { class: "pg-dots", role: "status", "aria-label": "Joining" }, star(), star(), star())));
     try {
       const r = await api.group.join(pid, { code: c, device: deviceId, role: "voter", app: "web" });
       run(r.session);
@@ -328,26 +430,41 @@ export const renderGroup = async (root, params = {}) => {
       s = { ...s, phase: "ended", ended: { reason: e.status === 404 ? W.ended : e.message || W.ended } };
       paint();
     });
-    const tick = setInterval(() => {
-      if (!screen.isConnected) return clearInterval(tick);
+    // the time left: its words, and the ribbon that drains (rose for the last 20 seconds)
+    const paintTime = (within = screen) => {
       const since = Date.now() - follow.receivedAt();
-      for (const n of screen.querySelectorAll(".gp-time")) n.textContent = G.timeLeft(s, since);
-      for (const n of screen.querySelectorAll(".gp-timebar-fill")) {
+      const words = G.timeLeft(s, since);
+      for (const n of within.querySelectorAll(".gp-time")) setText(n, words);
+      for (const n of within.querySelectorAll(".gp-timebar-fill")) {
         const total = (s.limitSec || 180) * 1000;
         const left = G.secondsLeft(s, since) * 1000;
         n.style.transform = `scaleX(${Math.max(0, Math.min(1, left / total))})`;
+        n.parentNode.classList.toggle("is-low", left > 0 && left <= 20000);
       }
+    };
+    const tick = setInterval(() => {
+      if (!screen.isConnected) return clearInterval(tick);
+      paintTime();
     }, 1000);
     untilLeave(() => clearInterval(tick));
+
+    const seen = new Set(); // who has had their seat's entrance (nobody pops in twice)
+    const farAlong = new Map(); // profile -> how far their ribbon stood at the last paint
+    let sawVote = false; // this page was there when the votes came in (the reveal is for it)
+    let show = null; // the reveal's curtain, while it plays: { stop() }
 
     function paint() {
       const step = G.stepOf(withLocal(s));
       if (view && view.step === step && view.update) return view.update(s);
       const focusKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : null;
+      if (show) show.stop();
+      sawVote = !!view && (view.step === "swipe" || view.step === "waiting");
       view = VIEWS[step]();
+      screen.dataset.step = step; // (the sheet gives each step its room)
       body.replaceChildren(view.node);
       window.scrollTo(0, 0); // a new step starts at its top (the last one may have been scrolled)
       if (view.update) view.update(s);
+      paintTime(body); // (the ribbon starts where the clock is, not full)
       const back = focusKey && body.querySelector(`[data-fk="${focusKey}"]`);
       const first = back || body.querySelector("[data-autofocus]") || null;
       if (first) first.focus({ preventScroll: true });
@@ -368,23 +485,25 @@ export const renderGroup = async (root, params = {}) => {
       try { qr.innerHTML = qrSvg(url, { label: `Join ${code}` }); } catch {}
       return el("div", { class: "gp-codeblock" },
         el("div", { class: "gp-code-kicker" }, W.joinTitle),
-        el("div", { class: "gp-code", "aria-label": `Code ${code.split("").join(" ")}` }, code),
+        // (each letter on its own tile; read as one code)
+        el("div", { class: "gp-code", role: "img", "aria-label": `Code ${code.split("").join(" ")}` }, ...code.split("").map((ch) => el("span", { class: "pg-tile" }, ch))),
         qr,
         el("p", { class: "gp-dim gp-code-line" }, W.joinLine),
         el("p", { class: "gp-host" }, G.hostOf(location.origin)));
     };
 
     const leaveRow = () => el("div", { class: "gp-leave-row" },
-      fk(btn({ "data-ui": "group.leave", class: "btn small focusable" }, W.leave, async () => {
+      fk(btn({ "data-ui": "group.leave", class: TOOL }, W.leave, async () => {
         await act("leave");
         navigate("#/group");
       }), "leave"),
-      isHost() && fk(btn({ "data-ui": "group.end", class: "btn small focusable danger" }, W.endAll, async () => {
+      isHost() && fk(btn({ "data-ui": "group.end", class: `${TOOL} danger` }, W.endAll, async () => {
         await act("end");
       }), "end"),
       fk(el("button", { "data-ui": "group.howto", class: "gp-link focusable", onclick: () => showTutorial(null) }, W.howItWorks), "howto"));
 
-    const addButton = (small = false) => fk(btn({ "data-ui": "group.add", class: `btn focusable gp-add${small ? " small" : ""}`, "aria-label": W.addTitle }, [el("span", { "aria-hidden": "true" }, "＋"), el("span", { class: small ? "gp-tool-label" : "" }, ` ${W.addTitle}`)], () => openSearch()), "add");
+    // "Add a title": a key in the lobby, a small tool while waiting, an icon beside the deck on a phone
+    const addButton = (look = "key") => fk(btn({ "data-ui": "group.add", class: `${look === "key" ? KEY : TOOL} gp-add`, "aria-label": W.addTitle }, [el("span", { class: "pg-tool-glyph", "aria-hidden": "true" }, "＋"), el("span", { class: look === "icon" ? "gp-tool-label" : "" }, W.addTitle)], () => openSearch()), "add");
 
     // ---------- search inside the session ----------
     const openSearch = () => {
@@ -437,7 +556,8 @@ export const renderGroup = async (root, params = {}) => {
     // ---------- the steps ----------
     const VIEWS = {
       lobby: () => {
-        const node = el("div", { class: "gp-lobby" });
+        const node = el("div", { class: "gp-lobby is-fresh" }); // (fresh: the code's tiles drop in, once)
+        later(() => node.classList.remove("is-fresh"), 1200);
         return {
           step: "lobby", node,
           update: (x) => {
@@ -447,8 +567,8 @@ export const renderGroup = async (root, params = {}) => {
               const row = el("div", { class: "gp-chips" }, ...list.map((o) => {
                 const v = o.id != null ? o.id : o;
                 const on = x.settings[key] === v;
-                if (!host) return on ? el("span", { class: "gp-chip on static" }, fmt(o)) : null;
-                return fk(el("button", { "data-ui": "group.option", class: `gp-chip focusable${on ? " on" : ""}`, onclick: () => act("settings", { settings: { [key]: v } }) }, fmt(o)), `set-${key}-${v}`);
+                if (!host) return on ? el("span", { class: "gp-chip pg-chip on static" }, fmt(o)) : null;
+                return fk(el("button", { "data-ui": "group.option", class: `gp-chip pg-chip focusable${on ? " on" : ""}`, onclick: () => act("settings", { settings: { [key]: v } }) }, fmt(o)), `set-${key}-${v}`);
               }).filter(Boolean));
               settings.append(el("div", { class: "gp-field" }, el("div", { class: "gp-field-label" }, ({ kind: W.kind, mood: W.mood, length: W.length, limitSec: W.time })[key]), row));
             };
@@ -463,10 +583,19 @@ export const renderGroup = async (root, params = {}) => {
             }
             const people = G.peopleOf(x);
             const voterHere = x.you && x.you.role === "voter";
-            const dealBtn = host && fk(btn({ "data-ui": "group.deal", class: "btn btn-primary focusable gp-big", ...(x.voters ? { "data-autofocus": "" } : { disabled: "" }) }, W.startSwiping, () => act("start")), "deal");
+            const dealBtn = host && fk(btn({ "data-ui": "group.deal", class: `${KEY_GO} gp-big`, ...(x.voters ? { "data-autofocus": "" } : { disabled: "" }) }, W.startSwiping, () => act("start")), "deal");
+            // seats: whoever is new since the last paint pops in, one after the other
+            let arriving = 0;
+            const seats = people.map((m) => {
+              const fresh = !seen.has(m.profileId);
+              seen.add(m.profileId);
+              return seat(m, x, { fresh, i: fresh ? arriving++ : 0 });
+            });
+            // (and a chair or two left free: there is room for more)
+            for (let k = Math.max(0, Math.min(2, 5 - people.length)); k > 0; k--) seats.push(el("div", { class: "pg-seat pg-seat--free", "aria-hidden": "true" }, el("span", { class: "pg-seat-face" }, "+")));
             const side = el("div", { class: "gp-panel gp-room" },
               el("div", { class: "gp-joined", "aria-live": "polite" }, G.joinedLine(x)),
-              el("div", { class: "gp-people" }, ...people.map((m) => personChip(m, x))),
+              el("div", { class: "gp-people pg-seats" }, ...seats),
               x.added.length ? el("div", { class: "gp-added" },
                 el("div", { class: "gp-field-label" }, W.addedSoFar),
                 ...x.added.map((a) => el("div", { class: "gp-added-item" }, el("span", {}, a.title), el("span", { class: "gp-dim" }, G.addedLine(a.by))))) : "",
@@ -494,24 +623,48 @@ export const renderGroup = async (root, params = {}) => {
 
       waiting: () => {
         const node = el("div", { class: `gp-waiting${isScreen() ? " screen" : ""}` });
+        // Every answer in the room arrives here. An answer changes a line of
+        // words, one ribbon and one count, so only those are touched; the view
+        // is built again only when who is here (or who is done) changes.
+        let shape = "";
+        let title = null;
+        let progress = null;
+        const seats = new Map(); // profile -> its seat on the page
         return {
           step: "waiting", node,
           update: (x) => {
-            const focusKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : null;
             const host = isHost();
+            const voters = G.peopleOf(x).filter((m) => m.role === "voter");
+            const now = JSON.stringify([isScreen(), host, !!(x.you && x.you.role === "voter"), x.phase, (x.deck || []).length,
+              voters.map((m) => [m.profileId, m.name, m.avatar, m.avatarImage, !!m.host, !!m.away, !!m.done])]);
+            if (now === shape && node.firstChild) {
+              setText(title, isScreen() ? G.progressLine(x) || W.waiting : W.doneWaiting);
+              setText(progress, G.progressLine(x));
+              for (const m of voters) moveSeat(seats.get(m.profileId), m, x, farAlong);
+              paintTime(node);
+              return;
+            }
+            shape = now;
+            const focusKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : null;
+            title = el("h1", { class: "gp-wait-title play-h2" }, isScreen() ? G.progressLine(x) || W.waiting : W.doneWaiting);
+            progress = !isScreen() ? el("div", { class: "gp-progress" }, G.progressLine(x)) : null;
+            seats.clear();
+            for (const m of voters) seats.set(m.profileId, seat(m, x, { ribbon: true, had: farAlong }));
             node.replaceChildren(
-              el("div", { class: "gp-kicker" }, W.feature),
-              el("h1", { class: "gp-wait-title" }, isScreen() ? G.progressLine(x) || W.waiting : W.doneWaiting),
+              el("div", { class: "gp-kicker play-eyebrow" }, star(), W.feature),
+              title,
               el("div", { class: "gp-timebar", "aria-hidden": "true" }, el("span", { class: "gp-timebar-fill" })),
               el("div", { class: "gp-time", "aria-live": "off" }, G.timeLeft(x, Date.now() - follow.receivedAt())),
-              !isScreen() ? el("div", { class: "gp-progress" }, G.progressLine(x)) : "",
-              el("div", { class: "gp-people big" }, ...G.peopleOf(x).filter((m) => m.role === "voter").map((m) => personChip(m, x))),
+              progress || "",
+              // the room's votes coming in: every seat with its own ribbon
+              el("div", { class: "gp-people big pg-seats" }, ...voters.map((m) => seats.get(m.profileId))),
               host && el("div", { class: "gp-actions" },
-                fk(btn({ "data-ui": "group.extend", class: "btn focusable" }, W.oneMore, () => act("extend")), "extend"),
-                fk(btn({ "data-ui": "group.finish", class: "btn btn-primary focusable", "data-autofocus": "" }, W.showNow, () => act("finish")), "finish")),
+                fk(btn({ "data-ui": "group.extend", class: KEY }, W.oneMore, () => act("extend")), "extend"),
+                fk(btn({ "data-ui": "group.finish", class: KEY_GO, "data-autofocus": "" }, W.showNow, () => act("finish")), "finish")),
               isScreen() ? el("div", { class: "gp-code-small" }, `${W.joinTitle}: `, el("strong", {}, code), ` · ${G.hostOf(location.origin)}`) : "",
-              el("div", { class: "gp-actions" }, x.you && x.you.role === "voter" ? addButton() : ""),
+              x.you && x.you.role === "voter" ? el("div", { class: "gp-actions" }, addButton("tool")) : "",
               leaveRow());
+            paintTime(node);
             const back = focusKey && node.querySelector(`[data-fk="${focusKey}"]`);
             if (back) back.focus({ preventScroll: true });
           },
@@ -519,49 +672,64 @@ export const renderGroup = async (root, params = {}) => {
       },
 
       result: () => {
-        const node = el("div", { class: `gp-result${isScreen() ? " screen" : ""}` });
+        const node = el("div", { class: `gp-result pg-prize${isScreen() ? " screen" : ""}` });
+        const reveal = sawVote && !calm(); // this page watched the votes come in: it gets the show
+        let drawn = ""; // what is on the page (an update that changes nothing leaves it be)
+        let lastKey = null;
+        let shown = false;
         return {
           step: "result", node,
           update: (x) => {
-            const focusKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : null;
             const pick = G.currentPick(x);
             const host = isHost();
+            const r = x.result;
+            const sig = JSON.stringify([pick ? pick.key : null, r ? r.index : 0, r && r.picks ? r.picks.length : 0, pick ? pick.why : "", G.playLabel(x), host, isScreen()]);
+            if (sig === drawn) return;
+            drawn = sig;
+            const focusKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : null;
             if (!pick) {
               node.replaceChildren(el("div", { class: "gp-nomatch" },
-                el("div", { class: "gp-kicker" }, W.resultTitle),
-                el("h1", {}, W.noMatch),
+                el("div", { class: "gp-kicker play-eyebrow" }, star(), W.feature),
+                el("h1", { class: "play-h2" }, W.noMatch),
                 el("p", { class: "gp-lead" }, W.noMatchLine),
                 el("div", { class: "gp-actions" },
-                  host ? fk(btn({ "data-ui": "group.again", class: "btn btn-primary focusable gp-big", "data-autofocus": "" }, W.again, () => act("again")), "again") : el("p", { class: "gp-dim" }, W.onlyHost)),
+                  host ? fk(btn({ "data-ui": "group.again", class: `${KEY_GO} gp-big`, "data-autofocus": "" }, W.again, () => act("again")), "again") : el("p", { class: "gp-dim" }, W.onlyHost)),
                 leaveRow()));
             } else {
               const c = pick.card;
-              const r = x.result;
-              const art = c.backdrop || c.poster;
+              const flip = lastKey != null && lastKey !== pick.key; // "Something else": the card turns over, no ceremony
+              lastKey = pick.key;
               node.replaceChildren(
-                art ? el("div", { class: "gp-result-bg", "aria-hidden": "true", style: `--gp-art:url("${artUrl(art, 1280).replace(/"/g, "%22")}")` }) : "",
-                el("div", { class: "gp-result-card" },
-                  posterImg(c.poster, c.title, "gp-result-poster", "gp-result-poster gp-poster-fallback", { w: 480, eager: true }),
+                el("div", { class: `gp-result-card${flip ? " is-flip" : ""}` },
+                  el("div", { class: "pg-prize-poster" }, posterImg(c.poster, c.title, "gp-result-poster", "gp-result-poster gp-poster-fallback", { w: wide() ? 780 : 480, eager: true })),
                   el("div", { class: "gp-result-info" },
-                    el("div", { class: "gp-kicker" }, W.resultTitle, r.picks.length > 1 ? el("span", { class: "gp-dim" }, ` · ${r.index + 1} / ${r.picks.length}`) : ""),
-                    el("h1", { class: "gp-result-title" }, c.title),
+                    el("div", { class: "gp-kicker pg-prize-kicker" }, star(), el("span", {}, W.resultTitle, r.picks.length > 1 ? el("span", { class: "gp-dim" }, ` · ${r.index + 1} / ${r.picks.length}`) : "")),
+                    el("h1", { class: "gp-result-title", dir: "auto" }, c.title),
                     el("div", { class: "gp-meta" }, G.cardMeta(c), c.lib ? el("span", { class: "gp-badge ok" }, W.libBadge) : ""),
-                    el("div", { class: "gp-why" }, el("span", { "aria-hidden": "true" }, "✓ "), pick.why),
-                    c.line ? el("p", { class: "gp-line" }, c.line) : "",
+                    el("div", { class: "pg-votes" },
+                      tallyRow(pick),
+                      el("div", { class: "gp-why" }, el("span", { "aria-hidden": "true" }, "✓ "), pick.why)),
+                    r.index === 0 && isTie(r) ? el("p", { class: "pg-tie-line" }, SHOW.tieLine) : "",
+                    c.line ? el("p", { class: "gp-line", dir: "auto" }, c.line) : "",
                     c.seenBy && c.seenBy.length ? el("p", { class: "gp-dim" }, G.seenLine(c.seenBy)) : "",
                     el("div", { class: "gp-actions" },
-                      fk(btn({ "data-ui": "group.play", class: "btn btn-primary focusable gp-big", "data-autofocus": "" }, `▶ ${G.playLabel(x)}`, async () => {
+                      fk(btn({ "data-ui": "group.play", class: `${KEY_WIN} gp-big`, "data-autofocus": "" }, `▶ ${G.playLabel(x)}`, async () => {
                         pressedPlay = true;
                         await act("choose", { key: pick.key });
                       }), "play"),
-                      fk(btn({ "data-ui": "group.next", class: "btn focusable" }, G.hasNextPick(x) ? W.somethingElse : r.picks.length > 1 ? W.firstPick : W.somethingElse, () => {
+                      fk(btn({ "data-ui": "group.next", class: KEY }, G.hasNextPick(x) ? W.somethingElse : r.picks.length > 1 ? W.firstPick : W.somethingElse, () => {
                         if (G.hasNextPick(x)) act("pick", { index: r.index + 1 });
                         else if (r.picks.length > 1) act("pick", { index: 0 });
                         else if (host) act("again");
                         else toast("That was the only one everybody could agree on", "🎬");
                       }), "next"),
-                      host && fk(btn({ "data-ui": "group.again", class: "btn focusable" }, W.again, () => act("again")), "again")),
+                      host && fk(btn({ "data-ui": "group.again", class: KEY }, W.again, () => act("again")), "again")),
                     leaveRow())));
+              if (reveal && !shown && r.index === 0) {
+                shown = true;
+                startShow(node, x);
+                return;
+              }
             }
             const back = focusKey && node.querySelector(`[data-fk="${focusKey}"]`);
             if (back) back.focus({ preventScroll: true });
@@ -579,12 +747,12 @@ export const renderGroup = async (root, params = {}) => {
             const here = c && G.playsHere(x, pressedPlay);
             const scr = G.screenOf(x);
             node.replaceChildren(
-              el("div", { class: "gp-kicker" }, W.resultTitle),
-              el("h1", {}, W.enjoy),
-              c ? el("p", { class: "gp-lead" }, c.title) : "",
+              el("div", { class: "gp-kicker pg-prize-kicker" }, star(), W.resultTitle),
+              el("h1", { class: "play-h1" }, W.enjoy),
+              c ? el("p", { class: "gp-lead pg-chosen-title", dir: "auto" }, c.title) : "",
               ch ? el("p", { class: "gp-dim" }, `${ch.by} ${W.pressedPlay}`) : "",
               !here && scr ? el("p", { class: "gp-dim" }, scr.app === "tv" ? W.startingOnTv : W.startingOnScreen) : "",
-              el("div", { class: "gp-actions" }, btn({ class: "btn btn-primary focusable", "data-autofocus": "" }, "Done", () => navigate("#/"))));
+              el("div", { class: "gp-actions" }, btn({ class: KEY_GO, "data-autofocus": "" }, "Done", () => navigate("#/"))));
             if (here && !autoPlayed) {
               autoPlayed = true;
               setTimeout(() => playCard(c), 600);
@@ -598,13 +766,82 @@ export const renderGroup = async (root, params = {}) => {
         return {
           step: "ended", node,
           update: (x) => node.replaceChildren(
-            el("h1", {}, W.ended),
+            el("h1", { class: "play-h2" }, W.ended),
             el("p", { class: "gp-lead" }, (x.ended && x.ended.reason) || ""),
             el("div", { class: "gp-actions" },
-              btn({ class: "btn btn-primary focusable", "data-autofocus": "" }, W.startHere, () => { history.replaceState(null, "", "#/group"); follow.stop(); paintChooser(); }),
-              btn({ class: "btn focusable" }, "Home", () => navigate("#/")))),
+              btn({ class: KEY_GO, "data-autofocus": "" }, W.startHere, () => { history.replaceState(null, "", "#/group"); follow.stop(); paintChooser(); }),
+              btn({ class: KEY }, "Home", () => navigate("#/")))),
         };
       },
+    };
+
+    // ---------- the reveal ----------
+    // The result is on the page already (and stays as it is); for a page that
+    // watched the votes come in, a curtain plays over it first: "The votes are
+    // in…", a tie-break when the first two were level, then the curtain lifts
+    // as the poster drops and the one meteor burst goes off. Any press skips
+    // it. The order the server sent is the result — the show only tells it.
+    const startShow = (node, x) => {
+      const r = x.result;
+      const tie = isTie(r) && !!r.picks[1].card;
+      const swap = tie && (Number(r.at) || 0) % 2 === 1; // (the winner is not always on the same side)
+      const pair = tie ? (swap ? [r.picks[1], r.picks[0]] : [r.picks[0], r.picks[1]]) : [];
+      const winner = swap ? 1 : 0;
+      const words = el("p", { class: "pg-show-words", role: "status" }, SHOW.votesIn);
+      const duelCards = pair.map((p) => el("div", { class: "pg-duel-card" }, posterImg(p.card.poster, p.card.title, "pg-duel-poster", "pg-duel-poster gp-poster-fallback", { w: 360, eager: true })));
+      const skip = el("button", { class: "pg-show-skip focusable", onclick: (e) => { e.stopPropagation(); end(false); } }, SHOW.skip);
+      const curtain = el("div", { class: "pg-show", "data-beat": "votes", onclick: () => end(false) },
+        el("div", { class: "pg-show-in" },
+          words,
+          el("div", { class: "pg-show-stars", "aria-hidden": "true" }, star(), star(), star()),
+          tie ? el("div", { class: "pg-duel", "aria-hidden": "true" }, ...duelCards) : ""),
+        skip);
+      const waits = [];
+      const at = (ms, fn) => waits.push(later(fn, ms));
+      let over = false;
+      function end(lifted) {
+        if (over) return;
+        over = true;
+        waits.forEach(never);
+        document.removeEventListener("ui-back", onBack);
+        show = null;
+        node.inert = false;
+        node.classList.remove("is-curtained");
+        curtain.classList.add("is-leaving");
+        later(() => curtain.remove(), lifted ? 340 : 180);
+        const first = node.querySelector("[data-autofocus]");
+        if (first && node.isConnected && currentScope().contains(node)) first.focus({ preventScroll: true });
+      }
+      const onBack = (e) => { e.preventDefault(); end(false); };
+      document.addEventListener("ui-back", onBack);
+      untilLeave(() => document.removeEventListener("ui-back", onBack));
+      node.inert = true; // (nothing under the curtain can be pressed or read out early)
+      node.classList.add("is-curtained"); // (…or seen: the sky stays, the result waits)
+      body.append(curtain);
+      skip.focus({ preventScroll: true });
+      show = { stop: () => end(false) };
+      let t = 1500;
+      if (tie) {
+        const jumps = tieJumps(winner);
+        at(t, () => { curtain.dataset.beat = "tie"; words.textContent = SHOW.tie; });
+        for (const j of jumps) at(t + 460 + j.at, () => { duelCards.forEach((d, k) => d.classList.toggle("lit", k === j.i)); haptic(4); });
+        const landed = t + 460 + jumps[jumps.length - 1].at;
+        at(landed + 140, () => duelCards[winner].classList.add("won"));
+        t = landed + 820;
+      }
+      at(t, () => {
+        end(true);
+        node.classList.add("is-reveal");
+        later(() => node.classList.remove("is-reveal"), 2400);
+        later(() => {
+          const target = node.querySelector(".pg-prize-poster");
+          if (!target || !target.isConnected) return;
+          const a = target.getBoundingClientRect();
+          const b = screen.getBoundingClientRect();
+          haptic(18);
+          meteorBurst(screen, { x: (a.left + a.width / 2 - b.left) / (b.width || 1), y: (a.top + a.height / 2 - b.top) / (b.height || 1), count: 46, seed: (Number(r.at) || 1) % 9973 });
+        }, 440);
+      });
     };
 
     // ---------- swiping ----------
@@ -612,20 +849,38 @@ export const renderGroup = async (root, params = {}) => {
       const node = el("div", { class: "gp-swipe" });
       const time = el("span", { class: "gp-time" });
       const progress = el("span", { class: "gp-progress" });
-      const undoBtn = fk(btn({ "data-ui": "group.undo", class: "btn small focusable", disabled: "", "aria-label": W.undo }, [el("span", { "aria-hidden": "true" }, "↶"), el("span", { class: "gp-tool-label" }, ` ${W.undo}`)], () => undo()), "undo");
+      const undoBtn = fk(btn({ "data-ui": "group.undo", class: TOOL, disabled: "", "aria-label": W.undo }, [el("span", { class: "pg-tool-glyph", "aria-hidden": "true" }, "↶"), el("span", { class: "gp-tool-label" }, W.undo)], () => undo()), "undo");
+      // which card of the hand this is (the count is of this person's own hand)
+      const hand = el("div", { class: "pg-hand" });
       const head = el("div", { class: "gp-swipe-head" },
-        el("div", { class: "gp-swipe-titles" }, el("div", { class: "gp-kicker" }, W.feature), el("div", { class: "gp-swipe-sub" }, time, " · ", progress)),
-        el("div", { class: "gp-swipe-tools" }, undoBtn, addButton(true)));
-      const bar = el("div", { class: "gp-timebar", "aria-hidden": "true" }, el("span", { class: "gp-timebar-fill" }));
-      const deck = el("div", { class: "ts-deck gp-deck" });
+        el("div", { class: "gp-swipe-titles" }, el("div", { class: "gp-kicker play-eyebrow" }, star(), W.feature), hand, el("div", { class: "gp-swipe-sub" }, time, " · ", progress)),
+        el("div", { class: "gp-swipe-tools" }, undoBtn, addButton("icon")));
+      // the clock as a ribbon, and beside it the room: who is still at it, who is done
+      const minis = el("div", { class: "pg-minis", "aria-hidden": "true" });
+      const bar = el("div", { class: "pg-timerow" }, el("div", { class: "gp-timebar", "aria-hidden": "true" }, el("span", { class: "gp-timebar-fill" })), minis);
+      const deck = el("div", { class: "ts-deck gp-deck pg-deck" },
+        el("i", { class: "pg-ghost pg-ghost--2", "aria-hidden": "true" }),
+        el("i", { class: "pg-ghost pg-ghost--1", "aria-hidden": "true" }));
       const stage = el("div", { class: "ts-stage gp-stage" }, deck);
-      const answerBtn = (verdict) => el("button", {
-        "data-ui": VERDICT_UI[verdict], class: `ts-answer gp-answer ${verdict} focusable`, "aria-label": W[verdict],
-        onclick: () => answer(verdict),
-      }, el("span", { class: "ts-answer-glyph", "aria-hidden": "true" }, VERDICT_GLYPH[verdict]), el("span", { class: "ts-answer-label" }, W[verdict]));
+      const answerBtn = (verdict) => {
+        const b = el("button", {
+          "data-ui": VERDICT_UI[verdict], class: `ts-answer gp-answer pg-key ${verdict} focusable`, "aria-label": W[verdict],
+          onclick: () => answer(verdict),
+        }, el("span", { class: "ts-answer-glyph", "aria-hidden": "true" }, VERDICT_GLYPH[verdict]), el("span", { class: "ts-answer-label" }, W[verdict]));
+        pressable(b, { tick: false }); // (the answer has its own tick)
+        return b;
+      };
       const answers = el("div", { class: "ts-answers gp-answers" }, answerBtn("no"), answerBtn("maybe"), answerBtn("yes"));
       const hint = el("p", { class: "ts-hint" }, "← No · → Yes · ↓ Maybe · Z undo");
       node.append(head, bar, stage, answers, hint);
+      let minisAre = null; // (drawn again only when a face, or its state, changes)
+      const paintMinis = (x) => {
+        const people = G.peopleOf(x).filter((m) => m.role === "voter").slice(0, 8);
+        const are = people.map((m) => [m.profileId, m.done ? 1 : 0, m.away ? 1 : 0, m.avatarImage || m.avatar || m.name || ""].join("|")).join("\n");
+        if (are === minisAre) return;
+        minisAre = are;
+        minis.replaceChildren(...people.map((m) => el("span", { class: `pg-mini${m.done ? " done" : ""}${m.away ? " away" : ""}` }, avatarOf(m))));
+      };
 
       let queue = [];
       const nodes = new Map();
@@ -643,7 +898,7 @@ export const renderGroup = async (root, params = {}) => {
         const meta = G.cardMeta(c);
         const notes = [G.addedLine(c.addedBy), G.seenLine(c.seenBy)].filter(Boolean).join(" · ");
         const n = el("div", { class: "ts-card gp-card", tabindex: "-1", role: "group", "aria-label": `${c.title}${c.year ? ` (${c.year})` : ""}` },
-          posterImg(c.poster, c.title, "ts-poster", "ts-poster-fallback", { w: 360, eager: true }),
+          posterImg(c.poster, c.title, "ts-poster", "ts-poster-fallback", { w: wide() ? 620 : 360, eager: true }),
           el("span", { class: "ts-stamp love", "aria-hidden": "true" }, W.yes.toUpperCase()),
           el("span", { class: "ts-stamp nope", "aria-hidden": "true" }, W.no.toUpperCase()),
           el("span", { class: "ts-stamp skip", "aria-hidden": "true" }, W.maybe.toUpperCase()),
@@ -655,8 +910,14 @@ export const renderGroup = async (root, params = {}) => {
             notes && el("div", { class: "gp-card-note" }, notes)));
         return n;
       };
+      let total = 0; // the hand: every card of the deck this person has to answer
+      const warmed = new Set(); // the cards whose picture was asked for ahead of their turn
       const paintDeck = () => {
-        undoBtn.disabled = !answeredHere.length;
+        const none = !answeredHere.length;
+        if (undoBtn.disabled !== none) undoBtn.disabled = none;
+        setText(hand, queue.length ? SHOW.card(Math.max(1, Math.min(total, total - queue.length + 1)), total) : "");
+        const depth = String(depthOf(queue.length));
+        if (deck.dataset.depth !== depth) deck.dataset.depth = depth;
         const want = queue.slice(0, 2);
         for (const [k, n] of nodes) if (!want.some((c) => c.key === k) && !n.classList.contains("leaving")) { n.remove(); nodes.delete(k); }
         want.forEach((c, i) => {
@@ -672,29 +933,53 @@ export const renderGroup = async (root, params = {}) => {
           n.classList.toggle("behind", i === 1);
           if (i === 0) { n.tabIndex = 0; n.classList.add("focusable"); bindDrag(n, c); } else { n.tabIndex = -1; n.classList.remove("focusable"); }
         });
-        for (const c of queue.slice(0, 4)) if (c.poster) { try { new Image().src = artUrl(c.poster, 360); } catch {} }
+        for (const c of queue.slice(0, 4)) {
+          if (!c.poster || warmed.has(c.key)) continue;
+          warmed.add(c.key);
+          try { new Image().src = artUrl(c.poster, wide() ? 620 : 360); } catch {}
+        }
         const top = want.length ? nodes.get(want[0].key) : null;
-        const onDeck = !document.activeElement || document.activeElement === document.body || node.contains(document.activeElement);
-        if (top && onDeck && !(document.activeElement && document.activeElement.closest && document.activeElement.closest(".gp-swipe-tools"))) top.focus({ preventScroll: true });
+        const at = document.activeElement;
+        const onDeck = !at || at === document.body || node.contains(at);
+        if (top && at !== top && onDeck && !(at && at.closest && at.closest(".gp-swipe-tools"))) top.focus({ preventScroll: true });
       };
       const fly = (n, verdict, from) => {
         n.classList.remove("top", "behind", "focusable");
         n.classList.add("leaving");
         n.tabIndex = -1;
-        const w = Math.max(window.innerWidth, 600);
+        const w = Math.max(vw, 600);
         if (calm()) { n.style.transition = "opacity 140ms linear"; n.style.opacity = "0"; }
         else {
           const dx = from ? from.dx : 0;
           const dy = from ? from.dy : 0;
-          n.style.transition = "transform 300ms cubic-bezier(.2,.7,.3,1), opacity 300ms ease-in";
-          n.style.transform = verdict === "yes" ? `translate(${w}px, ${dy * 1.5}px) rotate(24deg)`
+          const to = verdict === "yes" ? `translate(${w}px, ${dy * 1.5}px) rotate(24deg)`
             : verdict === "no" ? `translate(${-w}px, ${dy * 1.5}px) rotate(-24deg)`
-            : `translate(${dx * 1.5}px, ${Math.max(window.innerHeight, 700)}px) rotate(${dx * 0.03}deg)`;
-          n.style.opacity = "0";
-          const stampCls = verdict === "yes" ? "love" : verdict === "no" ? "nope" : "skip";
-          n.querySelector(`.ts-stamp.${stampCls}`)?.style.setProperty("opacity", "1");
+            : `translate(${dx * 1.5}px, ${Math.max(vh, 700)}px) rotate(${dx * 0.03}deg)`;
+          const stamp = n.querySelector(`.ts-stamp.${verdict === "yes" ? "love" : verdict === "no" ? "nope" : "skip"}`);
+          const go = () => {
+            n.style.transition = "transform 300ms cubic-bezier(.2,.7,.3,1), opacity 300ms ease-in";
+            n.style.transform = to;
+            n.style.opacity = "0";
+          };
+          if (!from) {
+            // a button or a key: no drag showed the answer, so the stamp is slammed
+            // on, the card takes the hit, and then it is thrown
+            slam(n, stamp, verdict === "yes" ? { x: 14, y: -4, r: 3 } : verdict === "no" ? { x: -14, y: -4, r: -3 } : { y: 12 });
+            setTimeout(go, SLAM_MS);
+            setTimeout(() => n.remove(), SLAM_MS + 320);
+            return;
+          }
+          stamp?.style.setProperty("opacity", "1");
+          go();
         }
         setTimeout(() => n.remove(), calm() ? 160 : 320);
+      };
+      // the key that matches the answer lights for a moment (arrows teach the buttons)
+      const flashKey = (verdict) => {
+        const k = answers.querySelector(`.ts-answer.${verdict}`);
+        if (!k || calm()) return;
+        k.classList.add("is-hit");
+        later(() => k.classList.remove("is-hit"), 260);
       };
       let chain = Promise.resolve();
       const answer = (verdict, from = null) => {
@@ -705,8 +990,10 @@ export const renderGroup = async (root, params = {}) => {
         answeredHere.push({ key: c.key, card: c, verdict });
         const n = nodes.get(c.key);
         nodes.delete(c.key);
+        setPull(deck, 0);
         if (n) fly(n, verdict, from);
         haptic(10);
+        flashKey(verdict);
         paintDeck();
         chain = chain.then(async () => {
           try {
@@ -721,7 +1008,7 @@ export const renderGroup = async (root, params = {}) => {
           }
           follow.refresh();
         });
-        if (!queue.length) setTimeout(() => paint(), 340);
+        if (!queue.length) setTimeout(() => paint(), from || calm() ? 340 : SLAM_MS + 340); // (the last card is seen leaving)
       };
       const undo = () => {
         const last = answeredHere.pop();
@@ -756,6 +1043,7 @@ export const renderGroup = async (root, params = {}) => {
           stamp("love", dx / DIST_X);
           stamp("nope", -dx / DIST_X);
           stamp("skip", Math.abs(dx) < 60 ? dy / DIST_Y : 0);
+          setPull(deck, pullOf(dx, Math.max(0, dy), DIST_X, DIST_Y)); // the next card rises to meet the drag
         });
         const end = (e) => {
           if (!start || e.pointerId !== start.id) return;
@@ -775,6 +1063,7 @@ export const renderGroup = async (root, params = {}) => {
             else if ((dy > DIST_Y || (vy > FLING && dy > 30)) && Math.abs(dy) > Math.abs(dx)) verdict = "maybe";
           }
           if (verdict) { uiHit(VERDICT_UI[verdict]); answer(verdict, { dx, dy }); return; } // [analytics]
+          setPull(deck, 0);
           n.style.transition = calm() ? "none" : "transform 260ms cubic-bezier(.2,.9,.3,1.2)";
           n.style.transform = "";
           for (const st of n.querySelectorAll(".ts-stamp")) st.style.opacity = "";
@@ -806,8 +1095,10 @@ export const renderGroup = async (root, params = {}) => {
           // the server's echo of our own answers: no longer only local
           for (const [k, v] of [...local]) if (v == null ? !x.mine[k] : x.mine[k] === v) local.delete(k);
           takeDeck(x);
-          time.textContent = G.timeLeft(x, Date.now() - follow.receivedAt());
-          progress.textContent = G.progressLine(x);
+          total = x.deck.length;
+          setText(time, G.timeLeft(x, Date.now() - follow.receivedAt()));
+          setText(progress, G.progressLine(x));
+          paintMinis(x);
           paintDeck();
           if (!queue.length && ![...local.values()].some((v) => v == null)) setTimeout(() => paint(), 0);
         },

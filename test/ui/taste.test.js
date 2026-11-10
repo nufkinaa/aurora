@@ -123,8 +123,8 @@ ui.test("one card at a time: poster, title, year, genres and a line; nothing aro
     const r = document.querySelector(s).getBoundingClientRect();
     return [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)].join(",");
   }));
-  // (after the screen's own entrance)
-  await page.waitForFunction(() => document.querySelector("#app .screen").getAnimations().length === 0);
+  // (after the screen's own entrance: the head, the stage and the keys rise in)
+  await page.waitForFunction(() => [...document.querySelectorAll("#app .screen, #app .ts-head, #app .ts-stage, #app .ts-answers")].every((n) => n.getAnimations().length === 0));
   await page.waitForTimeout(300);
   const before = await rects();
   await page.click('#app [data-ui="taste.love"]');
@@ -365,6 +365,163 @@ ui.test("reduced motion: the card fades instead of flying", async ({ page, goto,
   assert.equal(leaving.t, "", "no flight");
   assert.match(leaving.tr, /opacity/);
   await nextCard(page, a);
+});
+
+// ---- the round as a game ----
+// Every meteor burst put on the page from now on is counted (it takes itself
+// off when it is over, so counting what is there would miss it).
+const countBursts = (page) => page.evaluate(() => {
+  window.__bursts = 0;
+  new MutationObserver((list) => {
+    for (const m of list) for (const n of m.addedNodes) {
+      if (n.nodeType === 1 && (n.matches(".play-burst") || n.querySelector(".play-burst"))) window.__bursts++;
+    }
+  }).observe(document.body, { childList: true, subtree: true });
+});
+const bursts = (page) => page.evaluate(() => window.__bursts);
+const meter = (page) => page.evaluate(() => ({
+  lit: document.querySelectorAll("#app .pg-meter .pg-pip.on").length,
+  of: document.querySelectorAll("#app .pg-meter .pg-pip").length,
+  depth: document.querySelector("#app .pg-deck").dataset.depth,
+}));
+// `n` answers with the keys: love, not for me, haven't seen, round and round
+const answerKeys = async (page, n, from = 0) => {
+  for (let i = from; i < from + n; i++) {
+    const id = await topId(page);
+    await page.keyboard.press(i % 3 === 0 ? "ArrowRight" : i % 3 === 1 ? "ArrowLeft" : "ArrowDown");
+    await page.waitForFunction(({ sel, was }) => {
+      const c = document.querySelector(sel);
+      return (c && c.dataset.id !== was) || !!document.querySelector("#app .ts-end");
+    }, { sel: TOP, was: id });
+  }
+};
+// What the game left running: its own animations, its sky, a burst.
+const leftovers = (page) => page.evaluate(() => ({
+  nodes: document.querySelectorAll(".pg-taste, .play-burst, .play-room, .pg-room").length,
+  anims: document.getAnimations().filter((a) => a.playState === "running" && /^(play|pg)-/.test(a.animationName || "")).map((a) => a.animationName),
+}));
+
+ui.test("the round as a game: the deck has depth, the meter lights a star at each quarter and says something, the end is the one reward", async ({ page, goto, signIn, freshProfile }) => {
+  await signIn(await freshProfile());
+  await goto("#/taste");
+  await ready(page);
+  await countBursts(page);
+  assert.deepEqual(await meter(page), { lit: 0, of: 4, depth: "4" });
+
+  // a quarter in: the first star of the meter, and a word about it
+  await answerKeys(page, 6);
+  assert.equal((await meter(page)).lit, 1);
+  assert.equal(await page.textContent("#app .pg-callout"), "First stars are lit");
+  // halfway: the second star, and what Aurora is starting to see
+  await answerKeys(page, 6, 6);
+  assert.equal((await meter(page)).lit, 2);
+  assert.match(await page.textContent("#app .pg-callout"), /^(A pattern is showing: .+|Halfway there)$/);
+  // the deck thins as the round runs down
+  await answerKeys(page, 10, 12);
+  assert.deepEqual(await meter(page), { lit: 3, of: 4, depth: "2" });
+  await answerKeys(page, 1, 22);
+  assert.equal((await meter(page)).depth, "1");
+  assert.equal(await bursts(page), 0, "a reward before the round was over");
+
+  // the end: the number, the loved titles as a constellation, what Aurora learned — and the one burst
+  await answerKeys(page, 1, 23);
+  await page.waitForSelector("#app .ts-end.pg-reward");
+  await page.waitForFunction(() => window.__bursts === 1, null, { timeout: 5000 });
+  // (its parts rise in one after the other: measured when they have landed)
+  await page.waitForFunction(() => document.querySelector("#app .ts-end").getAnimations({ subtree: true }).every((a) => a.playState !== "running" || !/^(play|pg)-(rise|pop|drop|fade)/.test(a.animationName || "")));
+  const end = await page.evaluate(() => {
+    const box = (s) => { const n = document.querySelector(s); const r = n && n.getBoundingClientRect(); return r ? Math.round(r.bottom) : null; };
+    return {
+      num: document.querySelector("#app .pg-end-num").textContent,
+      sky: !!document.querySelector("#app .pg-end-sky svg"),
+      said: document.querySelector("#app .pg-end-sky .play-sr").textContent.trim(),
+      learned: document.querySelectorAll("#app .pg-learned .pg-tag.lit").length,
+      focus: document.activeElement && document.activeElement.dataset.ui,
+      more: box('#app .ts-end [data-ui="taste.more"]'), done: box('#app .ts-end [data-ui="taste.done"]'), h: window.innerHeight,
+    };
+  });
+  assert.equal(end.num, "24");
+  assert.ok(end.sky, "the loved titles are not drawn as a constellation");
+  assert.equal(end.said, "8 stars lit, one for each title you loved.");
+  assert.ok(end.learned >= 1, "nothing learned is shown");
+  assert.equal(end.focus, "taste.more", "the keys are not on Keep going");
+  assert.ok(end.more <= end.h && end.done <= end.h, `the end's keys are under the fold: ${JSON.stringify(end)}`);
+  assert.equal((await meter(page)).lit, 4);
+  await page.waitForTimeout(1200);
+  assert.equal(await bursts(page), 1, "one reward for one round");
+
+  // twelve more: a round of its own, with its own (smaller) burst — never two for one round
+  await page.click('#app .ts-end [data-ui="taste.more"]');
+  await page.waitForSelector(TOP);
+  await answerKeys(page, 12, 24);
+  await page.waitForSelector("#app .ts-end.pg-reward");
+  await page.waitForFunction(() => window.__bursts === 2, null, { timeout: 5000 });
+  assert.equal(await page.textContent("#app .pg-end-num"), "36");
+
+  // away: nothing of the game is left behind
+  await goto("#/movies");
+  await page.waitForTimeout(500);
+  assert.deepEqual(await leftovers(page), { nodes: 0, anims: [] });
+});
+
+ui.test("a small phone: the count stays on one line, the answer keys are clear of the tab bar, and the end fits with its keys in reach", { viewport: { width: 375, height: 667 }, device: { reducedMotion: "reduce" } }, async ({ page, goto, signIn, freshProfile }) => {
+  await signIn(await freshProfile());
+  await goto("#/taste");
+  await ready(page);
+  await countBursts(page);
+  const head = await page.evaluate(() => {
+    const c = document.querySelector("#app .ts-count");
+    const keys = [...document.querySelectorAll("#app .ts-answers .ts-answer")].map((k) => {
+      const l = k.querySelector(".ts-answer-label").getBoundingClientRect();
+      const on = document.elementFromPoint(l.left + l.width / 2, l.top + l.height / 2);
+      return { label: k.textContent.trim(), bottom: Math.round(l.bottom), seen: !!on && k.contains(on) };
+    });
+    return { count: c.textContent, lines: Math.round(c.getBoundingClientRect().height / parseFloat(getComputedStyle(c).lineHeight || "0") || 0), keys, h: window.innerHeight };
+  });
+  assert.equal(head.count, "0 / 24");
+  assert.equal(head.lines, 1, `"0 / 24" is on ${head.lines} lines`);
+  for (const k of head.keys) assert.ok(k.seen && k.bottom <= head.h, `a key's label is covered or off the screen: ${JSON.stringify(k)}`);
+  await assertNoHorizontalOverflow(page, "taste on a small phone");
+
+  await answerKeys(page, 24);
+  await page.waitForSelector("#app .ts-end.pg-reward");
+  await page.waitForTimeout(600);
+  // less motion: the end is simply there — no burst, nothing moving
+  assert.equal(await bursts(page), 0, "a meteor burst for someone who asked for less motion");
+  const end = await page.evaluate(() => {
+    const seen = (s) => {
+      const n = document.querySelector(s);
+      const r = n.getBoundingClientRect();
+      const on = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return !!on && n.contains(on) && r.bottom <= window.innerHeight;
+    };
+    return {
+      more: seen('#app .ts-end [data-ui="taste.more"]'), done: seen('#app .ts-end [data-ui="taste.done"]'),
+      num: document.querySelector("#app .pg-end-num").getBoundingClientRect().top >= 0,
+      moving: document.getAnimations().filter((a) => a.playState === "running" && a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest(".pg-taste")).map((a) => a.animationName || a.transitionProperty),
+    };
+  });
+  assert.deepEqual(end, { more: true, done: true, num: true, moving: [] });
+  await assertNoHorizontalOverflow(page, "the end on a small phone");
+});
+
+ui.test("a profile with nothing to show: the end says so — no spinner left over it, no row of noughts, no reward", async ({ page, goto, signIn, freshProfile }) => {
+  // (a young child's profile: nothing in this catalogue carries a rating it may see)
+  await signIn(await freshProfile({ kids: { maxAge: 7 } }));
+  await goto("#/taste");
+  await countBursts(page);
+  await page.waitForSelector("#app .ts-end");
+  const end = await page.evaluate(() => ({
+    title: document.querySelector("#app .pg-end-title").textContent,
+    blank: document.querySelector("#app .ts-end").classList.contains("is-blank"),
+    tally: getComputedStyle(document.querySelector("#app .ts-end-tally")).display,
+    wait: document.querySelectorAll("#app .ts-wait, #app .ts-stage .spinner").length,
+    more: document.querySelectorAll('#app .ts-end [data-ui="taste.more"]').length,
+    done: document.querySelectorAll('#app .ts-end [data-ui="taste.done"]').length,
+  }));
+  assert.deepEqual(end, { title: "That's every title we had for you", blank: true, tally: "none", wait: 0, more: 0, done: 1 });
+  await page.waitForTimeout(800);
+  assert.equal(await bursts(page), 0);
 });
 
 ui.run({ concurrency: 1 }); // (touch timing under a second test's load made taps read as long-presses)

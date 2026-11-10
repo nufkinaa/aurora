@@ -155,7 +155,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 415 ids: 237 on the website
 | newpassword | – | `newpassword.signout` `newpassword.submit` | – |
 | party | – | `party.join` | – |
 | peek | `peek.close` `peek.playontv` `peek.remove` | – | `peek.details` `peek.mylist` `peek.play` `peek.hh.dismiss` `peek.recommend` |
-| pick | – | `pick.retry` `pick.unfold` | `pick.example` `pick.go` `pick.option` |
+| pick | – | `pick.retry` `pick.unfold` | `pick.another` `pick.example` `pick.go` `pick.open` `pick.option` |
 | picker | – | `picker.open` `picker.pick` | – |
 | player | `player.airplay` `player.fullscreen` `player.party.share` `player.party.tapjoin` `player.pip` `player.playontv` `player.quality.pick` `player.recommend` | `player.autoplay` `player.back` `player.slowstart.lower` `player.slowstart.wait` `player.stall.lower` `player.stall.retry` | `player.audio.dialogue` `player.audio.night` `player.audio.pick` `player.mute` `player.next` `player.party` `player.party.handover` `player.party.react` `player.party.start` `player.playpause` `player.replace` `player.retry` `player.scrub` `player.seek.back` `player.seek.fwd` `player.settings.open` `player.skipintro` `player.speed.open` `player.speed.pick` `player.startover` `player.stillwatching.done` `player.stillwatching.keep` `player.subtitles.open` `player.subtitles.pick` `player.subtitles.resync` `player.subtitles.style` `player.subtitles.undo` `player.upnext.dismiss` `player.upnext.play` `player.xray` `player.franchise.dismiss` `player.franchise.open` `player.franchise.play` `player.franchise.save` |
 | profile | `profile.add` `profile.gate.close` `profile.save` | `profile.pin.submit` | `profile.pick` `profile.unlock` |
