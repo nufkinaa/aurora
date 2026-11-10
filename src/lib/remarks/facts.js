@@ -42,7 +42,7 @@ const factsFrom = (inp) => {
   const today = dayKey(now);
   const yesterday = dayKey(now - DAY);
   let recent30 = 0, late30 = 0, phone30 = 0;
-  let recent21 = 0, short21 = 0;
+  let recent21 = 0, short21 = 0, sec21 = 0;
   const show21 = new Map();
   const titleSec60 = new Map();
   let lateLastNight = false;
@@ -52,8 +52,9 @@ const factsFrom = (inp) => {
     const end = start + s.watchedSec * 1000;
     if (end > lastEnd) { lastEnd = end; lastSec = s.watchedSec; }
     const age = now - start;
-    if (age < 0) continue;
-    if (age < 62 * DAY) byDay.set(dayKey(start), (byDay.get(dayKey(start)) || 0) + s.watchedSec);
+    if (age < 0 || age >= 62 * DAY) continue; // older than two months: only "when last" counts
+    const startKey = dayKey(start);
+    byDay.set(startKey, (byDay.get(startKey) || 0) + s.watchedSec);
     const h = hourOf(start);
     if (age < 30 * DAY) {
       recent30++;
@@ -62,6 +63,7 @@ const factsFrom = (inp) => {
     }
     if (age < 21 * DAY) {
       recent21++;
+      sec21 += s.watchedSec;
       if (s.watchedSec < 600) short21++;
       const content = String(s.content || "");
       if (SHOW_RE.test(content)) {
@@ -75,8 +77,10 @@ const factsFrom = (inp) => {
       titleSec60.set(title, (titleSec60.get(title) || 0) + s.watchedSec);
     }
     // last night: started (or still going) between midnight and 5 today
-    if (dayKey(start) === today && h < 5) lateLastNight = true;
-    if (dayKey(end) === today && hourOf(end) >= 1 && hourOf(end) < 5 && age < 30 * 3600000) lateLastNight = true;
+    if (age < 30 * 3600000) {
+      if (startKey === today && h < 5) lateLastNight = true;
+      if (dayKey(end) === today && hourOf(end) >= 1 && hourOf(end) < 5) lateLastNight = true;
+    }
   }
   if (lastEnd) {
     f.awayMs = Math.max(0, now - lastEnd);
@@ -99,8 +103,7 @@ const factsFrom = (inp) => {
   const showSec = [...show21.values()].reduce((a, b) => a + b.sec, 0);
   let topShow = null;
   for (const [name, v] of show21) if (!topShow || v.sec > topShow.sec) topShow = { name, ...v };
-  const allSec21 = sessions.filter((s) => now - Date.parse(s.startedAt) < 21 * DAY).reduce((a, s) => a + s.watchedSec, 0);
-  if (topShow && topShow.n >= 6 && allSec21 > 0 && topShow.sec / allSec21 >= 0.6 && showSec > 0) f.oneShow = topShow.name;
+  if (topShow && topShow.n >= 6 && sec21 > 0 && topShow.sec / sec21 >= 0.6 && showSec > 0) f.oneShow = topShow.name;
 
   // one-genre diet over 60 days (4+ hours of attributed viewing)
   if (inp.genresOf) {
