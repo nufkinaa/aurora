@@ -246,4 +246,41 @@ ui.test("phone with Background Fetch: Aurora goes to the background mid-save and
   }
 });
 
+ui.test("desktop: an MKV's Original (repackaged on the server) saved in many parts — its copy keeps one identity while it is fetched, so the parts fit together", async ({ srv, freshProfile }) => {
+  // (the server moves the copy's date on every request to keep it from the
+  // sweep; its validator used to move with it, and every part read as "the
+  // file changed" — the save started over and over)
+  const profile = await freshProfile();
+  const film = srv.lib.film2;
+  const { context, page, errors, go } = await open(srv, profile, DESKTOP);
+  try {
+    await go(`#/movie/${film.id}`, '[data-ui="detail.offline"]');
+    await controlled(page);
+    await page.locator('[data-ui="detail.offline"]').first().click();
+    await pick(page, "Original");
+    await until(async () => !!(await savedRecord(page, film.id)), "the repackaged copy to be saved", 120000);
+    const rec = await savedRecord(page, film.id);
+    const parts = await partCount(page);
+    assert.equal(parts, Math.ceil(rec.sizeBytes / PART), `${parts} parts for ${rec.sizeBytes} bytes`);
+    assert.ok(parts > 10);
+    // the server's answers for two parts: one identity
+    const tags = await page.evaluate(async (id) => {
+      const a = await fetch(`/offline/file/${id}?q=original`, { headers: { Range: "bytes=0-9" }, cache: "no-store" });
+      await new Promise((r) => setTimeout(r, 1100));
+      const b = await fetch(`/offline/file/${id}?q=original`, { headers: { Range: "bytes=10-19" }, cache: "no-store" });
+      return [a.headers.get("etag"), b.headers.get("etag"), a.headers.get("last-modified"), b.headers.get("last-modified")];
+    }, film.id);
+    assert.ok(tags[0] && tags[0] === tags[1], `one ETag: ${tags}`);
+    // and it plays from the device
+    await go("#/saved", '[data-ui="saved.play"]');
+    await context.setOffline(true);
+    await page.locator('[data-ui="saved.play"]').first().click();
+    await page.waitForFunction(() => { const v = document.querySelector(".player video"); return v && v.currentTime > 0.5 && /\/offline\/media\//.test(v.currentSrc); }, null, { timeout: 30000 });
+    await context.setOffline(false);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close().catch(() => {});
+  }
+});
+
 ui.run({ concurrency: 2 });

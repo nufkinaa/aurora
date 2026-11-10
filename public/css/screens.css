@@ -5536,6 +5536,10 @@ html[data-look="glass"] .saved-section .dl-row { border-radius: var(--g-radius);
 .device-jobs .device-jobs-open { margin-left: auto; }
 /* offline 2026-11-10: "This device too" — saved here by itself once the
    server's copy lands (offlineWish.js); pressed = it will be */
+/* a save's / a wish's state wraps inside its words on a narrow phone, beside its dot */
+.device-job .dl-status { flex-wrap: nowrap; align-items: flex-start; }
+.device-job .dl-status b { flex: 0 1 auto; min-width: 0; }
+.device-job .dl-status .dl-dot, .device-job .dl-status .mini-spinner { margin-top: 0.35em; }
 .dl-wish.on, .detail-wish.on, .ep-wish.on { color: #6ee7b7; border-color: rgba(110, 231, 183, 0.45); }
 .dl-confirm-wish { display: flex; justify-content: center; margin-top: 14px; }
 .saved-keep { margin: 0 0 12px; color: var(--text-dim); font-size: 0.85rem; }

@@ -565,7 +565,13 @@ const transfer = async (id, st, onProgress, signal, opts = {}) => {
   const aborted = () => !!(signal && signal.aborted);
   const bail = () => { const e = new Error("cancelled"); e.name = "AbortError"; throw e; };
   let handoff = false; // (set below: the page went to the background on a phone)
-  const stopped = () => { if (aborted()) bail(); if (fatal) throw fatal; if (handoff) throw Object.assign(new Error("handed to the browser"), { handoff: true }); };
+  let restarting = false; // (the file changed on the server: every part in flight stops, the save starts over)
+  const stopped = () => {
+    if (aborted()) bail();
+    if (fatal) throw fatal;
+    if (handoff) throw Object.assign(new Error("handed to the browser"), { handoff: true });
+    if (restarting) throw Object.assign(new Error("starting over"), { handoff: true });
+  };
   // the size and the identity of the file, from the first part's answer
   // (or the save under way's, when it carries on)
   let meta = savesMeta()[id] || null;
@@ -700,7 +706,7 @@ const transfer = async (id, st, onProgress, signal, opts = {}) => {
           await withRetry(() => fetchPart(n));
         } catch (e) {
           if (e && e.handoff) return;
-          if (e && e.changed) { restart = true; inner.abort(); return; }
+          if (e && e.changed) { restart = true; restarting = true; inner.abort(); return; }
           if (!fatal) { fatal = e; inner.abort(); }
           throw e;
         }
@@ -735,6 +741,7 @@ const transfer = async (id, st, onProgress, signal, opts = {}) => {
       await new Promise((r) => setTimeout(r, 50));
       if (aborted()) bail();
       inner = freshSwitch();
+      restarting = false;
     }
     if (restart) { await changed(); if (round > 2) throw new Error("the file keeps changing on the server — try again later"); await withRetry(() => fetchPart(0)).catch((e) => { if (!(e && e.handoff)) throw e; }); }
   }
