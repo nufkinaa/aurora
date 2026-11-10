@@ -622,26 +622,6 @@
   font-weight: 600;
 }
 
-/* ---------- Aurora Wrapped ---------- */
-.wrapped { padding-top: calc(var(--nav-h) + 18px); }
-.wrapped-title { font-size: var(--fs-title); font-weight: 900; margin-top: 10px; }
-.wrapped-since { color: var(--text-faint); margin: 4px 0 22px; font-weight: 600; }
-.wrapped-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
-.wrapped-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-l); padding: 22px; }
-.wrapped-num {
-  font-size: 2.2rem; font-weight: 900;
-  background: linear-gradient(100deg, var(--accent), #4ea3ff);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-}
-.wrapped-label { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.78rem; font-weight: 800; color: var(--text-dim); margin-top: 4px; }
-.wrapped-sub { color: var(--text-faint); font-size: 0.85rem; margin-top: 8px; }
-.wrapped-roasts { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; max-width: 720px; }
-.wrapped-roast {
-  background: linear-gradient(100deg, rgba(var(--accent-rgb), 0.10), var(--surface) 60%);
-  border: 1px solid var(--line); border-left: 3px solid var(--accent);
-  border-radius: 12px; padding: 14px 16px; font-size: 0.95rem; line-height: 1.5;
-}
-
 /* ---------- Preferences: section cards on a responsive grid ---------- */
 .pref-grid {
   padding: 6px var(--page-x) 10px;
@@ -5354,8 +5334,6 @@ html:not([data-fx="lite"]) .trailer-frame iframe {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
 
-/* Wrapped preview (empty profile): the real cards, quietly greyed out */
-.wrapped-preview { opacity: 0.45; filter: saturate(0.4); pointer-events: none; user-select: none; }
 /* trailer chooser + no-internet note */
 .trailer-pills { display: flex; gap: 6px; margin-left: auto; margin-right: 10px; }
 .trailer-note { position: absolute; inset: auto 0 0 0; padding: 14px 18px; text-align: center; color: #fff; background: linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0)); font-size: 0.9rem; }

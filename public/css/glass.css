@@ -231,7 +231,6 @@ html[data-look="glass"] .party-panel,
 html[data-look="glass"] .upnext,
 html[data-look="glass"] .resume-card,
 html[data-look="glass"] .pref-section,
-html[data-look="glass"] .wrapped-card,
 html[data-look="glass"] .pair-card,
 html[data-look="glass"] .request-sent,
 html[data-look="glass"] .dl-callout,
@@ -986,7 +985,6 @@ html[data-look="glass"] .suggest-list {
   padding: 8px;
 }
 html[data-look="glass"] .pref-section,
-html[data-look="glass"] .wrapped-card,
 html[data-look="glass"] .pair-card,
 html[data-look="glass"] .request-sent,
 html[data-look="glass"] .taste-tile {
@@ -1904,7 +1902,6 @@ html[data-look="glass"] .party-strip {
    light, the same lens. Rows skip the drop shadow (they sit in a list, not
    afloat); everything else carries it. */
 html[data-look="glass"] .pref-section,
-html[data-look="glass"] .wrapped-card,
 html[data-look="glass"] .pair-card,
 html[data-look="glass"] .request-sent,
 html[data-look="glass"] .dl-callout,
@@ -1931,7 +1928,6 @@ html[data-look="glass"] .toast {
 /* what lies in the page (over the sky, never over a picture) is the thinner
    pane; what carries a paragraph or a form over anything is the thick one */
 html[data-look="glass"] .pref-section,
-html[data-look="glass"] .wrapped-card,
 html[data-look="glass"] .pair-card,
 html[data-look="glass"] .request-sent,
 html[data-look="glass"] .dl-callout,
