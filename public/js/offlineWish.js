@@ -34,7 +34,8 @@ export const wishFor = (t) => {
   const own = wishes.filter((w) => !w.parentId && w.type === type && w.imdbId === t.imdbId);
   if (type === "movie") return own[0] || null;
   return own.find((w) => w.scope === "title" && Number(w.season) === Number(t.season) && Number(w.episode) === Number(t.episode))
-    || own.find((w) => w.scope === "season" && Number(w.season) === Number(t.season)) || null;
+    || own.find((w) => w.scope === "season" && Number(w.season) === Number(t.season))
+    || own.find((w) => w.scope === "show") || null;
 };
 
 const mine = (w) => w && w.deviceId === deviceId();
@@ -63,12 +64,12 @@ export const addWish = async (target, quality) => {
   const body = {
     deviceId: deviceId(),
     deviceName: deviceName(),
-    scope: target.scope === "season" ? "season" : "title",
+    scope: target.scope === "season" || target.scope === "show" ? target.scope : "title",
     type: target.type === "show" || target.type === "series" ? "show" : "movie",
     imdbId: target.imdbId || undefined,
     jobId: target.jobId || undefined,
-    season: target.season ?? undefined,
-    episode: target.scope === "season" ? undefined : target.episode ?? undefined,
+    season: target.scope === "show" ? undefined : target.season ?? undefined,
+    episode: target.scope === "season" || target.scope === "show" ? undefined : target.episode ?? undefined,
     title: target.title || undefined,
     showTitle: target.showTitle || undefined,
     poster: target.poster || undefined,
@@ -106,18 +107,26 @@ export const askWish = async (target, label = "") => {
   if (!options.length) options = [{ quality: "720", label: "720p", detail: "", sizeBytes: 0, estimated: true }];
   // an episode: "and every new episode of this season" — one wish for the season
   const isEp = q.type === "show" && target.season != null && target.episode != null && target.scope !== "season";
-  const toggle = isEp ? { label: `And every new episode of season ${target.season}`, value: false } : null;
+  const toggle = isEp ? [
+    { label: `And every new episode of season ${target.season}`, value: false, scope: "season" },
+    { label: "And every new episode of this show", value: false, scope: "show" },
+  ] : null;
   const quality = await pickOfflineQuality(options, {
     title: label,
-    lead: target.scope === "season"
+    lead: target.scope === "show"
+      ? `Every new episode of “${target.showTitle || label}” that arrives on the server is saved inside Aurora on this device — by itself, the next time Aurora is open here.`
+      : target.scope === "season"
       ? `Every episode of season ${target.season} that arrives on the server is saved inside Aurora on this device — by itself, the next time Aurora is open here.`
       : `“${label}” isn't on the server yet. It will be saved inside Aurora on this device as soon as it arrives — by itself, the next time Aurora is open here.`,
     toggle,
   });
   if (!quality) return null;
-  if (toggle && toggle.value) target = { ...target, scope: "season", episode: undefined };
+  const chosen = toggle && toggle.find((t) => t.value);
+  if (chosen && chosen.scope === "season") target = { ...target, scope: "season", episode: undefined };
+  if (chosen && chosen.scope === "show") target = { ...target, scope: "show", season: undefined, episode: undefined };
   const w = await addWish(target, quality);
-  toast(target.scope === "season" ? `Every new episode of season ${target.season} will be saved to this device as it arrives` : `“${label}” will be saved to this device when it arrives`, "📱");
+  toast(target.scope === "show" ? `Every new episode of “${target.showTitle || label}” will be saved to this device as it arrives`
+    : target.scope === "season" ? `Every new episode of season ${target.season} will be saved to this device as it arrives` : `“${label}” will be saved to this device when it arrives`, "📱");
   return w;
 };
 
@@ -214,7 +223,7 @@ export const wishButton = (target, label, { ep = false, onLeave = null } = {}) =
     const on = !!w && w.state !== "failed";
     btn.classList.toggle("on", on);
     btn.setAttribute("aria-pressed", on ? "true" : "false");
-    const words = on ? (w.scope === "season" ? `Every new episode of season ${w.season} will be saved to this device` : "Will be saved to this device when it arrives") : "Save to this device too, as soon as it arrives";
+    const words = on ? (w.scope === "show" ? "Every new episode will be saved to this device" : w.scope === "season" ? `Every new episode of season ${w.season} will be saved to this device` : "Will be saved to this device when it arrives") : "Save to this device too, as soon as it arrives";
     btn.title = on ? `${words} — press to stop that` : words;
     btn.setAttribute("aria-label", ep ? `${label}: ${words}` : words);
     btn.innerHTML = "";

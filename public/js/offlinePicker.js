@@ -59,15 +59,20 @@ export const pickOfflineQuality = (options, { title = "", lead = "", toggle = nu
         alwaysBtn.setAttribute("aria-pressed", always ? "true" : "false");
       },
     }, "Always use the size I pick");
-    const toggleBtn = toggle && el("button", {
+    // one more choice, or a few that exclude each other ("this season" /
+    // "this show" — offlineWish.js): chips, each with its own `value`
+    const toggles = !toggle ? [] : Array.isArray(toggle) ? toggle : [toggle];
+    const toggleBtns = toggles.map((t) => el("button", {
       class: "chip focusable offline-toggle",
       "aria-pressed": "false",
-      onclick: () => {
-        toggle.value = !toggle.value;
-        toggleBtn.classList.toggle("on", toggle.value);
-        toggleBtn.setAttribute("aria-pressed", toggle.value ? "true" : "false");
+      onclick: (e) => {
+        const on = !t.value;
+        for (const x of toggles) x.value = false;
+        t.value = on;
+        toggleBtns.forEach((b, i) => { b.classList.toggle("on", toggles[i].value); b.setAttribute("aria-pressed", toggles[i].value ? "true" : "false"); });
       },
-    }, toggle.label);
+    }, t.label));
+    const toggleBtn = toggleBtns.length ? toggleBtns : null;
     // The sound, when the file has more than one (one copy = one language):
     // options.audio from the server, options.chosenAudio picked for the
     // person (offline.js) — a press here changes it.

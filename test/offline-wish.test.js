@@ -289,3 +289,28 @@ test("wishes of a profile that is gone are pruned", () => {
   assert.equal(wishes.prune(), 1);
   assert.equal(world.store.data.wishes.length, 1);
 });
+
+test("a whole-show wish (round 2): every episode that lands, of any season, is its own ready wish; the show wish waits on; checked like the others", () => {
+  fresh();
+  assert.match(wishes.add("p1", film({ scope: "show" })).error, /only a show/);
+  assert.match(wishes.add("p1", ep({ scope: "show", imdbId: null, jobId: "abcdef123456", season: null, episode: null })).error, /title id/);
+  const s = wishes.add("p1", ep({ scope: "show", season: null, episode: null, quality: "720" })).wish;
+  assert.equal(s.scope, "show");
+  assert.equal(s.season, null);
+  assert.equal(wishes.add("p1", ep({ scope: "show", season: 3, episode: 9, quality: "480" })).wish.id, s.id, "one show wish per device");
+  for (const [se, e] of [[1, 2], [2, 2], [5, 1]]) {
+    world.paths[`/s${se}e${e}.mkv`] = `s${se}e${e}`;
+    world.probed.add(`s${se}e${e}`);
+    wishes.landed(job({ id: `jb${se}${e}aaaaaaaaa`.slice(0, 12), type: "show", imdbId: "tt2000002", season: se, episode: e, title: `S${se}E${e}` }), `/s${se}e${e}.mkv`);
+  }
+  // another show is not this wish's
+  world.paths["/other.mkv"] = "other";
+  world.probed.add("other");
+  wishes.landed(job({ id: "otherotherxx", type: "show", imdbId: "tt7777777", season: 1, episode: 1 }), "/other.mkv");
+  const kids = wishes.list("p1").filter((w) => w.parentId === s.id);
+  assert.deepEqual(kids.map((k) => [k.season, k.episode, k.libraryId, k.quality]).sort(), [[1, 2, "s1e2", "480"], [2, 2, "s2e2", "480"], [5, 1, "s5e1", "480"]]);
+  assert.equal(wishes.list("p1").find((w) => w.id === s.id).state, "waiting");
+  // a failed episode download does not fail the show wish
+  wishes.ended(job({ type: "show", imdbId: "tt2000002", season: 6, episode: 1 }), "error");
+  assert.equal(wishes.list("p1").find((w) => w.id === s.id).state, "waiting");
+});

@@ -184,8 +184,8 @@ ui.test("phone: 'and every new episode of season 1' — each episode that lands 
     await controlled(page);
     await page.locator('[data-ui="downloads.offline.wish"]').first().click();
     await page.waitForSelector(".offline-sheet .offline-toggle");
-    assert.match(await page.locator(".offline-sheet .offline-toggle").innerText(), /And every new episode of season 1/);
-    await page.locator(".offline-sheet .offline-toggle").click();
+    assert.deepEqual(await page.locator(".offline-sheet .offline-toggle").allInnerTexts(), ["And every new episode of season 1", "And every new episode of this show"]);
+    await page.locator(".offline-sheet .offline-toggle", { hasText: "season 1" }).click();
     await pick(page, "Original");
     await go("#/saved", '.device-wish[data-state="wish-season"]');
     assert.match(await page.locator('.device-wish[data-state="wish-season"]').innerText(), /Wish Show · S1[\s\S]*Every new episode of season 1/);
@@ -258,6 +258,42 @@ ui.test("phone: Save & watch on a film's title page — the 'Downloading now!' s
     await hero.waitFor();
     assert.match(await hero.getAttribute("title"), /Will be saved to this device when it arrives/);
     if (process.env.UI_SHOTS) { await page.waitForTimeout(600); await page.screenshot({ path: path.join(process.env.UI_SHOTS, "wish-title-hero.png") }); }
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close().catch(() => {});
+  }
+});
+
+ui.test("phone: 'and every new episode of this show' — an episode of ANOTHER season that lands later is saved here by itself; the row says so; Cancel ends it", async ({ srv, freshProfile }) => {
+  const profile = await freshProfile();
+  const h1 = hashOf("show-e1");
+  await stage(srv, { op: "create", hash: h1, src: episodeFile(srv, 1), fields: { type: "show", imdbId: "tt9810005", title: "Long Show", season: 1, episode: 1, quality: "720p", profile: profile.id } });
+  const { context, page, errors, go } = await open(srv, profile, PHONE);
+  try {
+    await go("#/downloads", '[data-ui="downloads.offline.wish"]');
+    await controlled(page);
+    await page.locator('[data-ui="downloads.offline.wish"]').first().click();
+    await page.waitForSelector(".offline-sheet .offline-toggle");
+    // the two choices exclude each other
+    await page.locator(".offline-sheet .offline-toggle", { hasText: "season 1" }).click();
+    await page.locator(".offline-sheet .offline-toggle", { hasText: "this show" }).click();
+    assert.deepEqual(await page.$$eval(".offline-sheet .offline-toggle", (els) => els.map((e) => e.getAttribute("aria-pressed"))), ["false", "true"]);
+    await pick(page, "Original");
+    await go("#/saved", '.device-wish[data-state="wish-show"]');
+    assert.match(await page.locator('.device-wish[data-state="wish-show"]').innerText(), /Long Show[\s\S]*Every new episode/);
+    const w = await wishesOf(srv, profile);
+    assert.equal(w.length, 1);
+    assert.equal(w[0].scope, "show");
+    assert.equal(w[0].season, null);
+    // episode 1 lands, then — later, downloaded by anybody — season 2's first
+    await stage(srv, { op: "land", hash: h1 });
+    const h2 = hashOf("show-s2e1");
+    await stage(srv, { op: "create", hash: h2, src: episodeFile(srv, 2), fields: { type: "show", imdbId: "tt9810005", title: "Long Show", season: 2, episode: 1, quality: "720p" } });
+    await stage(srv, { op: "land", hash: h2 });
+    await until(() => page.evaluate(async () => (await (await import("/js/offline.js")).listSaved()).filter((s) => s.showTitle === "Long Show").map((s) => `${s.season}x${s.episode}`).sort().join(",") === "1x1,2x1"), "both saved by themselves", 90000);
+    const row = page.locator('.device-wish[data-state="wish-show"]');
+    await row.locator('[data-ui="saved.wish.cancel"]').click();
+    await until(async () => (await wishesOf(srv, profile)).length === 0, "the show wish gone");
     assert.deepEqual(errors, []);
   } finally {
     await context.close().catch(() => {});

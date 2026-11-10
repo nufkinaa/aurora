@@ -1,5 +1,15 @@
 # "Save it to this device too" — offline wishes (contract)
 
+> **Added 2026-11-10 (round 2)** — fields and values only added, nothing renamed:
+> - `scope: "show"` — every new episode of the show, any season (send `type: "show"`,
+>   `imdbId`, no season / episode; the wish comes back with `season: null`). Each episode
+>   that lands becomes its own `title` wish with `parentId`, exactly as for `"season"`.
+> - The device copy routes take the SOUND: `/api/offline/prepare|status|cancel/:id` and
+>   `/offline/file/:id` accept `a=<n>` (the file's n-th audio stream, 0 = first) or the
+>   same in the quality as `q=720~a1`. Without it: the first sound, as before.
+>   `/api/offline/options/:id` adds `audio: [{ index, language, title, codec, channels,
+>   commentary }]` when the file has more than one; status answers add `audio: n` when n > 0.
+
 Owner: `offline-web` (server + website). The phone app (`offline-phone`) builds
 on this. **The contract only grows**: fields and states may be added, nothing
 is renamed or removed. A change to it gets a "Changed" note at the top of this
@@ -55,7 +65,7 @@ Body:
 {
   "deviceId": "web-3fa1…",           // required
   "deviceName": "Pixel 8",            // optional, for "waiting on …" lines
-  "scope": "title",                   // "title" (a film or ONE episode) | "season"
+  "scope": "title",                   // "title" (a film or ONE episode) | "season" | "show" (every new episode)
   "type": "show",                     // "movie" | "show"
   "imdbId": "tt0903747",              // required unless jobId is given
   "jobId": "a1b2c3d4e5f6",            // optional: the download job it waits for
@@ -99,7 +109,7 @@ matching download job, or null.
 {
   "id": "5d1e0c9a7b21",
   "profileId": "…", "deviceId": "web-…", "deviceName": "Pixel 8",
-  "scope": "title" | "season",
+  "scope": "title" | "season" | "show",
   "type": "movie" | "show", "imdbId": "tt…", "jobId": "…" | null,
   "season": 2 | null, "episode": 5 | null,
   "title": "…", "showTitle": "…" | null, "poster": "…" | null,
@@ -206,3 +216,18 @@ States:
   `/offline/file/:id` is still answered as before. `/offline/file/:id` now has a
   stable ETag for the life of the copy (its name + size), so a phone can resume
   a half-done file with `Range` + `If-Range`.
+
+### Round 2 notes for the phone app
+- Whole-show wish: offer "And every new episode of this show" beside the season
+  one (the website's size sheet has both as chips that exclude each other); row
+  words: "Every new episode — Waiting for the server's copy — each one is saved
+  here by itself as it arrives" (Cancel).
+- Sound: when `/api/offline/options` lists `audio`, offer a "Sound" choice; default
+  = the profile's `prefs.audioLang` (what the player remembers), else the track in
+  the film's original language, else the first. Ask for it with `a=<n>`. One copy =
+  one sound. Keep ALL text subtitle tracks the item lists (the website kept 8 and
+  dropped the rest until round 2).
+- "Keep the next episode ready" is a per-device setting on the website (off by
+  default): when a saved episode is watched past 95 %, `/api/next-episode?id=` →
+  `library` → save it at the same quality; `stream` → a `title` wish for it. It
+  never removes anything.

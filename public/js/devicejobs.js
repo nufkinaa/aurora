@@ -29,7 +29,9 @@ const statusOf = (j) => {
       : { tone: "busy", head: `Preparing on the server · ${p}%`, line: j.note && j.note !== "converting on the server" ? j.note : "", bar: true };
     case "saving": return { tone: "busy", head: `Saving to this device · ${p}%`, line: [j.speed > 0 ? `${fmtBytes(j.speed)}/s` : "", left(j.eta)].filter(Boolean).join(" · "), bar: true };
     case "retrying": return { tone: "wait", head: `Waiting for the connection · ${p}%`, line: j.note || "it carries on by itself", bar: true, idle: true };
-    case "paused": return { tone: "wait", head: p > 0 ? `Paused at ${p}%` : "Paused", line: "What is saved stays here — it carries on by itself the next time Aurora is open with a connection, or press Resume", bar: p > 0, idle: true };
+    case "paused": return j.why === "user"
+      ? { tone: "wait", head: p > 0 ? `Paused at ${p}%` : "Paused", line: "What is saved stays here — press Resume to carry on", bar: p > 0, idle: true }
+      : { tone: "wait", head: p > 0 ? `Paused at ${p}%` : "Paused", line: "What is saved stays here — it carries on by itself the next time Aurora is open with a connection, or press Resume", bar: p > 0, idle: true };
     case "failed": return { tone: "bad", head: "Didn't save", line: j.error || "", bar: false };
     default: return { tone: "wait", head: j.state || "", bar: false };
   }
@@ -60,6 +62,8 @@ const row = (j) => {
   const bar = el("div", { class: `dl-bar${s.idle ? " dl-bar-idle" : ""}`, role: "progressbar", "aria-label": s.head, "aria-valuenow": pctOf(j), "aria-valuemin": 0, "aria-valuemax": 100 }, fill);
   const btn = (text, onclick, primary = false) => el("button", { class: `btn small focusable${primary ? " btn-primary" : ""}`, onclick }, text);
   const actions = [];
+  // Pause keeps what is saved (offline.pauseJob); Cancel throws it away
+  if (offline.ACTIVE_JOB.has(j.state) && typeof offline.pauseJob === "function") actions.push(btn("Pause", () => offline.pauseJob(j.id)));
   if (offline.ACTIVE_JOB.has(j.state)) actions.push(btn("Cancel", () => offline.cancelJob(j.id)));
   if (j.state === "failed") actions.push(btn("Retry", () => again(j), true));
   if (j.state === "paused") actions.push(btn("Resume", () => again(j), true));
@@ -91,11 +95,12 @@ const row = (j) => {
 //   title: its heading · `withLink`: a way to the "On this device" screen
 // What this device waits for that is not on the server yet (offlineWish.js).
 const wishName = (w) => (w.type === "show"
-  ? `${w.showTitle || w.title || "Episode"} · S${w.season}${w.scope === "season" ? "" : ` E${w.episode}`}`
+  ? (w.scope === "show" ? `${w.showTitle || w.title || "A show"}` : `${w.showTitle || w.title || "Episode"} · S${w.season}${w.scope === "season" ? "" : ` E${w.episode}`}`)
   : w.title || "A film");
 const wishStatus = (w) => {
   if (w.state === "failed") return { tone: "bad", head: "Won't arrive", line: w.error || "" };
   if (w.scope === "season") return { tone: "wait", head: `Every new episode of season ${w.season}`, line: "Waiting for the server's copy — each one is saved here by itself as it arrives" };
+  if (w.scope === "show") return { tone: "wait", head: "Every new episode", line: "Waiting for the server's copy — each one is saved here by itself as it arrives" };
   if (w.state === "ready") {
     const c = w.copy || {};
     return c.state && c.state !== "ready"
@@ -114,7 +119,7 @@ const wishRow = (w) => {
       toast(`“${wishName(w)}” won't be saved to this device`, "📱");
     } }, "Cancel"));
   }
-  return el("div", { class: `dl-row device-job device-wish tone-${s.tone}`, "data-id": `wish:${w.id}`, "data-state": `wish-${w.scope === "season" ? "season" : w.state}` },
+  return el("div", { class: `dl-row device-job device-wish tone-${s.tone}`, "data-id": `wish:${w.id}`, "data-state": `wish-${w.scope === "season" || w.scope === "show" ? w.scope : w.state}` },
     el("div", { class: "dl-poster" }, w.poster ? el("img", { src: w.poster, alt: "" }) : el("div", { class: "card-fallback" }, wishName(w))),
     el("div", { class: "dl-info" },
       el("div", { class: "dl-title" }, el("span", { class: "dl-name", dir: "auto" }, wishName(w))),
@@ -143,7 +148,7 @@ export const deviceJobsSection = ({ title = "Saving to this device", withLink = 
       seen.add(j.id);
       const hit = nodes.get(j.id);
       // (waiting ↔ preparing changes the row's tone: a new row)
-      const kind = `${j.state}${j.waiting ? ":wait" : ""}`;
+      const kind = `${j.state}${j.waiting ? ":wait" : ""}${j.why === "user" ? ":user" : ""}`;
       if (hit && hit.state === kind) { hit.node._update(j); continue; }
       const node = row(j);
       if (hit) hit.node.replaceWith(node);

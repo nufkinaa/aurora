@@ -25,7 +25,7 @@
 "use strict";
 
 const QUALITIES = ["original", "1080", "720", "480"];
-const SCOPES = ["title", "season"];
+const SCOPES = ["title", "season", "show"]; // "show": every new episode of the show (2026-11-10 round 2)
 const DEVICE_RE = /^[A-Za-z0-9_-]{8,48}$/;
 const IMDB_RE = /^tt\d{5,10}$/;
 const MAX_PER_PROFILE = 500;
@@ -75,7 +75,7 @@ const tell = (w, removed = false) => {
   } catch {}
 };
 
-const normScope = (b) => (b.scope === "season" ? "season" : "title");
+const normScope = (b) => (b.scope === "season" || b.scope === "show" ? b.scope : "title");
 
 // ---------- the person's side: add / list / remove ----------
 const validate = (b) => {
@@ -88,7 +88,10 @@ const validate = (b) => {
   if (!imdbId && !b.jobId) return "a title id or a download id is needed";
   if (b.jobId && !/^[a-f0-9]{6,32}$/i.test(String(b.jobId))) return "bad download id";
   const scope = normScope(b);
-  if (type === "show") {
+  if (scope === "show") {
+    if (type !== "show") return "only a show has episodes";
+    if (!imdbId) return "a whole show needs its title id";
+  } else if (type === "show") {
     if (num(b.season) == null) return "an episode needs its season";
     if (scope === "title" && num(b.episode) == null) return "an episode needs its number";
   } else if (scope === "season") return "only a show has seasons";
@@ -100,7 +103,7 @@ const validate = (b) => {
 const sameTarget = (w, b) =>
   w.deviceId === b.deviceId && w.type === b.type && w.scope === normScope(b) && !w.parentId &&
   ((b.imdbId && w.imdbId === b.imdbId) || (!b.imdbId && b.jobId && w.jobId === b.jobId)) &&
-  (b.type !== "show" || (Number(w.season) === Number(b.season) && (normScope(b) === "season" || Number(w.episode) === Number(b.episode))));
+  (b.type !== "show" || normScope(b) === "show" || (Number(w.season) === Number(b.season) && (normScope(b) === "season" || Number(w.episode) === Number(b.episode))));
 
 const add = (profileId, body = {}) => {
   const b = { ...body };
@@ -126,7 +129,7 @@ const add = (profileId, body = {}) => {
     deviceId: String(b.deviceId), deviceName: clip(b.deviceName, 60),
     scope: b.scope, type: b.type, imdbId: b.imdbId ? String(b.imdbId) : w.imdbId || null,
     jobId: b.jobId ? String(b.jobId) : w.jobId || null,
-    season: b.type === "show" ? num(b.season) : null,
+    season: b.type === "show" && b.scope !== "show" ? num(b.season) : null,
     episode: b.type === "show" && b.scope === "title" ? num(b.episode) : null,
     title: clip(b.title, 160) || w.title || null, showTitle: clip(b.showTitle, 160) || w.showTitle || null,
     poster: clip(b.poster, 500) || w.poster || null,
@@ -174,7 +177,7 @@ const remove = (profileId, id, { saved = false } = {}) => {
 
 // ---------- the server's side: a download landed / died ----------
 const describe = (w) =>
-  `${w.type === "show" ? `${w.showTitle || w.title || w.imdbId} S${w.season}${w.scope === "title" ? `E${w.episode}` : " (whole season)"}` : w.title || w.imdbId || w.jobId}`;
+  `${w.type === "show" ? (w.scope === "show" ? `${w.showTitle || w.title || w.imdbId} (every new episode)` : `${w.showTitle || w.title || w.imdbId} S${w.season}${w.scope === "title" ? `E${w.episode}` : " (whole season)"}`) : w.title || w.imdbId || w.jobId}`;
 
 const findInLibrary = (w) => {
   try {
@@ -189,6 +192,7 @@ const awaits = (w, job) => {
   if (w.jobId && w.jobId === job.id) return true;
   if (!w.imdbId || !job.imdbId || String(w.imdbId).toLowerCase() !== String(job.imdbId).toLowerCase()) return false;
   if (w.type === "movie") return true;
+  if (w.scope === "show") return job.season != null && job.episode != null; // every episode of it
   if (Number(w.season) !== Number(job.season)) return false;
   return w.scope === "season" || Number(w.episode) === Number(job.episode);
 };
@@ -234,7 +238,7 @@ const makeReady = (w, libId, { quiet = false } = {}) => {
 // A season wish: each episode that lands is a wish of its own (parentId),
 // ready at once; the season wish keeps waiting for the next one.
 const childFor = (parent, libItem, job) => {
-  let c = data().find((x) => x.parentId === parent.id && Number(x.episode) === Number(job.episode));
+  let c = data().find((x) => x.parentId === parent.id && Number(x.season) === Number(job.season) && Number(x.episode) === Number(job.episode));
   if (c && c.state === "ready" && c.libraryId === libItem.id) return null; // told already
   if (!c) {
     c = { id: newId(), profileId: parent.profileId, createdAt: deps.now(), parentId: parent.id };
@@ -281,7 +285,7 @@ const landed = (job, destPath) => {
         tell(w);
         continue;
       }
-      if (w.scope === "season") {
+      if (w.scope === "season" || w.scope === "show") {
         const c = childFor(w, byTitle, job);
         if (!c) continue;
         c.landedJobId = job.id;
