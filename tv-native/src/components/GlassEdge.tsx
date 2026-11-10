@@ -9,11 +9,16 @@
 // of gradients: a corner picture in each corner (the right ones are the left
 // ones mirrored) and a run stretched along each side. The middle is left out.
 //
-// Why pictures: measured on the Mi TV, opening the player's menu went from
-// 14 ms a frame at the median to 23 ms with three blurred shadow layers and
-// five gradients on the menu (and from 2.3 % to 6.5 % of frames late). The box
-// draws each of those again on every frame while the pane is up. A picture is a
-// texture it only composites (tools/gen_glass_edge.py has the numbers).
+// Why pictures: the box draws a blurred boxShadow and every gradient again on
+// each frame while the pane is up; a picture is a texture it only composites
+// (the numbers are in docs/glass-tv.md and at the head of glass.ts).
+//
+// Why ONE native view on the TV (AuroraGlassEdgeView.kt): eight <Image>s in a
+// box are nine views to create on the very frame a menu opens - that frame of
+// the player's menu went from about 148 ms to about 170 ms on the Mi TV. The
+// view draws the same eight pictures itself, pixel for pixel. It takes them by
+// the names Android gave them as bundled resources; where a picture is not a
+// resource (Metro, the sandbox) the eight <Image>s stand in.
 //
 // Put it FIRST inside the pane, so the pane's words lie over the light. The
 // pane must not clip (no overflow: 'hidden') and must be at least 68 dp wide
@@ -23,7 +28,8 @@
 // corners and no foot run, the sides run down to the pane's last line (its
 // border is 0 there).
 import React from 'react';
-import {Image, StyleSheet, View} from 'react-native';
+import {Image, Platform, StyleSheet, View} from 'react-native';
+import AuroraGlassEdge from '../specs/AuroraGlassEdgeNativeComponent';
 
 // tools/gen_glass_edge.py: MARGIN, C, C_TOP, G
 const M = 48;
@@ -41,12 +47,48 @@ const CORNERS = {
   24: {top: require('../assets/glass-edge-r24-top.png'), foot: null},
 } as const;
 
+// The name a bundled picture has as an Android resource ('' when it is not one:
+// under Metro a picture is an http address, in the sandbox a file).
+function res(source: number | null): string {
+  if (source == null) return '';
+  try {
+    const uri = Image.resolveAssetSource(source)?.uri ?? '';
+    return /^[a-z0-9_]+$/.test(uri) ? uri : '';
+  } catch {
+    return '';
+  }
+}
+
+// Per radius: the five names the native view takes, or null where the pictures
+// are not resources. Worked out once, from the bundle - not state.
+function names(radius: keyof typeof CORNERS) {
+  const c = CORNERS[radius];
+  const n = {cornerTop: res(c.top), cornerFoot: res(c.foot), runTop: res(RUN_TOP), runFoot: res(RUN_FOOT), runSide: res(RUN_SIDE)};
+  const whole = n.cornerTop && n.runTop && n.runSide && (c.foot ? n.cornerFoot && n.runFoot : true);
+  return Platform.OS === 'android' && whole ? n : null;
+}
+const NAMES = {14: names(14), 18: names(18), 22: names(22), 24: names(24)} as const;
+
 export default function GlassEdge({radius, border = 1}: {radius: keyof typeof CORNERS; border?: number}) {
   const c = CORNERS[radius];
   const out = -(M + border);
+  const box = {top: out, left: out, right: out, bottom: c.foot ? out : 0};
+  const n = NAMES[radius];
+  if (n) {
+    return (
+      <AuroraGlassEdge
+        cornerTop={n.cornerTop}
+        cornerFoot={n.cornerFoot}
+        runTop={n.runTop}
+        runFoot={n.runFoot}
+        runSide={n.runSide}
+        style={[styles.box, box]}
+      />
+    );
+  }
   if (!c.foot) {
     return (
-      <View pointerEvents="none" style={[styles.box, {top: out, left: out, right: out, bottom: 0}]}>
+      <View pointerEvents="none" style={[styles.box, box]}>
         <Image source={c.top} fadeDuration={0} style={styles.tl} />
         <Image source={c.top} fadeDuration={0} style={styles.tr} />
         <Image source={RUN_TOP} resizeMode="stretch" fadeDuration={0} style={styles.top} />
@@ -56,7 +98,7 @@ export default function GlassEdge({radius, border = 1}: {radius: keyof typeof CO
     );
   }
   return (
-    <View pointerEvents="none" style={[styles.box, {top: out, left: out, right: out, bottom: out}]}>
+    <View pointerEvents="none" style={[styles.box, box]}>
       <Image source={c.top} fadeDuration={0} style={styles.tl} />
       <Image source={c.top} fadeDuration={0} style={styles.tr} />
       <Image source={c.foot} fadeDuration={0} style={styles.bl} />
