@@ -163,10 +163,7 @@ const build = (list) => {
 // the server, the same shape (a file with a shipped franchise's id replaces
 // it). Read with the shipped list; a broken local file is left out and said.
 const localDir = () => path.join(require("../../config").DATA_DIR, "franchises");
-const withLocal = () => {
-  const shipped = readAll();
-  let local = [];
-  try { local = readAll(localDir()); } catch {}
+const merge = (shipped, local) => {
   if (!local.length) return shipped;
   const mine = new Map();
   for (const fr of local) {
@@ -178,8 +175,52 @@ const withLocal = () => {
   return [...shipped.filter((fr) => !mine.has(fr.id)), ...mine.values()];
 };
 
+const withLocal = () => {
+  const shipped = readAll();
+  let local = [];
+  try { local = readAll(localDir()); } catch {}
+  return merge(shipped, local);
+};
+
+// readAll's twin for warm(): the same files, the same order, the same
+// reading of each — with the file reads off the event loop.
+const readAllAsync = async (dir = DATA_DIR) => {
+  let files = [];
+  try {
+    files = (await fs.promises.readdir(dir)).filter((f) => f.endsWith(".json")).sort();
+  } catch {
+    return [];
+  }
+  const texts = await Promise.all(files.map((f) => fs.promises.readFile(path.join(dir, f), "utf8").then((t) => ({ t }), (e) => ({ e }))));
+  return files.map((f, i) => {
+    const r = texts[i];
+    if (r.e) return { _file: f, _broken: r.e.message };
+    try {
+      return { ...JSON.parse(r.t), _file: f };
+    } catch (e) {
+      return { _file: f, _broken: e.message };
+    }
+  });
+};
+
 let cache = null;
 const catalogue = () => cache || (cache = build(withLocal()));
-const _reset = (list = null) => { cache = list ? build(list) : null; };
+const _reset = (list = null) => { cache = list ? build(list) : null; warming = null; };
 
-module.exports = { catalogue, readAll, validate, build, ORDERS, ORDER_LABELS, DATA_DIR, localDir, _reset };
+// Read the list ahead, after the server listens (server.js), with the reads
+// off the event loop: the first catalogue() — the first Home after a start —
+// read the 165 files synchronously, 3.3 s of the event loop on a busy
+// Windows box (perf-server 2026-11-10). Same files, same result: whichever of
+// this and a first catalogue() finishes first is the cache.
+let warming = null;
+const warm = () =>
+  warming ||
+  (warming = (async () => {
+    if (cache) return;
+    const shipped = await readAllAsync();
+    let local = [];
+    try { local = await readAllAsync(localDir()); } catch {}
+    if (!cache) cache = build(merge(shipped, local));
+  })().catch(() => {}));
+
+module.exports = { catalogue, warm, readAll, readAllAsync, validate, build, ORDERS, ORDER_LABELS, DATA_DIR, localDir, _reset };
