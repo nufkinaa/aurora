@@ -83,7 +83,7 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("message", (e) => {
   if (e.data && e.data.type === "precache") e.waitUntil(precache().catch(() => {}));
   // a saved copy was removed (js/offline.js): its manifest is no longer the truth
-  if (e.data && e.data.type === "offline-removed" && e.data.id) manifests.delete(String(e.data.id));
+  if (e.data && e.data.type === "offline-removed" && e.data.id) { manifests.delete(String(e.data.id)); opfsDirs.delete(String(e.data.id)); }
 });
 
 // ---- the poster cache's housekeeping ----
@@ -164,6 +164,24 @@ const manifestOf = async (c, id) => {
     return m;
   } catch { return null; }
 };
+// A part of a copy saved in the browser's file system (js/offline.js, round
+// 2: `store: "opfs"` in its manifest) — or, for the parts the browser fetched
+// in the background, the cache. null when neither has it.
+const opfsDirs = new Map(); // id -> its directory handle
+const opfsPart = async (id, n) => {
+  try {
+    let dir = opfsDirs.get(id);
+    if (!dir) {
+      const root = await navigator.storage.getDirectory();
+      dir = await (await root.getDirectoryHandle("aurora-offline")).getDirectoryHandle(String(id));
+      opfsDirs.set(id, dir);
+    }
+    return await (await dir.getFileHandle(String(n))).getFile();
+  } catch {
+    opfsDirs.delete(id);
+    return null;
+  }
+};
 const partsResponse = (c, id, m, rangeHeader) => {
   const size = m.size;
   const r = parseRange(rangeHeader, size);
@@ -179,9 +197,12 @@ const partsResponse = (c, id, m, rangeHeader) => {
         if (!reader) {
           if (at > end) return ctl.close();
           const n = Math.floor(at / m.part);
-          const hit = await c.match(`/offline/part/${id}/${n}`);
-          if (!hit) { manifests.delete(id); return ctl.error(new Error("part missing")); }
-          const blob = await hit.blob();
+          let blob = m.store === "opfs" ? await opfsPart(id, n) : null;
+          if (!blob) {
+            const hit = await c.match(`/offline/part/${id}/${n}`);
+            if (!hit) { manifests.delete(id); return ctl.error(new Error("part missing")); }
+            blob = await hit.blob();
+          }
           const from = at - n * m.part;
           const to = Math.min(blob.size, end - n * m.part + 1);
           if (to <= from) return ctl.error(new Error("part too short"));
@@ -224,6 +245,12 @@ const parseBgId = (bid) => {
 };
 const partsOf = async (c, id) => {
   const have = new Set();
+  // (a save that began in the browser's file system keeps its first parts there)
+  try {
+    const root = await navigator.storage.getDirectory();
+    const dir = await (await root.getDirectoryHandle("aurora-offline")).getDirectoryHandle(String(id));
+    for await (const [name] of dir.entries()) if (/^\d+$/.test(name)) { have.add(Number(name)); have.opfs = true; }
+  } catch {}
   for (const k of await c.keys()) {
     const m = /^\/offline\/part\/([^/]+)\/(\d+)$/.exec(new URL(k.url).pathname);
     if (m && m[1] === id) have.add(Number(m[2]));
@@ -272,7 +299,7 @@ const storeBatch = async (e, ok) => {
   const have = await partsOf(c, m.id);
   const count = Math.ceil(m.size / m.part);
   if (have.size >= count) {
-    await c.put(`/offline/manifest/${m.id}`, new Response(JSON.stringify({ v: 2, size: m.size, part: m.part, count, type: "video/mp4" }), { headers: { "Content-Type": "application/json" } }));
+    await c.put(`/offline/manifest/${m.id}`, new Response(JSON.stringify({ v: 2, size: m.size, part: m.part, count, type: "video/mp4", store: have.opfs ? "opfs" : "cache" }), { headers: { "Content-Type": "application/json" } }));
     manifests.delete(m.id);
     await savedRecordDone(m.id);
     if (ok && e.updateUI) await e.updateUI({ title: `“${m.title}” is saved on this device` }).catch(() => {});

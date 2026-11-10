@@ -261,6 +261,12 @@ ui.test("phone: no room on the device says so before anything is fetched; a save
     await page.waitForSelector(".device-jobs.hidden", { state: "attached" });
     await page.locator("#toasts .toast", { hasText: "Save cancelled" }).first().waitFor();
     assert.equal(await page.evaluate(async () => (await caches.open("aurora-media").then((c) => c.keys())).length), 0, "no half a film in the cache");
+    // …nor in the browser's file system (where Chrome saves since round 2)
+    assert.equal(await page.evaluate(async () => {
+      let n = 0;
+      try { const base = await (await navigator.storage.getDirectory()).getDirectoryHandle("aurora-offline"); for await (const [, d] of base.entries()) for await (const _ of d.entries()) n++; } catch {}
+      return n;
+    }), 0, "no half a film in the file system");
     assert.equal(await page.locator(".saved-section .dl-row").count(), 0);
     await page.unroute("**/stream/video/**");
     assert.deepEqual(errors, []);

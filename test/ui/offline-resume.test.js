@@ -16,7 +16,8 @@ const ui = suite();
 const PART = 131072;
 
 // `bg`: let the browser's Background Fetch take the parts (off: the page's own loop, which these tests watch)
-const open = async (srv, profile, viewport, context = null, { bg = false, part = PART } = {}) => {
+// `opfs`: "1" the browser's file system (Chrome's default since round 2), "0" the cache (Safari's, Firefox's)
+const open = async (srv, profile, viewport, context = null, { bg = false, part = PART, opfs = null } = {}) => {
   const phone = viewport.width < 600;
   const ctx = context || await ui.browser.newContext({ viewport, serviceWorkers: "allow", ...(phone ? { hasTouch: true, isMobile: true, deviceScaleFactor: 2 } : {}) });
   if (!context) await ctx.route((url) => url.origin !== srv.url && /^https?:$/.test(url.protocol), (route) => route.fulfill({ status: 404, body: "" }).catch(() => {}));
@@ -24,8 +25,9 @@ const open = async (srv, profile, viewport, context = null, { bg = false, part =
   page.setDefaultTimeout(20000);
   const errors = [];
   page.on("pageerror", (e) => errors.push(String((e && e.stack) || e)));
-  await page.addInitScript(({ id, part, bg }) => {
+  await page.addInitScript(({ id, part, bg, opfs }) => {
     try {
+      if (opfs != null) localStorage.setItem("aurora-offline-opfs", opfs); else localStorage.removeItem("aurora-offline-opfs");
       localStorage.setItem("aurora-offline-part-bytes", String(part));
       localStorage.setItem("aurora-offline-bg", bg ? "1" : "0");
       if (sessionStorage.getItem("ui-test-seeded")) return;
@@ -34,7 +36,7 @@ const open = async (srv, profile, viewport, context = null, { bg = false, part =
       localStorage.setItem("aurora-kbd-hint", "1");
       localStorage.setItem("aurora-nav-hinted", "1");
     } catch {}
-  }, { id: profile.id, part, bg });
+  }, { id: profile.id, part, bg, opfs });
   const go = async (hash, selector = "#app .screen") => {
     if (!page.url().startsWith(srv.url)) await page.goto(`${srv.url}/${hash}`, { waitUntil: "domcontentloaded" });
     else await page.evaluate((h) => { location.hash = h; }, hash);
@@ -57,7 +59,15 @@ const until = async (fn, what, ms = 60000) => {
 };
 // (a record still `pending` is a save whose parts are landing — not a saved copy)
 const savedRecord = (page, id) => page.evaluate(async (x) => { const r = await (await import("/js/offline.js")).getSaved(x); return r && !r.pending ? r : null; }, id);
-const partCount = (page) => page.evaluate(async () => (await (await caches.open("aurora-media")).keys()).filter((r) => r.url.includes("/offline/part/")).length);
+// the parts of the copy, wherever they are: the cache, or the browser's file system (OPFS, round 2)
+const partCount = (page) => page.evaluate(async () => {
+  let n = (await (await caches.open("aurora-media")).keys()).filter((r) => r.url.includes("/offline/part/")).length;
+  try {
+    const base = await (await navigator.storage.getDirectory()).getDirectoryHandle("aurora-offline");
+    for await (const [, dir] of base.entries()) for await (const [name] of dir.entries()) if (/^\d+$/.test(name)) n++;
+  } catch {}
+  return n;
+});
 const jobState = (page) => page.evaluate(() => (JSON.parse(localStorage.getItem("aurora-offline-jobs") || "[]")[0] || {}).state || null);
 
 ui.test("phone: a reload in the middle of a save — it carries on by itself from the parts already here, not from zero; the copy then plays and seeks with the network cut", { allow: [/Failed to load resource/, /ERR_INTERNET_DISCONNECTED/, /WebSocket/, /net::ERR/] }, async ({ srv, freshProfile }) => {
@@ -91,6 +101,7 @@ ui.test("phone: a reload in the middle of a save — it carries on by itself fro
     await until(async () => !!(await savedRecord(page, film.id)), "the save to finish by itself", 60000);
     const rec = await savedRecord(page, film.id);
     assert.equal(rec.format, 2);
+    assert.equal(rec.store, "opfs", "Chrome saves into the browser's file system");
     assert.equal(rec.profileId, profile.id);
     assert.equal(await partCount(page), 20, "every part, once");
     const again = ranges.filter((x) => x.afterReload).map((x) => x.r);
@@ -120,10 +131,10 @@ ui.test("phone: a reload in the middle of a save — it carries on by itself fro
   }
 });
 
-ui.test("desktop: the line drops in the middle of a save — 'Waiting for the connection', then it carries on by itself", { allow: [/Failed to load resource/, /net::ERR/] }, async ({ srv, freshProfile }) => {
+ui.test("desktop, the cache (as Safari and Firefox save): the line drops in the middle of a save — 'Waiting for the connection', then it carries on by itself", { allow: [/Failed to load resource/, /net::ERR/] }, async ({ srv, freshProfile }) => {
   const profile = await freshProfile();
   const film = srv.lib.film1;
-  const { context, page, errors, go } = await open(srv, profile, DESKTOP);
+  const { context, page, errors, go } = await open(srv, profile, DESKTOP, null, { opfs: "0" });
   try {
     await go(`#/movie/${film.id}`, '[data-ui="detail.offline"]');
     await controlled(page);
@@ -144,6 +155,7 @@ ui.test("desktop: the line drops in the middle of a save — 'Waiting for the co
     await until(async () => !!(await savedRecord(page, film.id)), "the save to carry on and finish", 60000);
     await page.waitForSelector(".device-jobs.hidden", { state: "attached" });
     assert.equal(await partCount(page), 20);
+    assert.equal((await savedRecord(page, film.id)).store, "cache");
     assert.deepEqual(errors, []);
   } finally {
     await context.close().catch(() => {});
@@ -222,7 +234,11 @@ ui.test("phone with Background Fetch: Aurora goes to the background mid-save and
     await look.goto(`${srv.url}/sw-manifest.json`);
     const state = () => look.evaluate(async (id) => {
       const c = await caches.open("aurora-media");
-      const parts = (await c.keys()).filter((r) => r.url.includes(`/offline/part/${id}/`)).length;
+      let parts = (await c.keys()).filter((r) => r.url.includes(`/offline/part/${id}/`)).length;
+      try {
+        const dir = await (await (await navigator.storage.getDirectory()).getDirectoryHandle("aurora-offline")).getDirectoryHandle(id);
+        for await (const [name] of dir.entries()) if (/^\d+$/.test(name)) parts++;
+      } catch {}
       const manifest = !!(await c.match(`/offline/manifest/${id}`));
       const rec = await new Promise((res) => { const r = indexedDB.open("aurora-offline", 1); r.onsuccess = () => { const g = r.result.transaction("items").objectStore("items").get(id); g.onsuccess = () => res(g.result || null); g.onerror = () => res(null); }; r.onerror = () => res(null); });
       return { parts, manifest, pending: rec ? !!rec.pending : null, byBrowser: rec ? !!rec.byBrowser : null, subs: rec ? (rec.subtitles || []).length : 0 };
@@ -320,5 +336,60 @@ ui.test("desktop: Pause keeps what is saved and waits — no carrying on by itse
     await context.close().catch(() => {});
   }
 });
+
+ui.test("phone: a copy in the file system survives a site update (the worker replaced) and plays with the network cut", { allow: [/Failed to load resource/, /ERR_INTERNET_DISCONNECTED/, /WebSocket/, /net::ERR/] }, async ({ srv, freshProfile }) => {
+  const profile = await freshProfile();
+  const film = srv.lib.film1;
+  const { context, page, errors, go } = await open(srv, profile, PHONE, null, { opfs: "1" });
+  try {
+    await go(`#/movie/${film.id}`, '[data-ui="detail.offline"]');
+    await controlled(page);
+    await page.locator('[data-ui="detail.offline"]').first().click();
+    await pick(page, "Original");
+    await until(async () => !!(await savedRecord(page, film.id)), "saved");
+    assert.equal((await savedRecord(page, film.id)).store, "opfs");
+    // the site updates: the old worker goes, a new one installs and activates
+    // (it clears every cache it does not know — never the films)
+    await page.evaluate(async () => { for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister(); });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 30000 });
+    assert.equal(await partCount(page), 20, "every part still here");
+    await go("#/saved", '[data-ui="saved.play"]');
+    await context.setOffline(true);
+    await page.locator('[data-ui="saved.play"]').first().click();
+    await page.waitForFunction(() => { const v = document.querySelector(".player video"); return v && v.currentTime > 0.5 && /\/offline\/media\//.test(v.currentSrc); }, null, { timeout: 30000 });
+    const t = await page.evaluate(async () => { const v = document.querySelector(".player video"); v.currentTime = v.duration - 3; await new Promise((r) => { v.addEventListener("seeked", r, { once: true }); setTimeout(r, 15000); }); return v.currentTime; });
+    assert.ok(t > 50, `seeked to ${t}`);
+    await context.setOffline(false);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close().catch(() => {});
+  }
+});
+
+for (const opfs of ["1", "0"]) {
+  ui.test(`desktop, ${opfs === "1" ? "the file system" : "the cache"}: the device runs out of room part-way — a plain message, and nothing half-saved is left`, async ({ srv, freshProfile }) => {
+    const profile = await freshProfile();
+    const film = srv.lib.film1;
+    const { context, page, go } = await open(srv, profile, DESKTOP, null, { opfs });
+    try {
+      await go(`#/movie/${film.id}`, '[data-ui="detail.offline"]');
+      await controlled(page);
+      // a real limit, a little above what is used now (the browser's own count says more is free)
+      const cdp = await context.newCDPSession(page);
+      const usage = await page.evaluate(async () => (await navigator.storage.estimate()).usage || 0);
+      await cdp.send("Storage.overrideQuotaForOrigin", { origin: srv.url, quotaSize: usage + 700 * 1024 });
+      await page.locator('[data-ui="detail.offline"]').first().click();
+      await pick(page, "Original");
+      await page.locator("#toasts .toast", { hasText: /ran out of room/ }).first().waitFor({ timeout: 60000 });
+      await until(async () => (await jobState(page)) === "failed", "failed");
+      assert.match(await page.evaluate(() => JSON.parse(localStorage.getItem("aurora-offline-jobs"))[0].error), /this device ran out of room for it — free some space, or pick a smaller size/);
+      await until(async () => (await partCount(page)) === 0, "nothing half-saved left");
+      assert.equal(await savedRecord(page, film.id), null);
+    } finally {
+      await context.close().catch(() => {});
+    }
+  });
+}
 
 ui.run({ concurrency: 2 });
