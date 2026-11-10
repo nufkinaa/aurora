@@ -82,3 +82,14 @@ test("the website's helpers hold the apps' cases", async () => {
   const c = cellOf(cal(["2026-11-09"]).grid, "2026-11-09", "2026-11", "2026-11-09");
   assert.deepEqual([c.n, c.inMonth, c.past, c.today, c.items.length], [9, true, false, true, 1]);
 });
+
+test("a month's line (9 releases · 2 premieres · 1 film) is counted once, by the server; every client prints it as sent", () => {
+  assert.match(read("src/media/calendar.js"), /const monthLine = /);
+  const code = (f) => read(f).split(/\r?\n/).filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join(" ");
+  for (const f of ["public/js/screens/calendar.js", "public/js/calgrid.js", "tv-native/src/calendar.ts", "tv-native/src/screens/CalendarMonth.tsx", "tv-native/src/phone/ui/CalendarGrid.tsx"]) {
+    assert.doesNotMatch(code(f), /\d+ releases?|\breleases?\b[^.]*`|plural|premieres/, `${f} does not count a month itself`);
+  }
+  for (const f of ["public/js/screens/calendar.js", "tv-native/src/screens/CalendarMonth.tsx", "tv-native/src/phone/ui/CalendarGrid.tsx"]) {
+    assert.match(code(f), /info && info.line/, `${f} prints the server's line`);
+  }
+});

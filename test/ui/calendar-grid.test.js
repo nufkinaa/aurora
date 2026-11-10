@@ -115,6 +115,14 @@ ui.test("desktop: a real month — weekdays, the releases on their days, today m
   assert.match(await page.textContent("#app .calg-month"), /^[A-Z][a-z]+ \d{4}$/);
   await assertNoHorizontalOverflow(page, "desktop month");
   await page.click(`#app .calg-day[data-day="${dayKey(0)}"]`);
+  // at the top of the page, as it opens: the whole month and its legend in a 1440 × 900 window
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForFunction(() => (window.scrollY || document.body.scrollTop || 0) === 0);
+  const legendBottom = await page.$eval("#app .calg-legend", (n) => n.getBoundingClientRect().bottom);
+  assert.ok(legendBottom <= 900, `the month and its legend fit 1440 × 900 (legend ends at ${legendBottom})`);
+  const head = await page.$eval("#app .cal-head h1", (n) => n.getBoundingClientRect().top);
+  const nav = await page.$eval("#nav", (n) => n.getBoundingClientRect().bottom).catch(() => 0);
+  assert.ok(head >= nav, `the page title (${head}) starts under the nav (${nav}), not behind it`);
   await shot(page, "1440-glass");
 });
 
@@ -300,6 +308,7 @@ ui.test("768 px and the classic look: one column, the day's releases under the m
   await open(h, p);
   assert.ok(await page.$("#app .calg-sheet.fan"), "wide days fan their posters");
   await assertNoHorizontalOverflow(page, "768");
+  await page.evaluate(() => window.scrollTo(0, 0));
   await shot(page, "768-legacy");
 });
 
@@ -308,6 +317,7 @@ ui.test("1440 px, the classic look", { viewport: WIDE }, async (h) => {
   const p = await filled(api, lib, "legacy");
   await open(h, p);
   await assertNoHorizontalOverflow(page, "1440 legacy");
+  await page.evaluate(() => window.scrollTo(0, 0));
   await shot(page, "1440-legacy");
 });
 
