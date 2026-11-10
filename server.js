@@ -827,6 +827,9 @@ server.listen({ port: config.PORT, backlog: 4096 }, () => {
   // off the event loop, instead of synchronously by the first Home after a
   // start (media/franchises warm: 3.3 s of the loop on a busy Windows box).
   setTimeout(() => { try { require("./src/media/franchises").warm(); } catch {} }, 2000).unref();
+  // The code the apps' first requests load (lib/warmup.js), one module at a
+  // time from 30 s on, instead of on the spot by the first visitor of each.
+  try { require("./src/lib/warmup").warm(); } catch {}
   // The first walk of the folders, now that the port is ours.
   const fromSaved = !!scanner.index.scannedAt;
   scanner.scanAsync({ force: true })
