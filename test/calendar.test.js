@@ -523,6 +523,50 @@ test("the asking device's own zone: its today and its days (a zone ahead of UTC 
   assert.deepEqual(days(west), ["2026-11-11", "2026-11-20"]); // a plain date stays the date it names
 });
 
+test("a zone asked for by name keys the caches by its standard name, and the caches stay small", () => {
+  const { canonTz, dayFmts, weekStarts, weekStartOf } = calendar._internals;
+  assert.equal(canonTz("eUrOpE/pArIs"), "Europe/Paris");
+  assert.equal(canonTz("Not/AZone"), null);
+  assert.equal(canonTz("x".repeat(65)), null);
+  assert.equal(canonTz(null), null);
+  // every spelling of one zone is one zone
+  const names = ["Europe/Paris", "europe/paris", "EUROPE/PARIS", "eUrOpE/pArIs", "Europe/pariS"];
+  dayFmts.clear();
+  for (const tz of names) assert.equal(build([], {}, { now: NOW, tz, locale: "en-GB" }).tz, "Europe/Paris");
+  assert.equal(dayFmts.size, 1);
+  // …and many real zones (offsets are zones too) never pile up
+  for (let m = 0; m < 600; m++) build([], {}, { now: NOW, tz: `+${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`, locale: "en-GB", grid: false });
+  assert.ok(dayFmts.size <= 100, `dayFmts ${dayFmts.size}`);
+  // a locale's variants do not either
+  for (let i = 0; i < 500; i++) weekStartOf(`en-US-v${String(i).padStart(4, "0")}`);
+  assert.ok(weekStarts.size <= 200, `weekStarts ${weekStarts.size}`);
+  assert.equal(weekStartOf("en-US"), 0);
+  assert.equal(weekStartOf("en-GB"), 1);
+});
+
+test("grid: false gives the two lists alone, the same ones", () => {
+  const titles = [{ imdbId: "tt0000601", type: "show", title: "Lists", why: ["list"] }];
+  const metaOf = () => show("tt0000601", "Lists", [ep(1, 1, dateIn(-3)), ep(1, 2, dateIn(4))]);
+  const full = build(titles, { metaOf }, { now: NOW, tz: JLM, locale: "en-GB" });
+  const lists = build(titles, { metaOf }, { now: NOW, tz: JLM, locale: "en-GB", grid: false });
+  assert.ok(full.grid && "next" in full);
+  assert.ok(!("grid" in lists) && !("next" in lists));
+  const { grid, next, ...rest } = full;
+  assert.deepEqual(lists, rest);
+});
+
+test("next up never points past the last month a person can page to", () => {
+  // today 9 Nov: the months run to January; 10 Feb is on the grid only as a greyed day
+  const titles = [{ imdbId: "tt0000701", type: "show", title: "Far", why: ["list"] }];
+  const far = build(titles, { metaOf: () => show("tt0000701", "Far", [ep(1, 1, "2027-02-10")]) }, { now: NOW, tz: JLM, locale: "en-GB" });
+  assert.equal(far.grid.months[far.grid.months.length - 1].key, "2027-01");
+  assert.equal(far.grid.byDay["2027-02-10"].items.length, 1, "it is on the grid's greyed tail");
+  assert.equal(far.next, null);
+  // the last day of the last month still counts
+  const edge = build(titles, { metaOf: () => show("tt0000701", "Far", [ep(1, 1, "2027-01-31")]) }, { now: NOW, tz: JLM, locale: "en-GB" });
+  assert.equal(edge.next && edge.next.day, "2027-01-31");
+});
+
 test("forProfile: a device's zone when it names a real one, else the household's", () => {
   const mods = {
     profiles: { getWatchlist: () => [], followsOf: () => [], streamEpisodeProgress: () => ({}) },

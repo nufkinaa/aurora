@@ -261,7 +261,8 @@ export const saveCalendarView = (v: CalendarView) => AsyncStorage.setItem(VIEW_K
 // ---- the two requests ----
 export const loadCalendar = (profileId: string, locale = deviceLocale(), tz = deviceTimeZone()) =>
   apiRequest<Calendar>(
-    `/api/profiles/${encodeURIComponent(profileId)}/calendar?locale=${encodeURIComponent(locale)}${tz ? `&tz=${encodeURIComponent(tz)}` : ''}`,
+    // (grid=1: the month's days and the next-up line — sent only when asked for)
+    `/api/profiles/${encodeURIComponent(profileId)}/calendar?grid=1&locale=${encodeURIComponent(locale)}${tz ? `&tz=${encodeURIComponent(tz)}` : ''}`,
   );
 
 export const saveFromCalendar = (profileId: string, e: CalendarEntry) =>

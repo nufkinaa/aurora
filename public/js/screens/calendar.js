@@ -367,7 +367,6 @@ export const renderCalendar = async (root) => {
         "data-ui": "calendar.day",
         "data-day": c.key,
         tabindex: c.key === pick ? "0" : "-1",
-        "aria-selected": c.key === pick ? "true" : "false",
         "aria-current": c.today ? "date" : null,
         "aria-label": ariaFor(c),
         disabled: live ? null : true,
@@ -381,7 +380,8 @@ export const renderCalendar = async (root) => {
         more > 0 ? el("span", { class: "calg-more" }, `+${more}`) : null);
     };
     const cellFor = (key, i) => {
-      const cell = el("div", { class: "calg-cell", role: "gridcell" }, dayButton(cellOf(grid, key, shown, today)));
+      // (the picked day is said on the cell: ARIA has no aria-selected for a button)
+      const cell = el("div", { class: "calg-cell", role: "gridcell", "aria-selected": key === pick ? "true" : "false" }, dayButton(cellOf(grid, key, shown, today)));
       cell.style.setProperty("--i", String(i));
       return cell;
     };
@@ -447,9 +447,9 @@ export const renderCalendar = async (root) => {
         paintSheet(dir);
       } else {
         const a = buttonOf(was);
-        if (a) { a.classList.remove("sel"); a.tabIndex = -1; a.setAttribute("aria-selected", "false"); }
+        if (a) { a.classList.remove("sel"); a.tabIndex = -1; if (a.parentElement) a.parentElement.setAttribute("aria-selected", "false"); }
         const b = buttonOf(key);
-        if (b) { b.classList.add("sel"); b.tabIndex = 0; b.setAttribute("aria-selected", "true"); }
+        if (b) { b.classList.add("sel"); b.tabIndex = 0; if (b.parentElement) b.parentElement.setAttribute("aria-selected", "true"); }
       }
       paintPanel();
       if (focus) {

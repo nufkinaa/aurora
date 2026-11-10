@@ -89,7 +89,16 @@ test("the calendar, end to end", { skip: !haveFfmpeg() && "ffmpeg not found", ti
       assert.equal(r.counts.upcoming, 5);
       assert.equal(r.counts.recent, 4);
       assert.ok(r.upcoming.every((d) => d.day >= r.today) && r.recent.every((d) => d.day < r.today));
-      // …and the month grid beside them, for the apps that draw it
+      // …and not the month's days, which it would download and never read
+      assert.ok(!("grid" in r) && !("next" in r), "no grid for an app that did not ask");
+    });
+
+    await t.test("?grid=1 adds the month grid and next up beside the same two lists", async () => {
+      const old = await api.get(`/api/profiles/${dana.id}/calendar?locale=en-GB`);
+      const r = await api.get(`/api/profiles/${dana.id}/calendar?grid=1&locale=en-GB`);
+      assert.deepEqual(r.upcoming, old.upcoming);
+      assert.deepEqual(r.recent, old.recent);
+      assert.deepEqual(r.counts, old.counts);
       assert.ok(r.grid && r.grid.byDay[r.today], "the grid has today");
       assert.equal(r.grid.byDay[r.today].label, "Today");
       const onGrid = Object.values(r.grid.byDay).flatMap((d) => d.items.map((i) => i.key));
@@ -101,9 +110,12 @@ test("the calendar, end to end", { skip: !haveFfmpeg() && "ffmpeg not found", ti
     });
 
     await t.test("?tz= makes the days the asking device's; a zone that is not one is the household's", async () => {
-      const east = await api.get(`/api/profiles/${dana.id}/calendar?locale=en-US&tz=${encodeURIComponent("Pacific/Kiritimati")}`);
+      const east = await api.get(`/api/profiles/${dana.id}/calendar?grid=1&locale=en-US&tz=${encodeURIComponent("Pacific/Kiritimati")}`);
       assert.equal(east.tz, "Pacific/Kiritimati");
       assert.equal(east.grid.weekStart, 0, "an American device starts its week on Sunday");
+      // a zone is known by its standard name, however it was spelled
+      const odd = await api.get(`/api/profiles/${dana.id}/calendar?tz=${encodeURIComponent("pAcIfIc/kIrItImAtI")}`);
+      assert.equal(odd.tz, "Pacific/Kiritimati");
       const junk = await api.get(`/api/profiles/${dana.id}/calendar?tz=${encodeURIComponent("Mars/Base")}`);
       assert.equal(junk.tz, Intl.DateTimeFormat().resolvedOptions().timeZone);
     });
@@ -143,7 +155,7 @@ test("the calendar, end to end", { skip: !haveFfmpeg() && "ffmpeg not found", ti
     await t.test("a kids profile sees only what it may", async () => {
       const kid = await api.createProfile("Noa", { open: true, kids: { maxAge: 7 } });
       await cal.fill(api, kid, show.id).catch(() => {}); // (some adds may be refused for a kids profile — fine)
-      const r = await api.get(`/api/profiles/${kid.id}/calendar`, { "X-Profile": kid.id });
+      const r = await api.get(`/api/profiles/${kid.id}/calendar?grid=1`, { "X-Profile": kid.id });
       // Test Show is rated 7 (allowed); the catalogue titles have no rating: hidden
       const titles = new Set(all(r).map((i) => i.title));
       assert.ok(!titles.has("Night Harbour") && !titles.has("Paper Moons"), [...titles].join(", "));

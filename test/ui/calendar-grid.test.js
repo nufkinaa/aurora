@@ -82,6 +82,12 @@ ui.test("desktop: a real month — weekdays, the releases on their days, today m
   // the seed: The Ninth Hour airs today → today is picked and its releases are beside the grid
   assert.equal(await page.$eval("#app .calg-day.sel", (b) => b.dataset.day), today);
   assert.deepEqual(await panelTitles(page), ["The Ninth Hour"]);
+  // the picked day is said on its grid cell (where a screen reader looks for it), and on that one alone
+  assert.deepEqual(await page.$$eval('#app .calg-sheet [role="gridcell"][aria-selected="true"]', (n) => n.map((c) => c.querySelector(".calg-day")?.dataset.day)), [today]);
+  assert.equal(await page.$$eval("#app .calg-day[aria-selected]", (n) => n.length), 0);
+  // the month's days are asked for by name: the server sends them to nobody else
+  const asked = await page.evaluate(() => performance.getEntriesByType("resource").map((e) => e.name).filter((u) => /\/calendar\?/.test(u)));
+  assert.ok(asked.length && asked.every((u) => /[?&]grid=1(&|$)/.test(u)), asked.join(" "));
   assert.match(await page.textContent("#app .calg-panel-head"), /^Today/);
   // the grid's weeks: the first cell is the month's first week's Monday, rows of seven, consecutive days
   const cells = await page.$$eval("#app .calg-sheet .calg-day", (n) => n.map((b) => b.dataset.day));

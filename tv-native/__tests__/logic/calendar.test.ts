@@ -149,10 +149,10 @@ test('deviceLocale: the device’s, or en-GB when Intl has none', () => {
 test('loadCalendar asks the profile’s calendar with the locale; saveFromCalendar posts the entry’s save', async () => {
   mockRequest.mockResolvedValue(cal());
   await loadCalendar('p 1', 'en-US', null);
-  expect(mockRequest).toHaveBeenCalledWith('/api/profiles/p%201/calendar?locale=en-US');
+  expect(mockRequest).toHaveBeenCalledWith('/api/profiles/p%201/calendar?grid=1&locale=en-US');
   // the device's zone: its days and its today on the month grid
   await loadCalendar('p 1', 'en-US', 'Asia/Jerusalem');
-  expect(mockRequest).toHaveBeenLastCalledWith('/api/profiles/p%201/calendar?locale=en-US&tz=Asia%2FJerusalem');
+  expect(mockRequest).toHaveBeenLastCalledWith('/api/profiles/p%201/calendar?grid=1&locale=en-US&tz=Asia%2FJerusalem');
   mockPost.mockResolvedValue({ok: true, state: 'saving', line: 'Saving it.'});
   const e = entry();
   await expect(saveFromCalendar('p1', e)).resolves.toEqual({ok: true, state: 'saving', line: 'Saving it.'});

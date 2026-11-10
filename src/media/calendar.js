@@ -34,7 +34,7 @@
 // calendar"). The apps draw whole months, six weeks each, so besides the two
 // lists above the answer carries every day of the months a person can page
 // through: the month before this one, this one, and on to the month that
-// holds today + AHEAD_DAYS (four months, sometimes five) — plus the six days
+// holds today + AHEAD_DAYS (four months as a rule, three or five at some turns) — plus the six days
 // either side of them that a six-week grid shows greyed. One flat map, day →
 // { label, date, items }, every day present (an empty day has items: []), so
 // a picked day always has its heading. Same entries, same words as the lists;
@@ -98,21 +98,30 @@ const lastOfMonth = (mk) => addDays(`${addMonths(mk, 1)}-01`, -1);
 const GRID_EDGE = 6; // the other months' days a week row shows before the 1st
 const GRID_TAIL = 14; // …and after the last (six rows: up to two weeks of the next month)
 
-const validTz = (tz) => {
-  if (!tz || typeof tz !== "string") return false;
+// A zone by its standard name ("eUrOpE/pArIs" → "Europe/Paris", "US/Pacific"
+// → "America/Los_Angeles"), or null when it is not one. Intl takes a zone in
+// any mix of capitals and by every old alias: asked for by name from outside
+// (?tz=), only the standard name may key a cache — a few hundred of them,
+// not every spelling a client can think of.
+const canonTz = (tz) => {
+  if (!tz || typeof tz !== "string" || tz.length > 64) return null;
   try {
-    new Intl.DateTimeFormat("en-US", { timeZone: tz });
-    return true;
+    return new Intl.DateTimeFormat("en-US", { timeZone: tz }).resolvedOptions().timeZone || null;
   } catch {
-    return false;
+    return null;
   }
 };
+const validTz = (tz) => !!canonTz(tz);
 
+// (emptied when it grows past what a household's devices could ever name:
+// offsets like "+05:30" are zones too, and there are thousands of those)
+const DAY_FMTS_MAX = 100;
 const dayFmts = new Map();
 const dayFmt = (tz) => {
   let f = dayFmts.get(tz);
   if (!f) {
     f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
+    if (dayFmts.size >= DAY_FMTS_MAX) dayFmts.clear();
     dayFmts.set(tz, f);
   }
   return f;
@@ -203,6 +212,8 @@ const weekStartOf = (locale) => {
       start = SUNDAY_REGIONS.has(region) ? 0 : SATURDAY_REGIONS.has(region) ? 6 : 1;
     }
   } catch {}
+  // (a locale tag takes any variant after its region: not one entry each, for ever)
+  if (weekStarts.size >= 200) weekStarts.clear();
   weekStarts.set(locale, start);
   return start;
 };
@@ -338,10 +349,12 @@ const collect = ({ watchlist = [], follows = [], episodeRows = {}, findById = ()
 //          ownedOf({ imdbId, type, title, year, season?, episode? }) → the library item or null
 //          libraryOf({ imdbId, type, title, year }) → the library film/show or null (to open it)
 //          jobOf({ imdbId, type, season?, episode? }) → a live download job or null
-// opts     now, tz, locale, torrentsOn, aheadDays, recentDays
+// opts     now, tz, locale, torrentsOn, aheadDays, recentDays,
+//          grid: false → the two lists only, no `grid` / `next` (an app that
+//          does not draw the month: forProfile)
 const build = (titles, deps = {}, opts = {}) => {
   const now = opts.now || Date.now();
-  const tz = validTz(opts.tz) ? opts.tz : "UTC";
+  const tz = canonTz(opts.tz) || "UTC";
   const locale = pickLocale(opts.locale);
   const ahead = opts.aheadDays || AHEAD_DAYS;
   const back = opts.recentDays || RECENT_DAYS;
@@ -510,6 +523,19 @@ const build = (titles, deps = {}, opts = {}) => {
   const recent = group(entries.filter((e) => e.day < today && e.day >= first), true);
   const count = (g) => g.reduce((n, d) => n + d.items.length, 0);
 
+  const lists = {
+    tz,
+    locale,
+    today,
+    aheadDays: ahead,
+    recentDays: back,
+    upcoming,
+    recent,
+    counts: { upcoming: count(upcoming), recent: count(recent), titles: titles.length },
+    pending,
+  };
+  if (opts.grid === false) return lists;
+
   // The month grid: every day from gridFrom to gridTo, each with its heading.
   const byDay = {};
   for (let d = gridFrom; d <= gridTo; d = addDays(d, 1)) byDay[d] = { ...dayLabel(d, today, locale), items: [] };
@@ -525,19 +551,7 @@ const build = (titles, deps = {}, opts = {}) => {
     months: months.map((key) => ({ key, ...monthNames(key, locale), first: `${key}-01`, last: lastOfMonth(key), count: 0, line: null })),
     byDay,
   });
-  return {
-    tz,
-    locale,
-    today,
-    aheadDays: ahead,
-    recentDays: back,
-    upcoming,
-    recent,
-    counts: { upcoming: count(upcoming), recent: count(recent), titles: titles.length },
-    pending,
-    grid,
-    next: nextOf(grid, today),
-  };
+  return { ...lists, grid, next: nextOf(grid, today) };
 };
 
 // A month's count and line, from the days it holds (again after a kids
@@ -553,10 +567,16 @@ const finishGrid = (grid) => ({
 
 // What comes next: the first release from today on that is not out yet —
 // { key, day, title, what, kind, when: "Today" | "Tomorrow" | "In 3 days" }.
+// Only as far as the last month's last day: the greyed days after it are on
+// the grid, but nobody can page to them, and a line that leads nowhere is
+// worse than none.
 const nextOf = (grid, today) => {
   if (!grid || !grid.byDay) return null;
+  const months = Array.isArray(grid.months) ? grid.months : [];
+  const end = months.length ? months[months.length - 1].last : null;
   for (const day of Object.keys(grid.byDay).sort()) {
     if (day < today) continue;
+    if (end && day > end) break;
     const e = grid.byDay[day].items.filter((x) => !x.out).sort((a, b) => a.at - b.at)[0];
     if (e) return { key: e.key, day, title: e.title, what: e.what, kind: e.kind, when: whenWords(daysBetween(today, day)) };
   }
@@ -639,7 +659,9 @@ const serverLocale = () => {
 };
 
 // One person's calendar, from the caches. Sync.
-const forProfile = (profileId, { locale = null, tz = null, now = Date.now() } = {}, mods = live()) => {
+// grid: false — the two lists alone (what TV 5.9.1 and phone 1.1.1 ask for and
+// read: the month's days would triple what they download for nothing).
+const forProfile = (profileId, { locale = null, tz = null, grid = true, now = Date.now() } = {}, mods = live()) => {
   const { scanner, identity, discover, availability, downloads } = mods;
   const titles = titlesOf(profileId, mods);
   const maps = (() => { try { return identity._internals.libraryMaps(); } catch { return null; } })();
@@ -660,7 +682,7 @@ const forProfile = (profileId, { locale = null, tz = null, now = Date.now() } = 
       jobOf: jobFinder(jobs),
     },
     // the asking device's zone when it names a real one, else the household's
-    { now, tz: validTz(tz) ? tz : serverTz(), locale: locale || serverLocale(), torrentsOn },
+    { now, tz: canonTz(tz) || serverTz(), locale: locale || serverLocale(), torrentsOn, grid },
   );
   // what is still unknown is looked up now, a few at a time, in the background
   warmFew(titles, mods).catch(() => {});
@@ -834,7 +856,7 @@ module.exports = {
   EMPTY,
   _internals: {
     readDate, dayIn, dayLabel, pickLocale, showWords, whyLine, isOut, addDays, daysBetween, dueForRefresh, jobFinder, warmFew,
-    addMonths, lastOfMonth, weekStartOf, weekdayNames, monthNames, monthLine, whenWords, nextOf, validTz,
+    addMonths, lastOfMonth, weekStartOf, weekdayNames, monthNames, monthLine, whenWords, nextOf, validTz, canonTz, dayFmts, weekStarts,
     AHEAD_DAYS, RECENT_DAYS, WATCHING_DAYS, MAX_TITLES,
   },
 };

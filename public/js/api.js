@@ -596,10 +596,12 @@ export const api = {
   // The Calendar (src/media/calendar.js): this person's upcoming and recent
   // releases, the day names in this device's `locale`; and Save & watch for
   // one of its entries (`save` is the entry's own { imdbId, type, season?, episode? }).
-  // (?tz=: this device's time zone — its days and its today on the month grid)
+  // (?tz=: this device's time zone — its days and its today on the month grid;
+  // ?grid=1: the month's days and the next-up line, which only the apps that
+  // draw the month are sent)
   calendar: (id, locale, tz) => {
-    const q = [locale ? `locale=${encodeURIComponent(locale)}` : "", tz ? `tz=${encodeURIComponent(tz)}` : ""].filter(Boolean).join("&");
-    return json(`/api/profiles/${encodeURIComponent(id)}/calendar${q ? `?${q}` : ""}`);
+    const q = ["grid=1", locale ? `locale=${encodeURIComponent(locale)}` : "", tz ? `tz=${encodeURIComponent(tz)}` : ""].filter(Boolean).join("&");
+    return json(`/api/profiles/${encodeURIComponent(id)}/calendar?${q}`);
   },
   calendarSave: (id, save) => post(`/api/profiles/${encodeURIComponent(id)}/calendar/save`, save),
   household: (id, from = null) =>
