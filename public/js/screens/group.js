@@ -261,6 +261,19 @@ export const renderGroup = async (root, params = {}) => {
   const later = (fn, ms) => { const t = setTimeout(() => { timers.delete(t); fn(); }, ms); timers.add(t); return t; };
   const never = (t) => { clearTimeout(t); timers.delete(t); };
   untilLeave(() => { play.destroy(); for (const t of timers) clearTimeout(t); timers.clear(); });
+  // The room the page keeps under itself for a phone's tab bar is the
+  // stylesheet's (#app's bottom padding). The swipe stage and the show stand
+  // clear of the bar by that much; no height of the bar is written here.
+  const app = document.getElementById("app");
+  const fit = () => {
+    const pad = app ? parseFloat(getComputedStyle(app).paddingBottom) || 0 : 0;
+    screen.style.setProperty("--pg-reserve", `${pad}px`);
+  };
+  fit();
+  window.addEventListener("resize", fit);
+  untilLeave(() => window.removeEventListener("resize", fit));
+  // (a very wide screen draws the cards big: their pictures are asked for sharper)
+  const wide = () => window.innerWidth >= 1800 && window.innerHeight >= 1000;
   let options = null;
   try { options = await api.group.options(pid); } catch {
     body.append(el("div", { class: "empty" }, "Couldn't reach Aurora — try again in a moment."));
@@ -275,6 +288,7 @@ export const renderGroup = async (root, params = {}) => {
 
   // ---------- no session yet: join one, or start one here ----------
   function paintChooser(message = "") {
+    delete screen.dataset.step;
     body.replaceChildren();
     const head = el("div", { class: "gp-head" },
       el("div", { class: "play-eyebrow" }, star(), W.entry),
@@ -422,6 +436,7 @@ export const renderGroup = async (root, params = {}) => {
       if (show) show.stop();
       sawVote = !!view && (view.step === "swipe" || view.step === "waiting");
       view = VIEWS[step]();
+      screen.dataset.step = step; // (the sheet gives each step its room)
       body.replaceChildren(view.node);
       window.scrollTo(0, 0); // a new step starts at its top (the last one may have been scrolled)
       if (view.update) view.update(s);
@@ -628,7 +643,7 @@ export const renderGroup = async (root, params = {}) => {
             const focusKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : null;
             if (!pick) {
               node.replaceChildren(el("div", { class: "gp-nomatch" },
-                el("div", { class: "gp-kicker play-eyebrow" }, star(), W.resultTitle),
+                el("div", { class: "gp-kicker play-eyebrow" }, star(), W.feature),
                 el("h1", { class: "play-h2" }, W.noMatch),
                 el("p", { class: "gp-lead" }, W.noMatchLine),
                 el("div", { class: "gp-actions" },
@@ -640,7 +655,7 @@ export const renderGroup = async (root, params = {}) => {
               lastKey = pick.key;
               node.replaceChildren(
                 el("div", { class: `gp-result-card${flip ? " is-flip" : ""}` },
-                  el("div", { class: "pg-prize-poster" }, posterImg(c.poster, c.title, "gp-result-poster", "gp-result-poster gp-poster-fallback", { w: 480, eager: true })),
+                  el("div", { class: "pg-prize-poster" }, posterImg(c.poster, c.title, "gp-result-poster", "gp-result-poster gp-poster-fallback", { w: wide() ? 780 : 480, eager: true })),
                   el("div", { class: "gp-result-info" },
                     el("div", { class: "gp-kicker pg-prize-kicker" }, star(), el("span", {}, W.resultTitle, r.picks.length > 1 ? el("span", { class: "gp-dim" }, ` · ${r.index + 1} / ${r.picks.length}`) : "")),
                     el("h1", { class: "gp-result-title", dir: "auto" }, c.title),
@@ -831,7 +846,7 @@ export const renderGroup = async (root, params = {}) => {
         const meta = G.cardMeta(c);
         const notes = [G.addedLine(c.addedBy), G.seenLine(c.seenBy)].filter(Boolean).join(" · ");
         const n = el("div", { class: "ts-card gp-card", tabindex: "-1", role: "group", "aria-label": `${c.title}${c.year ? ` (${c.year})` : ""}` },
-          posterImg(c.poster, c.title, "ts-poster", "ts-poster-fallback", { w: 360, eager: true }),
+          posterImg(c.poster, c.title, "ts-poster", "ts-poster-fallback", { w: wide() ? 620 : 360, eager: true }),
           el("span", { class: "ts-stamp love", "aria-hidden": "true" }, W.yes.toUpperCase()),
           el("span", { class: "ts-stamp nope", "aria-hidden": "true" }, W.no.toUpperCase()),
           el("span", { class: "ts-stamp skip", "aria-hidden": "true" }, W.maybe.toUpperCase()),
@@ -863,7 +878,7 @@ export const renderGroup = async (root, params = {}) => {
           n.classList.toggle("behind", i === 1);
           if (i === 0) { n.tabIndex = 0; n.classList.add("focusable"); bindDrag(n, c); } else { n.tabIndex = -1; n.classList.remove("focusable"); }
         });
-        for (const c of queue.slice(0, 4)) if (c.poster) { try { new Image().src = artUrl(c.poster, 360); } catch {} }
+        for (const c of queue.slice(0, 4)) if (c.poster) { try { new Image().src = artUrl(c.poster, wide() ? 620 : 360); } catch {} }
         const top = want.length ? nodes.get(want[0].key) : null;
         const onDeck = !document.activeElement || document.activeElement === document.body || node.contains(document.activeElement);
         if (top && onDeck && !(document.activeElement && document.activeElement.closest && document.activeElement.closest(".gp-swipe-tools"))) top.focus({ preventScroll: true });
