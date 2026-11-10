@@ -42,8 +42,17 @@ const look = (canvas) => {
   // (a live list: asking it is not a search of the whole page, as
   // querySelector was — and this is asked every frame)
   const players = document.getElementsByClassName("player");
+  // A playing story (Wrapped) covers the viewport with a night of its own:
+  // the same nap (2026-11-10: under it the sky cost the story its frames).
+  const stories = document.getElementsByClassName("play-story");
   const state = () =>
-    !canvas.isConnected || document.hidden ? "stop" : calm.matches || weak ? "still" : players.length > 0 ? "nap" : "run";
+    !canvas.isConnected || document.hidden
+      ? "stop"
+      : calm.matches || weak
+        ? "still"
+        : players.length > 0 || stories.length > 0
+          ? "nap"
+          : "run";
   const size = () => [canvas.clientWidth, canvas.clientHeight, window.devicePixelRatio || 1];
   return { calm, mobile, weak, state, size };
 };

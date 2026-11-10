@@ -60,18 +60,18 @@ for (const [name, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
   }
 }
 
-// The glass sky paints every 33–83 ms (aurora-sky-core.js, by what a paint
+// The glass sky paints every 33â€“83 ms (aurora-sky-core.js, by what a paint
 // costs here) and between two paints sleeps on a timer instead of asking for
 // every frame. It must still paint at its own pace: never stalled, never
 // faster than its cadence. On a computer the painting is done in a worker
-// (aurora-sky.js — the page cannot see a worker's canvas being drawn, so the
+// (aurora-sky.js â€” the page cannot see a worker's canvas being drawn, so the
 // sky itself says when it has painted, to whoever set __auroraSkyWatch).
 const watchSky = (page, { noWorker = false } = {}) =>
   page.addInitScript((noWorker) => {
     if (noWorker) delete HTMLCanvasElement.prototype.transferControlToOffscreen;
     window.__auroraSkyWatch = true;
     window.__skyPaints = [];
-    // (`at`: the painter's own clock — a worker's word can reach a busy page late)
+    // (`at`: the painter's own clock â€” a worker's word can reach a busy page late)
     window.addEventListener("aurora-sky-paint", (e) => window.__skyPaints.push(e.detail.at));
   }, noWorker);
 // is the sky's canvas drawn somewhere else? (a canvas handed to a worker refuses a context)
@@ -94,7 +94,7 @@ const paints = async (page, ms, during = () => page.waitForTimeout(ms)) => {
 const median = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
 
 for (const [where, noWorker] of [["in its worker", false], ["on the page's thread, where a canvas cannot go to a worker", true]]) {
-  ui.test(`glass look: the page sky keeps painting at its own pace ${where} — a paint every 33–83 ms, no stall, none early`, async ({ page, goto, signIn, freshProfile }) => {
+  ui.test(`glass look: the page sky keeps painting at its own pace ${where} â€” a paint every 33â€“83 ms, no stall, none early`, async ({ page, goto, signIn, freshProfile }) => {
     await watchSky(page, { noWorker });
     await signIn(await freshProfile());
     await goto("#/");
@@ -109,7 +109,7 @@ for (const [where, noWorker] of [["in its worker", false], ["on the page's threa
 
 // elia, 2026-11-10: "when scrolling on desktop the background stops and then
 // comes back". A sky whose paint is dear held its frame for as long as the
-// page was scrolled — on a computer that was every scroll, whole seconds
+// page was scrolled â€” on a computer that was every scroll, whole seconds
 // without a paint. In a worker it has nothing to wait for.
 ui.test("glass look, on a computer: the sky goes on painting while the page is scrolled", async ({ page, goto, signIn, freshProfile }) => {
   await watchSky(page);
@@ -162,6 +162,24 @@ ui.test("glass look: the sky's worker rests in the classic look and paints again
   const { t } = await paints(page, 2000);
   assert.equal(await inWorker(page), true);
   assert.ok(t.length >= 10, `${t.length} paints in 2 s after coming back`);
+});
+
+// A playing story (Wrapped: .play-story) covers the whole window with a night
+// of its own â€” the sky under it rests, as it does under the player, and
+// paints again within a second or so of the story closing.
+ui.test("glass look: the sky rests under a playing story and paints again after it", async ({ page, goto, signIn, freshProfile }) => {
+  await watchSky(page);
+  await signIn(await freshProfile());
+  await goto("#/");
+  await paints(page, 300);
+  await page.evaluate(() => document.body.appendChild(Object.assign(document.createElement("div"), { className: "play-story", id: "t-story" })));
+  await page.waitForTimeout(1600); // (the worker's side is told within a second; a paint under way lands)
+  await page.evaluate(() => { window.__skyPaints.length = 0; });
+  await page.waitForTimeout(1500);
+  assert.equal(await page.evaluate(() => window.__skyPaints.length), 0, "no paint under the story");
+  await page.evaluate(() => document.getElementById("t-story").remove());
+  const { t } = await paints(page, 2000);
+  assert.ok(t.length >= 10, `${t.length} paints in 2 s after the story`);
 });
 
 ui.run();
