@@ -218,7 +218,9 @@ app.use(require("./src/lib/airtoken").middleware);
   // no session).
   const GATED = (p) =>
     /^\/(api|stream|avatars|img|offline)\//.test(p) || p === "/proxy";
-  const wallSaid = new Map();
+  // (bounded: the key is the start of any refused path, which a client with
+  // no session chooses — lib/sayonce.js, perf-server 2026-11-10)
+  const wallSaid = require("./src/lib/sayonce").sayOnce({ max: 500, windowMs: 60 * 1000 });
   app.use((req, res, next) => {
     if (authmode.get() !== "closed") return next();
     if (!GATED(req.path)) return next();
@@ -236,9 +238,7 @@ app.use(require("./src/lib/airtoken").middleware);
     const cookieSid = authz.readCookie(req);
     const headerSid = req.headers["x-session"];
     const bucket = req.path.split("/").slice(0, 3).join("/");
-    const now = Date.now();
-    if (now - (wallSaid.get(bucket) || 0) > 60 * 1000) {
-      wallSaid.set(bucket, now);
+    if (wallSaid(bucket)) {
       console.warn(
         `[auth] 401 ${bucket} ua=${String(req.headers["user-agent"] || "").slice(0, 40)}` +
           ` cookie=${cookieSid ? (sessions.get(cookieSid) ? "live" : "dead") : "none"}` +
