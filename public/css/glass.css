@@ -43,8 +43,8 @@ html[data-look="glass"] {
   --g-fill-strong: linear-gradient(135deg, rgba(20, 22, 38, 0.42), rgba(14, 16, 30, 0.28));
   --g-edge: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(255, 255, 255, 0.12),
     inset 0 0 0 1px rgba(255, 255, 255, 0.055), inset 0 8px 10px -8px rgba(255, 255, 255, 0.18),
-    inset 0 -7px 9px -8px rgba(255, 255, 255, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.26);
-  --g-shadow: 0 12px 32px rgba(0, 0, 0, 0.32), 0 2px 6px rgba(0, 0, 0, 0.2);
+    inset 0 -7px 9px -8px rgba(255, 255, 255, 0.08), 0 0 0 0.5px rgba(0, 0, 0, 0.3);
+  --g-shadow: 0 14px 34px rgba(0, 0, 0, 0.34), 0 3px 8px rgba(0, 0, 0, 0.22), 0 1px 2px rgba(0, 0, 0, 0.22);
   --g-blur: blur(6px) saturate(1.8);
   /* the rim for small things in the page (a chip, a round button): the top
      hairline and the faint outline, without the inner glow */
