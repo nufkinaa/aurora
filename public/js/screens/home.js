@@ -161,6 +161,10 @@ export const renderHome = async (root) => {
 
   // ----- hero -----
   let heroTimer = null;
+  // The billboard, once it is built, and what it runs after each slide has
+  // painted (the greeting on it re-checks its room: below).
+  let heroSlab = null;
+  let afterSlide = () => {};
   let heroAt = 0; // the slide on show (the merge keeps it)
   if (data.hero.length > 0) {
     let idx = 0;
@@ -356,6 +360,7 @@ export const renderHome = async (root) => {
       [...picks.querySelectorAll(".hero-pick")].forEach((d, j) => d.classList.toggle("hidden", j < start || j >= start + 4));
       if (trailer) trailer.arm(item, { visible: () => !pastHero });
       warmHero(item); // its page, once it has held still a moment
+      afterSlide();
     };
     // (the first paint happens below, once the slab and its trailer layer exist)
 
@@ -403,6 +408,7 @@ export const renderHome = async (root) => {
     heroEl.insertBefore(trailer.layer, heroEl.querySelector(".hero-fade"));
     screen.append(heroEl);
     cleanups.push(() => trailer.destroy());
+    heroSlab = heroEl;
     show(0, 0);
 
     // ----- swipe (touch) -----
@@ -486,13 +492,55 @@ export const renderHome = async (root) => {
     const part = h < 5 ? "Up late" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
     const sub = el("div", { class: "greet-sub" }, " ");
     const name = el("b", { class: "greet-name" }, state.profile.name);
-    screen.append(el("div", { class: "home-greeting big" },
+    const greet = el("div", { class: "home-greeting big" },
       el("div", { class: "greet-line" },
         (part === "Up late" ? "Up late, " : part + ", "),
         name,
         part === "Up late" ? "?" : ""),
       sub,
-    ));
+    );
+    screen.append(greet);
+    // A phone held upright (glass look): the greeting sits ON the billboard,
+    // over the top of its picture, and the billboard starts under the top
+    // buttons (elia, 2026-11-10 — glass.css "Home on a phone held upright").
+    // Everywhere else, and with no billboard (an empty library, a kids
+    // profile with nothing for its age), it stays where it was: under it.
+    // The billboard's own words keep the bottom; if a long title would run
+    // into the greeting, the remark under the name gives way — two lines,
+    // then one, then none — and stays that way for this visit, so the
+    // greeting does not jump from one slide to the next.
+    const upright = matchMedia("(max-width: 720px) and (orientation: portrait)");
+    // (room: 2 = the remark in up to two lines, 1 = one, 0 = none, -1 = and
+    // the title in two lines, -2 = and no Film/Series tag — glass.css)
+    let room = 2;
+    const fitGreet = () => {
+      if (!heroSlab || greet.parentNode !== heroSlab) return;
+      const info = heroSlab.querySelector(".hero-info");
+      for (;;) {
+        heroSlab.dataset.room = String(room);
+        if (!info || room === -2) return;
+        if (info.getBoundingClientRect().top - greet.getBoundingClientRect().bottom >= 12) return;
+        room--;
+      }
+    };
+    const placeGreet = () => {
+      const onSlab = !!heroSlab && glass() && upright.matches;
+      if (onSlab && greet.parentNode !== heroSlab) heroSlab.insertBefore(greet, heroSlab.querySelector(".hero-dots"));
+      else if (!onSlab && heroSlab && greet.parentNode === heroSlab) heroSlab.after(greet);
+      if (heroSlab) heroSlab.classList.toggle("greeted", onSlab);
+      room = 2;
+      if (onSlab) fitGreet();
+      else if (heroSlab) delete heroSlab.dataset.room;
+    };
+    placeGreet();
+    afterSlide = fitGreet;
+    upright.addEventListener("change", placeGreet);
+    window.addEventListener("resize", placeGreet);
+    try { document.fonts.ready.then(() => { if (screen.isConnected) fitGreet(); }); } catch {}
+    cleanups.push(() => {
+      upright.removeEventListener("change", placeGreet);
+      window.removeEventListener("resize", placeGreet);
+    });
     // the name's shine (screens.css greet-shine) never ends: held while the
     // greeting is a screen away, at no change to what is on screen (ui.js)
     cleanups.push(holdWhileOffscreen(name));
@@ -515,8 +563,10 @@ export const renderHome = async (root) => {
       const hoursSince = (now - last) / 36e5;
       if (hoursSince > 24 * 7) {
         sub.textContent = "Long time no see — the couch forgot your shape.";
+        fitGreet();
       } else if (hoursSince < 36 && last.getHours() < 5 && h >= 6) {
         sub.textContent = "Someone was up late last night. No judgment. (Some judgment.)";
+        fitGreet();
       }
     }).catch(() => {});
   }

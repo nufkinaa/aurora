@@ -958,9 +958,9 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
   .ts-answer.skip .ts-answer-glyph { width: 44px; height: 44px; }
 }
 /* phones in the glass look: the tab bar floats over the bottom of the page
-   and #app keeps 92px for it (glass.css) */
+   and #app keeps 90px for it (glass.css) */
 @media (max-width: 720px) {
-  html[data-look="glass"] .taste-swipe { --ts-reserve: 92px; }
+  html[data-look="glass"] .taste-swipe { --ts-reserve: 98px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ts-card, .ts-bar-fill, .ts-answers, .ts-answer-glyph { transition: opacity 120ms linear !important; }
@@ -1139,7 +1139,7 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
   .gp-leave-row .gp-link { margin-left: 0; }
 }
 @media (max-width: 720px) {
-  html[data-look="glass"] .gp-swipe { height: calc(100dvh - var(--nav-h) - 40px - 92px); }
+  html[data-look="glass"] .gp-swipe { height: calc(100dvh - var(--nav-h) - 40px - 98px); }
 }
 @media (prefers-reduced-motion: reduce) {
   .gp-tut-step { transform: none; transition: opacity 120ms linear; }

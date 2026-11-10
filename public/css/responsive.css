@@ -661,7 +661,7 @@
     flex: 1;
     min-width: 0;
     text-align: center;
-    padding: 12px 4px;
+    padding: 15px 4px; /* 6px taller (2026-11-10, as the glass bar) */
     font-size: 0.78rem;
     font-weight: 700;
     white-space: nowrap;
@@ -674,13 +674,13 @@
     order: 9;
   }
   html:not([data-look="glass"]) #app {
-    padding-bottom: 64px; /* room under the last row for the tab bar */
+    padding-bottom: 70px; /* room under the last row for the tab bar */
   }
   html:not([data-look="glass"]) #toasts {
-    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px));
   }
   html:not([data-look="glass"]) #offline-banner {
-    bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px));
   }
   /* the player owns the screen */
   html:not([data-look="glass"]) body:has(.player) .nav-items {
