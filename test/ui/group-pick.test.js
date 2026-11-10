@@ -77,6 +77,41 @@ const skipTutorial = async (page) => {
 };
 const topTitle = (page) => page.$eval(".gp-card.top .ts-title", (n) => n.textContent).catch(() => null);
 
+// ---- the game around the vote ----
+// Every reveal curtain and every meteor burst put on the page from now on is
+// counted (both take themselves off when they are over).
+const countShow = (page) => page.evaluate(() => {
+  window.__game = { shows: 0, bursts: 0 };
+  new MutationObserver((list) => {
+    for (const m of list) for (const n of m.addedNodes) {
+      if (n.nodeType !== 1) continue;
+      if (n.matches(".pg-show") || n.querySelector(".pg-show")) window.__game.shows++;
+      if (n.matches(".play-burst") || n.querySelector(".play-burst")) window.__game.bursts++;
+    }
+  }).observe(document.body, { childList: true, subtree: true });
+});
+const game = (page) => page.evaluate(() => window.__game);
+const stepOf = (page) => page.$eval(".screen.gp", (n) => n.dataset.step || null);
+const tally = (page) => page.$$eval(".gp-result .pg-tally .pg-tmark", (list) => list.map((n) => n.className.replace("pg-tmark", "").trim()));
+// What the game left running: its own animations, its sky, a curtain, a burst.
+const leftovers = (page) => page.evaluate(() => ({
+  nodes: document.querySelectorAll(".screen.gp, .pg-show, .play-burst, .play-room, .pg-room").length,
+  anims: document.getAnimations().filter((a) => a.playState === "running" && /^(play|pg)-/.test(a.animationName || "")).map((a) => a.animationName),
+}));
+// One person alone on a phone: start a room, deal, and answer the whole hand
+// (yes to the first `yes` cards, no to the rest).
+const playAlone = async (page, srv, { yes = 1 } = {}) => {
+  await page.click('[data-ui="group.deal"]');
+  await page.waitForSelector(".gp-card.top");
+  for (let n = 0; n < 80; n++) {
+    const t = await topTitle(page);
+    if (!t) break;
+    await page.click(`[data-ui="group.${n < yes ? "yes" : "no"}"]`);
+    await page.waitForFunction((was) => (document.querySelector(".gp-card.top:not(.leaving) .ts-title")?.textContent || null) !== was || !!document.querySelector(".gp-waiting, .gp-result"), t);
+  }
+  await page.waitForSelector(".gp-result", { state: "attached" });
+};
+
 ui.test("the room: a big screen and three phones pick a film together", { viewport: { width: 1920, height: 1080 }, timeout: 240000 }, async ({ page, srv, signIn: signInHere }) => {
   const { dana, avi, ben } = srv.profiles;
   const pages = [];
@@ -115,6 +150,13 @@ ui.test("the room: a big screen and three phones pick a film together", { viewpo
       phones.push({ who, ...ph });
     }
     await page.waitForFunction(() => /3 people are in/.test(document.querySelector(".gp-joined")?.textContent || ""));
+    // the lobby is a table: a seat for everyone who came (a person on two devices sits once),
+    // chairs left free for more
+    assert.equal(await stepOf(page), "lobby");
+    assert.deepEqual(await page.evaluate(() => ({
+      taken: document.querySelectorAll(".pg-seats .pg-seat:not(.pg-seat--free)").length,
+      free: document.querySelectorAll(".pg-seats .pg-seat--free").length,
+    })), { taken: 3, free: 2 });
     await shot(phones[1].page, "phone-1-lobby");
     await assertNoHorizontalOverflow(phones[1].page, "phone lobby");
 
@@ -135,6 +177,15 @@ ui.test("the room: a big screen and three phones pick a film together", { viewpo
     await page.waitForSelector(".gp-waiting");
     for (const ph of phones) await ph.page.waitForSelector(".gp-card.top");
     await shot(phones[0].page, "phone-3-swipe");
+    // a phone: which card of its own hand this is, and the room beside the clock
+    assert.equal(await stepOf(phones[0].page), "swipe");
+    assert.match(await phones[0].page.$eval(".pg-hand", (n) => n.textContent), /^Card 1 of \d+$/);
+    assert.equal(await phones[0].page.locator(".pg-minis .pg-mini").count(), 3);
+    // the big screen: every voter's seat with a ribbon of how far they are
+    assert.equal(await stepOf(page), "waiting");
+    assert.equal(await page.locator(".gp-waiting .pg-seat").count(), 3);
+    assert.equal(await page.locator(".gp-waiting .pg-seat .pg-seat-ribbon").count(), 3);
+    await countShow(page);
 
     // Glass Garden: yes, yes, maybe. Test Film One: yes, yes (Avi's add), no. Everything else: no.
     // Dana answers one card with a drag (right = yes) to prove the gesture.
@@ -175,6 +226,14 @@ ui.test("the room: a big screen and three phones pick a film together", { viewpo
     await page.waitForSelector(".gp-result .gp-result-title", { timeout: 20000 });
     assert.equal(await page.$eval(".gp-result-title", (n) => n.textContent), "Glass Garden");
     assert.equal(await page.$eval(".gp-why", (n) => n.textContent.replace(/^✓\s*/, "")), "2 of 3 said yes · 1 maybe");
+    // the screen watched the votes come in: the curtain played once, lifted by itself,
+    // and the one reward of the night went off — no tie-break (the votes were not level)
+    await page.waitForSelector(".pg-show", { state: "detached", timeout: 15000 });
+    await page.waitForFunction(() => window.__game.bursts === 1, null, { timeout: 5000 });
+    assert.deepEqual(await game(page), { shows: 1, bursts: 1 });
+    assert.equal(await stepOf(page), "result");
+    assert.deepEqual(await tally(page), ["yes", "yes", "maybe"], "the tally is drawn as it was counted");
+    assert.equal(await page.locator(".pg-tie-line").count(), 0);
     await shot(page, "tv-5-result");
     for (const ph of phones) await ph.page.waitForSelector(".gp-result .gp-result-title");
     assert.equal(await phones[2].page.$eval('[data-ui="group.play"]', (n) => n.textContent.trim()), "▶ Play on the big screen");
@@ -185,6 +244,9 @@ ui.test("the room: a big screen and three phones pick a film together", { viewpo
     await phones[0].page.click('[data-ui="group.next"]');
     await page.waitForFunction(() => document.querySelector(".gp-result-title")?.textContent === "Test Film One");
     assert.equal(await page.$eval(".gp-why", (n) => n.textContent.replace(/^✓\s*/, "")), "2 of 3 said yes · 1 no");
+    // (the next pick turns over quietly: its own tally, no second curtain, no second reward)
+    assert.deepEqual(await tally(page), ["yes", "yes", "no"]);
+    assert.deepEqual(await game(page), { shows: 1, bursts: 1 });
     await phones[0].page.waitForFunction(() => document.querySelector(".gp-result-title")?.textContent === "Test Film One");
 
     // Play on a phone: the big screen starts it
@@ -235,6 +297,76 @@ ui.test("phone: start it here, the 320 px layout, a wrong code, How it works", {
   await page.waitForFunction((was) => document.querySelector(".gp-card.top:not(.leaving) .ts-title")?.textContent !== was, first);
   const r = await srv.api.get(`/api/profiles/${srv.profiles.noa.id}/group/options`);
   assert.equal(r.tutorialSeen, true, "skipping counts as seen");
+});
+
+ui.test("alone on a phone: the curtain plays once, Skip ends it, and nothing of the game stays after leaving", { viewport: PHONE }, async ({ page, srv, signIn: signInHere, freshProfile }) => {
+  await signInHere(await freshProfile());
+  await goto(page, srv, "#/group", { selector: "#app .screen.gp" });
+  await skipTutorial(page);
+  await page.click('[data-ui="group.start"]');
+  await page.waitForSelector(".gp-lobby .gp-code");
+  await countShow(page);
+  await playAlone(page, srv, { yes: 2 });
+
+  // the votes are in: the curtain is up, Skip is where the keys are, the result waits under it
+  await page.waitForSelector(".pg-show");
+  assert.equal(await page.$eval(".pg-show-words", (n) => n.textContent), "The votes are in…");
+  assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.className), "pg-show-skip focusable");
+  assert.equal(await page.$eval(".gp-result", (n) => n.inert), true, "the result can be pressed under the curtain");
+  await page.click(".pg-show-skip");
+  await page.waitForSelector(".pg-show", { state: "detached" });
+  // the pick is there, Play has the keys, the one voter's yes is one gold star
+  assert.equal(await page.$eval(".gp-result", (n) => n.inert), false);
+  assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.dataset.ui), "group.play");
+  assert.deepEqual(await tally(page), ["yes"]);
+  const fit = await page.evaluate(() => ({ bottom: Math.round(document.querySelector('[data-ui="group.play"]').getBoundingClientRect().bottom), h: window.innerHeight }));
+  assert.ok(fit.bottom <= fit.h, `Play is under the fold: ${JSON.stringify(fit)}`);
+  await assertNoHorizontalOverflow(page, "the result on a phone");
+  assert.equal((await game(page)).shows, 1);
+
+  // away: no curtain, no sky, no burst, nothing of the game still moving
+  await goto(page, srv, "#/movies");
+  await page.waitForTimeout(500);
+  assert.deepEqual(await leftovers(page), { nodes: 0, anims: [] });
+});
+
+ui.test("a phone that asked for less motion: the pick is simply there — no curtain, no burst, nothing moving", { viewport: PHONE, device: { reducedMotion: "reduce" } }, async ({ page, srv, signIn: signInHere, freshProfile }) => {
+  await signInHere(await freshProfile());
+  await goto(page, srv, "#/group", { selector: "#app .screen.gp" });
+  await skipTutorial(page);
+  await page.click('[data-ui="group.start"]');
+  await page.waitForSelector(".gp-lobby .gp-code");
+  await countShow(page);
+  await playAlone(page, srv, { yes: 1 });
+  await page.waitForSelector(".gp-result .gp-result-title");
+  await page.waitForTimeout(700);
+  assert.deepEqual(await game(page), { shows: 0, bursts: 0 }, "a show for someone who asked for less motion");
+  assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.dataset.ui), "group.play");
+  assert.deepEqual(await tally(page), ["yes"]);
+  const moving = await page.evaluate(() => document.getAnimations()
+    .filter((a) => a.playState === "running" && a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest(".screen.gp"))
+    .map((a) => a.animationName || a.transitionProperty));
+  assert.deepEqual(moving, [], "something is still moving on the page");
+  await assertNoHorizontalOverflow(page, "the still result on a phone");
+});
+
+ui.test("nobody said yes: 'No match' under the feature's own name, and no show for it", { viewport: PHONE }, async ({ page, srv, signIn: signInHere, freshProfile }) => {
+  await signInHere(await freshProfile());
+  await goto(page, srv, "#/group", { selector: "#app .screen.gp" });
+  await skipTutorial(page);
+  await page.click('[data-ui="group.start"]');
+  await page.waitForSelector(".gp-lobby .gp-code");
+  await countShow(page);
+  await playAlone(page, srv, { yes: 0 });
+  await page.waitForSelector(".gp-nomatch");
+  // (the line over it used to say "Tonight's pick" — over no pick at all)
+  assert.equal(await page.$eval(".gp-nomatch .play-eyebrow", (n) => n.textContent.trim()), "What do we watch tonight?");
+  assert.equal(await page.$eval(".gp-nomatch h1", (n) => n.textContent), "No match this time");
+  assert.equal(await page.locator(".gp-result .pg-tally").count(), 0);
+  assert.equal(await page.locator('[data-ui="group.again"]').isVisible(), true);
+  await page.waitForTimeout(500);
+  assert.deepEqual(await game(page), { shows: 0, bursts: 0 });
+  await assertNoHorizontalOverflow(page, "no match on a phone");
 });
 
 ui.run();
