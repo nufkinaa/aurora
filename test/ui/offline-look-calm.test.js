@@ -11,11 +11,43 @@
 //   · no connection, calmly: one line that leads to On this device, what is
 //     not here rests, a title page rests instead of failing, the copy plays,
 //     and the line goes when the connection is back
+//   · My downloads: its device buttons carry the same mark, never an emoji
 // The machinery has its own tests: offline*.test.js.
+const path = require("path");
+const fs = require("fs");
 const assert = require("node:assert/strict");
 const { suite, DESKTOP, PHONE } = require("./helpers");
 
-const ui = suite();
+// (a download is staged with the system lane's fake engine — nothing leaves
+// the machine; see offline-wish.test.js)
+const ui = suite({
+  server: { preload: [path.join(__dirname, "support", "wish-stage.js")], env: { UI_WISH_STAGE: "1" } },
+});
+let staged = 0;
+const stage = async (srv, cmd) => {
+  const dir = path.join(srv.root, "wish-stage");
+  for (let i = 0; i < 100 && !fs.existsSync(dir); i++) await new Promise((r) => setTimeout(r, 100));
+  const name = `${Date.now()}${String(++staged).padStart(3, "0")}`;
+  fs.writeFileSync(path.join(dir, `${name}.tmp`), JSON.stringify(cmd));
+  fs.renameSync(path.join(dir, `${name}.tmp`), path.join(dir, `${name}.json`));
+  const done = path.join(dir, `${name}.done.json`);
+  for (let i = 0; i < 300; i++) {
+    if (fs.existsSync(done)) {
+      const out = JSON.parse(fs.readFileSync(done, "utf-8"));
+      assert.ok(out.ok, `stage ${cmd.op}: ${out.error}`);
+      return out;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error(`stage ${cmd.op}: no answer`);
+};
+// (set OFFLINE_LOOK_SHOTS to a folder to keep pictures of what is checked)
+const snap = async (page, name) => {
+  const dir = process.env.OFFLINE_LOOK_SHOTS;
+  if (!dir) return;
+  await new Promise((r) => setTimeout(r, 600));
+  await page.screenshot({ path: path.join(dir, `${name}.png`) }).catch(() => {});
+};
 
 const open = async (srv, profile, viewport, hash = "#/saved", extra = {}) => {
   const phone = viewport.width < 600;
@@ -275,5 +307,59 @@ ui.test("no connection, calmly: one line that leads to On this device; what is n
     await context.close().catch(() => {});
   }
 });
+
+for (const [device, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
+  ui.test(`${device}: My downloads — "This device too", "Save to this device" and "On this device" carry the mark, not an emoji`, { allow: [/Failed to load resource/] }, async ({ srv, freshProfile }) => {
+    const profile = await freshProfile();
+    const hash = require("crypto").createHash("sha1").update(`look-${device}-${Date.now()}`).digest("hex");
+    const src = path.join(srv.media, "movies", "Test Film One (2020)", "Test Film One (2020).mp4");
+    const { jobId } = await stage(srv, { op: "create", hash, src, fields: { type: "movie", imdbId: device === "phone" ? "tt9810022" : "tt9810021", title: `Look Film ${device}`, year: 2024, quality: "1080p", profile: profile.id } });
+    const { context, page, errors } = await open(srv, profile, viewport, "#/downloads");
+    try {
+      const plain = async (sel) => page.evaluate((s) => {
+        const b = document.querySelector(s);
+        const m = b.querySelector(".dev-mark");
+        const box = m.getBoundingClientRect();
+        return { text: b.textContent.trim(), state: m.dataset.state, hidden: m.getAttribute("aria-hidden"), w: Math.round(box.width), h: Math.round(box.height), emoji: /\p{Extended_Pictographic}/u.test(b.textContent) };
+      }, sel);
+      // on its way: one press asks for it here too
+      await page.waitForSelector('[data-ui="downloads.offline.wish"] .dev-mark');
+      let b = await plain('[data-ui="downloads.offline.wish"]');
+      assert.equal(b.text, "This device too");
+      assert.deepEqual([b.state, b.hidden, b.emoji], ["none", "true", false]);
+      assert.ok(b.w >= 18 && b.w <= 24 && b.w === b.h, `the mark is a small square (${b.w}×${b.h})`);
+      await snap(page, `downloads-wish-${device}`);
+      // it lands: the same button now saves it
+      await stage(srv, { op: "land", hash });
+      await page.waitForFunction(() => /Ready to play/.test(document.getElementById("app").innerText), null, { timeout: 45000 });
+      await snap(page, `downloads-ready-${device}`);
+      await page.waitForSelector('[data-ui="downloads.offline.save"] .dev-mark', { timeout: 45000 });
+      b = await plain('[data-ui="downloads.offline.save"]');
+      assert.equal(b.text, "Save to this device");
+      assert.deepEqual([b.state, b.emoji], ["none", false]);
+      await page.locator('[data-ui="downloads.offline.save"]').first().click();
+      await page.waitForSelector(".offline-sheet .offline-opt");
+      await page.locator(".offline-sheet .offline-opt").first().click();
+      await page.waitForFunction(() => { const x = document.querySelector('[data-ui="downloads.offline.save"]'); return x && /^On this device$/.test(x.textContent.trim()); }, null, { timeout: 45000 });
+      b = await plain('[data-ui="downloads.offline.save"]');
+      assert.deepEqual([b.state, b.emoji], ["saved", false]);
+      // the way to the place: the device sign and its one name
+      const open2 = page.locator(".dl-open-device");
+      await open2.scrollIntoViewIfNeeded();
+      assert.equal((await open2.innerText()).trim(), "Open On this device");
+      assert.equal(await open2.locator("svg").count(), 1);
+      await snap(page, `downloads-saved-${device}`);
+      await open2.click();
+      await page.waitForFunction(() => location.hash === "#/saved");
+      await page.waitForSelector("#app .dev-screen, #app .screen");
+      // nothing of the test stays behind
+      await page.evaluate(async () => { const o = await import("/js/offline.js"); for (const s of await o.listSaved()) await o.removeSaved(s.id); });
+      await srv.api.call("DELETE", `/api/downloads/${jobId}`, undefined, await srv.api.as(profile)).catch(() => {});
+      assert.deepEqual(errors, []);
+    } finally {
+      await context.close().catch(() => {});
+    }
+  });
+}
 
 ui.run({ concurrency: 1 });

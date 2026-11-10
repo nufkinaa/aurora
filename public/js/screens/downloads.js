@@ -21,6 +21,7 @@ import * as wishes from "../offlineWish.js";
 import { pickOfflineQuality } from "../offlinePicker.js";
 import { askCancelDownload, downloadCountLine } from "../dlcancel.js";
 import { openReplaceSheet } from "../replaceCopy.js";
+import { mark, deviceIcon } from "../offlineUi.js"; // [offline-look] the one mark for "this device"
 
 const ACTIVE = ["approved", "downloading"];
 const DEAD = ["error", "declined", "canceled"];
@@ -185,26 +186,30 @@ const deviceButtons = (job) => {
       class: `btn focusable dl-wish${on ? " on" : ""}`,
       "aria-pressed": on ? "true" : "false",
       title: on ? "It will be saved inside Aurora on this device when it arrives — press to stop that" : "Save it inside Aurora on this device as soon as it arrives",
-      html: `<span>📱 ${on ? "Will be saved here" : "This device too"}</span>`,
       onclick: async (e) => {
         const b = e.currentTarget;
         b.disabled = true;
         try {
           if (on) {
             await wishes.removeWish(w.id);
-            toast(`“${job.label || job.title}” won't be saved to this device`, "📱");
+            toast(`“${job.label || job.title}” won't be saved to this device`, mark("none"));
           } else await wishes.askWish(wishTarget(job), job.label || job.title);
         } catch (err) {
           toast(`Couldn't: ${err.message}`, "⚠️");
         } finally { b.disabled = false; }
       },
-    })];
+    }, el("span", { class: "dev-ic" }, mark(on ? "waiting" : "none")), el("span", {}, on ? "Will be saved here" : "This device too"))];
   }
   if (ready) {
+    // (said the moment the copy is here — not at the next repaint)
+    const here = () => {
+      b.classList.add("on");
+      b.replaceChildren(el("span", { class: "dev-ic" }, mark("saved")), el("span", {}, "On this device"));
+      b.title = "Saved inside Aurora on this device — open On this device";
+    };
     const b = el("button", { "data-ui": "downloads.offline.save",
       class: "btn focusable dl-save-device",
       title: "Keep a copy inside Aurora on this device, playable with no connection",
-      html: "<span>📱 Save to this device</span>",
       onclick: async () => {
         if (b.classList.contains("on")) return navigate("#/saved");
         const j = offline.jobFor(job.libraryId);
@@ -213,18 +218,16 @@ const deviceButtons = (job) => {
         try {
           const item = await api.item(job.libraryId);
           const saved = await offline.saveItem(item, () => {}, (options) => pickOfflineQuality(options, { title: job.label || job.title }));
-          if (saved) toast(`“${job.label || job.title}” is saved on this device`, "📱", { label: "Open", onClick: () => navigate("#/saved") });
+          if (saved) {
+            here();
+            toast(`“${job.label || job.title}” is saved on this device`, mark("saved"), { label: "Open", onClick: () => navigate("#/saved") });
+          }
         } catch (err) {
           if (!(err && err.name === "AbortError")) toast(`Couldn't save: ${err.message}`, "⚠️");
         } finally { b.disabled = false; }
       },
-    });
-    offline.isSaved(job.libraryId).then((yes) => {
-      if (!yes) return;
-      b.classList.add("on");
-      b.innerHTML = "<span>📱 On this device ✓</span>";
-      b.title = "Saved inside Aurora on this device — open On this device";
-    }).catch(() => {});
+    }, el("span", { class: "dev-ic" }, mark("none")), el("span", {}, "Save to this device"));
+    offline.isSaved(job.libraryId).then((yes) => { if (yes) here(); }).catch(() => {});
     return [b];
   }
   return [];
@@ -427,7 +430,7 @@ export const renderDownloads = async (root) => {
         // plain http: the reason the Save-offline buttons are nowhere, where people look for them
         !offline.available() && el("p", { class: "dl-note offline-insecure" }, "🔒 Saving titles inside Aurora to watch with no connection needs a secure address (https). On this address, a title's Download button gives you the file instead."),
         el("div", { class: "local-play-link" },
-          el("button", { class: "btn small focusable", onclick: () => navigate("#/saved") }, "📱 Open On this device"))),
+          el("button", { class: "btn small focusable dl-open-device", html: `${deviceIcon}<span>Open On this device</span>`, onclick: () => navigate("#/saved") }))),
     );
   };
   paintDevice();
@@ -532,18 +535,24 @@ export const renderDownloads = async (root) => {
     else if (!!bar !== !!freshBar) return false; // the bar came or went: full repaint
     return true;
   };
+  // What decides a row's section and its buttons — as THIS page last drew
+  // it. (The shared list is no witness: main.js writes the new job into it
+  // before this listener runs, so a row compared with the list was compared
+  // with itself, and a download that finished one tick after its bar went
+  // stayed under "Downloading now" with a Cancel button.)
+  const shapeOf = (j) => [j.status, j.phase || "", j.libraryId || "", !!j.seenAt, !!j.replaceWait, j.canceledBy || ""].join("|");
+  const drawn = new Map(); // id -> shape
   const unsub = onMessage("download_update", ({ job }) => {
     if (!screen.isConnected) return unsub();
     if (!job) return;
     const prev = downloads.get(job.id);
+    const was = drawn.get(job.id);
+    drawn.set(job.id, shapeOf(job));
     downloads.set(job.id, job);
     if (job.status === "done" && job.libraryId && !job.seenAt && job.mine && !(prev && prev.status === "done" && prev.libraryId)) {
       // (the "ready to watch" message is said once, app-wide, in main.js)
     }
-    const sameShape =
-      prev && prev.status === job.status && (prev.phase || null) === (job.phase || null) &&
-      (prev.libraryId || null) === (job.libraryId || null) && !!prev.seenAt === !!job.seenAt &&
-      !!prev.replaceWait === !!job.replaceWait && (prev.canceledBy || null) === (job.canceledBy || null);
+    const sameShape = was === shapeOf(job);
     if (!(sameShape && patchRow(job))) paint();
   });
   return () => {

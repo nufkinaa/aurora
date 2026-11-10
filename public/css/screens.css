@@ -6232,4 +6232,13 @@ html:root .device-job[data-state="paused"] .dl-bar-fill { background: rgba(245, 
 }
 .device-wish[data-state="wish-failed"] .dl-poster .card-fallback { background: rgba(255, 122, 122, 0.07); box-shadow: inset 0 0 0 1px rgba(255, 122, 122, 0.22); }
 .device-wish[data-state="wish-failed"] .dl-poster .card-fallback::before { background: #ff7a7a; }
+
+/* My downloads: the same mark on its device buttons (no emoji) */
+.dl-wish, .dl-save-device, .dl-open-device { gap: 8px; }
+.dl-wish .dev-ic, .dl-save-device .dev-ic { display: grid; place-items: center; flex: none; }
+.dl-wish .dev-mark, .dl-save-device .dev-mark { --dm: 20px; }
+.dl-wish .dev-mark svg, .dl-save-device .dev-mark svg { width: var(--dm); height: var(--dm); }
+.dl-open-device svg { width: 17px; height: 17px; flex: none; }
+/* (a way in, not a footnote: it does not take the faint colour of its line) */
+html:root .device-summary .dl-open-device { color: var(--text); }
 /* ==== end offline-look (choices, paused, waiting) ==== */
