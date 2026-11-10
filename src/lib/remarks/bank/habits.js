@@ -144,7 +144,7 @@ module.exports = {
       "Finished {title}. Grieve briefly. Then move on.",
       "{title}: seen through. A first, on my records.",
       "Finished {title}. Don't start it again. Don't.",
-      "All of {title}. The ending will follow you for days.",
+      "All of {title}. That ending will stay with you.",
       "{title}: done. Your evenings need new excuses.",
       "End of {title}. Stay for the credits, for once.",
       "Finished {title}. Next up: a rewatch. I know you.",
