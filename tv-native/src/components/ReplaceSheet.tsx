@@ -37,6 +37,7 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, LayoutChangeEvent, ScrollView, StyleSheet, Text, TextInput, useTVEventHandler, View} from 'react-native';
 import Focusable from './Focusable';
 import Sheet from './Sheet';
+import {ink} from '../glass';
 import {api, ReplaceStream, ReplaceView} from '../api';
 import {clientContext} from '../clientContext';
 import {acceptTvEvent, noteFocus, noteFocusLost} from '../focus';
@@ -535,7 +536,7 @@ export default function ReplaceSheet({
           numberOfLines={3}
           maxLength={COPY_NOTE_MAX * 2 /* code units; copyNote cuts at 300 code points */}
           placeholder={WORDS.otherPlaceholder}
-          placeholderTextColor={colors.textFaint}
+          placeholderTextColor={ink.third}
           blurOnSubmit
           // the keyboard's ✓ ends the typing: focus goes on to Next (left to Android, a
           // field's blur put focus on the page under the sheet — RecommendSheet.tsx)
@@ -583,8 +584,8 @@ export default function ReplaceSheet({
 
 const styles = StyleSheet.create({
   body: {color: colors.text, fontSize: fontSize.body, lineHeight: 24},
-  faint: {color: colors.textDim, fontSize: fontSize.small, marginTop: spacing.sm},
-  faintBig: {color: colors.textDim, fontSize: fontSize.body, marginTop: spacing.md},
+  faint: {color: ink.second, fontSize: fontSize.small, marginTop: spacing.sm},
+  faintBig: {color: ink.second, fontSize: fontSize.body, marginTop: spacing.md},
   quote: {color: colors.text, fontSize: fontSize.body, fontStyle: 'italic', marginTop: spacing.md},
   input: {
     backgroundColor: 'rgba(255,255,255,0.06)',
@@ -644,7 +645,7 @@ const styles = StyleSheet.create({
   release: {color: colors.text, fontSize: fontSize.body, fontWeight: '700', flexShrink: 1},
   best: {color: '#f5c542', fontSize: 12, fontWeight: '900', borderWidth: 1, borderColor: 'rgba(245,197,66,0.45)', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden', flexShrink: 0},
   tag: {color: '#fbbf24', fontSize: 12, fontWeight: '900', borderWidth: 1, borderColor: 'rgba(251,191,36,0.45)', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden', flexShrink: 0},
-  meta: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '600', marginTop: 4},
+  meta: {color: ink.second, fontSize: fontSize.small, fontWeight: '600', marginTop: 4},
   early: {color: '#fcd34d', fontSize: fontSize.small, fontWeight: '700', marginTop: 2},
   warn: {color: '#ff8080', fontSize: fontSize.small, fontWeight: '700', marginTop: 2},
 });

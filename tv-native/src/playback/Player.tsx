@@ -163,6 +163,8 @@ import {personNow} from '../personSync';
 import {track} from '../usage';
 import {clearImageMemory, isLowRam} from '../perfTier';
 import {RootStackParamList} from '../navigation';
+import {glassMenu, ink} from '../glass';
+import GlassEdge from '../components/GlassEdge';
 import theme, {useTvMetrics} from '../theme';
 // [android-phone] the phone app draws its own touch controls over this same
 // player (docs/android-phone/PLAN.md); on a TV `PHONE` is false and none of it runs
@@ -530,7 +532,7 @@ const MenuItem = React.forwardRef<
       onPress={onPress}
       style={styles.menuItem}>
       <Text style={[styles.menuCheck, !on && styles.menuCheckOff]}>✓</Text>
-      {icon ? <Icon name={icon} size={14} color={on ? colors.text : colors.textDim} /> : null}
+      {icon ? <Icon name={icon} size={14} color={PHONE ? (on ? colors.text : colors.textDim) : on ? ink.on : ink.text} /> : null}
       {sub ? (
         <View style={styles.menuItemCol}>
           {name}
@@ -5465,6 +5467,7 @@ export default function Player({
           stray D-pad press wanders to the transport bar behind the overlay. */}
       {menu === 'cc' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
+          {PHONE ? null : <GlassEdge radius={18} />}
           <MenuTitle icon="cc" label="SUBTITLES" />
           <ScrollView ref={ccScroll} style={styles.menuScroll}>
             {/* The site's first CC entry: one press that drops any manual delay
@@ -5607,6 +5610,7 @@ export default function Player({
       {/* Speed — the site's SPEEDS menu. */}
       {menu === 'speed' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
+          {PHONE ? null : <GlassEdge radius={18} />}
           <MenuTitle icon="speed" label="SPEED" />
           <ScrollView style={styles.menuScroll}>
             {SPEEDS.map(sp => (
@@ -5634,6 +5638,7 @@ export default function Player({
           you set mid-film. */}
       {menu === 'settings' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
+          {PHONE ? null : <GlassEdge radius={18} />}
           {/* Its own scroller (it had none: a film with several dubs and an
               intro to mark ran past the top of the screen). */}
           <ScrollView ref={gearScroll} style={styles.menuScroll} showsVerticalScrollIndicator={false}>
@@ -5817,6 +5822,7 @@ export default function Player({
       ))}
       {menu === 'party' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
+          {PHONE ? null : <GlassEdge radius={18} />}
           <MenuTitle icon="people" label="WATCH TOGETHER" />
           <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>
           {partyInfo ? (
@@ -6328,27 +6334,35 @@ const styles = StyleSheet.create({
     right: PHONE ? 16 : spacing.pageX,
     bottom: PHONE ? 104 : 124,
     maxHeight: '62%',
-    // A little of the room's light in the glass (elia, 2026-10-07: "give the
-    // background there a bit hue"): the site's violet from the top-left, the
-    // aurora's green from the foot, over a near-opaque navy.
-    // fully opaque: at 0.97 a bright cue under the sheet still read through it
-    // ("Knox! Sto|p!" — Mi TV, 2026-11-10)
-    backgroundColor: 'rgb(16,15,30)',
-    experimental_backgroundImage:
-      'linear-gradient(140deg, rgba(104,86,226,0.30) 0%, rgba(16,15,30,0) 48%, rgba(70,200,150,0.20) 100%)',
+    // THE TV: a menu of the app's glass (glass.ts, docs/glass-tv.md) - the
+    // neutral body, the rim of light, the sheen; the glow and the soft shadow are
+    // <GlassEdge>, pictures (a blurred boxShadow and a stack of gradients cost frames here). Fully opaque:
+    // at 0.97 a bright cue under the sheet still read through it ("Knox! Sto|p!"
+    // - Mi TV, 2026-11-10). It was a navy body with the room's violet and green
+    // in it (elia, 2026-10-07: "give the background there a bit hue"); the glass
+    // is neutral everywhere now, and the film brings the colour.
+    // [android-phone] the phone keeps the navy and its hues until its own lane
+    // moves it to the glass.
+    ...(PHONE
+      ? {
+          backgroundColor: 'rgb(16,15,30)',
+          experimental_backgroundImage:
+            'linear-gradient(140deg, rgba(104,86,226,0.30) 0%, rgba(16,15,30,0) 48%, rgba(70,200,150,0.20) 100%)',
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.10)',
+          borderTopColor: 'rgba(255,255,255,0.20)',
+        }
+      : glassMenu),
     borderRadius: radius.l,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
     minWidth: 280,
     maxWidth: 400,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-    borderTopColor: 'rgba(255,255,255,0.20)',
   },
   menuScroll: {flexGrow: 0},
   menuTitleRow: {flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.sm, marginLeft: 12},
   menuTitle: {
-    color: colors.textDim,
+    color: PHONE ? colors.textDim : ink.third,
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 2,
@@ -6387,7 +6401,8 @@ const styles = StyleSheet.create({
   syncBtnText: {color: colors.text, fontSize: fontSize.small, fontWeight: '800'},
   // The ✓ column. Present on every row (transparent when off) so labels align —
   // the site reserves 13px the same way.
-  menuCheck: {width: 18, color: colors.text, fontSize: fontSize.small, fontWeight: '800'},
+  // (the TV: the tick and the chosen row's word in ink.on, every other row white - glass.ts)
+  menuCheck: {width: 18, color: PHONE ? colors.text : ink.on, fontSize: fontSize.small, fontWeight: '800'},
   menuCheckOff: {opacity: 0},
   // .sub-sync .tag — the current delay, sitting between the two pairs of nudges.
   syncValue: {
@@ -6399,20 +6414,21 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   // .menu-item .tag { margin-left: auto }
-  menuTag: {color: colors.textFaint, fontSize: 12, fontWeight: '700', marginLeft: 'auto'},
+  // (the TV: the page's faint grey is 2.7:1 on the glass body - its third voice instead)
+  menuTag: {color: PHONE ? colors.textFaint : ink.third, fontSize: 12, fontWeight: '700', marginLeft: 'auto'},
   // NOT flex:1. The tag is pushed right by its own auto margin (which is what
   // the site does), because a flexing label shrinks to whatever the box already
   // is instead of making the box wide enough — "Resync subtitles" came out as
   // "Resync sub…" inside a menu with room to spare.
-  menuItemText: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '700', flexShrink: 1},
-  menuItemTextOn: {color: colors.text},
+  menuItemText: {color: PHONE ? colors.textDim : ink.text, fontSize: fontSize.small, fontWeight: '700', flexShrink: 1},
+  menuItemTextOn: {color: PHONE ? colors.text : ink.on},
   // the ★ track (resync.ts / the server's starBest): the star in the score
   // gold, and "Matches this release" under the label, small and dim — a
   // second line rather than a tag, so it never squeezes the label or the
   // "Embedded" tag beside it
   menuStar: {color: colors.star, fontSize: 12, fontWeight: '900'},
   menuItemCol: {flexShrink: 1},
-  menuSub: {color: colors.textDim, fontSize: 12, fontWeight: '600', marginTop: 2},
+  menuSub: {color: PHONE ? colors.textDim : ink.third, fontSize: 12, fontWeight: '600', marginTop: 2},
   upNext: {
     position: 'absolute',
     right: PHONE ? 16 : spacing.pageX, // [android-phone]

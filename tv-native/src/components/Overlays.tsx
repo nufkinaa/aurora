@@ -7,7 +7,9 @@ import Focusable from './Focusable';
 import PersonSheet from './PersonSheet';
 import ReplaceSheet from './ReplaceSheet';
 import RecommendSheet from './RecommendSheet'; // [household]
-import Sheet, {glass} from './Sheet';
+import Sheet from './Sheet';
+import {glassFootSheet, glassToast, HAIRLINE, ink} from '../glass';
+import GlassEdge from './GlassEdge';
 import TrailerFrame, {TrailerState} from './Trailer';
 import {prepareTrailer, ResolvedTrailer} from '../trailers';
 import type {ActionItem} from '../overlay';
@@ -314,7 +316,7 @@ function ReportSheet({hint}: {hint?: string}) {
         multiline
         numberOfLines={3}
         placeholder="What went wrong? What did you expect?"
-        placeholderTextColor={colors.textFaint}
+        placeholderTextColor={ink.third}
         onSubmitEditing={send}
         blurOnSubmit
       />
@@ -369,7 +371,7 @@ function JoinSheet() {
         autoCorrect={false}
         maxLength={4}
         placeholder="ABCD"
-        placeholderTextColor={colors.textFaint}
+        placeholderTextColor={ink.third}
         onSubmitEditing={join}
       />
       {err ? <Text style={styles.error}>{err}</Text> : null}
@@ -744,6 +746,7 @@ function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; on
     <View style={styles.xrBackdrop}>
       <Animated.View style={[styles.xrWash, washStyle]} />
       <Animated.View style={[styles.xrPanel, panelStyle, {maxHeight: bottomSheetMaxHeight(winH, 446)}]}>
+        <GlassEdge radius={24} />
         <TVFocusGuideView autoFocus trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.xrGuide}>
           <View style={styles.xrHead}>
             <View style={styles.xrHeadText}>
@@ -998,24 +1001,21 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingHorizontal: 28,
     paddingBottom: 22,
-    // opaque: a bright subtitle line under a 96% panel still read through it
-    backgroundColor: 'rgb(14,16,28)',
-    // the player menus' hue (elia, 2026-10-07): the site's violet from the
-    // top-left, the aurora's green from the foot
-    experimental_backgroundImage:
-      'linear-gradient(140deg, rgba(104,86,226,0.28) 0%, rgba(14,16,28,0) 48%, rgba(70,200,150,0.18) 100%)',
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: 'rgba(255,255,255,0.10)',
-    borderTopColor: 'rgba(255,255,255,0.22)',
-    boxShadow: '0 -24px 70px rgba(0,0,0,0.6)',
+    // The glass of a sheet that stands on the screen's foot (glass.ts): the
+    // neutral body, the rim of light, the sheen; its glow and its soft shadow
+    // are <GlassEdge>, pictures. Opaque: a bright subtitle line under a 96%
+    // panel still read through it. (It carried the player menus'
+    // violet-and-green hue; the glass is neutral and the picture behind brings
+    // the colour.) The panel rises and scales as it opens: the 70 dp blurred
+    // shadow it had was blurred again on every frame of that.
+    ...glassFootSheet,
   },
   xrGuide: {flexShrink: 1},
   xrHead: {flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg},
   xrHeadText: {flex: 1, minWidth: 0},
-  xrKicker: {color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 3, marginBottom: 2},
+  xrKicker: {color: ink.on, fontSize: 11, fontWeight: '800', letterSpacing: 3, marginBottom: 2},
   xrTitle: {color: colors.text, fontSize: 24, lineHeight: 30, fontWeight: '900'},
-  xrFacts: {color: colors.textDim, fontSize: fontSize.small, marginTop: 4},
+  xrFacts: {color: ink.second, fontSize: fontSize.small, marginTop: 4},
   xrHint: {flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6},
   xrHintKey: {
     color: colors.text,
@@ -1028,19 +1028,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.28)',
   },
-  xrHintText: {color: colors.textFaint, fontSize: fontSize.small},
+  xrHintText: {color: ink.third, fontSize: fontSize.small},
   xrWait: {marginVertical: 48},
   xrBody: {marginTop: 8, maxHeight: 300},
   xrOverview: {color: colors.text, fontSize: fontSize.small, lineHeight: 20},
-  xrSection: {color: colors.textFaint, fontSize: 11, fontWeight: '800', letterSpacing: 1.2, marginTop: spacing.sm + 2, marginBottom: 2},
+  xrSection: {color: ink.third, fontSize: 11, fontWeight: '800', letterSpacing: 1.2, marginTop: spacing.sm + 2, marginBottom: 2},
   xrRow: {gap: 6, paddingVertical: 4, paddingHorizontal: 2},
   xrPerson: {width: 114, alignItems: 'center', borderRadius: radius.m, paddingVertical: 6, paddingHorizontal: 5},
   xrFace: {width: 58, height: 58, borderRadius: 29, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
   xrPhoto: {position: 'absolute', top: 0, left: 0, width: 58, height: 58},
   xrInitials: {color: colors.textDim, fontSize: 17, fontWeight: '800'},
   xrName: {color: colors.text, fontSize: 12, fontWeight: '700', marginTop: 5, maxWidth: 104, textAlign: 'center'},
-  xrRole: {color: colors.textFaint, fontSize: 11, marginTop: 1, maxWidth: 104, textAlign: 'center'},
-  xrBehind: {color: colors.textDim, fontSize: fontSize.small, marginTop: 2},
+  xrRole: {color: ink.third, fontSize: 11, marginTop: 1, maxWidth: 104, textAlign: 'center'},
+  xrBehind: {color: ink.second, fontSize: fontSize.small, marginTop: 2},
   actionList: {gap: spacing.sm, marginTop: spacing.sm},
   actionRow: {
     flexDirection: 'row',
@@ -1052,13 +1052,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
   actionLabel: {color: colors.text, fontSize: fontSize.body, fontWeight: '700'},
-  actionTag: {color: colors.textDim, fontSize: fontSize.small, marginLeft: spacing.md},
+  actionTag: {color: ink.second, fontSize: fontSize.small, marginLeft: spacing.md},
   actionDanger: {color: '#ff8080'},
   body: {color: colors.text, fontSize: fontSize.body, lineHeight: 24},
   // [report trail] what comes along, and a look at it
   sentBox: {marginTop: spacing.sm, padding: spacing.sm, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)'},
-  sentText: {color: colors.textDim, fontSize: 12, lineHeight: 17, fontFamily: 'monospace'},
-  faint: {color: colors.textDim, fontSize: fontSize.small, marginTop: spacing.sm},
+  sentText: {color: ink.second, fontSize: 12, lineHeight: 17, fontFamily: 'monospace'},
+  faint: {color: ink.second, fontSize: fontSize.small, marginTop: spacing.sm},
   error: {color: '#ff8080', fontSize: fontSize.body, marginTop: spacing.sm},
   input: {
     backgroundColor: 'rgba(255,255,255,0.06)',
@@ -1080,8 +1080,12 @@ const styles = StyleSheet.create({
 
   // toasts — the glass pill, bottom centre, above everything
   toasts: {position: 'absolute', left: 0, right: 0, bottom: 28, alignItems: 'center', gap: 8, zIndex: 600, elevation: 600},
+  // opaque (nothing dims the page under a toast), the rim's lines, and the dark
+  // hairline outside them - no blurred shadow (it would be blurred again on every
+  // frame the page draws while the toast is up)
   toast: {
-    ...glass,
+    ...glassToast,
+    boxShadow: HAIRLINE,
     borderRadius: radius.pill,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1090,8 +1094,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     maxWidth: '70%',
   },
-  toastGlyph: {fontSize: 16},
-  toastText: {color: colors.text, fontSize: fontSize.body, fontWeight: '700'},
+  // white: a bare "✓" took the system's dark text colour and sat near-black on the pill
+  toastGlyph: {color: ink.text, fontSize: 16},
+  toastText: {color: ink.text, fontSize: fontSize.body, fontWeight: '700'},
 
   // peek
   peekRow: {flexDirection: 'row', gap: spacing.lg},
@@ -1101,12 +1106,12 @@ const styles = StyleSheet.create({
   peekBarFill: {height: '100%', backgroundColor: colors.progress},
   peekText: {flex: 1, minWidth: 0},
   peekTitle: {color: colors.text, fontSize: fontSize.title, fontWeight: '900', letterSpacing: -0.5},
-  peekSub: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '700', marginTop: 4},
-  peekLeft: {color: colors.accent, fontSize: fontSize.small, fontWeight: '700', marginTop: 4},
+  peekSub: {color: ink.second, fontSize: fontSize.small, fontWeight: '700', marginTop: 4},
+  peekLeft: {color: ink.on, fontSize: fontSize.small, fontWeight: '700', marginTop: 4},
   // [household] "Recommended by Dana" and the note
-  peekHh: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800', marginTop: spacing.sm},
+  peekHh: {color: ink.on, fontSize: fontSize.small, fontWeight: '800', marginTop: spacing.sm},
   peekHhNote: {color: colors.text, fontSize: fontSize.small, fontStyle: 'italic', marginTop: 2},
-  peekSynopsis: {color: colors.textDim, fontSize: fontSize.body, lineHeight: 23, marginTop: spacing.sm},
+  peekSynopsis: {color: ink.second, fontSize: fontSize.body, lineHeight: 23, marginTop: spacing.sm},
 
   // trailer, full screen
   trailerRoot: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 500, elevation: 500, backgroundColor: '#000'},
