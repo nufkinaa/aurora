@@ -137,7 +137,7 @@ A control is tagged where it is built:
 - website: `"data-ui": "detail.play"` on the element (one delegated click listener reads it; nothing is ever guessed from a control's text). A control that is not a click on an element — a keyboard shortcut, a tap zone — calls `uiHit("player.seek.fwd")`.
 - TV: `uiId="detail.play"` on a `Focusable`, `Btn` or `Chip` (and the small wrappers that pass it through). Without it nothing happens.
 
-The vocabulary (`src/lib/tel/controls-vocab.js`) — 404 ids: 226 on the website, 190 on the TV, 106 on both. 223 on the phone app (letter `p`, the table after this one).
+The vocabulary (`src/lib/tel/controls-vocab.js`) — 415 ids: 237 on the website, 190 on the TV, 106 on both. 223 on the phone app (letter `p`, the table after this one).
 
 | Area | Website only | TV app only | Both |
 |---|---|---|---|
@@ -174,8 +174,10 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 404 ids: 226 on the website
 | taste | `taste.back` `taste.edit` `taste.key` `taste.swipe` `taste.unnope` | – | `taste.done` `taste.love` `taste.more` `taste.nope` `taste.skip` `taste.undo` |
 | signin | `signin.getapps` | `signin.mode.google` `signin.submit` | – |
 | state | – | `state.action` | – |
+| story (the Aurora Play story frame, js/play/story.js: Wrapped) | `story.close` `story.next` `story.pause` `story.prev` `story.skip` | – | – |
 | update | – | `update.install` `update.later` `update.restart` `update.retry` | – |
 | whatsnew | – | `whatsnew.log` | `whatsnew.go` |
+| wrapped | `wrapped.all` `wrapped.browse` `wrapped.replay` `wrapped.retry` `wrapped.share` `wrapped.story` | – | – |
 | xray | `xray.more` | – | – |
 
 <!-- phone-controls -->
