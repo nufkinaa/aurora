@@ -1212,6 +1212,12 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
   };
   let seasonsOf = null; // set once the show's seasons are known (below)
 
+  // This profile's watch state (resume points, ratings) is asked for now,
+  // beside the title's own records, and waited for where it always was:
+  // asked after them, it was a round trip of its own before the page could
+  // draw — on a far server the longest wait of opening a title.
+  const progressP = refreshProgress().catch(() => {});
+
 
   if (source === "library") {
     let libErr = null;
@@ -1245,7 +1251,14 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
   } else {
     imdbId = id;
     let metaErr = null;
-    meta = await api.discoverMeta(type, id).catch((e) => { metaErr = e; return null; });
+    // (the library list too, if this page is the first to need it: it was
+    // asked for only once the metadata had arrived)
+    if (!state.library) loadLibrary().catch(() => {});
+    // A series' route says "series", every other asker says "show" — the
+    // server answers both the same (one cache key), but the page's own
+    // memory of answers is by address: asked as "series", the copy a hover
+    // or a tap had already fetched (prefetch.js warmTitle) was asked again.
+    meta = await api.discoverMeta(type === "series" ? "show" : type, id).catch((e) => { metaErr = e; return null; });
     if (!meta) {
       // Back to where you came from — the Requests page this used to land on
       // isn't in the nav any more, and a dead end is not what "couldn't
@@ -1270,7 +1283,7 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
       return navigate("#/");
     }
   }
-  await refreshProgress().catch(() => {});
+  await progressP;
   // A server with "torrents": false (config.json) has no sources to offer:
   // the page then shows what is on disk and the catalogue's facts, and none
   // of the buttons that stream or save from a source. True everywhere else.
