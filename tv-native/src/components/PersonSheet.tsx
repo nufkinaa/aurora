@@ -25,7 +25,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, Animated, BackHandler, Easing, FlatList, Image, ScrollView, StyleSheet, TVFocusGuideView, Text, View} from 'react-native';
 import Card, {COMPACT_H, COMPACT_W} from './Card';
-import Focusable from './Focusable';
+import Focusable, {FlatFocus} from './Focusable';
 import {api, artSrc, HeroItem, LIST_ADDED, PersonCredit, PersonData, StreamRef, XrayPerson} from '../api';
 import {useFocusFallback, useKeyTrap} from '../focus';
 import {glassFootSheet, ink} from '../glass';
@@ -276,6 +276,8 @@ export default function PersonSheet({
       <Animated.View style={[styles.wash, washStyle]} />
       <Animated.View style={[styles.panel, panelStyle, {maxHeight: bottomSheetMaxHeight(winH, 500)}]}>
         <GlassEdge radius={24} />
+        {/* FlatFocus: no drop shadow under a focus ring on this opaque sheet (Focusable.tsx) */}
+        <FlatFocus.Provider value={true}>
         <TVFocusGuideView autoFocus trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.guide}>
           <View style={styles.head}>
             <View style={styles.face}>
@@ -343,6 +345,7 @@ export default function PersonSheet({
             </ScrollView>
           ) : null}
         </TVFocusGuideView>
+        </FlatFocus.Provider>
       </Animated.View>
     </View>
   );

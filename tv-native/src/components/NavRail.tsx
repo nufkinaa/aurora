@@ -53,7 +53,7 @@ import {isMid, traceValue} from '../qa';
 import {traceDerived, useTraces} from '../qaExtra';
 import {nativeOn} from '../render';
 import AuroraRailPanel, {SlideEndEvent} from '../specs/AuroraRailPanelNativeComponent';
-import {glassPane, ink, well} from '../glass';
+import {CHOSEN_WEIGHT, glassPane, ink, well} from '../glass';
 import theme from '../theme';
 
 const {colors, focus, motion, nav, radius, spacing} = theme;
@@ -119,11 +119,18 @@ let railLinks = 0;
 // all drawn again on every frame of that; a round box and a picture are not.
 // 48 dp of shadow on every side of the pane; what falls off the screen is never
 // drawn.
+//
+// The pane STANDS ON THE SCREEN'S FOOT (it floated 11 dp above it): in those
+// 11 dp and round its two foot corners the page went on - the tops of the next
+// row of posters, "My downloads" - right under the profile pill (two judges,
+// 2026-11-10). A mask in the page's colour would have been a new layer and a
+// visible band (the page is a gradient there); the pane running to the foot is
+// the same one box and the same one picture, a little shorter.
 const PANE_EDGE = require('../assets/glass-pane-edge.png');
 // The pane inside the 240 dp panel: 16 dp round the rows (which sit at 48..224
 // and from PAD_Y down), so its corner (38) is concentric with a row's (22).
 const PANE_X = 32;
-const PANE_Y = 11;
+const PANE_Y = 11; // from the top only
 const SHADOW_ROOM = 48;
 
 export default function NavRail({
@@ -521,7 +528,10 @@ function Scrim({width}: {width: number}) {
 // Three states, and they do not share a colour:
 //   focused  the white fill with dark words and the ring (unchanged)
 //   chosen   the section this screen is: a WELL pressed into the glass, its word
-//            and icon in ink.on (the accent mixed with white)
+//            and icon full white and heavier (ink.chosen, CHOSEN_WEIGHT) - on the
+//            darker well the brightest words in the pane at rest. They were
+//            ink.on, the accent mixed with white, and read as switched off
+//            beside the resting white labels (two judges, 2026-11-10).
 //   resting  white words on the glass
 // [analytics] which control each rail item is — uiId (docs/analytics.md)
 const NAV_UI: Record<string, string> = {search: 'nav.search', home: 'nav.home', movies: 'nav.movies', shows: 'nav.shows', list: 'nav.mylist'}; // uiId
@@ -598,9 +608,10 @@ function NavItem({
       </Focusable>
     );
   }
-  // White words on the glass (16.6:1); the chosen one in ink.on. The cast shadow
-  // the labels carried over the old moving hues is gone with the hues.
-  const fg = focused ? colors.bg : on ? ink.on : ink.text;
+  // White words on the glass (16.6:1); the chosen one white too, heavier, in its
+  // well. The cast shadow the labels carried over the old moving hues is gone
+  // with the hues.
+  const fg = focused ? colors.bg : on ? ink.chosen : ink.text;
   return (
     <Focusable
       round
@@ -631,7 +642,7 @@ function NavItem({
         <View style={styles.itemRow}>
           {icon ? <Icon name={icon} size={iconSize || 18} color={fg} /> : null}
           <Text
-            style={[styles.itemText, {color: fg}]}
+            style={[styles.itemText, on && !focused && styles.itemTextChosen, {color: fg}]}
             numberOfLines={1}>
             {label}
           </Text>
@@ -672,17 +683,19 @@ const styles = StyleSheet.create({
   pane: {
     position: 'absolute',
     top: PANE_Y,
-    bottom: PANE_Y,
+    bottom: 0,
     left: PANE_X,
     width: nav.railOpen - PANE_X,
-    borderRadius: 38,
+    borderTopLeftRadius: 38,
+    borderTopRightRadius: 38,
     ...glassPane,
   },
-  // 48 dp outside the pane on every side (the file is 304 dp wide: 208 + 2 x 48)
+  // 48 dp outside the pane at its top and its sides (the file is 304 dp wide:
+  // 208 + 2 x 48), and cut where the screen ends
   paneEdge: {
     position: 'absolute',
     top: PANE_Y - SHADOW_ROOM,
-    bottom: PANE_Y - SHADOW_ROOM,
+    bottom: 0,
     left: PANE_X - SHADOW_ROOM,
     width: nav.railOpen - PANE_X + 2 * SHADOW_ROOM,
     height: undefined,
@@ -745,6 +758,7 @@ const styles = StyleSheet.create({
   // `.nav-item.active`: the chosen section's well (it was a --surface fill).
   well,
   itemText: {fontSize: ITEM_TEXT, fontWeight: '600'},
+  itemTextChosen: {fontWeight: CHOSEN_WEIGHT},
   itemRow: {flexDirection: 'row', alignItems: 'center', gap: 8},
   newDot: {width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent},
   newDotOnLight: {backgroundColor: colors.accentStrong},

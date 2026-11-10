@@ -3,7 +3,7 @@
 // update offer, a trailer, get another version (ReplaceSheet.tsx). Screens never draw these themselves.
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, Animated, AppState, BackHandler, Easing, FlatList, Image, Linking, ScrollView, StyleSheet, TVFocusGuideView, Text, TextInput, View} from 'react-native';
-import Focusable from './Focusable';
+import Focusable, {FlatFocus} from './Focusable';
 import PersonSheet from './PersonSheet';
 import ReplaceSheet from './ReplaceSheet';
 import RecommendSheet from './RecommendSheet'; // [household]
@@ -745,6 +745,8 @@ function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; on
       <Animated.View style={[styles.xrWash, washStyle]} />
       <Animated.View style={[styles.xrPanel, panelStyle, {maxHeight: bottomSheetMaxHeight(winH, 446)}]}>
         <GlassEdge radius={24} />
+        {/* FlatFocus: no drop shadow under a focus ring on this opaque sheet (Focusable.tsx) */}
+        <FlatFocus.Provider value={true}>
         <TVFocusGuideView autoFocus trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.xrGuide}>
           <View style={styles.xrHead}>
             <View style={styles.xrHeadText}>
@@ -803,6 +805,7 @@ function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; on
             </ScrollView>
           ) : null}
         </TVFocusGuideView>
+        </FlatFocus.Provider>
       </Animated.View>
       {person ? (
         <PersonSheet
