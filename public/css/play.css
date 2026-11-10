@@ -34,7 +34,7 @@
   --play-night-3: #04141c;
   --play-ink: #f7f5ff;
   --play-ink-dim: rgba(232, 228, 255, 0.72);
-  --play-ink-faint: rgba(232, 228, 255, 0.46);
+  --play-ink-faint: rgba(232, 228, 255, 0.62); /* (>= 5.8:1 on every play surface; 0.46 was 3.9:1) */
   --play-green: #5cf5b8;
   --play-teal: #3ad3e6;
   --play-violet: #a083ff;
