@@ -1,0 +1,20 @@
+{
+ "note": "which look each letter is, per scene; the looks: old = the stylesheets of commit 2cd75c12; item6 = the stylesheets of commit c5f51f78; third = the stylesheets of commit 6b7a8890",
+ "scenes": {
+  "28": {
+   "A": "item6",
+   "B": "old",
+   "C": "third"
+  },
+  "29": {
+   "A": "third",
+   "B": "old",
+   "C": "item6"
+  },
+  "30": {
+   "A": "third",
+   "B": "item6",
+   "C": "old"
+  }
+ }
+}
