@@ -144,7 +144,9 @@ States:
 - Web push (website only, optional): when a wish's copy is ready on the server
   and the wish carries a `pushKey` that matches one of the profile's push
   subscriptions, that ONE browser gets a notification ("Ready to save on this
-  device — open Aurora and it saves by itself", opens `/#/saved`), once.
+  device — open Aurora and it saves by itself", opens `/#/saved`), once. Its
+  tag is the download's own (`dl-<jobId>`), so on that browser it replaces the
+  "Downloaded and ready to watch" notification instead of adding a second one.
   The phone app has no web push; it relies on the socket and on asking when it
   comes back.
 
@@ -183,3 +185,24 @@ States:
   applies; a swept copy is made again on the device's own prepare).
 - `offline.onReady(fn)` tells the wishes when a copy is done (push + socket).
 - `lib/push.js sendToKey(profileId, key, msg)` — one subscription only.
+
+## Notes for the phone app (`offline-phone`)
+
+- Device id: use one stable id per installed app (`[A-Za-z0-9_-]{8,48}`); the
+  phone's remote/Play-on-TV id is fine. Send `deviceName` (e.g. "Pixel 8").
+- `hevc`: true when the phone's decoder plays HEVC (most do) — Original of an
+  HEVC file is then a repackaging, not a re-encode.
+- Act on wishes at app start, on resume (AppState "active"), on socket
+  reconnect and on `offline_wish`. Save `libraryId` at `readyQuality` with the
+  app's own offline flow, then `POST …/saved`. Never delete a wish because a
+  save failed: keep it `ready`, show the save's own error with Retry.
+- Show waiting / season / failed wishes in the phone's Downloads with the same
+  words as the website: "Waiting for the server's copy — it is saved here by
+  itself when it arrives" (Cancel), "Every new episode of season N" (Cancel),
+  "Won't arrive — <error>" (Dismiss); the title's button: "This device too" /
+  "Will be saved to this device".
+- The website saves its copy in 16 MB Range parts and carries on after any
+  interruption (docs/offline-audit.md); the old one-request download of
+  `/offline/file/:id` is still answered as before. `/offline/file/:id` now has a
+  stable ETag for the life of the copy (its name + size), so a phone can resume
+  a half-done file with `Range` + `If-Range`.

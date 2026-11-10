@@ -105,4 +105,71 @@ Read against Safari's known rules:
   parts instead of a multi-GB blob.
 - HEVC: Safari plays HEVC in MP4 (`hvc1`), so Original stays a repackaging.
 
-## After (what changed) — see the bottom of this file once filled in
+## After — what changed (branch `offline-web`)
+
+Measured again on the same rig (same files, same PC, same Chrome).
+
+| Step | Before | After |
+|---|---|---|
+| Reload / tab closed at 20 % (2.71 GB) | everything lost; "Resume" = from zero | **carries on by itself** when Aurora is open again, from the parts already saved (reload at 21 % → finished from 21 %; tab closed and reopened → "Saving · 22 % · 5.1 MB/s · about 7 min left") |
+| Network drop of 8–10 s | save failed, all lost, a programmer's message | "Waiting for the connection · 20 % — can't reach the server — trying again", then on by itself |
+| Line gone for long | — | after 15 min without a part landing it pauses ("Paused at N % — what is saved stays here; it carries on by itself the next time Aurora is open with a connection, or press Resume") |
+| Phone: Aurora to the background mid-save (Android Chrome) | the page froze/died → lost | the rest is handed to the browser (Background Fetch): it finishes **with the tab closed**; the browser's own notification shows the progress; the copy is listed and plays next time, even offline |
+| 2.71 GB, local line | 294 s, of which ~3 min frozen at "99 %" | **191 s**, honest progress to the end, speed and time left shown |
+| Memory while saving | 746 MB peak (Chrome), heap 5 MB | 881 MB peak (three parts in flight), heap 5 MB — still never in RAM |
+| Original of an MKV with AC-3 | "repackaged in seconds" (minutes in truth) | "The picture untouched; the sound is converted on the server first — about N min for this one" |
+| A repackaged copy fetched in parts | (n/a) | found and fixed: the copy's validator moved on every request (its date is touched to keep it from the sweep) — now its name + size |
+| Progress made offline on a cold start | lost (no profile) | queued under the copy's profile and delivered when the server is back; the worker now keeps `/api/profiles`, the person's history and server-info after a save, so the offline boot knows who is watching and where they were |
+| Kids profile | saw and could play every copy on the device | sees and plays only its own copies |
+| Persistence | silent | "This browser may clear these if the device runs short of space. Installing Aurora … keeps them" (Safari: "after a week without a visit … Add to the Home Screen") — shown only while not persisted |
+| My downloads | nothing about this device | a ready download: "📱 Save to this device"; one on its way: "📱 This device too" |
+| Plain http | no reason anywhere | My downloads says why, and what to do |
+| Several saves at once | all at once, sharing the line | one lands at a time (the first episode is watchable sooner), the rest "Waiting for its turn" |
+| Two tabs | could both write the same copy | one tab owns a save (Web Locks); the other shows its progress |
+| Site update | media cache kept | kept (now pinned by test/sw-offline-parts.test.js) |
+
+Not changed (plan below): one audio language per copy; the desktop title page's
+unlabeled icon and per-episode save (title pages are `ui-web-browse`'s lane — My
+downloads now covers it); no save from inside the player.
+
+## "Save it to this device too" (new) — docs/offline-wishes.md
+
+A person can ask, on a title the server does not have yet, for it to be saved on
+this device as soon as it lands: on My downloads ("📱 This device too" on any of
+their downloads on its way), in the "Downloading now!" sheet, beside a film's
+download on its title page, and on a phone's card of an episode on its way. The
+size sheet is the usual one with estimated sizes ("about 1.8 GB an hour" or, with
+the running time, a size) and one more choice for an episode: "And every new
+episode of season N" (a season wish). The device's rows say "Waiting for the
+server's copy — it is saved here by itself when it arrives" (Cancel), "Every new
+episode of season N", or "Won't arrive — the download was cancelled …"
+(Dismiss). When the download lands the server prepares the copy and tells the
+device (socket; web push to that one browser when it has push on, replacing the
+download's own notification); the device saves it by itself whenever Aurora is
+open or comes back, then the wish ends.
+
+## Bigger items — for elia (not built)
+
+| Item | Gain | Cost | Risk |
+|---|---|---|---|
+| **OPFS instead of Cache API** for the bytes (Origin Private File System, a real file per copy written with `createWritable` at any offset) | no double write (Chrome writes Cache API bodies twice: ~14 MB/s ceiling on this PC vs 114 MB/s for the network) → saves 3–5× faster on fast lines; resumable byte-exact; Safari 17+ has it | the worker serves Range from a `File` (simple); a migration of existing copies; ~400 lines | Safari's OPFS from a worker only (sync handles); quota rules the same; a new storage model to keep healthy |
+| **Every audio language in the copy** (or: the person's language first) | a Hebrew dub / original-language choice offline | the remux maps all audio tracks (+ AAC for each); the player switches `audioTracks` (Safari only) or the server makes one copy per language | bigger copies; Chrome cannot switch MP4 audio tracks at all → per-language copies are the honest option |
+| **Save from the player** ("Save for later" in the player's menu) and a labeled desktop button | discoverability on a computer | small, but in the player's / title page's lanes | none |
+| **Background Fetch from the start on phones** (not only on going to the background) | survives even a crash of the page in the first seconds | trivial switch | 4× slower on a fast line (measured), the browser holds the whole fetch (2× space while it runs) |
+| **iOS: a Home Screen app prompt when the first copy is saved** | Safari keeps the copies past 7 days only for Home Screen apps | a small sheet | nagging |
+| **Wish for a whole show** (every season) and **wishes made from the TV for a phone** | — | contract addition (`scope: "show"`, a target device) | none |
+
+## How elia checks the iPhone in two minutes
+
+1. On the iPhone, open Aurora in Safari over https (nufurora.com), sign in.
+2. Open a short episode → 📱 Save offline → Original. Watch the row on More →
+   On this device: "Saving to this device · N % · speed · time left".
+3. While it saves, lock the phone for ten seconds, unlock, come back to
+   Aurora: the row says "Waiting for the connection" or carries on — **it must
+   not start again from 0 %**.
+4. When it is saved: Airplane mode on, swipe Safari away, open Aurora again →
+   it lands on On this device; press Play, drag the bar to the end and back.
+5. Airplane mode off: the minutes watched show on another device within a
+   minute (Continue watching).
+6. On this device should say "Safari may clear these after a week without a
+   visit…" unless Aurora is on the Home Screen.
