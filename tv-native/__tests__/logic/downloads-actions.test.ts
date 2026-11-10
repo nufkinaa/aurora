@@ -85,7 +85,7 @@ test('a cancelled row says who did it; a replacement says the copy is safe', () 
   const line = (o: Record<string, unknown>) => statusLine(job(o));
   expect(line({status: 'canceled', canceledBy: 'self'})).toBe('Cancelled by you');
   expect(line({status: 'canceled', canceledBy: 'admin'})).toBe('Cancelled by the admin');
-  expect(line({status: 'canceled'})).toBe('Canceled');
+  expect(line({status: 'canceled'})).toBe('Cancelled');
   const r = {replaces: {libraryId: 'x'}};
   expect(line({status: 'canceled', canceledBy: 'admin', ...r})).toBe('Cancelled by the admin — your copy stays as it was');
   expect(line({status: 'declined', ...r})).toBe('Declined by the admin — your copy stays as it was');
