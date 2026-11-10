@@ -173,3 +173,23 @@ open or comes back, then the wish ends.
    minute (Continue watching).
 6. On this device should say "Safari may clear these after a week without a
    visit…" unless Aurora is on the Home Screen.
+
+## Round 2 (2026-11-10, later) — system side
+
+| Item | Before | After | Proven by |
+|---|---|---|---|
+| Keep the next episode ready (opt-in, per device) | — | a saved episode watched past 95 % brings the next one here at the same quality, or a wish when the server does not have it; nothing removed | test/ui/offline-smartnext.test.js (real player, played to the end) |
+| What the screens build on | one IndexedDB read per card | `savedNow` / `stateOf` from memory (5000 answers in a few ms), `watchSaves` (state, %, bytes, speed, time left), `watchedCopies`, `storageSummary`, `pauseJob`; other tabs hear it | test/ui/offline-index.test.js, offline-resume (Pause) |
+| Subtitles in a copy | the first 8 tracks, the rest dropped | every text track (up to 64), each selectable offline | test/ui/offline-sound-subs.test.js (11 tracks, the 10th's cues shown with the network cut) |
+| Sound | the file's first audio track only | one chosen sound per copy; default = the person's own dub language, else the original language, else the first | same test (copy probed with ffprobe: only Hebrew / only French) |
+| Whole-show wish | season or one episode | "every new episode of this show", any season | test/offline-wish.test.js, test/ui/offline-wish.test.js |
+| Save speed, 2.7 GB, end to end (Chrome desktop) | Cache API 140.7 / 146.9 s | browser file system (OPFS) 69.4 / 62.9 s — **2.0–2.3×**; seeks 8–56 ms either way | rig b5-e2e; transfer-only prototype: Cache 124–138 s, OPFS files 34–52 s, OPFS one file in a worker 26–30 s |
+
+OPFS is used for NEW saves on Chromium only (desktop Chrome; Android Chrome is the
+same engine — run here in Chrome's phone emulation, not on a real phone). Safari,
+Firefox and iOS stay on the Cache API (not testable here). Re-proven on OPFS:
+carry-on after reload / tab closed (Background Fetch hand-over) / dropped line,
+Range playback and seeks offline, quota full mid-save (both stores), two tabs,
+kids, removal, a site update (worker replaced), offline cold start.
+The faster single-file worker variant (26–30 s) is not built: parts as files keep
+the round-1 model (a part is whole or absent) with far less new code.
