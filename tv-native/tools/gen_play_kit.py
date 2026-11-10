@@ -18,6 +18,9 @@ plain <Image> under a transform.
                     the gold flash behind a prize).
   play-ribbon.png   the aurora ribbon: green -> teal at 45% -> violet. The
                     meter's fill and the aurora key's face.
+  play-gold.png     the gold of a win (the website's --play-goldfill): light
+                    at the top left, deep at the bottom right. The gold key's
+                    face.
   play-meteor.png   one meteor: a bright head on the right, a tail fading to
                     the left. White, to be tinted, turned by its angle.
   play-shade.png    the foot of a card: clear at the top, night at the bottom,
@@ -203,6 +206,20 @@ def ribbon():
     save(img, 'play-ribbon.png')
 
 
+def gold():
+    W, H = 128, 32
+    HI, MID, DEEP = (255, 242, 194), (255, 209, 102), (240, 162, 58)
+    img = Image.new('RGB', (W, H))
+    p = img.load()
+    for y in range(H):
+        for x in range(W):
+            # 135deg on the stretched key: along the diagonal of the box
+            t = ((x + 0.5) / W + (y + 0.5) / H) / 2
+            c = stops(t, [(0, HI), (0.38, MID), (1, DEEP)])
+            p[x, y] = tuple(int(round(v)) for v in c)
+    save(img, 'play-gold.png')
+
+
 def meteor():
     W, H = 128, 16
     a = Image.new('L', (W, H), 0)
@@ -277,6 +294,7 @@ if __name__ == '__main__':
     star()
     glow()
     ribbon()
+    gold()
     meteor()
     shade()
     back()
