@@ -41,9 +41,11 @@ Run it again: `node tools/glass-apple/contrast.js both <dir>` then
 
 **214 measured cells. Under 4.5:1 — before: 61, after: 8.**
 
-(Measured again after the second pass — the deeper menus and sheets, the
-panes in the page, the rim. Against the first measurement of this branch no
-cell is lower, 99 are higher, 115 are the same; nothing on the chrome moved.)
+(Measured again after the second pass and the jury's ruling on it — the
+deeper sheets, toast and search list, the panes in the page, the rim; menus
+and chips at the first measurement's values again. Against the first
+measurement of this branch no cell is lower, 84 are higher, 130 are the
+same; nothing on the chrome moved.)
 
 - Every main word, every chosen label and every word or icon on the chrome
   (tab bar, nav island, top buttons, menus, sheets, the peek, toasts, the
@@ -52,10 +54,10 @@ cell is lower, 99 are higher, 115 are the same; nothing on the chrome moved.)
   episode's title on a phone with the sky all bright).
 - The eight that remain are all one case: **the second voice on a pane in
   the page while the WHOLE sky is its brightest green** — a chip's quiet
-  label (4.1), small grey icons on a settings row, an episode on a phone and
+  label (3.8–3.9), small grey icons on a settings row, an episode on a phone and
   the search list (3.8–4.3; an icon needs 3:1), an episode's "Episode 1"
   line on a phone (3.8) and the kind of a search suggestion (4.3). On the sky
-  as it is, all of them are at 6.2:1 or better (before: 2.0–4.3). To carry
+  as it is, all of them are at 6.0:1 or better (before: 2.0–4.3). To carry
   them over an all-bright sky the pane would have to be nearly opaque (it
   stopped reading as glass) or the quiet grey as bright as the main words
   (the page lost its second voice); neither was done.
@@ -64,7 +66,8 @@ cell is lower, 99 are higher, 115 are the same; nothing on the chrome moved.)
   to white over a dark one, and the flip is what failed in between (3.2–4.5
   over white text or a bright sky). Apple's bar does not flip; ours now keeps
   white words on a body that is dark enough over anything (5.1–5.9 over
-  white, 8–16 elsewhere).
+  white, 8–16 elsewhere). The profile menu's words are 9.7–10.8 where
+  today's are 11.4–12.6.
 
 ## The type tag on a hero ("SERIES" / "FILM")
 
@@ -90,6 +93,41 @@ brightness over a white picture.
 | a show's page, desktop 1440 | cyan | the page as it is | 4.2 ✗ | 8.2 |
 | a show's page, phone 402 | cyan | the page as it is | 5.4 | 8.3 |
 
+## The Remote screen
+
+Not one of the 214 cells: its pads lie over the title's own art, blurred and
+dimmed, and it needs a TV to be on. Measured apart by
+`tools/glass-apple/remote-contrast.js` (a simulated TV on the private
+server; phone 402 × 874; now playing, the touchpad, the arrow buttons; the
+usual art and the art turned all white; the worst 1 % behind each word and
+icon, as above). "Approved" is the first round's Remote, "item 6" the second
+pass's dark panes, "third" the version made after the second jury.
+
+| what, over an all-white picture | approved | item 6 | third |
+|---|---:|---:|---:|
+| the pills: Subtitles, Audio, Stop, Continue on this phone | 6.2–7.7 | 13.7–14.6 | 10.0–11.2 |
+| the pills' icons | 5.9–6.4 | 13.5–14.1 | 9.6–10.1 |
+| the round skip buttons' icons | 5.1 | 12.5 | 8.4 |
+| the round button at the top | 6.8 | 13.9 | 9.8 |
+| the picker: "Living room TV" | 5.2 | 8.3 | 7.5 |
+| the picker's icons | 1.7 ✗ | 2.7 ✗ | 4.8 |
+| the dock: the chosen tab ("Now playing" / "Touchpad") | 5.6–5.9 | 12.5 | 7.6 |
+| the dock: the other tab | 5.3–5.7 | 10.0 | 8.4 |
+| Swipe / Buttons: the chosen one | 6.4 | 9.3 | 5.4 |
+| Swipe / Buttons: the other | 5.9–6.1 | 5.9–6.1 | 5.9–6.0 |
+| the touchpad's hints | 1.7 ✗ | 3.6 ✗ | 7.3 |
+| OK | 3.0 ✗ | 10.8 | 5.6 |
+| the arrows | 3.1–4.6 ✗ | 10.5–13.0 | 7.1–9.5 |
+| Back, Play/Pause, Home | 8.0–9.5 | 15.3–15.9 | 12.4–13.5 |
+| their icons | 7.0–8.4 | 12.3–14.8 | 8.4–11.6 |
+| the volume buttons' icons | 7.8 | 13.0 | 10.6 |
+| **lowest of the 46 labels on a pane / under 4.5:1** | **1.7 / 9** | **2.7 / 5** | **4.8 / 0** |
+| the same on the usual art | 2.2 / 7 | 3.9 / 5 | 5.9 / 0 |
+
+On no pane, straight on the film, the same in all three and not touched: the
+title 4.8, the time left 7.0, the elapsed time 3.5 ✗ over the all-white
+picture (5.7, 7.7 and 8.0 on the usual art).
+
 ## Not measured here
 
 - Safari on an iPhone: there is no WebKit on this PC. The body alone (no
@@ -105,19 +143,19 @@ brightness over a white picture.
 
 | what | behind it | before | after |
 |---|---|---:|---:|
-| chosen | bright sky band | 1.6 ✗ | 6.9 |
-| chosen | the sky | 8.7 | 9.8 |
-| quiet words | bright sky band | 1.3 ✗ | 4.1 ✗ |
-| quiet words | the sky | 3.4 ✗ | 8.7 |
+| chosen | bright sky band | 1.6 ✗ | 6.6 |
+| chosen | the sky | 8.7 | 8.8 |
+| quiet words | bright sky band | 1.3 ✗ | 3.9 ✗ |
+| quiet words | the sky | 3.4 ✗ | 6.9 |
 
 ### Chips (phone 402)
 
 | what | behind it | before | after |
 |---|---|---:|---:|
-| chosen | bright sky band | 1.7 ✗ | 7.0 |
-| chosen | the sky | 6.2 | 9.4 |
-| quiet words | bright sky band | 1.3 ✗ | 4.1 ✗ |
-| quiet words | the sky | 2.0 ✗ | 7.5 |
+| chosen | bright sky band | 1.7 ✗ | 6.7 |
+| chosen | the sky | 6.2 | 8.5 |
+| quiet words | bright sky band | 1.3 ✗ | 3.8 ✗ |
+| quiet words | the sky | 2.0 ✗ | 6.0 |
 
 ### Episodes and the season bar (desktop 1440)
 
@@ -159,19 +197,19 @@ brightness over a white picture.
 
 | what | behind it | before | after |
 |---|---|---:|---:|
-| words | white poster | 11.4 | 11.0 |
-| words | white text under | 12.2 | 12.2 |
-| words | bright sky band | 12.1 | 12.1 |
-| words | black | 12.6 | 12.9 |
+| words | white poster | 11.4 | 9.7 |
+| words | white text under | 12.2 | 10.4 |
+| words | bright sky band | 12.1 | 10.3 |
+| words | black | 12.6 | 10.8 |
 
 ### Profile menu (phone 402)
 
 | what | behind it | before | after |
 |---|---|---:|---:|
-| words | white poster | 11.4 | 11.0 |
-| words | white text under | 12.3 | 12.3 |
-| words | bright sky band | 12.0 | 12.0 |
-| words | black | 12.6 | 12.9 |
+| words | white poster | 11.4 | 9.7 |
+| words | white text under | 12.3 | 10.5 |
+| words | bright sky band | 12.0 | 10.2 |
+| words | black | 12.6 | 10.8 |
 
 ### Nav island, logo, profile (desktop 1440)
 
@@ -233,7 +271,7 @@ brightness over a white picture.
 | words | bright poster | 14.0 | 5.2 |
 | words | mid grey | 6.4 | 8.1 |
 | words | white text under | 4.6 | 10.4 |
-| words | bright sky band | 5.3 | 10.8 |
+| words | bright sky band | 5.3 | 10.9 |
 | words | black | 17.9 | 14.6 |
 | chosen | white poster | 20.1 | 5.5 |
 | chosen | bright poster | 19.9 | 5.6 |
@@ -415,7 +453,7 @@ brightness over a white picture.
 | words | bright poster | 5.9 | 6.0 |
 | words | mid grey | 7.7 | 7.9 |
 | words | white text under | 9.2 | 9.7 |
-| words | bright sky band | 6.6 | 6.5 |
+| words | bright sky band | 6.6 | 6.6 |
 | words | black | 11.4 | 12.1 |
 
 ### Toast (phone 402)
