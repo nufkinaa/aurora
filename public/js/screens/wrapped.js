@@ -304,9 +304,15 @@ const paintShareCard = async (ctx) => {
     c.lineWidth = 2;
     c.stroke();
   };
-  panel(800, 330);
+  // (measured first: a two-line name and a two-line verdict make it taller)
+  const tx = X + 300, tw = W - X - tx;
+  const nameLines = wrapLines((s) => { c.font = font(900, 64); return c.measureText(s).width; }, type.name, tw, 2);
+  c.font = font(600, 32);
+  const verdictLines = wrapLines((s) => c.measureText(s).width, type.verdict, tw, 2);
+  const typeH = Math.max(300, 126 + nameLines.length * 70 + verdictLines.length * 42 + 34);
+  panel(800, typeH);
   // its constellation, gold
-  const gx = X + 10, gy = 840, gs = 250;
+  const gs = 250, gx = X + 10, gy = 800 + (typeH - gs) / 2;
   c.strokeStyle = "rgba(255,209,102,0.7)";
   c.lineWidth = 3;
   for (const [a, b] of type.lines) {
@@ -321,18 +327,15 @@ const paintShareCard = async (ctx) => {
     c.arc(gx + x / 100 * gs, gy + y / 100 * gs, 8, 0, Math.PI * 2);
     c.fill();
   }
-  const tx = X + 300, tw = W - X - tx;
   spaced("VIEWER TYPE", tx, 890, 28, 800, "#ffd166", 5);
-  c.font = font(900, 64);
   c.fillStyle = "#f7f5ff";
-  const nameLines = wrapLines((s) => { c.font = font(900, 64); return c.measureText(s).width; }, type.name, tw, 2);
   nameLines.forEach((l, i) => { c.font = font(900, 64); c.fillText(l, tx, 966 + i * 70); });
   c.font = font(600, 32);
   c.fillStyle = "rgba(232,228,255,0.72)";
-  wrapLines((s) => c.measureText(s).width, type.verdict, tw, 2).forEach((l, i) => c.fillText(l, tx, 966 + nameLines.length * 70 + 8 + i * 42));
+  verdictLines.forEach((l, i) => c.fillText(l, tx, 966 + nameLines.length * 70 + 8 + i * 42));
   // number one
   const top = w.topTitles && w.topTitles[0];
-  let y = 1180;
+  let y = 800 + typeH + 40;
   if (top) {
     panel(y, 330);
     const img = top.poster ? await loadImage(artUrl(top.poster, 400), 3500) : null;

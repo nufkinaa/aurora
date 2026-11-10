@@ -89,3 +89,18 @@ test("the shell carries play.css inert, and the kit's files are where the app se
   const { css } = require("../src/lib/cssbundle").get(path.join(ROOT, "public", "css"));
   assert.ok(!css.includes(".play-story"), "play.css must stay out of aurora.css");
 });
+
+test("play.css parses: every block closed (a stray brace silently drops the next rule)", () => {
+  const css = fs.readFileSync(path.join(ROOT, "public/css/play.css"), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/"[^"\n]*"|'[^'\n]*'/g, '""');
+  let depth = 0;
+  css.split("\n").forEach((line, i) => {
+    for (const ch of line) {
+      if (ch === "{") depth++;
+      else if (ch === "}") depth--;
+      assert.ok(depth >= 0, `an extra } on line ${i + 1} of play.css (comments removed)`);
+    }
+  });
+  assert.equal(depth, 0, "a block left open in play.css");
+});

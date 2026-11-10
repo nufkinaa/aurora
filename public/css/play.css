@@ -1188,6 +1188,10 @@ html.play-story-open .wr-room { visibility: hidden; }
   .wr-genres { gap: 6px; }
   .wr-genre-track { height: 12px; }
   .wr-dna .play-h1, .wr-night .play-h1, .wr-roast-ch .play-h1, .wr-streak .play-h1 { font-size: clamp(1.6rem, 9vh, 2.6rem); }
+  .wr-open-title { font-size: clamp(2.2rem, 7vw, 4rem); }
+  .wr-big { font-size: clamp(4rem, 22vh, 9rem); }
+  .wr-roast { padding: 10px 14px; font-size: 0.95rem; }
+  .wr-roasts { gap: 8px; }
 }
 @media (max-height: 560px) and (min-aspect-ratio: 1/1) {
   .wr-type { grid-template-columns: auto minmax(0, 26em); column-gap: 32px; align-items: center; justify-items: start; text-align: left; }
@@ -1196,11 +1200,6 @@ html.play-story-open .wr-room { visibility: hidden; }
   .wr-type-pre { align-self: end; }
   .wr-type-text { align-self: start; }
   .wr-type-card { width: clamp(140px, 44vh, 260px); }
-}
-  .wr-open-title { font-size: clamp(2.2rem, 7vw, 4rem); }
-  .wr-big { font-size: clamp(4rem, 22vh, 9rem); }
-  .wr-roast { padding: 10px 14px; font-size: 0.95rem; }
-  .wr-roasts { gap: 8px; }
 }
 
 /* the teaser (nothing watched yet) */
@@ -1219,6 +1218,6 @@ html.play-story-open .wr-room { visibility: hidden; }
   .wr-teaser { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; min-height: 0; }
   .wr-teaser-text { justify-items: center; }
   .wr-teaser-art { order: -1; padding: 6px; }
-  .wr-teaser-card { width: clamp(150px, 46vw, 220px); }
+  .wr-teaser-card { width: clamp(120px, 36vw, 180px); }
   .wr-locked { justify-content: center; }
 }
