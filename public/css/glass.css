@@ -16,12 +16,94 @@
 html[data-look="glass"] {
   --g-radius: 20px;
   --g-radius-l: 30px;
-  --g-fill: linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.025) 55%, rgba(255, 255, 255, 0.06));
+  /* ---- the material (2026-11-10 — docs/glass-apple.md) -------------------
+     Apple's dark glass, measured off elia's iPhone: a dark NEUTRAL body that
+     lets through about a quarter of what is behind it (colour arrives by the
+     blur's saturation, not by a tint of ours); white words that read over
+     anything, because the body ALONE holds them at 4.5:1 over a white poster
+     — with or without a backdrop filter; and a rim that is light caught on
+     an edge — a hairline along the top, a fainter one along the foot, a soft
+     glow inside both that reads as thickness — where there was an outline.
+       --g-fill        chrome: what floats over pictures (bars, buttons,
+                       pills, the player's dock)
+       --g-fill-thick  what carries a list or a paragraph (menus, sheets,
+                       dialogs, toasts) — a deeper floor (--g-tint-deep)
+       --g-fill-sheet  the same over the dimmed page (a dialog)
+       --g-fill-menu   a drop-down menu (the profile menu, a picker's list,
+                       the player's menus): the chrome's own body, fuller
+       --g-fill-slab   panes that lie in the page, over the sky only
+       --g-lift        a hover / pressed step, laid over any of the three
+       --g-well        the chosen tab: a darker capsule pressed into the bar,
+                       its word in the accent (--g-ink-on)
+     One body colour (--g-tint) for all of it. The numbers and the contrast
+     they give are in docs/glass-apple.md and docs/qa/glass-apple/contrast.md. */
+  --g-tint: 40, 40, 46;
+  --g-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 48%);
+  --g-fill: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.72), rgba(var(--g-tint), 0.72));
+  /* The thick pane has a deeper floor and lets more through: 79 % of a
+     near-black instead of 84 % of the body grey. Over white it is the same
+     grey as before (72 against 74), over anything darker it is darker — so
+     every word on it reads as well or better — and what is behind shows a
+     third more, which is what makes it glass and not a card. */
+  --g-tint-deep: 24, 24, 28;
+  --g-fill-thick: var(--g-sheen), linear-gradient(rgba(var(--g-tint-deep), 0.79), rgba(var(--g-tint-deep), 0.79));
+  /* a menu or a sheet that opens over the dimmed page (the dim is 55 % of
+     black, so nothing behind it is brighter than a grey of 118): 70 % is
+     enough for the same floor, and twice as much shows through as before */
+  --g-fill-sheet: var(--g-sheen), linear-gradient(rgba(var(--g-tint-deep), 0.7), rgba(var(--g-tint-deep), 0.7));
+  /* A drop-down MENU is not let through more. Its lines are short, close
+     together and sit right over whatever the page has there — through the
+     deeper floor a poster showed as a smudge behind a word and a button as a
+     ghost (the second jury, scenes 05 and 18). So a menu keeps the body, the
+     rim and the shadow the first jury approved: 84 % of the chrome's grey,
+     the plain rim with its 1 px outside line, the two-layer shadow. */
+  --g-fill-menu: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.84), rgba(var(--g-tint), 0.84));
+  --g-edge-menu: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.055), inset 0 8px 10px -8px rgba(255, 255, 255, 0.18),
+    inset 0 -7px 9px -8px rgba(255, 255, 255, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.26);
+  --g-shadow-menu: 0 12px 32px rgba(0, 0, 0, 0.32), 0 2px 6px rgba(0, 0, 0, 0.2);
+  /* A pane in the page has no blur and only the sky behind it. A grey body
+     laid a grey veil over the sky's colour (a row went muddy); a near-black
+     one at 67 % only darkens it, so the row keeps the sky's own hue — a third
+     of it shows, against a quarter. Over the brightest the sky gets it is
+     no lighter than the 76 % grey was, and over the sky as it is, darker. */
+  --g-tint-slab: 10, 10, 14;
+  --g-fill-slab: var(--g-sheen), linear-gradient(rgba(var(--g-tint-slab), 0.67), rgba(var(--g-tint-slab), 0.67));
+  /* A chip is not that pane. A row of near-black pills read as holes in the
+     page, and the chosen one — a darker well — no longer stood apart from
+     them (the second jury, scene 23). A chip keeps the body the first jury
+     approved: 76 % of the chrome's grey, lighter than its own chosen well. */
+  --g-fill-chip: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.76), rgba(var(--g-tint), 0.76));
+  --g-lift: linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07));
   --g-fill-strong: linear-gradient(135deg, rgba(20, 22, 38, 0.42), rgba(14, 16, 30, 0.28));
-  --g-edge: inset 0 1px 0 rgba(255, 255, 255, 0.38), inset 1px 0 0 rgba(255, 255, 255, 0.14),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.05), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-  --g-shadow: 0 24px 60px rgba(0, 0, 0, 0.38);
-  --g-blur: blur(7px) saturate(1.9) brightness(1.08);
+  --g-edge: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.055), inset 0 8px 10px -8px rgba(255, 255, 255, 0.18),
+    inset 0 -7px 9px -8px rgba(255, 255, 255, 0.08), 0 0 0 0.5px rgba(0, 0, 0, 0.3);
+  /* the rim of a THICK pane (a menu, a sheet, a toast): the body is the most
+     opaque of the three, so the thickness has to come from the light on its
+     edge — a brighter hairline, a deeper glow under it, a faint one down each
+     side and along the foot. All of it stays within 10 px of the edge, clear
+     of the words. */
+  --g-edge-thick: inset 0 1px 0 rgba(255, 255, 255, 0.36), inset 0 -1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.075), inset 0 14px 16px -12px rgba(255, 255, 255, 0.22),
+    inset 0 -12px 14px -12px rgba(255, 255, 255, 0.1), inset 12px 0 14px -13px rgba(255, 255, 255, 0.07),
+    inset -12px 0 14px -13px rgba(255, 255, 255, 0.07), 0 0 0 0.5px rgba(0, 0, 0, 0.3);
+  --g-shadow: 0 14px 34px rgba(0, 0, 0, 0.34), 0 3px 8px rgba(0, 0, 0, 0.22), 0 1px 2px rgba(0, 0, 0, 0.22);
+  --g-blur: blur(6px) saturate(1.8);
+  /* the rim for small things in the page (a chip, a round button): the top
+     hairline and the faint outline, without the inner glow */
+  --g-edge-thin: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --g-well: rgba(0, 0, 0, 0.4);
+  --g-well-edge: inset 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 -1px 0 rgba(255, 255, 255, 0.09);
+  --g-ink: #fff;
+  --g-ink-on: #fff;
+  /* the quietest words ON a pane (a hint, a count): the page's own faint
+     grey is drawn for the dark sky — on a pane that lets a quarter of the
+     sky through it falls under 4.5:1, so a pane lifts it one step */
+  --g-ink-quiet: #b2b8ca;
+  /* and the second voice (a note under a label, a row's small icon) likewise */
+  --g-ink-dim: #d0d5e2;
   --g-progress: linear-gradient(90deg, #8b7bff, #a6c8ff);
   --g-glow: 0 0 10px rgba(139, 123, 255, 0.6);
   --bg: #070811;
@@ -32,6 +114,14 @@ html[data-look="glass"] {
   --radius: 16px;
   --radius-l: 24px;
   --t-slow: 420ms;
+}
+/* the chosen tab's word: the profile's accent, lifted towards white so it
+   holds 4.5:1 on the well whatever the accent (a browser without color-mix
+   keeps the white word) */
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  html[data-look="glass"] {
+    --g-ink-on: color-mix(in srgb, var(--accent) 60%, #fff);
+  }
 }
 html[data-look="glass"][data-theme="warm"] {
   --bg: #100d08;
@@ -126,6 +216,41 @@ html[data-look="glass"] .toast,
 html[data-look="glass"] .search-box {
   position: relative;
 }
+/* the two quieter greys, lifted one step on every pane (see --g-ink-quiet) */
+html[data-look="glass"] .nav-menu,
+html[data-look="glass"] .menu,
+html[data-look="glass"] .dropdown,
+html[data-look="glass"] .suggest-list,
+html[data-look="glass"] .modal,
+html[data-look="glass"] .claim-modal,
+html[data-look="glass"] .login-card,
+html[data-look="glass"] .peek,
+html[data-look="glass"] .look-notice,
+html[data-look="glass"] .toast,
+html[data-look="glass"] .party-panel,
+html[data-look="glass"] .upnext,
+html[data-look="glass"] .resume-card,
+html[data-look="glass"] .pref-section,
+html[data-look="glass"] .wrapped-card,
+html[data-look="glass"] .pair-card,
+html[data-look="glass"] .request-sent,
+html[data-look="glass"] .dl-callout,
+html[data-look="glass"] .detail-rate,
+html[data-look="glass"] .season-island,
+html[data-look="glass"] .episode,
+html[data-look="glass"] .episode-wrap,
+html[data-look="glass"] .search-box,
+html[data-look="glass"] .source-row,
+html[data-look="glass"] .taste-tile,
+html[data-look="glass"] .party-strip-item,
+html[data-look="glass"] .dl-row,
+html[data-look="glass"] .chip,
+html[data-look="glass"] .cat-pill,
+html[data-look="glass"] .source-filter,
+html[data-look="glass"] .picker-btn {
+  --text-faint: var(--g-ink-quiet);
+  --text-dim: var(--g-ink-dim);
+}
 /* the specular: a soft, still highlight in the surface's top-left corner */
 html[data-look="glass"] .nav-items::before,
 html[data-look="glass"] .hero::before,
@@ -139,7 +264,7 @@ html[data-look="glass"] .login-card::before {
   pointer-events: none;
   z-index: 1;
   overflow: hidden;
-  background: radial-gradient(120% 60% at 15% 0%, rgba(255, 255, 255, 0.14), transparent 55%);
+  background: radial-gradient(120% 60% at 15% 0%, rgba(255, 255, 255, 0.05), transparent 55%);
 }
 /* (the sliding highlight that used to cross these surfaces every 9s is
    gone — elia: the moving lights were too much; the static edge light and
@@ -156,7 +281,7 @@ html[data-look="glass"] .login-card::before {
   html[data-look="glass"] .party-panel {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-    background: rgba(18, 20, 34, 0.9);
+    background: rgba(var(--g-tint), 0.94);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -207,7 +332,7 @@ html[data-look="glass"] .nav-item {
   border-radius: 999px;
   font-weight: 600;
   font-size: 0.9rem;
-  color: rgba(243, 244, 248, 0.82);
+  color: var(--g-ink);
   transition: background var(--t-fast), color var(--t-fast);
 }
 html[data-look="glass"] .nav-item:hover,
@@ -217,18 +342,20 @@ html[data-look="glass"] .nav-item:focus:not(:focus-visible) {
   box-shadow: none;
 }
 html[data-look="glass"] .nav-item.active:focus:not(:focus-visible) {
-  background: rgba(255, 255, 255, 0.14);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  background: var(--g-well);
+  color: var(--g-ink-on);
+  box-shadow: var(--g-well-edge);
 }
 html[data-look="glass"] .nav-item:focus-visible {
   color: #0b0c14;
   background: #fff;
   box-shadow: var(--focus-ring);
 }
+/* the chosen tab: a darker well in the bar, its word in the accent */
 html[data-look="glass"] .nav-item.active {
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  background: var(--g-well);
+  color: var(--g-ink-on);
+  box-shadow: var(--g-well-edge);
 }
 html[data-look="glass"] .nav-item.active::after {
   display: none; /* the classic underline */
@@ -243,7 +370,7 @@ html[data-look="glass"] .nav-gear {
   display: grid;
   place-items: center;
   padding: 0;
-  color: rgba(243, 244, 248, 0.8);
+  color: var(--g-ink);
 }
 html[data-look="glass"] .nav-gear.has-new::after {
   top: 7px;
@@ -258,7 +385,7 @@ html[data-look="glass"] .nav-dl {
   padding: 9px 14px;
 }
 html[data-look="glass"] .nav-dl.ready {
-  background: rgba(74, 222, 128, 0.16);
+  background: linear-gradient(rgba(74, 222, 128, 0.2), rgba(74, 222, 128, 0.2)), var(--g-fill);
   box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.42), var(--g-shadow);
 }
 /* The island leaves the centre while it would run into the right-hand
@@ -421,8 +548,11 @@ html[data-look="glass"] .hero-kicker {
   align-items: center;
   padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  /* a tag on a picture: the body at the thick pane's 84 %, no sheen and no
+     backdrop filter — its gold letters hold 5.5:1 over a plain white picture
+     (a white-tinted pill left them at 1.6:1 there) */
+  background: rgba(var(--g-tint), 0.84);
+  box-shadow: var(--g-edge-thin);
   font-size: 0.7rem;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -767,11 +897,11 @@ html[data-look="glass"] .btn {
 /* the few buttons that float over art keep the frost */
 html[data-look="glass"] .hero-actions .btn,
 html[data-look="glass"] .detail-actions .btn {
-  backdrop-filter: blur(12px) saturate(1.5);
-  -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  backdrop-filter: var(--g-blur);
+  -webkit-backdrop-filter: var(--g-blur);
 }
 html[data-look="glass"] .btn:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--g-lift), var(--g-fill);
   box-shadow: var(--g-edge), 0 8px 22px rgba(0, 0, 0, 0.35);
 }
 html[data-look="glass"] .btn-primary,
@@ -797,19 +927,20 @@ html[data-look="glass"] .season-pill,
 html[data-look="glass"] .source-filter,
 html[data-look="glass"] .picker-btn {
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  background: var(--g-fill-chip);
+  box-shadow: var(--g-edge-thin);
   border: 0;
-  color: rgba(243, 244, 248, 0.82);
+  color: var(--g-ink);
 }
 html[data-look="glass"] .chip.on,
 html[data-look="glass"] .cat-pill.active,
 html[data-look="glass"] .cat-pill.on,
 html[data-look="glass"] .season-pill.active,
 html[data-look="glass"] .source-filter.active {
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  /* the chosen one, as in the bars: the darker well, its word in the accent */
+  background: linear-gradient(var(--g-well), var(--g-well)), var(--g-fill-chip);
+  color: var(--g-ink-on);
+  box-shadow: var(--g-well-edge);
 }
 html[data-look="glass"] .season-bar,
 html[data-look="glass"] .filter-bar,
@@ -921,9 +1052,9 @@ html[data-look="glass"] .detail-info .hero-kicker {
   display: inline-flex;
   padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(127, 209, 232, 0.14);
+  background: rgba(var(--g-tint), 0.84); /* as the Home hero's tag: 5.1:1 over a white picture */
   color: #7fd1e8;
-  box-shadow: inset 0 0 0 1px rgba(127, 209, 232, 0.35);
+  box-shadow: var(--g-edge-thin);
   font-size: 0.74rem;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -1025,7 +1156,7 @@ html[data-look="glass"] .season-island {
   display: inline-flex;
   padding: 5px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--g-fill-slab);
   box-shadow: var(--g-edge);
   gap: 2px;
   flex: none;
@@ -1044,8 +1175,9 @@ html[data-look="glass"] .season-pill {
   padding: 9px 16px;
 }
 html[data-look="glass"] .season-pill.active {
-  background: rgba(255, 255, 255, 0.14);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  background: var(--g-well);
+  color: var(--g-ink-on);
+  box-shadow: var(--g-well-edge);
 }
 /* episodes: glass cards with a still, a kicker and the title */
 html[data-look="glass"] .episode {
@@ -1077,7 +1209,7 @@ html[data-look="glass"] .episode-kicker {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(243, 244, 248, 0.7);
+  color: var(--text-dim);
   margin-bottom: 3px;
 }
 html[data-look="glass"] .episode-title {
@@ -1417,7 +1549,7 @@ html[data-look="glass"] .party-code span {
   html[data-look="glass"] .party-panel {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-    background: rgba(14, 16, 28, 0.82);
+    background: rgba(var(--g-tint), 0.88);
   }
   html[data-look="glass"] .player-bottom::before {
     display: none;
@@ -1481,10 +1613,11 @@ html[data-look="glass"] .trailer-box,
 html[data-look="glass"] .login-card {
   border-radius: var(--g-radius-l);
 }
+/* (.claim-dim used to be in this list: it is a sentence inside the sign-in
+   sheet, not a dim behind it — it got a dark box and a blur of its own) */
 html[data-look="glass"] .modal-backdrop,
 html[data-look="glass"] .nav-menu-wrap,
-html[data-look="glass"] .trailer-modal,
-html[data-look="glass"] .claim-dim {
+html[data-look="glass"] .trailer-modal {
   background: rgba(4, 5, 12, 0.55);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -1543,6 +1676,13 @@ html[data-look="glass"] .screen > :nth-child(n + 5) { animation-delay: 240ms; }
 @keyframes g-reveal-soft {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+/* A sheet that opens INSIDE a screen (the remote's) is not one of the screen's
+   blocks: the entrance fills "both", so its dim kept an opacity animation for
+   as long as it was open — which made it the sheet's backdrop root, and the
+   sheet's blur saw only the dim, never the controls under it. */
+html[data-look="glass"] .screen > .rm-sheet-wrap {
+  animation: none;
 }
 @media (prefers-reduced-motion: reduce) {
   html[data-look="glass"] .screen > * {
@@ -1737,7 +1877,8 @@ html[data-look="glass"] .peek {
   -webkit-backdrop-filter: var(--g-blur);
   border-radius: var(--g-radius-l);
 }
-html[data-look="glass"] .peek-art-fade { background: linear-gradient(to top, rgba(14, 16, 28, 0.96) 0%, rgba(0, 0, 0, 0) 55%); }
+/* the picture melts into the pane below it: the pane's own body colour */
+html[data-look="glass"] .peek-art-fade { background: linear-gradient(to top, rgba(var(--g-tint-deep), 0.96) 0%, rgba(var(--g-tint-deep), 0) 55%); }
 /* the phone's bottom sheet sits flush on the screen edge — square there */
 @media (max-width: 720px) {
   html[data-look="glass"] .peek { border-radius: var(--g-radius-l) var(--g-radius-l) 0 0; }
@@ -1787,6 +1928,25 @@ html[data-look="glass"] .toast {
   backdrop-filter: var(--g-blur);
   -webkit-backdrop-filter: var(--g-blur);
 }
+/* what lies in the page (over the sky, never over a picture) is the thinner
+   pane; what carries a paragraph or a form over anything is the thick one */
+html[data-look="glass"] .pref-section,
+html[data-look="glass"] .wrapped-card,
+html[data-look="glass"] .pair-card,
+html[data-look="glass"] .request-sent,
+html[data-look="glass"] .dl-callout,
+html[data-look="glass"] .detail-rate,
+html[data-look="glass"] .season-island {
+  background: var(--g-fill-slab);
+}
+html[data-look="glass"] .modal,
+html[data-look="glass"] .claim-modal,
+html[data-look="glass"] .login-card,
+html[data-look="glass"] .peek,
+html[data-look="glass"] .look-notice {
+  background: var(--g-fill-thick);
+  box-shadow: var(--g-edge-thick), var(--g-shadow);
+}
 html[data-look="glass"] .episode,
 html[data-look="glass"] .source-row,
 html[data-look="glass"] .taste-tile,
@@ -1794,21 +1954,21 @@ html[data-look="glass"] .party-strip-item {
   /* Tint, not blur: a season is 10–24 of these cards and a sources list up to
      50 rows, and each blur re-ran on every frame of the sky and every scroll
      step. The glass is a translucent fill with the edge light. */
-  background: var(--g-fill);
+  background: var(--g-fill-slab);
   border: 0;
   box-shadow: var(--g-edge);
 }
-/* episodes a touch less see-through than the rest of the glass — each stop
-   of --g-fill lifted by 0.03 (elia, 2026-10-07: "a little less transparent
-   but not by very much at all, just to give it a bit more contrast") */
+/* episodes a touch less see-through than the chrome (elia, 2026-10-07: "a
+   little less transparent but not by very much at all, just to give it a bit
+   more contrast") — the slab, which every pane in the page takes now */
 html[data-look="glass"] .episode {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.055) 55%, rgba(255, 255, 255, 0.09));
+  background: var(--g-fill-slab);
 }
 html[data-look="glass"] .episode:hover,
 html[data-look="glass"] .episode:focus,
 html[data-look="glass"] .source-row:hover,
 html[data-look="glass"] .party-strip-item:hover {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06) 55%, rgba(255, 255, 255, 0.1));
+  background: var(--g-lift), var(--g-fill-slab);
 }
 /* An episode you hold: a soft green glass instead of a tick (elia, 2026-10-07:
    "a green hue background or something like that"). */
@@ -1816,48 +1976,48 @@ html[data-look="glass"] .episode.owned {
   /* the green rises from the foot and fades toward the top, over the glass */
   background:
     linear-gradient(to top, rgba(74, 222, 128, 0.26), rgba(74, 222, 128, 0.08) 55%, rgba(74, 222, 128, 0) 90%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.055) 55%, rgba(255, 255, 255, 0.09));
+    var(--g-fill-slab);
   box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.3);
 }
 html[data-look="glass"] .episode.owned:hover,
 html[data-look="glass"] .episode.owned:focus {
   background:
     linear-gradient(to top, rgba(74, 222, 128, 0.34), rgba(74, 222, 128, 0.12) 55%, rgba(74, 222, 128, 0) 90%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.085) 55%, rgba(255, 255, 255, 0.13));
+    var(--g-lift), var(--g-fill-slab);
 }
 html[data-look="glass"] .episode .source-owned { display: none; }
 /* up next AND on disk: green at the foot rising into the accent */
 html[data-look="glass"] .episode.up-next.owned {
   background:
     linear-gradient(to top, rgba(74, 222, 128, 0.3), rgba(var(--accent-rgb), 0.22) 45%, rgba(var(--accent-rgb), 0.08) 70%, rgba(var(--accent-rgb), 0) 92%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.055) 55%, rgba(255, 255, 255, 0.09));
+    var(--g-fill-slab);
 }
 /* the episode to watch next: the same rise in the accent, over owned or not */
 html[data-look="glass"] .episode.up-next {
   background:
     linear-gradient(to top, rgba(var(--accent-rgb), 0.3), rgba(var(--accent-rgb), 0.1) 55%, rgba(var(--accent-rgb), 0) 90%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.055) 55%, rgba(255, 255, 255, 0.09));
+    var(--g-fill-slab);
 }
 /* the episode's hover and focus step up from ITS resting tint, not the common one */
 html[data-look="glass"] .episode:hover,
 html[data-look="glass"] .episode:focus {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.085) 55%, rgba(255, 255, 255, 0.13));
+  background: var(--g-lift), var(--g-fill-slab);
 }
 /* Download rows are firm, not frosted (elia: the page read as transparent
    and random): a dark base under the glass tint, no live blur per row, the
    state colour on the edge doing the talking. */
 html[data-look="glass"] .dl-row {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03) 60%), rgba(12, 14, 26, 0.72);
+  background: var(--g-fill-slab);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: var(--g-edge);
   border-radius: 18px;
 }
 html[data-look="glass"] .dl-row:hover {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05) 60%), rgba(12, 14, 26, 0.78);
+  background: var(--g-lift), var(--g-fill-slab);
 }
 html[data-look="glass"] .dl-row.fresh {
   border-color: rgba(74, 222, 128, 0.4);
-  background: linear-gradient(90deg, rgba(74, 222, 128, 0.14), transparent 55%), rgba(12, 14, 26, 0.72);
+  background: linear-gradient(90deg, rgba(74, 222, 128, 0.14), transparent 55%), var(--g-fill-slab);
 }
 html[data-look="glass"] .dl-poster { border-radius: 10px; }
 html[data-look="glass"] .dl-new,
@@ -1907,8 +2067,8 @@ html[data-look="glass"] .dl-section .row-title .count { border-radius: 999px; }
     padding: 10px 4px 9px;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-    background: rgba(255, 255, 255, 0.07);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    background: var(--g-fill-slab);
+    box-shadow: var(--g-edge-thin);
   }
   html[data-look="glass"] .detail-actions .btn-primary {
     border-radius: 16px;
@@ -2155,9 +2315,20 @@ html[data-look="glass"] #nav-new.has-new .nav-new-dot {
    out keeps its red. */
 html[data-look="glass"] .dropdown,
 html[data-look="glass"] .menu,
-html[data-look="glass"] .nav-menu,
+html[data-look="glass"] .nav-menu {
+  /* the menu's own body, and the rim and shadow every rule above gives it
+     read these two (see --g-fill-menu) */
+  --g-edge: var(--g-edge-menu);
+  --g-shadow: var(--g-shadow-menu);
+  background: var(--g-fill-menu);
+}
 html[data-look="glass"] .suggest-list {
-  background: var(--g-fill), rgba(10, 12, 22, 0.8);
+  background: var(--g-fill-thick);
+  box-shadow: var(--g-edge-thick), var(--g-shadow);
+}
+/* over the dimmed page (see --g-fill-sheet) */
+html[data-look="glass"] .modal-backdrop > .modal {
+  background: var(--g-fill-sheet);
 }
 html[data-look="glass"] .dropdown-item,
 html[data-look="glass"] .menu-item,
@@ -2179,20 +2350,26 @@ html[data-look="glass"] .menu-item .tag {
 html[data-look="glass"] .toast.quiet {
   box-shadow: none;
   color: var(--text-dim);
-  background: rgba(14, 16, 28, 0.78);
+  background: rgba(var(--g-tint), 0.8);
   border-color: rgba(255, 255, 255, 0.06);
 }
 /* A toast keeps a dark floor under its sheen (elia's photo, 2026-11-03):
    "Saving — the episode shows its progress" over a row of bright posters was
    white words on a white-and-colour smear — the thin glass let the posters
    through, and the blur saturated them. The floor is what this glass shows
-   over the night sky, strong enough for AA contrast over a white poster;
-   the blur keeps its radius and stops saturating. Its words wrap onto a
-   second line rather than run out of it. */
+   over the night sky, strong enough for AA contrast over a white poster
+   (the thick pane of the material). Its words wrap onto a second line
+   rather than run out of it. */
 html[data-look="glass"] .toast {
-  background: var(--g-fill), rgba(18, 20, 38, 0.8);
-  -webkit-backdrop-filter: blur(7px) saturate(1.2);
-  backdrop-filter: blur(7px) saturate(1.2);
+  background: var(--g-fill-thick);
+  box-shadow: var(--g-edge-thick), var(--g-shadow);
+  -webkit-backdrop-filter: var(--g-blur);
+  backdrop-filter: var(--g-blur);
+}
+/* the letters of a suggestion that matched: the accent as glass carries it
+   (the raw accent on the dark pane read at 3.2:1) */
+html[data-look="glass"] .suggest-title mark {
+  color: var(--g-ink-on);
 }
 html[data-look="glass"] .toast > span:first-child {
   flex: none;
@@ -2229,10 +2406,23 @@ html[data-look="glass"] .quality-pill {
   background: var(--g-fill), rgba(10, 12, 22, var(--g-under, 0));
   transition: --g-under 0.6s ease;
 }
+/* The gear is a nav item that stands alone: chosen, or under the pointer, it
+   keeps its pane - the well and the lift lie over the body, not in place of
+   it (in place of it, over a bright sky, the button was a tinted hole). */
+html[data-look="glass"] .nav-item.nav-gear:hover:not(:focus-visible),
+html[data-look="glass"] .nav-item.nav-gear:focus:not(:focus-visible) {
+  background: var(--g-lift), var(--g-fill), rgba(10, 12, 22, var(--g-under, 0));
+  box-shadow: var(--g-edge), var(--g-shadow);
+}
+html[data-look="glass"] .nav-item.nav-gear.active:not(:focus-visible) {
+  background: linear-gradient(var(--g-well), var(--g-well)), var(--g-fill), rgba(10, 12, 22, var(--g-under, 0));
+  box-shadow: var(--g-edge), var(--g-shadow);
+}
 /* The party panel carries a paragraph of small text: it never goes below a
    real floor, whatever is behind it, and its text is light, not grey. */
 html[data-look="glass"] .party-panel {
-  background: var(--g-fill), rgba(10, 12, 22, max(0.62, var(--g-under, 0.62)));
+  background: var(--g-fill-thick), rgba(10, 12, 22, var(--g-under, 0));
+  box-shadow: var(--g-edge-thick), var(--g-shadow);
   transition: --g-under 0.6s ease;
 }
 .party-hint,
@@ -3563,19 +3753,14 @@ html[data-look="glass"]:root .card.wide .card-progress {
      (docs/android-phone/WEB-PARITY.md), strong enough for AA contrast over
      a white poster, and the blur no longer saturates. Same blur radius, same
      one layer: nothing new to draw. */
+  /* (2026-11-10: that floor is now the one material every bar wears — the
+     neutral body of --g-fill, which holds white words at 4.5:1 over a white
+     poster on its own. The blue is gone: the colour in the bar is whatever
+     is behind it, through the blur's saturation.) */
   html[data-look="glass"]:root .nav-items {
-    background: var(--g-fill),
-      linear-gradient(90deg, rgba(14, 36, 90, 0.86), rgba(24, 30, 64, 0.85) 45%, rgba(16, 19, 42, 0.86));
-    -webkit-backdrop-filter: blur(7px) saturate(1.2);
-    backdrop-filter: blur(7px) saturate(1.2);
-  }
-  /* on that floor the words stay light, whatever is behind the bar */
-  html[data-look="glass"]:root .nav-items .nav-item[data-tone="light"]:not(:focus-visible) {
-    color: rgba(243, 244, 248, 0.82);
-  }
-  html[data-look="glass"]:root .nav-items .nav-item.active[data-tone="light"]:not(:focus-visible) {
-    color: #fff;
-    background-color: rgba(255, 255, 255, 0.14);
+    background: var(--g-fill);
+    -webkit-backdrop-filter: var(--g-blur);
+    backdrop-filter: var(--g-blur);
   }
   html[data-look="glass"]:root #app {
     padding-bottom: 90px;
@@ -3737,7 +3922,7 @@ html[data-look="glass"]:root .card.wide .card-progress {
     font-weight: 800;
     letter-spacing: 0.09em;
     text-transform: uppercase;
-    color: rgba(243, 244, 248, 0.62);
+    color: var(--text-dim);
   }
   html[data-look="glass"]:root .episode-title {
     display: flex;
@@ -3770,7 +3955,7 @@ html[data-look="glass"]:root .card.wide .card-progress {
     margin-top: 5px;
     padding: 0 84px 0 19px;
     font-size: 0.76rem;
-    color: rgba(243, 244, 248, 0.7);
+    color: var(--text-dim);
   }
   html[data-look="glass"]:root .episode-sub .ep-overview {
     order: -1;
@@ -3783,7 +3968,7 @@ html[data-look="glass"]:root .card.wide .card-progress {
     white-space: normal;
     font-size: 0.8rem;
     line-height: 1.4;
-    color: rgba(243, 244, 248, 0.72);
+    color: var(--text-dim);
   }
   html[data-look="glass"]:root .episode-sub .ep-dur {
     display: inline;
@@ -3804,7 +3989,7 @@ html[data-look="glass"]:root .card.wide .card-progress {
     border-radius: 0;
     background: none;
     box-shadow: none;
-    opacity: 0.85;
+    opacity: 1;
   }
   html[data-look="glass"]:root .episode .episode-play svg {
     width: 12px;
@@ -4028,15 +4213,34 @@ html[data-look="glass"] .nav .nav-profile,
 html[data-look="glass"] .nav .nav-dl {
   transition: color 0.45s ease, background-color 0.45s ease;
 }
-html[data-look="glass"] .nav [data-tone="light"],
-html[data-look="glass"] .nav .nav-item[data-tone="light"]:hover {
-  color: rgba(8, 9, 16, 0.88);
-  text-shadow: none;
+/* A tab under the finger: a small clear lens rises where the press is —
+   lighter than the bar, a little larger than the tab, its own bright rim —
+   and settles back with a short spring when the finger lifts. Transform and
+   paint on one small box, only while something is pressed; with reduced
+   motion the tab lights up and does not move. */
+html[data-look="glass"] .nav .nav-item {
+  transition: color 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease,
+    transform 0.38s cubic-bezier(0.3, 1.45, 0.5, 1);
 }
-html[data-look="glass"] .nav .nav-item.active[data-tone="light"] {
-  color: #05060c;
-  background-color: rgba(255, 255, 255, 0.36);
+html[data-look="glass"] .nav .nav-item:active {
+  transform: scale(1.08);
+  background: var(--g-lift);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42), inset 0 -1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 4px 14px rgba(0, 0, 0, 0.3);
+  transition-duration: 0.09s;
+  transition-timing-function: ease-out;
 }
+@media (prefers-reduced-motion: reduce) {
+  html[data-look="glass"] .nav .nav-item,
+  html[data-look="glass"] .nav .nav-item:active {
+    transform: none;
+    transition: color 0.2s ease, background-color 0.2s ease;
+  }
+}
+/* (2026-11-10: the glass is dark over anything now — docs/glass-apple.md —
+   so the words no longer turn dark over a bright picture: white reads there
+   too, and a word that flips half-way across a poster was the one moment it
+   did not. navTone.js still marks the buttons; nothing hangs on the mark.) */
 
 /* ---------- one state to the next, dissolved (2026-10-06) ----------
    ui.js smooth(): X-Ray taking over a title and giving it back, a list
@@ -4688,6 +4892,14 @@ html[data-look="glass"][data-fx="lite"] * {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+/* with no blur behind it the thick pane keeps the body it had before it was
+   let through more: what shows through an unblurred pane is sharp letters,
+   not light */
+html[data-look="glass"][data-fx="lite"] {
+  --g-tint-deep: var(--g-tint);
+  --g-fill-thick: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.84), rgba(var(--g-tint), 0.84));
+  --g-fill-sheet: var(--g-fill-thick);
+}
 html[data-look="glass"][data-fx="lite"] .nav-items,
 html[data-look="glass"][data-fx="lite"] .nav-logo,
 html[data-look="glass"][data-fx="lite"] .nav-profile,
@@ -4702,7 +4914,14 @@ html[data-look="glass"][data-fx="lite"] .party-panel,
 html[data-look="glass"][data-fx="lite"] .peek,
 html[data-look="glass"][data-fx="lite"] .look-notice,
 html[data-look="glass"][data-fx="lite"] .hero-picks {
-  background: rgba(18, 20, 34, 0.9);
+  background: rgba(var(--g-tint), 0.94);
+}
+html[data-look="glass"][data-fx="lite"] .nav-item.nav-gear:hover:not(:focus-visible),
+html[data-look="glass"][data-fx="lite"] .nav-item.nav-gear:focus:not(:focus-visible) {
+  background: var(--g-lift), rgba(var(--g-tint), 0.94);
+}
+html[data-look="glass"][data-fx="lite"] .nav-item.nav-gear.active:not(:focus-visible) {
+  background: linear-gradient(var(--g-well), var(--g-well)), rgba(var(--g-tint), 0.94);
 }
 
 /* ---- the TV's hue, on the site (elia, 2026-10-07) -------------------------
@@ -5485,23 +5704,11 @@ html[data-fx="lite"] .person-viewer-slide img.person-viewer-up { transition: non
     display: block;
     order: 8; /* the last word, right before Search */
   }
+  /* More, open, is the chosen tab while its menu is up: the same well */
   html[data-look="glass"]:root .nav-items > .nav-more.open {
-    background: rgba(255, 255, 255, 0.14);
-    color: #fff;
-  }
-  /* Six to a bar, each lit pill is narrower, and its top light (an inset
-     shadow, which follows the round ends) curved down beside the word's ends
-     — 3 px above "My List" at 393 px, where over a white poster the word
-     fell under AA (iphone-content-clear). The same light is drawn as a
-     straight line along the pill's flat top, fading before the curves. */
-  html[data-look="glass"]:root .nav-items > .nav-item.active,
-  html[data-look="glass"]:root .nav-items > .nav-item.active:focus:not(:focus-visible),
-  html[data-look="glass"]:root .nav-items > .nav-more.open {
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-    background-image: linear-gradient(90deg, transparent 14px, rgba(255, 255, 255, 0.35) 26px, rgba(255, 255, 255, 0.35) calc(100% - 26px), transparent calc(100% - 14px));
-    background-size: 100% 1px;
-    background-position: top;
-    background-repeat: no-repeat;
+    background: var(--g-well);
+    color: var(--g-ink-on);
+    box-shadow: var(--g-well-edge);
   }
   html[data-look="glass"] .nav-more.has-new .nav-new-dot {
     display: block;
@@ -5527,10 +5734,16 @@ html[data-fx="lite"] .person-viewer-slide img.person-viewer-up { transition: non
    file); their own floors above come later in the file and would otherwise
    win. */
 @media (prefers-reduced-transparency: reduce), (hover: none) and (pointer: coarse) and (min-width: 1200px) {
+  /* and the thick pane keeps its fuller body where nothing blurs behind it */
+  html[data-look="glass"]:root {
+    --g-tint-deep: var(--g-tint);
+    --g-fill-thick: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.84), rgba(var(--g-tint), 0.84));
+    --g-fill-sheet: var(--g-fill-thick);
+  }
   html[data-look="glass"]:root .toast,
   html[data-look="glass"]:root .nav-items {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-    background: rgba(18, 20, 34, 0.9);
+    background: rgba(var(--g-tint), 0.94);
   }
 }

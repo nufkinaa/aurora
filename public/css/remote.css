@@ -43,11 +43,56 @@ html.remote-open #offline-banner {
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
+/* Glass: the pads, pills and the touchpad are panes over the title's blurred
+   art. The body is deep but not shut — about half of the art's colour comes
+   through it, dark enough that white words keep 4.5:1 over an all-white
+   picture; no white wash (that was the milky cast). The shape is held by the
+   light on its rim (the thick pane's rim), not by the fill. A thing that sits
+   ON a pane (the OK disc, the chosen tab) is a lighter step with no body of
+   its own, so it is brighter than the pane it sits on. */
 html[data-look="glass"] .remote-screen {
   --rm-radius: 26px;
-  --rm-slab: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.035) 55%, rgba(255, 255, 255, 0.07));
-  --rm-slab-strong: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06));
-  --rm-edge: inset 0 1px 0 rgba(255, 255, 255, 0.32), inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  --rm-body: 14, 14, 22;
+  --rm-slab: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.012) 55%, rgba(255, 255, 255, 0.028)),
+    linear-gradient(rgba(var(--rm-body), 0.5), rgba(var(--rm-body), 0.5));
+  --rm-lift: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.09));
+  --rm-slab-strong: var(--rm-lift), linear-gradient(rgba(var(--rm-body), 0.5), rgba(var(--rm-body), 0.5));
+  --rm-edge: var(--g-edge-thick, inset 0 1px 0 rgba(255, 255, 255, 0.36), inset 0 -1px 0 rgba(255, 255, 255, 0.16), inset 0 0 0 1px rgba(255, 255, 255, 0.075));
+}
+html[data-look="glass"] .rm-ok,
+html[data-look="glass"] .rm-seg-btn.on {
+  background: var(--rm-lift);
+}
+html[data-look="glass"] .rm-ok {
+  box-shadow: var(--rm-edge), 0 10px 22px rgba(0, 0, 0, 0.42), 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+/* the touchpad's dots: brighter, on their own layer so they can fade out
+   under the two hints at its foot */
+html[data-look="glass"] .rm-touch {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.06), transparent 70%),
+    var(--rm-slab);
+}
+html[data-look="glass"] .rm-touch::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(rgba(255, 255, 255, 0.26) 1px, transparent 1.5px) 0 0 / 22px 22px;
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 66px), transparent calc(100% - 40px));
+  mask-image: linear-gradient(#000 calc(100% - 66px), transparent calc(100% - 40px));
+}
+html[data-look="glass"] .rm-pad-hint {
+  color: var(--text-dim);
+}
+/* the device's icon in the accent colour: lifted toward white, as the accent
+   itself is too deep to read on the pane */
+html[data-look="glass"] .rm-pick-ico {
+  color: color-mix(in srgb, var(--rm-accent) 42%, #fff);
+}
+html[data-look="glass"] .rm-pick-caret {
+  opacity: 0.85;
 }
 /* classic: solid, square-ish */
 html:not([data-look="glass"]) .remote-screen {
@@ -999,10 +1044,23 @@ html:not([data-look="glass"]) .rm-touch {
   transform: translateY(100%);
   transition: transform 260ms var(--ease);
 }
+/* glass: the thick pane every menu and sheet is (glass.css --g-fill-thick):
+   the words read on its body alone, the blur only softens what is behind */
 html[data-look="glass"] .rm-sheet {
-  background: rgba(18, 20, 34, 0.78);
-  -webkit-backdrop-filter: blur(22px) saturate(1.6);
-  backdrop-filter: blur(22px) saturate(1.6);
+  background: var(--g-fill-thick, rgba(40, 40, 46, 0.84));
+  box-shadow: var(--g-edge, inset 0 1px 0 rgba(255, 255, 255, 0.28)), 0 -20px 60px rgba(0, 0, 0, 0.5);
+  -webkit-backdrop-filter: var(--g-blur, blur(6px) saturate(1.8));
+  backdrop-filter: var(--g-blur, blur(6px) saturate(1.8));
+}
+html[data-look="glass"][data-fx="lite"] .rm-sheet {
+  background: rgba(var(--g-tint, 40, 40, 46), 0.94);
+}
+@media (prefers-reduced-transparency: reduce) {
+  html[data-look="glass"] .rm-sheet {
+    background: rgba(var(--g-tint, 40, 40, 46), 0.94);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 .rm-sheet-wrap.on .rm-sheet {
   transform: none;

@@ -1,0 +1,113 @@
+{
+ "note": "which look each letter is, per scene: before = today's glass (origin/master), after = the new material",
+ "scenes": {
+  "01": {
+   "A": "before",
+   "B": "after"
+  },
+  "02": {
+   "A": "after",
+   "B": "before"
+  },
+  "03": {
+   "A": "before",
+   "B": "after"
+  },
+  "04": {
+   "A": "after",
+   "B": "before"
+  },
+  "05": {
+   "A": "before",
+   "B": "after"
+  },
+  "06": {
+   "A": "before",
+   "B": "after"
+  },
+  "07": {
+   "A": "before",
+   "B": "after"
+  },
+  "08": {
+   "A": "before",
+   "B": "after"
+  },
+  "09": {
+   "A": "after",
+   "B": "before"
+  },
+  "10": {
+   "A": "before",
+   "B": "after"
+  },
+  "11": {
+   "A": "before",
+   "B": "after"
+  },
+  "12": {
+   "A": "after",
+   "B": "before"
+  },
+  "13": {
+   "A": "after",
+   "B": "before"
+  },
+  "14": {
+   "A": "after",
+   "B": "before"
+  },
+  "15": {
+   "A": "before",
+   "B": "after"
+  },
+  "16": {
+   "A": "after",
+   "B": "before"
+  },
+  "17": {
+   "A": "before",
+   "B": "after"
+  },
+  "18": {
+   "A": "after",
+   "B": "before"
+  },
+  "19": {
+   "A": "after",
+   "B": "before"
+  },
+  "20": {
+   "A": "before",
+   "B": "after"
+  },
+  "21": {
+   "A": "before",
+   "B": "after"
+  },
+  "22": {
+   "A": "after",
+   "B": "before"
+  },
+  "23": {
+   "A": "after",
+   "B": "before"
+  },
+  "24": {
+   "A": "before",
+   "B": "after"
+  },
+  "25": {
+   "A": "after",
+   "B": "before"
+  },
+  "26": {
+   "A": "after",
+   "B": "before"
+  },
+  "27": {
+   "A": "before",
+   "B": "after"
+  }
+ }
+}
