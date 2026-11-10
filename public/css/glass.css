@@ -69,6 +69,11 @@ html[data-look="glass"] {
      no lighter than the 76 % grey was, and over the sky as it is, darker. */
   --g-tint-slab: 10, 10, 14;
   --g-fill-slab: var(--g-sheen), linear-gradient(rgba(var(--g-tint-slab), 0.67), rgba(var(--g-tint-slab), 0.67));
+  /* A chip is not that pane. A row of near-black pills read as holes in the
+     page, and the chosen one — a darker well — no longer stood apart from
+     them (the second jury, scene 23). A chip keeps the body the first jury
+     approved: 76 % of the chrome's grey, lighter than its own chosen well. */
+  --g-fill-chip: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.76), rgba(var(--g-tint), 0.76));
   --g-lift: linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07));
   --g-fill-strong: linear-gradient(135deg, rgba(20, 22, 38, 0.42), rgba(14, 16, 30, 0.28));
   --g-edge: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(255, 255, 255, 0.12),
@@ -864,7 +869,7 @@ html[data-look="glass"] .season-pill,
 html[data-look="glass"] .source-filter,
 html[data-look="glass"] .picker-btn {
   border-radius: 999px;
-  background: var(--g-fill-slab);
+  background: var(--g-fill-chip);
   box-shadow: var(--g-edge-thin);
   border: 0;
   color: var(--g-ink);
@@ -875,7 +880,7 @@ html[data-look="glass"] .cat-pill.on,
 html[data-look="glass"] .season-pill.active,
 html[data-look="glass"] .source-filter.active {
   /* the chosen one, as in the bars: the darker well, its word in the accent */
-  background: linear-gradient(var(--g-well), var(--g-well)), var(--g-fill-slab);
+  background: linear-gradient(var(--g-well), var(--g-well)), var(--g-fill-chip);
   color: var(--g-ink-on);
   box-shadow: var(--g-well-edge);
 }
