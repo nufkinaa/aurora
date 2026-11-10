@@ -112,7 +112,9 @@ const HASH_FIRST = "a".repeat(40);
 const HASH_BEST = "b".repeat(40);
 const catalogueShow = async (page, posted) => {
   const episodes = Array.from({ length: 18 }, (_, i) => ({ season: 1, episode: i + 1, title: `Catalogue ${i + 1}`, released: "2020-01-01T00:00:00.000Z" }));
-  await page.route(`**/api/discover/meta/series/${CAT}`, (route) =>
+  // (the page asks for a series' metadata as "show", as every other asker
+  // does; the server answers "series" and "show" alike)
+  await page.route(`**/api/discover/meta/*/${CAT}`, (route) =>
     route.fulfill({ json: { type: "show", imdbId: CAT, title: "Catalogue Show", year: 2020, genres: [], cast: [], trailers: [], seasons: [{ number: 1, episodes }] } }));
   await page.route(/\/api\/torrents\/sources\?/, (route) =>
     route.fulfill({ json: { imdbId: CAT, streams: [
@@ -295,7 +297,13 @@ ui.test("a rating given on the title page is kept", async ({ page, goto, signIn,
   await goto(`#/movie/${lib.film2.id}`);
   await page.click('.star-rating .star[aria-label="4 stars"]');
   await page.waitForFunction(() => document.querySelectorAll(".star-rating .star.on").length === 4);
-  const { ratings } = await api.state(me);
+  // (the stars light at the press; the save is on its way behind the page's
+  // other requests — read the server until it has landed)
+  let ratings = {};
+  for (let i = 0; i < 100 && !Object.keys(ratings).length; i++) {
+    ({ ratings } = await api.state(me));
+    if (!Object.keys(ratings).length) await new Promise((r) => setTimeout(r, 100));
+  }
   assert.deepEqual(Object.values(ratings), [4]);
   await page.reload();
   await waitForScreen(page);

@@ -4,7 +4,7 @@
 import { el, toast, rerenderInPlace, keptScrollFor, restoreScrollY, promptSheet, haptic } from "../ui.js";
 import { loadLibrary, loadProfiles, state, applyAppearance, setPersonPref } from "../state.js";
 import { api, setAuthToken } from "../api.js";
-import { navigate } from "../router.js";
+import { navigate, untilLeave } from "../router.js";
 import { profileModal, kidsLabel } from "./profiles.js";
 import { playerPrefs, applyCueStyle, cuePreview, paintCuePreview } from "./player.js";
 // [player-options] sound + the look of subtitles, the person's (2026-10-19)
@@ -187,6 +187,10 @@ const subtitleLookRows = () => {
     }
   };
   window.addEventListener("aurora:player-options", onChange);
+  // …and in any case once the page is left: waiting for the next change to
+  // notice it had gone kept the whole Settings page in memory, once per
+  // visit, for as long as nothing changed (tools/mobile-perf/holders.js)
+  untilLeave(() => window.removeEventListener("aurora:player-options", onChange));
   // (not a .pref-item: it has no label, and a list of settings is a list of those)
   const wrap = el("div", { class: "sub-preview-row" }, sample.box);
   return [wrap, ...rows];

@@ -45,7 +45,10 @@ const cert = () => {
 
 const HOP = new Set(["connection", "keep-alive", "proxy-connection", "transfer-encoding", "upgrade", "host", "http2-settings", "te"]);
 
-const startFront = async (target) => {
+// onLog(entry), optional: called once per answered request with
+// { method, url, status, bytes, enc, cc, t0, t1 } (bytes as they went on the
+// wire, t in ms since this front started) — what crossed the line.
+const startFront = async (target, { onLog = null } = {}) => {
   const t = new URL(target);
   const { key, cert: crt, spki } = cert();
   const agent = new http.Agent({ keepAlive: true, maxSockets: 64 });
@@ -63,6 +66,12 @@ const startFront = async (target) => {
       const out = {};
       for (const [k, v] of Object.entries(ur.headers)) if (!HOP.has(k)) out[k] = v;
       res.writeHead(ur.statusCode, out);
+      if (onLog) {
+        const t0 = Date.now();
+        let bytes = 0;
+        ur.on("data", (c) => { bytes += c.length; });
+        ur.on("end", () => { try { onLog({ method: req.method, url: req.url, status: ur.statusCode, bytes, enc: ur.headers["content-encoding"] || "", cc: ur.headers["cache-control"] || "", type: ur.headers["content-type"] || "", t0, t1: Date.now() }); } catch {} });
+      }
       ur.pipe(res);
     });
     up.on("error", () => { try { res.writeHead(502); } catch {} res.end(); });

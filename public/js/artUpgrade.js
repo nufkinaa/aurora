@@ -266,10 +266,24 @@ const show = async (job, full) => {
   try { await done; } finally { fading.delete(node); }
 };
 
+// `painted` (url("…")) shows the same address as `full` but for its ?w=,
+// at a width no smaller (no ?w= at all: the original, as wide as it comes)
+const widthOf = (u) => { const m = /[?&]w=(\d+)/.exec(u); return m ? Number(m[1]) : Infinity; };
+const alreadyWide = (painted, full) => {
+  const m = /^url\("(.*)"\)$/.exec(painted || "");
+  if (!m) return false;
+  const bare = (u) => u.replace(/([?&])w=\d+&?/, "$1").replace(/[?&]$/, "");
+  return bare(m[1]) === bare(full) && widthOf(m[1]) >= widthOf(full);
+};
+
 const run = async (job, { wait = true } = {}) => {
   jobs.delete(job);
   const full = artUrl(job.src, job.width(), { full: true });
   if (!full || `url("${full}")` === job.painted) return; // already the best there is
+  // the same picture already painted at least as wide (a local cover drawn at
+  // ?w=800 whose "full" size here is ?w=780): a second, smaller download of
+  // what is on screen — nothing to do
+  if (alreadyWide(job.painted, full)) return;
   try {
     const im = new Image();
     im.decoding = "async";
