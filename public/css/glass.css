@@ -1906,9 +1906,13 @@ html[data-look="glass"] .dl-section .row-title .count { border-radius: 999px; }
     margin-top: 6px;
   }
 }
-/* the season island scrolls sideways when it can't fit */
-html[data-look="glass"] .season-bar { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-html[data-look="glass"] .season-bar::-webkit-scrollbar { display: none; }
+/* the season island scrolls sideways when it can't fit; the season actions
+   go to a line of their own when the bar is full (a tablet at 768 px had
+   "Mark season watched" cut by the screen's edge in a strip that scrolled
+   with nothing to say so — the phone rule below, for every width) */
+html[data-look="glass"] .season-bar { max-width: 100%; flex-wrap: wrap; row-gap: 10px; overflow: visible; }
+html[data-look="glass"] .season-island { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+html[data-look="glass"] .season-island::-webkit-scrollbar { display: none; }
 /* phones: the island scrolls on its own and the season actions wrap under
    it — one long strip put "Mark season watched" 300px off the right edge
    with nothing to say it was there */
@@ -3585,12 +3589,12 @@ html[data-look="glass"]:root .card.wide .card-progress {
   }
   html[data-look="glass"]:root .season-bar-trailing {
     display: flex;
-    flex-wrap: nowrap;
+    /* (wraps: on a 320 px phone the second pill was cut by the edge of a
+       strip that scrolled with nothing to say so) */
+    flex-wrap: wrap;
     gap: 8px;
     width: 100%;
     margin-left: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
   }
   html[data-look="glass"]:root .season-bar-trailing::-webkit-scrollbar { display: none; }
   html[data-look="glass"]:root .season-bar-trailing .btn,
