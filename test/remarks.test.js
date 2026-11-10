@@ -232,3 +232,16 @@ test("Wrapped's roasts: up to four, one per rule, different takes on the next vi
   assert.equal(clean.length, 1);
   assert.ok(clean[0].includes("Dana"));
 });
+
+test("the apps' local lines are lines of the bank (one voice, whoever answers)", () => {
+  const fs = require("fs");
+  const path = require("path");
+  const bank = new Set([...require("../src/lib/remarks/bank").BY_ID.values()].map((v) => v.text));
+  for (const file of ["public/js/remark.js", "tv-native/src/remark.ts"]) {
+    const src = fs.readFileSync(path.join(__dirname, "..", file), "utf8");
+    const block = src.slice(src.indexOf("const LOCAL"), src.indexOf("export const LOCAL_LINES"));
+    const lines = [...block.matchAll(/^\s+(["'])(.+)\1,$/gm)].map((m) => m[2]);
+    assert.ok(lines.length >= 20, `${file}: ${lines.length} local lines`);
+    for (const l of lines) assert.ok(bank.has(l), `${file}: "${l}" is not in the bank`);
+  }
+});

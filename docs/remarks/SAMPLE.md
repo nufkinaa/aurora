@@ -15,7 +15,7 @@ A made-up person (zone Asia/Jerusalem) back after a month away, then hooked agai
 | 9 | 2026-11-10 23:00 (Tue) | todayHours=3, myList=34 | en-20 (everyday-night) | The late show. Starring you, ignoring your alarm. |
 | 10 | 2026-11-11 03:00 (Wed) | genre=thrillers, nightOwl | gd-13 (genre-diet) | Lately you only watch one kind of thing. You know which. |
 | 11 | 2026-11-11 10:00 (Wed) | lateLastNight, streak=5 | wh-6 (work-hours) | The workday is in progress. So, apparently, is this. |
-| 12 | 2026-11-11 19:00 (Wed) | streak=5, newEpisode=The Bear | nx-4 (new-episode) | Fresh The Bear. Watch it before it's spoiled. |
+| 12 | 2026-11-11 19:00 (Wed) | streak=5, newEpisode=The Bear | nx-4 (new-episode) | New episode: The Bear. Watch before it's spoiled. |
 | 13 | 2026-11-12 08:00 (Thu) | streak=6, newEpisode=The Bear | em-24 (everyday-morning) | Morning. Your bed is still warm. It saw you leave for this. |
 | 14 | 2026-11-12 17:00 (Thu) | streak=6, oneShow=The Bear | os-10 (one-show) | One show, most nights. The library would like a hearing. |
 | 15 | 2026-11-12 21:00 (Thu) | streak=6, ratings=harsh | ex-5 (everyday-any) | Everything here is ready. The delay is entirely you. |
@@ -37,7 +37,7 @@ A made-up person (zone Asia/Jerusalem) back after a month away, then hooked agai
 | 31 | 2026-11-18 12:00 (Wed) | myList=36 | ml-10 (mylist-grows) | Another one for My List, surely. That's 36. Breathe. |
 | 32 | 2026-11-18 21:00 (Wed) | justBack | jb-3 (just-back) | Back so soon. The couch barely had time to recover. |
 | 33 | 2026-11-19 09:00 (Thu) | leftShow=Severance | em-6 (everyday-morning) | Morning. Your taste is no better rested than you are. |
-| 34 | 2026-11-19 17:00 (Thu) | newEpisode=Slow Horses | nx-1 (new-episode) | A new Slow Horses is out. Act surprised. You knew. |
+| 34 | 2026-11-19 17:00 (Thu) | newEpisode=Slow Horses | nx-1 (new-episode) | Slow Horses: new episode. Act surprised. You knew. |
 | 35 | 2026-11-19 22:00 (Thu) | — | ee-8 (everyday-evening) | Dinner's handled, I assume. Or it's happening in here. |
 | 36 | 2026-11-20 07:00 (Fri) | — | wk-12 (weekend-morning) | Weekend morning. Leave the dishes. They're used to it. |
 | 37 | 2026-11-20 13:00 (Fri) | ratings=harsh | ea-9 (everyday-afternoon) | Technically this is a break. From what, we won't ask. |
