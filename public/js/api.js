@@ -401,6 +401,14 @@ export const api = {
   offlineStatus: (id, q, hevc) => json(`/api/offline/status/${encodeURIComponent(id)}?q=${encodeURIComponent(q || "720")}${hevc ? "&hevc=1" : ""}`),
   // the phone's Cancel: the server stops making a copy nobody else waits for
   offlineCancel: (id, q) => post(`/api/offline/cancel/${encodeURIComponent(id)}?q=${encodeURIComponent(q || "720")}`, {}),
+  // asked through the service worker so it keeps the answer for an offline boot (offline.js)
+  warmOffline: (url) => json(url, { cache: "no-store" }),
+  // "save it to this device too" before the server has it (docs/offline-wishes.md)
+  offlineWishes: (profileId, deviceId) => json(`/api/profiles/${encodeURIComponent(profileId)}/offline-wishes?device=${encodeURIComponent(deviceId)}`, { cache: "no-store" }),
+  offlineWishAdd: (profileId, body) => post(`/api/profiles/${encodeURIComponent(profileId)}/offline-wishes`, body),
+  offlineWishRemove: (profileId, wishId) => json(`/api/profiles/${encodeURIComponent(profileId)}/offline-wishes/${encodeURIComponent(wishId)}`, { method: "DELETE" }),
+  offlineWishSaved: (profileId, wishId) => post(`/api/profiles/${encodeURIComponent(profileId)}/offline-wishes/${encodeURIComponent(wishId)}/saved`, {}),
+  offlineWishOptions: (q) => json(`/api/offline/wish-options?${new URLSearchParams(q).toString()}`),
   parties: () => json("/api/party"),
   // `profileId` (optional): the row comes back in that person's order, with
   // what they have already watched left out.

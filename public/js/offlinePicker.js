@@ -16,7 +16,9 @@ const lastPicked = () => {
 
 // Resolves the chosen quality ("original" | "1080" | "720" | "480"), or null.
 // A standing preference that this file can honour skips the sheet.
-export const pickOfflineQuality = (options, { title = "" } = {}) =>
+// `lead`: the sheet's sentence, when the usual one does not fit (a title that
+// is not on the server yet — offlineWish.js).
+export const pickOfflineQuality = (options, { title = "", lead = "" } = {}) =>
   new Promise((resolve) => {
     const pref = preferredQuality();
     if (pref !== "ask" && options.some((o) => o.quality === pref)) return resolve(pref);
@@ -58,7 +60,7 @@ export const pickOfflineQuality = (options, { title = "" } = {}) =>
     const card = el("div", { class: "look-notice sheet offline-sheet", role: "dialog", "aria-modal": "true", "aria-label": "Save offline" },
       el("div", { class: "sheet-icon" }, "📱"),
       el("div", { class: "look-notice-title" }, "Save offline — which size?"),
-      el("p", { class: "look-notice-text" }, title ? `“${title}” will be kept inside Aurora on this device and play with no server in reach.` : "It will be kept inside Aurora on this device and play with no server in reach."),
+      el("p", { class: "look-notice-text" }, lead || (title ? `“${title}” will be kept inside Aurora on this device and play with no server in reach.` : "It will be kept inside Aurora on this device and play with no server in reach.")),
       el("div", { class: "offline-opts" }, rows),
       el("div", { class: "look-notice-actions offline-sheet-actions" },
         alwaysBtn,

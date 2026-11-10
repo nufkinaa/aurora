@@ -532,13 +532,28 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     offline.onJobs((list) => { if (list.length !== jobsN) { jobsN = list.length; paint(); } });
     window.addEventListener("hashchange", () => setTimeout(paint, 0));
     window.addEventListener("offline", paint);
-    window.addEventListener("online", () => { paint(); offline.flushProgress().catch(() => {}); });
+    // Saves that stopped (a reload, a closed tab, a phone that froze the page,
+    // no line) carry on by themselves from where they were, and this device's
+    // "save it here too" wishes the server made ready are saved (offlineWish.js)
+    // — whenever Aurora opens, the line or the socket comes back, or the app
+    // returns to the front.
+    const carryOn = () => {
+      if (state.profile) offline.rememberWho(state.profile);
+      offline.resumeSaves().catch(() => {});
+      import("./offlineWish.js").then((w) => w.syncWishes()).catch(() => {});
+    };
+    firstScreen.then(() => setTimeout(carryOn, 1500));
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && navigator.onLine !== false) carryOn(); });
+    onMessage("offline_wish", (m) => import("./offlineWish.js").then((w) => w.onWishMessage(m)).catch(() => {}));
+    onMessage("offline_wish_removed", (m) => import("./offlineWish.js").then((w) => w.onWishMessage(m)).catch(() => {}));
+    window.addEventListener("online", () => { paint(); offline.flushProgress().catch(() => {}); carryOn(); });
     // the socket coming back is the surest "server is there" signal — also
     // the moment to fetch skip-intro / X-Ray for copies saved before those
     // travelled with them
     onMessage("welcome", () => {
       offline.flushProgress().catch(() => {});
       offline.backfillExtras().catch(() => {});
+      carryOn();
       paint();
     });
   }).catch(() => {});

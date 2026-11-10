@@ -801,7 +801,10 @@ export const renderPlayer = async (root, { id }) => {
       return navigate("#/saved");
     }
   } else if (offlineMode) {
-    const saved = await offline.getSaved(itemId).catch(() => null);
+    let saved = await offline.getSaved(itemId).catch(() => null);
+    // a kids profile plays only what it saved itself (offline.js listSavedFor)
+    const who = state.profile ? { id: state.profile.id, kids: !!state.profile.kids } : offline.lastWho();
+    if (saved && who && who.kids && saved.profileId !== who.id) saved = null;
     if (!saved) {
       toast("That title isn't saved on this device", "📱");
       return navigate("#/saved");
@@ -5578,6 +5581,15 @@ export const renderPlayer = async (root, { id }) => {
     // Never write over a history we could not read (see where it is read).
     if (progressReadFailed) return;
     const d = totalDuration();
+    // A saved copy played with no server from a cold start: the app may not
+    // know the profile — the copy does (offline.js), and its minutes are
+    // queued for that person instead of lost.
+    if (!state.profile && item._offline && item.profileId && d) {
+      const pos = effTime();
+      state.progress[item.id] = { position: Math.floor(pos), duration: Math.floor(d), finished: pos / d > 0.95, updatedAt: Date.now() };
+      offline.queueProgress(item.profileId, item.id, pos, d);
+      return;
+    }
     if (!state.profile || !d) return;
     // (stall recovery) While a rebuilt stream is still coming back, the media
     // clock sits at 0 — saving now would move the resume point to the start

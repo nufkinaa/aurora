@@ -57,8 +57,11 @@ export const renderSaved = async (root) => {
   let gen = 0;
   const paint = async () => {
     const mine = ++gen;
-    const items = await offline.listSaved();
+    // a kids profile sees only what it saved itself (offline.js listSavedFor)
+    const who = state.profile ? { id: state.profile.id, kids: !!state.profile.kids } : offline.lastWho();
+    const items = await offline.listSavedFor(who);
     const est = await offline.storageEstimate();
+    const kept = await offline.persistState();
     if (mine !== gen) return; // a newer paint is on its way
     body.innerHTML = "";
     savedCount.textContent = items.length ? String(items.length) : "";
@@ -72,6 +75,14 @@ export const renderSaved = async (root) => {
     if (!items.length) {
       body.append(el("p", { class: "dl-note saved-empty" }, "Nothing saved for offline yet. On any title you own, press “Save offline” and it lands here — playable with no server in reach."));
       return;
+    }
+    // The browser may clear a site's storage when the device runs short of
+    // room — the films with it. Said once, plainly, with what keeps them.
+    if (kept === "may-clear") {
+      body.append(el("p", { class: "dl-note saved-keep" },
+        /iPhone|iPad|Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1
+          ? "Safari may clear these after a week without a visit. Add Aurora to the Home Screen (Share → Add to Home Screen) to keep them until you remove them."
+          : "This browser may clear these if the device runs short of space. Installing Aurora (the browser's Install or “Add to Home screen”) keeps them until you remove them."));
     }
     body.append(
       el(

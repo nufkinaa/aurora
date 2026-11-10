@@ -243,9 +243,9 @@ ui.test("phone: no room on the device says so before anything is fetched; a save
     await btn.waitFor();
     await btn.click();
     await pick(page, "Original");
-    await page.locator("#toasts .toast", { hasText: "not enough browser storage" }).first().waitFor();
+    await page.locator("#toasts .toast", { hasText: "not enough room on this device" }).first().waitFor();
     await go("#/saved", '.device-job[data-state="failed"]');
-    assert.match(await page.locator(".device-job").innerText(), /Didn't save[\s\S]*not enough browser storage[\s\S]*Try a smaller size/);
+    assert.match(await page.locator(".device-job").innerText(), /Didn't save[\s\S]*not enough room on this device[\s\S]*Try a smaller size/);
     assert.equal(await page.locator(".device-job button", { hasText: "Retry" }).count(), 1);
     await shot(page, "storage-full");
     await page.locator(".device-job button", { hasText: "Dismiss" }).click();

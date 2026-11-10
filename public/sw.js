@@ -5,7 +5,8 @@
 //
 // Strategy, by path:
 //   /offline/media/<id>   the saved copy (put there by js/offline.js) — cache
-//                         only, Range-aware, never touches the network
+//                         only, Range-aware, never touches the network: from
+//                         its parts, or the one entry of an older save
 //   /stream/*, /api/admin/*, /proxy/*, /avatars/*   untouched (live only)
 //   /api/*  (GET)         network first; a short allow-list of answers is
 //                         kept for offline (profiles, state, library, home…)
@@ -81,6 +82,8 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("message", (e) => {
   if (e.data && e.data.type === "precache") e.waitUntil(precache().catch(() => {}));
+  // a saved copy was removed (js/offline.js): its manifest is no longer the truth
+  if (e.data && e.data.type === "offline-removed" && e.data.id) manifests.delete(String(e.data.id));
 });
 
 // ---- the poster cache's housekeeping ----
@@ -112,18 +115,26 @@ const trimImgCache = async (c) => {
   trimming = false;
 };
 
-// A 206 sliced out of a cached full response, for <video> seeking.
+// A 206 sliced out of a cached full response, for <video> seeking. (A copy
+// saved before 2026-11-10: one entry for the whole film.)
+const parseRange = (rangeHeader, size) => {
+  const m = /bytes=(\d*)-(\d*)/.exec(rangeHeader || "");
+  if (!m || (!m[1] && !m[2])) return null;
+  let start = m[1] ? parseInt(m[1], 10) : Math.max(0, size - parseInt(m[2], 10));
+  let end = m[1] && m[2] ? parseInt(m[2], 10) : size - 1;
+  if (isNaN(start) || start >= size) return { bad: true };
+  end = Math.min(end, size - 1);
+  return { start, end };
+};
 const rangeResponse = async (cached, rangeHeader) => {
   const blob = await cached.blob();
   const size = blob.size;
-  const m = /bytes=(\d*)-(\d*)/.exec(rangeHeader || "");
-  if (!m) {
+  const r = parseRange(rangeHeader, size);
+  if (!r) {
     return new Response(blob, { status: 200, headers: { "Content-Type": blob.type || "video/mp4", "Content-Length": String(size), "Accept-Ranges": "bytes" } });
   }
-  let start = m[1] ? parseInt(m[1], 10) : Math.max(0, size - parseInt(m[2], 10));
-  let end = m[1] && m[2] ? parseInt(m[2], 10) : size - 1;
-  if (isNaN(start) || start >= size) return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${size}` } });
-  end = Math.min(end, size - 1);
+  if (r.bad) return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${size}` } });
+  const { start, end } = r;
   return new Response(blob.slice(start, end + 1), {
     status: 206,
     headers: {
@@ -133,6 +144,61 @@ const rangeResponse = async (cached, rangeHeader) => {
       "Accept-Ranges": "bytes",
     },
   });
+};
+
+// A copy saved in PARTS (js/offline.js, 2026-11-10): /offline/part/<id>/<n>,
+// each `part` bytes, and /offline/manifest/<id> ({ v: 2, size, part, count,
+// type }) once every part is in. A range is streamed from the parts it
+// spans, one part read at a time (nothing is held whole, whatever the size
+// of the film); a part missing from the cache ends the stream with an error
+// rather than handing the player wrong bytes.
+const manifests = new Map(); // id -> manifest (a copy's manifest never changes; removal clears it)
+const manifestOf = async (c, id) => {
+  if (manifests.has(id)) return manifests.get(id);
+  const hit = await c.match(`/offline/manifest/${id}`);
+  if (!hit) return null;
+  try {
+    const m = await hit.json();
+    if (!(m && m.size > 0 && m.part > 0)) return null;
+    manifests.set(id, m);
+    return m;
+  } catch { return null; }
+};
+const partsResponse = (c, id, m, rangeHeader) => {
+  const size = m.size;
+  const r = parseRange(rangeHeader, size);
+  if (r && r.bad) return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${size}` } });
+  const start = r ? r.start : 0;
+  const end = r ? r.end : size - 1;
+  let at = start; // the next byte to hand over
+  let reader = null; // the part being read
+  const body = new ReadableStream({
+    // one chunk per pull: a film is never more than a chunk ahead of the player
+    async pull(ctl) {
+      for (;;) {
+        if (!reader) {
+          if (at > end) return ctl.close();
+          const n = Math.floor(at / m.part);
+          const hit = await c.match(`/offline/part/${id}/${n}`);
+          if (!hit) { manifests.delete(id); return ctl.error(new Error("part missing")); }
+          const blob = await hit.blob();
+          const from = at - n * m.part;
+          const to = Math.min(blob.size, end - n * m.part + 1);
+          if (to <= from) return ctl.error(new Error("part too short"));
+          reader = blob.slice(from, to).stream().getReader();
+        }
+        const { value, done } = await reader.read();
+        if (done) { reader = null; continue; }
+        at += value.byteLength;
+        ctl.enqueue(value);
+        return;
+      }
+    },
+    cancel() { if (reader) reader.cancel().catch(() => {}); },
+  });
+  const headers = { "Content-Type": m.type || "video/mp4", "Content-Length": String(end - start + 1), "Accept-Ranges": "bytes" };
+  if (r) headers["Content-Range"] = `bytes ${start}-${end}/${size}`;
+  return new Response(body, { status: r ? 206 : 200, headers });
 };
 
 self.addEventListener("fetch", (e) => {
@@ -159,11 +225,19 @@ self.addEventListener("fetch", (e) => {
   if (p.startsWith("/offline/media/")) {
     e.respondWith(
       caches.open(MEDIA).then(async (c) => {
+        const id = decodeURIComponent(p.slice("/offline/media/".length));
+        const m = await manifestOf(c, id);
+        if (m) return partsResponse(c, id, m, req.headers.get("range"));
         const hit = await c.match(p);
         if (!hit) return new Response("Not saved on this device", { status: 404 });
         return rangeResponse(hit, req.headers.get("range"));
       }),
     );
+    return;
+  }
+  // the pieces of a copy are never served as they are
+  if (p.startsWith("/offline/part/") || p.startsWith("/offline/manifest/")) {
+    e.respondWith(new Response("Not here", { status: 404 }));
     return;
   }
   if (LIVE_ONLY.some((re) => re.test(p))) return;
