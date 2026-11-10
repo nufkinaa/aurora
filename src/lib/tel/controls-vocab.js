@@ -269,8 +269,18 @@ module.exports = {
   // row
   "row.arrow": "w",
   // saved
+  "saved.clear.watched": "w", // On this device: "Remove watched" (Undo on the line that follows)
+  "saved.next.save": "w", // under a show: "Save the next N"
+  "saved.offer.save": "w", // nothing saved yet: one of the titles worth saving
+  "saved.pack": "w", // "Pack for a trip" (opens the sheet)
+  "saved.pack.go": "w", // the sheet: pack what is ticked
+  "saved.pack.length": "w", // the sheet: how long the trip is
+  "saved.pack.pick": "w", // the sheet: a title ticked / unticked
   "saved.play": "w",
+  "saved.play.next": "w", // a show's card: play the episode that is next
   "saved.remove": "w",
+  "saved.remove.show": "w", // a show's card: all its episodes off this device
+  "saved.smartnext": "w", // the "Keep the next episode ready" switch
   "saved.wish.cancel": "w",
   "saved.wish.dismiss": "w",
   // search

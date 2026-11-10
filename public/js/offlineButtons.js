@@ -13,6 +13,9 @@
 //   seasonButton(nextEpisodes, showTitle, showId, { pill })   several
 //       episodes at one size asked once: "Save the next 3" on a show's page,
 //       "Save the season (N)" on the season bar.
+//   saveSeveral(items, { signal, sheetTitle, onLine })   the loop under it:
+//       several titles one after another at ONE size, asked once — also what
+//       "Pack for a trip" runs (js/offlinePack.js).
 //
 // The saving is js/offline.js (not this file).
 import { el, toast, fmtBytes, fmtDuration } from "./ui.js";
@@ -39,13 +42,13 @@ const sayFailure = (e, name) => {
   toast(`Couldn't save: ${msg}`, mark("failed"), /not enough room/.test(msg) ? { label: "Make room", onClick: open } : null);
 };
 
-export const saveButton = (item, { variant = "hero", ep = null, onLeave = null } = {}) => {
+export const saveButton = (item, { variant = "hero", ep = null, onLeave = null, ui = null } = {}) => {
   if (!offline.available() || !item || !item.id) return null;
   const name = nameOf(item);
   const m = mark("none", 0, variant === "ep" ? "ep-dev" : variant === "rail" ? "rail-dev" : "btn-dev-mark");
   let word = null, label = null, num = null;
   const btn = el("button", {
-    "data-ui": variant === "ep" ? "detail.episode.offline" : "detail.offline",
+    "data-ui": ui || (variant === "ep" ? "detail.episode.offline" : "detail.offline"),
     class: variant === "ep" ? "ep-action ep-offline focusable btn-offline"
       : variant === "rail" ? "src-act src-icon focusable btn-offline"
         : "btn focusable btn-offline btn-dev",
@@ -153,15 +156,110 @@ export const saveButton = (item, { variant = "hero", ep = null, onLeave = null }
   return btn;
 };
 
+// Several titles in a row at ONE size, asked once (on the first of them).
+//   items      what offline.saveItem takes (an episode carries showTitle,
+//              showId, season, episode), in the order they are saved
+//   sheetTitle the name in the size sheet's sentence
+//   onLine     ({ i, n, pct, waiting }) while it runs
+//   patient    a pack of different titles ("Pack for a trip"): one that is
+//              paused, cancelled or fails does not end the others — a paused
+//              one is waited for (its Resume carries the pack on), the rest
+//              are saved after it
+// → how many were saved. What stopped it is thrown, with e.done = that number.
+// The ones after the first wait their turn as rows on "On this device"; one
+// line says the whole batch landed (the caller's), not one line each.
+export const saveSeveral = async (items, { signal = null, sheetTitle = "", onLine = () => {}, patient = false } = {}) => {
+  let quality = null; // asked once, then reused
+  let done = 0;
+  // what they come to together: by running time, and the files' own weight
+  const secs = items.map((it) => it.duration || 0);
+  const times = secs[0] > 0 && secs.every((x) => x > 0) ? secs.reduce((a, b) => a + b, 0) / secs[0] : items.length;
+  const originalBytes = items.every((it) => it.sizeBytes > 0) ? items.reduce((a, it) => a + it.sizeBytes, 0) : 0;
+  for (const it of items.slice(1)) offline.queueJob(it);
+  for (const it of items) hush.add(it.id);
+  try {
+    for (const [i, it] of items.entries()) {
+      // (taken off the list on "On this device" meanwhile: skipped)
+      if (i > 0 && !offline.jobFor(it.id)) continue;
+      const line = { i: i + 1, n: items.length, pct: 0, waiting: false };
+      onLine(line);
+      let saved = null;
+      try {
+        saved = await offline.saveItem(
+          it,
+          ({ phase, pct, waiting }) => {
+            if (phase === "preparing" || phase === "saving") { line.pct = pct || 0; line.waiting = !!waiting && phase === "preparing"; onLine(line); }
+          },
+          async (options) => {
+            if (quality && options.some((o) => o.quality === quality)) return quality;
+            // a later one that can't be made at the chosen size: the nearest smaller one it offers
+            if (quality) return (options.find((o) => !o.instant) || options[0]).quality;
+            quality = await pickSize(options, { title: sheetTitle, count: items.length, times, originalBytes });
+            return quality;
+          },
+          signal,
+        );
+      } catch (e) {
+        if (!patient || (signal && signal.aborted) || /not enough room/.test((e && e.message) || "")) throw e;
+        // paused (by the person, or the line went): wait for it — then the rest
+        const end = await settled(it.id, signal);
+        if (end === "saved") done++;
+        else if (end === "stop") throw e;
+        continue;
+      }
+      if (!saved) break; // the size sheet was closed
+      done++;
+    }
+    return done;
+  } catch (e) {
+    if (e && typeof e === "object") e.done = done;
+    throw e;
+  } finally {
+    // still waiting their turn after a stop, an error or a closed size sheet: not coming
+    for (const it of items) { const j = offline.jobFor(it.id); if (j && j.state === "queued") offline.dismissJob(it.id); }
+    setTimeout(() => { for (const it of items) hush.delete(it.id); }, 1500);
+  }
+};
+// One save that stopped inside a patient pack: what became of it.
+//   "saved"  its Resume (or the line coming back) finished it
+//   "gone"   cancelled, or it failed and waits for its own Retry — the next one
+//   "stop"   the whole pack was stopped
+const settled = (id, signal) => new Promise((resolve) => {
+  let off = null;
+  const look = () => {
+    const j = offline.jobFor(id);
+    const end = signal && signal.aborted ? "stop" : !j ? (offline.savedNow(id) ? "saved" : "gone") : j.state === "failed" ? "gone" : null;
+    if (!end) return;
+    if (off) off();
+    resolve(end);
+  };
+  off = offline.onJobs(look);
+  if (signal) signal.addEventListener("abort", look, { once: true });
+  look();
+});
+// How a batch ended, in one line. `of`: " of “Show”" or "".
+export const sayBatch = (done, e, { of = "", noun = "episode", held = false } = {}) => {
+  const n = (k) => `${k} ${noun}${k === 1 ? "" : "s"}`;
+  if (!e) {
+    if (done) toast(done === 1 ? `1 ${noun}${of} is on this device` : `${n(done)}${of} are on this device`, mark("saved"), { label: "Open", onClick: open });
+    return;
+  }
+  const msg = (e && e.message) || String(e);
+  if (e.name === "AbortError" && held) toast(`Paused${done ? ` — ${done} saved` : ""}. Carry on from On this device`, mark("paused", 0.3), { label: "Open", onClick: open });
+  else if (e.name === "AbortError") toast(done ? `Stopped — ${done} saved` : "Save cancelled", mark("none"));
+  else if (e.pause === "offline") toast(`No connection — ${done ? `${done} saved, ` : ""}the rest carries on when the line is back`, mark("retrying", 0.3), { label: "Open", onClick: open });
+  else toast(`Saved ${done} — then: ${msg}`, mark("failed"), /not enough room/.test(msg) ? { label: "Make room", onClick: open } : null);
+};
+
 // "Save the next 3" / "Save the season (N)": the same save, run for several
 // episodes in a row at one size, asked once. `nextEpisodes()` → the rows to
 // save, in order (each with .local, the library item).
 const NEXT = 3;
-export const seasonButton = (nextEpisodes, showTitle, showId = null, { pill = false, onLeave = null } = {}) => {
+export const seasonButton = (nextEpisodes, showTitle, showId = null, { pill = false, onLeave = null, ui = null } = {}) => {
   if (!offline.available()) return null;
   const limit = pill ? Infinity : NEXT;
   const btn = el("button", {
-    "data-ui": pill ? "detail.offline.seasonall" : "detail.offline.season",
+    "data-ui": ui || (pill ? "detail.offline.seasonall" : "detail.offline.season"),
     class: pill ? "season-pill focusable btn-offline season-dev" : "btn focusable btn-offline btn-dev btn-dev-next",
   });
   const m = mark("none", 0, pill ? "pill-dev" : "btn-dev-mark");
@@ -227,52 +325,18 @@ export const seasonButton = (nextEpisodes, showTitle, showId = null, { pill = fa
     aborter = new AbortController();
     line = { i: 1, n: rows.length, pct: 0, waiting: false };
     paint();
-    let quality = null; // asked once, on the first episode, then reused
-    let done = 0;
-    // what they come to together: by running time, and the files' own weight
-    const secs = rows.map((e) => e.local.duration || 0);
-    const times = secs[0] > 0 && secs.every((s) => s > 0) ? secs.reduce((a, b) => a + b, 0) / secs[0] : rows.length;
-    const originalBytes = rows.every((e) => e.local.sizeBytes > 0) ? rows.reduce((a, e) => a + e.local.sizeBytes, 0) : 0;
-    // the ones after the first wait their turn — and say so on "On this device"
-    for (const e of rows.slice(1)) offline.queueJob(asItem(e));
-    for (const e of rows) hush.add(e.local.id);
+    const held = () => rows.some((r) => { const j = offline.jobFor(r.local.id); return j && j.state === "paused"; });
+    const of = ` of “${showTitle}”`;
     try {
-      for (const [i, e] of rows.entries()) {
-        // (taken off the list on "On this device" meanwhile: skipped)
-        if (i > 0 && !offline.jobFor(e.local.id)) continue;
-        line = { i: i + 1, n: rows.length, pct: 0, waiting: false };
-        paint();
-        const saved = await offline.saveItem(
-          asItem(e),
-          ({ phase, pct, waiting }) => {
-            if (phase === "preparing" || phase === "saving") { line.pct = pct || 0; line.waiting = !!waiting && phase === "preparing"; paint(); }
-          },
-          async (options) => {
-            if (quality && options.some((o) => o.quality === quality)) return quality;
-            // a later episode that can't be made at the chosen size: the nearest smaller one it offers
-            if (quality) return (options.find((o) => !o.instant) || options[0]).quality;
-            quality = await pickSize(options, {
-              title: pill ? `${rows.length} episode${rows.length > 1 ? "s" : ""} of “${showTitle}”, this season` : `The next ${rows.length} episode${rows.length > 1 ? "s" : ""} of “${showTitle}”`,
-              count: rows.length, times, originalBytes,
-            });
-            return quality;
-          },
-          aborter.signal,
-        );
-        if (!saved) break; // the size sheet was closed
-        done++;
-      }
-      if (done) toast(done === 1 ? `1 episode of “${showTitle}” is on this device` : `${done} episodes of “${showTitle}” are on this device`, mark("saved"), { label: "Open", onClick: open });
+      const done = await saveSeveral(rows.map(asItem), {
+        signal: aborter.signal,
+        sheetTitle: pill ? `${rows.length} episode${rows.length > 1 ? "s" : ""} of “${showTitle}”, this season` : `The next ${rows.length} episode${rows.length > 1 ? "s" : ""} of “${showTitle}”`,
+        onLine: (l) => { line = l; paint(); },
+      });
+      sayBatch(done, null, { of });
     } catch (e) {
-      const held = rows.some((r) => { const j = offline.jobFor(r.local.id); return j && j.state === "paused"; });
-      if (e && e.name === "AbortError" && held) toast(`Paused${done ? ` — ${done} saved` : ""}. Carry on from On this device`, mark("paused", 0.3), { label: "Open", onClick: open });
-      else if (e && e.name === "AbortError") toast(done ? `Stopped — ${done} saved` : "Save cancelled", mark("none"));
-      else if (e && e.pause === "offline") toast(`No connection — ${done ? `${done} saved, ` : ""}the rest carries on when the line is back`, mark("retrying", 0.3), { label: "Open", onClick: open });
-      else toast(`Saved ${done} — then: ${(e && e.message) || e}`, mark("failed"), /not enough room/.test((e && e.message) || "") ? { label: "Make room", onClick: open } : null);
+      sayBatch((e && e.done) || 0, e, { of, held: held() });
     }
-    // still waiting their turn after a stop, an error or a closed size sheet: not coming
-    for (const e of rows) { const j = offline.jobFor(e.local.id); if (j && j.state === "queued") offline.dismissJob(e.local.id); }
-    setTimeout(() => { for (const e of rows) hush.delete(e.local.id); }, 1500);
     aborter = null;
     busy = false;
     line = null;

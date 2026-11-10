@@ -27,6 +27,14 @@ export const deviceIcon = icons.downloadDevice;
 export const fileIcon =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.500 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.500z"/><path d="M13.500 3v5.500H19"/><path d="M12 11.300v5.900m-2.600-2.500 2.600 2.600 2.600-2.600"/></svg>';
 
+const line = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+// Remove from this device
+export const trashIcon = line('<path d="M4.5 6.5h15"/><path d="M9.5 6.5V5A1.5 1.5 0 0 1 11 3.5h2A1.5 1.5 0 0 1 14.5 5v1.5"/><path d="M6.5 6.500l.8 12.100a2 2 0 0 0 2 1.900h5.400a2 2 0 0 0 2-1.900l.8-12.100"/><path d="M10 10.500v6M14 10.500v6"/>');
+// No line to the server: a cloud, crossed — resting, not broken
+export const restIcon = line('<path d="M9.300 7.200A5.600 5.600 0 0 1 17.600 11a3.800 3.800 0 0 1 2.300 6.500M16.500 18.500H7.200a4.200 4.200 0 0 1-1-8.280"/><path d="M4 4l16 16"/>');
+// Pack for a trip
+export const bagIcon = line('<rect x="4" y="7.500" width="16" height="12.500" rx="2.300"/><path d="M9 7.500V5.500A1.500 1.500 0 0 1 10.500 4h3A1.500 1.500 0 0 1 15 5.500v2"/><path d="M4 12.800h16"/>');
+
 // ---------- the words ----------
 export const PLACE = "On this device";
 export const SAVE = "Save to this device";
@@ -253,9 +261,15 @@ const landed = (id, title) => {
     const said = [...document.querySelectorAll("#toasts .toast")].some((t) => title && t.textContent.includes(title) && /on this device/.test(t.textContent));
     if (said) return;
     if ((location.hash || "").startsWith(`#/play/${id}`)) return;
-    toast(`“${title || "It"}” is on this device`, mark("saved"), { label: "Play", onClick: () => { location.hash = `#/play/${id}?offline=1`; } });
+    const own = auto.has(id);
+    auto.delete(id);
+    toast(own ? `Saved by itself: ${title || "the next episode"}` : `“${title || "It"}” is on this device`, mark("saved"), { label: "Play", onClick: () => { location.hash = `#/play/${id}?offline=1`; } });
+    const c = copyHere(id);
+    if (!own && c && c.showId && c.episode != null) setTimeout(nudgeNext, 6200);
   }, 80);
 };
+// the saves "Keep the next episode ready" started (their landing says so)
+const auto = new Set();
 const watchLandings = () => {
   const now = new Map();
   for (const j of offline.listJobs()) now.set(j.id, { state: j.state, title: (j.item && j.item.showTitle ? nameOf(j.item) : j.title) || (j.item && j.item.title) || "" });
@@ -264,6 +278,37 @@ const watchLandings = () => {
   }
   before.clear();
   for (const [id, v] of now) before.set(id, v);
+};
+
+// ---------- "Keep the next episode ready": what it did ----------
+// The episodes it saved by itself are remembered on the device (their ids,
+// and the last one's name with whose it was) so the "On this device" screen
+// can say so: "Saved by itself: Show · S2 E5".
+const AUTO_KEY = "aurora-offline-auto";
+const readAuto = () => { try { const v = JSON.parse(localStorage.getItem(AUTO_KEY) || "null"); return v && Array.isArray(v.ids) ? v : { ids: [], last: null }; } catch { return { ids: [], last: null }; } };
+const noteAuto = (id, name) => {
+  const v = readAuto();
+  if (id && !v.ids.includes(id)) v.ids = [id, ...v.ids].slice(0, 60);
+  const w = who();
+  v.last = { name, at: Date.now(), who: w ? w.id : null };
+  try { localStorage.setItem(AUTO_KEY, JSON.stringify(v)); } catch {}
+};
+// was this copy saved by itself?
+export const savedByItself = (id) => readAuto().ids.includes(id);
+// the last one, when it was this person's: { name, at } or null
+export const lastByItself = () => { const v = readAuto().last; const w = who(); return v && (!v.who || !w || v.who === w.id) ? v : null; };
+// Offered once on a device, when an episode lands and the switch is off:
+// one press turns it on.
+const NUDGE_KEY = "aurora-offline-next-asked";
+const nudgeNext = () => {
+  try {
+    if (offline.smartNext.get() || localStorage.getItem(NUDGE_KEY)) return;
+    localStorage.setItem(NUDGE_KEY, "1");
+  } catch { return; }
+  toast("Want the next episode saved here by itself when you finish one?", mark("none"), {
+    label: "Turn on",
+    onClick: () => { offline.smartNext.set(true); toast("Done — the next episode is kept ready on this device", mark("saved"), null, { quiet: true }); },
+  });
 };
 
 // ---------- back on the line ----------
@@ -323,7 +368,8 @@ export const start = () => {
     const n = e && e.next;
     if (!n) return;
     const name = [n.showTitle, n.season != null && n.episode != null ? `S${n.season} E${n.episode}` : n.title].filter(Boolean).join(" · ") || n.title || "The next episode";
-    if (e.type === "saving") toast(`Keeping the next one ready: ${name}`, mark("saving", 0.04), null, { quiet: true });
+    if (e.type === "saving") { if (n.id) auto.add(n.id); toast(`Keeping the next one ready: ${name}`, mark("saving", 0.04), null, { quiet: true }); }
+    else if (e.type === "saved") noteAuto(n.id, name);
     else if (e.type === "wished") toast(`${name} isn't on the server yet — it will be saved here when it arrives`, mark("waiting"));
     else if (e.type === "failed") toast(`Couldn't keep ${name} ready${e.error ? `: ${e.error}` : ""}`, mark("failed"), { label: "Open", onClick: () => { location.hash = "#/saved"; } });
   });

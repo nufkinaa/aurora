@@ -5673,3 +5673,318 @@ html[data-look="glass"] .saved-section .dl-row { border-radius: var(--g-radius);
 /* a toast about this device carries the mark (offlineUi.js swaps the picture) */
 .toast .toast-dev { --dm: 20px; }
 /* ==== end offline-look (buttons + size sheet) ==== */
+
+/* ==== offline-look (2026-11-10) — "On this device", the screen
+   (js/screens/saved.js) and "Pack for a trip" (js/offlinePack.js).
+   Mint = here. Amber = waiting. Red = needs you. Values: docs/offline-look.md ==== */
+.dev-vh {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+/* no server: resting, not failing — a calm line, the cloud crossed */
+html:root .local-noserver {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+}
+.local-noserver .rest-ic { display: grid; flex: none; color: #f5c542; }
+.local-noserver .rest-ic svg { width: 20px; height: 20px; }
+.local-noserver .local-noserver-text { flex: 1 1 220px; min-width: 0; }
+html[data-look="glass"] .local-noserver { border-radius: var(--g-radius); box-shadow: var(--g-edge); border-color: transparent; }
+/* a save under way is mint — the colour of "here" — on its row too */
+html:root .device-job.tone-busy { --dl-tone: #6ee7b7; }
+html:root .device-job.tone-busy .dl-bar-fill { background: #6ee7b7; box-shadow: none; }
+
+/* ---- "Pack for a trip", beside the screen's name ---- */
+html:root .dev-pack { flex: none; align-self: center; margin-inline-start: auto; }
+
+/* ---- the room: what Aurora keeps here against what is free ---- */
+.dev-room {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.dev-room.hidden { display: none; }
+html[data-look="glass"] .dev-room {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03) 60%), rgba(12, 14, 26, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--g-edge);
+  border-radius: 18px;
+}
+.dev-room-top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.dev-room-meter { flex: 1 1 260px; min-width: 0; }
+.dev-room-nums { margin: 0; font-size: 0.95rem; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.dev-room-nums b { color: var(--text); font-weight: 800; }
+.dev-room-bar { height: 6px; margin-top: 9px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.dev-room-bar i { display: block; height: 100%; border-radius: 3px; background: #6ee7b7; transition: width 420ms var(--ease); }
+.dev-room-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.dev-tool { gap: 7px; }
+.dev-tool-ic { display: inline-grid; flex: none; }
+html:root .dev-tool-ic svg { width: 17px; height: 17px; }
+/* under the titles: "Keep the next episode ready", and the note once it was read */
+.dev-foot {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+html[data-look="glass"] .dev-foot {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03) 60%), rgba(12, 14, 26, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--g-edge);
+  border-radius: 18px;
+}
+.dev-next { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.dev-next-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dev-next-words b { font-size: 0.95rem; font-weight: 800; }
+.dev-next-words > span { color: var(--text-dim); font-size: 0.85rem; line-height: 1.4; }
+.dev-next-words .dev-next-last { display: inline-flex; align-items: center; gap: 7px; margin-top: 4px; color: var(--text); font-weight: 700; }
+.dev-next-mark { --dm: 15px; }
+.dev-next .pref-switch { flex: none; }
+.dev-room .saved-keep, .dev-foot .saved-keep { margin: 0; line-height: 1.45; }
+.dev-room .saved-keep, .dev-foot .dev-next + .saved-keep { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.saved-keep.fresh { display: flex; align-items: center; gap: 10px 16px; }
+.saved-keep.fresh > span { flex: 1 1 auto; min-width: 0; }
+.saved-keep .dev-note-ok { flex: none; }
+
+/* ---- the titles ---- */
+.dev-list { gap: 12px; }
+.dev-row .dl-title, .dev-ep .dl-title { flex-wrap: wrap; row-gap: 5px; }
+.dev-name { min-width: 0; overflow-wrap: anywhere; }
+.dev-row.watched .dev-name, .dev-ep.watched .dev-name { color: var(--text-dim); }
+.dev-row.watched .dl-poster { opacity: 0.72; }
+.dev-row .dl-status, .dev-ep .dl-status, .dev-group-head .dl-status { font-variant-numeric: tabular-nums; }
+.dev-tag {
+  display: inline-flex; align-items: center; gap: 4px; flex: none;
+  height: 20px; padding: 0 8px; border-radius: 999px;
+  font-size: 0.7rem; font-weight: 800; letter-spacing: 0.02em; white-space: nowrap;
+  color: var(--text-dim); background: rgba(255, 255, 255, 0.1);
+}
+.dev-tag.next { color: #0b0c14; background: #6ee7b7; }
+html:root .dev-tag svg { width: 12px; height: 12px; }
+/* how far the person got in it */
+.dev-seen { height: 3px; max-width: 280px; margin-top: 9px; border-radius: 2px; background: rgba(255, 255, 255, 0.16); overflow: hidden; }
+.dev-seen i { display: block; height: 100%; border-radius: 2px; background: var(--progress, var(--accent)); }
+.dev-remove { gap: 7px; color: var(--text-dim); }
+/* round buttons on an episode's line: Play, Remove */
+.dev-round {
+  display: inline-grid; place-items: center; flex: none;
+  width: 40px; height: 40px; padding: 0; border-radius: 50%;
+  color: var(--text); background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast) var(--ease);
+}
+html:root .dev-round svg { width: 18px; height: 18px; }
+.dev-round:hover { background: rgba(255, 255, 255, 0.16); }
+.dev-round:active { transform: scale(0.94); }
+.dev-round:focus-visible { box-shadow: var(--focus-ring); }
+.dev-round-remove { color: var(--text-dim); background: transparent; box-shadow: none; }
+.dev-round-remove:hover { color: #ff9c9c; background: rgba(255, 122, 122, 0.14); }
+.dev-ep.next .dev-round-play { color: #0b0c14; background: #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
+.dev-ep.next .dev-round-play:focus-visible { box-shadow: var(--focus-ring-light, var(--focus-ring)); }
+
+/* a show with two or more episodes here: one card, its episodes in order */
+.dev-group {
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+html[data-look="glass"] .dev-group {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03) 60%), rgba(12, 14, 26, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--g-edge);
+  border-radius: 18px;
+}
+.dev-group-head {
+  display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 16px; align-items: center;
+  padding: 12px 14px 12px 16px;
+}
+.dev-group-title { margin: 0; font-size: 1.08rem; }
+.dev-group-head .dl-actions { align-items: center; flex-wrap: nowrap; }
+.dev-eps { border-top: 1px solid rgba(255, 255, 255, 0.07); }
+html:root .dl-row.dev-ep {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 9px 14px 9px 96px; /* under the show's name */
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+html:root .dl-row.dev-ep + .dev-ep { border-top: 1px solid rgba(255, 255, 255, 0.05); }
+html:root .dl-row.dev-ep:hover { background: rgba(255, 255, 255, 0.04); }
+.dl-row.dev-ep::before { display: none; }
+html:root .dl-row.dev-ep.next { background: linear-gradient(90deg, rgba(110, 231, 183, 0.09), transparent 62%); }
+.dl-row.dev-ep.next::before { display: block; background: #6ee7b7; }
+.dev-ep .dl-title { font-size: 0.95rem; font-weight: 700; }
+.dev-ep .dl-status { margin-top: 3px; font-size: 0.82rem; }
+.dev-ep .dl-actions { flex-wrap: nowrap; gap: 4px; }
+.dev-group-foot { padding: 10px 14px 12px 96px; border-top: 1px solid rgba(255, 255, 255, 0.07); }
+.dev-group-foot.hidden { display: none; }
+
+/* ---- nothing here yet: two lines that teach, and what to save ---- */
+.dev-empty { padding: 30px 12px 14px; text-align: center; }
+.dev-empty-art {
+  display: grid; place-items: center;
+  width: 92px; height: 92px; margin: 0 auto 16px; border-radius: 50%;
+  color: var(--text);
+  background: radial-gradient(circle at 50% 38%, rgba(110, 231, 183, 0.2), rgba(110, 231, 183, 0.04) 68%);
+  box-shadow: inset 0 0 0 1px rgba(110, 231, 183, 0.22);
+}
+.dev-empty-mark { --dm: 50px; animation: dev-settle 2.6s var(--ease) 0.3s 2 both; }
+.dev-empty-locked .dev-empty-art { background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); color: var(--text-dim); }
+.dev-empty-locked .dev-empty-mark { animation: none; }
+/* the arrow comes down and lands, twice, then rests */
+@keyframes dev-settle {
+  0%, 100% { transform: translateY(0); }
+  35% { transform: translateY(-7px); }
+  60% { transform: translateY(2px); }
+  78% { transform: translateY(0); }
+}
+.dev-empty-title { margin: 0; font-size: 1.3rem; font-weight: 900; letter-spacing: -0.01em; }
+.dev-empty-text { margin: 8px auto 0; max-width: 50ch; color: var(--text-dim); line-height: 1.6; text-wrap: pretty; }
+.dev-empty-key {
+  display: inline-flex; align-items: center; gap: 6px; vertical-align: middle;
+  padding: 2px 9px 2px 7px; border-radius: 999px; white-space: nowrap;
+  font-size: 0.86em; font-weight: 700; color: var(--text); background: rgba(255, 255, 255, 0.1);
+}
+html:root .dev-empty-key svg { width: 15px; height: 15px; }
+/* something is on its way: one quiet line under "Saving now" */
+.dev-empty.dev-empty-quiet { padding: 6px 0 4px; text-align: start; }
+.dev-empty-quiet .dev-empty-text { margin: 0; max-width: none; }
+.dev-empty-quiet .dev-empty-text b { color: var(--text); font-weight: 700; }
+.dev-empty-room { margin: 14px 0 0; color: var(--text-faint); font-size: 0.85rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.dev-offers { max-width: 860px; margin: 28px auto 0; text-align: start; }
+.dev-offers.hidden { display: none; }
+.dev-offers-title { margin: 0 0 10px; font-size: 0.95rem; font-weight: 800; }
+.dev-offers-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 10px; }
+.dev-offer {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  padding: 8px 10px 8px 8px; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--line);
+}
+html[data-look="glass"] .dev-offer {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03) 60%), rgba(12, 14, 26, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--g-edge);
+  border-radius: 16px;
+}
+.dev-offer .dl-poster { width: 44px; border-radius: 7px; }
+.dev-offer-words { min-width: 0; }
+.dev-offer-name { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dev-offer-name small { margin-inline-start: 7px; color: var(--text-dim); font-size: 0.82rem; font-weight: 700; }
+.dev-offer-why { margin-top: 3px; color: var(--text-dim); font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* "Your files" below the saved titles: its empty picker is a strip there */
+.dev-home .lf { margin-top: 26px; }
+.dev-home .saved-section + .lf.lf-empty .lf-drop {
+  min-height: 0; grid-template-columns: auto minmax(0, 1fr) auto; justify-items: stretch; text-align: start;
+  gap: 6px 18px; padding: 18px 22px; border-width: 1.5px;
+}
+.dev-home .saved-section + .lf.lf-empty .lf-drop-words { align-items: flex-start; max-width: none; }
+.dev-home .saved-section + .lf.lf-empty .lf-drop-icon { width: 52px; height: 52px; }
+.dev-home .saved-section + .lf.lf-empty .lf-drop-icon svg { width: 26px; height: 26px; }
+.dev-home .saved-section + .lf.lf-empty .lf-drop-title { font-size: 1.1rem; }
+.dev-home .saved-section + .lf.lf-empty .lf-drop-safe { grid-column: 2 / -1; }
+
+@media (max-width: 640px) {
+  .dev-room, .dev-foot { padding: 12px 14px; }
+  .dev-room-tools { width: 100%; }
+  .saved-keep.fresh { flex-wrap: wrap; }
+  .saved-keep.fresh .dev-note-ok { margin-inline-start: auto; }
+  .dev-room-tools .dev-tool { flex: 1 1 auto; justify-content: center; min-height: 40px; padding-left: 12px; padding-right: 12px; }
+  .dev-group-head { grid-template-columns: 52px minmax(0, 1fr); gap: 12px; padding: 12px 12px 12px 14px; }
+  .dev-group-head .dl-actions { justify-content: space-between; }
+  html:root .dl-row.dev-ep { padding: 9px 8px 9px 14px; gap: 8px; }
+  .dev-ep .dl-actions { grid-column: auto; }
+  .dev-group-foot { padding: 10px 12px 12px 14px; }
+  .dev-row .dl-actions { justify-content: space-between; }
+  .dev-empty { padding: 22px 4px 10px; }
+  .dev-offers-list { grid-template-columns: minmax(0, 1fr); }
+  .dev-home .saved-section + .lf.lf-empty .lf-drop { padding: 14px 16px; }
+  .dev-home .saved-section + .lf.lf-empty .lf-drop-btn { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dev-empty-mark { animation: none; }
+  .dev-room-bar i, .dev-round { transition: none; }
+}
+
+/* ---- Pack for a trip (js/offlinePack.js) ---- */
+html:root .look-notice.trip-sheet {
+  display: flex; flex-direction: column;
+  width: min(540px, 100%);
+  max-height: min(92vh, 780px);
+  padding: 22px 22px 18px;
+}
+.trip-icon { display: grid; place-items: center; color: #6ee7b7; margin-bottom: 6px; }
+html:root .trip-icon svg { width: 38px; height: 38px; }
+.trip-sheet .look-notice-text { margin: 6px 0 14px; }
+.trip-lens { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; flex: none; }
+html:root .chip.trip-len {
+  flex-direction: column; gap: 1px; min-width: 0; padding: 8px 6px; border-radius: 14px; white-space: normal; line-height: 1.2;
+}
+.trip-len span { font-size: 0.86rem; font-weight: 800; }
+.trip-len small { font-size: 0.72rem; font-weight: 700; opacity: 0.7; font-variant-numeric: tabular-nums; }
+html:root .chip.trip-len.on { color: #0b0c14; background: #6ee7b7; border-color: #6ee7b7; box-shadow: none; }
+.trip-list {
+  display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto;
+  min-height: 96px; margin: 14px -8px 0; padding: 2px 8px; overflow-y: auto; overscroll-behavior: contain;
+  text-align: start;
+}
+.trip-wait { margin: auto; padding: 22px 10px; color: var(--text-dim); text-align: center; line-height: 1.5; }
+.trip-row {
+  display: grid; grid-template-columns: 22px 38px minmax(0, 1fr); gap: 12px; align-items: center; flex: none;
+  width: 100%; padding: 7px 10px; border-radius: 12px; text-align: start;
+  color: inherit; background: transparent; box-shadow: inset 0 0 0 1px transparent;
+  transition: background var(--t-fast), box-shadow var(--t-fast);
+}
+.trip-row:hover { background: rgba(255, 255, 255, 0.05); }
+.trip-row.on { background: rgba(110, 231, 183, 0.09); box-shadow: inset 0 0 0 1px rgba(110, 231, 183, 0.3); }
+.trip-row:focus-visible { box-shadow: var(--focus-ring); }
+.trip-tick {
+  position: relative; width: 22px; height: 22px; border-radius: 7px;
+  box-shadow: inset 0 0 0 1.6px rgba(255, 255, 255, 0.42);
+  transition: background var(--t-fast), box-shadow var(--t-fast);
+}
+.trip-row.on .trip-tick { background: #6ee7b7; box-shadow: none; }
+.trip-row.on .trip-tick::after {
+  content: ""; position: absolute; left: 7.5px; top: 3.5px; width: 6px; height: 11px;
+  border: solid #0b0c14; border-width: 0 2.3px 2.3px 0; transform: rotate(45deg);
+}
+.trip-poster { display: block; width: 38px; aspect-ratio: 2/3; border-radius: 6px; overflow: hidden; background: rgba(255, 255, 255, 0.07); }
+.trip-poster img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.trip-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.trip-name { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trip-name small { margin-inline-start: 7px; color: var(--text-dim); font-size: 0.82rem; font-weight: 700; }
+.trip-why { color: var(--text-dim); font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trip-total { flex: none; margin: 12px 0 0; font-size: 0.92rem; font-weight: 800; font-variant-numeric: tabular-nums; text-align: start; }
+.trip-total:empty { display: none; }
+.trip-room { display: flex; align-items: center; gap: 8px; flex: none; margin: 5px 0 0; color: var(--text-dim); font-size: 0.84rem; font-weight: 600; text-align: start; }
+.trip-room:empty { display: none; }
+.trip-room.tight { color: #f5d98a; }
+.trip-room.tight .offline-room-ic { color: #f5c542; }
+.trip-actions { flex: none; margin-top: 16px; }
+html:root .btn.trip-go:disabled { opacity: 0.4; cursor: default; box-shadow: none; transform: none; }
+.trip-none .trip-list { min-height: 0; }
+.trip-none .trip-lens, .trip-none .trip-lead { display: none; }
+@media (max-width: 560px) {
+  .look-notice-wrap.trip-wrap { align-items: flex-end; padding: 0; }
+  html:root .trip-wrap .look-notice.trip-sheet {
+    width: 100%; max-height: 92vh; max-height: 92dvh;
+    border-radius: 22px 22px 0 0;
+    padding: 18px 16px calc(16px + env(safe-area-inset-bottom));
+    animation: sheet-up var(--t-med) var(--ease);
+  }
+  .trip-lens { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html:root .chip.trip-len { flex-direction: row; justify-content: center; align-items: baseline; gap: 7px; }
+  .trip-actions .btn { flex: 1 1 0; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trip-row, .trip-tick { transition: none; }
+  html:root .trip-wrap .look-notice.trip-sheet { animation: none; }
+}
+/* ==== end offline-look (the screen + Pack for a trip) ==== */
