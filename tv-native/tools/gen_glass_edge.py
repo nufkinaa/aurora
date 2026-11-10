@@ -4,14 +4,16 @@ pane and the light that sits just inside its rim (docs/glass-tv.md).
 Run from tv-native/:  python tools/gen_glass_edge.py
 
 Why pictures. Measured on the Mi TV, on the player's menu (opening and closing
-it, median frame): 14 ms before the glass; 23 ms with the shadow as three
+it, median frame): 15 ms before the glass; 23 ms with the shadow as three
 blurred boxShadow layers and the light as five CSS gradients; 20 ms with the
 shadow baked and the five gradients left. The box draws every one of those
 again on each frame the screen draws while the pane is up - a blur per shadow
 layer, a full-pane blend per gradient. A picture is a texture it composites
 once. So a pane keeps ONE gradient (the sheen, which is as tall as half the
 pane and cannot be a fixed picture) and everything along its edge is baked here.
-With one gradient and these pictures the menu is back at 16 ms.
+With one gradient and these pictures the menu is back at 16 ms - and, measured
+against the old look inside one start of the app, level with it (the numbers
+are at the head of src/glass.ts and in docs/glass-tv.md).
 
 The shadow, outside the pane (docs/glass-apple.md section 8), in black:
 

@@ -14,9 +14,13 @@
 // (the numbers are in docs/glass-tv.md and at the head of glass.ts).
 //
 // Why ONE native view on the TV (AuroraGlassEdgeView.kt): eight <Image>s in a
-// box are nine views to create on the very frame a menu opens - that frame of
-// the player's menu went from about 148 ms to about 170 ms on the Mi TV. The
-// view draws the same eight pictures itself, pixel for pixel. It takes them by
+// box are nine views to create on the very frame a menu opens. Measured on the
+// Mi TV inside ONE app session (the build switched looks by the clock, 28-34
+// openings of the player's menu each): that frame took 152 ms with the eight
+// <Image>s, 134 ms with this view, 131 ms with no edge at all - and 136 ms
+// before the glass. (Never compare that frame across app sessions: the same
+// build gives 132-169 ms from one start of the app to the next.) The view
+// draws the same eight pictures itself, pixel for pixel. It takes them by
 // the names Android gave them as bundled resources; where a picture is not a
 // resource (Metro, the sandbox) the eight <Image>s stand in.
 //

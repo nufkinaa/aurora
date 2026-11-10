@@ -15,9 +15,11 @@ import android.view.View
  * ones are the left ones mirrored) and a run stretched along each side.
  *
  * WHY A VIEW. In JS this is eight <Image>s in a box: nine views to create on the frame a
- * menu or a sheet opens. Measured on the Mi TV (2026-11-10), that frame of the player's menu
- * went from about 148 ms to about 170 ms. Here it is one view that draws eight bitmaps; it
- * never invalidates itself, so after the first frame the box only composites what it drew.
+ * menu or a sheet opens. Measured on the Mi TV (2026-11-10) inside one app session, the
+ * looks switched by the clock: that frame of the player's menu took 152 ms with the eight
+ * <Image>s and 134 ms with this view (131 ms with no edge at all, 136 ms before the glass).
+ * Here it is one view that draws eight bitmaps; it never invalidates itself, so after the
+ * first frame the box only composites what it drew.
  *
  * The pictures are the app's own bundled ones: React Native packs every required picture as
  * a drawable resource, and the props carry those resource names (Image.resolveAssetSource).

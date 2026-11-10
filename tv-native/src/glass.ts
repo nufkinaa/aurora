@@ -18,12 +18,19 @@
 // Cost. The box draws a pane's blurred boxShadow and every CSS gradient of its
 // background again on each frame the screen draws while the pane is up - it is
 // not drawn once and kept. Measured on the Mi TV, opening and closing the
-// player's menu (median frame, share of late frames):
+// player's menu six times (median frame, share of late frames; each line is
+// its own start of the app, and two starts of one build differ by about a
+// tenth - so read the big steps, not the small ones):
 //
 //     before the glass (one gradient, no shadow)          15 ms   2.3 %
 //     three blurred shadow layers + five gradients        23 ms   6.5 %
 //     the shadow as pictures + five gradients             20 ms   5.0 %
 //     the shadow as pictures + ONE gradient               16 ms   3.1 %   (15.5 ms / 2.8 % with no pictures at all)
+//
+// And the glass as it shipped against the old look INSIDE one start of the app
+// (a test build switched looks by the clock, 27-35 openings each, twice): the
+// frame the menu opens on 134-135 ms against 132-136 ms, a frame after it
+// 17.6-18.0 ms against 17.4-17.6 ms, as many frames drawn and as few late.
 //
 // So: no blurred boxShadow anywhere in the glass, and at most ONE gradient on a
 // pane (the sheen, which is as tall as half the pane and so cannot be a fixed
