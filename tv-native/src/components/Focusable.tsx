@@ -66,13 +66,14 @@ const LIGHT_RING = focus.borderWidth + 1;
 // The second half of --focus-ring: `0 10px 24px rgba(0,0,0,.5)`.
 const TOKEN_SHADOW = '0 10px 24px rgba(0,0,0,0.5)';
 
-// The TV's opaque glass sheets (Sheet, X-Ray, a person's sheet) wrap what they
-// hold in <FlatFocus.Provider value={true}>: a Focusable in there draws its
-// ring WITHOUT the drop shadow. The shadow lifts a focused element off a
-// picture; on a flat grey sheet it only showed where the sheet's scroll boxes
-// cut it - a square dark box round the round Play button, round X-Ray's first
-// face (Mi TV, two judges, 2026-11-10). The phone's sheets never provide it,
-// and the phone's Focusable does not read it.
+// The TV's opaque glass sheets (Sheet, X-Ray, a person's sheet - in their second
+// look only, glass.ts GLASS_NEW) wrap what they hold in a FlatFocus.Provider
+// with value true: a Focusable in there draws its ring WITHOUT the drop shadow.
+// The shadow lifts a focused element off a picture; on a flat grey sheet it
+// only showed where the sheet's scroll boxes cut it - a square dark box round
+// the round Play button, round X-Ray's first face (Mi TV, two judges,
+// 2026-11-10). In Aurora's own look the value is false and nothing changes.
+// The phone's sheets never provide it, and the phone's Focusable does not read it.
 export const FlatFocus = React.createContext(false);
 
 // Ring colour, per the two tokens above.

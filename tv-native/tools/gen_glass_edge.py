@@ -1,10 +1,13 @@
 """Bake the edge of the TV's glass panes: the soft shadow that falls outside a
-pane and the light that sits just inside its rim (docs/glass-tv.md).
+pane and the light that sits just inside its rim (docs/glass-tv.md). The glass
+is the TV's SECOND look, switched per surface in src/glass.ts (GLASS_NEW); the
+nav rail and the player's menus, which wore it for a few builds, are Aurora's
+own look again and have no pictures here.
 
 Run from tv-native/:  python tools/gen_glass_edge.py
 
-Why pictures. Measured on the Mi TV, on the player's menu (opening and closing
-it, median frame): 15 ms before the glass; 23 ms with the shadow as three
+Why pictures. Measured on the Mi TV, on the player's menu while it wore the
+glass (opening and closing it, median frame): 15 ms before the glass; 23 ms with the shadow as three
 blurred boxShadow layers and the light as five CSS gradients; 20 ms with the
 shadow baked and the five gradients left. The box draws every one of those
 again on each frame the screen draws while the pane is up - a blur per shadow
@@ -29,26 +32,24 @@ the pane's round corners, exactly what the gradients drew:
 
     a menu, a sheet      top 22 % -> 0 over 15 dp, each side 7 % -> 0 over
                          12 dp, foot 10 % -> 0 over 13 dp
-    the rail, the        top 18 % -> 0 over 9 dp, foot 8 % -> 0 over 8 dp
-    filter panel
+    the filter panel     top 18 % -> 0 over 9 dp, foot 8 % -> 0 over 8 dp
 
-The rail and the filter panel slide in over the page, so their one picture
-holds the rest of the glass as well, and the pane under it is a plain round box
-with no border and no gradient:
+The filter panel slides in over the page, so its one picture holds the rest of
+the glass as well, and the pane under it is a plain round box with no border
+and no gradient:
 
     the rim              a 1 dp line just inside the edge: white 28 % on top,
-                         12 % at the foot, 5.5 % down the sides (glass.ts
-                         `rim`); round a corner it turns from the one to the
+                         12 % at the foot, 5.5 % down the sides; round a
+                         corner it turns from the one to the
                          other with the slope of the curve
     the sheen            white 5 % at the top -> 0 at 48 % of the height
     the ground           what the pane floats over at its foot (below)
 
-THE GROUND. Those two are closed shapes that float 11 dp above the screen's
+THE GROUND. The pane is a closed shape that floats 11 dp above the screen's
 foot, round corners and a lit rim all round - and in those 11 dp, and round the
-two foot corners, the page went on: the tops of the next row of posters, half
-of "My downloads", right under the rail's profile pill. (For one build the
-panes ran off the screen's foot instead; that hid the page and lost the closed
-shape. Two judges asked for both, 2026-11-10.) So the picture, which already
+two foot corners, the page went on: the tops of the next row of posters. (For
+one build the pane ran off the screen's foot instead; that hid the page and
+lost the closed shape. Two judges asked for both, 2026-11-10.) So the picture, which already
 lies over that strip with the pane's shadow in it, is OPAQUE there in the
 page's own dark: under the foot, and round the foot corners from a little
 above where they start to turn. Beside the pane it fades out over GROUND_SIDE
@@ -64,13 +65,12 @@ the picture - past the light - is empty.
 
 Two kinds:
 
-  * one whole picture for a pane of a known size - the nav rail, Browse's
-    filter panel (`glass-pane-edge*.png`): shadow, rim, glow, sheen and the
-    ground under the foot.
+  * one whole picture for a pane of a known size - Browse's filter panel
+    (`glass-pane-edge-wide*.png`): shadow, rim, glow, sheen and the ground
+    under the foot.
     `resizeMode="stretch"` lets the one file serve any panel height (every TV
     is 540 dp tall today, so it is drawn pixel for pixel).
-  * nine pieces for a pane of ANY size - a sheet, a player menu, the genre
-    popup, X-Ray (components/GlassEdge.tsx): a corner picture per corner radius
+  * nine pieces for a pane of ANY size - a sheet, the genre popup, X-Ray (components/GlassEdge.tsx): a corner picture per corner radius
     (the top one and the foot one, mirrored for the right side) and three runs
     that stretch along the sides. A corner reaches C dp into the pane (C_TOP at
     the top, where the soft shadow hangs 14 dp lower and settles later); past
@@ -92,16 +92,15 @@ BODY = (40, 40, 46)
 # the light inside the edge: (strength, depth in dp) per edge, None for no band
 LIGHT_MENU = {'top': (0.22, 15), 'side': (0.07, 12), 'foot': (0.10, 13)}
 LIGHT_CHROME = {'top': (0.18, 9), 'side': None, 'foot': (0.08, 8)}
-# the chrome's rim (glass.ts `rim`) and sheen, baked into the whole-pane pictures
+# the chrome's rim and sheen, baked into the whole-pane picture
 RIM_CHROME = {'top': 0.28, 'side': 0.055, 'foot': 0.12}
 SHEEN = (0.05, 0.48)  # strength at the top, the share of the height it fades over
 
 # name, pane width, pane height (the height a 540dp panel gives; stretched otherwise), corner radius
 PANES = [
-    ('glass-pane-edge', 208, 518, 38),      # NavRail: left 32, top 11, bottom 11
     ('glass-pane-edge-wide', 266, 525, 28), # Browse filter panel: left 2, right 32, top 4, bottom 11
 ]
-# the ground under those two (see the head of this file): its colour - the page's own dark,
+# the ground under it (see the head of this file): its colour - the page's own dark,
 # theme colors.bg; how far beside the pane it fades out, in dp; and where it starts above the
 # foot, in shares of the corner radius - whole from the first down, nothing above the second
 GROUND = (11, 12, 20)
@@ -109,7 +108,7 @@ GROUND_SIDE = 24
 GROUND_RISE = (0.45, 1.15)
 
 # the nine pieces: corner radii, and how far the pictures reach into the pane
-SLICE_RADII = (14, 18, 22, 24)  # the genre popup, a player menu, a sheet, a sheet on the screen's foot
+SLICE_RADII = (14, 22, 24)  # the genre popup, a sheet, a sheet on the screen's foot
 C = 34
 C_TOP = 48
 G = 16

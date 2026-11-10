@@ -9,11 +9,13 @@ import React, {useEffect, useRef, useState} from 'react';
 import {View, Text, ScrollView, StyleSheet, TVFocusGuideView, BackHandler} from 'react-native';
 import Focusable from './Focusable';
 import {useKeyTrap} from '../focus';
-import {glassMenu, glassRaised, ink} from '../glass';
+import {GLASS_NEW, glassMenu, glassRaised, ink} from '../glass';
 import GlassEdge from './GlassEdge';
 import theme, {useTvMetrics} from '../theme';
 
 const {colors, radius} = theme;
+// The second look of the menu it opens (glass.ts GLASS_NEW.filter); off, the menu is Aurora's own.
+const NEW = GLASS_NEW.filter;
 
 export type Option = {label: string; value: string};
 
@@ -31,10 +33,10 @@ export default function Picker({
   label: string;
   value: string;
   options: Option[];
-  // The button sits on a glass pane (Browse's filter pane): its label and caret
-  // take the glass's third voice, and the menu it opens takes the RAISED body.
-  // On the bare page (My List) the button is as it always was and the menu is
-  // the plain glass menu.
+  // The second look only (glass.ts GLASS_NEW.filter): the button sits on a glass
+  // pane (Browse's filter pane) - its label and caret take the glass's third
+  // voice, and the menu it opens takes the RAISED body. On the bare page (My
+  // List) the button is as it always was and the menu is the plain glass menu.
   glass?: boolean;
   edgeLeft?: boolean;
   onPick: (value: string) => void;
@@ -47,10 +49,10 @@ export default function Picker({
 }) {
   const {height} = useTvMetrics();
   const [open, setOpen] = useState(false);
-  // Focus is on the row that is set. Its word is ink.on, which is 4.0:1 on a
-  // FOCUSED row at the top of the raised menu (the focus fill and the sheen both
-  // lighten the ground there; measured on the Mi TV) - so under focus the set
-  // row's word is white, as it was before the glass. Bold still marks it.
+  // The second look: focus is on the row that is set. Its word is ink.on, which
+  // is 4.0:1 on a FOCUSED row at the top of the raised menu (the focus fill and
+  // the sheen both lighten the ground there; measured on the Mi TV) - so under
+  // focus the set row's word is white. Bold still marks it.
   const [onFocused, setOnFocused] = useState(false);
   const current = options.find(o => o.value === value);
 
@@ -123,11 +125,11 @@ export default function Picker({
           // available above or below the anchor is what decides.
           style={[
             styles.panel,
-            glass && styles.panelRaised,
+            NEW && glass && styles.panelRaised,
             place.up ? styles.panelUp : styles.panelDown,
             {maxHeight: place.max},
           ]}>
-          <GlassEdge radius={14} />
+          {NEW ? <GlassEdge radius={14} /> : null}
           <ScrollView>
             {options.map((o, i) => (
               <Focusable uiId="picker.pick"
@@ -143,7 +145,7 @@ export default function Picker({
                 hasTVPreferredFocus={
                   o.value === value || (i === 0 && !options.some(x => x.value === value))
                 }
-                onFocusChange={o.value === value ? setOnFocused : undefined}
+                onFocusChange={NEW && o.value === value ? setOnFocused : undefined}
                 onPress={() => {
                   setOpen(false);
                   // Re-picking what is already set must not reset the grid
@@ -203,9 +205,17 @@ const styles = StyleSheet.create({
     minWidth: 200,
     padding: 6,
     borderRadius: 14,
-    // A menu of the glass (glass.ts): opaque, the rim of light, the sheen; its
-    // glow and its soft shadow are <GlassEdge>, pictures and not a blur.
-    ...glassMenu,
+    // Aurora's own menu, as released - or a menu of the glass (glass.ts): opaque,
+    // the rim of light, the sheen; its glow and its soft shadow are <GlassEdge>,
+    // pictures and not a blur.
+    ...(NEW
+      ? glassMenu
+      : {
+          backgroundColor: colors.bgRaised,
+          borderWidth: 1,
+          borderColor: colors.line,
+          boxShadow: '0 22px 60px rgba(0,0,0,0.6)',
+        }),
     zIndex: 291,
   },
   // The RAISED body where it opens ON a glass pane (the filter pane): with the
@@ -215,8 +225,8 @@ const styles = StyleSheet.create({
   panelUp: {bottom: '100%', marginBottom: 6},
   // 9/12 natural is 39.6; the site has no explicit height and the floor decides.
   item: {height: 48, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 9},
-  // white words; the one that is set in ink.on (it was grey words, the set one white)
-  itemText: {color: ink.text, fontSize: 16, fontWeight: '600'},
-  itemTextOn: {color: ink.on, fontWeight: '800'},
+  // grey words, the set one white - or, on the glass, white words and the set one in ink.on
+  itemText: {color: NEW ? ink.text : colors.textDim, fontSize: 16, fontWeight: '600'},
+  itemTextOn: {color: NEW ? ink.on : colors.text, fontWeight: '800'},
   itemTextOnFocused: {color: ink.text},
 });

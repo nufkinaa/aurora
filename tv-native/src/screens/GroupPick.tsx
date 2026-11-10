@@ -34,7 +34,7 @@ import Chip from '../components/Chip';
 import Focusable from '../components/Focusable';
 import Icon from '../components/Icon';
 import Sheet from '../components/Sheet';
-import {ink} from '../glass';
+import {sheetInk} from '../glass';
 import {ErrorState} from '../components/States';
 import {artPath, artPx, getBaseUrl, imgSrc} from '../api';
 import {useRouteShown} from '../useRouteShown';
@@ -1122,7 +1122,7 @@ function JoinSheet({onClose, onJoin}: {onClose: () => void; onJoin: (code: strin
         autoCorrect={false}
         maxLength={4}
         placeholder="ABCD"
-        placeholderTextColor={ink.third}
+        placeholderTextColor={sheetInk.third}
         returnKeyType="go"
         onSubmitEditing={go}
       />
@@ -1175,7 +1175,7 @@ function AddSheet({code, onClose, onAdded}: {code: string; onClose: () => void; 
     <Sheet kicker={WORDS.feature.toUpperCase()} title={WORDS.addTitle} width={640} onClose={onClose}>
       <Text style={styles.sheetText}>{WORDS.addLine}</Text>
       <View style={styles.searchField}>
-        <Icon name="search" size={18} color={ink.third} />
+        <Icon name="search" size={18} color={sheetInk.third} />
         <TextInput
           style={styles.searchInput}
           value={q}
@@ -1187,7 +1187,7 @@ function AddSheet({code, onClose, onAdded}: {code: string; onClose: () => void; 
           autoCorrect={false}
           returnKeyType="search"
           placeholder={WORDS.searchPlaceholder}
-          placeholderTextColor={ink.third}
+          placeholderTextColor={sheetInk.third}
           maxLength={80}
         />
         {searching ? <ActivityIndicator color={colors.textDim} /> : null}

@@ -10,8 +10,9 @@
 // Selected and focused are INDEPENDENT and can co-occur (§5.5). When both, the
 // fill stays white and the shadow deepens — there is no third colour.
 //
-// ON GLASS (`glass`: Browse's filter pane, the one place a chip sits on a glass
-// pane) chosen is the glass's well instead - a darker capsule pressed in, the
+// ON GLASS (`glass`: Browse's filter pane in its second look, glass.ts
+// GLASS_NEW.filter - the one place a chip sits on a glass pane) chosen is the
+// glass's well instead - a darker capsule pressed in, the
 // word in the accent mixed with white (glass.ts, docs/glass-tv.md) - and white
 // means focus and nothing else. Only there: on the bare page the well is black
 // on near-black and the chosen pill all but disappears (photographed on the Mi

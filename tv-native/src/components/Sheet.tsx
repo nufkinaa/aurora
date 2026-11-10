@@ -5,7 +5,7 @@ import React, {useEffect} from 'react';
 import {BackHandler, ScrollView, StyleSheet, Text, TVFocusGuideView, View} from 'react-native';
 import {useKeyTrap} from '../focus';
 import {sheetMaxHeight} from '../popupFit';
-import {glassMenu, ink} from '../glass';
+import {GLASS_NEW, glassMenu, sheetInk} from '../glass';
 import GlassEdge from './GlassEdge';
 import {FlatFocus} from './Focusable';
 import theme, {useTvMetrics} from '../theme';
@@ -61,13 +61,14 @@ export default function Sheet({
         trapFocusLeft
         trapFocusRight
         style={[styles.card, {width, maxHeight: sheetMaxHeight(height, spacing.pageX)}, accent && styles.cardAccent]}>
-        {/* the glass's edge - its soft shadow and the light inside its rim - as pictures; the accent card keeps its own glow */}
-        {accent ? null : <GlassEdge radius={22} />}
+        {/* the new look (glass.ts GLASS_NEW.sheets): the glass's edge - its soft shadow and the light
+            inside its rim - as pictures; the accent card keeps its own glow */}
+        {GLASS_NEW.sheets && !accent ? <GlassEdge radius={22} /> : null}
         {kicker ? <Text style={styles.kicker}>{kicker}</Text> : null}
         {title ? <Text style={styles.title}>{title}</Text> : null}
-        {/* FlatFocus: on this opaque card a focused button keeps its ring and loses the ring's
-            drop shadow, which the body's scroll box cut to a square (Focusable.tsx) */}
-        <FlatFocus.Provider value={true}>
+        {/* FlatFocus, the new look only: on that opaque card a focused button keeps its ring and
+            loses the ring's drop shadow, which the body's scroll box cut to a square (Focusable.tsx) */}
+        <FlatFocus.Provider value={GLASS_NEW.sheets}>
           <ScrollView ref={scrollRef} style={styles.body} contentContainerStyle={styles.bodyIn} showsVerticalScrollIndicator={false}>
             {children}
           </ScrollView>
@@ -78,11 +79,18 @@ export default function Sheet({
   );
 }
 
-// The glass surface of a sheet: the neutral body, a rim of light, a quiet sheen,
-// and <GlassEdge> for its glow and its shadow (glass.ts; docs/glass-tv.md). Opaque: at the
-// recipe's 94 % the page's own words stood readable inside the sheet (Mi TV).
-// It was a blue-black slab with one bright top edge.
-export const glass = glassMenu;
+// The glass surface, shared with the player's panels and the toasts.
+export const glass = {
+  backgroundColor: 'rgba(19,21,34,0.97)',
+  borderWidth: 1,
+  borderColor: 'rgba(255,255,255,0.10)',
+  // The top edge catches the light: the one glass cue that costs nothing.
+  borderTopColor: 'rgba(255,255,255,0.22)',
+  boxShadow: '0 30px 80px rgba(0,0,0,0.6)',
+} as const;
+// A sheet's surface: that - Aurora's own, as released - or the second look (glass.ts GLASS_NEW.sheets; docs/glass-tv.md) -
+// the neutral body, a rim of light, a quiet sheen, and <GlassEdge> for its glow and its shadow.
+const surface = GLASS_NEW.sheets ? glassMenu : glass;
 
 const styles = StyleSheet.create({
   backdrop: {
@@ -99,7 +107,7 @@ const styles = StyleSheet.create({
     padding: spacing.pageX,
   },
   card: {
-    ...glass,
+    ...surface,
     borderRadius: 22,
     padding: spacing.xl,
     maxWidth: '92%',
@@ -119,7 +127,7 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(199,191,255,0.8)',
     boxShadow: '0 0 0 1px rgba(139,123,255,0.25), 0 30px 90px rgba(0,0,0,0.7), 0 0 60px rgba(108,88,255,0.35)',
   },
-  // the accent mixed with white: the accent itself is 4.5:1 on the glass body, this is 7.5:1
-  kicker: {color: ink.on, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 3, marginBottom: 4},
-  title: {color: ink.text, fontSize: fontSize.title, fontWeight: '900', marginBottom: spacing.sm},
+  // (sheetInk: the page's accent and text, or on the glass body the accent mixed with white and white)
+  kicker: {color: sheetInk.on, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 3, marginBottom: 4},
+  title: {color: sheetInk.text, fontSize: fontSize.title, fontWeight: '900', marginBottom: spacing.sm},
 });

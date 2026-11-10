@@ -28,7 +28,7 @@ import Card, {COMPACT_H, COMPACT_W} from './Card';
 import Focusable, {FlatFocus} from './Focusable';
 import {api, artSrc, HeroItem, LIST_ADDED, PersonCredit, PersonData, StreamRef, XrayPerson} from '../api';
 import {useFocusFallback, useKeyTrap} from '../focus';
-import {glassFootSheet, ink} from '../glass';
+import {GLASS_NEW, glassFootSheet, xrayInk} from '../glass';
 import GlassEdge from './GlassEdge';
 import {rootNav} from '../rootNav';
 import {showToast} from '../toast';
@@ -275,9 +275,10 @@ export default function PersonSheet({
     <View style={styles.backdrop}>
       <Animated.View style={[styles.wash, washStyle]} />
       <Animated.View style={[styles.panel, panelStyle, {maxHeight: bottomSheetMaxHeight(winH, 500)}]}>
-        <GlassEdge radius={24} />
-        {/* FlatFocus: no drop shadow under a focus ring on this opaque sheet (Focusable.tsx) */}
-        <FlatFocus.Provider value={true}>
+        {/* the new look (glass.ts GLASS_NEW.xray): the glass's edge as pictures, and FlatFocus - no
+            drop shadow under a focus ring on that opaque sheet (Focusable.tsx) */}
+        {GLASS_NEW.xray ? <GlassEdge radius={24} /> : null}
+        <FlatFocus.Provider value={GLASS_NEW.xray}>
         <TVFocusGuideView autoFocus trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.guide}>
           <View style={styles.head}>
             <View style={styles.face}>
@@ -365,8 +366,19 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingHorizontal: 28,
     paddingBottom: 18,
-    // the glass, as X-Ray's (glass.ts): neutral body, rim of light, sheen; <GlassEdge> for its glow and shadow
-    ...glassFootSheet,
+    // the second look, as X-Ray's (glass.ts GLASS_NEW.xray): neutral body, rim of light, sheen,
+    // <GlassEdge> for its glow and shadow - or Aurora's own look, as released
+    ...(GLASS_NEW.xray
+      ? glassFootSheet
+      : {
+          backgroundColor: 'rgb(16,18,32)',
+          experimental_backgroundImage:
+            'linear-gradient(140deg, rgba(104,86,226,0.30) 0%, rgba(14,16,28,0) 48%, rgba(70,200,150,0.18) 100%)',
+          borderWidth: 1,
+          borderBottomWidth: 0,
+          borderColor: 'rgba(255,255,255,0.12)',
+          borderTopColor: 'rgba(255,255,255,0.26)',
+        }),
   },
   guide: {flexShrink: 1},
   head: {flexDirection: 'row', alignItems: 'center', gap: spacing.md},
@@ -375,8 +387,8 @@ const styles = StyleSheet.create({
   initials: {color: colors.textDim, fontSize: 17, fontWeight: '800'},
   headText: {flex: 1, minWidth: 0},
   name: {color: colors.text, fontSize: 24, lineHeight: 30, fontWeight: '900'},
-  sub: {color: ink.second, fontSize: fontSize.small, marginTop: 2},
-  how: {color: ink.third, fontSize: fontSize.small, marginTop: 4},
+  sub: {color: xrayInk.second, fontSize: fontSize.small, marginTop: 2},
+  how: {color: xrayInk.third, fontSize: fontSize.small, marginTop: 4},
   photos: {flexDirection: 'row', gap: 6},
   wait: {marginVertical: 28, alignSelf: 'center'},
   empty: {marginTop: spacing.lg, gap: spacing.md, alignItems: 'flex-start', minHeight: 150},
@@ -386,12 +398,12 @@ const styles = StyleSheet.create({
   // flexShrink: with large system text the head grows, and the shelves give up
   // the height (the panel's maxHeight holds) instead of running off its foot
   scroll: {marginTop: 6, maxHeight: 352, flexShrink: 1},
-  section: {color: ink.third, fontSize: 11, fontWeight: '800', letterSpacing: 1.2, marginTop: spacing.sm + 2, marginBottom: 2},
+  section: {color: xrayInk.third, fontSize: 11, fontWeight: '800', letterSpacing: 1.2, marginTop: spacing.sm + 2, marginBottom: 2},
   // room for a focused card's lift and ring inside the list
   row: {gap: GAP, paddingVertical: 8, paddingHorizontal: 6},
   title: {width: COMPACT_W},
   titleName: {color: colors.text, fontSize: 12, fontWeight: '700', marginTop: 6},
-  titleSub: {color: ink.second, fontSize: 11, marginTop: 1},
+  titleSub: {color: xrayInk.second, fontSize: 11, marginTop: 1},
   check: {position: 'absolute', top: 6, right: 6, width: 24, height: 24, borderRadius: 12, backgroundColor: '#35c47a', alignItems: 'center', justifyContent: 'center'},
   checkGlyph: {color: '#04130b', fontSize: 14, fontWeight: '900', lineHeight: 18},
   // on the poster's foot, whatever the compact poster's height (174 → 146)

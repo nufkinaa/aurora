@@ -1,5 +1,5 @@
-// The edge of a glass pane that can be any size - a sheet, a player menu, the
-// genre popup, X-Ray (glass.ts; docs/glass-tv.md): the soft shadow that falls
+// The edge of a glass pane that can be any size - a sheet, the genre menu,
+// X-Ray - in the TV's second look (glass.ts GLASS_NEW; docs/glass-tv.md): the soft shadow that falls
 // outside the pane and the light that sits just inside its rim.
 //
 // Both are the recipe's - the shadow 0 14 34 black 34 %, 0 3 8 black 22 %,
@@ -16,9 +16,9 @@
 // Why ONE native view on the TV (AuroraGlassEdgeView.kt): eight <Image>s in a
 // box are nine views to create on the very frame a menu opens. Measured on the
 // Mi TV inside ONE app session (the build switched looks by the clock, 28-34
-// openings of the player's menu each): that frame took 152 ms with the eight
-// <Image>s, 134 ms with this view, 131 ms with no edge at all - and 136 ms
-// before the glass. (Never compare that frame across app sessions: the same
+// openings of the player's menu, which wore this edge then): that frame took
+// 152 ms with the eight <Image>s, 134 ms with this view, 131 ms with no edge at
+// all - and 136 ms before the glass. (Never compare that frame across app sessions: the same
 // build gives 132-169 ms from one start of the app to the next.) The view
 // draws the same eight pictures itself, pixel for pixel. It takes them by
 // the names Android gave them as bundled resources; where a picture is not a
@@ -46,7 +46,6 @@ const RUN_FOOT = require('../assets/glass-edge-run-foot.png');
 const RUN_SIDE = require('../assets/glass-edge-run-side.png');
 const CORNERS = {
   14: {top: require('../assets/glass-edge-r14-top.png'), foot: require('../assets/glass-edge-r14-foot.png')},
-  18: {top: require('../assets/glass-edge-r18-top.png'), foot: require('../assets/glass-edge-r18-foot.png')},
   22: {top: require('../assets/glass-edge-r22-top.png'), foot: require('../assets/glass-edge-r22-foot.png')},
   24: {top: require('../assets/glass-edge-r24-top.png'), foot: null},
 } as const;
@@ -71,7 +70,7 @@ function names(radius: keyof typeof CORNERS) {
   const whole = n.cornerTop && n.runTop && n.runSide && (c.foot ? n.cornerFoot && n.runFoot : true);
   return Platform.OS === 'android' && whole ? n : null;
 }
-const NAMES = {14: names(14), 18: names(18), 22: names(22), 24: names(24)} as const;
+const NAMES = {14: names(14), 22: names(22), 24: names(24)} as const;
 
 export default function GlassEdge({radius, border = 1}: {radius: keyof typeof CORNERS; border?: number}) {
   const c = CORNERS[radius];

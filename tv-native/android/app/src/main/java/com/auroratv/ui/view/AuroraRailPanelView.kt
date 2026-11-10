@@ -48,13 +48,6 @@ import com.facebook.react.views.view.ReactViewGroup
  *   and runs the hue loops: `a` 8 s and `b` 10.5 s each way on `Easing.inOut(Easing.sin)`,
  *   not started when `lite`, held at phase 0.37 under the QA freeze (qa.ts runLoop).
  *
- *   THE GLASS PANE (docs/glass-tv.md): the open panel is now a floating pane of the app's
- *   glass — a neutral body, a rim of light, a baked shadow — and that pane is a plain RN
- *   child of this view (NavRail.tsx `pane`), the same child in the JS rail. So the panel part
- *   draws NOTHING of its own any more and starts no hue loops: it only carries the slide.
- *   `drawPanel` / `drawHues` / `startHues` below are no longer called; they stay, with
- *   RailMath and its fixtures, as the record of the old body until the look is settled.
- *
  * The rail's KEY LOGIC is not here: opening, closing, wrapping, traps, focus restore and
  * arm-to-switch stay in NavRail.tsx (00-plan.md P5); the items are its `Focusable`s.
  *
@@ -184,8 +177,7 @@ class AuroraRailPanelView(context: Context) : ReactViewGroup(context), RailLink.
         }
       }
     }
-    // (the panel: nothing to start — its body is an RN child now, see the class comment)
-    if (part == PART_STRIP) applyOpen()
+    if (part == PART_STRIP) applyOpen() else startHues()
     applySlide()
   }
 
@@ -272,8 +264,7 @@ class AuroraRailPanelView(context: Context) : ReactViewGroup(context), RailLink.
     val w = width
     val h = height
     if (w > 0 && h > 0) {
-      // (the panel paints nothing itself — the glass pane is its first React child)
-      if (part == PART_STRIP) drawStrip(canvas, w, h)
+      if (part == PART_STRIP) drawStrip(canvas, w, h) else drawPanel(canvas, w, h)
     }
     super.dispatchDraw(canvas)
   }
