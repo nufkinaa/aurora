@@ -525,6 +525,9 @@ export const api = {
   // Seconds watched today — only the narrator's "you've been at this a while" uses it.
   todayWatchTime: (id) => json(`/api/profiles/${encodeURIComponent(id)}/today`),
   wrapped: (id) => json(`/api/profiles/${id}/wrapped`),
+  // Home's remark (src/lib/remarks; public/js/remark.js builds the query:
+  // the device's clock and the ids it was shown lately) -> { id, text, kind }
+  remark: (id, query = "") => json(`/api/profiles/${id}/remark${query ? `?${query}` : ""}`),
   uploadAvatar: (id, file) =>
     json(`/api/profiles/${id}/avatar-image`, {
       method: "POST",
