@@ -6191,7 +6191,9 @@ const styles = StyleSheet.create({
   // the title's text shadow too: on a bright frame the grey clock beside the bar all but
   // vanished (a test card's lilac, Mi TV 2026-11-10) — the bottom scrim is a fade, not a plate
   time: {
-    color: colors.textDim,
+    // lighter than --text-dim: even with the shadow the grey clock went under on a
+    // bright frame (a test card's cyan and lilac, Mi TV 2026-11-10)
+    color: 'rgba(243,244,248,0.82)',
     fontSize: 13,
     fontWeight: '700',
     minWidth: 44,

@@ -63,22 +63,29 @@ const TV_UI: RootUi = {
       <Text style={[styles.note, {opacity: note ? 1 : 0}]}>{note || ' '}</Text>
     </View>
   ),
+  // Centred, as the "Still connecting" note before it is: unwrapped, the message sat
+  // in the top third and the screen jumped up when the wait turned into the error
+  // (Mi TV, 2026-11-10).
   Offline: ({onRetry}) => (
-    <ErrorState
-      message="Can't reach Aurora."
-      detail="Tried nufurora.com and the house server. Check the server is running, then try again."
-      edgeLeft={false}
-      onAction={onRetry}
-    />
+    <View style={styles.center}>
+      <ErrorState
+        message="Can't reach Aurora."
+        detail="Tried nufurora.com and the house server. Check the server is running, then try again."
+        edgeLeft={false}
+        onAction={onRetry}
+      />
+    </View>
   ),
   Banned: ({reason, onRetry}) => (
-    <ErrorState
-      message="Access denied"
-      detail={reason || 'This TV has been banned from this server.'}
-      actionLabel="Try again"
-      edgeLeft={false}
-      onAction={onRetry}
-    />
+    <View style={styles.center}>
+      <ErrorState
+        message="Access denied"
+        detail={reason || 'This TV has been banned from this server.'}
+        actionLabel="Try again"
+        edgeLeft={false}
+        onAction={onRetry}
+      />
+    </View>
   ),
   Gate: ProfileGate,
   SignIn,

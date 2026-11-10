@@ -9,7 +9,7 @@
 // — or into a stricter one — asks nothing. Separately, the server itself asks
 // for the PIN before it opens a grown-up's profile that has no password
 // (401 {pinRequired:true} from unlock); the same PIN view answers that.
-import React from 'react';
+import React, {useRef} from 'react';
 import {
   View,
   Text,
@@ -138,6 +138,11 @@ export default function ProfileGate({
     });
     return () => sub.remove();
   }, [pwFor, pinFor, forgot, setPinFor, setPin, setPinError, setPwFor]);
+  // Back from a prompt lands on the tile it was opened from, not on the first one
+  // (the wall remounts when the prompt closes, and the first tile claimed focus).
+  const promptFor = useRef<string | null>(null);
+  if (pwFor) promptFor.current = pwFor.id;
+  else if (pinFor) promptFor.current = pinFor.profile.id;
   // a tile pressed by hand: whatever a phone sent is not what is wanted
   const pressTile = (p: Profile) => {
     clearAsk.current?.();
@@ -159,7 +164,7 @@ export default function ProfileGate({
       // .profile-tile:hover, :focus -> transform: scale(1.07)
       scaleTo={1.07}
       // index 0 is the profile this TV used last, so the remote starts there.
-      hasTVPreferredFocus={index === 0}
+      hasTVPreferredFocus={promptFor.current && ordered?.some(x => x.id === promptFor.current) ? p.id === promptFor.current : index === 0}
       onPress={() => pressTile(p)}
       style={[styles.tile, p.locked && styles.tileLocked]}
       highlightColor={colors.surface}>

@@ -274,6 +274,15 @@ export default function Settings({
   // meant a double POST or persisting a value that never committed.
   // label → every spelling it stands for
   const genreGroups = useRef(new Map<string, string[]>());
+  // UP back into the genre chips left the page scrolled just far enough to show
+  // them: "Settings", "for <name>" and "What you like" above them stayed off the
+  // top, unreachable — nothing there takes focus (Mi TV, 2026-11-10). A chip that
+  // gains focus while the page is scrolled takes it back to the top, as Detail's
+  // header rows do (ToTop). At the top already, the call moves nothing.
+  const scrollRef = useRef<ScrollView>(null);
+  const chipToTop = useCallback((f: boolean) => {
+    if (f) scrollRef.current?.scrollTo({y: 0, animated: true});
+  }, []);
   const spellingsOf = useCallback((label: string): string[] => {
     for (const [k, v] of genreGroups.current) if ((k === 'scifi' ? 'Sci-Fi' : v[0]) === label) return v;
     return [label];
@@ -325,6 +334,7 @@ export default function Settings({
     <View style={styles.root}>
       <NavRail active="settings" />
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={[styles.content, {paddingBottom: safeBottom + spacing.xl}]}>
         <Text style={styles.h1}>Settings</Text>
@@ -352,6 +362,7 @@ export default function Settings({
                     // in the same commit as the chip itself (not a render later)
                     hasTVPreferredFocus={gi === 0 && firstFocus !== 'row'}
                     onPress={() => toggleGenre(g)}
+                    onFocusChange={chipToTop}
                     style={[styles.chip, on && styles.chipOn]}>
                     <Text style={[styles.chipText, on && styles.chipTextOn]}>{g}</Text>
                   </Focusable>
