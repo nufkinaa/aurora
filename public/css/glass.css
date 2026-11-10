@@ -27,7 +27,9 @@ html[data-look="glass"] {
        --g-fill        chrome: what floats over pictures (bars, buttons,
                        pills, the player's dock)
        --g-fill-thick  what carries a list or a paragraph (menus, sheets,
-                       dialogs, toasts)
+                       dialogs, toasts) — a deeper floor (--g-tint-deep)
+       --g-fill-sheet  the same over the dimmed page (a dialog, the profile
+                       menu)
        --g-fill-slab   panes that lie in the page, over the sky only
        --g-lift        a hover / pressed step, laid over any of the three
        --g-well        the chosen tab: a darker capsule pressed into the bar,
@@ -37,13 +39,32 @@ html[data-look="glass"] {
   --g-tint: 40, 40, 46;
   --g-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 48%);
   --g-fill: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.72), rgba(var(--g-tint), 0.72));
-  --g-fill-thick: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.84), rgba(var(--g-tint), 0.84));
+  /* The thick pane has a deeper floor and lets more through: 79 % of a
+     near-black instead of 84 % of the body grey. Over white it is the same
+     grey as before (72 against 74), over anything darker it is darker — so
+     every word on it reads as well or better — and what is behind shows a
+     third more, which is what makes it glass and not a card. */
+  --g-tint-deep: 24, 24, 28;
+  --g-fill-thick: var(--g-sheen), linear-gradient(rgba(var(--g-tint-deep), 0.79), rgba(var(--g-tint-deep), 0.79));
+  /* a menu or a sheet that opens over the dimmed page (the dim is 55 % of
+     black, so nothing behind it is brighter than a grey of 118): 70 % is
+     enough for the same floor, and twice as much shows through as before */
+  --g-fill-sheet: var(--g-sheen), linear-gradient(rgba(var(--g-tint-deep), 0.7), rgba(var(--g-tint-deep), 0.7));
   --g-fill-slab: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.76), rgba(var(--g-tint), 0.76));
   --g-lift: linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07));
   --g-fill-strong: linear-gradient(135deg, rgba(20, 22, 38, 0.42), rgba(14, 16, 30, 0.28));
   --g-edge: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(255, 255, 255, 0.12),
     inset 0 0 0 1px rgba(255, 255, 255, 0.055), inset 0 8px 10px -8px rgba(255, 255, 255, 0.18),
     inset 0 -7px 9px -8px rgba(255, 255, 255, 0.08), 0 0 0 0.5px rgba(0, 0, 0, 0.3);
+  /* the rim of a THICK pane (a menu, a sheet, a toast): the body is the most
+     opaque of the three, so the thickness has to come from the light on its
+     edge — a brighter hairline, a deeper glow under it, a faint one down each
+     side and along the foot. All of it stays within 10 px of the edge, clear
+     of the words. */
+  --g-edge-thick: inset 0 1px 0 rgba(255, 255, 255, 0.36), inset 0 -1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.075), inset 0 14px 16px -12px rgba(255, 255, 255, 0.22),
+    inset 0 -12px 14px -12px rgba(255, 255, 255, 0.1), inset 12px 0 14px -13px rgba(255, 255, 255, 0.07),
+    inset -12px 0 14px -13px rgba(255, 255, 255, 0.07), 0 0 0 0.5px rgba(0, 0, 0, 0.3);
   --g-shadow: 0 14px 34px rgba(0, 0, 0, 0.34), 0 3px 8px rgba(0, 0, 0, 0.22), 0 1px 2px rgba(0, 0, 0, 0.22);
   --g-blur: blur(6px) saturate(1.8);
   /* the rim for small things in the page (a chip, a round button): the top
@@ -1742,7 +1763,7 @@ html[data-look="glass"] .peek {
   border-radius: var(--g-radius-l);
 }
 /* the picture melts into the pane below it: the pane's own body colour */
-html[data-look="glass"] .peek-art-fade { background: linear-gradient(to top, rgba(var(--g-tint), 0.96) 0%, rgba(var(--g-tint), 0) 55%); }
+html[data-look="glass"] .peek-art-fade { background: linear-gradient(to top, rgba(var(--g-tint-deep), 0.96) 0%, rgba(var(--g-tint-deep), 0) 55%); }
 /* the phone's bottom sheet sits flush on the screen edge — square there */
 @media (max-width: 720px) {
   html[data-look="glass"] .peek { border-radius: var(--g-radius-l) var(--g-radius-l) 0 0; }
@@ -1809,6 +1830,7 @@ html[data-look="glass"] .login-card,
 html[data-look="glass"] .peek,
 html[data-look="glass"] .look-notice {
   background: var(--g-fill-thick);
+  box-shadow: var(--g-edge-thick), var(--g-shadow);
 }
 html[data-look="glass"] .episode,
 html[data-look="glass"] .source-row,
@@ -2154,6 +2176,12 @@ html[data-look="glass"] .menu,
 html[data-look="glass"] .nav-menu,
 html[data-look="glass"] .suggest-list {
   background: var(--g-fill-thick);
+  box-shadow: var(--g-edge-thick), var(--g-shadow);
+}
+/* over the dimmed page (see --g-fill-sheet) */
+html[data-look="glass"] .modal-backdrop > .modal,
+html[data-look="glass"] .nav-menu-wrap > .nav-menu {
+  background: var(--g-fill-sheet);
 }
 html[data-look="glass"] .dropdown-item,
 html[data-look="glass"] .menu-item,
@@ -2187,6 +2215,7 @@ html[data-look="glass"] .toast.quiet {
    rather than run out of it. */
 html[data-look="glass"] .toast {
   background: var(--g-fill-thick);
+  box-shadow: var(--g-edge-thick), var(--g-shadow);
   -webkit-backdrop-filter: var(--g-blur);
   backdrop-filter: var(--g-blur);
 }
@@ -2246,6 +2275,7 @@ html[data-look="glass"] .nav-item.nav-gear.active:not(:focus-visible) {
    real floor, whatever is behind it, and its text is light, not grey. */
 html[data-look="glass"] .party-panel {
   background: var(--g-fill-thick), rgba(10, 12, 22, var(--g-under, 0));
+  box-shadow: var(--g-edge-thick), var(--g-shadow);
   transition: --g-under 0.6s ease;
 }
 .party-hint,
@@ -4465,6 +4495,14 @@ html[data-look="glass"][data-fx="lite"] * {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+/* with no blur behind it the thick pane keeps the body it had before it was
+   let through more: what shows through an unblurred pane is sharp letters,
+   not light */
+html[data-look="glass"][data-fx="lite"] {
+  --g-tint-deep: var(--g-tint);
+  --g-fill-thick: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.84), rgba(var(--g-tint), 0.84));
+  --g-fill-sheet: var(--g-fill-thick);
+}
 html[data-look="glass"][data-fx="lite"] .nav-items,
 html[data-look="glass"][data-fx="lite"] .nav-logo,
 html[data-look="glass"][data-fx="lite"] .nav-profile,
@@ -5240,6 +5278,12 @@ button.xr-person:focus-visible {
    file); their own floors above come later in the file and would otherwise
    win. */
 @media (prefers-reduced-transparency: reduce), (hover: none) and (pointer: coarse) and (min-width: 1200px) {
+  /* and the thick pane keeps its fuller body where nothing blurs behind it */
+  html[data-look="glass"]:root {
+    --g-tint-deep: var(--g-tint);
+    --g-fill-thick: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.84), rgba(var(--g-tint), 0.84));
+    --g-fill-sheet: var(--g-fill-thick);
+  }
   html[data-look="glass"]:root .toast,
   html[data-look="glass"]:root .nav-items {
     -webkit-backdrop-filter: none;
