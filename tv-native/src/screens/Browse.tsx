@@ -912,6 +912,7 @@ export default function Browse({
                 <Chip uiId="browse.category.pick"
                   key={c.id}
                   bare
+                  glass
                   label={c.label}
                   on={category === c.id}
                   hasTVPreferredFocus={category === c.id}
@@ -928,7 +929,7 @@ export default function Browse({
               onOpenChange={setPickerOpen}
             />
             <View style={styles.toolRow}>
-              <Chip uiId="browse.unwatched" label="Unwatched" on={unwatched} onPress={() => pick(() => setUnwatched(u => !u))} />
+              <Chip uiId="browse.unwatched" glass label="Unwatched" on={unwatched} onPress={() => pick(() => setUnwatched(u => !u))} />
             </View>
             {note ? <Text style={styles.note}>{note}</Text> : null}
             <View style={styles.spacer} />
