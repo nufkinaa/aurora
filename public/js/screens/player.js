@@ -17,6 +17,8 @@ import { localItem, localNext, localPosition, saveLocalPosition, sniffLocal } fr
 import { failureSentence } from "../localsubs.js";
 import { track } from "../usage.js";
 import { uiHit, reportError, playMounted, playFirstFrame, playGone } from "../telemetry.js"; // [analytics]
+import { trail, playerWaiting } from "../trail.js"; // [report trail] the player's steps and state, for a report
+import { trailPath } from "../trail-core.js";
 import { playCap, capFor, netTier, measured, probe, dataMode, slowNoteDue, slowNoteShown, slowNoteDismissed } from "../net.js";
 import { followVideo } from "../glassTone.js";
 import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio, langOf } from "../lang.js";
@@ -998,6 +1000,7 @@ export const renderPlayer = async (root, { id }) => {
     const ms = Math.round((at == null ? performance.now() : at) - t0);
     if ((name === "path" || name === "decision") && startSteps.decide == null) startSteps.decide = at == null ? performance.now() : at;
     playMarks.push({ name, ms, ...extra });
+    trail("play", { e: "mark", mk: name, path: extra.path, why: extra.why, v: extra.v, to: extra.to, stage: extra.stage, did: extra.did, details: extra.details, from: extra.from, at: extra.at }); // [report trail]
     if (isTorrent || item._offline) return;
     try {
       fetch(`/api/play-mark/${encodeURIComponent(item.id)}`, {
@@ -1012,7 +1015,7 @@ export const renderPlayer = async (root, { id }) => {
   playMounted(); // [analytics] a play is starting: nothing is sent until its first frame
   // (a file from this device: its name stays here — not in a report either)
   let startup = null; // this play's start-up, once its first frame is in (startline.js)
-  if (!item._local) setPlayingContext({ id: item.id, title: isEpisode ? `${item.showTitle} S${item.season}E${item.episode}` : item.title, marks: () => playMarks.slice(), startup: () => startup });
+  if (!item._local) setPlayingContext({ id: item.id, title: isEpisode ? `${item.showTitle} S${item.season}E${item.episode}` : item.title, marks: () => playMarks.slice(), startup: () => startup, state: () => playerState() });
 
   // ---------- element tree ----------
   const video = el("video", {
@@ -2066,6 +2069,7 @@ export const renderPlayer = async (root, { id }) => {
     audioIdx = idx;
     {
       const t = (item.audioTracks || []).find((x, i) => (x.index != null ? x.index : i) === idx);
+      trail("play", { e: "audio", v: audioTrackName(t || {}, idx) }); // [report trail]
       if (t && audioPick(t.language)) rememberPick("audioLang", audioPick(t.language));
     }
     closeMenu();
@@ -2130,6 +2134,7 @@ export const renderPlayer = async (root, { id }) => {
   // up (`auto`). No message box either way: a small chip in the corner names
   // the quality for a moment, and that is all.
   const applyQuality = (h, { auto = false } = {}) => {
+    trail("play", { e: "quality", v: h === "auto" ? "auto" : h ? `${h}p` : "original", auto: auto || undefined }); // [report trail]
     // on a TV the picture is the TV's stream: the file's own (or the full encode)
     if (onAir()) {
       if (!auto) toast("On AirPlay the TV gets the full picture — quality is back here when AirPlay ends", "📺");
@@ -4054,6 +4059,7 @@ export const renderPlayer = async (root, { id }) => {
 
   const selectTrack = (idx) => {
     const tracks = video.textTracks;
+    { const t = idx >= 0 ? (item.subtitles || [])[idx] : null; trail("play", { e: "subtitles", v: idx < 0 ? "off" : (t && !item._local && (t.label || t.lang)) || `track ${idx + 1}` }); } // [report trail]
     if (idx >= 0) armSubs([...video.querySelectorAll("track")][idx]);
     for (let i = 0; i < tracks.length; i++) {
       tracks[i].mode = i === idx ? "showing" : "disabled";
@@ -5863,6 +5869,7 @@ export const renderPlayer = async (root, { id }) => {
   };
 
   const goNext = (next) => {
+    trail("play", { e: "next", to: next && (next.season != null ? `S${next.season}E${next.episode}` : next.id) }); // [report trail]
     dismissUpNext();
     saveProgress();
     if (inParty() && party.role === "guest") {
@@ -6604,6 +6611,33 @@ export const renderPlayer = async (root, { id }) => {
     }
     if (!isEpisode && !localEpisode) exit();
   });
+  // ---- what the player is doing, for a report sent from it (report.js) ----
+  const playerState = () => {
+    const o = { id: item.id };
+    try {
+      let ahead = 0;
+      const b = video.buffered;
+      for (let i = 0; i < b.length; i++) if (b.start(i) <= video.currentTime + 0.5 && b.end(i) > video.currentTime) ahead = b.end(i) - video.currentTime;
+      const q = video.getVideoPlaybackQuality ? video.getVideoPlaybackQuality() : null;
+      const lv = hls && hls.levels && hls.currentLevel >= 0 ? hls.levels[hls.currentLevel] : null;
+      const at = (item.audioTracks || []).find((x, i) => (x.index != null ? x.index : i) === audioIdx);
+      const st = activeTrack >= 0 ? (item.subtitles || [])[activeTrack] : null;
+      const src = video.currentSrc && !video.currentSrc.startsWith("blob:") ? video.currentSrc : (hls && hls.url) || "";
+      Object.assign(o, {
+        pos: Math.round(effTime()), dur: Math.round(totalDuration() || 0) || undefined, ahead: Math.round(ahead * 10) / 10,
+        ready: video.readyState, net: video.networkState, paused: video.paused, ended: video.ended || undefined, seeking: video.seeking || undefined,
+        rate: video.playbackRate !== 1 ? video.playbackRate : undefined, picture: video.videoHeight ? `${video.videoWidth}x${video.videoHeight}` : undefined,
+        dropped: q && q.totalVideoFrames ? `${q.droppedVideoFrames}/${q.totalVideoFrames}` : undefined,
+        path: item._offline ? "offline" : isTorrent ? "torrent" : ladderOn ? "ladder" : jitMode ? "jit" : usingTranscode ? "transcode" : "direct",
+        v: currentV, cap: capH || undefined, level: lv ? `${lv.height}p` : undefined,
+        audio: at ? audioTrackName(at, audioIdx) : undefined, subtitles: st ? st.label || st.lang : "off",
+        src: src ? trailPath(src) : undefined, error: video.error ? video.error.code : undefined,
+        waiting: playerWaiting() || undefined, client: state.clientId || undefined,
+        party: inParty() ? party.role : undefined, airplay: onAir() || undefined,
+      });
+    } catch {}
+    return o;
+  };
   // ---- the error card (2026-10-07) ----
   // A stream that stopped for good used to leave a toast and a dead picture.
   // The card says what happened and offers the two things a viewer wants:
@@ -6615,6 +6649,7 @@ export const renderPlayer = async (root, { id }) => {
   const showErrorCard = (message, retry, { title = "Playback stopped", back = "Back" } = {}) => {
     if (exited) return;
     reportError("media", "the player showed its error card"); // [analytics] that it happened, never the words on it
+    trail("err", { w: "card", m: `${title}: ${message}` }); // [report trail] the words the viewer read
     hideErrorCard();
     spinner.classList.add("hidden");
     const again = retry ? el("button", { "data-ui": "player.retry",

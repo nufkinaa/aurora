@@ -12,15 +12,14 @@ import TrailerFrame, {TrailerState} from './Trailer';
 import {prepareTrailer, ResolvedTrailer} from '../trailers';
 import type {ActionItem} from '../overlay';
 import {api, artSrc, HeroItem, imgSrc, ImgSource, LIST_ADDED, StreamRef, XrayData, XrayPerson, XrayQuery} from '../api';
-import {playingContext} from '../errors';
-import {clientContext} from '../clientContext';
+import {reportContext, reportPeek, ReportContext} from '../clientContext';
 import {afterFocusLeaves, noteFocus, noteFocusLost, useKeyTrap} from '../focus';
 import {closeOverlay, openRecommend, useOverlay} from '../overlay';
 import {cardLinesShown, fromLine, ltr, noteLineShown, titleKey, WORDS as HH} from '../householdRecs'; // [household]
 import {householdChanged} from '../householdLive'; // [household]
 import {openItem} from '../openItem';
 import {resolvePartyRoute} from '../party';
-import {currentRouteName, pushScreen, rootNav} from '../rootNav';
+import {pushScreen, rootNav} from '../rootNav';
 import {dismissUpdate} from '../storage';
 import {showToast, useToasts} from '../toast';
 import {
@@ -278,24 +277,19 @@ function ReportSheet({hint}: {hint?: string}) {
   useEffect(() => () => noteFocusLost(fieldNode.current), []);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  // [report trail] "See what will be sent": read when asked for, and exactly that goes
+  const [peek, setPeek] = useState<ReportContext | null>(null);
+  const [peekOpen, setPeekOpen] = useState(false);
+  const togglePeek = () => {
+    if (!peek) setPeek(reportContext('tv'));
+    setPeekOpen(o => !o);
+  };
   const send = async () => {
     if (!text.trim() || busy) return;
     setBusy(true);
     setErr('');
-    const playing = playingContext();
     try {
-      await api.report(
-        `${text.trim()}${hint ? `\n\n(${hint})` : ''}`,
-        {
-          ...clientContext(),
-          route: `tv:${currentRouteName()}`,
-          title: playing ? playing.title : null,
-          itemId: playing ? playing.id : null,
-          // what is playing, how it started: step by step from the press (src/startline.ts)
-          startup: playing && playing.startup ? playing.startup() : null,
-        },
-        rootNav().profileName,
-      );
+      await api.report(`${text.trim()}${hint ? `\n\n(${hint})` : ''}`, peek || reportContext('tv'), rootNav().profileName);
       track('feat', {f: 'report'});
       closeOverlay();
       showToast('Sent — thank you. It landed with the admin.', '🛠️');
@@ -307,7 +301,7 @@ function ReportSheet({hint}: {hint?: string}) {
   return (
     <Sheet kicker="HELP" title="Report a problem" onClose={closeOverlay}>
       <Text style={styles.body}>
-        A few words is enough. Where you are, what is playing and the last errors this TV saw come along by themselves.
+        A few words is enough. Where you are, what is playing, your last steps in the app and facts about this TV come along by themselves — never anything you typed, except a search you ran.
       </Text>
       <TextInput
         ref={inputRef}
@@ -324,9 +318,17 @@ function ReportSheet({hint}: {hint?: string}) {
         onSubmitEditing={send}
         blurOnSubmit
       />
+      {peekOpen && peek ? (
+        <View style={styles.sentBox}>
+          <Text style={styles.sentText} numberOfLines={18}>
+            {reportPeek(peek, {steps: 8})}
+          </Text>
+        </View>
+      ) : null}
       {err ? <Text style={styles.error}>{err}</Text> : null}
       <View style={[styles.actions, styles.actionsSpread]}>
         <Primary uiId="report.send" label="Send report" onPress={send} busy={busy} />
+        <Ghost uiId="report.peek" label={peekOpen ? 'Hide what will be sent' : 'See what will be sent'} onPress={togglePeek} />
         <Ghost label="Cancel" onPress={closeOverlay} />
       </View>
     </Sheet>
@@ -1053,6 +1055,9 @@ const styles = StyleSheet.create({
   actionTag: {color: colors.textDim, fontSize: fontSize.small, marginLeft: spacing.md},
   actionDanger: {color: '#ff8080'},
   body: {color: colors.text, fontSize: fontSize.body, lineHeight: 24},
+  // [report trail] what comes along, and a look at it
+  sentBox: {marginTop: spacing.sm, padding: spacing.sm, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)'},
+  sentText: {color: colors.textDim, fontSize: 12, lineHeight: 17, fontFamily: 'monospace'},
   faint: {color: colors.textDim, fontSize: fontSize.small, marginTop: spacing.sm},
   error: {color: '#ff8080', fontSize: fontSize.body, marginTop: spacing.sm},
   input: {

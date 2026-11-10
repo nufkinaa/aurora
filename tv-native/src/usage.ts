@@ -25,6 +25,7 @@ import {getAuthMode, getBaseUrl, getSession} from './api';
 import {registerProfileCache} from './profileScope';
 import * as tel from './telemetry';
 import {normMessage} from './telemetryCore';
+import {trail} from './trail'; // [report trail]
 import {runningVersion} from './update';
 import {appId, isPhone} from './formFactor';
 
@@ -175,6 +176,9 @@ export const track = (name: string, props: Record<string, string | number | bool
     if (typeof props.exp === 'string' && props.exp) buildFlags.push(`exp:${props.exp.toLowerCase()}`);
   }
   else if (name === 'feat' && props.f === 'stall_tv') tel.playbackStalled();
+  // [report trail] the features used and a play's first picture (whatever the usage-stats switch says: the trail goes only with a report)
+  if (name === 'feat' && props.f) trail('feat', {f: String(props.f)});
+  else if (name === 'play' && typeof props.ms === 'number') trail('play', {e: 'start', ms: props.ms, path: typeof props.path === 'string' ? props.path : undefined});
   if (!profile || profileAllows === false) return;
   queue.push({n: name, t: Date.now(), p: props});
   if (queue.length > MAX_QUEUE) queue.shift();

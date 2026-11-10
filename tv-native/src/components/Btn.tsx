@@ -11,6 +11,7 @@ import React, {useState} from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 import Focusable from './Focusable';
+import {trail} from '../trail'; // [report trail]
 import Icon, {IconName} from './Icon';
 import theme from '../theme';
 
@@ -74,7 +75,11 @@ export default function Btn({
         setFocused(f);
         onFocusChange?.(f);
       }}
-      onPress={onPress}
+      // (an untagged button is named in a report's trail by its label)
+      onPress={uiId ? onPress : () => {
+        trail('tap', {r: 'button', l: label.slice(0, 40)}); // [report trail]
+        onPress();
+      }}
       style={[styles.btn, small && styles.small, primary ? styles.primary : styles.surface]}>
       {primary ? (
         // "Soft top-light: reads as a physical white key, not a flat fill"

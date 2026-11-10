@@ -4,6 +4,7 @@
 // mirroring the web client.
 import {PixelRatio} from 'react-native';
 import {httpFailed} from './telemetry'; // [analytics] (telemetry.ts imports nothing of the app's)
+import {trailRequest} from './trail'; // [report trail] (imports nothing of the app's)
 import {takeBlur} from './blur';
 import {registerProfileCache} from './profileScope';
 import {tooManyWait, TOO_MANY_RETRIES} from './serverManners';
@@ -1004,6 +1005,7 @@ async function send(path: string, options: RequestInit = {}, allow304 = false, q
   // server's lib/blurup.js; blur.ts keeps them, Card.tsx draws them).
   if (!options.method || String(options.method).toUpperCase() === 'GET') headers['X-Blur'] = '1';
   let res: Response;
+  const t0 = Date.now(); // [report trail]
   for (let again = 0; ; again++) {
     try {
       // Bounded. A request with no limit could wait on a stalled Wi-Fi link
@@ -1015,6 +1017,7 @@ async function send(path: string, options: RequestInit = {}, allow304 = false, q
     } catch (e) {
       if (e instanceof ApiError) throw e;
       httpFailed(options.method, path, 0); // [analytics] by its shape, never the address
+      trailRequest(options.method, path, 0, Date.now() - t0); // [report trail]
       // Network-level failure (server down, wrong IP, wifi) — normalize to a
       // friendly, catchable shape instead of a raw TypeError.
       throw new ApiError(0, 'Cannot reach server');
@@ -1034,6 +1037,7 @@ async function send(path: string, options: RequestInit = {}, allow304 = false, q
     }
     break;
   }
+  trailRequest(options.method, path, res.status, Date.now() - t0); // [report trail]
   // the server answers again: the play marks held while it did not go now
   if (res.ok && heldMarks.length) setTimeout(flushHeldMarks, 0);
   if (res.ok) noteAudience(path, res);

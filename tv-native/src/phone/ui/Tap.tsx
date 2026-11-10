@@ -3,6 +3,7 @@
 import React from 'react';
 import {GestureResponderEvent, Pressable, PressableProps, StyleProp, ViewStyle} from 'react-native';
 import {uiHit} from '../../telemetry';
+import {trail} from '../../trail'; // [report trail]
 
 type Props = Omit<PressableProps, 'style'> & {
   style?: StyleProp<ViewStyle>;
@@ -19,8 +20,11 @@ type Props = Omit<PressableProps, 'style'> & {
 
 export default function Tap({style, borderless, flat, rippleColor, uiId, children, ...rest}: Props) {
   const press = rest.onPress;
-  const onPress = uiId && press ? (e: GestureResponderEvent) => {
-    uiHit(uiId, 'touch');
+  // (an untagged control is named in a report's trail by its label — never by what it holds)
+  const label = rest.accessibilityLabel;
+  const onPress = press && (uiId || label) ? (e: GestureResponderEvent) => {
+    if (uiId) uiHit(uiId, 'touch');
+    else trail('tap', {r: 'button', l: String(label).slice(0, 40)}); // [report trail]
     press(e);
   } : press;
   return (

@@ -50,6 +50,8 @@ const PROFILE: Record<string, string[]> = {
   // (telemetry's unsent books — errors, timings, control counts — are objects
   // this table's pattern does not see; its registration empties them: clear())
   'telemetry.ts': ['off'],
+  // [report trail] the last request timings (the steps themselves are a Trail object: emptied by the same registration)
+  'trail.ts': ['reqs'],
   'trailers.ts': ['resolved', 'prepared'],
   'usage.ts': ['queue', 'profile', 'errors', 'profileAllows'],
 };
@@ -294,6 +296,8 @@ const DEVICE: Record<string, Record<string, string>> = {
     seekTo: 'a seek in flight',
   },
   'usage.ts': {timer: 'the flush timer', buildFlags: 'what this build said about itself', facts: 'what this box is'},
+  // [report trail] the rules' fixed lists
+  'trailCore.ts': {MERGEABLE: 'a fixed list', TV_KEYS: 'a fixed list', GUARDS: 'a fixed list'},
 };
 
 // A module-scope declaration that can hold state: `let x`, or a const that is

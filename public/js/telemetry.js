@@ -20,6 +20,7 @@
 // a play is starting — usage.js asks `quiet()` before every batch.
 import { state } from "./state.js";
 import { enabled, deviceClass, setTelemetry, poke } from "./usage.js";
+import { trail } from "./trail.js"; // [report trail]
 import { ErrorBook, ControlCounter, Timers, urlPattern, locOf, uaClass, idleNow, playPath, LIMITS } from "./telemetry-core.js";
 
 const t = () => performance.now();
@@ -188,8 +189,8 @@ document.addEventListener("canplay", seekDone, true);
 document.addEventListener("seeked", seekDone, true);
 
 // The live socket: lost → back (ws.js).
-export const wsDown = () => { if (!timers.running("ws_reconnect")) timers.start("ws_reconnect"); };
-export const wsUp = () => { timers.end("ws_reconnect"); };
+export const wsDown = () => { trail("net", { ws: "down" }); if (!timers.running("ws_reconnect")) timers.start("ws_reconnect"); };
+export const wsUp = () => { trail("net", { ws: "up" }); timers.end("ws_reconnect"); };
 
 // ---------- errors ----------
 // reportError("media", "hls fragLoadError", { ctx: { code: 404 } })
@@ -199,6 +200,8 @@ export const reportError = (kind, message, { level = "error", loc = "", ctx = nu
 // every report goes through here: counted in the book, and the sender is
 // reminded that there is something to carry (it waits for a quiet moment)
 const note = (kind, level, message, o = {}) => {
+  // [report trail] what went wrong, as the report will tell it (requests are the trail's own)
+  if (kind !== "http") trail("err", { w: kind, lv: level === "warn" ? "warn" : undefined, m: message, st: o.ctx && o.ctx.status, code: o.ctx && o.ctx.code });
   if (off()) return;
   if (book.add(kind, level, message, { ...o, screen })) poke();
 };

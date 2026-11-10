@@ -197,6 +197,8 @@ import {
 } from './resync';
 import {afterClaim, claimFirst, SERVER_BUSY, whenRoom} from '../serverManners';
 import {playerError, seekResumed, seekStarted, seeking} from '../telemetry'; // [analytics]
+import {trail} from '../trail'; // [report trail] the player's steps and state, for a report
+import {trailPath} from '../trailCore';
 // [scrub-previews] the pictures above the scrub point, and the TV's hold-to-seek (2026-11-09)
 import {readScrubIndex, SCRUB_REASK_MS, thumbLeft} from './scrubPreview';
 import {
@@ -1169,6 +1171,7 @@ export default function Player({
   }, []);
   const togglePlay = useCallback(() => {
     const next = !pausedRef.current;
+    trail('play', {e: next ? 'pause' : 'play', at: Math.round(curRef.current || 0)}); // [report trail]
     setPaused(next);
     partyUser(!next);
     setFlashPaused(next);
@@ -1485,6 +1488,7 @@ export default function Player({
       const base = itemRef.current?.transcodeBase || stream?.transcodeBase;
       if (!base) return;
       track('feat', {f: 'audio_track'}); // the site's name for the same thing
+      trail('play', {e: 'audio', v: label}); // [report trail]
       audioChosen.current = true;
       audioIdxRef.current = idx;
       setAudioIdx(idx);
@@ -2043,9 +2047,29 @@ export default function Player({
 
   // ---------------------------------------------------------------- watch party
   useEffect(() => {
-    setPlayingContext({id, title, startup: () => startup.current});
+    setPlayingContext({
+      id,
+      title,
+      startup: () => startup.current,
+      // [report trail] what the player is doing at the moment a report is sent
+      state: () => ({
+        id,
+        pos: Math.round(curRef.current || 0),
+        dur: Math.round(durRef.current || 0) || undefined,
+        ahead: Math.max(0, Math.round(((bufRef.current || 0) - (curRef.current || 0)) * 10) / 10),
+        state: bufferingRef.current ? 'buffering' : pausedRef.current ? 'paused' : 'playing',
+        rate: rateRef.current !== 1 ? rateRef.current : undefined,
+        path: isTorrent ? 'torrent' : usingTranscodeRef.current ? 'transcode' : 'direct',
+        audio: audioIdxRef.current || undefined,
+        subtitles: subKeyRef.current ? trailPath(subKeyRef.current) : 'off',
+        src: uriRef.current ? trailPath(uriRef.current) : undefined,
+        subLang: prefsRef.current.subLang,
+        subsDefault: prefsRef.current.subsDefault,
+        autoplayNext: prefsRef.current.autoplayNext,
+      }),
+    });
     return () => setPlayingContext(null);
-  }, [id, title]);
+  }, [id, title, isTorrent]);
   // While a film plays, a library change re-reads nothing behind it (the
   // title page under the player used to re-read its library copy on every
   // message): realtime.ts holds the news and tells the screens once, after
@@ -2450,6 +2474,7 @@ export default function Player({
   const [badTick, setBadTick] = useState(0);
   const subKeyRef = useRef<string | null>(null);
   useEffect(() => {
+    if (subKeyRef.current !== subKey) trail('play', {e: 'subtitles', v: subKey || 'off'}); // [report trail]
     subKeyRef.current = subKey;
   }, [subKey]);
   useEffect(() => {
@@ -2850,6 +2875,7 @@ export default function Player({
     // torrent's region fetch below can take a moment; renewed when the seek is sent)
     settle.current = {target, at: Date.now()};
     seekStarted(target); // [analytics] seek → playing again, as a timing
+    trail('play', {e: 'seek', from: Math.round(curRef.current || 0), to: Math.round(target)}); // [report trail]
     const base = itemRef.current?.transcodeBase || stream?.transcodeBase;
     // A committed seek is shared with the party — unless it IS the party's
     // (partyEcho), which is how the room avoids echoing seeks back and forth.
@@ -3356,6 +3382,9 @@ export default function Player({
   const markCount = useRef(0);
   const mark = useCallback(
     (name: string, extra: Record<string, string | number | boolean | null> = {}) => {
+      // [report trail] (before the gates: a report carries the steps of a stream too)
+      if (name === 'stall-end') trail('play', {e: 'stall', ms: extra.lasted as number, at: extra.at as number});
+      else if (name !== 'mount') trail('play', {e: 'mark', mk: name, at: extra.at, why: extra.why, path: extra.path, to: extra.to, v: extra.v, stage: extra.stage, transcode: extra.transcode});
       if (isTorrent || markCount.current++ > 40) return;
       api.playMark(id, {name, ms: Date.now() - mountedAt.current, ...extra}).catch(() => {});
     },
@@ -3956,6 +3985,7 @@ export default function Player({
     (target: NextEp, byCountdown: boolean) => {
       if (advancing.current) return; // guard against OK double-firing
       advancing.current = true;
+      trail('play', {e: 'next', to: target.label || `S${target.season}E${target.episode}`, auto: byCountdown || undefined}); // [report trail]
       if (countdownTimer.current) clearInterval(countdownTimer.current);
       countdownTimer.current = null;
       setUpNext(null);
@@ -4439,6 +4469,7 @@ export default function Player({
     return true;
   };
   const onEnd = () => {
+    trail('play', {e: 'ended', at: Math.round(curRef.current || 0)}); // [report trail]
     // A transcode that "ends" FAR before the known duration is a truncated
     // playlist (its input starved server-side), not the end of the movie —
     // restart the stream where it died instead of silently closing the player
