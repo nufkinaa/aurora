@@ -7,9 +7,11 @@ not have to be that clear but more accurate to how their looks."
 This file: (1) what Apple's glass does, written before a line of CSS was
 changed; (2) where our glass lives; (3) the new recipe; (4) what was tried,
 kept and dropped; (5) the contrast in short; (6) performance; (7) what only
-a real iPhone can say; (8) the recipe as plain values for the apps. The
-whole contrast table is in `docs/qa/glass-apple/contrast.md`, the blind
-comparison kit in `docs/qa/glass-apple/jury/`, the tools that made both in
+a real iPhone can say; (8) the recipe as plain values for the apps; (9) the
+second pass, after the jury. The whole contrast table is in
+`docs/qa/glass-apple/contrast.md`, the blind comparison kit in
+`docs/qa/glass-apple/jury/` (the second pass against the first:
+`docs/qa/glass-apple/jury2/`), the tools that made both in
 `tools/glass-apple/`.
 
 ## 1. What Apple's glass does (from elia's iPhone recordings)
@@ -167,14 +169,16 @@ the tokens too. Nothing was moved or resized.
 |---|---|---|
 | `--g-tint` | `40, 40, 46` | the body colour: Apple's bar measured 38–40 grey; ours leans one step towards the night sky's blue so it does not look like a grey box on a blue page |
 | `--g-fill` | body at **72 %** + sheen | chrome: what floats over pictures (tab bar, nav island, round buttons, buttons on a picture, the player's dock, the search field) |
-| `--g-fill-thick` | body at **84 %** + sheen | what carries a list or a paragraph over anything (menus, the search list, sheets, dialogs, the peek, toasts, the player's panels) |
-| `--g-fill-slab` | body at **76 %** + sheen | panes that lie in the page, over the sky only (settings panes, episodes, the season bar, chips, download rows) — most have no backdrop filter (rows and chips never; a settings pane keeps the one it has on a desktop), so the tint does the work |
+| `--g-fill-thick` | the deep body `24, 24, 28` (`--g-tint-deep`) at **79 %** + sheen | what carries a list or a paragraph over anything (menus, the search list, sheets, dialogs, the peek, toasts, the player's panels). Over white it is as dark as the first pass's 84 % of the chrome's body; over anything darker it is darker, and a fifth of the page comes through instead of a sixth. Without a blur (lite, reduced transparency) the token stays the chrome's body at 84 %, and the surfaces that lose their blur go to 94 % of it as before |
+| `--g-fill-sheet` | the deep body at **70 %** + sheen | a sheet or the More menu that opens over the page already dimmed: the dim is part of what holds the words, so the pane can let more through. Without a blur it is `--g-fill-thick` |
+| `--g-fill-slab` | a near-black body `10, 10, 14` (`--g-tint-slab`) at **67 %** + sheen | panes that lie in the page, over the sky only (settings panes, episodes, the season bar, chips, download rows) — most have no backdrop filter (rows and chips never; a settings pane keeps the one it has on a desktop), so the tint does the work |
 | `--g-sheen` | white 5 % → 0 over the top 48 % | the faint fall of light across the pane |
 | `--g-lift` | white 7 % | hover / pressed step, laid over any of the three |
 | `--g-blur` | `blur(6px) saturate(1.8)` | the backdrop filter, wherever there was one already (was `blur(7px) saturate(1.9) brightness(1.08)`; the hero and title buttons had `blur(12px) saturate(1.5)`) |
-| `--g-edge` | top hairline white 28 %, foot hairline white 12 %, all-round line white 5.5 %, a 10 px inner glow from the top (white 18 %) and a fainter one from the foot (8 %), 1 px black 26 % outside | the rim: light caught on an edge, strongest at the top and the foot, with the dark line the glass throws on the page |
+| `--g-edge` | top hairline white 28 %, foot hairline white 12 %, all-round line white 5.5 %, a 10 px inner glow from the top (white 18 %) and a fainter one from the foot (8 %), half a pixel of black 30 % outside | the rim: light caught on an edge, strongest at the top and the foot, with the dark line the glass throws on the page |
+| `--g-edge-thick` | top hairline white 36 %, foot 16 %, all-round 7.5 %, a 16 px glow from the top (white 22 %), 14 px from the foot (10 %) and a faint one down each side (7 %), the same outside line | the rim of a thick pane (menus, sheets, toasts, the party panel): its body is the most opaque, so its thickness comes from the light on its edge |
 | `--g-edge-thin` | top hairline 20 %, foot 7 %, all-round 6 % | the rim for small things in the page (a chip, a small round button): no inner glow |
-| `--g-shadow` | `0 12px 32px` black 32 % + `0 2px 6px` black 20 % | the soft outer shadow (was one wide `0 24px 60px` black 38 %) |
+| `--g-shadow` | `0 14px 34px` black 34 % + `0 3px 8px` black 22 % + `0 1px 2px` black 22 % | the soft outer shadow with a close one under the pane (was one wide `0 24px 60px` black 38 %) |
 | `--g-well` | black 40 % | the chosen tab / chip / season: a darker capsule pressed into the bar |
 | `--g-well-edge` | inner shadow from the top (black 40 %, 2 px) + a faint light line at the foot (white 9 %) | the well's rim: the bar's language turned inside out |
 | `--g-ink` | `#fff` | words and icons on glass |
@@ -194,11 +198,14 @@ the tokens too. Nothing was moved or resized.
   Safari, Firefox, the lite path and reduced transparency all read the same.
   Apple's own bar lets through about as much (a white page under WhatsApp's
   bar comes out near a third).
-- **Three thicknesses, one colour.** A menu's lines are long and small, so
-  it is thicker (84 %). A row in the page has no blur behind it — a season of
-  24 episodes cannot afford one — so the sky shows through it sharp; at the
-  chrome's 72 % its small grey notes fell under 4.5:1, at 76 % they hold on
-  the sky as it is.
+- **Three thicknesses.** A menu's lines are long and small, so it is
+  thicker. A row in the page has no blur behind it — a season of 24 episodes
+  cannot afford one — so the sky shows through it sharp; at the chrome's
+  72 % its small grey notes fell under 4.5:1. The first pass made both from
+  the chrome's body (84 % and 76 %); the second (part 9) keeps what they
+  hold over white and takes the grey out: a darker floor at a lower alpha
+  (`24, 24, 28` at 79 %, `10, 10, 14` at 67 %) is as dark over a white
+  backdrop and lets more of the page's own colour through.
 - **Blur 6 px, saturation 1.8** — found by looking at a grid (3 / 6 / 10 px
   × 1.3 / 1.8 / 2.3) over posters and over white text, at phone and desktop
   size, next to elia's recordings. 3 px leaves the words under the bar crisp
@@ -349,16 +356,16 @@ is, black).
 
 | | today | this branch |
 |---|---|---|
-| cells under 4.5:1 | 61 of 214 | 9 of 214 |
+| cells under 4.5:1 | 61 of 214 | 8 of 214 |
 | nav island (desktop), white text passing under: words / icons / quiet words | 4.5 / 3.8 / 3.6 | 10.1 / 11.7 / 11.3 |
 | nav island (desktop), the brightest sky: icons / quiet words | 4.4 / 3.8 | 11.7 / 11.8 |
 | nav island (desktop), a white poster: words | 14.9 (dark words, after the flip) | 5.1 (white words) |
-| settings panes (desktop), the sky as it is: words / icons / quiet words | 3.8 / 3.0 / 2.8 | 9.2 / 6.4 / 7.4 |
-| settings panes (desktop), the brightest sky: words | 1.2 | 5.9 |
-| episodes (phone), the sky as it is: words / icons / quiet words | 4.8 / 2.6 / 2.9 | 7.6 / 5.2 / 5.3 |
-| chips (phone), the sky as it is: quiet words | 2.0 | 6.0 |
+| settings panes (desktop), the sky as it is: words / icons / quiet words | 3.8 / 3.0 / 2.8 | 11.3 / 8.1 / 9.3 |
+| settings panes (desktop), the brightest sky: words | 1.2 | 6.2 |
+| episodes (phone), the sky as it is: words / icons / quiet words | 4.8 / 2.6 / 2.9 | 9.2 / 6.5 / 6.5 |
+| chips (phone), the sky as it is: quiet words | 2.0 | 7.5 |
 | tab bar (phone), a white poster: chosen / icons / words | 5.4 / 6.9 / 5.6 | 5.5 / 5.6 / 5.8 |
-| toast (phone), a white poster | 5.9 | 5.7 |
+| toast (phone), a white poster | 5.9 | 5.8 |
 
 Where the reading got better: the nav island and the round buttons in the
 moments between "dark" and "light" (white text or a bright sky under them),
@@ -369,12 +376,13 @@ plain white poster the island's number is LOWER than today's (5.1 against
 14.9) and still passes: today's words turn dark there, ours stay white on a
 body that is dark enough.
 
-The nine cells still under 4.5:1 are all second-voice text or small icons
-on panes that lie in the page (chips, settings rows, episode rows, the
-search list) with the WHOLE sky painted in its brightest green — a ceiling
-the real sky never reaches all at once; they measure 3.6–4.4:1 there and
-5.2:1 or more on the sky as it is. Closing them means a nearly opaque pane (part 4), a blur behind 24 episode
-rows, or a second voice as bright as the first. Left, and said.
+The eight cells still under 4.5:1 are all second-voice text or small icons
+on panes that lie in the page (chips, settings rows, episode rows on a
+phone, the search list) with the WHOLE sky painted in its brightest green —
+a ceiling the real sky never reaches all at once; they measure 3.8–4.3:1
+there and 6.2:1 or more on the sky as it is. Closing them means a nearly
+opaque pane (part 4), a blur behind 24 episode rows, or a second voice as
+bright as the first. Left, and said.
 
 ## 6. Performance
 
@@ -449,14 +457,15 @@ For the Android phone app and the TV app — not edited in this branch.
 |---|---|
 | body colour | `rgb(40, 40, 46)` (`#28282E`) |
 | chrome (tab bar, top bar, round buttons, buttons on a picture, the player's dock) | body at 72 % alpha over the content, behind it a blur of 6 dp and saturation × 1.8; without a blur (most TVs, weak phones): body at 94 % |
-| menus, sheets, dialogs, toasts | body at 84 %; without a blur 94 % |
-| panes in the page (settings groups, episode rows, chips) | body at 76 %, no blur |
+| menus, sheets, dialogs, toasts | the deep body `rgb(24, 24, 28)` (`#18181C`) at 79 % over a blur; a sheet that opens over a dimmed page: the deep body at 70 %; without a blur: the chrome's body at 94 % |
+| panes in the page (settings groups, episode rows, chips, the remote's pads) | `rgb(10, 10, 14)` (`#0A0A0E`) at 67 %, no blur |
 | sheen | white 5 % at the top edge fading to nothing at 48 % of the height |
 | rim, top | 1 px line, white 28 %; under it a glow 8–10 px deep, white 18 % fading to 0 |
 | rim, foot | 1 px line, white 12 %; over it a glow 7–9 px deep, white 8 % fading to 0 |
-| rim, all round | 1 px, white 5.5 % inside; 1 px, black 26 % outside |
+| rim, all round | 1 px, white 5.5 % inside; a hairline (half a pixel; 1 px where there is no half), black 30 % outside |
+| rim of a menu, a sheet, a toast | top line white 36 % with a glow 14–16 px deep (white 22 %), foot line white 16 % with a glow 12–14 px (white 10 %), all round white 7.5 %, a faint glow down each side (white 7 %, 12 px) |
 | small things (a chip) | top line white 20 %, foot line white 7 %, all round white 6 %, no glow |
-| shadow | `0 12 32` black 32 % plus `0 2 6` black 20 % (Android: elevation about 8 dp, ambient kept low) |
+| shadow | `0 14 34` black 34 % plus `0 3 8` black 22 % plus `0 1 2` black 22 % (Android: elevation about 8 dp, ambient kept low) |
 | chosen tab / chip | a capsule of black 40 % over the body, inset shadow from the top (black 40 %, 2 px), a light line at its foot (white 9 %) |
 | chosen word and icon | the accent mixed 60 % with white — default accent gives `rgb(185, 176, 255)` (`#B9B0FF`); everything else on glass is `#FFFFFF` |
 | second voice on a pane | `#D0D5E2`; third voice `#B2B8CA` |
@@ -465,3 +474,58 @@ For the Android phone app and the TV app — not edited in this branch.
 
 On the TV the focus ring stays the TV's own; the well is for "chosen", not
 for "focused".
+
+## 9. The second pass (after the jury)
+
+Two judges (one Opus, one Fable) saw the 27 scenes blind and both chose the
+new glass: it looked better in 27 and 26 of 27, read better in 24 and 25
+(the rest ties), and was closer to Apple's in all 27. Both named the same
+weak spots in it. This pass is those, each its own commit, inside the same
+material — dark pane, white words, a rim of light — with no backdrop filter
+added and no number in the contrast table lower than it was.
+
+1. **Plain white behind the bars** ("flat grey plastic with a heavy,
+   doubled-looking rim"). The 1 px black line outside the pane and the white
+   line inside it stacked into a grey ring two pixels wide on a white page.
+   The outside line is now half a pixel (black 30 %) and the shadow has a
+   close third layer (`0 1px 2px`), so the pane sits on the page by its
+   shadow, not by an outline. The top hairline and the inner glow are as
+   they were; nothing under the words changed.
+2. **Menus and sheets** ("almost opaque, little glass character"). The body
+   was the chrome's grey at 84 %. It is now a deeper floor at a lower alpha
+   — `24, 24, 28` at 79 % — which is as dark over a white poster, so the
+   worst case holds, and lets a fifth of the page through instead of a
+   sixth; a sheet that opens over the dimmed page goes to 70 %. The
+   thickness comes from the rim (`--g-edge-thick`): a brighter top hairline,
+   a deeper glow under it, a faint one down each side. Without a blur (lite,
+   reduced transparency) the pane stays as it was approved — a third of a
+   sharp page showing through a menu would argue with its lines.
+3. **Episode rows and the other panes in the page** ("a little
+   grey-muddy"). A grey body at 76 % over the coloured sky is a grey veil.
+   A near-black body at 67 % (`10, 10, 14`) is as dark over the brightest
+   sky, and what comes through is the sky's own hue — the rows are teal
+   where the sky is teal, violet where it is violet. Every number went up
+   (an episode's quiet line on a phone 5.3 → 6.5; small icons on a desktop
+   episode over the all-bright sky 4.4 → 4.6, which closes one of the nine
+   cells).
+4. **The tab bar's colour blotches from posters under it** — left. At real
+   size it is the blur and the saturation doing what Apple's bar does (the
+   content tints the bar); taking it out means a more opaque bar.
+5. **The watch-party button in the player's dock** — not a glass token: the
+   icon is an emoji, drawn by the system's emoji font in its own dark
+   indigo, which no `color` reaches. Handed to the player's lane (an SVG in
+   `currentColor` like its neighbours; or, CSS only,
+   `color: transparent; text-shadow: 0 0 0 #fff` on
+   `.pbtn[data-ui="player.party"]`).
+6. **The Remote screen** — its pads, rows and dock were still the old
+   white-tinted slabs over the title's blurred art. Three tokens in
+   `remote.css`: `--rm-slab` is the in-page pane, `--rm-slab-strong` a
+   lighter step, `--rm-edge` the pane's rim. No layout change; the picker
+   and the dock keep the blur they had.
+
+The before/after pairs of exactly these scenes (before = the approved
+commit), shuffled, are in `docs/qa/glass-apple/jury2/`; `key.json` there
+says which letter is which and which scenes belong to which item. The
+remote's three scenes (28–30) need a TV to be on: `shoot.js` keeps a
+simulated one (`test/ui/support/sim-tv.js`) on the private instance for
+them.
