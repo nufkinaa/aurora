@@ -3,13 +3,11 @@
 // update offer, a trailer, get another version (ReplaceSheet.tsx). Screens never draw these themselves.
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, Animated, AppState, BackHandler, Easing, FlatList, Image, Linking, ScrollView, StyleSheet, TVFocusGuideView, Text, TextInput, View} from 'react-native';
-import Focusable, {FlatFocus} from './Focusable';
+import Focusable from './Focusable';
 import PersonSheet from './PersonSheet';
 import ReplaceSheet from './ReplaceSheet';
 import RecommendSheet from './RecommendSheet'; // [household]
 import Sheet, {glass} from './Sheet';
-import {GLASS_NEW, glassFootSheet, glassToast, HAIRLINE, ink, sheetInk, xrayInk} from '../glass';
-import GlassEdge from './GlassEdge';
 import TrailerFrame, {TrailerState} from './Trailer';
 import {prepareTrailer, ResolvedTrailer} from '../trailers';
 import type {ActionItem} from '../overlay';
@@ -322,7 +320,7 @@ function ReportSheet({hint}: {hint?: string}) {
         multiline
         numberOfLines={3}
         placeholder="What went wrong? What did you expect?"
-        placeholderTextColor={sheetInk.third}
+        placeholderTextColor={colors.textFaint}
         onSubmitEditing={send}
         blurOnSubmit
       />
@@ -369,7 +367,7 @@ function JoinSheet() {
         autoCorrect={false}
         maxLength={4}
         placeholder="ABCD"
-        placeholderTextColor={sheetInk.third}
+        placeholderTextColor={colors.textFaint}
         onSubmitEditing={join}
       />
       {err ? <Text style={styles.error}>{err}</Text> : null}
@@ -744,10 +742,6 @@ function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; on
     <View style={styles.xrBackdrop}>
       <Animated.View style={[styles.xrWash, washStyle]} />
       <Animated.View style={[styles.xrPanel, panelStyle, {maxHeight: bottomSheetMaxHeight(winH, 446)}]}>
-        {/* the new look (glass.ts GLASS_NEW.xray): the glass's edge as pictures, and FlatFocus - no
-            drop shadow under a focus ring on that opaque sheet (Focusable.tsx) */}
-        {GLASS_NEW.xray ? <GlassEdge radius={24} /> : null}
-        <FlatFocus.Provider value={GLASS_NEW.xray}>
         <TVFocusGuideView autoFocus trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={styles.xrGuide}>
           <View style={styles.xrHead}>
             <View style={styles.xrHeadText}>
@@ -806,7 +800,6 @@ function XraySheet({query, title, onClose}: {query: XrayQuery; title: string; on
             </ScrollView>
           ) : null}
         </TVFocusGuideView>
-        </FlatFocus.Provider>
       </Animated.View>
       {person ? (
         <PersonSheet
@@ -1003,32 +996,24 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingHorizontal: 28,
     paddingBottom: 22,
-    // The second look (glass.ts GLASS_NEW.xray): the glass of a sheet that
-    // stands on the screen's foot - the neutral body, the rim of light, the
-    // sheen; its glow and its soft shadow are <GlassEdge>, pictures.
-    // Aurora's own look, as released:
-    ...(GLASS_NEW.xray
-      ? glassFootSheet
-      : {
-          // opaque: a bright subtitle line under a 96% panel still read through it
-          backgroundColor: 'rgb(14,16,28)',
-          // the player menus' hue (elia, 2026-10-07): the site's violet from the
-          // top-left, the aurora's green from the foot
-          experimental_backgroundImage:
-            'linear-gradient(140deg, rgba(104,86,226,0.28) 0%, rgba(14,16,28,0) 48%, rgba(70,200,150,0.18) 100%)',
-          borderWidth: 1,
-          borderBottomWidth: 0,
-          borderColor: 'rgba(255,255,255,0.10)',
-          borderTopColor: 'rgba(255,255,255,0.22)',
-          boxShadow: '0 -24px 70px rgba(0,0,0,0.6)',
-        }),
+    // opaque: a bright subtitle line under a 96% panel still read through it
+    backgroundColor: 'rgb(14,16,28)',
+    // the player menus' hue (elia, 2026-10-07): the site's violet from the
+    // top-left, the aurora's green from the foot
+    experimental_backgroundImage:
+      'linear-gradient(140deg, rgba(104,86,226,0.28) 0%, rgba(14,16,28,0) 48%, rgba(70,200,150,0.18) 100%)',
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: 'rgba(255,255,255,0.10)',
+    borderTopColor: 'rgba(255,255,255,0.22)',
+    boxShadow: '0 -24px 70px rgba(0,0,0,0.6)',
   },
   xrGuide: {flexShrink: 1},
   xrHead: {flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg},
   xrHeadText: {flex: 1, minWidth: 0},
-  xrKicker: {color: xrayInk.on, fontSize: 11, fontWeight: '800', letterSpacing: 3, marginBottom: 2},
+  xrKicker: {color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 3, marginBottom: 2},
   xrTitle: {color: colors.text, fontSize: 24, lineHeight: 30, fontWeight: '900'},
-  xrFacts: {color: xrayInk.second, fontSize: fontSize.small, marginTop: 4},
+  xrFacts: {color: colors.textDim, fontSize: fontSize.small, marginTop: 4},
   xrHint: {flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6},
   xrHintKey: {
     color: colors.text,
@@ -1041,19 +1026,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.28)',
   },
-  xrHintText: {color: xrayInk.third, fontSize: fontSize.small},
+  xrHintText: {color: colors.textFaint, fontSize: fontSize.small},
   xrWait: {marginVertical: 48},
   xrBody: {marginTop: 8, maxHeight: 300},
   xrOverview: {color: colors.text, fontSize: fontSize.small, lineHeight: 20},
-  xrSection: {color: xrayInk.third, fontSize: 11, fontWeight: '800', letterSpacing: 1.2, marginTop: spacing.sm + 2, marginBottom: 2},
+  xrSection: {color: colors.textFaint, fontSize: 11, fontWeight: '800', letterSpacing: 1.2, marginTop: spacing.sm + 2, marginBottom: 2},
   xrRow: {gap: 6, paddingVertical: 4, paddingHorizontal: 2},
   xrPerson: {width: 114, alignItems: 'center', borderRadius: radius.m, paddingVertical: 6, paddingHorizontal: 5},
   xrFace: {width: 58, height: 58, borderRadius: 29, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
   xrPhoto: {position: 'absolute', top: 0, left: 0, width: 58, height: 58},
   xrInitials: {color: colors.textDim, fontSize: 17, fontWeight: '800'},
   xrName: {color: colors.text, fontSize: 12, fontWeight: '700', marginTop: 5, maxWidth: 104, textAlign: 'center'},
-  xrRole: {color: xrayInk.third, fontSize: 11, marginTop: 1, maxWidth: 104, textAlign: 'center'},
-  xrBehind: {color: xrayInk.second, fontSize: fontSize.small, marginTop: 2},
+  xrRole: {color: colors.textFaint, fontSize: 11, marginTop: 1, maxWidth: 104, textAlign: 'center'},
+  xrBehind: {color: colors.textDim, fontSize: fontSize.small, marginTop: 2},
   actionList: {gap: spacing.sm, marginTop: spacing.sm},
   actionRow: {
     flexDirection: 'row',
@@ -1065,10 +1050,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
   actionLabel: {color: colors.text, fontSize: fontSize.body, fontWeight: '700'},
-  actionTag: {color: sheetInk.second, fontSize: fontSize.small, marginLeft: spacing.md},
+  actionTag: {color: colors.textDim, fontSize: fontSize.small, marginLeft: spacing.md},
   actionDanger: {color: '#ff8080'},
   body: {color: colors.text, fontSize: fontSize.body, lineHeight: 24},
-  faint: {color: sheetInk.second, fontSize: fontSize.small, marginTop: spacing.sm},
+  faint: {color: colors.textDim, fontSize: fontSize.small, marginTop: spacing.sm},
   error: {color: '#ff8080', fontSize: fontSize.body, marginTop: spacing.sm},
   input: {
     backgroundColor: 'rgba(255,255,255,0.06)',
@@ -1090,10 +1075,8 @@ const styles = StyleSheet.create({
 
   // toasts — the glass pill, bottom centre, above everything
   toasts: {position: 'absolute', left: 0, right: 0, bottom: 28, alignItems: 'center', gap: 8, zIndex: 600, elevation: 600},
-  // (the second look, glass.ts GLASS_NEW.toast: opaque, the rim's lines, and the
-  // dark hairline outside them in place of the blurred shadow)
   toast: {
-    ...(GLASS_NEW.toast ? {...glassToast, boxShadow: HAIRLINE} : glass),
+    ...glass,
     borderRadius: radius.pill,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1102,10 +1085,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     maxWidth: '70%',
   },
-  // (the second look: white - a bare "✓" takes the system's dark text colour and sits
-  // near-black on the pill)
-  toastGlyph: GLASS_NEW.toast ? {color: ink.text, fontSize: 16} : {fontSize: 16},
-  toastText: {color: GLASS_NEW.toast ? ink.text : colors.text, fontSize: fontSize.body, fontWeight: '700'},
+  toastGlyph: {fontSize: 16},
+  toastText: {color: colors.text, fontSize: fontSize.body, fontWeight: '700'},
 
   // peek
   peekRow: {flexDirection: 'row', gap: spacing.lg},
@@ -1115,12 +1096,12 @@ const styles = StyleSheet.create({
   peekBarFill: {height: '100%', backgroundColor: colors.progress},
   peekText: {flex: 1, minWidth: 0},
   peekTitle: {color: colors.text, fontSize: fontSize.title, fontWeight: '900', letterSpacing: -0.5},
-  peekSub: {color: sheetInk.second, fontSize: fontSize.small, fontWeight: '700', marginTop: 4},
-  peekLeft: {color: sheetInk.on, fontSize: fontSize.small, fontWeight: '700', marginTop: 4},
+  peekSub: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '700', marginTop: 4},
+  peekLeft: {color: colors.accent, fontSize: fontSize.small, fontWeight: '700', marginTop: 4},
   // [household] "Recommended by Dana" and the note
-  peekHh: {color: sheetInk.on, fontSize: fontSize.small, fontWeight: '800', marginTop: spacing.sm},
+  peekHh: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800', marginTop: spacing.sm},
   peekHhNote: {color: colors.text, fontSize: fontSize.small, fontStyle: 'italic', marginTop: 2},
-  peekSynopsis: {color: sheetInk.second, fontSize: fontSize.body, lineHeight: 23, marginTop: spacing.sm},
+  peekSynopsis: {color: colors.textDim, fontSize: fontSize.body, lineHeight: 23, marginTop: spacing.sm},
 
   // trailer, full screen
   trailerRoot: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 500, elevation: 500, backgroundColor: '#000'},

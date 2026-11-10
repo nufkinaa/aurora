@@ -9,13 +9,9 @@ import React, {useEffect, useRef, useState} from 'react';
 import {View, Text, ScrollView, StyleSheet, TVFocusGuideView, BackHandler} from 'react-native';
 import Focusable from './Focusable';
 import {useKeyTrap} from '../focus';
-import {GLASS_NEW, glassMenu, glassRaised, ink} from '../glass';
-import GlassEdge from './GlassEdge';
 import theme, {useTvMetrics} from '../theme';
 
 const {colors, radius} = theme;
-// The second look of the menu it opens (glass.ts GLASS_NEW.filter); off, the menu is Aurora's own.
-const NEW = GLASS_NEW.filter;
 
 export type Option = {label: string; value: string};
 
@@ -23,7 +19,6 @@ export default function Picker({
   label,
   value,
   options,
-  glass,
   edgeLeft,
   onPick,
   onOpenChange,
@@ -33,11 +28,6 @@ export default function Picker({
   label: string;
   value: string;
   options: Option[];
-  // The second look only (glass.ts GLASS_NEW.filter): the button sits on a glass
-  // pane (Browse's filter pane) - its label and caret take the glass's third
-  // voice, and the menu it opens takes the RAISED body. On the bare page (My
-  // List) the button is as it always was and the menu is the plain glass menu.
-  glass?: boolean;
   edgeLeft?: boolean;
   onPick: (value: string) => void;
   // The nav rail has to stop answering LEFT while the panel is up (§5.8(a)).
@@ -49,11 +39,6 @@ export default function Picker({
 }) {
   const {height} = useTvMetrics();
   const [open, setOpen] = useState(false);
-  // The second look: focus is on the row that is set. Its word is ink.on, which
-  // is 4.0:1 on a FOCUSED row at the top of the raised menu (the focus fill and
-  // the sheen both lighten the ground there; measured on the Mi TV) - so under
-  // focus the set row's word is white. Bold still marks it.
-  const [onFocused, setOnFocused] = useState(false);
   const current = options.find(o => o.value === value);
 
   // WHERE THE PANEL GOES. `top: 100%` alone put it off the bottom of the screen
@@ -109,9 +94,9 @@ export default function Picker({
         {/* The 1dp edge as an absolute child, not a border on the Focusable: a
             border there eats the 3dp the ring is drawn inside. */}
         <View style={[styles.edge, !!value && styles.edgeSet]} pointerEvents="none" />
-        <Text style={[styles.label, glass && styles.onGlass]}>{label}</Text>
+        <Text style={styles.label}>{label}</Text>
         <Text style={styles.value}>{current ? current.label : 'All'}</Text>
-        <Text style={[styles.caret, glass && styles.onGlass]}>▾</Text>
+        <Text style={styles.caret}>▾</Text>
       </Focusable>
 
       {open ? (
@@ -125,11 +110,9 @@ export default function Picker({
           // available above or below the anchor is what decides.
           style={[
             styles.panel,
-            NEW && glass && styles.panelRaised,
             place.up ? styles.panelUp : styles.panelDown,
             {maxHeight: place.max},
           ]}>
-          {NEW ? <GlassEdge radius={14} /> : null}
           <ScrollView>
             {options.map((o, i) => (
               <Focusable uiId="picker.pick"
@@ -145,7 +128,6 @@ export default function Picker({
                 hasTVPreferredFocus={
                   o.value === value || (i === 0 && !options.some(x => x.value === value))
                 }
-                onFocusChange={NEW && o.value === value ? setOnFocused : undefined}
                 onPress={() => {
                   setOpen(false);
                   // Re-picking what is already set must not reset the grid
@@ -153,7 +135,7 @@ export default function Picker({
                   if (o.value !== value) onPick(o.value);
                 }}
                 style={styles.item}>
-                <Text style={[styles.itemText, o.value === value && styles.itemTextOn, o.value === value && onFocused && styles.itemTextOnFocused]}>
+                <Text style={[styles.itemText, o.value === value && styles.itemTextOn]}>
                   {o.label}
                 </Text>
               </Focusable>
@@ -196,37 +178,22 @@ const styles = StyleSheet.create({
   label: {color: colors.textFaint, fontSize: 16, fontWeight: '600'},
   value: {color: colors.text, fontSize: 16, fontWeight: '700'},
   caret: {color: colors.textFaint, fontSize: 16, fontWeight: '700'},
-  // On the filter pane's glass the page's faint grey is 2.7:1 - the glass's
-  // third voice for the label and the caret there.
-  onGlass: {color: ink.third},
   panel: {
     position: 'absolute',
     left: 0,
     minWidth: 200,
     padding: 6,
     borderRadius: 14,
-    // Aurora's own menu, as released - or a menu of the glass (glass.ts): opaque,
-    // the rim of light, the sheen; its glow and its soft shadow are <GlassEdge>,
-    // pictures and not a blur.
-    ...(NEW
-      ? glassMenu
-      : {
-          backgroundColor: colors.bgRaised,
-          borderWidth: 1,
-          borderColor: colors.line,
-          boxShadow: '0 22px 60px rgba(0,0,0,0.6)',
-        }),
+    backgroundColor: colors.bgRaised,
+    borderWidth: 1,
+    borderColor: colors.line,
+    boxShadow: '0 22px 60px rgba(0,0,0,0.6)',
     zIndex: 291,
   },
-  // The RAISED body where it opens ON a glass pane (the filter pane): with the
-  // pane's own body the two ran into each other (Mi TV).
-  panelRaised: glassRaised,
   panelDown: {top: '100%', marginTop: 6},
   panelUp: {bottom: '100%', marginBottom: 6},
   // 9/12 natural is 39.6; the site has no explicit height and the floor decides.
   item: {height: 48, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 9},
-  // grey words, the set one white - or, on the glass, white words and the set one in ink.on
-  itemText: {color: NEW ? ink.text : colors.textDim, fontSize: 16, fontWeight: '600'},
-  itemTextOn: {color: NEW ? ink.on : colors.text, fontWeight: '800'},
-  itemTextOnFocused: {color: ink.text},
+  itemText: {color: colors.textDim, fontSize: 16, fontWeight: '600'},
+  itemTextOn: {color: colors.text, fontWeight: '800'},
 });

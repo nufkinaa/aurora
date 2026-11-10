@@ -20,7 +20,6 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   View,
   Text,
-  Image,
   Animated,
   BackHandler,
   Easing,
@@ -61,7 +60,6 @@ import {useMe} from '../navSection';
 import {emptyGridLine} from '../browseCopy';
 import {useRouteShown} from '../useRouteShown';
 import {RootStackParamList} from '../navigation';
-import {GLASS_NEW, filterInk, glassPane} from '../glass';
 import theme, {useTvMetrics} from '../theme';
 
 const {colors, fontSize, spacing, CLEARANCE, motion, focus} = theme;
@@ -72,12 +70,6 @@ const EASE = Easing.bezier(...(focus.ease as unknown as [number, number, number,
 const GRID_GAP = 13;
 // browse.js:352 — the placeholder count is fixed, not derived from the viewport.
 const SKELETONS = 18;
-// The filter panel's second look (glass.ts GLASS_NEW.filter, docs/glass-tv.md):
-// a floating pane - a plain round body with one baked picture over it (the
-// shadow, the rim, the glow, the sheen), because the panel slides. Off, the
-// panel is Aurora's own: the near-black slab to the screen's edge.
-const GLASS = GLASS_NEW.filter;
-const PANE_EDGE = require('../assets/glass-pane-edge-wide.png');
 // The filter panel: wide enough for "Downloaded" and the genre picker at row
 // type, narrow enough to leave four columns of the grid showing behind it.
 const PANEL_W = 300;
@@ -893,12 +885,8 @@ export default function Browse({
         <Animated.View
           style={[
             styles.panel,
-            GLASS ? null : styles.panelSlab,
             {transform: [{translateX: slide.interpolate({inputRange: [0, 1], outputRange: [PANEL_W, 0]})}]},
           ]}>
-          {/* The glass: the pane's body, then its baked edge over it. Under the controls. */}
-          {GLASS ? <View style={styles.pane} pointerEvents="none" /> : null}
-          {GLASS ? <Image source={PANE_EDGE} resizeMode="stretch" fadeDuration={0} style={styles.paneEdge} /> : null}
           {/* Traps all four directions: the grid behind is unreachable while the
               panel is up; LEFT is handled above as "close". The active category
               claims focus on open — the most useful place to start. */}
@@ -915,7 +903,6 @@ export default function Browse({
                 <Chip uiId="browse.category.pick"
                   key={c.id}
                   bare
-                  glass={GLASS}
                   label={c.label}
                   on={category === c.id}
                   hasTVPreferredFocus={category === c.id}
@@ -925,7 +912,6 @@ export default function Browse({
             </View>
             <View style={styles.rule} />
             <Picker
-              glass={GLASS}
               label="Genre"
               value={genre}
               options={[{label: 'All genres', value: ''}, ...genreList.map(g => ({label: g, value: g}))]}
@@ -933,7 +919,7 @@ export default function Browse({
               onOpenChange={setPickerOpen}
             />
             <View style={styles.toolRow}>
-              <Chip uiId="browse.unwatched" glass={GLASS} label="Unwatched" on={unwatched} onPress={() => pick(() => setUnwatched(u => !u))} />
+              <Chip uiId="browse.unwatched" label="Unwatched" on={unwatched} onPress={() => pick(() => setUnwatched(u => !u))} />
             </View>
             {note ? <Text style={styles.note}>{note}</Text> : null}
             <View style={styles.spacer} />
@@ -998,40 +984,12 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     width: PANEL_W,
-    zIndex: 101,
-  },
-  // Aurora's own panel, as released. Opaque, like the rail: measured on the
-  // Streamer, a 3% see-through reads as ghost posters behind the controls.
-  panelSlab: {
+    // Opaque, like the rail: measured on the Streamer, a 3% see-through reads
+    // as ghost posters behind the controls.
     backgroundColor: '#0a0b14',
     borderLeftWidth: 1,
     borderLeftColor: 'rgba(255,255,255,0.09)',
-  },
-  // The second look's pane: 14-16 dp round the controls (which sit at 18..252 and 18..513 of
-  // the panel), so it floats clear of the screen's edges - a closed shape, 11 dp
-  // above the screen's foot; the grid's posters showed in those 11 dp and round
-  // its foot corners, so its edge picture is opaque there, in the page's dark
-  // (gen_glass_edge.py, "the ground"). Its corner is 28: the kicker is plain
-  // text in the top-left corner, and under a rounder corner it sat against the
-  // curve (Mi TV). Opaque, like the slab.
-  pane: {
-    position: 'absolute',
-    top: 4,
-    bottom: 11,
-    left: 2,
-    right: 32,
-    borderRadius: 28,
-    ...glassPane,
-  },
-  // 48 dp outside the pane on every side; under its foot, the ground
-  paneEdge: {
-    position: 'absolute',
-    top: 4 - 48,
-    bottom: 11 - 48,
-    left: 2 - 48,
-    right: 32 - 48,
-    width: undefined,
-    height: undefined,
+    zIndex: 101,
   },
   // Insets to the 48dp safe edge on the right, the panel's own gutter on the left.
   // Budgeted against a 540dp panel: 18 + kicker 24 + six 48dp chips + rule 9 +
@@ -1040,10 +998,9 @@ const styles = StyleSheet.create({
   panelInner: {flex: 1, paddingLeft: 18, paddingRight: spacing.pageX, paddingTop: 18, paddingBottom: 27},
   // marginBottom 10 (was 4): the focused category's ring reached up into the kicker's
   // letters (Mi TV, 2026-11-10). The spacer above Surprise me gives the 6dp back.
-  // (filterInk: the page's accent, or on the glass body the accent mixed with white)
-  kicker: {color: filterInk.on, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 3, marginBottom: 10},
+  kicker: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 3, marginBottom: 10},
   cats: {alignItems: 'flex-start'},
   rule: {height: 1, backgroundColor: colors.line, marginVertical: 4},
   toolRow: {flexDirection: 'row', alignItems: 'center'},
-  note: {color: filterInk.third, fontSize: 14, fontWeight: '600', marginTop: 2},
+  note: {color: colors.textFaint, fontSize: 14, fontWeight: '600', marginTop: 2},
 });
