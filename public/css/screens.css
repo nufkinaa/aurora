@@ -1687,39 +1687,6 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
 .ep-action.on {
   color: #4ade80;
 }
-/* Save offline on a phone's episode card (discover-detail.js offlineButton
-   `ep`): the icon; its percentage while it saves; a tick on the icon once
-   the episode is here */
-.ep-offline { position: relative; }
-.ep-offline .ep-offline-ic { display: flex; }
-.ep-offline .ep-offline-pct {
-  font-size: 0.68rem;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  color: #6ee7b7;
-}
-.ep-offline .ep-offline-wait {
-  font-size: 1.1rem;
-  font-weight: 900;
-  line-height: 1;
-  color: #f5c542;
-  animation: g-breathe 2.4s ease-in-out infinite;
-}
-.ep-offline .ep-offline-tick {
-  position: absolute;
-  right: calc(50% - 15px);
-  bottom: calc(50% - 14px);
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 0.5rem;
-  font-weight: 900;
-  color: #0b0c14;
-  background: #4ade80;
-}
-@media (prefers-reduced-motion: reduce) { .ep-offline .ep-offline-wait { animation: none; } }
 .episode {
   display: flex;
   align-items: center;
@@ -5560,3 +5527,149 @@ html[data-look="glass"] .saved-section .dl-row { border-radius: var(--g-radius);
 .saved-keep { margin: 0 0 12px; color: var(--text-dim); font-size: 0.85rem; }
 .offline-toggle.on, .offline-sheet-actions .chip.on { color: #0b0c14; background: #6ee7b7; border-color: #6ee7b7; }
 .device-summary .local-play-link { margin: 6px 0 0; }
+
+/* ==== offline-look (2026-11-10) — the buttons that put a title on this device
+   (js/offlineButtons.js) and the size sheet's dress (js/offlineUi.js).
+   The mark itself: components.css. Values: docs/offline-look.md ==== */
+/* the title page: mark + words (a tile with a caption on a phone, below) */
+.btn-dev {
+  gap: 9px;
+  padding-left: 18px;
+  padding-right: 22px;
+  white-space: nowrap;
+}
+.btn-dev .dev-ic {
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.btn-dev .dev-mark { --dm: 22px; }
+.btn-dev .dev-mark svg,
+.ep-action .dev-mark svg,
+.src-act .dev-mark svg,
+.season-pill .dev-mark svg {
+  width: var(--dm);
+  height: var(--dm);
+}
+.btn-dev[data-state="failed"] { color: #ffb4b4; }
+.btn-dev[data-state="paused"],
+.btn-dev[data-state="retrying"] { color: #f5d98a; }
+/* an episode row: the mark alone; the percentage sits inside the ring */
+.ep-offline { position: relative; }
+.ep-offline .ep-dev { --dm: 26px; color: var(--text-dim); }
+.ep-offline:hover .ep-dev,
+.ep-offline:focus .ep-dev { color: var(--text); }
+.ep-dev b {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-auto-flow: column;
+  place-content: center;
+  align-items: baseline;
+  font-size: 9.5px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: #eafff6;
+}
+.ep-dev b:empty { display: none; }
+.ep-dev b small { font-size: 6.5px; font-weight: 800; margin-left: 0.5px; }
+.ep-dev[data-state="saving"] .dm-glyph { display: none; }
+
+/* a sources card's action column */
+.src-act .rail-dev { --dm: 19px; }
+/* the season bar */
+.season-pill.season-dev {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.season-dev .pill-dev { --dm: 17px; }
+.season-dev.busy { color: var(--text); }
+
+/* the size sheet, dressed */
+.offline-sheet .sheet-icon .sheet-dev { --dm: 40px; color: var(--text-dim); }
+.offline-sheet.dressed .look-notice-text { margin-bottom: 0; }
+.offline-room {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+  margin: 12px 0 0;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-align: left;
+}
+.offline-room-ic { display: grid; color: #6ee7b7; }
+.offline-room-ic svg { width: 17px; height: 17px; }
+.offline-sheet.dressed .offline-opts { margin-top: 10px; }
+.offline-sheet.dressed .offline-opt-size { color: var(--text); font-variant-numeric: tabular-nums; }
+.offline-opt.tight .offline-opt-size { color: #f5c542; }
+.offline-opt.tight .offline-opt-detail { color: #f5d98a; }
+/* which sound the copy carries (offlinePicker.js) */
+.offline-sounds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  text-align: left;
+}
+.offline-sounds-label {
+  flex: none;
+  margin-right: 2px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.offline-sound.on { color: #0b0c14; background: #6ee7b7; border-color: #6ee7b7; }
+
+@media (max-width: 720px) {
+  /* the title page's tiles: the mark in the tile's circle, the short word under it */
+  html:root .detail-actions .btn.btn-dev.btn-offline > .btn-dev-word { display: none; }
+  html:root .detail-actions .btn.btn-dev.btn-offline > .dev-ic { overflow: visible; }
+  html:root .detail-hero .detail-actions-more .btn.btn-dev.saved > .dev-ic {
+    background: rgba(110, 231, 183, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(110, 231, 183, 0.42);
+  }
+  html:root .detail-hero .detail-actions-more .btn.btn-dev.busy > .dev-ic {
+    background: rgba(110, 231, 183, 0.1);
+  }
+  /* an episode's small round button (the glass rail draws its icons at 17px) */
+  html:root .episode-wrap .ep-action .dev-mark svg { width: var(--dm); height: var(--dm); }
+  html:root .episode-wrap .ep-offline .ep-dev { --dm: 24px; }
+  /* a narrow window on a computer: the file button gives its place to the
+     three that stay (the season bar keeps "Download the files") */
+  .episode-wrap .ep-file-extra { display: none; }
+}
+/* "This device too" — a title the server does not hold yet (offlineWish.js
+   draws that button; its picture gives way to the mark here). Pressed, it is
+   waiting: the dashed amber ring, amber words — mint is kept for "here". */
+.btn-offline.ep-wish > span:first-child,
+.btn-offline.detail-wish > span:first-child {
+  flex: none;
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  font-size: 0;
+  line-height: 0;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9.6' fill='none' stroke='%23000' stroke-width='1.8' stroke-opacity='.6'/%3E%3Cpath d='M10.9 5.7h2.2v5.2h2.8L12 15.7l-3.9-4.8h2.8zM7.6 17h8.8v1.7H7.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9.6' fill='none' stroke='%23000' stroke-width='1.8' stroke-opacity='.6'/%3E%3Cpath d='M10.9 5.7h2.2v5.2h2.8L12 15.7l-3.9-4.8h2.8zM7.6 17h8.8v1.7H7.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.btn-offline.ep-wish.on > span:first-child,
+.btn-offline.detail-wish.on > span:first-child {
+  background: #f5c542;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9.6' fill='none' stroke='%23000' stroke-width='1.8' stroke-dasharray='4.6 2.94'/%3E%3Cpath d='M10.9 5.7h2.2v5.2h2.8L12 15.7l-3.9-4.8h2.8zM7.6 17h8.8v1.7H7.6z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9.6' fill='none' stroke='%23000' stroke-width='1.8' stroke-dasharray='4.6 2.94'/%3E%3Cpath d='M10.9 5.7h2.2v5.2h2.8L12 15.7l-3.9-4.8h2.8zM7.6 17h8.8v1.7H7.6z'/%3E%3C/svg%3E");
+}
+.btn-offline.detail-wish.on,
+.btn-offline.ep-wish.on { color: #f5d98a; border-color: rgba(245, 197, 66, 0.45); }
+.btn-offline.detail-wish { gap: 9px; }
+/* a toast about this device carries the mark (offlineUi.js swaps the picture) */
+.toast .toast-dev { --dm: 20px; }
+/* ==== end offline-look (buttons + size sheet) ==== */
