@@ -82,7 +82,7 @@ export const showClaimModal = (claimable, onClaimed, opts = {}) => {
     needsPassword && el("div", { class: "field" }, pw),
     needsPassword && el("div", { class: "field" }, pw2),
     err,
-    el("div", { style: { display: "flex", gap: "10px", marginTop: "18px" } },
+    el("div", { style: { display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "18px" } },
       goBtn,
       el("button", { class: "btn focusable", onclick: () => close(true) }, opts.required ? "Cancel" : "Later")),
   );

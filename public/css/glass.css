@@ -1271,6 +1271,11 @@ html[data-look="glass"] .pbtn:hover {
 html[data-look="glass"] .pbtn.big:hover {
   background: #fff;
 }
+/* Play / Pause is white already: turning white on focus showed nothing —
+   it takes the white buttons' violet ring instead */
+html[data-look="glass"] .pbtn.big:focus-visible {
+  box-shadow: var(--focus-ring-light);
+}
 html[data-look="glass"] .player-top .pbtn:hover {
   background: #fff;
   color: #0b0c14;
@@ -1852,6 +1857,18 @@ html[data-look="glass"] .season-bar::-webkit-scrollbar { display: none; }
   html[data-look="glass"] .pc-transport { order: 0; }
   html[data-look="glass"] .pc-tools { order: 1; justify-self: center; }
   html[data-look="glass"] .vol-group { display: none; }
+  /* eight tools are 364px: on a 320–375px phone the row ran past the dock
+     (Fullscreen cut at the screen's edge) — the buttons give a little
+     width instead (never under 32px), the row stays one row */
+  html[data-look="glass"] .pc-tools { max-width: 100%; min-width: 0; gap: 2px; }
+  html[data-look="glass"] .pc-tools > .pbtn { flex: 0 1 42px; min-width: 32px; }
+}
+/* a phone held sideways (no volume slider there — responsive.css): the
+   transport at the left, the tools at the right edge, instead of the tools
+   squeezed up against the transport with the right third of the dock empty */
+@media (hover: none) and (max-height: 500px) and (min-width: 721px) {
+  html[data-look="glass"] .player-controls { grid-template-columns: auto 1fr; }
+  html[data-look="glass"] .pc-transport { justify-self: start; }
 }
 
 /* ---------- card focus in Apple Horror: the ring, nothing else ----------
@@ -2024,6 +2041,17 @@ html[data-look="glass"] #nav-new.has-new .nav-new-dot {
   /* two buttons that no longer fit side by side each take a full line
      instead of wrapping their own label onto two */
   .wn-foot .btn { flex: 1 1 100%; justify-content: center; }
+}
+/* a phone: the tile and the name share the first line and the words take
+   the card's whole width under them — beside a 76px tile they had a 158px
+   column at 320px ("The / Calendar is / a real / month") */
+@media (max-width: 480px) {
+  .wn-card { display: grid; grid-template-columns: 56px minmax(0, 1fr); column-gap: 14px; align-items: center; }
+  .wn-cue { width: 56px; height: 56px; border-radius: 17px; }
+  .wn-glyph { font-size: 1.6rem; }
+  .wn-body { display: contents; }
+  .wn-body > :not(.wn-head) { grid-column: 1 / -1; }
+  .wn-go { justify-self: start; }
 }
 
 /* ---------- legible menus (2026-09-23) ----------
@@ -2277,6 +2305,11 @@ html[data-look="glass"] .pref-item-value.pref-switch.on {
      the next one, at the right */
   .pref-item { flex-wrap: wrap; }
   .pref-icon ~ .pref-item-text { flex: 1 1 110px; }
+  /* …which it never did: 110px always fitted, so "Match frame rate" read
+     down a column of 3 words a line, eight lines tall. A row with a
+     sentence under its name now gives the button the next line; a bare
+     name ("Subtitle size") keeps it beside. (Switches always stay beside.) */
+  .pref-item:has(> .pref-item-value:not(.pref-switch)):has(.pref-item-note) > .pref-icon ~ .pref-item-text { flex: 1 1 calc(100% - 46px); }
 }
 
 /* ---------- X-Ray (2026-10-04) ----------
@@ -4395,6 +4428,17 @@ html[data-look="glass"] .player .menu,
 .player-error h3 { margin: 8px 0 6px; font-size: 1.15rem; }
 .player-error p { margin: 0 0 16px; color: var(--text-dim); font-size: 0.92rem; line-height: 1.45; }
 .player-error-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+/* in the middle of the picture ABOVE the dock (--dock-h, set by player.js),
+   not of the whole screen: on a phone the card sat on the dock's top row */
+.player > .player-error { top: calc((100% - var(--dock-h, 0px)) / 2); }
+/* a phone on its side: a slimmer card — at 390px tall it covered the dock
+   and the title together */
+@media (max-height: 500px) {
+  .player-error { padding: 14px 18px 14px; }
+  .player-error-glyph { display: none; }
+  .player-error h3 { margin-top: 0; }
+  .player-error p { margin-bottom: 12px; }
+}
 
 /* ---- a page on its way (2026-10-07) ---- */
 .route-skel { padding: calc(var(--nav-h, 64px) + 28px) var(--page-x) 40px; }

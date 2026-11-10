@@ -169,7 +169,7 @@ export const yourFilesSection = () => {
   const reconnectBtn = el("button", { class: "btn small focusable lf-reconnect hidden", onclick: () => doReconnect() });
   const addBtn = el("button", { class: "btn small focusable lf-add", html: `${icons.plus}<span>Add files</span>`, onclick: () => pickFiles() });
   const canFolder = typeof window.showDirectoryPicker === "function" || "webkitdirectory" in folderInput;
-  const folderBtn = canFolder ? el("button", { class: "btn small focusable lf-add-folder", html: "<span>Add a folder</span>", onclick: () => pickFolder() }) : null;
+  const folderBtn = canFolder ? el("button", { class: "btn small focusable lf-add-folder", html: `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg><span>Add a folder</span>`, onclick: () => pickFolder() }) : null;
   const busyLine = el("span", { class: "lf-busy hidden", role: "status", "aria-live": "polite" });
 
   const drop = el("button", { class: "lf-drop focusable", type: "button", onclick: () => pickFiles() },

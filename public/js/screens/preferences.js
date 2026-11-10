@@ -258,7 +258,7 @@ const appearanceSection = () => {
     themeRow.innerHTML = "";
     for (const t of THEME_DEFS) {
       themeRow.append(el("button", { "data-ui": "settings.theme",
-        class: "focusable",
+        class: "focusable theme-pick",
         style: {
           display: "flex", flexDirection: "column", gap: "6px", padding: "12px 14px", minWidth: "150px",
           borderRadius: "12px", background: t.bg, textAlign: "left",

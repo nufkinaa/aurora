@@ -202,7 +202,8 @@ const facts = () => {
 };
 
 // ---------- the page ----------
-const mb = (n) => (n ? `${Math.max(1, Math.round(n / (1024 * 1024)))} MB` : "");
+// (a no-break space: "45" and "MB" never land on two lines — "· 45 / MB" on a phone)
+const mb = (n) => (n ? `${Math.max(1, Math.round(n / (1024 * 1024)))}\u00a0MB` : "");
 const fmtDate = (iso) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ""));
   if (!m) return iso || "";
@@ -237,7 +238,7 @@ const tileHtml = (r) => {
   const meta = bits.filter(Boolean).map(esc).join(" · ");
   const type = isFile && FILE_TYPES[(/\.(\w+)$/.exec(r.filename || "") || [])[1]];
   const label = isFile
-    ? `Download Aurora for ${r.name}, version ${r.version}${r.sizeBytes ? `, ${mb(r.sizeBytes)}` : ""}`
+    ? `Download Aurora for ${r.name}, version ${r.version}${r.sizeBytes ? `, ${mb(r.sizeBytes).replace("\u00a0", " ")}` : ""}`
     : r.kind === "web" ? `Open Aurora in the browser, version ${r.version || ""}`.trim() : `Aurora on ${r.name}: ${r.action}`;
   const hit =
     `<a class="dl-hit" href="${esc(r.href)}"${isFile ? ` download="${esc(r.filename)}"${type ? ` type="${type}"` : ""}` : ""} aria-label="${esc(label)}">` +

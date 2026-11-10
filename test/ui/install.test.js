@@ -218,7 +218,7 @@ ui.test("Download: a tile for each release of the one list that can be had today
   // the TV's tile: its version and size from the APK, and the link that names the file
   const tv = /<li class="dl" data-id="tv"[\s\S]*?<\/li>/.exec(html)[0];
   assert.ok(tv.includes(`href="/download/tv/latest" download="Aurora-TV-${TV_V}.apk"`));
-  assert.ok(tv.includes(`<span class="dl-meta">${TV_V} · 45 MB`));
+  assert.ok(tv.includes(`<span class="dl-meta">${TV_V} · 45\u00a0MB`)); // (a no-break space before MB)
   assert.ok(tv.includes(`<code id="sha-tv">${sha(fs.readFileSync(APK))}</code>`), "Verify shows the file's SHA-256");
   // the website: its version, nothing to download
   const web = /<li class="dl" data-id="web"[\s\S]*?<\/li>/.exec(html)[0];

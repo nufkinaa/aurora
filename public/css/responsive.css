@@ -173,7 +173,7 @@
   }
   .profile-tile .name {
     font-size: 0.9rem;
-    max-width: 92px;
+    max-width: 84px;
   }
   .profiles-gate.compact .profile-tile .big-avatar {
     width: 64px;
@@ -183,8 +183,13 @@
   }
   .profiles-gate.compact .profile-tile .name {
     font-size: 0.8rem;
-    max-width: 74px;
+    max-width: 64px;
   }
+  /* compact fits four a row as meant (4 × 84 + 3 gaps was 372px > 343) */
+  .profiles-gate.compact .profile-tile { padding: 6px; }
+  /* the KIDS badge hangs 9px under the avatar: room before the name */
+  .profile-tile { gap: 14px; }
+  .profiles-gate.compact .profile-tile { gap: 12px; }
 
   /* Source rows: keep the download button reachable but slimmer */
   /* Narrow screens still need room for the progress ring + percentage. */
@@ -590,6 +595,27 @@
   html:not([data-look="glass"]) .player .sub-sync {
     flex-wrap: wrap;
     justify-content: center;
+  }
+  /* the tools stay one row (Fullscreen sat alone on a third row at 320px):
+     the buttons give a little width instead, never under 32px */
+  html:not([data-look="glass"]) .player-controls .pc-tools { flex-wrap: nowrap; }
+  html:not([data-look="glass"]) .player-controls .pc-tools > .pbtn { flex: 0 1 42px; min-width: 32px; }
+  /* Up next and Skip intro ride above the dock's real height, as the menu
+     does: Up next (320px wide, 36px from the right) ran off the left edge
+     of a 320px phone over the scrubber, Skip intro sat on the time labels */
+  html:not([data-look="glass"]) .upnext {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    bottom: calc(var(--dock-h, 160px) + 12px);
+  }
+  html:not([data-look="glass"]) .player .skip-intro,
+  html:not([data-look="glass"]) .player .mark-chip {
+    right: 16px;
+    bottom: calc(var(--dock-h, 160px) + 12px);
+  }
+  html:not([data-look="glass"]) .player.controls-hidden .skip-intro {
+    bottom: max(28px, env(safe-area-inset-bottom));
   }
 }
 
