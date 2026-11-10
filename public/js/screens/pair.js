@@ -94,6 +94,11 @@ export const renderPair = async (root, params) => {
 
   const paint = async () => {
     screen.innerHTML = "";
+    // the card is there at once, saying what it is waiting for: the page was
+    // blank until the server answered (seconds, when it asks again)
+    screen.append(el("div", { class: "pair-wrap" }, el("div", { class: "pair-card" },
+      el("div", { class: "pair-glyph" }, "📺"),
+      el("p", { class: "pair-sub" }, "Checking the code…"))));
     let info = null;
     let refused = null;
     try {
@@ -102,6 +107,7 @@ export const renderPair = async (root, params) => {
       refused = e;
     }
 
+    screen.innerHTML = "";
     const card = el("div", { class: "pair-card" });
     screen.append(el("div", { class: "pair-wrap" }, card));
 

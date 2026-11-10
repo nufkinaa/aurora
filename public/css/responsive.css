@@ -173,7 +173,7 @@
   }
   .profile-tile .name {
     font-size: 0.9rem;
-    max-width: 92px;
+    max-width: 84px;
   }
   .profiles-gate.compact .profile-tile .big-avatar {
     width: 64px;
@@ -183,8 +183,13 @@
   }
   .profiles-gate.compact .profile-tile .name {
     font-size: 0.8rem;
-    max-width: 74px;
+    max-width: 64px;
   }
+  /* compact fits four a row as meant (4 × 84 + 3 gaps was 372px > 343) */
+  .profiles-gate.compact .profile-tile { padding: 6px; }
+  /* the KIDS badge hangs 9px under the avatar: room before the name */
+  .profile-tile { gap: 14px; }
+  .profiles-gate.compact .profile-tile { gap: 12px; }
 
   /* Source rows: keep the download button reachable but slimmer */
   /* Narrow screens still need room for the progress ring + percentage. */

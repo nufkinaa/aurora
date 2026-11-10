@@ -2591,6 +2591,17 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
    the overflowing edge in every engine. */
 .profiles-gate > :first-child { margin-top: auto; }
 .profiles-gate > :last-child { margin-bottom: auto; }
+/* while searching the page stays put at the top (profiles.js "searching") */
+.profiles-gate.searching > :first-child { margin-top: 0; }
+/* the transition-mode heads-up: a centred paragraph, not one 1300px line */
+.profiles-note {
+  max-width: 560px;
+  margin: 0 auto;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
 
 .profiles-head {
   display: flex;
@@ -2736,7 +2747,7 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
 .profile-tile .name {
   font-weight: 700;
   color: var(--text-dim);
-  max-width: 132px;
+  max-width: 110px; /* (the avatar's width: a long name made its tile wider than the rest, the columns uneven) */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2772,7 +2783,7 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
 }
 .profiles-gate.compact .profile-tile .name {
   font-size: 0.88rem;
-  max-width: 96px;
+  max-width: 78px;
 }
 .profiles-gate.compact .profile-tile.add .big-avatar { font-size: 30px; }
 
@@ -2794,9 +2805,14 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
 .avatar-pick button:hover {
   background: var(--surface-hover);
 }
-.avatar-pick button.on,
-.avatar-pick button:focus {
+/* the picked one wears the white ring; Tab shows the focus ring (a focused
+   avatar wore the same white ring, so two looked picked) */
+.avatar-pick button.on {
   box-shadow: 0 0 0 2px #fff;
+}
+.avatar-pick button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-light);
 }
 .color-pick {
   display: flex;
@@ -2811,10 +2827,23 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
     box-shadow var(--t-fast),
     transform var(--t-fast);
 }
-.color-pick button.on,
-.color-pick button:focus {
+.color-pick button.on {
   box-shadow: 0 0 0 3px #fff;
   transform: scale(1.1);
+}
+.color-pick button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-light);
+}
+/* a finger: 40px dots (34 was under the 44px touch size), closer together */
+@media (pointer: coarse) {
+  .color-pick { gap: 6px; }
+  .color-pick button { width: 40px; height: 40px; }
+}
+/* a big screen: the profile door was small (110px tiles at 2560px) */
+@media (min-width: 1800px) {
+  .profile-tile .big-avatar { width: 140px; height: 140px; font-size: 64px; border-radius: 32px; }
+  .profile-tile .name { max-width: 140px; font-size: 1.1rem; }
 }
 
 /* ---------- Player ---------- */
@@ -4238,6 +4267,7 @@ body:has(.player) #nav {
   text-decoration-color: rgba(169, 198, 255, 0.45);
 }
 .auth-link:hover { color: #cbdcff; }
+.auth-link:focus-visible { border-radius: 4px; padding: 0 2px; } /* (a square ring tight to the words) */
 .auth-link.small { font-size: 0.84rem; }
 .auth-link.dim { color: var(--au-faint); text-decoration-color: rgba(125, 133, 153, 0.45); }
 .auth-link.dim:hover { color: var(--au-dim); }
@@ -4316,6 +4346,7 @@ body:has(.player) #nav {
 .claim-dim { color: var(--text-faint); opacity: 0.75; }
 .claim-modal .field { margin-bottom: 10px; }
 .claim-modal input { width: 100%; }
+.claim-modal .btn { white-space: nowrap; } /* ("Confirm & continue" became a tall three-line blob at 320px) */
 
 /* ---------- nav profile menu (prompt 10) ---------- */
 .nav-menu-wrap {
@@ -5195,7 +5226,9 @@ html:not([data-fx="lite"]) .trailer-frame iframe {
 }
 
 /* ---- TV pairing (#/pair/:code) — one centered card, both looks ---- */
-.pair-screen { min-height: calc(100vh - 80px); display: flex; align-items: center; justify-content: center; padding: 40px 20px; }
+/* (clear of the fixed top bar: in landscape and at 320px the TV glyph and
+   the title sat under it; "safe" starts a tall card at the top) */
+.pair-screen { min-height: calc(100vh - 80px); display: flex; align-items: safe center; justify-content: center; padding: calc(var(--nav-h) + 20px) 20px 40px; }
 .pair-wrap { width: 100%; max-width: 480px; }
 .pair-card {
   background: var(--surface, rgba(255, 255, 255, 0.05));
@@ -5209,7 +5242,7 @@ html:not([data-fx="lite"]) .trailer-frame iframe {
 .pair-card h1 { font-size: 1.5rem; margin: 0 0 8px; }
 .pair-sub { color: var(--text-dim, #aaa); line-height: 1.5; margin: 0 0 20px; }
 .pair-sub strong { color: var(--text, #fff); }
-.pair-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.2em; font-size: 1.1em; }
+.pair-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.2em; font-size: 1.1em; margin-right: -0.2em; } /* (no gap before the full stop) */
 .pair-card > .btn, .pair-card > div { justify-content: center; }
 /* the typed code ({host}/link): six big characters, the TV's own alphabet */
 .pair-code-input {
@@ -5226,6 +5259,9 @@ html:not([data-fx="lite"]) .trailer-frame iframe {
   color: inherit;
 }
 .pair-card .pw-error { margin-top: 10px; }
+/* "Get the TV app": it reads as a link, and Tab shows where it is */
+.pair-card a { color: #a9c6ff; text-decoration: underline; text-underline-offset: 3px; border-radius: 4px; }
+.pair-card a:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* ---- intro marking chip: the second press lives on the video, not in a menu ---- */
 .player .mark-chip {
@@ -5344,6 +5380,11 @@ html[data-look="glass"] .kids-field { background: rgba(255, 255, 255, 0.05); bor
 .kids-ages.hidden, .kids-controls.hidden, .kids-row.hidden { display: none; }
 .kids-field .field-hint { margin-top: 10px; }
 .kids-pin-input { letter-spacing: 0.35em; font-variant-numeric: tabular-nums; }
+/* Edit profile's Delete: at the far right of the Save row; on a phone, where
+   it takes a line of its own, at the start of it instead of alone at the end */
+.profile-delete { margin-left: auto; color: #ff7a7a; }
+@media (max-width: 480px) { .profile-delete { margin-left: 0; } }
+.kids-pin-input::placeholder { letter-spacing: normal; } /* ("New PIN (4–6 digits)" was cut at 375px) */
 .kids-pin-input + .kids-pin-input { margin-top: 8px; }
 .pref-profile-sub .kids-badge { margin-right: 4px; }
 

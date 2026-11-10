@@ -1052,6 +1052,7 @@ html:not([data-look="glass"]) body:has(.player) #toasts {
   cursor: pointer;
 }
 @media (pointer: coarse) { .pw-forgot { min-height: 44px; } }
+.pw-forgot:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; } /* (Tab showed nothing) */
 /* Explanatory line under a field (e.g. why a new profile needs a password) */
 .field-hint {
   color: var(--text-faint);

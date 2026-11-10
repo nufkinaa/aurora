@@ -180,7 +180,7 @@ export const pinPrompt = ({ title, note, choose = false, ok = "Continue", action
       if (again) again.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
       return [
         el("h2", {}, title),
-        note && el("p", { class: "field-hint", style: { marginTop: "-6px" } }, note),
+        note && el("p", { class: "field-hint", style: { marginTop: "-6px", marginBottom: "14px" } }, note),
         el("div", { class: "field" }, el("label", {}, choose ? "Household PIN" : "Enter the PIN"), input, again, err),
         el("div", { style: { display: "flex", gap: "10px", marginTop: "22px" } },
           el("button", { class: "btn btn-primary focusable", onclick: submit }, ok),
@@ -296,7 +296,7 @@ export const profileModal = (existing, onDone) => {
   let avatar = existing?.avatar || AVATARS[Math.floor(Math.random() * AVATARS.length)];
   let color = existing?.color || COLORS[Math.floor(Math.random() * COLORS.length)];
 
-  const nameInput = el("input", { type: "text", class: "focusable", value: existing?.name || "", placeholder: "Name", maxlength: "24" });
+  const nameInput = el("input", { type: "text", class: "focusable", value: existing?.name || "", placeholder: "Name", maxlength: "24", dir: "auto" });
   // A kids profile's sheet has no password, email or delete (the server
   // refuses those from inside a kids profile; the admin's People tab has them).
   const wasKids = existing && existing.kids ? existing.kids : null;
@@ -316,10 +316,10 @@ export const profileModal = (existing, onDone) => {
   // Approval fields — only when REQUESTING a new profile. Editing an existing
   // one is unchanged: these never appear and are never sent.
   const realNameInput = el("input", {
-    type: "text", class: "focusable", placeholder: "e.g. Dana Cohen", maxlength: "60", autocomplete: "name",
+    type: "text", class: "focusable", placeholder: "e.g. Dana Cohen", maxlength: "60", autocomplete: "name", dir: "auto",
   });
   const noteInput = el("input", {
-    type: "text", class: "focusable", placeholder: "Optional — a bribe, an explanation, or a fun fact", maxlength: "200",
+    type: "text", class: "focusable", placeholder: "Optional — a bribe, an explanation, or a fun fact", maxlength: "200", dir: "auto",
   });
 
   const avatarPick = el("div", { class: "avatar-pick" },
@@ -341,7 +341,7 @@ export const profileModal = (existing, onDone) => {
   const curPw = el("input", { type: "password", class: "focusable", placeholder: "Current password", autocomplete: "off" });
   const newPw = el("input", {
     type: "password", class: "focusable", autocomplete: "new-password",
-    placeholder: hasPw ? "New password (blank = unchanged)" : isNew ? `Password (at least ${MIN_PW} characters)` : "Password (optional)",
+    placeholder: hasPw ? "New password (optional)" : isNew ? `Password (at least ${MIN_PW} characters)` : "Password (optional)",
   });
   // Confirm only on creation: a mistyped password can't be removed without
   // knowing it, so a typo here would need an admin to delete the profile.
@@ -575,7 +575,7 @@ export const profileModal = (existing, onDone) => {
         el("button", { class: "btn focusable", onclick: close }, "Cancel"),
         existing && !wasKids && state.profiles.length > 1 &&
           el("button", {
-            class: "btn focusable", style: { marginLeft: "auto", color: "#ff7a7a" },
+            class: "btn focusable profile-delete",
             onclick: async () => {
               // One tap used to delete a profile — watch history, list,
               // ratings, gone, no question asked.
@@ -755,7 +755,7 @@ export const showProfileGate = (onChosen, opts = {}) => {
 
   const tile = (p) =>
     el("button", { "data-ui": "profile.pick",
-      class: "profile-tile focusable",
+      class: "profile-tile focusable" + (p.locked ? " is-locked" : ""),
       style: p.locked ? { opacity: "0.45" } : {},
       title: p.name,
       onclick: () => openProfile(p),
@@ -768,7 +768,8 @@ export const showProfileGate = (onChosen, opts = {}) => {
         (p.locked || p.hasPassword) && el("span", { class: "profile-lock" }, p.locked ? "🚫" : "🔒"),
         p.kids && el("span", { class: "profile-kids", title: `Kids profile — ${kidsLabel(p.kids)}` }, "Kids")
       ),
-      el("div", { class: "name" }, p.name)
+      // (dir auto: a Hebrew name is cut at its own end, not at its first word)
+      el("div", { class: "name", dir: "auto" }, p.name)
     );
 
   // "Add profile" opens the modern request-access flow (name, sign-in
@@ -810,6 +811,9 @@ export const showProfileGate = (onChosen, opts = {}) => {
     const all = state.profiles;
     const query = searchInput.value.trim().toLowerCase();
     body.innerHTML = "";
+    // (searching pins the page to the top: as the matches shrank, the centred
+    // page slid down under the typing — the title moved 220px on a phone)
+    host.classList.toggle("searching", !!query);
 
     if (query) {
       const hits = all.filter((p) => (p.name || "").toLowerCase().includes(query));
@@ -839,7 +843,8 @@ export const showProfileGate = (onChosen, opts = {}) => {
   };
 
   const focusFirstTile = () => {
-    const first = body.querySelector(".profile-tile");
+    // (not a profile the admin locked: it lit up as "picked" and pressing it only says no)
+    const first = body.querySelector(".profile-tile:not(.is-locked)") || body.querySelector(".profile-tile");
     if (first) first.focus({ preventScroll: true });
   };
 
