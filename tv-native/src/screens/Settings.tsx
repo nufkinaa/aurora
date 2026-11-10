@@ -379,6 +379,12 @@ export default function Settings({
             value="›"
             onPress={() => navigation.push('Taste')}
           />
+          <Row uiId="settings.wrapped"
+            label="Your Aurora Wrapped"
+            note="Your year in Aurora, told as a story: your hours, your number one, your viewer type."
+            value="›"
+            onPress={() => navigation.push('Wrapped')}
+          />
         </View>
 
         <Text style={styles.h2}>Aurora</Text>
