@@ -1824,6 +1824,9 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
   overflow: hidden;
   flex-shrink: 0;
 }
+@media (min-width: 721px) and (max-width: 900px) {
+  .episode-bar { width: 72px; } /* (a tablet: the name keeps its room — glass.css) */
+}
 .episode-bar.dl > div { background: #4ade80; }
 .episode-dl { color: #4ade80; }
 .episode-bar > div {

@@ -1084,6 +1084,13 @@ html[data-look="glass"] .episode-title {
 html[data-look="glass"] .episode-bar {
   width: 160px;
 }
+/* a tablet (721–900 px): the 160 px bar left an episode's name 95 px —
+   "Who Are …", its "EPISODE 1 · 52 MIN" over two lines */
+@media (min-width: 721px) and (max-width: 900px) {
+  html[data-look="glass"] .episode-bar {
+    width: 72px;
+  }
+}
 /* the kicker already says "· 52 min"; the sub-line's runtime would say it twice */
 html[data-look="glass"] .episode-sub .ep-dur {
   display: none;
