@@ -50,7 +50,13 @@ html[data-look="glass"] {
      black, so nothing behind it is brighter than a grey of 118): 70 % is
      enough for the same floor, and twice as much shows through as before */
   --g-fill-sheet: var(--g-sheen), linear-gradient(rgba(var(--g-tint-deep), 0.7), rgba(var(--g-tint-deep), 0.7));
-  --g-fill-slab: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.76), rgba(var(--g-tint), 0.76));
+  /* A pane in the page has no blur and only the sky behind it. A grey body
+     laid a grey veil over the sky's colour (a row went muddy); a near-black
+     one at 67 % only darkens it, so the row keeps the sky's own hue — a third
+     of it shows, against a quarter. Over the brightest the sky gets it is
+     no lighter than the 76 % grey was, and over the sky as it is, darker. */
+  --g-tint-slab: 10, 10, 14;
+  --g-fill-slab: var(--g-sheen), linear-gradient(rgba(var(--g-tint-slab), 0.67), rgba(var(--g-tint-slab), 0.67));
   --g-lift: linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07));
   --g-fill-strong: linear-gradient(135deg, rgba(20, 22, 38, 0.42), rgba(14, 16, 30, 0.28));
   --g-edge: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(255, 255, 255, 0.12),
