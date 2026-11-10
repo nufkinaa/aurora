@@ -291,12 +291,16 @@ html[data-look="glass"] .nav-dl.ready {
   html[data-look="glass"] .nav-item {
     flex: 1;
     text-align: center;
-    padding: 11px 6px;
+    /* 14px: the bar 6px taller than it was (elia, 2026-11-10: "just tiny bit
+       taller") — 59px, was 53. What keeps clear of it moved up by the same
+       6px: #app's room under the page, the toasts, the server-unreachable
+       strip, Taste's and Group pick's card stacks. */
+    padding: 14px 6px;
     font-size: 0.76rem;
     font-weight: 700;
   }
   html[data-look="glass"] #app {
-    padding-bottom: 92px; /* room under the last row for the tab bar */
+    padding-bottom: 98px; /* room under the last row for the tab bar */
   }
   html[data-look="glass"] .episode-bar {
     width: 72px;
@@ -304,7 +308,7 @@ html[data-look="glass"] .nav-dl.ready {
   /* toasts sit above the tab bar (which itself rides the home indicator),
      and above the player's dock */
   html[data-look="glass"] #toasts {
-    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   }
   html[data-look="glass"] body:has(.player) #toasts {
     bottom: 150px;
@@ -316,7 +320,7 @@ html[data-look="glass"] .nav-dl.ready {
   html[data-look="glass"] #offline-banner {
     left: 12px;
     right: 12px;
-    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(82px + env(safe-area-inset-bottom, 0px));
     border-radius: 12px;
   }
   html[data-look="glass"] body:has(.player) #offline-banner {
@@ -3383,7 +3387,10 @@ html[data-look="glass"]:root .card.wide .card-progress {
     position: fixed;
     z-index: 100;
     left: max(var(--page-x), env(safe-area-inset-left, 0px));
-    top: calc(max(10px, env(safe-area-inset-top, 0px)) + 4px + var(--top-gap, 0px));
+    /* level with the gear: the nav centres its 42px buttons in what is left
+       of --nav-h under its top padding (2px down on a phone held upright,
+       8px on its side, where --nav-h is 68) */
+    top: calc(max(10px, env(safe-area-inset-top, 0px)) + var(--top-gap, 0px) + (var(--nav-h) - max(10px, env(safe-area-inset-top, 0px)) - var(--top-gap, 0px) - 42px) / 2);
     margin: 0;
   }
   html[data-look="glass"]:root .nav-items {
@@ -3415,7 +3422,7 @@ html[data-look="glass"]:root .card.wide .card-progress {
     background-color: rgba(255, 255, 255, 0.14);
   }
   html[data-look="glass"]:root #app {
-    padding-bottom: 84px;
+    padding-bottom: 90px;
   }
   /* the tab bar: AI first, Search last (elia, 2026-10-06) */
   html[data-look="glass"]:root .nav-items > #nav-pick {
@@ -3673,6 +3680,120 @@ html[data-look="glass"]:root .card.wide .card-progress {
      far the pills come down under the status bar (above) */
   html[data-look="glass"]:root {
     --nav-h: calc(56px + var(--top-gap, 0px) + var(--nav-drop));
+  }
+}
+
+/* ---------- Home on a phone held upright (2026-11-10) ----------
+   elia, a photo from his iPhone's Home Screen: the billboard ran up under the
+   status bar and the four top buttons, and the greeting sat under it as a
+   block of its own. Now:
+   - the slab starts under the buttons. --nav-h is where they end (+2px) in
+     every case — Home Screen or Safari tab, island or not — so the slab is
+     always 10px under them, as far as they are under the status bar;
+   - it ends where the greeting used to end: the old slab was 8px down and
+     min(60vh, 530px) tall, and the greeting under it took 114px (14px of
+     gap, the headline and a two-line remark). His line on the photo. The
+     first shelf keeps its place, 12px under the slab as it was under the
+     greeting;
+   - the greeting rides on the top of the picture (home.js moves it into the
+     slab, and gives its remark less room when a long title needs it). */
+@media (max-width: 720px) and (orientation: portrait) {
+  /* (the room above the slab is the screen's padding, not the slab's margin:
+     a margin that big collapses through the page to <body>, and the whole
+     page jumped down by it the moment Home's first frame arrived — measured
+     as a layout shift of 0.14) */
+  html[data-look="glass"]:root .screen[data-home-src]:has(> .hero) {
+    padding-top: var(--nav-h);
+  }
+  html[data-look="glass"]:root .hero {
+    --greet-room: 114px;
+    margin: 8px 8px 12px;
+    height: calc(min(60vh, 530px) + var(--greet-room) - var(--nav-h));
+  }
+}
+/* ...and on a short screen (an SE, a mini, any phone in a Safari tab under
+   700px of window), where the greeting ended on a one-line remark: there the
+   first shelf's title only just cleared the tab bar, and it must stay in
+   sight. */
+@media (max-width: 720px) and (orientation: portrait) and (max-height: 700px) {
+  html[data-look="glass"]:root .hero {
+    --greet-room: 90px;
+  }
+}
+@media (max-width: 720px) and (orientation: portrait) {
+  html[data-look="glass"]:root .hero > .home-greeting {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    margin: 0;
+    padding: 18px 20px 0;
+    text-shadow: 0 1px 2px rgba(5, 6, 12, 0.5), 0 2px 16px rgba(5, 6, 12, 0.55);
+  }
+  html[data-look="glass"]:root .hero > .home-greeting .greet-line {
+    line-height: 1.2;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2; /* a very long name */
+    overflow: hidden;
+  }
+  /* (a shadow under see-through letters shows THROUGH them: the shining name
+     goes without, and reads on the scrim below) */
+  html[data-look="glass"]:root .hero > .home-greeting .greet-name {
+    text-shadow: none;
+  }
+  html[data-look="glass"]:root .hero > .home-greeting .greet-sub {
+    color: rgba(243, 244, 248, 0.9);
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+  html[data-look="glass"]:root .hero[data-room="1"] > .home-greeting .greet-sub {
+    -webkit-line-clamp: 1;
+  }
+  html[data-look="glass"]:root .hero:is([data-room="0"], [data-room="-1"], [data-room="-2"]) > .home-greeting .greet-sub {
+    display: none;
+  }
+  /* the last steps, for a long title on a very short screen */
+  html[data-look="glass"]:root .hero:is([data-room="-1"], [data-room="-2"]) .hero-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+  html[data-look="glass"]:root .hero[data-room="-2"] .hero-kicker {
+    display: none;
+  }
+  /* a soft shade at the top of the picture, only as deep as the greeting,
+     over the phone's own shade at the bottom (above) */
+  html[data-look="glass"]:root .hero.greeted .hero-fade {
+    background:
+      linear-gradient(to bottom, rgba(7, 8, 17, 0.62) 0, rgba(7, 8, 17, 0.42) 84px, rgba(7, 8, 17, 0) 160px),
+      linear-gradient(to top, rgba(7, 8, 17, 0.95) 0%, rgba(7, 8, 17, 0.4) 50%, transparent 80%);
+  }
+}
+
+/* The logo's glass fits the mark (2026-11-10): where the word "Aurora" is
+   hidden (860px and down) the pill was 50 x 40 around a 26px mark, wider than
+   its round neighbours. Now it is one of them: a 42px circle, the mark in
+   the middle. */
+@media (max-width: 860px) {
+  html[data-look="glass"] .nav-logo {
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    justify-content: center;
+    position: relative;
+  }
+  /* a 48px place to tap, round the 42px glass (nothing drawn) */
+  html[data-look="glass"] .nav-logo::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
   }
 }
 
@@ -5078,7 +5199,7 @@ button.xr-person:focus-visible {
   html[data-look="glass"] .nav-more.has-new .nav-new-dot {
     display: block;
     position: absolute;
-    top: 8px;
+    top: 11px;
     left: calc(50% + 15px); /* at the word's shoulder */
     width: 7px;
     height: 7px;

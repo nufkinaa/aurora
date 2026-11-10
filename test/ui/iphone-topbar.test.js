@@ -117,7 +117,7 @@ for (const look of ["glass", "legacy"]) {
       if (look === "glass") {
         // the pills: max(10, inset) down, plus the gap
         near(m.navPadTop, Math.max(10, inset) + wantGap, "the nav's top padding");
-        near(m.logo.top, Math.max(10, inset) + 4 + wantGap, "the logo pill's top");
+        near(m.logo.top, Math.max(10, inset) + 2 + wantGap, "the logo's top (level with the gear)");
         near(m.gear.top, Math.max(10, inset) + 2 + wantGap, "the gear's top");
         near(m.profile.top, Math.max(10, inset) + 3 + wantGap, "the avatar's top");
         // an iOS rasterisation guard: the glass phone nav is not a scroll box
