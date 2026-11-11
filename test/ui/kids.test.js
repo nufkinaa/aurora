@@ -1,6 +1,8 @@
-// Kids profiles: a profile limited to an age only gets titles rated at or
-// under it; a blocked title's page says so and its stream is refused; leaving
-// the profile takes the household PIN; everyone else is unaffected.
+// Kids profiles — Children mode since 2026-11-11 (docs/children-mode.md;
+// test/ui/children-mode.test.js has its own flows): an account limited to an
+// age only gets titles rated at or under it; a blocked title's page says so
+// and its stream is refused; leaving takes the passcode; everyone else is
+// unaffected.
 //
 // The ratings come from where the server keeps them (data/cache/
 // certificates.json, by IMDb id), seeded before boot — nothing is asked of
@@ -115,7 +117,7 @@ kidsTest("a direct link to a blocked title does not open it, and its stream is r
   assert.equal(await status(`/api/item/${lib.film2.id}`), 403, "the blocked film's details");
   assert.equal(await status(`/img/still/${lib.film2.id}`), 403, "a frame from the blocked film");
   // the refusal says why, in the server's words
-  assert.match(await page.evaluate(async (id) => (await (await fetch(`/api/item/${id}`)).json()).error, lib.film2.id), /isn't available in a kids profile/);
+  assert.match(await page.evaluate(async (id) => (await (await fetch(`/api/item/${id}`)).json()).error, lib.film2.id), /isn't available in Children mode/);
   // what it may see is served
   assert.equal(await status(`/stream/video/${lib.film1.id}`, { Range: "bytes=0-99" }), 206);
   assert.equal(await status(`/api/item/${lib.show.id}`), 200);
@@ -129,11 +131,11 @@ kidsTest("a direct link to a blocked title does not open it, and its stream is r
 // do `api.item(id).catch(() => null)` / `catch { return navigate("#/") }`,
 // so the child is dropped on Home with no word of why.
 for (const [what, hash] of [["title page", (lib) => `#/movie/${lib.film2.id}`], ["player", (lib) => `#/play/${lib.film2.id}`]]) {
-  kidsTest(`a direct link to a blocked title's ${what} says it isn't available in a kids profile`, { allow: [REFUSED] }, async ({ page, goto, signIn, profiles, lib }) => {
+  kidsTest(`a direct link to a blocked title's ${what} says it isn't available in Children mode`, { allow: [REFUSED] }, async ({ page, goto, signIn, profiles, lib }) => {
     await signIn(profiles.kid);
     await goto("#/movies");
     await goto(hash(lib), { wait: false });
-    await page.waitForFunction(() => /isn't available in a kids profile/.test(document.getElementById("toasts").innerText + " " + document.getElementById("app").innerText), null, { timeout: 4000 });
+    await page.waitForFunction(() => /isn't available in Children mode/.test(document.getElementById("toasts").innerText + " " + document.getElementById("app").innerText), null, { timeout: 4000 });
   });
 }
 
@@ -146,191 +148,76 @@ kidsTest("an allowed title plays in the kids profile", async ({ page, goto, sign
   await page.waitForFunction(() => { const v = document.querySelector(".player video"); return v && !v.paused && v.currentTime > 0.5; }, null, { timeout: 20000 });
 });
 
-kidsTest("leaving the kids profile asks for the PIN: a wrong one is refused, the right one lets a grown-up in", { allow: [REFUSED, /Failed to load resource.*401.*\/api\/kids\/exit/] }, async ({ page, goto, signIn, profiles }) => {
-  await signIn(profiles.kid);
+// Children mode (2026-11-11) replaced kids profiles: a profile marked by the
+// admin's older route is an account in children mode now, its passcode the
+// household PIN (copied — src/routes/admin.js). Inside it the menu has no
+// "Switch profile": leaving it, with the passcode, is the way back.
+const leaveSheet = (page) => page.locator(".child-sheet");
+const openLeave = async (page) => {
+  await page.click("#nav-profile");
+  await page.click('.nav-menu button:has-text("Leave Children mode")');
+  await leaveSheet(page).waitFor();
+};
+
+kidsTest("leaving Children mode asks for the passcode: a wrong one is refused, the right one turns it off for the account", { allow: [REFUSED, /Failed to load resource.*401/] }, async ({ page, goto, signIn, freshProfile }) => {
+  const kid = await freshProfile({ kids: { maxAge: 7 } }); // its passcode: the household PIN
+  await signIn(kid);
   await goto("#/movies");
   await gridIs(page, ["Test Film One"]);
-
   await page.click("#nav-profile");
-  await page.click('.nav-menu button:has-text("Switch profile")');
-  await page.click(tile("Parent"));
-  // not the parent's password yet: the PIN, to get out of the kids profile
-  const sheet = page.locator(".modal", { hasText: "Grown-ups only" });
-  await sheet.waitFor();
-  const pin = sheet.locator("input.kids-pin-input");
+  assert.equal(await page.locator('.nav-menu button:has-text("Switch profile")').count(), 0, "no profile switching in Children mode");
+  assert.equal(await page.locator('.nav-menu button:has-text("Sign out")').count(), 0);
+  assert.equal(await page.locator(".nav-menu-dl").count(), 0, "no downloads in Children mode");
+  await page.keyboard.press("Escape");
+  await openLeave(page);
+  const sheet = leaveSheet(page);
+  assert.match(await sheet.textContent(), /Enter the passcode to leave Children mode/);
 
-  await pin.fill("0000");
-  await sheet.locator("button", { hasText: "Unlock" }).click();
+  await sheet.locator("input.child-code").fill("0000");
+  await sheet.locator('[data-ui="child.off"]').click();
   const err = sheet.locator(".pw-error");
   await err.waitFor({ state: "visible" });
-  assert.match(await err.textContent(), /not the PIN/);
-  assert.equal(await page.locator(".profiles-gate").count(), 1, "still at the wall");
-  assert.equal(await page.evaluate(() => localStorage.getItem("aurora-profile")), profiles.kid.id, "the profile changed on a wrong PIN");
-  // still locked, as far as the server goes
-  assert.equal((await page.evaluate(async () => (await (await fetch("/api/kids/status")).json()).lock)).profile, profiles.kid.id);
+  assert.match(await err.textContent(), /not the passcode/);
+  assert.equal(await page.evaluate(() => document.documentElement.hasAttribute("data-kids")), true, "still in Children mode");
 
-  await pin.fill(PIN);
-  await sheet.locator("button", { hasText: "Unlock" }).click();
+  await sheet.locator("input.child-code").fill(PIN);
+  await sheet.locator('[data-ui="child.off"]').click();
   await sheet.waitFor({ state: "detached" });
-  // now the parent's own password
-  const pw = page.locator('.modal input[type="password"]:not(.kids-pin-input)');
-  await pw.waitFor();
-  await pw.fill(profiles.parent.password);
-  await page.click('.modal button:has-text("Unlock")');
-  await page.waitForSelector(".profiles-gate", { state: "detached" });
-  await page.waitForFunction(() => document.getElementById("nav-profile-name").textContent === "Parent");
-  assert.equal(await page.evaluate(() => document.documentElement.hasAttribute("data-kids")), false);
-  assert.equal(await page.evaluate(async () => (await (await fetch("/api/kids/status")).json()).lock), null, "the browser is still locked to the kids profile");
-
-  // the grown-up gets the whole library — the list is asked for again, not reused
+  await page.waitForFunction(() => !document.documentElement.hasAttribute("data-kids"));
+  assert.equal((await page.evaluate(async (id) => (await (await fetch(`/api/profiles/${id}/child-mode`)).json()).on, kid.id)), false, "off for the account");
+  // the whole library — the list is asked for again, not reused
   await goto("#/movies");
   await gridIs(page, ["Test Film One", "Test Film Two"]);
 });
 
-// The server's rule (POST /api/kids/enter): from a kids profile, another kids
-// profile that is at least as strict opens without the household PIN — it can
-// only restrict. A looser kids profile, and any profile that is not a kids
-// one, is a way out and takes the PIN. A profile's own password is asked
-// either way.
-kidsTest("hopping between kids profiles: a stricter or equal one needs no PIN, a looser one asks, a grown-up's asks, a password is still a password", async ({ page, goto, signIn, profiles }) => {
-  const exits = [];
-  page.on("request", (r) => { if (/\/api\/kids\/exit$/.test(r.url())) exits.push(r.method()); });
-  // every unlock on the way is answered by the server, not refused by the
-  // lock and waved through by the page
-  const unlocks = [];
-  page.on("response", (r) => { if (/\/api\/profiles\/[^/]+\/unlock$/.test(r.url())) unlocks.push(r.status()); });
-  const lock = () => page.evaluate(async () => (await (await fetch("/api/kids/status")).json()).lock);
-  const pinSheet = page.locator(".modal", { hasText: "Grown-ups only" });
-  const pick = async (name) => {
-    await page.click("#nav-profile");
-    await page.click('.nav-menu button:has-text("Switch profile")');
-    await page.click(tile(name));
-  };
-  const inside = async (p) => {
-    await page.waitForSelector(".profiles-gate", { state: "detached" });
-    await page.waitForFunction((n) => document.getElementById("nav-profile-name").textContent === n, p.name);
-    assert.equal(await page.evaluate(() => localStorage.getItem("aurora-profile")), p.id);
-  };
-
-  await signIn(profiles.kid); // limit 7
+kidsTest("closing the passcode sheet stays in Children mode", async ({ page, goto, signIn, profiles }) => {
+  await signIn(profiles.kid);
   await goto("#/movies");
-  assert.deepEqual(await lock(), { profile: profiles.kid.id, maxAge: 7 });
+  await openLeave(page);
+  await leaveSheet(page).locator("button", { hasText: "Cancel" }).click();
+  await leaveSheet(page).waitFor({ state: "detached" });
+  assert.equal(await page.evaluate(() => document.documentElement.hasAttribute("data-kids")), true);
+  assert.equal(await page.evaluate(() => localStorage.getItem("aurora-profile")), profiles.kid.id);
+  await gridIs(page, ["Test Film One"]);
+});
 
-  // stricter (all ages): straight in, no PIN sheet at any point
-  await pick("Tiny");
-  await inside(profiles.tiny);
-  assert.equal(await pinSheet.count(), 0);
-  assert.deepEqual(await lock(), { profile: profiles.tiny.id, maxAge: 0 }, "the browser is locked to the profile it moved to");
-  assert.deepEqual(exits, [], "nothing asked the server to lift the lock");
-
-  // looser (7, from all-ages): the PIN — closing the sheet stays put
-  await pick("Kiddo");
-  await pinSheet.waitFor();
-  assert.match(await pinSheet.textContent(), /household PIN to leave “Tiny”/);
-  await pinSheet.locator("button", { hasText: "Cancel" }).click();
-  await pinSheet.waitFor({ state: "detached" });
-  assert.equal(await page.evaluate(() => localStorage.getItem("aurora-profile")), profiles.tiny.id);
-  assert.deepEqual(await lock(), { profile: profiles.tiny.id, maxAge: 0 });
-  // ...and the right PIN goes through
-  await page.click(tile("Kiddo"));
-  await pinSheet.waitFor();
-  await pinSheet.locator("input.kids-pin-input").fill(PIN);
-  await pinSheet.locator("button", { hasText: "Unlock" }).click();
-  await inside(profiles.kid);
-  assert.deepEqual(await lock(), { profile: profiles.kid.id, maxAge: 7 });
-  assert.deepEqual(exits, ["POST"]);
-
-  // the same limit: no PIN
-  await pick("Twin");
-  await inside(profiles.twin);
-  assert.equal(await pinSheet.count(), 0);
-  assert.deepEqual(await lock(), { profile: profiles.twin.id, maxAge: 7 });
-
-  // looser (12): the PIN
-  await pick("Teen");
-  await pinSheet.waitFor();
-  await pinSheet.locator("button", { hasText: "Cancel" }).click();
-  await pinSheet.waitFor({ state: "detached" });
-
-  // stricter WITH a password of its own: no PIN, but its password is asked
-  await page.click(tile("Tinylock"));
-  const pw = page.locator('.modal input[type="password"]:not(.kids-pin-input)');
-  await pw.waitFor();
-  assert.equal(await pinSheet.count(), 0);
-  assert.equal(await page.evaluate(() => localStorage.getItem("aurora-profile")), profiles.twin.id, "not in before the password");
-  await pw.fill(profiles.tinyPw.password);
-  await page.click('.modal button:has-text("Unlock")');
-  await inside(profiles.tinyPw);
-  assert.deepEqual(await lock(), { profile: profiles.tinyPw.id, maxAge: 0 });
-  assert.deepEqual(exits, ["POST"], "only the one hop that was a way out lifted the lock");
-  assert.deepEqual(unlocks, [200, 200, 200, 200], "Tiny, Kiddo, Twin, Tinylock: each unlock went through");
-  // a kids profile it is, still: the 18+ film is not there
+// A browser locked to an account in children mode that lands on the wall
+// (nothing remembered — a cleared tab): picking someone else takes the
+// passcode first; closing the sheet stays put, the lock untouched.
+kidsTest("the wall's way out of a locked browser takes the passcode", async ({ page, goto, signIn, profiles }) => {
+  await signIn(profiles.kid);
   await goto("#/movies");
   await gridIs(page, ["Test Film One"]);
-
-  // a grown-up's profile: the PIN first, as ever
-  await pick("Parent");
-  await pinSheet.waitFor();
-  assert.equal(await page.locator('.modal input[type="password"]:not(.kids-pin-input)').count(), 0, "the parent's password is offered before the PIN");
-  await pinSheet.locator("button", { hasText: "Cancel" }).click();
-  assert.equal(await page.evaluate(() => localStorage.getItem("aurora-profile")), profiles.tinyPw.id);
-});
-
-// The 403 that hop tests kept meeting under load (2026-10-20): setProfile
-// had already made the new profile the page's while the server's kids lock
-// still named the last one (api.kidsEnter on its way), and the prefetcher —
-// a nav link the pointer crossed, the idle warm-up, the billboard's timer —
-// asked for the new profile in that window and was refused. Here the lock's
-// move is held for 2 s and the pointer crosses My List meanwhile: nothing is
-// asked for the new profile until the lock has moved, and nothing is refused.
-kidsTest("a profile switch in flight asks nothing for the new profile before the kids lock has moved", async ({ page, goto, signIn, profiles }) => {
-  const refused = [];
-  page.on("response", (r) => { if (r.status() === 403 && /\/api\//.test(r.url())) refused.push(`${r.request().method()} ${new URL(r.url()).pathname}`); });
-  let lockMoved = false;
-  const early = [];
-  page.on("request", (r) => {
-    const u = new URL(r.url()).pathname;
-    if (!lockMoved && u.includes(profiles.tiny.id) && !/\/unlock$/.test(u)) early.push(u);
-  });
-  await signIn(profiles.kid);
-  await goto("#/movies");
-  let entered;
-  const entering = new Promise((r) => { entered = r; });
-  await page.route("**/api/kids/enter", async (route) => {
-    entered();
-    await new Promise((r) => setTimeout(r, 2000));
-    await route.continue();
-    lockMoved = true;
-  });
-  await page.click("#nav-profile");
-  await page.click('.nav-menu button:has-text("Switch profile")');
-  await page.click(tile("Tiny"));
-  await entering;
-  // the pointer crosses My List (the intent prefetch of the new profile's list)
-  await page.evaluate(() => {
-    const a = document.querySelector('.nav-item[data-route="#/list"]');
-    if (a) { a.dispatchEvent(new PointerEvent("pointerenter")); a.dispatchEvent(new FocusEvent("focus")); }
-  });
-  await page.waitForSelector(".profiles-gate", { state: "detached" });
-  await page.waitForFunction((n) => document.getElementById("nav-profile-name").textContent === n, profiles.tiny.name);
-  await page.waitForTimeout(3500); // the idle warm-up and the billboard's timer have had their turn
-  await page.unroute("**/api/kids/enter");
-  assert.deepEqual(early, [], "nothing was asked for the new profile before the lock moved");
-  assert.deepEqual(refused, [], "nothing was refused");
-});
-
-kidsTest("closing the PIN sheet stays in the kids profile", async ({ page, goto, signIn, profiles }) => {
-  await signIn(profiles.kid);
-  await goto("#/movies");
-  await page.click("#nav-profile");
-  await page.click('.nav-menu button:has-text("Switch profile")');
+  await page.evaluate(() => { localStorage.removeItem("aurora-profile"); });
+  await page.reload();
+  await page.waitForSelector(tile("Parent"));
   await page.click(tile("Parent"));
-  const sheet = page.locator(".modal", { hasText: "Grown-ups only" });
+  const sheet = page.locator(".modal", { hasText: "Enter the passcode to leave Children mode" });
   await sheet.waitFor();
   await sheet.locator("button", { hasText: "Cancel" }).click();
   await sheet.waitFor({ state: "detached" });
-  assert.equal(await page.locator('.modal input[type="password"]').count(), 0, "the parent's password is asked for without the PIN");
-  assert.equal(await page.evaluate(() => localStorage.getItem("aurora-profile")), profiles.kid.id);
+  assert.equal(await page.locator('.modal input[type="password"]').count(), 0, "the parent's password is asked for without the passcode");
+  assert.deepEqual(await page.evaluate(async () => (await (await fetch("/api/kids/status")).json()).lock), { profile: profiles.kid.id, maxAge: 7 });
 });
 
 kidsTest("a normal profile is unaffected: the whole library, and the 18+ film plays", async ({ page, goto, signIn, profiles, lib }) => {

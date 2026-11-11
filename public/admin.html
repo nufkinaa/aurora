@@ -3109,7 +3109,7 @@
       p.mustReset ? (p.passwordSetup
         ? '<span class="pill warn" title="Signs in with Google only: asked to set a password at their next sign-in.">first password due</span>'
         : '<span class="pill warn" title="Signed out everywhere. Until they set a new password, nothing else works for them.">password reset pending</span>') : "",
-      p.kids ? `<span class="pill kids">kids · ${p.kids.maxAge === 0 ? "all ages" : "up to " + p.kids.maxAge + "+"}</span>` : "",
+      p.kids ? `<span class="pill kids">children mode · ${p.kids.maxAge === 0 ? "all ages" : p.kids.maxAge + "+"}</span>` : "",
       p.live && p.live.length ? '<span class="pill live">online</span>' : "",
       p.fails >= 5 ? `<span class="pill warn">${p.fails} failed unlocks</span>` : "",
     ].filter(Boolean).join(" ");
@@ -3284,6 +3284,9 @@
       "reset-email-sent": "a reset link was emailed", "password-reset": "reset their password", "password-changed": "changed their password",
       "password-set": "set a first password", "password-set-by-admin": "you set their password", "password-setup-asked": "asked to set a first password",
       "google-signup": "requested access with Google",
+      // children mode (2026-11-11)
+      "child-mode-on": "turned Children mode on", "child-mode-off": "turned Children mode off", "child-mode-age": "changed who is watching (Children mode)",
+      "child-passcode-reset": "cleared the Children mode passcode", "child-passcode-google": "proved who they are with Google (Children mode passcode)",
     };
 
     // ---------- everyone, in one table ----------
@@ -3474,17 +3477,26 @@
             <span class="m">${esc(whenAgo(ev.at))}${ev.device ? ` · ${esc(ev.device)}` : ""}${ev.ip ? ` · ${esc(ev.ip)}` : ""}${typeof ev.others === "number" && ev.others ? ` · ${ev.others} other ${ev.others === 1 ? "device" : "devices"} signed out` : ""}</span>
           </div>`).join("")}</div></div>` : ""}
           <div><h4>${ICO.pin} Devices &amp; addresses ${p.access.length ? count(`· last ${p.access.length} of ${p.ipCount} ${p.ipCount === 1 ? "address" : "addresses"}`) : ""}</h4><div class="plist">${addr}</div></div>
-          <div><h4>${ICO.shield} Kids profile ${p.kids ? count("· on") : ""}</h4><div class="kids-admin">
-            <div class="range-chips">${[["off", "Off"], ...((PEOPLE && PEOPLE.kidsAges) || [0, 7, 12, 16]).map((a) => [String(a), a === 0 ? "All ages" : a + "+"])]
-              .map(([v, label]) => `<button data-kids="${v}" class="${(p.kids ? String(p.kids.maxAge) : "off") === v ? "active" : ""}">${esc(label)}</button>`).join("")}</div>
-            <span class="note">${p.kids
-              ? "Only titles rated at or under this age reach this profile — on the site and the TV. A title with no known rating stays hidden."
-              : "Pick an age to make this a kids profile: only titles rated at or under it are shown, and leaving the profile takes the household PIN."}
-              <br>Household PIN: ${PEOPLE && PEOPLE.kidsPinSet ? "<b>set</b>" : '<b class="warn">not set</b> — without it a child can simply switch profiles'}
-              <button class="mini" data-kids-pin>${PEOPLE && PEOPLE.kidsPinSet ? "Change PIN" : "Set PIN"}</button>
-              <br>With the PIN set, a grown-up's profile that has no password opens with the PIN too. ${esc((PEOPLE && PEOPLE.kidsScope) || "")}
+          ${(() => {
+            // Children mode (2026-11-11, docs/children-mode.md): the account's
+            // own switch, turned on from the account (website, TV, phone app)
+            // with its own passcode. Here: what it is, and the two ways out.
+            const cm = p.childMode || { on: !!p.kids, maxAge: p.kids ? p.kids.maxAge : null, passcodeSet: false };
+            const age = cm.maxAge === 0 ? "All ages" : cm.maxAge + "+";
+            return `<div><h4>${ICO.shield} Children mode ${cm.on ? count("· on") : ""}</h4><div class="kids-admin">
+            <span class="note" style="margin-top:0">${cm.on
+              ? `<b>On — ${esc(age)}.</b> Every device signed in to this account shows only titles rated ${cm.maxAge === 0 ? "for all ages" : "at or under " + esc(age)}; a title with no known rating stays hidden. Leaving takes the account's passcode${cm.since ? ` · on since ${esc(whenAgo(cm.since))}` : cm.migrated ? " · was a kids profile" : ""}.`
+              : "Off. It is turned on from the account itself (profile menu, More, Settings — site, TV and phone app), where the parent picks who is watching and, the first time, a passcode."}
+              <br>Passcode: ${cm.passcodeSet ? (cm.passcodeFromPin ? "<b>set</b> — still the household PIN (copied when kids profiles became Children mode)" : "<b>set</b>") : "not set yet"}</span>
+            <div class="range-chips" style="margin-top:10px">
+              ${cm.on ? `<button data-child="off">Turn off</button>` : ""}
+              ${cm.passcodeSet ? `<button data-child="clear">Clear passcode</button>` : ""}
+            </div>
+            <span class="note">"Clear passcode" also turns Children mode off; the next "Turn on" asks for a new passcode. The account's own password (or Google) does the same from "Forgot the passcode?".
+              ${PEOPLE && PEOPLE.kidsPinSet ? `<br>Household PIN: <b>set</b> — it still opens a grown-up's profile that has no password while an account is in Children mode. <button class="mini" data-kids-pin>Change PIN</button>${PEOPLE.kidsPinNeeded ? "" : ` <button class="mini" data-kids-pin-remove>Remove PIN</button>`}` : ""}
               <br>Ages are the strictest rating any board gave the title (a US R counts as 17 even where Germany says 12).</span>
-          </div></div>
+          </div></div>`;
+          })()}
           <div><h4>${ICO.bolt} Actions</h4><div class="actions-grid">
             <button data-act="lock">${p.locked ? ICO.unlock + "Unsuspend" : ICO.shield + "Suspend"}<small>${p.locked ? "let them back in" : "locks the profile — nobody can enter it, every device is signed out"}</small></button>
             <button data-act="kick">${ICO.out}Kick<small>sign them out of every device now; their password lets them straight back in</small></button>
@@ -3493,7 +3505,7 @@
               : !p.hasPassword
                 ? `no password to reset (${p.hasGoogle ? "signs in with Google" : "opens without one"}) — this only signs them out everywhere`
                 : p.kids
-                  ? "a kids profile can't change its own password — this only signs it out everywhere; Set password gives it a new one"
+                  ? "Children mode is on: the password can't be reset meanwhile — this only signs it out everywhere; Set password gives it a new one"
                   : "signs them out everywhere and requires a new password before they can use Aurora again"}</small></button>
             <button data-act="setpw">${ICO.lock}Set password<small>you choose it — tell them in person, don't text it</small></button>
             ${p.kids ? "" : `<button data-act="resetcode">${ICO.key}Reset code<small>a one-time code (30 minutes) they type under "Forgot password?" to choose their own new password</small></button>`}
@@ -3528,23 +3540,30 @@
         toast("Kicked");
         return loadPeople();
       }
-      // kids profile: the limit (or off), and the household PIN
-      const kidsBtn = e.target.closest("[data-kids]");
-      if (kidsBtn) {
-        const v = kidsBtn.dataset.kids;
-        const r = await adminFetch(`/api/admin/profiles/${encodeURIComponent(p.id)}/kids`, {
+      // children mode: Turn off (the passcode stays), Clear passcode (off with it)
+      const childBtn = e.target.closest("[data-child]");
+      if (childBtn) {
+        const clear = childBtn.dataset.child === "clear";
+        if (clear && !await ask(`Clear the Children mode passcode of "${p.name}"?\n\nChildren mode goes off on every device signed in to it, and the next "Turn on" asks for a new passcode.`)) return;
+        const r = await adminFetch(`/api/admin/profiles/${encodeURIComponent(p.id)}/child-mode`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kids: v === "off" ? null : { maxAge: Number(v) } }),
+          body: JSON.stringify(clear ? { clearPasscode: true } : { on: false }),
         });
         if (!r.ok) return fail(r);
-        const out = await r.json().catch(() => ({}));
-        toast(v === "off" ? `Kids mode off for "${p.name}"`
-          : out.pinSet ? `"${p.name}" is a kids profile now`
-          : `"${p.name}" is a kids profile — now set the household PIN, or a child can just switch profiles`);
+        toast(clear ? `Passcode cleared — Children mode is off for "${p.name}"` : `Children mode is off for "${p.name}"`);
+        return loadPeople();
+      }
+      if (e.target.closest("[data-kids-pin-remove]")) {
+        if (!await ask("Remove the household PIN?\n\nNo account's Children mode passcode depends on it any more. A grown-up's profile with no password will open with one tap again.")) return;
+        const r = await adminFetch("/api/admin/kids-pin", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: "" }),
+        });
+        if (!r.ok) return fail(r);
+        toast("Household PIN removed");
         return loadPeople();
       }
       if (e.target.closest("[data-kids-pin]")) {
-        const val = await askText("Household PIN — 4 to 6 digits.\n\nIt is asked when someone leaves a kids profile (site and TV), when a profile with no password is opened, and when kids mode is changed from the app. One PIN for the whole house; it is stored hashed.\n\n" + ((PEOPLE && PEOPLE.kidsScope) || ""));
+        const val = await askText("Household PIN — 4 to 6 digits.\n\nWhile an account is in Children mode, a grown-up's profile that has no password opens with it. An account whose Children mode passcode is still the household PIN follows the change. It is stored hashed.\n\n" + ((PEOPLE && PEOPLE.kidsScope) || ""));
         if (!val) return;
         const r = await adminFetch("/api/admin/kids-pin", {
           method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: String(val).trim() }),
@@ -7623,7 +7642,7 @@
         copy: async () => {
           const d = await json("/api/admin/people");
           return MD.table(["name", "sign-in", "last seen", "addresses", "downloads", "status"], (d.people || []).map((p) => [p.name, p.claimed ? (p.username ? "@" + p.username : "claimed") + (p.hasGoogle ? " (Google)" : "") : "not claimed",
-            p.live.length ? "now" : whenAgo(p.lastSeen), p.ipCount, p.downloadsTotal, [p.locked ? "suspended" : "", p.mustReset ? "reset pending" : "", p.kids ? `kids ${p.kids.maxAge}+` : "", p.fails >= 5 ? `${p.fails} failed unlocks` : ""].filter(Boolean).join(", ")]), 60);
+            p.live.length ? "now" : whenAgo(p.lastSeen), p.ipCount, p.downloadsTotal, [p.locked ? "suspended" : "", p.mustReset ? "reset pending" : "", p.kids ? `children mode ${p.kids.maxAge}+` : "", p.fails >= 5 ? `${p.fails} failed unlocks` : ""].filter(Boolean).join(", ")]), 60);
         },
       },
       "p-live": {

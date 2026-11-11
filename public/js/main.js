@@ -454,6 +454,10 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     if (state.profile && state.profile.id === profileId) refreshPersonPrefs();
   });
   onMessage("server_notice", ({ message }) => { if (message) toast(message, "🛠️"); });
+  // Children mode went on or off for this account on another device (or the admin's page)
+  onMessage("child_mode", (msg) => {
+    if (state.profile && msg && msg.profileId === state.profile.id) childMod().then((m) => m.onWord(msg)).catch(() => {});
+  });
   // Somebody in the household recommended something to this person: a toast
   // (js/recommend.js), and the icon's badge when the app is in the background
   watchArrivals();
@@ -774,6 +778,19 @@ let remoteMod = null;
 const startRemote = () => import("./remote.js").then((m) => { remoteMod = m; m.initRemote(); }).catch(() => {});
 // [/phone-remote]
 
+// Children mode (js/childmode.js, loaded when first needed): the menu's
+// line, the socket's word from another device of the account, and an answer
+// that says the account changed while this tab was not looking.
+const kidsNow = () => !!(state.profile && state.profile.kids);
+const childMod = () => import("./childmode.js");
+const openChildMode = () => childMod().then((m) => m.openChildMode()).catch(() => toast("Couldn't open Children mode", "⚠️"));
+document.addEventListener("aurora-child-mode", () => openChildMode());
+window.addEventListener("aurora-kids-answer", (e) => {
+  const said = e.detail ? e.detail.kids : null;
+  const mine = kidsNow() ? String(state.profile.kids.maxAge) : null;
+  if ((said || null) !== mine) childMod().then((m) => m.onAnswer(e.detail || {})).catch(() => {});
+});
+
 const showProfileMenu = () => {
   document.querySelector(".nav-menu-wrap")?.remove(); // toggle: second click closes
   if (document.querySelector(".nav-more-wrap")) import("./navmore.js").then((m) => m.close()).catch(() => {}); // one menu at a time
@@ -784,15 +801,19 @@ const showProfileMenu = () => {
     el("div", { class: "nav-menu-head" },
       el("div", { class: "nav-menu-name" }, state.profile?.name || "Aurora"),
       state.user && el("div", { class: "nav-menu-sub" }, `@${state.user.username || state.user.name}`)),
-    state.authMode !== "closed" &&
+    // (children mode: no switching profile, no downloads, no sign-out —
+    // leaving it, with the passcode, is the way back)
+    state.authMode !== "closed" && !kidsNow() &&
       item("Switch profile", () => { close(); openGate(); }),
+    el("button", { class: "nav-menu-item focusable nav-menu-child", "data-ui": "child.open", onclick: () => { close(); openChildMode(); } },
+      kidsNow() ? "Leave Children mode" : "Children mode"),
     item("Settings", () => { close(); navigate("#/preferences"); }),
     // how many are where, under the name (a count: there is no limit)
-    el("button", { class: "nav-menu-item focusable nav-menu-dl", onclick: () => { close(); navigate("#/downloads"); } },
+    !kidsNow() && el("button", { class: "nav-menu-item focusable nav-menu-dl", onclick: () => { close(); navigate("#/downloads"); } },
       "My downloads",
       downloadCountLine(myDownloads()) ? el("span", { class: "nav-menu-count" }, downloadCountLine(myDownloads())) : null),
     // saved titles, saves under way, a video from this device (screens/saved.js)
-    item("On this device", () => { close(); navigate("#/saved"); }),
+    !kidsNow() && item("On this device", () => { close(); navigate("#/saved"); }),
     // what is coming up for this person's list (screens/calendar.js) — the
     // phone's way there (the nav link is a desktop one)
     item("Calendar", () => { close(); navigate("#/calendar"); }),
@@ -805,7 +826,7 @@ const showProfileMenu = () => {
     // [phone-remote] there while a TV (or another computer) of this profile is on
     remoteOn && item("Your TVs", () => { close(); navigate("#/remote"); }),
     // [/phone-remote]
-    state.user &&
+    state.user && !kidsNow() &&
       item("Sign out", () => {
         close();
         signOutHere();

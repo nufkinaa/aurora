@@ -1168,8 +1168,14 @@ router.get("/api/admin/people", (req, res) => {
 // Kids profiles, the admin's side (2026-10-08). No PIN here: this router is
 // admin-only already. `kids` is { maxAge } to switch it on (or change the
 // limit) and null to switch it off; anything else is refused by setKids.
+//
+// (Children mode, 2026-11-11: this is children mode on the account now. An
+// admin page from before it turns it on with no passcode of the account's
+// own; while the household PIN is set, the account gets a copy of it — as
+// the migration does — so the PIN that used to let a child out still does.)
 router.post("/api/admin/profiles/:id/kids", (req, res) => {
   const r = profiles.setKids(req.params.id, (req.body || {}).kids);
+  if (!r.error && r.profile && r.profile.kids) profiles.copyHouseholdPin(req.params.id);
   // (ratings kept from before the strictest-age rule are brought up to date)
   if (!r.error && r.profile && r.profile.kids) { try { require("../media/discover").refreshCertificates(); } catch {} }
   if (r.error) return res.status(r.error === "not found" ? 404 : 400).json(r);

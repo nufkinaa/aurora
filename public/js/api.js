@@ -204,6 +204,8 @@ const json = async (url, options = {}, attempt = 0) => {
     // the status, and the one flag a caller acts on: "ask for the household PIN"
     err.status = res.status;
     if (body && body.pinRequired) err.pinRequired = true;
+    // (refused by the age gate: children mode)
+    if (body && body.kids === true) err.kids = true;
     if (body && body.code) err.code = body.code;
     // (auth-round) which input the refusal belongs to, and a 429's wait in seconds
     if (body && typeof body.field === "string") err.field = body.field;
@@ -236,9 +238,27 @@ const json = async (url, options = {}, attempt = 0) => {
     }
     throw err;
   }
+  // Children mode (2026-11-11): Home and the library say whom they were
+  // filtered for (X-Aurora-Kids). An answer that disagrees with this tab means
+  // the account went into (or out of) children mode while it was not looking
+  // — js/childmode.js asks again and follows.
+  let kidsSaid = null;
+  const path = String(url).split("?")[0];
+  try {
+    if (path === "/api/home" || path === "/api/library") {
+      kidsSaid = (res.headers && typeof res.headers.get === "function" ? res.headers.get("X-Aurora-Kids") : null) || "";
+      window.dispatchEvent(new CustomEvent("aurora-kids-answer", { detail: { kids: kidsSaid || null, url } }));
+    }
+  } catch {}
   // the tiny pictures that ride beside an answer go to blur.js; the screen
   // gets the answer it always got
-  return takeBlur(JSON.parse(await readText(res, url, giveUp)));
+  const out = takeBlur(JSON.parse(await readText(res, url, giveUp)));
+  // (Home's answer carries whom it was filtered for, out of sight of JSON:
+  // home.js never keeps one made for another audience — screens/home.js audOk)
+  if (path === "/api/home" && kidsSaid !== null && out && typeof out === "object") {
+    try { Object.defineProperty(out, "auroraKids", { value: kidsSaid, enumerable: false }); } catch {}
+  }
+  return out;
 };
 
 let changelogP = null;
@@ -264,6 +284,9 @@ const warmed = (url, ttl = WARM_TTL, { low = false } = {}) => {
 // Drop warmed answers whose URL starts with `prefix` (no prefix: all).
 export const forgetWarm = (prefix = "") => {
   for (const k of [...warm.keys()]) if (k.startsWith(prefix)) warm.delete(k);
+  // (and a Home on its way: asked for whoever was here before — children
+  // mode switched on or off on this very profile is someone else, list-wise)
+  if (!prefix || "/api/home".startsWith(prefix)) homeInFlight.clear();
 };
 
 const post = (url, body) =>
@@ -566,6 +589,13 @@ export const api = {
   // a cookie of its own on enter; only the household PIN lifts it (exit).
   // { pinSet, ages, lock: { profile, maxAge } | null }
   kidsStatus: () => json("/api/kids/status"),
+  // ---- children mode (2026-11-11, js/childmode.js): the account's own switch
+  childMode: (id) => json(`/api/profiles/${encodeURIComponent(id)}/child-mode`),
+  // { maxAge } (one click), + newPasscode the first time, + passcode to raise the age
+  childModeOn: (id, body) => post(`/api/profiles/${encodeURIComponent(id)}/child-mode`, body),
+  childModeOff: (id, passcode) => post(`/api/profiles/${encodeURIComponent(id)}/child-mode/off`, { passcode }),
+  // { password } | { googleToken }
+  childModeForgot: (id, body) => post(`/api/profiles/${encodeURIComponent(id)}/child-mode/forgot`, body),
   kidsEnter: (profile, pin) => post("/api/kids/enter", { profile, pin }),
   kidsExit: (pin) => post("/api/kids/exit", { pin }),
   // body: { kids: { maxAge } | null, pin } — or { kids, newPin } while the

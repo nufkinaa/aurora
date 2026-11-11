@@ -527,6 +527,17 @@ const verifyChildPass = async (id, code) => {
   await hashPassword("0000");
   return false;
 };
+// An account in children mode with no passcode of its own gets a copy of
+// the household PIN (when one is set) — what the migration does, for the
+// admin routes from before children mode. True when it got one.
+const copyHouseholdPin = (id) => {
+  const p = getRaw(id);
+  const pin = store.data.kidsPin;
+  if (!p || (p.childPass && p.childPass.hash) || !pin || !pin.hash) return false;
+  p.childPass = { salt: pin.salt, hash: pin.hash, setAt: Date.now(), from: "household-pin" };
+  store.save();
+  return true;
+};
 // Does anything still lean on the household PIN? A passcode the migration
 // copied from it and nobody has changed since, or a kids profile not
 // migrated yet. Until neither is left the admin page does not offer to
@@ -2058,6 +2069,7 @@ module.exports = {
   clearChildPass,
   verifyChildPass,
   householdPinNeeded,
+  copyHouseholdPin,
   migrateChildMode,
   unlock,
   setPassword,

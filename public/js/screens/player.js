@@ -843,7 +843,7 @@ export const renderPlayer = async (root, { id }) => {
       item = await api.item(itemId);
     } catch (e) {
       // a kids profile refused it: say so in the server's words
-      if (e && /kids profile/i.test(e.message || "")) toast(e.message, "🧸");
+      if (e && (e.kids || /kids profile|Children mode/i.test(e.message || ""))) toast(e.message, "🧸");
       else {
         // [offline-look] Aurora is out of reach: the copy on this device plays
         // in its place; with none, one calm line and back where you were

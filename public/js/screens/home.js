@@ -2,7 +2,7 @@
 import { el, icons, fmtDuration, fmtClock, formatRow, artUrl, heroArtWidth, heroCover, heroShowsPoster, restoreScrollY, holdWhileOffscreen, pictureWait, afterPictures, releaseInView } from "../ui.js";
 import { upgradeArt } from "../artUpgrade.js";
 import { blurOf } from "../blur.js";
-import { api } from "../api.js";
+import { api, forgetWarm } from "../api.js";
 import { heldRemark, localRemark, fetchRemark, noteShown } from "../remark.js";
 import { state, progressFor } from "../state.js";
 import { shelfRow, continueRow, openItem, ensureRowFilled, patchShelf } from "../components.js";
@@ -74,8 +74,13 @@ const keepOnDevice = (pid, data) => {
     } catch {}
   });
 };
+// An answer made for another audience than this profile's now (children
+// mode went on or off while it was on its way — api.js marks each answer
+// with the X-Aurora-Kids it came with) is never kept, nor painted.
+const audOk = (pid, data) =>
+  !data || data.auroraKids === undefined || data.auroraKids === kidsTag(pid).slice(2);
 const rememberHome = (pid, data, { device = true } = {}) => {
-  if (!pid || !data || !Array.isArray(data.rows)) return;
+  if (!pid || !data || !Array.isArray(data.rows) || !audOk(pid, data)) return;
   homeMemo.set(pid + kidsTag(pid), data);
   if (device) keepOnDevice(pid, data);
 };
@@ -146,6 +151,7 @@ export const renderHome = async (root) => {
   screen.dataset.homeSrc = painted ? "snapshot" : "network";
   if (!data) try {
     data = await api.home(pid);
+    if (!audOk(pid, data)) { forgetWarm("/api/home"); data = await api.home(pid); }
     rememberHome(pid, data);
   } catch {
     screen.innerHTML = "";
