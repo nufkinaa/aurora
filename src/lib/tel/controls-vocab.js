@@ -153,10 +153,10 @@ module.exports = {
   "peek.playontv": "w", // [phone-remote]
   "peek.remove": "w",
   // pick
-  "pick.another": "w",
+  "pick.another": "wp",
   "pick.example": "wtp",
   "pick.go": "wtp",
-  "pick.open": "w",
+  "pick.open": "wp",
   "pick.option": "wtp",
   "pick.retry": "t",
   "pick.unfold": "t",
@@ -378,11 +378,11 @@ module.exports = {
   // state
   "state.action": "t",
   // story (the Aurora Play story frame: public/js/play/story.js — Wrapped and any other story)
-  "story.close": "w",
+  "story.close": "wp",
   "story.next": "w",
-  "story.pause": "w",
+  "story.pause": "wp",
   "story.prev": "w",
-  "story.skip": "w", // Skip to the summary
+  "story.skip": "wp", // Skip to the summary
   // update
   "update.install": "tp",
   "update.later": "tp",
@@ -392,12 +392,12 @@ module.exports = {
   "whatsnew.go": "wt",
   "whatsnew.log": "t",
   // wrapped (Aurora Wrapped, #/wrapped: public/js/screens/wrapped.js)
-  "wrapped.all": "w", // the story's finale: All the numbers
+  "wrapped.all": "wp", // the story's finale: All the numbers
   "wrapped.browse": "w", // Back to browsing / Find something to watch
-  "wrapped.replay": "w",
+  "wrapped.replay": "wp",
   "wrapped.retry": "w",
-  "wrapped.share": "w", // Share / Save the picture (the summary card)
-  "wrapped.story": "w", // the page's Play the story
+  "wrapped.share": "wp", // Share / Save the picture (the summary card)
+  "wrapped.story": "wp", // the page's Play the story
   // xray
   "xray.more": "w",
   // phone — the Android phone app's own controls (tv-native/src/phone)

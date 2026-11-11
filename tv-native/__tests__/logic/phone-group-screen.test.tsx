@@ -347,11 +347,9 @@ test('no session: join with a code (checked here first) or start with the choice
   await press(r, 'group.join');
   expect(has(r, WORDS.codeWrong)).toBe(true);
   expect(mockApi.join).not.toHaveBeenCalled();
-  // Start: the TV's choices as chips, then create as a voter
-  const startTab = r.root.findAll(n => (n.type as unknown) === 'Tap' && n.props.accessibilityRole === 'tab')[1];
-  await act(async () => startTab.props.onPress());
+  // Start (the second play card, under Join): the TV's choices as chunky chips, then create as a voter
   const chips = byUi(r, 'group.option');
-  expect(chips.map(c => c.props.label)).toEqual(['Films', 'Series', 'Anything', 'Funny', 'Any length', '2 min', '3 min', '5 min']);
+  expect(chips.map(c => c.props.accessibilityLabel)).toEqual(['Films', 'Series', 'Anything', 'Funny', 'Any length', '2 min', '3 min', '5 min']);
   await act(async () => chips[3].props.onPress());
   mockApi.create.mockResolvedValue({
     session: session({
@@ -411,7 +409,7 @@ test('swiping: the buttons answer and move on at once; Undo takes it back; a los
   mockApi.vote.mockResolvedValue({ok: true, answered: 1, of: 2});
   await open();
   // the stage is measured on screen (onLayout), then the card is drawn at 2:3 inside it
-  const stage = r.root.find(n => (n.type as unknown) === 'View' && typeof n.props.onLayout === 'function');
+  const stage = r.root.find(n => (n.type as unknown) === 'View' && n.props.testID === 'group-stage');
   await act(async () =>
     stage.props.onLayout({
       nativeEvent: {layout: {width: 328, height: 480}},
@@ -534,12 +532,12 @@ test('the result with a TV in the room: Play on the TV, nothing starts on the ph
   await open();
   expect(has(r, WORDS.resultTitle)).toBe(true);
   expect(has(r, '2 of 2 said yes')).toBe(true);
-  expect(byUi(r, 'group.play')[0].props.label).toBe(WORDS.playOnTv);
-  expect(byUi(r, 'group.next')[0].props.label).toBe(WORDS.somethingElse);
+  expect(byUi(r, 'group.play')[0].props.accessibilityLabel).toBe(WORDS.playOnTv);
+  expect(byUi(r, 'group.next')[0].props.accessibilityLabel).toBe(WORDS.somethingElse);
   await press(r, 'group.next');
   expect(mockApi.pick).toHaveBeenCalledWith('K7QM', 1);
   expect(has(r, 'Elia said yes')).toBe(true);
-  expect(byUi(r, 'group.next')[0].props.label).toBe(WORDS.firstPick);
+  expect(byUi(r, 'group.next')[0].props.accessibilityLabel).toBe(WORDS.firstPick);
   await press(r, 'group.play');
   expect(mockApi.choose).toHaveBeenCalledWith('K7QM', 'tt2');
   expect(mockNav.push).not.toHaveBeenCalled();
@@ -569,7 +567,7 @@ test('the result with no screen in the room: Play plays a library film on this p
     }),
   });
   await open();
-  expect(byUi(r, 'group.play')[0].props.label).toBe(WORDS.play);
+  expect(byUi(r, 'group.play')[0].props.accessibilityLabel).toBe(WORDS.play);
   await press(r, 'group.play');
   expect(mockNav.push).toHaveBeenCalledWith('Player', {
     id: 'a',

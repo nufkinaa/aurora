@@ -1,23 +1,38 @@
-// "Your Aurora Wrapped" on the phone — the website's #/wrapped (public/js/screens/wrapped.js):
-// your viewing, aggregated and lovingly roasted, honest about its window ("since <date>":
-// the server's session store is a ring buffer). The same cards and the same lines, one
-// under the other (two side by side on a wide screen). Nothing watched yet: the cards with
-// sample numbers, dimmed, and the note that says why — the site's preview, not a dead end.
-// Words and rules: ../wrappedWords.ts. Server: GET /api/profiles/:id/wrapped.
-import React, {useCallback, useEffect, useState} from 'react';
-import {ActivityIndicator, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+// "Your Aurora Wrapped" on the phone — the website's #/wrapped (public/js/screens/wrapped.js,
+// docs/play/wrapped.md) in the play look: your viewing told as a STORY in the night sky
+// (../play/WrappedStory.tsx: eleven chapters, each left out when its data is missing, the
+// viewer-type collectible with the one meteor burst, the streak as a constellation, the
+// intervention one line at a time, a share card), and under it "All the numbers" — every
+// stat as plain text (../play/WrappedPage.tsx). Honest about its window ("since <date>": the
+// server's session store is a ring buffer).
+//
+//   arriving     the story plays over the page (the page is drawn once it closes)
+//   Remove animations / a screen reader: the page first; "Play the story" plays it still
+//   nothing watched yet: the teaser (the face-down card, the chapters waiting)
+//   kids profiles: the same story, kinder verdicts, "The highlights" instead of the roasts
+//
+// Words and rules: ../play/wrappedStory.ts (on the kit's ../../play/wrappedRules.ts).
+// Server: GET /api/profiles/:id/wrapped (the roasts it sends, `w.roasts`, are used as sent).
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {AccessibilityInfo, ActivityIndicator, ScrollView, Share, StyleSheet, Text, View} from 'react-native';
 import {StackActions} from '@react-navigation/native';
 import {apiRequest} from '../../api';
 import {useApp} from '../../AppContext';
 import {useMe} from '../../navSection';
 import {navRef} from '../../rootNav';
+import {showToast} from '../../toast';
+import {isLite} from '../../perfTier';
+import {phoneNative} from '../native';
 import {BackBar, useColumn, usePageTop, useSolidBar} from '../ui/PageHead';
 import {useTabBarSpace} from '../ui/TabBar';
-import Glass from '../ui/Glass';
-import {GlassButton, PrimaryButton} from '../ui/Buttons';
 import {setTab} from '../tabs';
-import {BigCard, interventionFor, PREVIEW_CARDS, sinceLine, WrappedReply, wrappedCards} from '../wrappedWords';
-import {colors, GUTTER} from '../theme';
+import {GUTTER} from '../theme';
+import {PLAY} from '../../play/tokens';
+import {Eyebrow, Key, PlayRoom, ty} from '../play/ui';
+import WrappedStory from '../play/WrappedStory';
+import {WrappedNumbers, WrappedTeaser} from '../play/WrappedPage';
+import {ShareCard, ShareCardHandle, usePosterData} from '../play/ShareCard';
+import {ctxOf, ERR, PhoneWrapped, shareWords} from '../play/storyWords';
 
 // "Back to browsing" / "Find something to watch": the site goes to #/ — Home
 const toHome = () => {
@@ -25,132 +40,120 @@ const toHome = () => {
   setTab('home');
 };
 
+/** Whether the story should be still: Remove animations, a screen reader, a lite phone. null until known. */
+const useStill = (): boolean | null => {
+  const [still, setStill] = useState<boolean | null>(isLite() ? true : null);
+  useEffect(() => {
+    if (still !== null) return;
+    let live = true;
+    const ask = (f?: () => Promise<boolean>) => (f ? f.call(AccessibilityInfo).catch(() => false) : Promise.resolve(false));
+    Promise.all([ask(AccessibilityInfo.isReduceMotionEnabled), ask(AccessibilityInfo.isScreenReaderEnabled)]).then(([calm, reader]) => {
+      if (live) setStill(!!(calm || reader));
+    });
+    return () => {
+      live = false;
+    };
+  }, [still]);
+  return still;
+};
+
 export default function Wrapped() {
   const bar = useSolidBar();
   const top = usePageTop();
   const column = useColumn();
   const bottom = useTabBarSpace();
-  const {width} = useWindowDimensions();
   const {profileId} = useApp();
   const me = useMe(profileId);
   const name = me?.name || '';
-  const [w, setW] = useState<WrappedReply | null>(null);
+  const kids = !!me?.kids;
+  const still = useStill();
+  const [w, setW] = useState<PhoneWrapped | null>(null);
   const [err, setErr] = useState(false);
   const load = useCallback(() => {
     setErr(false);
     setW(null);
-    apiRequest<WrappedReply>(`/api/profiles/${encodeURIComponent(profileId)}/wrapped`)
+    apiRequest<PhoneWrapped>(`/api/profiles/${encodeURIComponent(profileId)}/wrapped`)
       .then(setW)
       .catch(() => setErr(true));
   }, [profileId]);
   useEffect(load, [load]);
 
-  // the site's grid: columns of at least 240 — one on a phone held upright, two wider
-  const two = Math.min(width, 820) - GUTTER * 2 >= 240 * 2 + 12;
-  const cards = (list: BigCard[], dim?: boolean) => (
-    <View style={[s.grid, dim && s.preview]} importantForAccessibility={dim ? 'no-hide-descendants' : 'auto'}>
-      {list.map((c, i) => (
-        <Glass key={`${c.label}-${i}`} style={[s.card, two && s.half]}>
-          <Text style={s.num} numberOfLines={1} adjustsFontSizeToFit>
-            {c.value}
-          </Text>
-          <Text style={s.label}>{c.label.toUpperCase()}</Text>
-          {c.sub ? <Text style={s.cardSub}>{c.sub}</Text> : null}
-        </Glass>
-      ))}
-    </View>
-  );
+  const ctx = useMemo(() => (w && !w.empty && me ? ctxOf(w, name, kids) : null), [w, me, name, kids]);
+  const poster = usePosterData(ctx ? (ctx.w.topTitles || [])[0]?.poster : null);
+
+  // the story plays on arrival (not when still: the page first); the page is drawn once it closes
+  const [story, setStory] = useState(false);
+  const [drawn, setDrawn] = useState(false);
+  const decided = useRef(false);
+  useEffect(() => {
+    if (!ctx || still === null || decided.current) return;
+    decided.current = true;
+    if (still) setDrawn(true);
+    else setStory(true);
+  }, [ctx, still]);
+  const closeStory = useCallback(() => {
+    setStory(false);
+    setDrawn(true);
+  }, []);
+
+  // the page's "Share the picture": the same card, drawn unseen
+  const shareRef = useRef<ShareCardHandle>(null);
+  const share = useCallback(async () => {
+    if (!ctx) return;
+    const words = shareWords(ctx);
+    const png = await shareRef.current?.png();
+    if (!png) return showToast("Couldn't draw the picture", '⚠️');
+    const ok = await phoneNative.sharePicture(png, words.file, words.title, words.text);
+    if (!ok) Share.share({message: words.text, title: words.title}).catch(() => {});
+  }, [ctx]);
 
   let body: React.ReactNode;
   if (err) {
     body = (
-      <View style={s.empty}>
-        <Text style={s.emptyText}>Couldn't load your stats.</Text>
-        <GlassButton uiId="phone.wrapped.retry" label="Try again" icon="refresh" onPress={load} style={{marginTop: 14}} />
+      <View style={s.msg}>
+        <Eyebrow>Aurora Wrapped</Eyebrow>
+        <Text style={ty.lede}>{ERR.text}</Text>
+        <Key uiId="phone.wrapped.retry" label={ERR.retry} onPress={load} />
       </View>
     );
-  } else if (!w) {
-    body = <ActivityIndicator color={colors.text} style={{marginTop: 30}} />;
+  } else if (!w || (!w.empty && !me)) {
+    body = <ActivityIndicator color={PLAY.ink} style={{marginTop: 30}} />;
   } else if (w.empty) {
-    body = (
-      <>
-        <Text style={s.since}>{sinceLine(name, null)}</Text>
-        {cards(PREVIEW_CARDS, true)}
-        <View style={s.empty}>
-          <Text style={s.glyph}>🌌</Text>
-          <Text style={s.emptyText}>Watch something and come back — the numbers fill in by themselves.</Text>
-        </View>
-        <PrimaryButton uiId="phone.wrapped.browse" label="Find something to watch" onPress={toHome} style={s.cta} />
-      </>
-    );
+    body = <WrappedTeaser name={name} onBrowse={toHome} />;
+  } else if (ctx && drawn) {
+    body = <WrappedNumbers c={ctx} onPlay={() => setStory(true)} onShare={share} onBrowse={toHome} />;
   } else {
+    // (under a playing story: the screen holds its name, for a screen reader)
     body = (
-      <>
-        <Text style={s.since}>{sinceLine(name, w.since)}</Text>
-        {cards(wrappedCards(w))}
-        <Text style={s.h2} accessibilityRole="header">
-          {me?.kids ? 'The highlights' : 'The intervention section'}
-        </Text>
-        <View style={s.roasts}>
-          {interventionFor(w, name, {kids: !!me?.kids}).map((r, i) => (
-            <View key={i} style={s.roast}>
-              <Text style={s.roastText}>{r}</Text>
-            </View>
-          ))}
-        </View>
-        <PrimaryButton uiId="phone.wrapped.browse" label="Back to browsing" onPress={toHome} style={[s.cta, {alignSelf: 'flex-start'}]} />
-      </>
+      <Text style={s.sr} accessibilityRole="header">
+        Aurora Wrapped
+      </Text>
     );
   }
 
   return (
     <View style={s.root}>
+      <PlayRoom calm={!!still} on={!story} />
       <ScrollView
         onScroll={bar.onScroll}
         scrollEventThrottle={32}
         contentContainerStyle={[{paddingTop: top, paddingBottom: bottom + 24, paddingHorizontal: GUTTER}, column]}>
-        <Text style={s.h1} accessibilityRole="header">
-          Aurora Wrapped
-        </Text>
         {body}
       </ScrollView>
       <BackBar solid={bar.solid} title={bar.solid ? 'Aurora Wrapped' : undefined} />
+      {ctx && drawn && !story ? (
+        <View style={s.unseen} pointerEvents="none" importantForAccessibility="no-hide-descendants">
+          <ShareCard ref={shareRef} c={ctx} width={54} poster={poster} />
+        </View>
+      ) : null}
+      {ctx && story ? <WrappedStory c={ctx} still={!!still} poster={poster} onClose={closeStory} /> : null}
     </View>
   );
 }
 
 const s = StyleSheet.create({
   root: {flex: 1},
-  // .wrapped-title / .wrapped-since
-  h1: {color: colors.text, fontSize: 24, fontWeight: '900', letterSpacing: -0.72, lineHeight: 36},
-  since: {color: colors.textFaint, fontSize: 16, fontWeight: '600', lineHeight: 23, marginTop: 4, marginBottom: 22},
-  // .wrapped-grid: 14 apart
-  grid: {flexDirection: 'row', flexWrap: 'wrap', gap: 14},
-  preview: {opacity: 0.45},
-  // .wrapped-card: 22 inside
-  card: {width: '100%', padding: 22},
-  half: {width: '48%', flexGrow: 1},
-  // .wrapped-num: 2.2rem/900 (the site draws it in the violet-to-blue of the accent)
-  num: {color: colors.accent, fontSize: 35, fontWeight: '900', lineHeight: 42},
-  // .wrapped-label: upper case, 0.78rem/800, spaced
-  label: {color: colors.textDim, fontSize: 12.5, fontWeight: '800', letterSpacing: 1, marginTop: 4},
-  cardSub: {color: colors.textFaint, fontSize: 13.6, marginTop: 8, lineHeight: 19},
-  h2: {color: colors.text, fontSize: 17.6, fontWeight: '800', marginTop: 26},
-  // .wrapped-roast: an accent edge on the left, 14 x 16 inside, 0.95rem on 1.5
-  roasts: {gap: 10, marginTop: 12},
-  roast: {
-    backgroundColor: 'rgba(139,123,255,0.10)',
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.accent,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  roastText: {color: colors.text, fontSize: 15.2, lineHeight: 22.8},
-  empty: {alignItems: 'center', paddingTop: 18, paddingHorizontal: 12},
-  glyph: {fontSize: 40, marginBottom: 8},
-  emptyText: {color: colors.textDim, fontSize: 15.68, lineHeight: 22, textAlign: 'center'},
-  cta: {alignSelf: 'center', marginTop: 26},
+  msg: {alignItems: 'center', gap: 16, paddingTop: 40},
+  sr: {height: 1, width: 1, opacity: 0},
+  unseen: {position: 'absolute', left: 0, top: 0, opacity: 0},
 });

@@ -18,6 +18,7 @@ type Native = {
   pickAndUploadPhoto?(url: string, headers: Record<string, string>): Promise<string | null>;
   googlePkce?(): Promise<{verifier: string; challenge: string}>;
   openAuthTab?(url: string): Promise<boolean>;
+  sharePicture?(base64: string, fileName: string, title: string, text: string): Promise<boolean>;
   getConstants?: () => {sdk: number; pipSupported: boolean};
   sdk?: number;
   pipSupported?: boolean;
@@ -58,6 +59,10 @@ export const phoneNative = {
     N?.googlePkce ? N.googlePkce() : Promise.reject(new Error('no secure random source here')),
   /** [auth-round] Opens a web page in a Custom Tab; false = nothing on this phone can. */
   openAuthTab: async (url: string): Promise<boolean> => (N?.openAuthTab ? N.openAuthTab(url).catch(() => false) : false),
+  /** [play-phone] A picture (PNG, base64) to Android's share sheet with its words; false when
+   *  the sheet could not take it (an older app without the method, or nothing to share with). */
+  sharePicture: async (base64: string, fileName: string, title: string, text: string): Promise<boolean> =>
+    N?.sharePicture ? N.sharePicture(base64, fileName, title, text).catch(() => false) : false,
 };
 
 /** Picture-in-picture came or went (the player hides its chrome inside the window). */
