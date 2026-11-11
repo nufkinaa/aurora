@@ -35,7 +35,16 @@ const mins = (a, b) => (a && b ? `${Math.round((new Date(b) - new Date(a)) / 600
 
 const once = async () => {
   const q = new URLSearchParams({ per_page: "10", ...(branch ? { branch } : {}), ...(sha ? { head_sha: sha } : {}) });
-  const { body: runs, left } = await get(`${API}/actions/workflows/${WORKFLOW}/runs?${q}`);
+  let runs, left;
+  try {
+    ({ body: runs, left } = await get(`${API}/actions/workflows/${WORKFLOW}/runs?${q}`));
+  } catch (e) {
+    // (a workflow GitHub has not seen on its default branch yet: the repo's runs, filtered)
+    if (!/^404 /.test(e.message)) throw e;
+    q.set("per_page", "30");
+    ({ body: runs, left } = await get(`${API}/actions/runs?${q}`));
+    runs.workflow_runs = (runs.workflow_runs || []).filter((r) => r.path === `.github/workflows/${WORKFLOW}`);
+  }
   const run = (runs.workflow_runs || [])[0];
   if (!run) { console.log(`no UI run yet for ${branch || ""}${sha ? ` @ ${sha}` : ""}`); return { done: false, ok: false }; }
   const { body: jobs } = await get(`${API}/actions/runs/${run.id}/jobs?per_page=50`);

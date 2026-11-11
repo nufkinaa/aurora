@@ -46,7 +46,8 @@ const runFile = (file, attempt) => new Promise((resolve) => {
         .filter((l) => /^\s*ok \d+ - .*# SKIP/.test(l))
         .map((l) => l.replace(/^\s*ok \d+ - /, "").trim());
     } catch {}
-    resolve({ name, ok: code === 0, code: code == null ? signal : code, secs, failed: [...new Set(failed)], skipped });
+    // (the file's own describe() fails along with any test in it: not a test name)
+    resolve({ name, ok: code === 0, code: code == null ? signal : code, secs, failed: [...new Set(failed)].filter((f) => f !== name), skipped });
   });
 });
 
@@ -67,7 +68,7 @@ const runFile = (file, attempt) => new Promise((resolve) => {
     rows.push({ ...r, flaky });
     if (flaky) console.log(`::warning title=Flaky UI file::${r.name} failed, then passed when run again alone (first try: ${r.failed.join(" | ") || "exit " + r.code})`);
     else if (!r.ok) {
-      console.log(`::error title=UI file failed::${r.name} failed twice (exit ${r.code}): ${r.failed.slice(0, 5).join(" | ") || "see the log"}`);
+      console.log(`::error title=UI file failed::${r.name} failed${RETRY ? " twice" : ""} (exit ${r.code}): ${r.failed.slice(0, 5).join(" | ") || "see the log"}`);
     }
     for (const s of r.skipped) console.log(`::notice title=Skipped UI test::${r.name}: ${s}`);
   }
