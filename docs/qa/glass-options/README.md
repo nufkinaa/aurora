@@ -7,44 +7,60 @@ elia asked for better glass and a few versions to choose from: "search online se
 - D Frost: Figma's Glass effect.
 - E Clear.
 
-He chose **E, "Clear"**: "I think E looks the best!! Let's change to that." It is now the website's glass for everyone, on every screen and size. The classic look is untouched. The five-version sheets are in this branch's history: commit `4adcb16d`, `docs/qa/glass-options/*.png`.
+He chose **E, "Clear"**: "I think E looks the best!! Let's change to that." He then added: "Not everything needs to change to this, for example to side nav on mobile web should stay the same…, and make sure we are not losing too much color".
 
-## What Clear is
+So Clear is now the glass of **what floats over the pictures**, and everything else keeps today's glass. The classic look is untouched. The five-version sheets are in this branch's history: commit `4adcb16d`, `docs/qa/glass-options/*.png`.
 
-The most see-through glass. It has almost no body: a fifth of black over a light 3 px blur, so a poster behind a bar stays a poster. The backdrop is dimmed hard under the glass (brightness 0.48), which is Apple's "dimming layer" for its clear glass. Colour comes through but brightness does not, so white words read over a white poster.
+## What Clear is, and where
+
+Clear has almost no body: a fifth of a deep indigo-black over a light 3 px blur, so a poster behind a bar stays a poster. The backdrop is dimmed under the glass (brightness 0.5), which is Apple's "dimming layer" for its clear glass. That is what holds white words over a white poster. The blur also doubles the colour's saturation, so the posters' and the sky's colour come through stronger than through today's grey.
 
 A strong edge draws the shape:
-- a 1 px light line all round inside, brighter along the top;
-- a dark hairline outside, which parts the glass from a white page;
-- a small close shadow.
+- a light line all round inside, brighter along the top;
+- a dark hairline outside;
+- a small shadow.
 
-Words on the bars carry a soft shadow of their own. The chosen tab is a lighter capsule with its own line, and its word is white.
+Words on it carry a soft shadow of their own. The chosen tab is a lighter capsule in Aurora's violet with its own line, and its word is white.
 
-Some surfaces differ from the bars:
-- **Menus, sheets, dialogs and toasts** carry lines of words, so they frost more (10 px) and dim deeper.
-- **Panes in the page** (Settings rows, episodes, sources, downloads, chips) are never blurred. Their body alone holds the words over the sky: 70 % of near-black for panes, 58 % for chips.
-- **The phone's player chrome** (dock, top pills, Up next, resume card) is not blurred over video, because a live blur over moving video is the most expensive effect on a phone. It carries 62 % of black instead.
-- **The phone's More menu** is a clear frosted pane over the dimmed page. Its frost comes on only once it has slid in, because a frosted pane re-blurs the whole screen on every frame of the slide.
+| got Clear | kept today's glass |
+|---|---|
+| the top bar (desktop island, tablet bar) and the phone tab bar, with its chosen tab | the phone's side menu (More): pixel-identical to today, see below |
+| the round top buttons (Settings gear, remote, downloads pill), the logo pill and the profile button | the profile menu and every drop-down menu |
+| the glass buttons on the hero and on a film's or show's page. On a phone, the round action buttons under a title are not glass panes and look as today. | sheets and dialogs (Recommend, confirm, peek, sign-in), toasts, the search box and its suggestions |
+| the player's dock, its top pills, its Settings, subtitles and speed menus, Up next, the resume card, the quality and party pills | the panes in the page: Settings rows, episodes, the season bar, sources, downloads, chips, the party panel |
 
-When nothing behind can be blurred or dimmed, every body becomes a near-opaque dark grey and the edges stay. That covers Reduce Transparency, a TV's browser, a weak device (`data-fx="lite"`) and a browser without `backdrop-filter`.
+**The phone's side menu is unchanged.** `tools/glass-options/more-same.js` opened it with today's stylesheet and with this one at 390 × 844, 375 × 812 and 430 × 932, in both looks, and compared the menu's own box pixel by pixel. The result was 0 different pixels in all six. A first run showed one legacy pair off by at most 3 levels across the whole box; the second run gave 0 in all six, so that was rendering noise.
 
-The code is all in `public/css/glass.css`:
-- the tokens at the top (`--g-fill…`, `--g-blur`, `--g-blur-thick`, `--g-edge…`, `--g-well`);
-- the fallbacks in the "device tier" and reduced-transparency blocks;
-- the section "the clear glass's own rules" near the end.
+**The phone player's chrome** is never blurred over video, because a live blur over moving video is the most expensive effect on a phone. So there it carries 62 % of black, and white words read at 6:1 over a white frame.
 
-### Two faults found along the way, fixed
+When nothing behind can be blurred or dimmed, Clear's body becomes a near-opaque dark grey and the edge stays. That covers Reduce Transparency, a TV's browser, a weak device (`data-fx="lite"`) and a browser without `backdrop-filter`.
 
-- **The player's menu on a desktop had no body.** The rule that lays the TV's hue over it replaced the menu's own fill, so over a bright frame its words were white on white (1.0:1). It now has a body (5.6:1).
-- **The phone's More menu could never frost.** The page dim behind it stays at the end of its fade-in animation, and Chrome then treats it as a "backdrop root": the pane's blur sees only the dim, never the page. The dim's fade no longer stays applied once it has run.
+The code is one section at the end of `public/css/glass.css`, "Clear: the glass of the chrome that floats over pictures". It holds the `--ge-*` tokens, the list of surfaces that take them, the player's menus, the words' shadow, the phone player's body and the fallbacks. The rest of the file is today's.
+
+### A fault found along the way, fixed
+
+The player's menu on a desktop had no body. The rule that lays the TV's hue over it replaced the menu's own fill, so over a bright frame its words were white on white (1.0:1). It now has a body (5.7:1).
 
 ## Sheets: today against Clear (`final/`)
 
 Each sheet shows the same moment twice, today's glass beside Clear:
-- `00-overview.png`: phone Home, the tab bar at 2×, the desktop profile menu, the player's menu over a bright frame.
-- `01-phone-home.png`, `02-phone-more.png`, `03-phone-title.png`, `04-phone-sheet.png` (Recommend), `05-desktop-home.png`, `06-desktop-menu.png`, `07-desktop-title.png`, `08-player-menu.png`, `09-phone-toast.png`, `10-phone-bright.png` (the tab bar over white posters).
+- `00-overview.png`: phone Home, the tab bar at 2×, the desktop profile menu (kept today's), the player's menu over a bright frame.
+- `01-phone-home.png`, `02-phone-more.png` (the side menu, unchanged), `03-phone-title.png`, `04-phone-sheet.png` (Recommend, unchanged), `05-desktop-home.png`, `06-desktop-menu.png`, `07-desktop-title.png`, `08-player-menu.png`, `09-phone-toast.png` (the toast unchanged, the tab bar Clear), `10-phone-bright.png` (the tab bar over white posters).
+- **`11-colour.png`: the colour through the glass**, today against Clear, in the same frames.
 
 Scenes 01–03 and 05–07 come from this PC's own server with real posters. It was only looked at, as the test profile "Claude QA", and both stylesheets were answered by the rig. The others come from a private test server with made-up art. The sky is held still and the hero does not rotate, so only the glass differs.
+
+## Colour (`final/colour.md`, `final/11-colour.png`)
+
+These are measured on the glass's own pixels in the same frames. "Colour" is the Hasler–Süsstrunk colourfulness; saturation is the HSV mean. Clear keeps or adds colour everywhere:
+
+| glass part | colour today → Clear | saturation today → Clear |
+|---|---:|---:|
+| phone, round buttons over the sky | 65 → 65 | 0.61 → 0.69 |
+| phone, tab bar over Continue Watching | 23 → 26 | 0.28 → 0.44 |
+| phone, a film's buttons over its picture | 46 → 46 | 0.37 → 0.37 |
+| desktop, the top bar over the hero | 30 → 31 | 0.32 → 0.36 |
+| desktop, a film's buttons over its picture | 8 → 8 | 0.26 → 0.42 |
 
 ## Words over the brightest backgrounds (`final/contrast.md`)
 
@@ -54,27 +70,29 @@ Every surface was measured over every background it can meet:
 - the sky painted as one bright green band, black;
 - a white picture for buttons on a title, a white film frame for the player.
 
-The ratio counted is the WCAG ratio behind the dimmest 1 % of each word's pixels. Surfaces measured: phone tab bar (402 and 320), top buttons, profile menu, sheets, toasts, peek, hero and title-page buttons, Settings panes, episodes and the season bar, chips, the desktop and 2560 nav island, search box and suggestions, the player's dock, top pills, resume card and Settings menu (desktop and phone), and the Remote screen (`tools/glass-apple/remote-contrast.js`).
+The ratio counted is the WCAG ratio behind the dimmest 1 % of each word's pixels. Surfaces measured: phone tab bar (402 and 320), top buttons, nav island (1440 and 2560), hero and title-page buttons, the player's dock, top pills, resume card and Settings menu (desktop and phone), and the surfaces that kept today's look. The Remote screen was measured separately with `tools/glass-apple/remote-contrast.js`: the same as today or better on every pad.
 
 | | under 4.5:1 (words, chosen tabs, icons) | lowest |
 |---|---:|---:|
 | today (1.15.28) | 6 cells | 1.0:1 (the desktop player menu) |
-| **Clear** | **0** | **4.6:1** |
+| **Clear** | **3 cells** | **3.8:1** |
 
-The Remote screen is the same as today or better on every pad (the TV picker 4.8 → 6.9:1).
+Clear's three cells are all on surfaces that kept today's look, with the same numbers as today: episodes and the season bar, a chip's count, and the Settings panes' icons over the sky painted as one bright green band. Every surface that took Clear reads at **4.6:1 or better**.
 
 ## Speed (CPU ×4 on a phone, the same rig and hour, medians)
 
 Measured with `tools/glass-options/perf.js` on Home: a fling top to bottom at 3000 px/s, three seconds at rest mid-page with the sky alive, then the More menu opened (its first 700 ms).
 
-| phone 390 × 844, 6 runs | today | Clear |
+| phone 390 × 844, 8 runs | today | Clear |
 |---|---:|---:|
-| scroll: mean frame / p95 / p99 (ms) | 17.4 / 17.7 / 17.9 | 17.5 / 17.7 / 18.5 |
-| scroll: late frames (> 25 ms) | 0 | 0 |
-| at rest: mean / p95 (ms) | 17.4 / 17.6 | 17.3 / 17.7 |
-| More menu: frames in 700 ms / p95 / worst / late | 38.5 / 17.7 / 52 / 1 | 39 / 17.7 / 34.5 / 1 |
+| scroll: mean frame / p95 / p99 (ms) | 16.6 / 18.1 / 43.0 | 16.7 / 18.3 / 26.8 |
+| scroll: late frames (> 25 ms) | 1 | 0.5 |
+| at rest: mean / p95 (ms) | 16.4 / 18.3 | 16.2 / 18.1 |
+| More menu: frames in 700 ms / p95 / worst / late | 38 / 18.4 / 70.5 / 1 | 41 / 18.2 / 61.5 / 1 |
 
-On desktop 1440 × 900 (4 runs), the scroll mean / p95 / p99 is 16.9 / 17.8 / 18.5 ms today and 17.2 / 18.0 / 18.4 ms for Clear, with no late frames on either. Clear blurs fewer pixels than today on the bars (3 px against 6 px) and the same surfaces. Its only new blur is the More menu's, applied after the slide. A first try that frosted the pane during the slide had 5 late frames against 2; that is why it waits.
+On desktop 1440 × 900 (4 runs), the scroll mean / p95 / p99 is 16.5 / 18.1 / 18.4 ms today and 16.4 / 17.9 / 18.2 ms for Clear, with no late frames on either. Clear blurs the same surfaces as today with half the radius (3 px against 6 px) and adds no new blur.
+
+The machine was shared with other agents' runs. One 6-run batch was noisier on both sides; the 8-run batch above is the one kept (`final/perf-phone.json`, `final/perf-desktop.json`).
 
 ## Safari (iPhone)
 
@@ -86,8 +104,8 @@ Safari has no `prefers-reduced-transparency` media query. An iPhone with Reduce 
 
 React Native has no cheap live backdrop blur. The TV draws pre-rendered glass edges, and the phone app has no blur on its bars either. What carries over from Clear is its edge and its words, not the dim, because nothing behind is blurred or dimmed:
 
-- **TV.** Pills, buttons and the player's chrome would take a darker see-through body: about 55–60 % of black instead of a tinted pane, because without the dim the body must hold the words alone. They would take Clear's edge as the pre-rendered rim image: the light line all round, the brighter top line and the dark outside hairline. White words would get a soft shadow, and the chosen item a lighter capsule with a line. elia wants the TV to keep Aurora's colours ("it needs to still have the aurora colors"). So the rail and the menus would keep their violet and green panels and take only Clear's edge. Focus stays the TV's white fill.
-- **Phone app.** The same as the TV for the tab bar, the top buttons and sheets: about 60 % of black, Clear's edges, white words. On Android 12 and later, a real 3 px blur with a dim (`RenderEffect`) is possible on the tab bar alone. It would need measuring first on the weakest phone we support.
+- **TV.** Only what floats over pictures, as on the website: pills, buttons and the player's chrome would take a darker see-through body: about 55–60 % of black instead of a tinted pane, because without the dim the body must hold the words alone. They would take Clear's edge as the pre-rendered rim image: the light line all round, the brighter top line and the dark outside hairline. White words would get a soft shadow, and the chosen item a lighter violet capsule with a line, as on the website. elia wants the TV to keep Aurora's colours ("it needs to still have the aurora colors"). So the rail and the menus would keep their violet and green panels and take only Clear's edge. Focus stays the TV's white fill.
+- **Phone app.** The same as the TV, and only where the website took Clear (the tab bar, the top buttons, the player's chrome): about 60 % of black, Clear's edges, white words, the violet chosen tab. Its side menu, sheets and lists stay as they are, as on the website. On Android 12 and later, a real 3 px blur with a dim (`RenderEffect`) is possible on the tab bar alone. It would need measuring first on the weakest phone we support.
 
 ## Sources (what each one gave)
 
@@ -99,7 +117,7 @@ React Native has no cheap live backdrop blur. The TV draws pre-rendered glass ed
 6. **LogRocket, "How to create Liquid Glass effects with CSS and SVG"**, https://blog.logrocket.com/how-create-liquid-glass-effects-css-and-svg/. The filter chain and fallback advice.
 7. **WebKit bugs 245510 and 317059**, https://bugs.webkit.org/show_bug.cgi?id=245510. Safari ignores `url()` in `backdrop-filter` and drops the whole filter.
 8. **Mozilla bugs 1808785 and 1961378**, https://bugzilla.mozilla.org/show_bug.cgi?id=1808785. Firefox draws no SVG filter in a backdrop filter.
-9. **NN/g, "Liquid Glass Is Cracked, and Usability Suffers in iOS 26"**, https://www.nngroup.com/articles/liquid-glass/. Words over busy pictures and "text on text". This is why Clear measures against the brightest background, not the average, and why the More menu must frost.
+9. **NN/g, "Liquid Glass Is Cracked, and Usability Suffers in iOS 26"**, https://www.nngroup.com/articles/liquid-glass/. Words over busy pictures and "text on text". This is why Clear measures against the brightest background, not the average.
 10. **Figma, the Glass effect** (refraction, depth, dispersion, frost, light angle, splay), via Figma's help and community write-ups. It shaped version D. The panel's exact ranges could not be verified.
 
 ## Rigs (`tools/glass-options/`)
@@ -111,5 +129,7 @@ React Native has no cheap live backdrop blur. The TV draws pre-rendered glass ed
 - `sheet.py`: the comparison sheets.
 - `contrast.js` and `contrast.py`: the words over every background, including the player.
 - `perf.js`: scroll and the More menu at CPU ×4.
+- `more-same.js`: the side menu, pixel for pixel against today.
+- `colour.py`: the colour through the glass.
 
 They build on `tools/glass-apple/` (lib, stage, targets).
