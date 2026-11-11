@@ -29,6 +29,10 @@ const enter = async (page, srv) => {
   await page.click(".gate button");
   await page.waitForSelector(".gate", { state: "detached" });
 };
+// Run between 02:00 and 07:00 the instance is inside its own quiet hours: it
+// makes its plan by itself (an empty one — nothing is being watched yet), so
+// the page shows that plan where it otherwise says there is none yet.
+const NIGHT = (() => { const h = new Date().getHours(); return h >= 2 && h < 7; })();
 const toastSays = (page, re) => page.waitForFunction((src) => [...document.querySelectorAll("#toasts .toast")].some((t) => new RegExp(src).test(t.textContent)), re.source);
 
 for (const [name, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
@@ -49,7 +53,7 @@ for (const [name, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
     assert.equal(await page.inputValue("#on-to"), "07:00");
     assert.equal(await page.inputValue("#on-pct"), "10");
     assert.match(await page.textContent("#on-budget"), /Disk budget [\d.]+ [GMK]?B \(10% of the free space\)/);
-    assert.match(await page.textContent("#on-plan"), /No plan yet/);
+    assert.match(await page.textContent("#on-plan"), NIGHT ? /No plan yet|Nothing to prepare/ : /No plan yet/);
     assert.match(await page.textContent("#on-runs"), /No run yet/);
     await assertNoHorizontalOverflow(page, `overnight ${name}`);
     await shot(page, `admin-overnight-${name}`, "#on-card");
@@ -81,7 +85,7 @@ ui.test("admin: Copy for Claude — the line, the settings and every list, as pl
   assert.match(text, /- disk budget: [\d.]+ [GMK]?B \(10% of the free space\)/);
   assert.match(text, /- downloaded ahead: the next two episodes/);
   assert.match(text, /\nPrepared:\n\(none\)/);
-  assert.match(text, /Tonight's plan: none yet/);
+  assert.match(text, NIGHT ? /Tonight's plan(: none yet| \(made [^)]*, 0 titles looked at\):\n\(none\))/ : /Tonight's plan: none yet/);
   assert.match(text, /Devices by person:/);
   assert.ok(!/undefined|NaN|\[object Object\]/.test(text), text);
 });

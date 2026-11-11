@@ -11,6 +11,7 @@ export type Overlay =
   | {kind: 'peek'; item: HeroItem; onRemove?: (item: HeroItem) => void}
   | {kind: 'report'; hint?: string}
   | {kind: 'join'}
+  | {kind: 'childMode'} // Children mode's sheet (the phone app; the TV has its own page, screens/ChildMode.tsx)
   | {kind: 'update'; info: UpdateInfo}
   | {kind: 'updateReady'; info: UpdateInfo}
   | {kind: 'trailer'; ids: string[]; title: string; imdbId?: string | null; type: 'movie' | 'show'; year?: number | null}
@@ -46,6 +47,7 @@ export const openPeek = (item: HeroItem, onRemove?: (item: HeroItem) => void) =>
   openOverlay({kind: 'peek', item, onRemove});
 export const openReport = (hint?: string) => openOverlay({kind: 'report', hint});
 export const openJoinParty = () => openOverlay({kind: 'join'});
+export const openChildMode = () => openOverlay({kind: 'childMode'});
 // `ids` are the YouTube keys the page holds; the sheet asks the server first
 // (Apple's trailer when there is one — trailers.ts), so the IMDb id matters.
 export const openTrailer = (

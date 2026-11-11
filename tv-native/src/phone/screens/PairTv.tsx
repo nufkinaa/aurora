@@ -29,6 +29,7 @@ import {GlassButton, PrimaryButton} from '../ui/Buttons';
 import {pairCode, PAIR_CODE_LEN, typedPairCode} from '../linkParse';
 import {askerName} from '../words';
 import {colors, GUTTER, radius} from '../theme';
+import {useTabBarSpace} from '../ui/TabBar';
 
 const TOO_MANY = 'Too many tries from this device — wait a few minutes, then try again.';
 const NO_REACH = "Couldn't reach Aurora — try again.";
@@ -63,6 +64,7 @@ export default function PairTv() {
   const route = useRoute();
   const nav = usePNav();
   const top = usePageTop();
+  const bottom = useTabBarSpace(); // the floating tab bar is over this page too
   const column = useColumn();
   const {profileId} = useApp();
   const me = useMe(profileId);
@@ -346,7 +348,7 @@ export default function PairTv() {
   return (
     <View style={s.root}>
       <KeyboardAvoidingView behavior="height" style={s.root}>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[{paddingTop: top, paddingBottom: 40, paddingHorizontal: GUTTER}, column]}>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[{paddingTop: top, paddingBottom: bottom + 24, paddingHorizontal: GUTTER}, column]}>
           {body}
         </ScrollView>
       </KeyboardAvoidingView>

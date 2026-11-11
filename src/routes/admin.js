@@ -1119,7 +1119,10 @@ router.get("/api/admin/people", (req, res) => {
       mustReset: profiles.resetDue(p.id), // a new password is due: nothing else works for them until it is saved
       passwordSetup: profiles.setupDue(p.id), // ...a FIRST one (signs in with Google only) — auth-round
       authLog: require("../lib/authlog").forProfile(p.id, 8), // resets, password changes (no secrets) — auth-round
-      kids: profiles.kidsOf(p.id), // { maxAge } for a kids profile, else null
+      kids: profiles.kidsOf(p.id), // { maxAge } while children mode is on, else null (older admin pages)
+      // children mode (2026-11-11): on/off, the age, since when, and whether
+      // the account has its passcode (never the passcode itself)
+      childMode: { ...(profiles.childModeOf(p.id) || { maxAge: null, since: null }), on: !!profiles.childModeOf(p.id), passcodeSet: profiles.childPassSet(p.id), passcodeFromPin: !!(p.childPass && p.childPass.from === "household-pin") },
       lastSeen: rows.reduce((m, r) => Math.max(m, r.last || 0), 0) || null,
       ipCount: new Set(rows.map((r) => r.ip)).size,
       fails: rows.reduce((n, r) => n + (r.fails || 0), 0),
@@ -1144,6 +1147,9 @@ router.get("/api/admin/people", (req, res) => {
     authMode: require("../lib/authmode").get(),
     // kids profiles: is the household PIN set, and the limits on offer
     kidsPinSet: profiles.kidsPinSet(),
+    // (children mode: the household PIN is only still needed while a migrated
+    // account's passcode is its copy — or a kids profile is not migrated yet)
+    kidsPinNeeded: profiles.householdPinNeeded(),
     kidsAges: require("../lib/kids").AGES,
     // what the PIN does and doesn't promise in this sign-in mode, in a sentence
     kidsScope: require("../lib/kids").scopeNote(require("../lib/authmode").get() === "closed"),
@@ -1162,12 +1168,43 @@ router.get("/api/admin/people", (req, res) => {
 // Kids profiles, the admin's side (2026-10-08). No PIN here: this router is
 // admin-only already. `kids` is { maxAge } to switch it on (or change the
 // limit) and null to switch it off; anything else is refused by setKids.
+//
+// (Children mode, 2026-11-11: this is children mode on the account now. An
+// admin page from before it turns it on with no passcode of the account's
+// own; while the household PIN is set, the account gets a copy of it — as
+// the migration does — so the PIN that used to let a child out still does.)
 router.post("/api/admin/profiles/:id/kids", (req, res) => {
   const r = profiles.setKids(req.params.id, (req.body || {}).kids);
+  if (!r.error && r.profile && r.profile.kids) profiles.copyHouseholdPin(req.params.id);
   // (ratings kept from before the strictest-age rule are brought up to date)
   if (!r.error && r.profile && r.profile.kids) { try { require("../media/discover").refreshCertificates(); } catch {} }
   if (r.error) return res.status(r.error === "not found" ? 404 : 400).json(r);
+  require("../lib/childmode").tell(req.params.id);
   res.json({ ok: true, profile: r.profile, pinSet: profiles.kidsPinSet() });
+});
+
+// Children mode, the admin's side (2026-11-11, docs/children-mode.md). No
+// passcode here: this router is admin-only already.
+//   { on: false }            — turn it off (the passcode stays on the account)
+//   { maxAge }               — turn it on / change the age (needs the account's passcode set,
+//                              or nobody could leave it)
+//   { clearPasscode: true }  — the passcode gone, and children mode off with it
+router.post("/api/admin/profiles/:id/child-mode", (req, res) => {
+  const id = req.params.id;
+  const b = req.body || {};
+  if (!profiles.exists(id)) return res.status(404).json({ error: "Not found" });
+  let r;
+  if (b.clearPasscode === true) r = profiles.clearChildPass(id);
+  else if (b.on === false) r = profiles.setChildMode(id, null);
+  else if (typeof b.maxAge === "number") {
+    if (!profiles.childPassSet(id)) return res.status(400).json({ error: "This account has no passcode yet — Children mode is turned on from the account itself, where the passcode is chosen." });
+    r = profiles.setChildMode(id, b.maxAge);
+    if (!r.error) { try { require("../media/discover").refreshCertificates(); } catch {} }
+  } else return res.status(400).json({ error: "Say on: false, maxAge, or clearPasscode: true." });
+  if (r.error) return res.status(400).json(r);
+  require("../lib/childmode").tell(id);
+  try { require("../lib/authlog").add(b.clearPasscode ? "child-passcode-reset" : b.on === false ? "child-mode-off" : "child-mode-age", { profileId: id, via: "admin", by: "admin" }); } catch {}
+  res.json({ ok: true, profile: r.profile, childMode: { ...(profiles.childModeOf(id) || {}), on: !!profiles.childModeOf(id), passcodeSet: profiles.childPassSet(id) } });
 });
 
 // Set or change the household PIN (4–6 digits; stored hashed, never logged).
@@ -1176,8 +1213,9 @@ router.post("/api/admin/profiles/:id/kids", (req, res) => {
 router.post("/api/admin/kids-pin", async (req, res) => {
   const pin = (req.body || {}).pin;
   if (pin === null || pin === "") {
-    if (profiles.list().some((p) => p.kids)) {
-      return res.status(400).json({ error: "A kids profile needs the PIN — change it instead, or switch kids mode off first." });
+    // never by itself: the admin removes it, once nothing leans on it
+    if (profiles.householdPinNeeded()) {
+      return res.status(400).json({ error: "An account's Children mode passcode is still the household PIN — change the PIN instead, or wait until that account has its own passcode." });
     }
     return res.json({ ...profiles.clearKidsPin(), pinSet: false });
   }

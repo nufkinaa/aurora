@@ -93,7 +93,9 @@ for (const [look, viewport] of LOOKS) {
     assert.equal(await a.getAttribute("aria-disabled"), "true");
     assert.match(await a.innerText(), /More in \d+ min/);
     await shot(page, `${tag}-3-limit-greyed`);
-    // Back closes it
+    // Back closes it. (The pointer still rests where Recommend was pressed; when the note field arrives under it, the
+    // hover gives that field the focus (focus.js), and the first Back leaves the field, as in every text field.)
+    if (await page.evaluate(() => !!document.activeElement && document.activeElement.classList.contains("rec-note"))) await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
     await page.waitForSelector(".rec-wrap", { state: "detached" });
   });

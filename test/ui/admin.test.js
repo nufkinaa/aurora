@@ -1,5 +1,5 @@
 // The admin page (public/admin.html), a smoke test: the password gate, the
-// People tab, approving a waiting profile, the kids controls.
+// People tab, approving a waiting profile, Children mode's controls.
 //
 // The password is the private instance's own: scripts/ui-test-server.js makes
 // one up for every boot and writes it into that instance's config.json. The
@@ -104,40 +104,49 @@ ui.test("a request can be rejected, and then it is gone", async ({ page, srv, ap
   assert.deepEqual(await api.adminGet("/api/admin/profile-requests"), []);
 });
 
-ui.test("a person's sheet has the kids controls: set the household PIN, make the profile a kids one, switch it off", async ({ page, srv, api, profiles, t }) => {
+// Children mode (2026-11-11) replaced the kids-profile switch: it is turned
+// on from the account itself; the sheet says how it stands and has the two
+// ways out an admin needs — Turn off (the passcode stays) and Clear passcode.
+ui.test("a person's sheet shows Children mode: Turn off keeps the passcode, Clear passcode turns it off with it", async ({ page, srv, api, profiles, t }) => {
   if (!kidsAvailable) return t.skip("this server has no kids profiles (GET /api/kids/status)");
+  const ben = profiles.ben;
+  const turnOn = (body) => api.call("POST", `/api/profiles/${ben.id}/child-mode`, body);
   await enter(page, srv);
   await people(page);
-  await page.click(`#people-table tr.person-row[data-person="${profiles.ben.id}"]`);
-  const sheet = page.locator("#person-sheet[open]");
-  await sheet.waitFor();
-  const kids = sheet.locator(".kids-admin");
-  assert.deepEqual((await kids.locator("button[data-kids]").allTextContents()).map((s) => s.trim()), ["Off", "All ages", "7+", "12+", "16+"]);
-  assert.equal(await kids.locator("button[data-kids].active").getAttribute("data-kids"), "off");
-  assert.match(await kids.textContent(), /Household PIN:\s*not set/);
+  const open = async () => {
+    await page.click(`#people-table tr.person-row[data-person="${ben.id}"]`);
+    await page.locator("#person-sheet[open]").waitFor();
+    return page.locator("#person-sheet[open] .kids-admin");
+  };
+  let box = await open();
+  assert.match(await box.textContent(), /Off\. It is turned on from the account itself/);
+  assert.equal(await box.locator("button[data-child]").count(), 0, "nothing to turn off, no passcode to clear");
 
-  // the PIN first (the sheet says so, loudly, while there is none)
-  await kids.locator("button[data-kids-pin]").click();
-  const ask = page.locator("dialog.ask");
-  await ask.locator("input").fill("2468");
-  await ask.locator(".ask-yes").click();
-  await toastSays(page, /Household PIN saved/);
-  assert.equal((await api.get("/api/kids/status")).pinSet, true);
-  await page.waitForFunction(() => /Household PIN:\s*set/.test((document.querySelector("#person-sheet .kids-admin") || {}).textContent || ""));
+  // the account turns it on (the first time: with its passcode)
+  assert.equal((await turnOn({ maxAge: 7, newPasscode: "2468" })).status, 200);
+  await page.keyboard.press("Escape");
+  await page.click('.tab[data-tab="profiles"]');
+  await people(page);
+  await page.waitForFunction((id) => /children mode · 7\+/.test(document.querySelector(`#people-table tr[data-person="${id}"]`).textContent), ben.id);
+  box = await open();
+  assert.match(await box.textContent(), /On — 7\+/);
+  assert.match(await box.textContent(), /Passcode:\s*set/);
+  await box.locator('button[data-child="off"]').click();
+  await toastSays(page, /Children mode is off for "Ben"/);
+  assert.equal((await api.profile(ben.id)).kids, null);
+  assert.equal((await api.get(`/api/profiles/${ben.id}/child-mode`)).passcodeSet, true, "Turn off keeps the passcode");
 
-  // then the limit
-  await page.locator('#person-sheet .kids-admin button[data-kids="7"]').click();
-  await toastSays(page, /"Ben" is a kids profile now/);
-  await page.waitForFunction(() => (document.querySelector("#person-sheet .kids-admin button[data-kids].active") || {}).dataset?.kids === "7");
-  assert.deepEqual((await api.profile(profiles.ben.id)).kids, { maxAge: 7 });
-  // the table says so too
-  await page.waitForFunction((id) => /kids · up to 7\+/.test(document.querySelector(`#people-table tr[data-person="${id}"]`).textContent), profiles.ben.id);
-
-  // and off again
-  await page.locator('#person-sheet .kids-admin button[data-kids="off"]').click();
-  await toastSays(page, /Kids mode off for "Ben"/);
-  await page.waitForFunction(async (id) => (await (await fetch("/api/profiles")).json()).find((p) => p.id === id).kids === null, profiles.ben.id);
-  assert.equal((await api.profile(profiles.ben.id)).kids, null);
+  // on again — one click now — and the passcode cleared by the admin
+  assert.equal((await turnOn({ maxAge: 12 })).status, 200);
+  await page.keyboard.press("Escape");
+  await page.click('.tab[data-tab="profiles"]');
+  await people(page);
+  box = await open();
+  await box.locator('button[data-child="clear"]').click();
+  await page.locator("dialog.ask .ask-yes").click();
+  await toastSays(page, /Passcode cleared — Children mode is off for "Ben"/);
+  const view = await api.get(`/api/profiles/${ben.id}/child-mode`);
+  assert.deepEqual([view.on, view.passcodeSet], [false, false]);
 });
 
 ui.test("Reset password says what it does, shows that a reset is pending, and says so when there is no password to reset", async ({ page, srv, api }) => {

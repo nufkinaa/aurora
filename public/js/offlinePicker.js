@@ -7,7 +7,7 @@
 // as the standing preference (Preferences → Offline changes it back to Ask).
 import { el, fmtBytes } from "./ui.js";
 import { pushScope, popScope } from "./focus.js";
-import { preferredQuality, setPreferredQuality } from "./offline.js";
+import { preferredQuality, setPreferredQuality, soundLabel } from "./offline.js";
 
 const LAST_KEY = "aurora-offline-last";
 const lastPicked = () => {
@@ -16,7 +16,11 @@ const lastPicked = () => {
 
 // Resolves the chosen quality ("original" | "1080" | "720" | "480"), or null.
 // A standing preference that this file can honour skips the sheet.
-export const pickOfflineQuality = (options, { title = "" } = {}) =>
+// `lead`: the sheet's sentence, when the usual one does not fit (a title that
+// is not on the server yet — offlineWish.js).
+// `toggle`: { label, value } — one more choice as a chip (offlineWish.js: "and
+// every new episode of season N"); its `value` is set when pressed.
+export const pickOfflineQuality = (options, { title = "", lead = "", toggle = null } = {}) =>
   new Promise((resolve) => {
     const pref = preferredQuality();
     if (pref !== "ask" && options.some((o) => o.quality === pref)) return resolve(pref);
@@ -55,12 +59,43 @@ export const pickOfflineQuality = (options, { title = "" } = {}) =>
         alwaysBtn.setAttribute("aria-pressed", always ? "true" : "false");
       },
     }, "Always use the size I pick");
+    // one more choice, or a few that exclude each other ("this season" /
+    // "this show" — offlineWish.js): chips, each with its own `value`
+    const toggles = !toggle ? [] : Array.isArray(toggle) ? toggle : [toggle];
+    const toggleBtns = toggles.map((t) => el("button", {
+      class: "chip focusable offline-toggle",
+      "aria-pressed": "false",
+      onclick: (e) => {
+        const on = !t.value;
+        for (const x of toggles) x.value = false;
+        t.value = on;
+        toggleBtns.forEach((b, i) => { b.classList.toggle("on", toggles[i].value); b.setAttribute("aria-pressed", toggles[i].value ? "true" : "false"); });
+      },
+    }, t.label));
+    const toggleBtn = toggleBtns.length ? toggleBtns : null;
+    // The sound, when the file has more than one (one copy = one language):
+    // options.audio from the server, options.chosenAudio picked for the
+    // person (offline.js) — a press here changes it.
+    const sounds = Array.isArray(options.audio) && options.audio.length > 1 ? options.audio : [];
+    const soundBtns = sounds.map((t, i) => el("button", {
+      class: "chip focusable offline-sound" + (i === options.chosenAudio ? " on" : ""),
+      "aria-pressed": i === options.chosenAudio ? "true" : "false",
+      dir: "auto",
+      onclick: () => {
+        options.chosenAudio = i;
+        soundBtns.forEach((b, k) => { b.classList.toggle("on", k === i); b.setAttribute("aria-pressed", k === i ? "true" : "false"); });
+      },
+    }, soundLabel(t)));
+    const soundRow = sounds.length ? el("div", { class: "offline-sounds", role: "group", "aria-label": "Sound" },
+      el("span", { class: "offline-sounds-label" }, "Sound"), soundBtns) : null;
     const card = el("div", { class: "look-notice sheet offline-sheet", role: "dialog", "aria-modal": "true", "aria-label": "Save offline" },
       el("div", { class: "sheet-icon" }, "📱"),
       el("div", { class: "look-notice-title" }, "Save offline — which size?"),
-      el("p", { class: "look-notice-text" }, title ? `“${title}” will be kept inside Aurora on this device and play with no server in reach.` : "It will be kept inside Aurora on this device and play with no server in reach."),
+      el("p", { class: "look-notice-text" }, lead || (title ? `“${title}” will be kept inside Aurora on this device and play with no server in reach.` : "It will be kept inside Aurora on this device and play with no server in reach.")),
+      soundRow,
       el("div", { class: "offline-opts" }, rows),
       el("div", { class: "look-notice-actions offline-sheet-actions" },
+        toggleBtn,
         alwaysBtn,
         el("button", { class: "btn focusable", onclick: () => finish(null) }, "Not now")));
     const wrap = el("div", { class: "look-notice-wrap ui-overlay", onclick: (e) => e.target === wrap && finish(null) }, card);

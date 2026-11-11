@@ -6,7 +6,7 @@ import {Linking} from 'react-native';
 import {StackActions} from '@react-navigation/native';
 import {navRef, pushScreen} from '../rootNav';
 import {getBaseUrl} from '../api';
-import {openJoinParty, openReport} from '../overlay';
+import {openChildMode, openJoinParty, openReport} from '../overlay';
 import {pushPhone} from './nav';
 import {setTab, type Tab} from './tabs';
 import {openProfileMenu} from './profileMenu';
@@ -75,6 +75,8 @@ export function runMore(key: MoreKey) {
       return Linking.openURL(`${getBaseUrl() || 'https://nufurora.com'}/install`).catch(() => {});
     case 'pair':
       return pushPhone('PairTv', {code: null});
+    case 'children':
+      return openChildMode();
     case 'party':
       return openJoinParty();
     case 'report':

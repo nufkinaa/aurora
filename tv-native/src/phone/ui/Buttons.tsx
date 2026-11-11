@@ -1,11 +1,11 @@
 // The website's phone buttons (glass.css): the white pill (the one thing to
 // do), the glass pill beside it, the round glass actions with their word
 // underneath (a title page's row), the round glass icon (the top bar).
-import React from 'react';
+import React, {createContext, useContext} from 'react';
 import {ActivityIndicator, StyleSheet, Text, View, ViewStyle, StyleProp} from 'react-native';
 import Tap from './Tap';
 import Icon, {PhoneIconName} from './Icon';
-import {colors, G_EDGE, G_FILL, radius} from '../theme';
+import {colors, E, E_EDGE, E_EDGE_FLOAT, E_EDGE_THIN, E_WORDS, G_EDGE, G_FILL, radius} from '../theme';
 
 type Base = {
   label: string;
@@ -68,17 +68,37 @@ export function GlassButton({label, icon, onPress, onLongPress, busy, disabled, 
 }
 
 /** A glass chip (.chip, .season-pill, .cat-pill with `big`): "Unwatched", "Season 1", "All". */
-export function ChipButton({label, icon, onPress, active, style, disabled, uiId, big, small}: Base & {active?: boolean; big?: boolean; small?: boolean}) {
+export function ChipButton({
+  label,
+  icon,
+  onPress,
+  active,
+  style,
+  disabled,
+  uiId,
+  big,
+  small,
+  iconColor,
+  a11yLabel,
+}: Base & {
+  active?: boolean;
+  big?: boolean;
+  small?: boolean;
+  /** the icon's own hue (Search's film / series suggestions) */
+  iconColor?: string;
+  /** what a screen reader says, when it is more than the label */
+  a11yLabel?: string;
+}) {
   return (
     <Tap
       uiId={uiId}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={a11yLabel || label}
       accessibilityState={{selected: !!active}}
       onPress={onPress}
       disabled={disabled}
       style={[s.chip, big && s.chipBig, active && s.chipOn, disabled && s.disabled, style]}>
-      {icon ? <Icon name={icon} size={16} color={colors.text} /> : null}
+      {icon ? <Icon name={icon} size={16} color={iconColor || colors.text} /> : null}
       <Text style={[s.chipText, big && s.chipTextBig, small && s.chipTextSmall, active && s.chipTextOn]} numberOfLines={1}>
         {label}
       </Text>
@@ -100,6 +120,10 @@ export function PickerChip({label, value, onPress, uiId}: {label: string; value:
 }
 
 /** Round glass action with its word underneath (a title page's action row). */
+/** The width the round buttons of a strip are given (ui/stripFit.ts: half the next one shows
+ *  when there are more than fit); null: their own 76. */
+export const ActionWidth = createContext<number | null>(null);
+
 export function ActionCircle({
   label,
   icon,
@@ -118,6 +142,7 @@ export function ActionCircle({
    *  round buttons wrap it — device names are 40 characters at most, src/lib/devices.js) */
   lines?: number;
 }) {
+  const width = useContext(ActionWidth);
   return (
     <Tap
       uiId={uiId}
@@ -128,7 +153,7 @@ export function ActionCircle({
       onPress={onPress}
       onLongPress={onLongPress}
       flat
-      style={s.action}>
+      style={width ? [s.action, {width}] : s.action}>
       <View style={[s.actionDisc, on && s.actionDiscOn]}>
         {busy ? (
           <ActivityIndicator color={colors.text} size="small" />
@@ -192,13 +217,12 @@ const s = StyleSheet.create({
     overflow: 'hidden',
   },
   primaryText: {color: '#0b0c14', fontSize: 16, fontWeight: '700', letterSpacing: 0.16},
-  // .btn: the glass pill beside it (--g-fill and --g-edge)
+  // .btn: the glass pill beside it — glass E (chrome over pictures: Aurora's navy body, E's edge)
   glass: {
     height: 50,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(12,14,30,0.42)',
-    experimental_backgroundImage: G_FILL,
-    ...G_EDGE,
+    backgroundColor: E.chrome,
+    ...E_EDGE,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -206,7 +230,7 @@ const s = StyleSheet.create({
     gap: 10,
     overflow: 'hidden',
   },
-  glassText: {color: colors.text, fontSize: 16, fontWeight: '700', letterSpacing: 0.16},
+  glassText: {color: '#ffffff', fontSize: 16, fontWeight: '700', letterSpacing: 0.16, ...E_WORDS},
   glassSmall: {height: 39.6, paddingHorizontal: 20},
   glassTextSmall: {fontSize: 14.4, letterSpacing: 0.14},
   emoji: {fontSize: 14.4},
@@ -238,9 +262,9 @@ const s = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: 'rgba(255,255,255,0.09)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.13)',
+    // glass E (the title page's buttons): Aurora's navy body, E's thin edge
+    backgroundColor: E.chrome,
+    ...E_EDGE_THIN,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -248,9 +272,9 @@ const s = StyleSheet.create({
   actionText: {color: 'rgba(243,244,248,0.8)', fontSize: 11.2, fontWeight: '600', textAlign: 'center', lineHeight: 13.44, letterSpacing: 0.11},
   // .nav-gear / .nav-profile / .nav-logo: round glass over the page
   iconCircle: {
-    backgroundColor: 'rgba(96,84,230,0.22)',
-    experimental_backgroundImage: G_FILL,
-    ...G_EDGE,
+    // glass E over the picture
+    backgroundColor: E.chrome,
+    ...E_EDGE_FLOAT,
     alignItems: 'center',
     justifyContent: 'center',
   },

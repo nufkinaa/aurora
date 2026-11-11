@@ -57,17 +57,17 @@ export const EDIT = {
 } as const;
 
 export const passwordLabel = (hasPw: boolean) => (hasPw ? 'Password' : 'Password (optional)');
-export const newPasswordPlaceholder = (hasPw: boolean) => (hasPw ? 'New password (blank = unchanged)' : 'Password (optional)');
+export const newPasswordPlaceholder = (hasPw: boolean) => (hasPw ? 'New password (blank = unchanged)' : 'New password (optional)');
 
 /** The Settings row that opens the editor (preferences.js): a kids profile has no password to edit. */
 export const editRow = (kids: boolean) =>
   kids
     ? {title: 'Edit profile', detail: 'Name, avatar and colour.'}
-    : {title: 'Edit profile & password', detail: 'Name, avatar, colour and your password. (Kids mode is switched on the website.)'};
+    : {title: 'Edit profile & password', detail: 'Name, avatar, colour and your password.'};
 
 /** "Password protected" / "No password set" / the kids line under the face in Settings. */
 export const profileLine = (p: {hasPassword?: boolean; kids?: {maxAge: number} | null} | null) =>
-  !p ? '' : p.kids ? `Kids · ${kidsLabel(p.kids)}` : p.hasPassword ? 'Password protected' : 'No password set';
+  !p ? '' : p.kids ? `Kids · Children mode · ${kidsLabel(p.kids)}` : p.hasPassword ? 'Password protected' : 'No password set';
 
 export type EditPlan = {
   /** what is wrong before anything is sent ('name' = the name is empty: focus it) */

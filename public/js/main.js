@@ -300,10 +300,15 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
 {
   const pill = $("#nav-dl");
   const ACTIVE = ["pending", "approved", "downloading"];
-  const READY_SHOW_MS = 10000;
-  let readySig = "";
-  let readyTimer = 0;
+  // On a computer the button keeps its place beside Settings (elia,
+  // 2026-11-11: "on desktop sometimes the downloads page btn beside the
+  // settings disappears"): with nothing moving or ready it is a plain
+  // download icon to My downloads (.idle); what has landed no longer rests
+  // out of sight after ten seconds. A phone keeps the pill only while there
+  // is something to say. Kids profiles have no downloads at all.
+  const desk = matchMedia("(hover: hover) and (min-width: 721px)");
   const paint = () => {
+    pill.classList.remove("idle", "rest");
     // Smart downloads (the next episode, fetched ahead by itself) never light
     // the pill: nobody asked for them, so there is nothing to announce. They
     // are on the Downloads page, marked AUTO, for whoever goes looking.
@@ -314,13 +319,6 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
       // computer it is shown for ten seconds — when the app opens, and again
       // whenever the set changes — then rests out of sight, and comes back
       // under the pointer or keyboard focus (CSS: .nav-dl.rest).
-      const sig = ready.map((j) => j.id).sort().join(",");
-      if (sig !== readySig) {
-        readySig = sig;
-        pill.classList.remove("rest");
-        clearTimeout(readyTimer);
-        readyTimer = setTimeout(() => pill.classList.add("rest"), READY_SHOW_MS);
-      }
       pill.innerHTML = "";
       pill.append(el("span", { class: "nav-dl-icon", html: icons.download }), el("i", { class: "nav-dl-badge" }, ready.length > 99 ? "99+" : String(ready.length)));
       pill.title = ready.length === 1 ? `“${ready[0].label || ready[0].title}” is ready to play` : `${ready.length} downloads ready to play`;
@@ -328,13 +326,19 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
       pill.classList.add("ready");
       return pill.classList.remove("hidden");
     }
-    readySig = "";
-    clearTimeout(readyTimer);
-    pill.classList.remove("ready", "rest");
+    pill.classList.remove("ready");
     pill.removeAttribute("aria-label");
     pill.title = "Downloads in progress";
     const act = [...downloads.values()].filter((j) => ACTIVE.includes(j.status) && !j.smart);
-    if (act.length === 0) return pill.classList.add("hidden");
+    if (act.length === 0) {
+      if (!desk.matches || !state.profile || state.profile.kids) return pill.classList.add("hidden");
+      pill.innerHTML = "";
+      pill.append(el("span", { class: "nav-dl-icon", html: icons.download }));
+      pill.title = "My downloads";
+      pill.setAttribute("aria-label", "My downloads");
+      pill.classList.add("idle");
+      return pill.classList.remove("hidden");
+    }
     const pct = Math.round(
       (act.reduce((s, j) => s + (j.progress || 0), 0) / act.length) * 100,
     );
@@ -387,6 +391,9 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
       });
   };
   load();
+  // (a window dragged between phone and computer widths, or another profile: the button follows)
+  desk.addEventListener("change", paint);
+  window.addEventListener("aurora-profile", paint);
   // The read above runs before the profile is known. With no session (an open
   // server) `mine` depends on the profile named: every job read as someone else's,
   // and My downloads opened by its address said "Nothing downloading yet".
@@ -447,6 +454,10 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     if (state.profile && state.profile.id === profileId) refreshPersonPrefs();
   });
   onMessage("server_notice", ({ message }) => { if (message) toast(message, "🛠️"); });
+  // Children mode went on or off for this account on another device (or the admin's page)
+  onMessage("child_mode", (msg) => {
+    if (state.profile && msg && msg.profileId === state.profile.id) childMod().then((m) => m.onWord(msg)).catch(() => {});
+  });
   // Somebody in the household recommended something to this person: a toast
   // (js/recommend.js), and the icon's badge when the app is in the background
   watchArrivals();
@@ -520,6 +531,27 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     // the first screen is done, so its install — which copies the app's code
     // into its cache — does not share a thin line with that screen.
     firstScreen.then(() => offline.registerWorker());
+    // [offline-look] what "on this device" looks like — the mark on posters,
+    // the ring in the nav, a save landing (js/offlineUi.js). After the first
+    // screen, and in an idle moment of its own (not the one the worker's
+    // registration takes): nothing of it is in the way of that screen.
+    const look = firstScreen.then(whenIdle).then(() => import("./offlineUi.js")).then((ui) => { ui.start(); return ui; });
+    look.catch(() => {});
+    // [offline-look] a screen that could not be made with no connection (its
+    // making failed with the worker's "offline" and it drew nothing) rests —
+    // never a blank page (js/offlineRest.js)
+    window.addEventListener("unhandledrejection", (e) => {
+      const err = e.reason;
+      if (!err || !(err.message === "offline" || navigator.onLine === false)) return;
+      const at = location.hash;
+      setTimeout(() => {
+        const app = document.getElementById("app");
+        if (location.hash !== at || !app || app.querySelector(".screen, .player") || (app.innerText || "").trim()) return;
+        import("./offlineRest.js").then((rest) => rest.restBlank()).catch(() => {});
+      }, 300);
+    });
+    // minutes watched with no line reach the server when it is back; said once
+    const deliver = () => offline.flushProgress().then((n) => { if (n > 0) look.then((ui) => ui.delivered(n)).catch(() => {}); }).catch(() => {});
     const nav = $("#nav-saved");
     const paint = async () => {
       let any = false;
@@ -534,13 +566,30 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     offline.onJobs((list) => { if (list.length !== jobsN) { jobsN = list.length; paint(); } });
     window.addEventListener("hashchange", () => setTimeout(paint, 0));
     window.addEventListener("offline", paint);
-    window.addEventListener("online", () => { paint(); offline.flushProgress().catch(() => {}); });
+    // Saves that stopped (a reload, a closed tab, a phone that froze the page,
+    // no line) carry on by themselves from where they were, and this device's
+    // "save it here too" wishes the server made ready are saved (offlineWish.js)
+    // — whenever Aurora opens, the line or the socket comes back, or the app
+    // returns to the front.
+    const carryOn = () => {
+      if (state.profile) offline.rememberWho(state.profile);
+      offline.resumeSaves().catch(() => {});
+      import("./offlineWish.js").then((w) => w.syncWishes()).catch(() => {});
+    };
+    firstScreen.then(() => setTimeout(carryOn, 1500));
+    // (another profile on this device has its own wishes — asked for once the switch is over)
+    window.addEventListener("aurora-profile", () => setTimeout(carryOn, 0));
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && navigator.onLine !== false) carryOn(); });
+    onMessage("offline_wish", (m) => import("./offlineWish.js").then((w) => w.onWishMessage(m)).catch(() => {}));
+    onMessage("offline_wish_removed", (m) => import("./offlineWish.js").then((w) => w.onWishMessage(m)).catch(() => {}));
+    window.addEventListener("online", () => { paint(); deliver(); carryOn(); });
     // the socket coming back is the surest "server is there" signal — also
     // the moment to fetch skip-intro / X-Ray for copies saved before those
     // travelled with them
     onMessage("welcome", () => {
-      offline.flushProgress().catch(() => {});
+      deliver();
       offline.backfillExtras().catch(() => {});
+      carryOn();
       paint();
     });
   }).catch(() => {});
@@ -729,6 +778,19 @@ let remoteMod = null;
 const startRemote = () => import("./remote.js").then((m) => { remoteMod = m; m.initRemote(); }).catch(() => {});
 // [/phone-remote]
 
+// Children mode (js/childmode.js, loaded when first needed): the menu's
+// line, the socket's word from another device of the account, and an answer
+// that says the account changed while this tab was not looking.
+const kidsNow = () => !!(state.profile && state.profile.kids);
+const childMod = () => import("./childmode.js");
+const openChildMode = () => childMod().then((m) => m.openChildMode()).catch(() => toast("Couldn't open Children mode", "⚠️"));
+document.addEventListener("aurora-child-mode", () => openChildMode());
+window.addEventListener("aurora-kids-answer", (e) => {
+  const said = e.detail ? e.detail.kids : null;
+  const mine = kidsNow() ? String(state.profile.kids.maxAge) : null;
+  if ((said || null) !== mine) childMod().then((m) => m.onAnswer(e.detail || {})).catch(() => {});
+});
+
 const showProfileMenu = () => {
   document.querySelector(".nav-menu-wrap")?.remove(); // toggle: second click closes
   if (document.querySelector(".nav-more-wrap")) import("./navmore.js").then((m) => m.close()).catch(() => {}); // one menu at a time
@@ -739,15 +801,19 @@ const showProfileMenu = () => {
     el("div", { class: "nav-menu-head" },
       el("div", { class: "nav-menu-name" }, state.profile?.name || "Aurora"),
       state.user && el("div", { class: "nav-menu-sub" }, `@${state.user.username || state.user.name}`)),
-    state.authMode !== "closed" &&
+    // (children mode: no switching profile, no downloads, no sign-out —
+    // leaving it, with the passcode, is the way back)
+    state.authMode !== "closed" && !kidsNow() &&
       item("Switch profile", () => { close(); openGate(); }),
+    el("button", { class: "nav-menu-item focusable nav-menu-child", "data-ui": "child.open", onclick: () => { close(); openChildMode(); } },
+      kidsNow() ? "Leave Children mode" : "Children mode"),
     item("Settings", () => { close(); navigate("#/preferences"); }),
     // how many are where, under the name (a count: there is no limit)
-    el("button", { class: "nav-menu-item focusable nav-menu-dl", onclick: () => { close(); navigate("#/downloads"); } },
+    !kidsNow() && el("button", { class: "nav-menu-item focusable nav-menu-dl", onclick: () => { close(); navigate("#/downloads"); } },
       "My downloads",
       downloadCountLine(myDownloads()) ? el("span", { class: "nav-menu-count" }, downloadCountLine(myDownloads())) : null),
     // saved titles, saves under way, a video from this device (screens/saved.js)
-    item("On this device", () => { close(); navigate("#/saved"); }),
+    !kidsNow() && item("On this device", () => { close(); navigate("#/saved"); }),
     // what is coming up for this person's list (screens/calendar.js) — the
     // phone's way there (the nav link is a desktop one)
     item("Calendar", () => { close(); navigate("#/calendar"); }),
@@ -760,7 +826,7 @@ const showProfileMenu = () => {
     // [phone-remote] there while a TV (or another computer) of this profile is on
     remoteOn && item("Your TVs", () => { close(); navigate("#/remote"); }),
     // [/phone-remote]
-    state.user &&
+    state.user && !kidsNow() &&
       item("Sign out", () => {
         close();
         signOutHere();
@@ -906,7 +972,13 @@ const boot = async () => {
     // AFTER startRouter's own first render, and the screen was built twice)
     try { history.replaceState(history.state, "", "#/saved"); } catch { location.hash = "#/saved"; }
     startRouter(document.getElementById("app"));
-    toast(saved.length ? "No server in reach — here is what's saved on this device" : "No server in reach — you can still play a file from this device", "📱");
+    {
+      const off = navigator.onLine === false;
+      const say = saved.length
+        ? `${off ? "No connection" : "Can't reach Aurora"} — here is what's on this device`
+        : `${off ? "No connection" : "Can't reach Aurora"} — a video from this device still plays here`;
+      import("./offlineUi.js").then((ui) => toast(say, ui.mark(saved.length ? "saved" : "none"), null, { quiet: true })).catch(() => toast(say));
+    }
     return;
   }
 
@@ -926,7 +998,8 @@ const boot = async () => {
         // (nothing saved: Saved still plays a file from this device)
         if ((location.hash || "#/") === "#/") {
           navigate("#/saved");
-          toast(list.length ? "You're offline — these are saved on this device" : "You're offline — you can still play a file from this device", "📱");
+          const say = list.length ? "No connection — here is what's on this device" : "No connection — a video from this device still plays here";
+          import("./offlineUi.js").then((ui) => toast(say, ui.mark(list.length ? "saved" : "none"), null, { quiet: true })).catch(() => toast(say));
         }
       }).catch(() => {});
     }

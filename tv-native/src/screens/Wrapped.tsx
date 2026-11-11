@@ -34,8 +34,9 @@
 // is complete and still, the row shows whole segments, there is no burst,
 // and the story moves only when a key says so.
 //
-// A kids profile gets kind words instead of the roast. Whether the profile is
-// one is asked together with the numbers, and the story does not start before
+// An account in Children mode (or an old kids profile) gets kind words instead
+// of the roast: "The highlights". Whether it is in Children mode is asked
+// together with the numbers, and the story does not start before
 // both have answered; a profile that cannot be read gets the kind words.
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ActivityIndicator, Animated, StyleSheet, Text, TVFocusGuideView, View} from 'react-native';
@@ -47,6 +48,7 @@ import {useApp} from '../AppContext';
 import {useRouteShown} from '../useRouteShown';
 import {noteOwnFocusMove, pressMovedFocus, useFocusFallback, useTVKeys} from '../focus';
 import {loadMe} from '../navSection';
+import {limitOf} from '../childMode';
 import {uiHit} from '../telemetry'; // [analytics]
 import {RootStackParamList} from '../navigation';
 import {useTvMetrics} from '../theme';
@@ -108,7 +110,7 @@ export default function Wrapped({navigation}: NativeStackScreenProps<RootStackPa
         setHeld(false);
         setAt({idx: 0, beat: 0});
         // (a profile that could not be read is told the kind words: a roast must never reach a child)
-        setLoad({status: 'ok', stats: stats || null, name: (me && me.name) || '', kids: me ? !!me.kids : true});
+        setLoad({status: 'ok', stats: stats || null, name: (me && me.name) || '', kids: me ? limitOf(me) !== null : true});
       })
       .catch(() => {
         if (ask.current === id) setLoad({status: 'failed'});

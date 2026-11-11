@@ -17,6 +17,7 @@ import { el, $ } from "./ui.js";
 import { navigate, hasRoute } from "./router.js";
 import { pushScope, popScope } from "./focus.js";
 import { navIcon, MIRRORED } from "./navicons.js";
+import { state } from "./state.js";
 
 // The menu, top to bottom: [id, words, where it goes, options]. To add a
 // place, add a line (its id to TAG below, and its icon to js/navicons.js);
@@ -39,15 +40,18 @@ export const MENU = [
   ["pick", "AI", "#/pick", { when: () => { const p = document.getElementById("nav-pick"); return !!p && !p.classList.contains("hidden"); } }],
   "rule",
   ["new", "What's new", "#/new"],
-  ["saved", "Saved on this device", "#/saved"],
-  ["downloads", "My downloads", "#/downloads"],
+  // (not in children mode: no downloads there)
+  ["saved", "Saved on this device", "#/saved", { when: () => !kidsNow() }],
+  ["downloads", "My downloads", "#/downloads", { when: () => !kidsNow() }],
   ["remote", "Your TVs", "#/remote"],
   ["household", "Recommended by your household", "#/household"],
   ["wrapped", "Your Aurora Wrapped", "#/wrapped"],
   ["taste", "Swipe your taste", "#/taste"],
   ["apps", "Get the apps", "/install"],
   "rule",
-  ["pair", "Sign in a TV", "#/pair"],
+  // the account's own switch (js/childmode.js); "Leave Children mode" while on
+  ["children", "Children mode", "event:aurora-child-mode"],
+  ["pair", "Sign in a TV", "#/pair", { when: () => !kidsNow() }],
   ["party", "Join a watch party", "event:aurora-join-party"],
   ["report", "Report a problem", "event:aurora-report"],
 ];
@@ -56,13 +60,14 @@ export const FOOT = [
   ["profile", "Profile", "profile"],
 ];
 // each line's data-ui id, written out (the controls contract reads literals)
-const TAG = { search: "more.search", home: "more.home", movies: "more.movies", shows: "more.shows", list: "more.list", calendar: "more.calendar", pick: "more.pick", new: "more.new", saved: "more.saved", downloads: "more.downloads", remote: "more.remote", household: "more.household", wrapped: "more.wrapped", taste: "more.taste", apps: "more.apps", pair: "more.pair", party: "more.party", report: "more.report", settings: "more.settings", profile: "more.profile" }; // data-ui
+const TAG = { search: "more.search", home: "more.home", movies: "more.movies", shows: "more.shows", list: "more.list", calendar: "more.calendar", pick: "more.pick", new: "more.new", saved: "more.saved", downloads: "more.downloads", remote: "more.remote", household: "more.household", wrapped: "more.wrapped", taste: "more.taste", apps: "more.apps", pair: "more.pair", children: "more.children", party: "more.party", report: "more.report", settings: "more.settings", profile: "more.profile" }; // data-ui
 
 // The screens More lights itself for: the menu's places the bar does not have.
 const BAR = new Set(["search", "home", "movies", "shows", "list"]);
 const MORE_ROUTES = [...MENU, ...FOOT].filter((m) => Array.isArray(m) && !BAR.has(m[0]) && m[2].startsWith("#/")).map((m) => m[2]);
 
 const tab = () => document.getElementById("nav-more");
+const kidsNow = () => !!(state.profile && state.profile.kids);
 const hasNew = () => !!document.getElementById("nav-new")?.classList.contains("has-new");
 const here = () => location.hash || "#/";
 const isHere = (to, exact) => (exact ? here() === to || here() === "#" : here().startsWith(to));
@@ -82,9 +87,11 @@ let open = null; // { wrap, panel, list }
 
 const row = ([id, words, to, opts = {}]) => {
   const on = to.startsWith("#/") && isHere(to, opts.exact);
-  const sub = id === "remote" ? tvLine() : null;
+  // [offline-look] "Saved on this device" says what is there or under way (js/offlineUi.js)
+  const dev = id === "saved" && state.deviceLine ? state.deviceLine() : null;
+  const sub = id === "remote" ? tvLine() : dev ? dev.text : null;
   const attrs = {
-    class: "nav-more-item focusable" + (on ? " active" : "") + (sub ? " live" : "") + (id === "profile" ? " nav-more-profile" : ""),
+    class: "nav-more-item focusable" + (on ? " active" : "") + (sub && (!dev || dev.live) ? " live" : "") + (id === "profile" ? " nav-more-profile" : ""),
     "data-ui": TAG[id],
     "data-more": id,
     ...(on ? { "aria-current": "page" } : {}),
@@ -98,6 +105,7 @@ const row = ([id, words, to, opts = {}]) => {
     if (chip) { lead = chip.cloneNode(true); lead.removeAttribute("id"); lead.setAttribute("aria-hidden", "true"); }
     words = (document.getElementById("nav-profile-name")?.textContent || "").trim() || words;
   }
+  if (id === "children" && kidsNow()) words = "Leave Children mode";
   const body = [
     lead,
     el("span", { class: "nav-more-text" },

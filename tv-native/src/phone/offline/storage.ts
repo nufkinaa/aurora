@@ -1,25 +1,26 @@
-// Where saved copies live and how much room they may take — the phone's storage
-// choices (Settings → Saved on this phone), PURE (no React Native), tested.
+// Where saved copies live, what was watched, and "Keep the next episode ready" — the phone's
+// storage rules, PURE (no React Native), tested.
 //
-//   Save to                  this phone, or its SD card when it has one
-//   Space limit              "use at most N GB"; when full, offer to remove the oldest
-//                            copy you have watched
-//   Tidy up after watching   a saved episode leaves the phone a day after you finish it
-//                            (OFF unless turned on)
-//   Keep the next episodes   while you watch a show, its next 2 episodes are kept saved
-//                            on the phone, on Wi-Fi only (OFF unless turned on). The
-//                            phone's own saves of what the server already has — never a
-//                            download on the server (elia removed those, 2026-10-26).
+//   Save to                       this phone, or its SD card when it has one
+//   Remove watched                one press on On this device removes the copies watched to
+//                                 the end, with Undo (the website's) — never by itself
+//   Keep the next episode ready   when a saved episode is watched to the end, the next one is
+//                                 saved by itself at the same size — or, when the server does
+//                                 not have it yet, wished for (offline/wishes.ts). Off unless
+//                                 turned on; it only ADDS.
+//
+// elia (2026-11-10/11): no cap on what is saved, and NOTHING leaves a device by itself — the
+// space limit and the day-after tidy-up of phone 1.1.2 are gone.
 
 export type StoragePrefs = {
   /** the folder of the chosen volume (getExternalFilesDirs); null: the phone's own storage */
   volume: string | null;
-  /** 0: no limit */
-  limitGb: number;
-  tidyAfter: boolean;
+  /** "Keep the next episode ready" (off unless turned on) */
   keepNext: boolean;
+  /** when it was last turned on: only episodes finished AFTER that count */
+  keepNextAt: number;
 };
-export const STORAGE_DEFAULTS: StoragePrefs = {volume: null, limitGb: 0, tidyAfter: false, keepNext: false};
+export const STORAGE_DEFAULTS: StoragePrefs = {volume: null, keepNext: false, keepNextAt: 0};
 
 // ---- Save to ----
 export type Volume = {path: string; free: number; total: number; removable: boolean; primary: boolean; mounted: boolean};
@@ -34,10 +35,7 @@ export function currentVolume(vols: Volume[], chosen: string | null): Volume | n
 /** The picker is offered only when there is somewhere else to save to. */
 export const hasChoice = (vols: Volume[]) => vols.filter(v => v.mounted).length > 1;
 
-// ---- Space limit ----
-export const LIMIT_CHOICES = [0, 2, 5, 10, 20, 50];
 export const GB = 1024 ** 3;
-export const limitLabel = (gb: number) => (gb > 0 ? `At most ${gb} GB` : 'No limit');
 
 export type Copy = {
   id: string;
@@ -47,53 +45,25 @@ export type Copy = {
   showTitle?: string | null;
   season?: number | null;
   episode?: number | null;
-  state: 'queued' | 'preparing' | 'saving' | 'done' | 'failed';
+  state: 'queued' | 'preparing' | 'saving' | 'retrying' | 'paused' | 'done' | 'failed';
   sizeBytes: number;
   duration: number;
   position?: number;
   finishedAt?: number | null;
   savedAt?: number;
+  quality?: string;
   at: number;
 };
 
-/** What the copies on this phone take, or will once they are down (every profile's: the limit
- *  is the phone's). A failed one takes nothing. */
+/** What the copies on this phone take, or will once they are down. A failed one takes nothing. */
 export const usedBytes = (all: Copy[]) => all.filter(c => c.state !== 'failed').reduce((n, c) => n + (c.sizeBytes || 0), 0);
 
 /** The server's own rule for "finished" (src/profiles.js): past 95 %. */
 export const FINISHED_AT = 0.95;
 export const isWatched = (c: Pick<Copy, 'finishedAt' | 'position' | 'duration'>) => !!c.finishedAt || (c.duration > 0 && (c.position || 0) / c.duration > FINISHED_AT);
 
-export const overLimit = (used: number, adding: number, limitGb: number) => limitGb > 0 && used + adding > limitGb * GB;
-
-/**
- * The copies to remove so `adding` more bytes fit under the limit: watched ones, oldest
- * watched first, as few as it takes. [] when it fits already; null when even every watched
- * copy would not make enough room (then nothing is offered). Only the profile's own copies are
- * offered (a profile never removes another's). `keep`: never offered (the one being saved).
- */
-export function makeRoom(all: Copy[], profileId: string, adding: number, limitGb: number, keep?: string): Copy[] | null {
-  const used = usedBytes(all);
-  if (!overLimit(used, adding, limitGb)) return [];
-  const cand = all
-    .filter(c => c.profileId === profileId && c.state === 'done' && c.id !== keep && isWatched(c))
-    .sort((a, b) => (a.finishedAt || a.savedAt || a.at) - (b.finishedAt || b.savedAt || b.at));
-  const out: Copy[] = [];
-  let left = used;
-  for (const c of cand) {
-    out.push(c);
-    left -= c.sizeBytes || 0;
-    if (!overLimit(left, adding, limitGb)) return out;
-  }
-  return null;
-}
-
-// ---- Tidy up after watching ----
-export const TIDY_AFTER_MS = 24 * 60 * 60 * 1000;
-/** The saved EPISODES due to go: finished a day ago or more. Films are never tidied (one
- *  saved for a flight is watched again); the one playing now is never touched. */
-export const dueForTidy = (all: Copy[], now: number, playing?: string | null): Copy[] =>
-  all.filter(c => c.state === 'done' && c.showId && c.finishedAt && now - c.finishedAt >= TIDY_AFTER_MS && c.id !== playing);
+/** "Remove watched": the profile's saved copies watched to the end (here, or as the server says). */
+export const watchedCopies = <C extends Copy>(all: C[], profileId: string): C[] => all.filter(c => c.profileId === profileId && c.state === 'done' && isWatched(c));
 
 /** When a copy was finished, from what the server says of the profile's progress (watched on
  *  the TV, the website or streamed here counts as much as the saved copy played here). */
@@ -103,27 +73,82 @@ export function finishedFrom(p: {position?: number; duration?: number; finished?
   return done ? Math.min(p.updatedAt || now, now) : null;
 }
 
-// ---- Keep the next episodes ready ----
-export const KEEP_NEXT = 2;
-export type Ep = {id: string; season: number; episode: number};
+/** "6.2 GB saved here · room for ≈ 18 GB more" (On this device, under its heading). */
+export const roomLine = (savedBytes: number, freeBytes: number, fmt: (b: number) => string) =>
+  [savedBytes > 0 ? `${fmt(savedBytes)} saved here` : null, freeBytes > 0 ? `room for ≈ ${fmt(freeBytes)} more` : null].filter(Boolean).join(' · ');
 
+// ---- Keep the next episode ready ----
 /**
- * The episodes to save so the next `n` after the one being watched are on the phone: the
- * next `n` in order (specials — season 0 — only when the one watched is a special), minus
- * those already saved or on their way (`have`).
+ * The saved episodes whose next one should be looked at now: an episode saved here, watched to
+ * the end AFTER the switch was turned on (`since`), and not looked at before (`done`). Finished
+ * = what this phone saw (the copy's own position / finishedAt) or the server's progress for it.
  */
-export function nextToKeep<E extends Ep>(episodes: E[], cur: {season: number; episode: number}, have: Set<string>, n = KEEP_NEXT): E[] {
-  const pool = episodes.filter(e => e && e.id && (cur.season === 0 ? true : e.season > 0));
-  const later = pool
-    .filter(e => e.season > cur.season || (e.season === cur.season && e.episode > cur.episode))
-    .sort((a, b) => a.season - b.season || a.episode - b.episode)
-    .slice(0, n);
-  return later.filter(e => !have.has(e.id));
+export function smartCandidates<C extends Copy>(
+  copies: C[],
+  profileId: string,
+  since: number,
+  done: Set<string>,
+  progress: Record<string, {position?: number; duration?: number; finished?: boolean; updatedAt?: number}> = {},
+): C[] {
+  const after = (at?: number | null) => !!at && at >= since;
+  return copies.filter(c => {
+    if (c.profileId !== profileId || c.state !== 'done' || !c.showId || c.season == null || c.episode == null) return false;
+    if (done.has(c.id)) return false;
+    if (c.finishedAt && after(c.finishedAt)) return true;
+    const p = progress[c.id];
+    return !!p && after(p.updatedAt) && (p.finished === true || (!!p.duration && p.duration > 0 && (p.position || 0) / p.duration > FINISHED_AT));
+  });
 }
 
-/** Keep-next works only when it is on and the phone is on Wi-Fi (never mobile data). */
-export const keepNextNow = (on: boolean, net: string) => on && net === 'wifi';
+/** What /api/next-episode answers, read: a library episode to save, or one on its way to wish for. */
+export type NextAnswer = {kind: 'library'; id: string} | {kind: 'stream'; imdbId: string; season: number; episode: number; title?: string | null} | null;
+export function readNext(r: unknown): NextAnswer {
+  const n = (r as {next?: Record<string, unknown>} | null)?.next;
+  if (!n || typeof n !== 'object') return null;
+  if (n.kind === 'library' && typeof n.id === 'string' && n.id) return {kind: 'library', id: n.id};
+  if (n.kind === 'stream' && typeof n.imdbId === 'string' && n.season != null && n.episode != null)
+    return {kind: 'stream', imdbId: n.imdbId, season: Number(n.season), episode: Number(n.episode), title: (n.title as string) || null};
+  return null;
+}
 
-/** The quality keep-next saves at: the person's choice, or 720p when it is "Ask each time"
- *  (nothing can be asked in the background). */
-export const keepNextQuality = (q: string) => (q === 'ask' ? '720' : q);
+// ---- the place: "Saved for offline" ----
+export type Group<C extends Copy> = {kind: 'film'; copy: C} | {kind: 'show'; showId: string; showTitle: string; episodes: C[]; bytes: number; watched: number; next: C | null};
+/** Films as rows, a show as one group with its episodes in order and the next one not finished. */
+export function groupSaved<C extends Copy>(copies: C[]): Group<C>[] {
+  const out: Group<C>[] = [];
+  const shows = new Map<string, Group<C> & {kind: 'show'}>();
+  const done = copies.filter(c => c.state === 'done').sort((a, b) => (b.savedAt || b.at) - (a.savedAt || a.at));
+  for (const c of done) {
+    if (!c.showId) {
+      out.push({kind: 'film', copy: c});
+      continue;
+    }
+    let g = shows.get(c.showId);
+    if (!g) {
+      g = {kind: 'show', showId: c.showId, showTitle: c.showTitle || c.title, episodes: [], bytes: 0, watched: 0, next: null};
+      shows.set(c.showId, g);
+      out.push(g);
+    }
+    g.episodes.push(c);
+    g.bytes += c.sizeBytes || 0;
+    if (isWatched(c)) g.watched++;
+  }
+  for (const g of shows.values()) {
+    g.episodes.sort((a, b) => (a.season ?? 0) - (b.season ?? 0) || (a.episode ?? 0) - (b.episode ?? 0));
+    g.next = g.episodes.find(e => !isWatched(e)) || null;
+  }
+  return out;
+}
+const hm = (secs: number) => {
+  const m = Math.max(1, Math.round(secs / 60));
+  return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim() : `${m} min`;
+};
+/** "1 h 12 min left · 1.2 GB · Original quality · English" (a film's line, the site's). */
+export function copyLine(c: Copy & {audioLabel?: string | null}, fmt: (b: number) => string): string {
+  const left = isWatched(c) ? 'Watched' : c.duration > 0 && (c.position || 0) > 10 ? `${hm(c.duration - (c.position || 0))} left` : c.duration > 0 ? hm(c.duration) : null;
+  const q = c.quality ? (c.quality === 'original' ? 'Original quality' : `${c.quality}p`) : null;
+  return [left, c.sizeBytes ? fmt(c.sizeBytes) : null, q, c.audioLabel || null].filter(Boolean).join(' · ');
+}
+/** "3 episodes · 2.1 GB · 1 watched" (a show's line). */
+export const showLine = (g: {episodes: unknown[]; bytes: number; watched: number}, fmt: (b: number) => string) =>
+  [`${g.episodes.length} episode${g.episodes.length === 1 ? '' : 's'}`, g.bytes ? fmt(g.bytes) : null, g.watched ? `${g.watched} watched` : null].filter(Boolean).join(' · ');

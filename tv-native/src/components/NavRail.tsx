@@ -19,13 +19,13 @@
 //
 // TWO IMPLEMENTATIONS OF THE DRAWING (render.ts `nativeOn.rail`, off by default;
 // docs/qa/native-lab/). Read once at startup, it picks either today's JS — the
-// two Animated.Views below with the SVG scrim, untouched but for the QA hooks
-// (inert outside a QA variant) — or the Fabric component AuroraRailPanel
-// mounted in the same two places (src/specs/AuroraRailPanelNativeComponent.ts →
-// AuroraRailPanelView.kt): it draws the strip's scrim itself and runs the
-// 280 ms slide on the UI thread, from this component's own `open` / `closing`
-// state. The open panel's glass pane is the same RN child in both (`pane`
-// below). EVERYTHING ELSE IS THIS
+// two Animated.Views below with their SVG scrim / feather, the gradient bodies
+// and RailHues, untouched but for the QA hooks (inert outside a QA variant) —
+// or the Fabric component AuroraRailPanel mounted in the
+// same two places (src/specs/AuroraRailPanelNativeComponent.ts →
+// AuroraRailPanelView.kt): it draws the scrim, the body, the hues and the
+// feather itself and runs the 280 ms slide and the hue loops on the UI thread,
+// from this component's own `open` / `closing` state. EVERYTHING ELSE IS THIS
 // FILE IN BOTH: the key logic (LEFT-at-edge, RIGHT, the wrap, focusJustMoved),
 // the traps, focus capture / restore, arm-to-switch, and the items — the same
 // `NavItem`s inside the same focus guide, the same mark and dots.
@@ -49,11 +49,10 @@ import {imgSrc} from '../api';
 import {atLeftEdge, captureFocus, clearRailOpener, focusJustMoved, noteOwnFocusMove, noteRail, pressMovedFocus, setRailOpener, useTVKeys} from '../focus';
 import {goSection, useMe, useNewUnseen, NAV_SECTIONS, NavSection} from '../navSection';
 import {isLite} from '../perfTier';
-import {isMid, traceValue} from '../qa';
+import {isMid, runLoop, traceValue} from '../qa';
 import {traceDerived, useTraces} from '../qaExtra';
 import {nativeOn} from '../render';
 import AuroraRailPanel, {SlideEndEvent} from '../specs/AuroraRailPanelNativeComponent';
-import {CHOSEN_WEIGHT, glassPane, ink, well} from '../glass';
 import theme from '../theme';
 
 const {colors, focus, motion, nav, radius, spacing} = theme;
@@ -69,8 +68,7 @@ const EASE = Easing.bezier(...(focus.ease as unknown as [number, number, number,
 // Vertical safe inset, 5% of a 540dp panel (PINS P2). Both states use it, so the
 // mark sits at the same y whether the rail is open or shut.
 const PAD_Y = 27;
-// The room beside the 240 dp of rows for the pane's shadow to fall into the
-// page (it was the feather's 48 - the panel is still 288 wide, RailMath.PANEL).
+// How far the panel's right edge bleeds into the page before it is gone.
 const FEATHER = 48;
 // `.nav-item` 0.95rem = 15.2px, reading tier x1.0 (components.css:53).
 const ITEM_TEXT = 15;
@@ -99,39 +97,71 @@ type NodeRef = {requestTVFocus?: () => void} | null;
 // nativeOn.rail: one link per mounted rail, shared by its strip and its panel.
 let railLinks = 0;
 
-// THE OPEN PANEL IS A PANE OF GLASS (glass.ts, docs/glass-tv.md): a floating
-// dark capsule with a rim of light, the chosen section in a well inside it -
-// the tvOS tab bar, stood on its side. It is ONE plain view, the first child of
-// the sliding panel in both implementations (the native panel view paints
-// nothing of its own any more), so the two cannot drift apart.
-//
-// Before, the panel was a flat near-black body from the screen's edge with the
-// room's violet and green drifting in it (two glows on the native driver) and a
-// 48 dp feather into the page. The hues were asked for (elia, 2026-10-07) when
-// the rail was the only place that carried them; the new material is neutral on
-// purpose - the page and the pictures bring the colour, and white words read
-// the same over all of it. Nothing in the pane moves: the two loops are gone.
-//
-// Everything of the glass but its body is ONE baked picture laid over the pane
-// (tools/gen_glass_edge.py): the soft shadow outside it, and inside it the rim,
-// the glow under the rim and the sheen. The panel slides in over the page, and
-// a blurred boxShadow, a stack of gradients and a three-colour round border are
-// all drawn again on every frame of that; a round box and a picture are not.
-// 48 dp of shadow on every side of the pane; what falls off the screen is never
-// drawn.
-//
-// The pane STANDS ON THE SCREEN'S FOOT (it floated 11 dp above it): in those
-// 11 dp and round its two foot corners the page went on - the tops of the next
-// row of posters, "My downloads" - right under the profile pill (two judges,
-// 2026-11-10). A mask in the page's colour would have been a new layer and a
-// visible band (the page is a gradient there); the pane running to the foot is
-// the same one box and the same one picture, a little shorter.
-const PANE_EDGE = require('../assets/glass-pane-edge.png');
-// The pane inside the 240 dp panel: 16 dp round the rows (which sit at 48..224
-// and from PAD_Y down), so its corner (38) is concentric with a row's (22).
-const PANE_X = 32;
-const PANE_Y = 11; // from the top only
-const SHADOW_ROOM = 48;
+// The rail's hue, moving (elia, 2026-10-07: "make them move a bit and be
+// dynamic"). Two soft glows — the violet high on the left, the green low —
+// each one baked disc tinted and drifted by transforms on the native driver:
+// a slow figure, 16 s and 21 s, so the two never repeat together. Nothing is
+// repainted; the box composites two textures. Mounted only while the panel
+// is, and still on a box the perf tier judged slow.
+const GLOW = require('../assets/glow.png');
+function RailHues() {
+  const a = useRef(new Animated.Value(0)).current;
+  const b = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (isLite()) return;
+    const run = (v: Animated.Value, ms: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(v, {toValue: 1, duration: ms, easing: Easing.inOut(Easing.sin), useNativeDriver: true, isInteraction: false}),
+          Animated.timing(v, {toValue: 0, duration: ms, easing: Easing.inOut(Easing.sin), useNativeDriver: true, isInteraction: false}),
+        ]),
+      );
+    // (`freeze on` from the QA receiver holds both at phase 0.37 — qa.ts)
+    const sa = runLoop(a, run(a, 8000));
+    const sb = runLoop(b, run(b, 10500));
+    return () => {
+      sa();
+      sb();
+    };
+  }, [a, b]);
+  return (
+    <View style={styles.hues} pointerEvents="none">
+      <Animated.Image
+        source={GLOW}
+        fadeDuration={0}
+        style={[
+          styles.hueViolet,
+          {
+            opacity: a.interpolate({inputRange: [0, 1], outputRange: [0.26, 0.46]}),
+            transform: [
+              {translateX: a.interpolate({inputRange: [0, 1], outputRange: [-14, 26]})},
+              {translateY: b.interpolate({inputRange: [0, 1], outputRange: [-10, 34]})},
+              {scale: a.interpolate({inputRange: [0, 1], outputRange: [1, 1.14]})},
+            ],
+          },
+        ]}
+      />
+      <Animated.Image
+        source={GLOW}
+        fadeDuration={0}
+        style={[
+          styles.hueGreen,
+          {
+            opacity: b.interpolate({inputRange: [0, 1], outputRange: [0.18, 0.36]}),
+            transform: [
+              {translateX: b.interpolate({inputRange: [0, 1], outputRange: [22, -18]})},
+              {translateY: a.interpolate({inputRange: [0, 1], outputRange: [16, -30]})},
+              {scale: b.interpolate({inputRange: [0, 1], outputRange: [1.08, 0.96]})},
+            ],
+          },
+        ]}
+      />
+      {/* back to the panel's own colour at the right edge, so the feather
+          beside it still melts into the page without a seam */}
+      <View style={styles.huesEdge} />
+    </View>
+  );
+}
 
 export default function NavRail({
   active,
@@ -349,6 +379,15 @@ export default function NavRail({
   if (disabled) return null;
 
   const go = (key: NavSection | 'profile') => {
+    // Children mode (2026-11-11): no switching profile — the pill opens
+    // Children mode, where leaving it (with the passcode) is the way back.
+    if (key === 'profile' && me?.kids) {
+      restore.current = null;
+      instantClose();
+      disarmSwitch();
+      (navigation as {navigate: (name: string) => void}).navigate('ChildMode');
+      return;
+    }
     if (key === 'profile' && !confirmSwitch) {
       // Arm. The pill relabels itself; a second press inside the window is the
       // real switch, and moving anywhere else disarms.
@@ -415,6 +454,7 @@ export default function NavRail({
             profile={it.key === 'profile' ? me?.avatar || '🍿' : undefined}
             profileImage={it.key === 'profile' ? me?.avatarImage || null : undefined}
             profileColor={it.key === 'profile' ? me?.color : undefined}
+            kids={it.key === 'profile' && !!me?.kids}
             name={
               it.key === 'profile'
                 ? confirmSwitch
@@ -450,15 +490,6 @@ export default function NavRail({
     </TVFocusGuideView>
   );
 
-  // The glass: the pane's body, then its baked edge over it. Under the rows,
-  // and nothing in it takes a key or a touch.
-  const pane = (
-    <>
-      <View style={styles.pane} pointerEvents="none" />
-      <Image source={PANE_EDGE} resizeMode="stretch" fadeDuration={0} style={styles.paneEdge} />
-    </>
-  );
-
   if (nativeOn.rail) {
     return (
       <>
@@ -467,7 +498,6 @@ export default function NavRail({
         </AuroraRailPanel>
         {open ? (
           <AuroraRailPanel part="panel" link={link} lite={isLite()} style={styles.panel}>
-            {pane}
             {guide}
           </AuroraRailPanel>
         ) : null}
@@ -492,8 +522,24 @@ export default function NavRail({
             styles.panel,
             {transform: [{translateX: slide.interpolate({inputRange: [0, 1], outputRange: [-(nav.railOpen + FEATHER), 0]})}]},
           ]}>
-          {/* The glass pane, then the rows — the panel View itself paints nothing. */}
-          {pane}
+          {/* The opaque body, then the feather that melts its edge into the
+              page — the panel View itself paints nothing. */}
+          <View style={styles.panelBody} />
+          {/* The panel's body: its hue fades in on the same `slide` value that
+              moves the panel (native driver), so it lands with the nav. */}
+          <Animated.View pointerEvents="none" style={[styles.panelBody, {opacity: slide}]}>
+            <RailHues />
+          </Animated.View>
+          <Svg pointerEvents="none" style={styles.panelFeather} width={FEATHER} height="100%">
+            <Defs>
+              <LinearGradient id="railFeather" x1="0" y1="0" x2="1" y2="0">
+                <Stop offset="0" stopColor="#0a0b14" stopOpacity="1" />
+                <Stop offset="0.45" stopColor="#0a0b14" stopOpacity="0.55" />
+                <Stop offset="1" stopColor="#0a0b14" stopOpacity="0" />
+              </LinearGradient>
+            </Defs>
+            <Rect x="0" y="0" width={FEATHER} height="100%" fill="url(#railFeather)" />
+          </Svg>
           {guide}
         </Animated.View>
       ) : null}
@@ -524,15 +570,6 @@ function Scrim({width}: {width: number}) {
 // the site's nav, and it needs the label colour to flip, so this holds focus
 // state. Eight items that live as long as the panel; the no-re-render rule is
 // about the ninety cards in a shelf.
-//
-// Three states, and they do not share a colour:
-//   focused  the white fill with dark words and the ring (unchanged)
-//   chosen   the section this screen is: a WELL pressed into the glass, its word
-//            and icon full white and heavier (ink.chosen, CHOSEN_WEIGHT) - on the
-//            darker well the brightest words in the pane at rest. They were
-//            ink.on, the accent mixed with white, and read as switched off
-//            beside the resting white labels (two judges, 2026-11-10).
-//   resting  white words on the glass
 // [analytics] which control each rail item is — uiId (docs/analytics.md)
 const NAV_UI: Record<string, string> = {search: 'nav.search', home: 'nav.home', movies: 'nav.movies', shows: 'nav.shows', list: 'nav.mylist'}; // uiId
 Object.assign(NAV_UI, {ai: 'nav.ai', settings: 'nav.settings', profile: 'nav.profile'}); // uiId
@@ -546,6 +583,7 @@ function NavItem({
   profile,
   profileImage,
   profileColor,
+  kids,
   name,
   on,
   claimFocus,
@@ -565,6 +603,8 @@ function NavItem({
   profile?: string;
   profileImage?: string | null;
   profileColor?: string | null;
+  // Children mode is on: the website's mint mark (screens.css `html[data-kids] #nav-profile`)
+  kids?: boolean;
   name?: string;
   on?: boolean;
   claimFocus?: boolean;
@@ -590,7 +630,7 @@ function NavItem({
         uiId={uiId}
       onPress={onPress}
         style={styles.profile}>
-        <View style={[styles.avatar, {backgroundColor: profileColor || colors.surfaceHover}]}>
+        <View style={[styles.avatar, {backgroundColor: profileColor || colors.surfaceHover}, kids && styles.avatarKids]}>
           {profileImage ? (
             <Image
               source={imgSrc(profileImage) || undefined}
@@ -605,13 +645,19 @@ function NavItem({
         <Text style={styles.profileName} numberOfLines={1}>
           {name}
         </Text>
+        {kids ? (
+          <View style={styles.kidsPill}>
+            <Text style={styles.kidsPillText}>KIDS</Text>
+          </View>
+        ) : null}
       </Focusable>
     );
   }
-  // White words on the glass (16.6:1); the chosen one white too, heavier, in its
-  // well. The cast shadow the labels carried over the old moving hues is gone
-  // with the hues.
-  const fg = focused ? colors.bg : on ? ink.chosen : ink.text;
+  // Unfocused labels used to take colors.textDim (#9aa1b5), which read fine
+  // on flat black but went muddy over the aurora glow (elia). Near-white with
+  // a hair of hierarchy below the active item's pure white, plus a dark cast
+  // shadow (below) to lift the glyphs off the brightest bands.
+  const fg = focused ? colors.bg : on ? colors.text : 'rgba(255,255,255,0.92)';
   return (
     <Focusable
       round
@@ -635,14 +681,13 @@ function NavItem({
       }}
       uiId={uiId}
       onPress={onPress}
-      style={styles.item}>
-      {on && !focused ? <View style={styles.well} pointerEvents="none" /> : null}
+      style={[styles.item, on && !focused && styles.itemOn]}>
       {icon && !withLabel ? <Icon name={icon} size={iconSize || 18} color={fg} /> : null}
       {icon && !withLabel ? null : (
         <View style={styles.itemRow}>
           {icon ? <Icon name={icon} size={iconSize || 18} color={fg} /> : null}
           <Text
-            style={[styles.itemText, on && !focused && styles.itemTextChosen, {color: fg}]}
+            style={[styles.itemText, {color: fg}, !focused && styles.itemTextLift]}
             numberOfLines={1}>
             {label}
           </Text>
@@ -671,34 +716,51 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     bottom: 0,
-    // railOpen for the rows + the room the pane's shadow falls into the page.
+    // railOpen of opaque body + the feather that bleeds it into the page.
     width: nav.railOpen + FEATHER,
     zIndex: 101,
   },
-  // The glass pane. OPAQUE, not the recipe's 94 %: there is no blur behind a TV
-  // panel and nothing dims the page under the rail, and measured on the
-  // Streamer 3 % of a 243-white shelf heading already read as ghost text under
-  // the labels. Its edge is a rim of light and a soft shadow now, where the old
-  // body handed off to a feather.
-  pane: {
+  // `.nav.solid` (components.css:25-26), rotated onto the edge the rail hangs
+  // on. OPAQUE rather than 0.97: measured on the Streamer, 3% of a 243-white
+  // shelf heading still reads as ghost text on a near-black panel. The 1px
+  // hairline the site draws is gone — instead of a hard cut the body hands
+  // off to `panelFeather`, a gradient that melts the edge into the app
+  // (elia: "fade into and blend into the rest, for a clean look").
+  panelBody: {
     position: 'absolute',
-    top: PANE_Y,
+    top: 0,
+    left: 0,
     bottom: 0,
-    left: PANE_X,
-    width: nav.railOpen - PANE_X,
-    borderTopLeftRadius: 38,
-    borderTopRightRadius: 38,
-    ...glassPane,
+    width: nav.railOpen,
+    backgroundColor: '#0a0b14',
+    // The room's hue instead of the moving aurora curtains (elia,
+    // 2026-10-07: "ditch our attempt of the aurora effect and just add the
+    // hues we put in other places"): the menus' violet from the top-left and
+    // green from the foot, still — nothing animates, nothing to pay for. The
+    // first layer brings the right edge back to the panel's own colour so the
+    // feather beside it still melts into the page without a seam.
+    experimental_backgroundImage:
+      'linear-gradient(165deg, rgba(104,86,226,0.20) 0%, rgba(10,11,20,0) 46%, rgba(70,200,150,0.12) 100%)',
+    overflow: 'hidden',
   },
-  // 48 dp outside the pane at its top and its sides (the file is 304 dp wide:
-  // 208 + 2 x 48), and cut where the screen ends
-  paneEdge: {
+  // the moving glows live inside the body and are clipped to it
+  hues: {position: 'absolute', top: 0, left: 0, bottom: 0, width: nav.railOpen},
+  huesEdge: {
     position: 'absolute',
-    top: PANE_Y - SHADOW_ROOM,
+    top: 0,
+    right: 0,
     bottom: 0,
-    left: PANE_X - SHADOW_ROOM,
-    width: nav.railOpen - PANE_X + 2 * SHADOW_ROOM,
-    height: undefined,
+    width: Math.round(nav.railOpen * 0.5),
+    experimental_backgroundImage: 'linear-gradient(90deg, rgba(10,11,20,0) 0%, rgba(10,11,20,1) 100%)',
+  },
+  hueViolet: {position: 'absolute', top: -150, left: -170, width: 440, height: 440, tintColor: '#6856e2'},
+  hueGreen: {position: 'absolute', bottom: -190, left: -150, width: 460, height: 460, tintColor: '#46c896'},
+  panelFeather: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: nav.railOpen,
+    width: FEATHER,
   },
   // Expanded insets its content to the 48dp safe edge, so no label and nothing
   // focusable is ever inside the action-safe band (§4.6).
@@ -755,13 +817,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: 'transparent',
   },
-  // `.nav-item.active`: the chosen section's well (it was a --surface fill).
-  well,
+  // `.nav-item.active { color: --text; background: --surface }`.
+  itemOn: {backgroundColor: colors.surface},
   itemText: {fontSize: ITEM_TEXT, fontWeight: '600'},
-  itemTextChosen: {fontWeight: CHOSEN_WEIGHT},
   itemRow: {flexDirection: 'row', alignItems: 'center', gap: 8},
   newDot: {width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent},
   newDotOnLight: {backgroundColor: colors.accentStrong},
+  // The cast shadow that keeps unfocused labels legible over the aurora.
+  // Dropped while focused: dark-on-white with a dark halo looks smudged.
+  itemTextLift: {
+    textShadowColor: 'rgba(8,9,16,0.9)',
+    textShadowOffset: {width: 0, height: 1},
+    textShadowRadius: 6,
+  },
   spacer: {flex: 1},
   // `.nav-profile { padding: 5px 14px 5px 6px; gap: 10px }` at x1.0.
   // marginTop 6: the focused Settings row's ring (scaled, 3dp outside the row) sat ON
@@ -784,4 +852,8 @@ const styles = StyleSheet.create({
   avatarImg: {width: '100%', height: '100%', borderRadius: 999},
   // `.nav-profile` 0.9rem = 14.4px, at the 14dp reading floor.
   profileName: {color: colors.text, fontSize: 14, fontWeight: '600', flexShrink: 1},
+  // Children mode: the mint ring and the KIDS pill (the website's #86efac on #0b1a12)
+  avatarKids: {borderWidth: 2, borderColor: '#86efac'},
+  kidsPill: {backgroundColor: '#86efac', borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1},
+  kidsPillText: {color: '#0b1a12', fontSize: 10, fontWeight: '800', letterSpacing: 0.7},
 });

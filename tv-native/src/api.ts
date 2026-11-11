@@ -84,9 +84,22 @@ function noteAudience(path: string, res: Response) {
     const who = m ? decodeURIComponent(m[1]) : activeProfile;
     if (!who) return;
     const kids = res.headers && typeof res.headers.get === 'function' ? res.headers.get('x-aurora-kids') : null;
-    audiences.set(who, kids ? `kids:${kids}` : 'all');
+    const said = kids ? `kids:${kids}` : 'all';
+    const was = audiences.get(who);
+    audiences.set(who, said);
+    // (children mode: an answer for the profile this app is in that is
+    // filtered differently from the last one — the account went into or out
+    // of children mode while the socket was not listening; childMode.ts asks)
+    if (was !== undefined && was !== said && who === activeProfile && audienceCb) {
+      try { audienceCb(who, said); } catch {}
+    }
   } catch {}
 }
+let audienceCb: ((profileId: string, said: string) => void) | null = null;
+/** Told when the active profile's answers start coming back filtered for another audience. */
+export const onAudienceChange = (cb: ((profileId: string, said: string) => void) | null) => {
+  audienceCb = cb;
+};
 /** What the server last said about whom `profileId`'s answers are filtered for (undefined: nothing yet). */
 export const audienceOf = (profileId: string | null): string | undefined => (profileId ? audiences.get(profileId) : undefined);
 // The profile's unlock token, for the one caller outside this file that must
@@ -175,8 +188,23 @@ export type Profile = {
   // IMDb ids of the shows whose new episodes download by themselves.
   follows?: string[];
   // A kids profile: only titles rated at or under maxAge reach it (the server
-  // filters; lib/kids.js). null / absent for everyone else.
+  // filters; lib/kids.js). null / absent for everyone else. Since 2026-11-11
+  // the mirror of CHILDREN MODE on the account (childMode.ts).
   kids?: {maxAge: number} | null;
+  // Children mode on the account: the age, and since when (null: off). Servers
+  // from before children mode do not send it — `kids` says the same.
+  childMode?: {maxAge: number; since: number | null} | null;
+};
+
+// GET /api/profiles/:id/child-mode — how children mode stands on the account.
+export type ChildModeView = {
+  on: boolean;
+  maxAge: number | null;
+  since: number | null;
+  passcodeSet: boolean;
+  ages: number[];
+  // what "Forgot the passcode?" can use on this account
+  forgot?: {password: boolean; google: boolean};
 };
 
 export type HeroItem = {
@@ -632,6 +660,51 @@ export type DiscoverMeta = HeroItem & {
 // A download job as /api/downloads lists it for the asker (publicJob + mine).
 // [android-phone] the server's offline copies (src/media/offline.js)
 export type OfflineOption = {quality: string; label: string; detail?: string; sizeBytes: number; estimated?: boolean; instant?: boolean; note?: string; ready?: boolean};
+// One sound of a file, as /api/offline/options lists them (only when there are several).
+export type OfflineSound = {index: number; language?: string | null; title?: string | null; codec?: string | null; channels?: number; commentary?: boolean};
+// A wish (docs/offline-wishes.md): this device waits for a title the library does not hold yet.
+export type OfflineWish = {
+  id: string;
+  profileId?: string;
+  deviceId: string;
+  deviceName?: string | null;
+  scope: 'title' | 'season' | 'show';
+  type: 'movie' | 'show';
+  imdbId?: string | null;
+  jobId?: string | null;
+  season?: number | null;
+  episode?: number | null;
+  title?: string | null;
+  showTitle?: string | null;
+  poster?: string | null;
+  quality: string;
+  hevc?: boolean;
+  state: 'waiting' | 'ready' | 'failed';
+  libraryId?: string | null;
+  readyQuality?: string | null;
+  copy?: {state: string; progress?: number; sizeBytes?: number | null; error?: string | null} | null;
+  note?: string | null;
+  error?: string | null;
+  parentId?: string | null;
+  createdAt?: number;
+  updatedAt?: number;
+  readyAt?: number | null;
+};
+export type OfflineWishBody = {
+  deviceId: string;
+  deviceName?: string;
+  scope: 'title' | 'season' | 'show';
+  type: 'movie' | 'show';
+  imdbId?: string;
+  jobId?: string;
+  season?: number;
+  episode?: number;
+  title?: string;
+  showTitle?: string;
+  poster?: string;
+  quality: string;
+  hevc?: boolean;
+};
 export type OfflineStatus = {
   state: 'idle' | 'queued' | 'working' | 'ready' | 'error' | 'unavailable' | string;
   quality?: string;
@@ -639,6 +712,7 @@ export type OfflineStatus = {
   error?: string | null;
   url?: string;
   sizeBytes?: number;
+  audio?: number;
   direct?: boolean;
   wait?: {reason: string; text: string; before?: number} | null;
 };
@@ -1128,6 +1202,13 @@ let homeKept: Kept<Home> | null = null;
 export const keptHomeText = (profileId: string, value: Home): string | null =>
   homeKept && homeKept.who === profileId && homeKept.value === value ? homeKept.text : null;
 let libraryKept: Kept<Library> | null = null;
+/** [offline-phone] A film or a show from the library list already read as this profile — no
+ *  request (a title page with no connection still knows its name). */
+export const peekLibraryItem = (id: string): {title: string; cover?: string | null; poster?: string | null} | null => {
+  const l = libraryKept && libraryKept.who === activeProfile ? libraryKept.value : null;
+  if (!l || !id) return null;
+  return ((l.movies || []).find(m => m.id === id) || (l.shows || []).find(m => m.id === id) || null) as never;
+};
 // NEVER MORE THAN ONE /api/home IN FLIGHT (docs/operations.md): a second ask
 // while the first is on its way — a return to Home during a library refresh —
 // shares its answer.
@@ -1518,6 +1599,17 @@ export const api = {
       `/api/profiles/${id}/password`,
       {newPassword, currentPassword},
     ),
+  // ---- children mode (2026-11-11, childMode.ts, docs/children-mode.md) ----
+  childMode: (id: string) => request<ChildModeView>(`/api/profiles/${encodeURIComponent(id)}/child-mode`),
+  // { maxAge } (one click once the passcode is set), + newPasscode the first
+  // time, + passcode to raise the age. Throws ApiError (the server's words).
+  childModeOn: (id: string, body: {maxAge: number; newPasscode?: string; passcode?: string}) =>
+    post<{ok: boolean; profile: Profile; childMode: ChildModeView}>(`/api/profiles/${encodeURIComponent(id)}/child-mode`, body),
+  childModeOff: (id: string, passcode: string) =>
+    post<{ok: boolean; profile: Profile; childMode: ChildModeView}>(`/api/profiles/${encodeURIComponent(id)}/child-mode/off`, {passcode}),
+  // { password } | { googleToken }
+  childModeForgot: (id: string, body: {password?: string; googleToken?: string}) =>
+    post<{ok: boolean; profile: Profile; childMode: ChildModeView}>(`/api/profiles/${encodeURIComponent(id)}/child-mode/forgot`, body),
   // ---- kids profiles ----
   // Is a household PIN set at all? (No PIN: leaving a kids profile asks nothing.)
   kidsStatus: () => request<{pinSet: boolean; guard?: boolean}>('/api/kids/status'),
@@ -2028,13 +2120,34 @@ export const api = {
   // until it is ready, then fetch `url` (the phone does that with Android's
   // DownloadManager — phone/offline/). `hevc`: this device plays HEVC, so the
   // original may be a plain repackage. Cancel: the copy stops when nobody else waits.
+  // `a`: the file's n-th sound (0 = the first, as before) — one copy, one sound
+  // (docs/offline-wishes.md, round 2); `audio` lists them when there are several.
   offlineOptions: (id: string, hevc: boolean) =>
-    request<{options: OfflineOption[]; duration?: number; error?: string}>(`/api/offline/options/${encodeURIComponent(id)}${hevc ? '?hevc=1' : ''}`),
-  offlinePrepare: (id: string, q: string, hevc: boolean) =>
-    post<OfflineStatus>(`/api/offline/prepare/${encodeURIComponent(id)}?q=${encodeURIComponent(q)}${hevc ? '&hevc=1' : ''}`, {}),
-  offlineStatus: (id: string, q: string, hevc: boolean) =>
-    request<OfflineStatus>(`/api/offline/status/${encodeURIComponent(id)}?q=${encodeURIComponent(q)}${hevc ? '&hevc=1' : ''}`),
-  offlineCancel: (id: string, q: string) => post<OfflineStatus>(`/api/offline/cancel/${encodeURIComponent(id)}?q=${encodeURIComponent(q)}`, {}),
+    request<{options: OfflineOption[]; audio?: OfflineSound[]; duration?: number; error?: string}>(`/api/offline/options/${encodeURIComponent(id)}${hevc ? '?hevc=1' : ''}`),
+  offlinePrepare: (id: string, q: string, hevc: boolean, a = 0) =>
+    post<OfflineStatus>(`/api/offline/prepare/${encodeURIComponent(id)}?q=${encodeURIComponent(q)}${a > 0 ? `&a=${a}` : ''}${hevc ? '&hevc=1' : ''}`, {}),
+  offlineStatus: (id: string, q: string, hevc: boolean, a = 0) =>
+    request<OfflineStatus>(`/api/offline/status/${encodeURIComponent(id)}?q=${encodeURIComponent(q)}${a > 0 ? `&a=${a}` : ''}${hevc ? '&hevc=1' : ''}`),
+  offlineCancel: (id: string, q: string, a = 0) => post<OfflineStatus>(`/api/offline/cancel/${encodeURIComponent(id)}?q=${encodeURIComponent(q)}${a > 0 ? `&a=${a}` : ''}`, {}),
+  // [offline-phone] "Save it to this device as soon as it is on the server" — a wish
+  // (docs/offline-wishes.md): this device's, the size sheet before the file exists, make
+  // one, cancel / dismiss one, and "saved here" (the wish ends).
+  offlineWishes: (profileId: string, deviceId: string) =>
+    request<{wishes: OfflineWish[]}>(`/api/profiles/${encodeURIComponent(profileId)}/offline-wishes?device=${encodeURIComponent(deviceId)}`),
+  offlineWishAdd: (profileId: string, body: OfflineWishBody) =>
+    post<{wish: OfflineWish; error?: string}>(`/api/profiles/${encodeURIComponent(profileId)}/offline-wishes`, body),
+  offlineWishRemove: (profileId: string, wishId: string) =>
+    request<{ok: boolean}>(`/api/profiles/${encodeURIComponent(profileId)}/offline-wishes/${encodeURIComponent(wishId)}`, {method: 'DELETE'}),
+  offlineWishSaved: (profileId: string, wishId: string) =>
+    post<{ok: boolean}>(`/api/profiles/${encodeURIComponent(profileId)}/offline-wishes/${encodeURIComponent(wishId)}/saved`, {}),
+  offlineWishOptions: (q: {type: 'movie' | 'show'; imdbId: string; season?: number | null; episode?: number | null; duration?: number | null; hevc?: boolean}) => {
+    const p = new URLSearchParams({type: q.type, imdbId: q.imdbId});
+    if (q.season != null) p.set('season', String(q.season));
+    if (q.episode != null) p.set('episode', String(q.episode));
+    if (q.duration) p.set('duration', String(Math.round(q.duration)));
+    if (q.hevc) p.set('hevc', '1');
+    return request<{options: OfflineOption[]; duration?: number | null; download?: {id: string; status: string; progress?: number} | null}>(`/api/offline/wish-options?${p.toString()}`);
+  },
   // This profile's own download requests (`mine`), for the My downloads page.
   myDownloads: (profileId: string) =>
     request<MyDownload[]>(`/api/downloads?profile=${encodeURIComponent(profileId)}`),

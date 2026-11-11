@@ -37,6 +37,9 @@ const PROFILE: Record<string, string[]> = {
   'phone/tabs.ts': ['current'],
   // [android-phone] the profile's TVs, as the remote sees them
   'phone/remote/controller.ts': ['devices', 'household', 'watchId'],
+  // [offline-phone] this device's wishes for the profile, which profile they are read for, and
+  // the read in flight (an answer for the last profile is dropped: `gen`)
+  'phone/offline/wishes.ts': ['wishes', 'subs', 'armed', 'gen', 'busy', 'syncing'],
   // [phone-nav] AI pick: whether this profile has the recommender, and its last answer
   'phone/aiStatus.ts': ['known', 'asking'],
   // [calendar-grid] the day picked on the month: Back from a title lands on it, the next profile starts fresh
@@ -60,23 +63,33 @@ const PROFILE: Record<string, string[]> = {
 
 // file → variable → why it is NOT a profile's
 const DEVICE: Record<string, Record<string, string>> = {
+  // children mode (2026-11-11)
+  'childMode.ts': {listeners: 'listeners (AppRoot: the account went into or out of children mode)'},
+  'phone/moreItems.ts': {NOT_IN_CHILD_MODE: 'a constant (the More lines Children mode leaves out)'},
   // [android-phone]
   'phone/tabs.ts': {subs: 'listeners (the tab bar, the tab host)', reselect: 'listeners (a tab scrolls to its top)'},
   'phone/offline/store.ts': {
     items: 'the copies saved on this phone — each tagged with its profile, and a profile is shown only its own',
     loaded: 'a flag: the list has been read from storage',
     subs: 'listeners',
-    prefs: 'this phone’s saving choices (quality, Wi-Fi only, where, the space limit, tidy-up, keep-next)',
+    prefs: 'this phone’s saving choices (quality, Wi-Fi only, where, keep the next episode ready)',
     ticker: 'a timer (DownloadManager progress)',
     hevc: 'what this phone decodes',
     space: 'this phone’s free space',
     playedChain: 'one write at a time to the queue of offline watch time (each entry is tagged with its profile)',
     flushingPlayed: 'a flag: the queue is being sent',
-    playing: 'the saved copy on screen now (never tidied away under the person)',
-    tidying: 'a flag: a tidy-up pass is running (it works over every profile’s copies, each tagged with its profile)',
-    tidyTimer: 'a timer (the hourly tidy-up)',
+    playing: 'the saved copy on screen now',
+    driving: 'the saves this run is taking forward (each keyed by its profile and title)',
+    removing: 'copies the person removed, held 6 s for Undo (each keyed by its profile and title)',
+    prefSubs: 'listeners',
+    landSubs: 'listeners',
+    likedAudio: "the app's one handler (reads the profile's own sound language when asked)",
+    carrying: 'a flag: a carry-on pass is running',
   },
-  'phone/offline/keepNext.ts': {busy: 'shows being looked at this moment (one pass per show at a time)'},
+  'phone/offline/reach.ts': {pillShown: 'whether the No connection line is on screen (the screen’s)', pillSubs: 'listeners (the toasts)'},
+  'phone/offline/smartNext.ts': {checking: 'a flag: a look is running (it reads the active profile when it runs)'},
+  'phone/offline/ChooseSheet.tsx': {current: 'the Choose episodes sheet that is up (the screen’s; one at a time)', lastSize: 'the size last picked on this phone (a phone’s choice, like the size sheet’s)', subs: 'listeners (the sheet)'},
+  'phone/offline/SizeSheet.tsx': {current: 'the size sheet that is up (the screen’s; one at a time)', subs: 'listeners (the sheet)'},
   'phone/navigation.tsx': {lastPlayKey: 'the player screen last looked at (a route key, once per screen)'},
   'phone/remote/controller.ts': {
     remoteId: 'this phone, as a remote (the same for every profile on it)',
@@ -113,11 +126,12 @@ const DEVICE: Record<string, Record<string, string>> = {
   'phone/auth/state.ts': {setupFor: 'which profile a sign-in just said has no password yet (keyed by that profile id; read by the set-a-password screen)'},
   'passRules.ts': {COMMON: 'a constant (the common passwords the strength hint calls weak)'},
   'phone/moreMenu.ts': {open: 'whether the More sheet is up (the screen’s; every line closes it first)', subs: 'listeners (the More sheet, the tab bar)'},
-  'phone/profileMenu.ts': {switchFn: "the app's one handler (AppContext's switchProfile)", nameOf: "the app's one handler (reads the current profile's name)", open: 'whether the menu panel is up (the screen’s; every line closes it first)', subs: 'listeners (the menu panel)'},
+  'phone/profileMenu.ts': {switchFn: "the app's one handler (AppContext's switchProfile)", nameOf: "the app's one handler (reads the current profile's name)", kidsOf: "the app's one handler (reads whether Children mode is on; wired again when the profile changes)", open: 'whether the menu panel is up (the screen’s; every line closes it first)', subs: 'listeners (the menu panel)'},
   // "What do we watch tonight?": this box as a session member (person + device); a session itself lives on the server
   'groupPickApi.ts': {deviceId: 'this box, as a member of a group-pick session (person + device)'},
   'party.ts': {deviceId: 'this TV, as a party member (person + device)', clockOffset: "the server's clock as this box sees it", samples: 'the clock pings behind it', rejoining: 'a rejoin in flight (the party itself is the profile’s and is left with it)'},
   'api.ts': {
+    audienceCb: "the app's one handler (AppRoot: children mode followed when an answer's audience changes)",
     baseUrl: 'which server',
     token: 'a credential: App.tsx sets and clears it around every profile change',
     session: 'a credential: App.tsx sets and clears it',

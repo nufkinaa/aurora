@@ -228,6 +228,9 @@ ui.test("a photo enlarges inside the sheet; arrows step through; Escape closes t
   const viewer = page.locator(`${sheet} .person-viewer`);
   await viewer.waitFor();
   assert.equal(await viewer.locator(".person-viewer-count").textContent(), "1 / 3");
+  // (the first photo's sharp picture is asked for on the viewer's first frame: an arrow pressed before that frame moves
+  // on without it, and it is asked for when the person comes back to that photo — here all three are waited for below)
+  await page.waitForFunction(() => { const i = document.querySelector(".person-viewer-slide img"); return i && !i.dataset.full; });
   await page.keyboard.press("ArrowRight");
   await page.waitForFunction(() => document.querySelector(".person-viewer-count")?.textContent === "2 / 3");
   await viewer.locator(".person-viewer-nav.next").click();

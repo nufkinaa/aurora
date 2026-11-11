@@ -19,20 +19,24 @@ import Sky from './ui/Sky';
 import PhoneOverlays from './Overlays';
 import {useLinks} from './links';
 import {setPlayingOffline} from './offline/store';
-import {keepNextAfter} from './offline/keepNext';
+import {afterOfflinePlay} from './offline/lifecycle';
+import OfflinePill from './offline/OfflinePill';
 import {trailScreen} from '../trail'; // [report trail]
 
-// A player opened: the saved copy on screen is never tidied away under the person, and
-// keep-next (off unless turned on) looks at what comes after the episode. Once per screen.
+// The saved copy on screen (the offline player); leaving it, "Keep the next episode ready" (off
+// unless turned on) looks whether an episode was just finished. Once per screen.
 let lastPlayKey: string | null = null;
 function onPlayRoute(r: {key: string; name: string; params?: object}) {
-  const p = (r.params || {}) as {id?: string; stream?: unknown};
+  const p = (r.params || {}) as {id?: string};
+  const was = lastPlayKey;
   setPlayingOffline(r.name === 'OfflinePlayer' ? p.id || null : null);
-  if (r.name !== 'Player' && r.name !== 'OfflinePlayer') return;
-  if (r.key === lastPlayKey) return;
-  lastPlayKey = r.key;
-  // (a torrent stream has no library id: nothing on the server to save from)
-  if (p.id && !p.stream && !String(p.id).startsWith('torrent|') && !String(p.id).startsWith('stream|')) keepNextAfter(p.id);
+  if (r.name !== 'Player' && r.name !== 'OfflinePlayer') {
+    if (was && was.startsWith('OfflinePlayer|')) afterOfflinePlay();
+    lastPlayKey = null;
+    return;
+  }
+  if (r.name === 'OfflinePlayer' && was && was.startsWith('OfflinePlayer|') && was !== `OfflinePlayer|${r.key}`) afterOfflinePlay();
+  lastPlayKey = `${r.name}|${r.key}`;
 }
 
 export type PhoneStackParamList = RootStackParamList & {
@@ -99,7 +103,7 @@ export default function PhoneNavigator() {
   useEffect(() => warm(), []);
   useEffect(() => () => restoreWindowBackground(), []);
   useLinks();
-  // the tab bar is drawn over every screen but the player
+  // the tab bar is drawn over every screen but the players and the remote
   const [route, setRoute] = useState('Home');
   return (
     <View style={s.root}>
@@ -108,6 +112,9 @@ export default function PhoneNavigator() {
         ref={navRef as never}
         theme={navTheme}
         onReady={() => {
+          // (a fresh start of the app's screens — Children mode going on or off
+          // remounts them, AppRoot — begins with the tab bar out)
+          setTabBarShown(true);
           const r = navRef.getCurrentRoute();
           if (r) routeStarted(`phone:${r.name.toLowerCase()}`, r.key);
           frameScreen((r?.name || 'home').toLowerCase());
@@ -168,7 +175,10 @@ export default function PhoneNavigator() {
           />
         </Stack.Navigator>
       </NavigationContainer>
-      {route !== 'Player' && route !== 'OfflinePlayer' ? <TabBar /> : null}
+      {/* (the remote is full screen, as the site's: its own dock is at the foot) */}
+      {route !== 'Player' && route !== 'OfflinePlayer' && route !== 'Remote' ? <TabBar /> : null}
+      {/* [offline-phone] no connection: one calm line above the tab bar, leading to On this device */}
+      <OfflinePill route={route} />
       <PhoneOverlays />
     </View>
   );

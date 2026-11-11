@@ -21,7 +21,7 @@ const {colors, fontSize, spacing, radius} = theme;
 // one place to change: its cards say `since: ROUND`, and NEW_FROM = ROUND puts the New
 // ribbon on them alone. (The website has the same cards: public/js/screens/whatsnew.js,
 // ROUND there; its `webOnly` cards — AirPlay from an iPhone — have nothing to do on a TV.)
-export const ROUND = '5.9.2';
+export const ROUND = '5.9.5';
 const NEW_FROM = ROUND;
 const cmpVersion = (a: string, b: string) => {
   const pa = a.split('.').map(Number);
@@ -33,14 +33,57 @@ export const isNewCard = (f: {since?: string}) => !!f.since && cmpVersion(f.sinc
 
 type Feature = {since?: string; glyph: string; title: string; what: string; how: string; go?: {label: string; act: string}};
 export const FEATURES: Feature[] = [
-  // ---- the 2026-11-10 round: the same card, the same words, on the website ----
+  // ---- 5.9.5: Children mode, the same card, the same words, on the website ----
   {
     since: ROUND,
+    glyph: '🧸',
+    title: "Children mode",
+    what: "One press cleans the feed for your child on every device signed in to your account: pick who is watching (All ages, 7+, 12+ or 16+) each time you turn it on. You choose a passcode the first time; leaving takes it. A younger age is one press, an older one asks for the passcode. Kids profiles are now Children mode.",
+    how: "Settings → Children mode.",
+    go: {label: 'Go home', act: 'home'},
+  },
+  // ---- 5.9.4 ----
+  {
+    since: '5.9.4',
+    glyph: '▶️',
+    title: "Continue Watching, tidied",
+    what: "One card per show: the episode you watched last, whether it was downloaded or streamed. Anything you have finished leaves the row, and stopping in the end credits counts as finished. When you finish an episode, the card moves on to the next one you have not seen.",
+    how: "Open Home: Continue Watching is the first row.",
+    go: {label: 'Go home', act: 'home'},
+  },
+  {
+    since: '5.9.4',
+    glyph: '🔎',
+    title: "Film or series, at a glance in search",
+    what: "On the website, the TV and the phone app, every result and every suggestion in search now carries a small sign: a gold film strip for a film, a blue screen for a series. A show's page on the TV also lists its genres, as a film's page always did.",
+    how: "Search → type a few letters.",
+    go: {label: 'Search', act: 'search'},
+  },
+  // ---- the 2026-11-11 round: the same cards, the same words, on the website ----
+  {
+    since: '5.9.3',
+    glyph: '🧾',
+    title: "A report tells us what happened",
+    what: "Report a problem now carries the last things you did, your device and what the player was doing, so a problem can be found without asking you questions. Nothing you type is recorded (no passwords, names or messages; the words of a search are the one exception), and you can read exactly what will be sent before you send it.",
+    how: "Settings → Report a problem → See what will be sent.",
+    go: {label: 'Report a problem', act: 'report'},
+  },
+  {
+    since: '5.9.3',
+    glyph: '🧹',
+    title: "Small things put right",
+    what: "A sweep through every screen: words that were cut, rows that sat too close to the edge, a clock that was hard to read, Back that went to the wrong place. Nothing has moved. It just sits right now.",
+    how: "Nothing to do. Use Aurora as always.",
+    go: {label: 'Go home', act: 'home'},
+  },
+  // ---- the 2026-11-10 round: the same card, the same words, on the website ----
+  {
+    since: '5.9.2',
     glyph: '🗓️',
     title: "The Calendar is a real month",
     what: "See the whole month at a glance: each release's poster on its day, a coloured edge for premieres, new episodes and films, and a tick for what's already on the server. Pick a day to see it in full, and Next up shows what's coming soonest. The list is still there: switch between Month and List.",
     how: "Press Left for the menu → Calendar. On the phone: More → Calendar.",
-    go: {label: 'Go home', act: 'home'},
+    go: {label: 'Open Calendar', act: 'calendar'},
   },
   // ---- [play-on-tv] Play on TV / Continue on this phone: the same card, the same words, on the website ----
   {
@@ -48,7 +91,7 @@ export const FEATURES: Feature[] = [
     glyph: '📺',
     title: "Play on TV, and back to your phone",
     what: "Press Play on TV on a title, an episode or in the player, and the TV starts it at the same second: it wakes from its screensaver and opens your profile, asking for its PIN or password if it has one. Your phone or computer pauses and becomes the remote, and Continue on this phone brings it back.",
-    how: "Leave this TV on, signed in or on Who's watching?. On your phone or computer: Play on TV.",
+    how: "Leave this TV on, signed in or on the Who's watching? screen. On your phone or computer: Play on TV.",
     go: {label: 'Home', act: 'home'},
   },
   // ---- the 2026-11-09 round: the same cards, the same words, on the website ----
@@ -412,7 +455,7 @@ export default function WhatsNew({navigation}: NativeStackScreenProps<RootStackP
     if (a === 'join') return openJoinParty();
     if (a === 'report') return openReport();
     if (a === 'downloads') return navigation.push('Downloads');
-    if (a === 'home' || a === 'movies' || a === 'shows' || a === 'settings' || a === 'search') goSection(navigation, 'new', a);
+    if (a === 'home' || a === 'movies' || a === 'shows' || a === 'settings' || a === 'search' || a === 'calendar') goSection(navigation, 'new', a);
   };
 
   return (

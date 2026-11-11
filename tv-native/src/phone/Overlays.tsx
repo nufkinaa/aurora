@@ -5,7 +5,11 @@ import React, {useEffect, useRef} from 'react';
 import {Animated, Linking, StyleSheet, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {closeOverlay, useOverlay} from '../overlay';
-import {useToasts} from '../toast';
+import {dropToast, ToastAction, useToasts} from '../toast';
+import Tap from './ui/Tap';
+import SizeSheet from './offline/SizeSheet';
+import ChooseSheet from './offline/ChooseSheet';
+import {PILL_LIFT, usePillShown} from './offline/reach';
 import Sheet from './ui/Sheet';
 import ListRow from './ui/Row';
 import {colors, GUTTER, radius, TAB_H, TAB_INSET} from './theme';
@@ -17,6 +21,7 @@ import {JoinPartySheet, ReportSheet} from './sheets/SmallSheets';
 import UpdateSheet from './sheets/UpdateSheet';
 import ProfileMenu from './ui/ProfileMenu';
 import MoreSheet from './sheets/MoreSheet';
+import ChildModeSheet from './sheets/ChildModeSheet';
 
 export default function PhoneOverlays() {
   const o = useOverlay();
@@ -69,10 +74,13 @@ export default function PhoneOverlays() {
       }} /> : null}
       {o?.kind === 'recommend' ? <RecommendSheet title={o.title} imdbId={o.imdbId || null} onClose={closeOverlay} /> : null}
       {o?.kind === 'join' ? <JoinPartySheet onClose={closeOverlay} /> : null}
+      {o?.kind === 'childMode' ? <ChildModeSheet onClose={closeOverlay} /> : null}
       {o?.kind === 'report' ? <ReportSheet hint={o.hint} onClose={closeOverlay} /> : null}
       <UpdateSheet />
       <ProfileMenu />
       <MoreSheet />
+      <SizeSheet />
+      <ChooseSheet />
       <Toasts />
     </>
   );
@@ -81,16 +89,18 @@ export default function PhoneOverlays() {
 function Toasts() {
   const list = useToasts();
   const insets = useSafeAreaInsets();
+  // (the "No connection" line sits where a toast would: a toast stands above it, never under it)
+  const lift = usePillShown() ? PILL_LIFT : 0;
   return (
-    <View pointerEvents="none" style={[s.toasts, {bottom: tabBottom(insets.bottom) + TAB_H + TAB_INSET + 8}]}>
+    <View pointerEvents="box-none" style={[s.toasts, {bottom: tabBottom(insets.bottom) + TAB_H + TAB_INSET + 8 + lift}]}>
       {list.map(t => (
-        <ToastPill key={t.id} text={t.text} glyph={t.glyph} />
+        <ToastPill key={t.id} id={t.id} text={t.text} glyph={t.glyph} action={t.action} />
       ))}
     </View>
   );
 }
 
-function ToastPill({text, glyph}: {text: string; glyph?: string}) {
+function ToastPill({id, text, glyph, action}: {id: number; text: string; glyph?: string; action?: ToastAction}) {
   const a = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(a, {toValue: 1, duration: 200, useNativeDriver: true}).start();
@@ -98,9 +108,25 @@ function ToastPill({text, glyph}: {text: string; glyph?: string}) {
   return (
     <Animated.View
       accessibilityLiveRegion="polite"
+      pointerEvents={action ? 'auto' : 'none'}
       style={[s.toast, {opacity: a, transform: [{translateY: a.interpolate({inputRange: [0, 1], outputRange: [12, 0]})}]}]}>
       {glyph ? <Text style={s.glyph}>{glyph}</Text> : null}
       <Text style={s.toastText}>{text}</Text>
+      {action ? (
+        // (the site's toast button: Undo after a Remove)
+        <Tap
+          uiId="toast.action"
+          flat
+          onPress={() => {
+            dropToast(id);
+            action.onPress();
+          }}
+          style={s.toastBtn}
+          accessibilityRole="button"
+          accessibilityLabel={action.label}>
+          <Text style={s.toastBtnText}>{action.label}</Text>
+        </Tap>
+      ) : null}
     </Animated.View>
   );
 }
@@ -123,4 +149,6 @@ const s = StyleSheet.create({
   },
   glyph: {fontSize: 18},
   toastText: {color: colors.text, fontSize: 15, fontWeight: '600', flexShrink: 1},
+  toastBtn: {minHeight: 44, minWidth: 44, paddingHorizontal: 12, marginVertical: -8, marginRight: -6, alignItems: 'center', justifyContent: 'center'},
+  toastBtnText: {color: '#6ee7b7', fontSize: 15, fontWeight: '800'},
 });

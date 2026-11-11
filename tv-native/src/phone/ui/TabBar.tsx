@@ -16,7 +16,7 @@ import {navRef} from '../../rootNav';
 import {setTab, Tab, useTab} from '../tabs';
 import {openMore, useMoreShown} from '../moreMenu';
 import {phoneNative} from '../native';
-import {G_EDGE, GUTTER, TAB_H, TAB_INSET, TAB_SIDE} from '../theme';
+import {E, E_EDGE_FLOAT, E_WELL, E_WORDS, GUTTER, TAB_H, TAB_INSET, TAB_SIDE} from '../theme';
 import {BASE_FONT, fitTabs, guessWidth, tabSlots} from './tabFit';
 
 const ITEMS: {tab: Tab; label: string; uiId: string}[] = [
@@ -42,8 +42,10 @@ export const useTabBarSpace = () => {
  *  phone's bar goes there too (the bottom of a landscape phone is the content's). */
 export const barAtTop = (width: number, height: number) => width > height;
 /** The site's `bottom: max(10px, env(safe-area-inset-bottom) - 14px)`: the bar rides low,
- *  over the gesture strip rather than a whole inset above it. */
-export const tabBottom = (inset: number) => (inset >= 40 ? inset + TAB_INSET : Math.max(TAB_INSET, inset - 14));
+ *  over the gesture strip rather than a whole inset above it — but clear of the gesture
+ *  handle: at inset - 14 Android's handle (drawn 11–14 dp up a 24 dp strip) sat on the
+ *  bar's bottom edge (Pixel 9, ui-phone 2026-11-10), so inset - 6 leaves ~4 dp between. */
+export const tabBottom = (inset: number) => (inset >= 40 ? inset + TAB_INSET : Math.max(TAB_INSET, inset - 6));
 // (an inset of 40+ is a 3-button / 2-button navigation bar, not the gesture strip: the bar
 // sits 10 above it, as the site's does above a browser's own bar — sizes pass 2026-10-29)
 
@@ -134,7 +136,7 @@ export default function TabBar() {
           style={[s.item, slot(moreAt)]}>
           <View style={[s.pill, !moreOn && s.pillOff]} pointerEvents="none" />
           {fit.moreIcon ? (
-            <Icon name="moreH" size={20} color="rgba(243,244,248,0.9)" />
+            <Icon name="moreH" size={20} color="#ffffff" />
           ) : (
             <Text style={[s.label, label, moreOn && s.labelOn]} numberOfLines={1} maxFontSizeMultiplier={MAX_SCALE}>
               {MORE}
@@ -150,7 +152,7 @@ export default function TabBar() {
           onPress={() => go('search')}
           style={[s.search, slot(moreAt + 1)]}>
           <View style={[s.pill, (tab !== 'search' || moreOn) && s.pillOff]} pointerEvents="none" />
-          <Icon name="navSearch" size={18} color="rgba(243,244,248,0.9)" />
+          <Icon name="navSearch" size={18} color="#ffffff" />
         </Tap>
       </View>
     </Animated.View>
@@ -160,10 +162,10 @@ export default function TabBar() {
 const PILL_H = TAB_H - 12;
 const s = StyleSheet.create({
   wrap: {position: 'absolute', left: 0, right: 0, alignItems: 'center'},
-  // .nav-items (glass): a 53 tall island, 6 inside, the items 2 apart. The site's is frosted
-  // glass (a backdrop blur over the sky); a blur every frame is what a weak phone cannot pay,
-  // so the island is the colour that glass shows over this sky (sampled at 411 px: blue at the
-  // left where the sky is, navy to the right) — a still fill, the same edge light.
+  // .nav-items (glass E, "Clear"): a 53 tall island, 6 inside, the items 2 apart. The
+  // website's is a light 3 px blur with the poster behind dimmed hard; a blur every frame
+  // is what a weak phone cannot pay, so the body does the dimming (Aurora's navy, at 72 % on the
+  // bar: what scrolls under it — words too — must not read through the tabs) — a still fill, the strong edge, the depth.
   bar: {
     height: TAB_H,
     borderRadius: TAB_H / 2,
@@ -171,18 +173,15 @@ const s = StyleSheet.create({
     alignItems: 'center',
     padding: 6,
     gap: 2,
-    backgroundColor: 'rgba(28,32,66,0.9)',
-    experimental_backgroundImage:
-      'linear-gradient(90deg, rgba(26,72,150,0.92) 0%, rgba(44,54,96,0.9) 32%, rgba(30,35,72,0.9) 66%, rgba(24,28,60,0.92) 100%)',
-    ...G_EDGE,
-    elevation: 12,
-    shadowColor: '#000',
+    backgroundColor: E.bar,
+    ...E_EDGE_FLOAT,
   },
   item: {flex: 1, height: PILL_H, borderRadius: PILL_H / 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
-  // .nav-item.active: a white veil with a lit top edge
-  pill: {...StyleSheet.absoluteFill, borderRadius: PILL_H / 2, backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderTopColor: 'rgba(255,255,255,0.35)'},
+  // .nav-item.active: Aurora's violet capsule with its own line (glass E keeps the colour)
+  pill: {...StyleSheet.absoluteFill, borderRadius: PILL_H / 2, ...E_WELL},
   pillOff: {opacity: 0},
-  label: {color: 'rgba(243,244,248,0.82)', fontSize: BASE_FONT, fontWeight: '700', lineHeight: 18.24},
+  // --g-ink: white words, each with its soft shadow (the clearest glass)
+  label: {color: '#ffffff', fontSize: BASE_FONT, fontWeight: '700', lineHeight: 18.24, ...E_WORDS},
   // the words measured at the full size: out of sight, never laid out against the bar
   measure: {position: 'absolute', left: 0, top: 0, opacity: 0, flexDirection: 'row', alignItems: 'flex-start', width: 2000},
   labelOn: {color: '#ffffff'},

@@ -147,9 +147,10 @@ for (const [name, viewport, look] of [["phone 390 glass", PHONE, "glass"], ["pho
       if (phone) {
         assert.equal(await count('.episode-wrap [data-ui="detail.episode.offline"]'), 3, "every episode on disk: Save offline");
         assert.equal(await count('[data-ui="detail.episode.download"]'), 0, "no raw file on a phone's card");
-        const pill = page.locator('[data-ui="detail.offline.seasonall"]');
-        assert.match(await pill.innerText(), /Save season offline \(3\)/);
-        assert.equal(await count(".season-pill:has-text('Download season to device')"), 0);
+        // (Save the next 3 / Save the season gave way to one button: Choose episodes — offline-choose.test.js)
+        assert.match(await page.locator('[data-ui="detail.offline.choose"]').first().innerText(), /Choose episodes/);
+        assert.equal(await count('[data-ui="detail.offline.seasonall"]'), 0);
+        assert.equal(await count(".season-pill:has-text('Download the files')"), 0);
         // 40 px to the finger, nothing on top of them, nothing past the edge
         await page.evaluate(() => document.querySelector(".episode-wrap").scrollIntoView({ block: "center", inline: "nearest" }));
         await page.waitForTimeout(400);
@@ -165,8 +166,10 @@ for (const [name, viewport, look] of [["phone 390 glass", PHONE, "glass"], ["pho
         await shot(page, `buttons-${name.replace(/ /g, "-")}-sheet`);
       } else {
         assert.equal(await count('[data-ui="detail.episode.download"]'), 3, "a computer: the file, from each card");
-        assert.equal(await count('[data-ui="detail.episode.offline"]'), 0);
-        assert.match(await page.locator(".season-pill", { hasText: "Download season to device" }).innerText(), /\(3\)/);
+        // (offline-look 2026-11-10: a computer keeps copies inside Aurora too — both, side by side)
+        assert.equal(await count('[data-ui="detail.episode.offline"]'), 3, "and Save to this device beside it");
+        assert.match(await page.locator('[data-ui="detail.offline.choose"]').first().innerText(), /Choose episodes/);
+        assert.match(await page.locator(".season-pill", { hasText: "Download the files" }).innerText(), /\(3\)/);
       }
       await go(`#/movie/${srv.lib.film1.id}`, '[data-ui="detail.offline"]');
       assert.equal(await count('[data-ui="detail.download.device"]'), phone ? 0 : 1);
@@ -243,9 +246,9 @@ ui.test("phone: no room on the device says so before anything is fetched; a save
     await btn.waitFor();
     await btn.click();
     await pick(page, "Original");
-    await page.locator("#toasts .toast", { hasText: "not enough browser storage" }).first().waitFor();
+    await page.locator("#toasts .toast", { hasText: "not enough room on this device" }).first().waitFor();
     await go("#/saved", '.device-job[data-state="failed"]');
-    assert.match(await page.locator(".device-job").innerText(), /Didn't save[\s\S]*not enough browser storage[\s\S]*Try a smaller size/);
+    assert.match(await page.locator(".device-job").innerText(), /Didn't save[\s\S]*not enough room on this device[\s\S]*Try a smaller size/);
     assert.equal(await page.locator(".device-job button", { hasText: "Retry" }).count(), 1);
     await shot(page, "storage-full");
     await page.locator(".device-job button", { hasText: "Dismiss" }).click();
@@ -261,6 +264,12 @@ ui.test("phone: no room on the device says so before anything is fetched; a save
     await page.waitForSelector(".device-jobs.hidden", { state: "attached" });
     await page.locator("#toasts .toast", { hasText: "Save cancelled" }).first().waitFor();
     assert.equal(await page.evaluate(async () => (await caches.open("aurora-media").then((c) => c.keys())).length), 0, "no half a film in the cache");
+    // …nor in the browser's file system (where Chrome saves since round 2)
+    assert.equal(await page.evaluate(async () => {
+      let n = 0;
+      try { const base = await (await navigator.storage.getDirectory()).getDirectoryHandle("aurora-offline"); for await (const [, d] of base.entries()) for await (const _ of d.entries()) n++; } catch {}
+      return n;
+    }), 0, "no half a film in the file system");
     assert.equal(await page.locator(".saved-section .dl-row").count(), 0);
     await page.unroute("**/stream/video/**");
     assert.deepEqual(errors, []);

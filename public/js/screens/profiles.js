@@ -129,13 +129,6 @@ export const passwordPrompt = (profile, onSuccess) => {
 };
 
 // ---------- kids profiles: the household PIN ----------
-// The limits a kids profile can have (mirrors AGES in src/lib/kids.js).
-const KIDS_AGES = [
-  [0, "All ages"],
-  [7, "7+"],
-  [12, "12+"],
-  [16, "16+"],
-];
 export const kidsLabel = (kids) =>
   !kids ? "" : kids.maxAge === 0 ? "all-ages titles only" : `titles up to ${kids.maxAge}+`;
 
@@ -150,7 +143,7 @@ export const pinPrompt = ({ title, note, choose = false, ok = "Continue", action
       type: "password", class: "focusable kids-pin-input", placeholder,
       inputmode: "numeric", pattern: "[0-9]*", maxlength: "6", autocomplete: "off",
     });
-    const input = pinInput(choose ? "New PIN (4–6 digits)" : "PIN");
+    const input = pinInput(choose ? "New PIN (4–6 digits)" : "Passcode");
     const again = choose ? pinInput("Once more") : null;
     const err = el("div", { class: "pw-error hidden" }, "");
     const fail = (msg) => { err.textContent = msg; err.classList.remove("hidden"); };
@@ -160,7 +153,7 @@ export const pinPrompt = ({ title, note, choose = false, ok = "Continue", action
         if (busy) return;
         err.classList.add("hidden");
         const pin = input.value.trim();
-        if (!/^\d{4,6}$/.test(pin)) return fail("The PIN is 4 to 6 digits.");
+        if (!/^\d{4,6}$/.test(pin)) return fail(choose ? "The PIN is 4 to 6 digits." : "The passcode is 4 to 6 digits.");
         if (again && again.value.trim() !== pin) return fail("Those two don't match.");
         busy = true;
         try {
@@ -181,7 +174,7 @@ export const pinPrompt = ({ title, note, choose = false, ok = "Continue", action
       return [
         el("h2", {}, title),
         note && el("p", { class: "field-hint", style: { marginTop: "-6px", marginBottom: "14px" } }, note),
-        el("div", { class: "field" }, el("label", {}, choose ? "Household PIN" : "Enter the PIN"), input, again, err),
+        el("div", { class: "field" }, el("label", {}, choose ? "Household PIN" : "Enter the passcode"), input, again, err),
         el("div", { style: { display: "flex", gap: "10px", marginTop: "22px" } },
           el("button", { class: "btn btn-primary focusable", onclick: submit }, ok),
           el("button", { class: "btn focusable", onclick: close }, "Cancel")
@@ -220,14 +213,11 @@ const leaveKidsFirst = async (target, got = {}) => {
     // the kids profile's unlock token must not ride the next profile's requests
     setAuthToken(null);
   };
-  if (!st.pinSet) {
-    // no PIN in the house (the admin page nags about this): nothing to ask
-    try { await lift(""); } catch {}
-    return true;
-  }
+  // (children mode: the passcode of the account this browser is locked to;
+  // an account with no passcode is left only by the admin — the server says so)
   return pinPrompt({
-    title: "Grown-ups only",
-    note: `Enter the household PIN to leave ${from ? `“${from.name}”` : "the kids profile"}.`,
+    title: "Children mode",
+    note: `Enter the passcode to leave Children mode${from ? ` on “${from.name}”` : ""}.`,
     ok: "Unlock",
     action: lift,
   });
@@ -391,89 +381,15 @@ export const profileModal = (existing, onDone) => {
   const showPwErr = (m) => { pwErr.textContent = m; pwErr.classList.remove("hidden"); };
   let onDoneClose = () => {};
 
-  // Kids profile: a switch and a limit. Changing either asks for the
-  // household PIN on Save (the profile's own password is the child's — it is
-  // not enough, and the server refuses without the PIN). Inside a kids
-  // profile the controls stay folded behind "Change…", so a child tapping
-  // around the edit sheet meets one quiet line, not a switch.
-  let kidsOn = !!wasKids;
-  let kidsAge = wasKids ? wasKids.maxAge : 7;
-  const kidsChanged = () => kidsOn !== !!wasKids || (kidsOn && wasKids && kidsAge !== wasKids.maxAge);
-  const kidsSwitch = el("button", {
-    class: "btn small focusable pref-item-value pref-switch", role: "switch", type: "button",
-    onclick: () => { kidsOn = !kidsOn; paintKids(); },
-  }, el("span", {}, ""));
-  const kidsChips = el("div", { class: "kids-ages" },
-    KIDS_AGES.map(([age, label]) => el("button", {
-      class: "chip focusable", type: "button", "data-age": String(age),
-      onclick: () => { kidsAge = age; paintKids(); },
-    }, label)));
-  const kidsHint = el("div", { class: "field-hint" }, "");
-  const paintKids = () => {
-    kidsSwitch.classList.toggle("on", kidsOn);
-    kidsSwitch.setAttribute("aria-checked", String(kidsOn));
-    kidsSwitch.firstChild.textContent = kidsOn ? "On" : "Off";
-    kidsChips.classList.toggle("hidden", !kidsOn);
-    kidsChips.querySelectorAll(".chip").forEach((c) => c.classList.toggle("on", Number(c.dataset.age) === kidsAge));
-    kidsHint.textContent = kidsOn
-      ? `Shows only ${kidsLabel({ maxAge: kidsAge })}, judged by the strictest rating any country gave a title. Anything without a known age rating stays hidden. Leaving this profile takes the household PIN.`
-      : "A kids profile only shows titles rated for the age you pick, and takes a PIN to leave.";
-  };
-  paintKids();
-  const kidsControls = el("div", { class: "kids-controls" },
-    el("div", { class: "kids-row" }, el("span", {}, "Kids profile"), kidsSwitch),
-    kidsChips,
-    kidsHint);
-  const kidsSection = !existing ? null : wasKids
-    ? (() => {
-        kidsControls.classList.add("hidden");
-        const line = el("div", { class: "kids-row" },
-          el("span", {}, el("span", { class: "kids-badge" }, "Kids"), ` ${kidsLabel(wasKids)}`),
-          el("button", {
-            class: "btn small focusable", type: "button",
-            onclick: () => { line.classList.add("hidden"); kidsControls.classList.remove("hidden"); kidsSwitch.focus(); },
-          }, "Change…"));
-        return el("div", { class: "field kids-field" }, line, kidsControls);
-      })()
-    : el("div", { class: "field kids-field" }, kidsControls);
-
-  // Save the kids setting behind the PIN. True when there is nothing left to
-  // do (unchanged, or saved); false when the PIN sheet was closed instead.
-  const saveKids = async () => {
-    if (!existing || !kidsChanged()) return true;
-    let st = null;
-    try { st = await api.kidsStatus(); } catch {}
-    if (!st) {
-      showPwErr("Kids profiles need the newer server — it hasn't been restarted yet.");
-      return false;
-    }
-    const want = kidsOn ? { maxAge: kidsAge } : null;
-    let saved = null;
-    const done = await pinPrompt(st.pinSet
-      ? {
-          title: "Household PIN",
-          note: want
-            ? `To make “${existing.name}” a kids profile (${kidsLabel(want)}).${st.scope ? ` ${st.scope}` : ""}`
-            : `To switch kids mode off for “${existing.name}”.`,
-          ok: "Save",
-          action: async (pin) => { saved = await api.setKids(existing.id, { kids: want, pin }); },
-        }
-      : {
-          title: "Choose a household PIN",
-          note: `4 to 6 digits, for the grown-ups. It is asked when leaving a kids profile, when opening a profile that has no password, and when changing this setting — don't tell the kids.${st.scope ? ` ${st.scope}` : ""}`,
-          choose: true,
-          ok: "Save",
-          action: async (pin) => { saved = await api.setKids(existing.id, { kids: want, newPin: pin }); },
-        });
-    if (!done) return false;
-    // The active profile turns into (or out of) a kids one on the spot:
-    // setProfile locks this browser to it, or the server drops the lock.
-    if (state.profile?.id === existing.id) {
-      await setProfile({ ...state.profile, kids: (saved && saved.profile && saved.profile.kids) || null }, state.token);
-    }
-    toast(want ? `“${existing.name}” is a kids profile now` : "Kids mode off", want ? "🧸" : "✅");
-    return true;
-  };
+  // (Children mode, 2026-11-11, replaced the kids-profile switch that sat
+  // here: it is the account's own switch now, in the profile menu, More and
+  // Settings — js/childmode.js. Inside children mode this sheet shows one
+  // quiet line saying so.)
+  const kidsSection = wasKids
+    ? el("div", { class: "field kids-field" },
+        el("div", { class: "kids-row" },
+          el("span", {}, el("span", { class: "kids-badge" }, "Kids"), ` Children mode · ${kidsLabel(wasKids)}`)))
+    : null;
 
   const { close } = modal((close) => {
     onDoneClose = () => { close(); onDone(); };
@@ -537,7 +453,6 @@ export const profileModal = (existing, onDone) => {
           requestSentModal(name, onDone);
           return;
         }
-        if (!(await saveKids())) return; // PIN sheet closed: stay here, nothing lost
         onDoneClose();
       } catch (e) {
         // The server rejects a duplicate name and a flooded queue with a real
@@ -766,7 +681,7 @@ export const showProfileGate = (onChosen, opts = {}) => {
           ? el("img", { class: "avatar-photo", src: p.avatarImage, alt: "" })
           : p.avatar,
         (p.locked || p.hasPassword) && el("span", { class: "profile-lock" }, p.locked ? "🚫" : "🔒"),
-        p.kids && el("span", { class: "profile-kids", title: `Kids profile — ${kidsLabel(p.kids)}` }, "Kids")
+        p.kids && el("span", { class: "profile-kids", title: `Children mode — ${kidsLabel(p.kids)}` }, "Kids")
       ),
       // (dir auto: a Hebrew name is cut at its own end, not at its first word)
       el("div", { class: "name", dir: "auto" }, p.name)

@@ -303,7 +303,7 @@ const kidsSession = (req) => {
   const k = sess ? profiles.kidsOf(sess.profileId) : null;
   if (!k) return null;
   const out = kidsRules.readRelease(req);
-  if (out && out.profile === sess.profileId && out.at >= (sess.createdAt || 0)) return null;
+  if (out && out.profile === sess.profileId && out.at >= (sess.createdAt || 0) && out.at >= profiles.childSince(sess.profileId)) return null;
   return { profile: sess.profileId, maxAge: k.maxAge };
 };
 
@@ -312,10 +312,16 @@ router.get("/api/kids/status", (req, res) => {
   res.set("Cache-Control", "no-store");
   // `lock` is what the wall asks the PIN for: the device lock, or — with no
   // lock in force — the kids profile this browser is signed in as.
+  // (children mode: an app released before it asks "is a PIN set?" to know
+  // whether to ask for one or offer to choose one — the account it names
+  // answers with its own passcode)
+  const lock = liveLock(req) || kidsSession(req);
+  const asked = [lock && lock.profile, typeof req.query.profile === "string" ? req.query.profile : null,
+    typeof req.headers["x-profile"] === "string" ? req.headers["x-profile"] : null].filter(Boolean);
   res.json({
-    pinSet: profiles.kidsPinSet(),
+    pinSet: profiles.kidsPinSet() || asked.some((id) => profiles.childPassSet(id)),
     ages: kidsRules.AGES,
-    lock: liveLock(req) || kidsSession(req),
+    lock,
     // true: profiles with no password open with the PIN (profiles.needsKidsPin)
     guard: profiles.kidsGuard(),
     // What the PIN does and doesn't promise, for the places it is set — one
@@ -332,8 +338,8 @@ router.post("/api/kids/enter", async (req, res) => {
   const k = profiles.kidsOf(id);
   if (!k) return res.status(400).json({ error: "not a kids profile" });
   const cur = liveLock(req);
-  if (cur && cur.profile !== id && k.maxAge > cur.maxAge && profiles.kidsPinSet()) {
-    const r = await pinAttempt(realtime.clientIp(req), (req.body || {}).pin);
+  if (cur && cur.profile !== id && k.maxAge > cur.maxAge && (canLeave(cur.profile) || profiles.kidsPinSet())) {
+    const r = await passAttempt(req, cur.profile, (req.body || {}).pin);
     if (!r.ok) return res.status(r.status).json({ error: r.error, pinRequired: true });
   }
   // re-entering the same profile keeps the original stamp (see resolveKids:
@@ -351,12 +357,31 @@ router.post("/api/kids/enter", async (req, res) => {
 // and says so here ({ pin, profile }). Naming a kids profile is asking for the
 // PIN to be checked — the answer is what lets the app open its profile wall
 // to the other profiles (its own gate; see tv-native ProfileGate.tsx).
+//
+  // CHILDREN MODE (2026-11-11): this is the route the apps released before
+  // children mode call to leave what they see as a kids profile. It takes
+  // the passcode of THAT account (a migrated account's is the old household
+  // PIN, same digits) and only lifts this device's lock — children mode
+  // stays on for the account, and the gate goes on filtering every request
+  // that names it. An account with no passcode is not left from here at all
+  // (it used to be, with no household PIN set): the admin turns it off.
 router.post("/api/kids/exit", async (req, res) => {
   const signedIn = kidsSession(req);
-  const named = !!profiles.kidsOf(String((req.body || {}).profile || ""));
-  if (profiles.kidsPinSet() && (liveLock(req) || signedIn || named)) {
-    const r = await pinAttempt(realtime.clientIp(req), (req.body || {}).pin);
-    if (!r.ok) return res.status(r.status).json({ error: r.error, pinRequired: true });
+  const namedId = String((req.body || {}).profile || "");
+  const named = !!profiles.kidsOf(namedId);
+  const lock = liveLock(req);
+  const target = (lock && lock.profile) || (signedIn && signedIn.profile) || (named ? namedId : null);
+  if (target) {
+    if (!canLeave(target)) return res.status(403).json({ error: NO_PASSCODE(), pinRequired: true, noPasscode: true });
+    const r = await passAttempt(req, target, (req.body || {}).pin);
+    if (!r.ok) return res.status(r.status).json({ error: r.error, pinRequired: true, ...(r.wrongPin ? { wrongPin: true } : {}) });
+    // two limited accounts at once (a lock on one, a session on another): both are left with ITS passcode only
+    for (const other of [lock && lock.profile, signedIn && signedIn.profile, named ? namedId : null]) {
+      if (other && other !== target) {
+        const r2 = await passAttempt(req, other, (req.body || {}).pin);
+        if (!r2.ok) return res.status(r2.status).json({ error: r2.error, pinRequired: true });
+      }
+    }
   }
   // Lifting the lock is not the whole of leaving: a browser signed in AS the
   // kids profile is still named a kids one by its session on every request
@@ -381,28 +406,178 @@ router.post("/api/profiles/:id/kids", gate, async (req, res) => {
   if (want === undefined) {
     return res.status(400).json({ error: `kids must be null or { maxAge: one of ${kidsRules.AGES.join(", ")} }` });
   }
-  if (profiles.kidsPinSet()) {
-    const r = await pinAttempt(realtime.clientIp(req), b.pin);
+  // CHILDREN MODE (2026-11-11): what the apps released before it send from
+  // their profile editor. Same rules as /child-mode: lowering is free,
+  // raising or switching off takes the account's passcode (`pin`), the
+  // first time on chooses it (`newPin` — or the household PIN, typed).
+  const id = req.params.id;
+  const cur = profiles.kidsOf(id);
+  const needPass = cur ? (!want || want.maxAge > cur.maxAge) : false;
+  if (needPass) {
+    if (!canLeave(id)) return res.status(403).json({ error: NO_PASSCODE(), pinRequired: true, noPasscode: true });
+    const r = await passAttempt(req, id, b.pin);
     if (!r.ok) return res.status(r.status).json({ error: r.error, pinRequired: true });
-  } else {
-    // No PIN in the house yet. Choosing one is only offered to someone turning
-    // kids mode ON for a profile that isn't a kids one — a profile the admin
-    // already marked can't be freed by whoever happens to pick a PIN first.
-    if (!want || profiles.kidsOf(req.params.id)) {
-      return res.status(403).json({ error: `The household PIN isn't set yet — ${config.ADMIN_NAME} sets it in the admin page.` });
+  } else if (want && !cur && !profiles.childPassSet(id)) {
+    let code = kidsRules.validPin(b.newPin) ? b.newPin : null;
+    if (!code && profiles.kidsPinSet() && kidsRules.validPin(b.pin)) {
+      const r = await pinAttempt(realtime.clientIp(req), b.pin);
+      if (!r.ok) return res.status(r.status).json({ error: r.error, pinRequired: true });
+      code = b.pin;
     }
-    if (!kidsRules.validPin(b.newPin)) {
-      return res.status(400).json({ error: "Choose a PIN of 4 to 6 digits.", pinNeeded: true });
-    }
-    const set = await profiles.setKidsPin(b.newPin);
+    if (!code) return res.status(400).json({ error: "Choose a PIN of 4 to 6 digits.", pinNeeded: true });
+    const set = await profiles.setChildPass(id, code);
     if (set.error) return res.status(400).json(set);
   }
-  const r = profiles.setKids(req.params.id, want);
+  if (!want && !cur) return res.json({ ok: true, profile: profiles.pub(profiles.list().find((x) => x.id === id)), pinSet: true });
+  const r = profiles.setKids(id, want);
   if (r.error) return res.status(r.error === "not found" ? 404 : 400).json(r);
-  // a kids profile from now on: every rating we hold is brought up to the
-  // strictest-age shape in the background (media/discover.js)
-  if (want) { try { require("../media/discover").refreshCertificates(); } catch {} }
+  changed(id, !!want);
+  logChild(!want ? "child-mode-off" : cur ? "child-mode-age" : "child-mode-on", req, id, want ? `${want.maxAge}+ (older app)` : "passcode (older app)");
   res.json({ ok: true, profile: r.profile, pinSet: true });
+});
+
+// ---------- children mode (2026-11-11, docs/children-mode.md) ----------
+// The ACCOUNT's own switch (account = profile). On: one click with an age —
+// the first time ever the parent also chooses the passcode, and it is
+// remembered on the account from then on. While on, everything signed in
+// to the account is filtered to that age (lib/kids.js, through kidsOf).
+// Lowering the age is free (it only restricts); raising it, or leaving,
+// takes the passcode. "Forgot the passcode?" takes the account's own
+// password or its Google sign-in. Other accounts are never touched.
+const childmode = require("../lib/childmode");
+const passAttempt = (req, id, code) => childmode.attempt(realtime.clientIp(req), id, code, profiles.verifyChildPass);
+const googleLib = lazy(require, "../lib/googleauth");
+const googleReady = () => { try { const g = googleLib().ids(); return !!(g.web || g.tv); } catch { return false; } };
+// Can this account be left at all? A passcode, or (a kids profile not
+// migrated yet) the household PIN that still opens it.
+const canLeave = (id) => {
+  if (profiles.childPassSet(id)) return true;
+  const raw = profiles.list().find((x) => x.id === id);
+  return !!(raw && raw.kids && !raw.childMode && profiles.kidsPinSet());
+};
+const NO_PASSCODE = () => `This account has no passcode. Ask ${config.ADMIN_NAME} to turn Children mode off in the admin page.`;
+const childView = (id) => {
+  const k = profiles.childModeOf(id);
+  const raw = profiles.list().find((x) => x.id === id) || {};
+  return {
+    on: !!k,
+    maxAge: k ? k.maxAge : null,
+    since: k ? k.since : null,
+    passcodeSet: profiles.childPassSet(id),
+    ages: kidsRules.AGES,
+    // what "Forgot the passcode?" can use on this account
+    forgot: { password: !!raw.passwordHash, google: !!raw.googleSub && googleReady() },
+  };
+};
+// This browser follows the account: locked while on (its <video> and <img>
+// requests name no profile of their own), unlocked when off.
+const lockThisBrowser = (req, res, id) =>
+  res.setHeader("Set-Cookie", [kidsRules.lockCookie(id, { secure: authz.isHttps(req) }), kidsRules.clearRelease()]);
+const unlockThisBrowser = (res) => res.setHeader("Set-Cookie", [kidsRules.clearCookie(), kidsRules.clearRelease()]);
+// (the sign-in log, read per person in the admin's People tab: no secret in it)
+const authlogLib = lazy(require, "../lib/authlog");
+const logChild = (type, req, id, via) => {
+  try { authlogLib().add(type, { profileId: id, via, ip: realtime.clientIp(req), device: realtime.parseDevice(req.headers["user-agent"] || "") }); } catch {}
+};
+const changed = (id, on) => {
+  // ratings brought up to the strictest-age shape in the background
+  if (on) { try { require("../media/discover").refreshCertificates(); } catch {} }
+  childmode.tell(id);
+};
+
+router.get("/api/profiles/:id/child-mode", gate, (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json(childView(req.params.id));
+});
+
+// Turn on, or change the age while on.
+//   body: { maxAge }                    — a passcode is set (one click)
+//         { maxAge, newPasscode }       — the first time on this account
+//         { maxAge, passcode }          — raising the age while on
+router.post("/api/profiles/:id/child-mode", gate, async (req, res) => {
+  const id = req.params.id;
+  const b = req.body || {};
+  const maxAge = typeof b.maxAge === "number" ? b.maxAge : Number.NaN;
+  if (!kidsRules.AGES.includes(maxAge)) {
+    return res.status(400).json({ error: `Choose who is watching: ${kidsRules.AGES.map((a) => (a ? a + "+" : "All ages")).join(", ")}.` });
+  }
+  const cur = profiles.kidsOf(id);
+  if (cur) {
+    if (maxAge > cur.maxAge) {
+      if (!canLeave(id)) return res.status(403).json({ error: NO_PASSCODE(), noPasscode: true });
+      const r = await passAttempt(req, id, b.passcode);
+      if (!r.ok) return res.status(r.status).json({ ...r, status: undefined, passcodeRequired: true });
+    }
+  } else if (!profiles.childPassSet(id)) {
+    if (!kidsRules.validPin(b.newPasscode)) {
+      return res.status(400).json({ error: "Choose a passcode of 4 to 6 digits.", passcodeNeeded: true });
+    }
+    const set = await profiles.setChildPass(id, b.newPasscode);
+    if (set.error) return res.status(400).json(set);
+  }
+  const r = profiles.setChildMode(id, maxAge);
+  if (r.error) return res.status(r.error === "not found" ? 404 : 400).json(r);
+  lockThisBrowser(req, res, id);
+  changed(id, true);
+  logChild(cur ? "child-mode-age" : "child-mode-on", req, id, `${maxAge}+`);
+  res.json({ ok: true, profile: r.profile, childMode: childView(id) });
+});
+
+// Leave children mode — for the whole account, on every device.
+router.post("/api/profiles/:id/child-mode/off", gate, async (req, res) => {
+  const id = req.params.id;
+  if (!profiles.kidsOf(id)) {
+    unlockThisBrowser(res);
+    return res.json({ ok: true, profile: profiles.pub(profiles.list().find((x) => x.id === id)), childMode: childView(id) });
+  }
+  if (!canLeave(id)) return res.status(403).json({ error: NO_PASSCODE(), noPasscode: true });
+  const r = await passAttempt(req, id, (req.body || {}).passcode);
+  if (!r.ok) return res.status(r.status).json({ ...r, status: undefined, passcodeRequired: true });
+  const done = profiles.setChildMode(id, null);
+  unlockThisBrowser(res);
+  changed(id, false);
+  logChild("child-mode-off", req, id, "passcode");
+  res.json({ ok: true, profile: done.profile, childMode: childView(id) });
+});
+
+// "Forgot the passcode?": the account's own password, or a token from a
+// verified Google sign-in of this very account (intent "childmode",
+// routes/auth.js). Clears the passcode and turns children mode off; the
+// next "Turn on" asks for a new passcode. A child who knows the account's
+// password can leave this way — by design: children mode lives on the
+// parent's own account, and that password is the parent's secret.
+router.post("/api/profiles/:id/child-mode/forgot", gate, async (req, res) => {
+  const id = req.params.id;
+  const b = req.body || {};
+  if (!profiles.kidsOf(id) && !profiles.childPassSet(id)) return res.json({ ok: true, childMode: childView(id) });
+  const { tooMany, recordFail } = require("./auth")._internals;
+  const ip = realtime.clientIp(req);
+  let via = "";
+  if (typeof b.googleToken === "string" && b.googleToken) {
+    if (!childmode.takeResetToken(b.googleToken, id)) {
+      return res.status(401).json({ error: "That Google sign-in didn't match this account. Try again.", wrongGoogle: true });
+    }
+    via = "google";
+  } else {
+    const raw = profiles.list().find((x) => x.id === id);
+    if (!raw || !raw.passwordHash) {
+      return res.status(400).json({ error: `This account has no password. Ask ${config.ADMIN_NAME} to clear the passcode in the admin page.`, noPassword: true });
+    }
+    if (tooMany("unlock:" + ip) || tooMany("unlock:p:" + id)) {
+      return require("../lib/authlimit").refuse(res, ["unlock:" + ip, "unlock:p:" + id]);
+    }
+    if (!(await profiles.checkPassword(id, String(b.password || "")))) {
+      recordFail("unlock:" + ip);
+      recordFail("unlock:p:" + id);
+      return res.status(401).json({ error: "That's not the password.", wrongPassword: true, field: "password" });
+    }
+    via = "password";
+  }
+  const done = profiles.clearChildPass(id);
+  unlockThisBrowser(res);
+  changed(id, false);
+  logChild("child-passcode-reset", req, id, via);
+  res.json({ ok: true, profile: done.profile, childMode: childView(id) });
 });
 
 router.delete("/api/profiles/:id", gate, (req, res) => {
@@ -1052,5 +1227,33 @@ const tellSignedOut = (profileId, exceptClientId = "") => {
 
 // Test-only: the PIN attempt limiter (test/kids.test.js).
 router._internals = { pinAttempt, kidsPinGuard, markEntry, tellSignedOut, gate }; // (gate: routes/household.js guards its routes the same way)
+
+// ---------- "save it to this device too" before the server has it (2026-11-10) ----------
+// A device's standing request for a title still on its way to the library
+// (media/offlinewish.js; the contract: docs/offline-wishes.md).
+//   GET    ?device=<id>   → { wishes: [wish] }   (no device: all of this person's)
+//   POST   { deviceId, scope, type, imdbId?, jobId?, season?, episode?, quality, hevc?, … } → { wish }
+//   DELETE /:wishId       → { ok }   Cancel / Dismiss
+//   POST   /:wishId/saved → { ok }   the device has its copy now
+router.get("/api/profiles/:id/offline-wishes", gate, (req, res) => {
+  const device = req.query.device ? String(req.query.device) : null;
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ wishes: require("../media/offlinewish").list(req.params.id, device) });
+});
+router.post("/api/profiles/:id/offline-wishes", gate, (req, res) => {
+  const r = require("../media/offlinewish").add(req.params.id, req.body || {});
+  if (r.error) return res.status(400).json(r);
+  res.json(r);
+});
+router.delete("/api/profiles/:id/offline-wishes/:wishId", gate, (req, res) => {
+  const r = require("../media/offlinewish").remove(req.params.id, String(req.params.wishId));
+  if (r.error) return res.status(404).json(r);
+  res.json(r);
+});
+router.post("/api/profiles/:id/offline-wishes/:wishId/saved", gate, (req, res) => {
+  const r = require("../media/offlinewish").remove(req.params.id, String(req.params.wishId), { saved: true });
+  if (r.error) return res.status(404).json(r);
+  res.json(r);
+});
 
 module.exports = router;

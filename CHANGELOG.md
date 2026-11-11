@@ -3,6 +3,56 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.33 — 2026-11-11
+
+- **Children mode (website, TV and phone app).** One press cleans the feed for your child on every device signed in to your account. You pick who is watching each time you turn it on (All ages, 7+, 12+ or 16+); a younger age is one press, an older one or leaving asks for your passcode, which you choose the first time and Aurora remembers. Every screen of the account follows at once, and the server's age check filters everything, so nothing slips through. Forgot the passcode? Your account's password (or Google on the website) clears it, and so can the admin page.
+- **Kids profiles are now Children mode.** Each kids profile becomes an account with Children mode on at its old age, and the household PIN is its passcode, so nothing opens up for a child. A backup is kept and the change can be undone.
+- TV 5.9.5 and Android phone 1.1.5 — Children mode, and the KIDS badge in the same mint everywhere.
+
+## 1.15.32 — 2026-11-11
+
+- **My downloads: "Keep going" gives the Cancel button back.** If the page refreshed while you were being asked whether to cancel, the button stayed greyed out after you chose to keep the download.
+
+## 1.15.31 — 2026-11-11
+
+- **A clearer glass (website and Android phone app).** The bars and buttons that float over pictures (the top bar, the bar at the bottom of a phone, the round buttons, the buttons on a title's picture, the player's controls) are clearer: the picture's colour comes through, the tab you are on is violet, and there is no bright line along the top. Menus, sheets and the phone's side menu keep their look. On the Android app the bottom bar is a little darker, so rows scrolling under it don't show through.
+- **"Save it to this device when it arrives" no longer misses an episode** that becomes ready while the device is already checking its list.
+- **Aurora for Android phones 1.1.4** — the clearer glass.
+
+## 1.15.30 — 2026-11-11
+
+- **Film or series, at a glance in search (website too).** The website's results and suggestions now carry the same small sign as the TV and the phone app: a gold film strip for a film, a blue screen for a series.
+- **Choose the episodes to save (website and phone app).** "Save the next 3" and "Save the season" make way for one button, Choose episodes: tick the ones you want (the next ones you haven't watched come ticked), Select all for a season, pick the size once, see the total and the room left, then Save. Episodes the server doesn't have yet save themselves when they arrive.
+- **Aurora for Android phones 1.1.3.**
+  - Offline watching like the website: "This device too" on anything on its way (a film, an episode, a season or a whole show) saves it to the phone by itself when it arrives; saves can be paused and pick up where they stopped, a dropped connection is waited out; choose the sound when you save and every subtitle is kept; "Keep the next episode ready" (off unless you turn it on); a calm "No connection" line, and a start with no connection opens on what is on the phone. Nothing leaves the phone unless you remove it, and every Remove can be undone.
+  - The remote does everything the website's does: a touchpad (swipe to move, tap to select), a time bar you can drag, ±10 and ±30 seconds, subtitle timing, Continue Watching to start something on the TV, volume with its level, rename a TV, and it works sideways.
+  - Wrapped is a story of eleven chapters with your viewer type and a picture to share; Pick for me lands its pick on a reel; Taste is a real deck; Pick together reveals the winner like a game show.
+  - Home: the greeting sits on the picture with Aurora's line under it, new each visit (kids get friendly lines only).
+  - Small things put right: a taller bar at the bottom clear of the gesture line, sheets that stay above the keyboard, a title page's buttons that show they scroll, the player's bottom row upright, the score beside the star after a display-size change.
+
+## 1.15.29 — 2026-11-11
+
+- **The player's menu reads over a bright picture again (website, on a computer).** Settings, subtitles and speed had turned see-through in 1.15.28, so over a light scene the words disappeared. The menu has its dark glass body back.
+- **The Settings button's gear sits in the middle of its circle (website, on a phone).** Since the taller bar at the bottom it sat a little low.
+- **Downloads stays beside Settings (website, on a computer).** The button no longer comes and goes: with nothing downloading it is a plain download button to My downloads; it shows the progress while something downloads and the count once things are ready, and it no longer fades out of sight after ten seconds.
+- **Film or series, at a glance in search (TV and phone app).** A gold film strip for a film, a blue screen for a series, on every result and suggestion. The website follows once its look is chosen.
+- **A show's page on the TV lists its genres**, as a film's page always did.
+- **Continue Watching, tidied (website, TV, phone app).** One card per series (its newest episode, whether downloaded or streamed); finished films and episodes leave the row, and a stop in the end credits counts as finished; the up-next card skips episodes already watched; ✕ on an episode card takes the whole series off until you watch it again.
+- **Start over stays a little longer** when you come back to something you were watching: six seconds instead of four (website, TV, phone app).
+- **Kids profiles see only kind words on Home** from the first moment: the page no longer shows a teasing line of its own before the server's friendly one arrives.
+- TV 5.9.4.
+
+## 1.15.28 — 2026-11-11
+
+- **Wrapped, Pick for me, Taste and Pick together play like games (website).** Wrapped is a story you tap through, with numbers that count up and a card to share at the end. Pick for me draws your film like a reel that slows and lands. Taste is a deck of cards you throw right or left. Pick together plays in turns, with a tally and a reveal. What they do is the same; the TV and the phone app get the same look in their next update.
+- **Watching with no connection, made simple (website).** One name and one sign everywhere: Save to this device. A ring on the poster fills as it saves. You can ask for a film, an episode or a whole show before the server has it, and it saves itself when the server's copy is ready. Pack for a trip saves what you are in the middle of in one go. A save can be paused and picked up again, takes every subtitle and the sound you chose, and is quicker in Chrome. With no connection, Aurora shows what is on this device instead of an empty page. Nothing is ever removed from your device by itself.
+- **Report a problem tells us what happened** (website, TV, phone app, and the admin page that reads it). A report now carries the last things you did, your device and what the player was doing. Nothing you type is recorded (no passwords, names or messages; the words of a search are the one exception). "See what will be sent" shows you exactly what goes.
+- **Home on a phone sits right (website).** On an iPhone the big picture starts below the settings and profile buttons and the greeting sits on it, top left, with a soft shade from the top so it reads over any picture. The Aurora mark's box fits the mark, the bar at the bottom is a little taller, and the row of buttons on a title's page shows that it scrolls sideways.
+- **Aurora has a lot more to say.** The line under the greeting has 891 lines for 73 situations: the hour, the day, a show you left, a long night, a week away. It teases habits and taste, never the person. Kids get friendly lines only.
+- **Smoother to look at.** The sky keeps moving while you scroll on a computer. A picture that arrives sharper fades in softly. Pages and the server do less work for the same result, and nothing looks different for it.
+- **Small things put right** on the website, the admin page and the TV (Aurora TV 5.9.3): words that were cut, rows too close to the edge, a clock that was hard to read, Back that went to the wrong place.
+- The phone app's update (1.1.3) follows separately.
+
 ## 1.15.27 — 2026-11-10
 
 - **The Calendar is a real month** on the website, the TV and the phone app (Aurora TV 5.9.2, Aurora for Android phones 1.1.2). Each day shows its releases as posters (fanned on wide screens, one poster filling the day on phones and the TV), with the kind on a coloured edge and a tick for what's already on the server. The picked day's releases sit beside or under the month with Play and Save & watch. There is a Next up line, a Month / List switch remembered per device, the keyboard, D-pad and swipe to move between days and months, and reduced motion is honoured. Days and "today" follow the device's own time zone and week start. Older apps keep their unchanged lists.

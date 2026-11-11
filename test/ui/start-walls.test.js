@@ -92,7 +92,7 @@ ui.test("a kids profile over the limit: the title, its playlists, a warm-up and 
   assert.equal(await page.evaluate((u) => navigator.sendBeacon(u), `${base}/bye`), true);
   // the player, by its address: sent away, no <video>
   await page.evaluate((h) => { location.hash = h; }, `#/play/${id}`);
-  await page.waitForFunction(() => /kids profile/i.test(document.getElementById("toasts").innerText));
+  await page.waitForFunction(() => /Children mode|kids profile/i.test(document.getElementById("toasts").innerText));
   await page.waitForFunction(() => location.hash === "#/" || location.hash === "");
   assert.equal(await page.locator(".player video").count(), 0);
   await page.waitForTimeout(500);

@@ -102,6 +102,55 @@ ui.test("an episode's name finds its show, and the card says which episode", asy
   await page.waitForFunction((id) => location.hash === `#/show/${id}`, lib.show.id);
 });
 
+ui.test("film or series: every result card and every title suggestion carries the icon; the word is for a screen reader only", async ({ page, goto, signIn, freshProfile }) => {
+  await signIn(await freshProfile());
+  await page.setViewportSize({ width: 390, height: 844 });
+  await goto("#/search");
+  await page.locator(BOX).pressSequentially("tes");
+  await suggestionsShow(page, "Tessa Example");
+  await resultsAre(page, ["Test Show", "Test Film Two", "Test Film One"]);
+  const seen = await page.evaluate(() => {
+    const visible = (n) => { const r = n.getBoundingClientRect(); return r.width > 2 && r.height > 2 && getComputedStyle(n).visibility !== "hidden"; };
+    return {
+      cards: [...document.querySelectorAll("#app .screen > .grid .card")].map((c) => {
+        const tag = c.querySelector(".card-tag.kind");
+        const word = tag && tag.querySelector("span[data-t]");
+        return {
+          label: c.getAttribute("aria-label"),
+          kind: tag ? (tag.classList.contains("series") ? "series" : "film") : null,
+          icon: !!(tag && tag.querySelector("svg") && visible(tag.querySelector("svg"))),
+          word: !!(word && visible(word)),
+          inside: !!tag && tag.getBoundingClientRect().right <= c.getBoundingClientRect().right,
+        };
+      }),
+      rows: [...document.querySelectorAll("#app .suggest-list:not(.hidden) .suggest-item")].map((r) => {
+        const k = r.querySelector(".suggest-kind");
+        return {
+          title: r.querySelector(".suggest-title").textContent,
+          kind: k ? (k.classList.contains("series") ? "series" : "film") : null,
+          icon: !!(k && visible(k.querySelector("svg"))),
+          word: !!(k && visible(k.querySelector(".suggest-kind-word"))),
+        };
+      }),
+    };
+  });
+  // the cards: the series / film disc, icon alone, inside the card; the word in the card's name
+  assert.deepEqual(seen.cards.map((c) => c.kind), ["series", "film", "film"]);
+  assert.ok(seen.cards.every((c) => c.icon && !c.word && c.inside), JSON.stringify(seen.cards));
+  assert.match(seen.cards[0].label, /^Test Show, series\b/);
+  assert.match(seen.cards[1].label, /^Test Film Two, film\b/);
+  // the suggestions: titles carry it, the person keeps its own row
+  assert.deepEqual(seen.rows.map((r) => `${r.title}:${r.kind}`), ["Test Show:series", "Test Film Two:film", "Test Film One:film", "Tessa Example:null"]);
+  assert.ok(seen.rows.filter((r) => r.kind).every((r) => r.icon && !r.word), JSON.stringify(seen.rows));
+  // the same at a desktop width (Home's mixed rows print the word there; search does not)
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const wide = await page.evaluate(() => [...document.querySelectorAll("#app .screen > .grid .card .card-tag.kind")].map((t) => {
+    const w = t.querySelector("span[data-t]");
+    return { word: getComputedStyle(w).display !== "none", icon: t.querySelector("svg").getBoundingClientRect().width };
+  }));
+  assert.ok(wide.length === 3 && wide.every((t) => !t.word && t.icon >= 12), JSON.stringify(wide));
+});
+
 ui.test("suggestions: titles with the typed letters marked, then a person and a genre as rows of their own; arrow keys reach them", async ({ page, goto, signIn, freshProfile, lib }) => {
   await signIn(await freshProfile());
   await goto("#/search");

@@ -81,9 +81,16 @@ const session = (profile, title, type, start, sec, device, ep) => {
 
 // The rich year. Hand-placed moments first (the streak, the big day, the
 // late finishes), then ordinary evenings around them.
+// Laid out from the latest Tuesday, not from today: which evenings are drawn
+// depends on their weekday (weekends win), so counted from today the year was
+// a different one on each day of the week — 136 hours and a 13-day streak on
+// the Tuesday it was written, 138 and 12 the day after. From the latest
+// Tuesday it is the same year every day, at most six days further back.
+const ANCHOR_WEEKDAY = 2;
 const richYear = (profile) => {
   const r = rng(7);
   const out = [];
+  const back = (at(0, 0).getDay() - ANCHOR_WEEKDAY + 7) % 7;
   const pick = (weights) => {
     let x = r() * weights.reduce((a, b) => a + b, 0);
     for (let i = 0; i < weights.length; i++) { x -= weights[i]; if (x <= 0) return i; }
@@ -94,7 +101,7 @@ const richYear = (profile) => {
   const nextEp = (t) => { const e = (eps.get(t) || 0) + 1; eps.set(t, e); return [1 + Math.floor((e - 1) / 8), 1 + ((e - 1) % 8)]; };
   const add = (daysAgo, hour, minute, ti, min, device) => {
     const [title, type] = TITLES[ti];
-    out.push(session(profile, title, type, at(daysAgo, hour, minute), min * 60, device, type === "show" ? nextEp(title) : null));
+    out.push(session(profile, title, type, at(daysAgo + back, hour, minute), min * 60, device, type === "show" ? nextEp(title) : null));
   };
   // the twelve-day streak, ~2 months ago
   for (let d = 0; d < 12; d++) add(70 - d, 21, 10 + d * 3, d % 3 === 2 ? 1 : 0, 48 + (d % 4) * 9, "TV");
@@ -112,7 +119,7 @@ const richYear = (profile) => {
   // ordinary evenings over ten months, Fridays heaviest
   for (let i = 0; out.length < 152; i++) {
     const daysAgo = 3 + Math.floor(r() * 295);
-    const wd = at(daysAgo, 0).getDay();
+    const wd = at(daysAgo + back, 0).getDay();
     if (wd !== 5 && wd !== 6 && r() < 0.42) continue; // weekends win
     const ti = pick(W);
     const hour = 19 + Math.floor(r() * 4);

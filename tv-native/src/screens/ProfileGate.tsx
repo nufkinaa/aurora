@@ -201,10 +201,10 @@ export default function ProfileGate({
     const playing = ask && ask.profileId === pinFor.profile.id ? ask : null; // [play-on-tv]
     return (
       <View style={styles.root}>
-        <Text style={styles.heading}>{playing ? askToPlay('pin', playing.title) : 'Grown-ups only'}</Text>
+        <Text style={styles.heading}>{playing ? askToPlay('pin', playing.title) : pinFor.mode === 'exit' ? 'Children mode' : 'Grown-ups only'}</Text>
         <Text style={styles.sub}>
           {pinFor.mode === 'exit'
-            ? `Enter the household PIN to leave ${from ? `“${from.name}”` : 'the kids profile'}.`
+            ? `Enter the passcode to leave Children mode${from ? ` on “${from.name}”` : ''}.`
             : `“${pinFor.profile.name}” has no password, so the household PIN opens it.`}
         </Text>
         <TextInput
@@ -217,7 +217,7 @@ export default function ProfileGate({
           autoFocus
           keyboardType="number-pad"
           maxLength={6}
-          placeholder="PIN"
+          placeholder={pinFor.mode === 'exit' ? 'Passcode' : 'PIN'}
           placeholderTextColor={colors.textFaint}
           onSubmitEditing={submitPin}
         />

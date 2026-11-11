@@ -11,15 +11,17 @@
 // the player's own (playback/Player.tsx), shared with the TV; this file only
 // draws the touch controls and hands the presses back.
 import React, {useMemo, useRef, useState} from 'react';
-import {Image, PanResponder, StyleSheet, Text, View} from 'react-native';
+import {Image, PanResponder, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Tap from '../ui/Tap';
 import Icon, {PhoneIconName} from '../ui/Icon';
 import {phoneNative} from '../native';
+import {E, E_EDGE, E_EDGE_THIN, E_WELL, E_WORDS} from '../theme';
 import PlayOnTvSlot from '../remote/PlayOnTvSlot'; // [play-on-tv]
 // [scrub-previews] the picture above the scrub point while the bar is dragged
 import ScrubThumb, {ScrubPics, thumbOuterWidth} from '../../playback/ScrubThumb';
 import {thumbLeft} from '../../playback/scrubPreview';
+import {playerRowFit} from './rowFit';
 
 const SCRIM_TOP = require('../../assets/player-top.png');
 const SCRIM_BOTTOM = require('../../assets/player-bottom.png');
@@ -71,8 +73,8 @@ const fmt = (s: number) => {
   return (h ? `${h}:${String(m).padStart(2, '0')}` : `${m}`) + `:${String(sec).padStart(2, '0')}`;
 };
 
-function Btn({icon, label, onPress, big, badge, on, mid, uiId}: {icon: PhoneIconName; label: string; onPress: () => void; big?: boolean; badge?: string; on?: boolean; mid?: boolean; uiId?: string}) {
-  const size = big ? 76 : mid ? 56 : 48;
+function Btn({icon, label, onPress, big, badge, on, mid, uiId, px}: {icon: PhoneIconName; label: string; onPress: () => void; big?: boolean; badge?: string; on?: boolean; mid?: boolean; uiId?: string; px?: number}) {
+  const size = big ? 76 : mid ? 56 : px || 48;
   return (
     <Tap
       uiId={uiId}
@@ -159,8 +161,13 @@ function Scrubber({shown, duration, bufPct, marks, band, onScrub, onSeek, onTouc
 
 export default function PhoneChrome(p: ChromeProps) {
   const insets = useSafeAreaInsets();
+  const {width} = useWindowDimensions();
   const padL = Math.max(insets.left, 12) + 4;
   const padR = Math.max(insets.right, 12) + 4;
+  // the bottom row's buttons sized to the width (rowFit.ts: upright, "Next" fell off the edge);
+  // the 2 is the gap the spacer between the two groups adds
+  const rowButtons = (p.hasSubs ? 1 : 0) + (p.simple ? 0 : 4) + 2;
+  const row = playerRowFit(width - padL - padR - 2, rowButtons, !!p.next);
   if (p.locked) {
     return (
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -221,24 +228,31 @@ export default function PhoneChrome(p: ChromeProps) {
           <Text style={[s.time, s.timeRight]}>{p.duration ? `-${fmt(left)}` : ''}</Text>
         </View>
         <View style={s.row} pointerEvents="box-none">
-          {p.hasSubs ? <Btn uiId="player.subtitles.open" icon="cc" label="Subtitles" onPress={() => p.onMenu('cc')} badge={p.subsOff ? 'off' : undefined} /> : null}
+          {p.hasSubs ? <Btn uiId="player.subtitles.open" icon="cc" label="Subtitles" onPress={() => p.onMenu('cc')} badge={p.subsOff ? 'off' : undefined} px={row.size} /> : null}
           {p.simple ? null : (
             <>
-              <Btn uiId="player.settings.open" icon="gear" label="Audio and settings" onPress={() => p.onMenu('settings')} />
-              <Btn uiId="player.speed.open" icon="speed" label="Speed" onPress={() => p.onMenu('speed')} badge={p.rate === 1 ? undefined : `${p.rate}×`} />
-              <Btn uiId="player.xray" icon="xray" label="X-Ray" onPress={p.onXray} />
-              <Btn uiId="player.party" icon="people" label="Watch together" onPress={() => p.onMenu('party')} />
+              <Btn uiId="player.settings.open" icon="gear" label="Audio and settings" onPress={() => p.onMenu('settings')} px={row.size} />
+              <Btn uiId="player.speed.open" icon="speed" label="Speed" onPress={() => p.onMenu('speed')} badge={p.rate === 1 ? undefined : `${p.rate}×`} px={row.size} />
+              <Btn uiId="player.xray" icon="xray" label="X-Ray" onPress={p.onXray} px={row.size} />
+              <Btn uiId="player.party" icon="people" label="Watch together" onPress={() => p.onMenu('party')} px={row.size} />
             </>
           )}
           <View style={{flex: 1}} />
-          <Btn uiId="phone.player.fit" icon="aspect" label={p.fit === 'fill' ? 'Fit the picture' : 'Fill the screen'} onPress={p.onFit} on={p.fit === 'fill'} />
-          <Btn uiId="phone.player.rotate" icon="rotate" label={p.landscape ? 'Portrait' : 'Landscape'} onPress={p.onRotate} />
+          <Btn uiId="phone.player.fit" icon="aspect" label={p.fit === 'fill' ? 'Fit the picture' : 'Fill the screen'} onPress={p.onFit} on={p.fit === 'fill'} px={row.size} />
+          <Btn uiId="phone.player.rotate" icon="rotate" label={p.landscape ? 'Portrait' : 'Landscape'} onPress={p.onRotate} px={row.size} />
           {p.next ? (
-            <Tap uiId="player.next" onPress={p.onNext} style={s.next} accessibilityRole="button" accessibilityLabel={`Next episode — ${p.next}`}>
+            <Tap
+              uiId="player.next"
+              onPress={p.onNext}
+              style={row.nextWord ? s.next : [s.next, s.nextRound, {width: row.size, height: row.size, borderRadius: row.size / 2}]}
+              accessibilityRole="button"
+              accessibilityLabel={`Next episode — ${p.next}`}>
               <Icon name="next" size={22} color="#fff" />
-              <Text style={s.nextText} numberOfLines={1}>
-                Next
-              </Text>
+              {row.nextWord ? (
+                <Text style={s.nextText} numberOfLines={1}>
+                  Next
+                </Text>
+              ) : null}
             </Tap>
           ) : null}
         </View>
@@ -252,23 +266,28 @@ const s = StyleSheet.create({
   scrimBottom: {position: 'absolute', bottom: 0, left: 0, right: 0, height: 190},
   top: {position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'flex-start', gap: 6},
   titles: {flex: 1, paddingTop: 4, paddingHorizontal: 6},
-  title: {color: '#fff', fontSize: 18, fontWeight: '800'},
-  sub: {color: 'rgba(255,255,255,0.82)', fontSize: 14, fontWeight: '600', marginTop: 2},
+  title: {color: '#fff', fontSize: 18, fontWeight: '800', ...E_WORDS},
+  // the player's second voice, lifted (glass E: #e3e6ee on the phone's player)
+  sub: {color: '#e3e6ee', fontSize: 14, fontWeight: '600', marginTop: 2, ...E_WORDS},
   badges: {flexDirection: 'row', gap: 6, marginTop: 6},
   chip: {color: '#fff', fontSize: 11, fontWeight: '800', backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, overflow: 'hidden', letterSpacing: 0.5},
   middle: {position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 44},
   bottom: {position: 'absolute', bottom: 0, left: 0, right: 0},
   timeRow: {flexDirection: 'row', alignItems: 'center', gap: 10},
-  time: {color: '#fff', fontSize: 13, fontWeight: '700', minWidth: 46, fontVariant: ['tabular-nums']},
+  time: {color: '#fff', fontSize: 13, fontWeight: '700', minWidth: 46, fontVariant: ['tabular-nums'], ...E_WORDS},
   timeRight: {textAlign: 'right'},
   row: {flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 4},
   btn: {alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
-  big: {backgroundColor: 'rgba(8,9,16,0.38)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)'},
-  mid: {backgroundColor: 'rgba(8,9,16,0.3)'},
-  on: {backgroundColor: 'rgba(255,255,255,0.18)'},
+  // glass E over the video (the website's phone player: never blurred, 62 % of black
+  // holds the words alone; the strong edge)
+  big: {backgroundColor: E.chrome, ...E_EDGE},
+  mid: {backgroundColor: E.chrome, ...E_EDGE_THIN},
+  // lit: Aurora's violet capsule laid over the body
+  on: {...E_WELL, backgroundColor: E.chrome, experimental_backgroundImage: 'linear-gradient(rgba(120,104,240,0.2), rgba(120,104,240,0.2))'},
   badge: {position: 'absolute', bottom: 4, color: '#fff', fontSize: 9, fontWeight: '900'},
-  next: {flexDirection: 'row', alignItems: 'center', gap: 4, height: 40, paddingHorizontal: 14, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.16)', overflow: 'hidden', marginLeft: 4},
-  nextText: {color: '#fff', fontSize: 14, fontWeight: '800'},
+  next: {flexDirection: 'row', alignItems: 'center', gap: 4, height: 40, paddingHorizontal: 14, borderRadius: 20, backgroundColor: E.chrome, ...E_EDGE, overflow: 'hidden', marginLeft: 4},
+  nextText: {color: '#fff', fontSize: 14, fontWeight: '800', ...E_WORDS},
+  nextRound: {paddingHorizontal: 0, justifyContent: 'center'},
   lockOnly: {position: 'absolute'},
   scrubWrap: {flex: 1, height: 36, justifyContent: 'center'},
   track: {height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'visible'},

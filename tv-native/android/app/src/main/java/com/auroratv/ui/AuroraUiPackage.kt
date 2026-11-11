@@ -3,7 +3,6 @@ package com.auroratv.ui
 import com.auroratv.ui.qa.AuroraQaModule
 import com.auroratv.ui.view.AuroraCardManager
 import com.auroratv.ui.view.AuroraFocusableManager
-import com.auroratv.ui.view.AuroraGlassEdgeManager
 import com.auroratv.ui.view.AuroraHeroArtManager
 import com.auroratv.ui.view.AuroraRailPanelManager
 import com.auroratv.ui.view.AuroraRowManager
@@ -34,6 +33,5 @@ class AuroraUiPackage : ReactPackage {
       AuroraHeroArtManager(),
       AuroraRailPanelManager(),
       AuroraTextLayerManager(),
-      AuroraGlassEdgeManager(),
     )
 }

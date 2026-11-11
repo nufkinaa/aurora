@@ -5,7 +5,8 @@
 //
 // Strategy, by path:
 //   /offline/media/<id>   the saved copy (put there by js/offline.js) — cache
-//                         only, Range-aware, never touches the network
+//                         only, Range-aware, never touches the network: from
+//                         its parts, or the one entry of an older save
 //   /stream/*, /api/admin/*, /proxy/*, /avatars/*   untouched (live only)
 //   /api/*  (GET)         network first; a short allow-list of answers is
 //                         kept for offline (profiles, state, library, home…)
@@ -87,6 +88,8 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("message", (e) => {
   if (e.data && e.data.type === "precache") e.waitUntil(precache().catch(() => {}));
+  // a saved copy was removed (js/offline.js): its manifest is no longer the truth
+  if (e.data && e.data.type === "offline-removed" && e.data.id) { manifests.delete(String(e.data.id)); opfsDirs.delete(String(e.data.id)); }
 });
 
 // ---- the poster cache's housekeeping ----
@@ -118,18 +121,26 @@ const trimImgCache = async (c) => {
   trimming = false;
 };
 
-// A 206 sliced out of a cached full response, for <video> seeking.
+// A 206 sliced out of a cached full response, for <video> seeking. (A copy
+// saved before 2026-11-10: one entry for the whole film.)
+const parseRange = (rangeHeader, size) => {
+  const m = /bytes=(\d*)-(\d*)/.exec(rangeHeader || "");
+  if (!m || (!m[1] && !m[2])) return null;
+  let start = m[1] ? parseInt(m[1], 10) : Math.max(0, size - parseInt(m[2], 10));
+  let end = m[1] && m[2] ? parseInt(m[2], 10) : size - 1;
+  if (isNaN(start) || start >= size) return { bad: true };
+  end = Math.min(end, size - 1);
+  return { start, end };
+};
 const rangeResponse = async (cached, rangeHeader) => {
   const blob = await cached.blob();
   const size = blob.size;
-  const m = /bytes=(\d*)-(\d*)/.exec(rangeHeader || "");
-  if (!m) {
+  const r = parseRange(rangeHeader, size);
+  if (!r) {
     return new Response(blob, { status: 200, headers: { "Content-Type": blob.type || "video/mp4", "Content-Length": String(size), "Accept-Ranges": "bytes" } });
   }
-  let start = m[1] ? parseInt(m[1], 10) : Math.max(0, size - parseInt(m[2], 10));
-  let end = m[1] && m[2] ? parseInt(m[2], 10) : size - 1;
-  if (isNaN(start) || start >= size) return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${size}` } });
-  end = Math.min(end, size - 1);
+  if (r.bad) return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${size}` } });
+  const { start, end } = r;
   return new Response(blob.slice(start, end + 1), {
     status: 206,
     headers: {
@@ -140,6 +151,170 @@ const rangeResponse = async (cached, rangeHeader) => {
     },
   });
 };
+
+// A copy saved in PARTS (js/offline.js, 2026-11-10): /offline/part/<id>/<n>,
+// each `part` bytes, and /offline/manifest/<id> ({ v: 2, size, part, count,
+// type }) once every part is in. A range is streamed from the parts it
+// spans, one part read at a time (nothing is held whole, whatever the size
+// of the film); a part missing from the cache ends the stream with an error
+// rather than handing the player wrong bytes.
+const manifests = new Map(); // id -> manifest (a copy's manifest never changes; removal clears it)
+const manifestOf = async (c, id) => {
+  if (manifests.has(id)) return manifests.get(id);
+  const hit = await c.match(`/offline/manifest/${id}`);
+  if (!hit) return null;
+  try {
+    const m = await hit.json();
+    if (!(m && m.size > 0 && m.part > 0)) return null;
+    manifests.set(id, m);
+    return m;
+  } catch { return null; }
+};
+// A part of a copy saved in the browser's file system (js/offline.js, round
+// 2: `store: "opfs"` in its manifest) — or, for the parts the browser fetched
+// in the background, the cache. null when neither has it.
+const opfsDirs = new Map(); // id -> its directory handle
+const opfsPart = async (id, n) => {
+  try {
+    let dir = opfsDirs.get(id);
+    if (!dir) {
+      const root = await navigator.storage.getDirectory();
+      dir = await (await root.getDirectoryHandle("aurora-offline")).getDirectoryHandle(String(id));
+      opfsDirs.set(id, dir);
+    }
+    return await (await dir.getFileHandle(String(n))).getFile();
+  } catch {
+    opfsDirs.delete(id);
+    return null;
+  }
+};
+const partsResponse = (c, id, m, rangeHeader) => {
+  const size = m.size;
+  const r = parseRange(rangeHeader, size);
+  if (r && r.bad) return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${size}` } });
+  const start = r ? r.start : 0;
+  const end = r ? r.end : size - 1;
+  let at = start; // the next byte to hand over
+  let reader = null; // the part being read
+  const body = new ReadableStream({
+    // one chunk per pull: a film is never more than a chunk ahead of the player
+    async pull(ctl) {
+      for (;;) {
+        if (!reader) {
+          if (at > end) return ctl.close();
+          const n = Math.floor(at / m.part);
+          let blob = m.store === "opfs" ? await opfsPart(id, n) : null;
+          if (!blob) {
+            const hit = await c.match(`/offline/part/${id}/${n}`);
+            if (!hit) { manifests.delete(id); return ctl.error(new Error("part missing")); }
+            blob = await hit.blob();
+          }
+          const from = at - n * m.part;
+          const to = Math.min(blob.size, end - n * m.part + 1);
+          if (to <= from) return ctl.error(new Error("part too short"));
+          reader = blob.slice(from, to).stream().getReader();
+        }
+        const { value, done } = await reader.read();
+        if (done) { reader = null; continue; }
+        at += value.byteLength;
+        ctl.enqueue(value);
+        return;
+      }
+    },
+    cancel() { if (reader) reader.cancel().catch(() => {}); },
+  });
+  const headers = { "Content-Type": m.type || "video/mp4", "Content-Length": String(end - start + 1), "Accept-Ranges": "bytes" };
+  if (r) headers["Content-Range"] = `bytes ${start}-${end}/${size}`;
+  return new Response(body, { status: r ? 206 : 200, headers });
+};
+
+// ---- saves the browser finishes by itself (Background Fetch, js/offline.js) ----
+// The rest of a save's parts, fetched by the browser on a phone once Aurora
+// went to the background (the screen off, another app) — with or without a
+// page open. Each part goes into the media cache as it is read; when every
+// part is in, the manifest is written and the copy's record (made by the page
+// before the bytes, `pending`) becomes a saved title. (A worker may not START
+// a Background Fetch — Chrome refuses it here — so the page hands over every
+// part still missing at once.) What this does not finish — a fetch that
+// failed, a worker stopped half-way through storing — the page carries on
+// the next time Aurora is open. The fetch's id carries what this needs:
+//   aurora-save~<item id>~<part bytes>~<size>~<validator hash>~<n>~<url>~<title>
+const fnv = (text) => {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(36);
+};
+const parseBgId = (bid) => {
+  const f = String(bid || "").split("~");
+  if (f.length < 8 || f[0] !== "aurora-save") return null;
+  return { id: f[1], part: Number(f[2]), size: Number(f[3]), v: f[4], batch: Number(f[5]) || 0, url: decodeURIComponent(f[6]), title: decodeURIComponent(f[7]) };
+};
+const partsOf = async (c, id) => {
+  const have = new Set();
+  // (a save that began in the browser's file system keeps its first parts there)
+  try {
+    const root = await navigator.storage.getDirectory();
+    const dir = await (await root.getDirectoryHandle("aurora-offline")).getDirectoryHandle(String(id));
+    for await (const [name] of dir.entries()) if (/^\d+$/.test(name)) { have.add(Number(name)); have.opfs = true; }
+  } catch {}
+  for (const k of await c.keys()) {
+    const m = /^\/offline\/part\/([^/]+)\/(\d+)$/.exec(new URL(k.url).pathname);
+    if (m && m[1] === id) have.add(Number(m[2]));
+  }
+  return have;
+};
+const savedRecordDone = (id) => new Promise((resolve) => {
+  // the page's IndexedDB (js/offline.js "aurora-offline", store "items")
+  try {
+    const r = indexedDB.open("aurora-offline", 1);
+    r.onupgradeneeded = () => {
+      const db = r.result;
+      if (!db.objectStoreNames.contains("items")) db.createObjectStore("items", { keyPath: "id" });
+      if (!db.objectStoreNames.contains("progress")) db.createObjectStore("progress", { keyPath: "itemId" });
+    };
+    r.onerror = () => resolve(false);
+    r.onsuccess = () => {
+      const t = r.result.transaction("items", "readwrite");
+      const s = t.objectStore("items");
+      const g = s.get(id);
+      g.onsuccess = () => {
+        const it = g.result;
+        if (it && it.pending) s.put({ ...it, pending: false, savedAt: Date.now(), byBrowser: true });
+      };
+      t.oncomplete = () => resolve(true);
+      t.onerror = () => resolve(false);
+    };
+  } catch { resolve(false); }
+});
+const storeBatch = async (e, ok) => {
+  const bg = e.registration;
+  const m = parseBgId(bg.id);
+  if (!m || !(m.part > 0) || !(m.size > 0)) return;
+  const c = await caches.open(MEDIA);
+  for (const rec of await bg.matchAll()) {
+    const res = await rec.responseReady.catch(() => null);
+    if (!res || res.status !== 206) continue;
+    const r = /bytes (\d+)-(\d+)\/(\d+)/.exec(res.headers.get("content-range") || "");
+    if (!r || Number(r[3]) !== m.size || Number(r[1]) % m.part) continue;
+    // a file that changed on the server since the save began is not this copy
+    const v = res.headers.get("etag") || res.headers.get("last-modified") || "";
+    if (m.v && v && fnv(v) !== m.v) continue;
+    const n = Number(r[1]) / m.part;
+    await c.put(`/offline/part/${m.id}/${n}`, new Response(res.body, { status: 200, headers: { "Content-Type": "application/octet-stream", "Content-Length": String(Number(r[2]) - Number(r[1]) + 1) } }));
+  }
+  const have = await partsOf(c, m.id);
+  const count = Math.ceil(m.size / m.part);
+  if (have.size >= count) {
+    await c.put(`/offline/manifest/${m.id}`, new Response(JSON.stringify({ v: 2, size: m.size, part: m.part, count, type: "video/mp4", store: have.opfs ? "opfs" : "cache" }), { headers: { "Content-Type": "application/json" } }));
+    manifests.delete(m.id);
+    await savedRecordDone(m.id);
+    if (ok && e.updateUI) await e.updateUI({ title: `“${m.title}” is saved on this device` }).catch(() => {});
+    return;
+  }
+};
+self.addEventListener("backgroundfetchsuccess", (e) => e.waitUntil(storeBatch(e, true)));
+self.addEventListener("backgroundfetchfail", (e) => e.waitUntil(storeBatch(e, false)));
+self.addEventListener("backgroundfetchclick", (e) => e.waitUntil(self.clients.openWindow("/#/saved")));
 
 self.addEventListener("fetch", (e) => {
   const req = e.request;
@@ -165,11 +340,19 @@ self.addEventListener("fetch", (e) => {
   if (p.startsWith("/offline/media/")) {
     e.respondWith(
       caches.open(MEDIA).then(async (c) => {
+        const id = decodeURIComponent(p.slice("/offline/media/".length));
+        const m = await manifestOf(c, id);
+        if (m) return partsResponse(c, id, m, req.headers.get("range"));
         const hit = await c.match(p);
         if (!hit) return new Response("Not saved on this device", { status: 404 });
         return rangeResponse(hit, req.headers.get("range"));
       }),
     );
+    return;
+  }
+  // the pieces of a copy are never served as they are
+  if (p.startsWith("/offline/part/") || p.startsWith("/offline/manifest/")) {
+    e.respondWith(new Response("Not here", { status: 404 }));
     return;
   }
   if (LIVE_ONLY.some((re) => re.test(p))) return;

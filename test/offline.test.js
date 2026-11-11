@@ -67,3 +67,17 @@ test("copies on the server are temporary: old ones go, the folder has a cap, a c
   gone = toRemove([c("w.mp4.part", 500, 30)], { now, maxBytes: 10, busy: (f) => f === "/c/w.mp4.part" });
   assert.equal(gone.length, 0);
 });
+
+test("Original's note is honest about the time (audit 2026-11-10): seconds only when the sound needs no conversion", () => {
+  const { repackNote } = offline._internals;
+  const f = "/lib/Film (2023)/Film.mkv";
+  withMeta(f, { duration: 7200, video: { codec: "h264" }, audioStreams: [{ codec: "ac3" }] }, () => {
+    assert.match(repackNote(f, 7200), /the sound is converted on the server first — about 6 min for this one/);
+  });
+  withMeta(f, { duration: 600, video: { codec: "h264" }, audioStreams: [{ codec: "dts" }] }, () => {
+    assert.match(repackNote(f, 600), /under a minute/);
+  });
+  withMeta(f, { duration: 7200, video: { codec: "h264" }, audioStreams: [{ codec: "aac" }] }, () => {
+    assert.match(repackNote(f, 7200), /repackaged in seconds/);
+  });
+});

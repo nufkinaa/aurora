@@ -1298,6 +1298,73 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
 .suggest-genre .suggest-icon {
   border-radius: 8px;
 }
+/* Film or series, in search only (elia, 2026-11-11: the icon alone — option A
+   of docs/qa/search-icons/options). A title's suggestion row: the results'
+   corner-tag glyph in its hue after the year; the word is there for a screen
+   reader only. */
+.suggest-kind {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -2px;
+}
+/* (after the year) */
+.suggest-kind.after {
+  margin-left: 7px;
+}
+.suggest-kind-icon {
+  display: inline-grid;
+}
+.suggest-kind-icon svg {
+  width: 14px;
+  height: 14px;
+}
+.suggest-kind.film .suggest-kind-icon {
+  color: var(--kind-film);
+}
+.suggest-kind.series .suggest-kind-icon {
+  color: var(--kind-series);
+}
+.suggest-kind-word {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* the result cards' corner tag (components.js card showKind): the icon alone
+   in its dark disc, at every size and in both looks (Home's mixed rows keep
+   the word on wide screens) */
+html:root .screen .search-grid .card-tag.kind {
+  padding: 5px;
+}
+html:root .screen .search-grid .card-tag.kind svg {
+  width: 13px;
+  height: 13px;
+}
+.search-grid .card-tag.kind span[data-t] {
+  display: none;
+}
+@media (max-width: 720px) {
+  html:root .screen .search-grid .card-tag.kind {
+    padding: 4px;
+  }
+  html:root .screen .search-grid .card-tag.kind svg {
+    width: 11px;
+    height: 11px;
+  }
+}
+/* a 320 phone: the classic look's NEW pill reached the disc (1 px apart) */
+@media (max-width: 360px) {
+  html:root .screen .search-grid .card-tag.kind {
+    right: 6px;
+    padding: 3px;
+  }
+  html:root .screen .search-grid .card-tag.kind svg {
+    width: 10px;
+    height: 10px;
+  }
+}
 
 /* a recent search: the chip that runs it, and a small ✕ that forgets it */
 .recent-chip {
@@ -1693,39 +1760,6 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
 .ep-action.on {
   color: #4ade80;
 }
-/* Save offline on a phone's episode card (discover-detail.js offlineButton
-   `ep`): the icon; its percentage while it saves; a tick on the icon once
-   the episode is here */
-.ep-offline { position: relative; }
-.ep-offline .ep-offline-ic { display: flex; }
-.ep-offline .ep-offline-pct {
-  font-size: 0.68rem;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  color: #6ee7b7;
-}
-.ep-offline .ep-offline-wait {
-  font-size: 1.1rem;
-  font-weight: 900;
-  line-height: 1;
-  color: #f5c542;
-  animation: g-breathe 2.4s ease-in-out infinite;
-}
-.ep-offline .ep-offline-tick {
-  position: absolute;
-  right: calc(50% - 15px);
-  bottom: calc(50% - 14px);
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 0.5rem;
-  font-weight: 900;
-  color: #0b0c14;
-  background: #4ade80;
-}
-@media (prefers-reduced-motion: reduce) { .ep-offline .ep-offline-wait { animation: none; } }
 .episode {
   display: flex;
   align-items: center;
@@ -4503,24 +4537,8 @@ a.nav-menu-item { text-decoration: none; box-sizing: border-box; }
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
 }
 
-/* "Can't reach the server" (ws.js) — the bottom edge, never over the nav */
-#offline-banner {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 9999;
-  padding: 6px 12px;
-  text-align: center;
-  font-size: 0.85rem;
-  font-weight: 600;
-  background: #5c1f24;
-  color: #ffd7d7;
-}
-/* "Saved titles still play" is one link: never broken over two lines */
-#offline-banner a {
-  white-space: nowrap;
-}
+/* (#offline-banner — "No connection" / "Can't reach Aurora", ws.js — is drawn
+   in the offline-look block at the end of this file) */
 
 /* ---------- My downloads (#/downloads) ----------
    Firm cards on a page you come to for an answer: one summary line up top,
@@ -5400,6 +5418,24 @@ html[data-look="glass"] .kids-field { background: rgba(255, 255, 255, 0.05); bor
 .kids-pin-input::placeholder { letter-spacing: normal; } /* ("New PIN (4–6 digits)" was cut at 375px) */
 .kids-pin-input + .kids-pin-input { margin-top: 8px; }
 .pref-profile-sub .kids-badge { margin-right: 4px; }
+/* Children mode's sheet (js/childmode.js): the age chips, the passcode */
+.child-sheet { text-align: left; max-height: calc(100dvh - 48px); overflow-y: auto; overscroll-behavior: contain; }
+.child-sheet .sheet-icon, .child-sheet .look-notice-title { text-align: center; }
+.child-sheet .look-notice-text { text-align: center; margin-bottom: 14px; }
+.child-label { font-weight: 800; font-size: 0.92rem; margin: 14px 0 0; }
+/* four even columns: the ages on one line down to a 320 px phone */
+.child-ages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+.child-ages .chip { min-height: 44px; min-width: 0; justify-content: center; padding-inline: 6px; white-space: nowrap; }
+.child-hint { color: var(--text-dim); font-size: 0.86rem; line-height: 1.45; margin: 8px 0 0; }
+.child-sheet .child-field { margin: 0; }
+.child-sheet .pw-error { margin-top: 10px; }
+.child-sheet .look-notice-actions { margin-top: 18px; justify-content: flex-end; }
+.child-forgot {
+  display: inline-block; margin-top: 10px; padding: 8px 0; min-height: 44px;
+  background: none; border: 0; color: var(--text-dim); font: inherit; font-size: 0.88rem;
+  text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+.child-forgot:hover, .child-forgot:focus-visible { color: var(--text); }
 
 /* ---------- On this device: Your files (js/localview.js) ---------- */
 .saved-top .count { color: var(--text-faint); font-weight: 600; font-size: 0.95rem; }
@@ -5635,4 +5671,803 @@ html[data-look="glass"] .saved-section .dl-row { border-radius: var(--g-radius);
   .dl-actions .btn { min-height: 40px; }
 }
 .device-jobs .device-jobs-open { margin-left: auto; }
+/* offline 2026-11-10: "This device too" — saved here by itself once the
+   server's copy lands (offlineWish.js); pressed = it will be */
+/* a save's / a wish's state wraps inside its words on a narrow phone, beside its dot */
+.device-job .dl-status { flex-wrap: nowrap; align-items: flex-start; }
+.device-job .dl-status b { flex: 0 1 auto; min-width: 0; }
+.device-job .dl-status .dl-dot, .device-job .dl-status .mini-spinner { margin-top: 0.35em; }
+.dl-wish.on, .detail-wish.on, .ep-wish.on { color: #6ee7b7; border-color: rgba(110, 231, 183, 0.45); }
+.dl-confirm-wish { display: flex; justify-content: center; margin-top: 14px; }
+/* on a phone's title page: a full row under "Cancel download", as that one is */
+@media (max-width: 720px) {
+  html:root .detail-hero .detail-actions .detail-wish {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 13px 18px;
+    border-radius: 16px;
+    font-size: 0.95rem;
+  }
+}
+.saved-keep { margin: 0 0 12px; color: var(--text-dim); font-size: 0.85rem; }
+/* (.offline-toggle.on and the sheet's chosen chips: the offline-look block "the sheet's choices") */
 .device-summary .local-play-link { margin: 6px 0 0; }
+
+/* ==== offline-look (2026-11-10) — the buttons that put a title on this device
+   (js/offlineButtons.js) and the size sheet's dress (js/offlineUi.js).
+   The mark itself: components.css. Values: docs/offline-look.md ==== */
+/* the title page: mark + words (a tile with a caption on a phone, below) */
+.btn-dev {
+  gap: 9px;
+  padding-left: 18px;
+  padding-right: 22px;
+  white-space: nowrap;
+}
+.btn-dev .dev-ic {
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.btn-dev .dev-mark { --dm: 22px; }
+.btn-dev .dev-mark svg,
+.ep-action .dev-mark svg,
+.src-act .dev-mark svg,
+.season-pill .dev-mark svg {
+  width: var(--dm);
+  height: var(--dm);
+}
+.btn-dev[data-state="failed"] { color: #ffb4b4; }
+.btn-dev[data-state="paused"],
+.btn-dev[data-state="retrying"] { color: #f5d98a; }
+/* an episode row: the mark alone; the percentage sits inside the ring */
+.ep-offline { position: relative; }
+.ep-offline .ep-dev { --dm: 26px; color: var(--text-dim); }
+.ep-offline:hover .ep-dev,
+.ep-offline:focus .ep-dev { color: var(--text); }
+.ep-dev b {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-auto-flow: column;
+  place-content: center;
+  align-items: baseline;
+  font-size: 9.5px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: #eafff6;
+}
+.ep-dev b:empty { display: none; }
+.ep-dev b small { font-size: 6.5px; font-weight: 800; margin-left: 0.5px; }
+.ep-dev[data-state="saving"] .dm-glyph { display: none; }
+
+/* a sources card's action column */
+.src-act .rail-dev { --dm: 19px; }
+/* the season bar */
+.season-pill.season-dev {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.season-dev .pill-dev { --dm: 17px; }
+.season-dev.busy { color: var(--text); }
+
+/* the size sheet, dressed */
+.offline-sheet .sheet-icon .sheet-dev { --dm: 40px; color: var(--text-dim); }
+.offline-sheet.dressed .look-notice-text { margin-bottom: 0; }
+.offline-room {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+  margin: 12px 0 0;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-align: left;
+}
+.offline-room-ic { display: grid; color: #6ee7b7; }
+.offline-room-ic svg { width: 17px; height: 17px; }
+.offline-sheet.dressed .offline-opts { margin-top: 10px; }
+.offline-sheet.dressed .offline-opt-size { color: var(--text); font-variant-numeric: tabular-nums; }
+.offline-opt.tight .offline-opt-size { color: #f5c542; }
+.offline-opt.tight .offline-opt-detail { color: #f5d98a; }
+/* which sound the copy carries (offlinePicker.js) */
+.offline-sounds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  text-align: left;
+}
+.offline-sounds-label {
+  flex: none;
+  margin-right: 2px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+@media (max-width: 720px) {
+  /* the title page's tiles: the mark in the tile's circle, the short word under it */
+  html:root .detail-actions .btn.btn-dev.btn-offline > .btn-dev-word { display: none; }
+  html:root .detail-actions .btn.btn-dev.btn-offline > .dev-ic { overflow: visible; }
+  html:root .detail-hero .detail-actions-more .btn.btn-dev.saved > .dev-ic {
+    background: rgba(110, 231, 183, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(110, 231, 183, 0.42);
+  }
+  html:root .detail-hero .detail-actions-more .btn.btn-dev.busy > .dev-ic {
+    background: rgba(110, 231, 183, 0.1);
+  }
+  /* an episode's small round button (the glass rail draws its icons at 17px) */
+  html:root .episode-wrap .ep-action .dev-mark svg { width: var(--dm); height: var(--dm); }
+  html:root .episode-wrap .ep-offline .ep-dev { --dm: 24px; }
+  /* a narrow window on a computer: the file button gives its place to the
+     three that stay (the season bar keeps "Download the files") */
+  .episode-wrap .ep-file-extra { display: none; }
+}
+/* "This device too" — a title the server does not hold yet (offlineWish.js
+   draws that button; its picture gives way to the mark here). Pressed, it is
+   waiting: the dashed amber ring, amber words — mint is kept for "here". */
+.btn-offline.ep-wish > span:first-child,
+.btn-offline.detail-wish > span:first-child {
+  flex: none;
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  font-size: 0;
+  line-height: 0;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9.6' fill='none' stroke='%23000' stroke-width='1.8' stroke-opacity='.6'/%3E%3Cpath d='M10.9 5.7h2.2v5.2h2.8L12 15.7l-3.9-4.8h2.8zM7.6 17h8.8v1.7H7.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9.6' fill='none' stroke='%23000' stroke-width='1.8' stroke-opacity='.6'/%3E%3Cpath d='M10.9 5.7h2.2v5.2h2.8L12 15.7l-3.9-4.8h2.8zM7.6 17h8.8v1.7H7.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.btn-offline.ep-wish.on > span:first-child,
+.btn-offline.detail-wish.on > span:first-child {
+  background: #f5c542;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9.6' fill='none' stroke='%23000' stroke-width='1.8' stroke-dasharray='4.6 2.94'/%3E%3Cpath d='M10.9 5.7h2.2v5.2h2.8L12 15.7l-3.9-4.8h2.8zM7.6 17h8.8v1.7H7.6z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9.6' fill='none' stroke='%23000' stroke-width='1.8' stroke-dasharray='4.6 2.94'/%3E%3Cpath d='M10.9 5.7h2.2v5.2h2.8L12 15.7l-3.9-4.8h2.8zM7.6 17h8.8v1.7H7.6z'/%3E%3C/svg%3E");
+}
+.btn-offline.detail-wish.on,
+.btn-offline.ep-wish.on { color: #f5d98a; border-color: rgba(245, 197, 66, 0.45); }
+.btn-offline.detail-wish { gap: 9px; }
+/* a toast about this device carries the mark (offlineUi.js swaps the picture) */
+.toast .toast-dev { --dm: 20px; }
+/* ==== end offline-look (buttons + size sheet) ==== */
+
+/* ==== offline-look (2026-11-10) — "On this device", the screen
+   (js/screens/saved.js) and "Pack for a trip" (js/offlinePack.js).
+   Mint = here. Amber = waiting. Red = needs you. Values: docs/offline-look.md ==== */
+.dev-vh {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+/* no server: resting, not failing — a calm line, the cloud crossed */
+html:root .local-noserver {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+}
+.local-noserver .rest-ic { display: grid; flex: none; color: #f5c542; }
+.local-noserver .rest-ic svg { width: 20px; height: 20px; }
+.local-noserver .local-noserver-text { flex: 1 1 220px; min-width: 0; }
+html[data-look="glass"] .local-noserver { border-radius: var(--g-radius); box-shadow: var(--g-edge); border-color: transparent; }
+/* a save under way is mint — the colour of "here" — on its row too */
+html:root .device-job.tone-busy { --dl-tone: #6ee7b7; }
+html:root .device-job.tone-busy .dl-bar-fill { background: #6ee7b7; box-shadow: none; }
+
+/* ---- "Pack for a trip", beside the screen's name ---- */
+html:root .dev-pack { flex: none; align-self: center; margin-inline-start: auto; }
+
+/* ---- the room: what Aurora keeps here against what is free ---- */
+.dev-room {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.dev-room.hidden { display: none; }
+html[data-look="glass"] .dev-room {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03) 60%), rgba(12, 14, 26, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--g-edge);
+  border-radius: 18px;
+}
+.dev-room-top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.dev-room-meter { flex: 1 1 260px; min-width: 0; }
+.dev-room-nums { margin: 0; font-size: 0.95rem; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.dev-room-nums b { color: var(--text); font-weight: 800; }
+.dev-room-bar { height: 6px; margin-top: 9px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.dev-room-bar i { display: block; height: 100%; border-radius: 3px; background: #6ee7b7; transition: width 420ms var(--ease); }
+.dev-room-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.dev-tool { gap: 7px; }
+.dev-tool-ic { display: inline-grid; flex: none; }
+html:root .dev-tool-ic svg { width: 17px; height: 17px; }
+/* under the titles: "Keep the next episode ready", and the note once it was read */
+.dev-foot {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+html[data-look="glass"] .dev-foot {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03) 60%), rgba(12, 14, 26, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--g-edge);
+  border-radius: 18px;
+}
+.dev-next { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.dev-next-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dev-next-words b { font-size: 0.95rem; font-weight: 800; }
+.dev-next-words > span { color: var(--text-dim); font-size: 0.85rem; line-height: 1.4; }
+.dev-next-words .dev-next-last { display: inline-flex; align-items: center; gap: 7px; margin-top: 4px; color: var(--text); font-weight: 700; }
+.dev-next-mark { --dm: 15px; }
+.dev-next .pref-switch { flex: none; }
+.dev-room .saved-keep, .dev-foot .saved-keep { margin: 0; line-height: 1.45; }
+.dev-room .saved-keep, .dev-foot .dev-next + .saved-keep { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.dev-foot > * + .dev-quick { margin-top: 12px; }
+.saved-keep.dev-quick { color: var(--text-faint); font-size: 0.8rem; }
+.saved-keep.fresh { display: flex; align-items: center; gap: 10px 16px; }
+.saved-keep.fresh > span { flex: 1 1 auto; min-width: 0; }
+.saved-keep .dev-note-ok { flex: none; }
+
+/* ---- the titles ---- */
+.dev-list { gap: 12px; }
+.dev-row .dl-title, .dev-ep .dl-title { flex-wrap: wrap; row-gap: 5px; }
+.dev-name { min-width: 0; overflow-wrap: anywhere; }
+.dev-row.watched .dev-name, .dev-ep.watched .dev-name { color: var(--text-dim); }
+.dev-row.watched .dl-poster { opacity: 0.72; }
+.dev-row .dl-status, .dev-ep .dl-status, .dev-group-head .dl-status { font-variant-numeric: tabular-nums; }
+.dev-tag {
+  display: inline-flex; align-items: center; gap: 4px; flex: none;
+  height: 20px; padding: 0 8px; border-radius: 999px;
+  font-size: 0.7rem; font-weight: 800; letter-spacing: 0.02em; white-space: nowrap;
+  color: var(--text-dim); background: rgba(255, 255, 255, 0.1);
+}
+.dev-tag.next { color: #0b0c14; background: #6ee7b7; }
+html:root .dev-tag svg { width: 12px; height: 12px; }
+/* how far the person got in it */
+.dev-seen { height: 3px; max-width: 280px; margin-top: 9px; border-radius: 2px; background: rgba(255, 255, 255, 0.16); overflow: hidden; }
+.dev-seen i { display: block; height: 100%; border-radius: 2px; background: var(--progress, var(--accent)); }
+.dev-remove { gap: 7px; color: var(--text-dim); }
+/* round buttons on an episode's line: Play, Remove */
+.dev-round {
+  display: inline-grid; place-items: center; flex: none;
+  width: 40px; height: 40px; padding: 0; border-radius: 50%;
+  color: var(--text); background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast) var(--ease);
+}
+html:root .dev-round svg { width: 18px; height: 18px; }
+.dev-round:hover { background: rgba(255, 255, 255, 0.16); }
+.dev-round:active { transform: scale(0.94); }
+.dev-round:focus-visible { box-shadow: var(--focus-ring); }
+.dev-round-remove { color: var(--text-dim); background: transparent; box-shadow: none; }
+.dev-round-remove:hover { color: #ff9c9c; background: rgba(255, 122, 122, 0.14); }
+.dev-ep.next .dev-round-play { color: #0b0c14; background: #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
+.dev-ep.next .dev-round-play:focus-visible { box-shadow: var(--focus-ring-light, var(--focus-ring)); }
+
+/* a show with two or more episodes here: one card, its episodes in order */
+.dev-group {
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+html[data-look="glass"] .dev-group {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03) 60%), rgba(12, 14, 26, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--g-edge);
+  border-radius: 18px;
+}
+.dev-group-head {
+  display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 16px; align-items: center;
+  padding: 12px 14px 12px 16px;
+}
+.dev-group-title { margin: 0; font-size: 1.08rem; }
+.dev-group-head .dl-actions { align-items: center; flex-wrap: nowrap; }
+.dev-eps { border-top: 1px solid rgba(255, 255, 255, 0.07); }
+html:root .dl-row.dev-ep {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 9px 14px 9px 96px; /* under the show's name */
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+html:root .dl-row.dev-ep + .dev-ep { border-top: 1px solid rgba(255, 255, 255, 0.05); }
+html:root .dl-row.dev-ep:hover { background: rgba(255, 255, 255, 0.04); }
+.dl-row.dev-ep::before { display: none; }
+html:root .dl-row.dev-ep.next { background: linear-gradient(90deg, rgba(110, 231, 183, 0.09), transparent 62%); }
+.dl-row.dev-ep.next::before { display: block; background: #6ee7b7; }
+.dev-ep .dl-title { font-size: 0.95rem; font-weight: 700; }
+.dev-ep .dl-status { margin-top: 3px; font-size: 0.82rem; }
+.dev-ep .dl-actions { flex-wrap: nowrap; gap: 4px; }
+.dev-group-foot { padding: 10px 14px 12px 96px; border-top: 1px solid rgba(255, 255, 255, 0.07); }
+.dev-group-foot.hidden { display: none; }
+
+/* ---- nothing here yet: two lines that teach, and what to save ---- */
+.dev-empty { padding: 30px 12px 14px; text-align: center; }
+.dev-empty-art {
+  display: grid; place-items: center;
+  width: 92px; height: 92px; margin: 0 auto 16px; border-radius: 50%;
+  color: var(--text);
+  background: radial-gradient(circle at 50% 38%, rgba(110, 231, 183, 0.2), rgba(110, 231, 183, 0.04) 68%);
+  box-shadow: inset 0 0 0 1px rgba(110, 231, 183, 0.22);
+}
+.dev-empty-mark { --dm: 50px; animation: dev-settle 2.6s var(--ease) 0.3s 2 both; }
+.dev-empty-locked .dev-empty-art { background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); color: var(--text-dim); }
+.dev-empty-locked .dev-empty-mark { animation: none; }
+/* the arrow comes down and lands, twice, then rests */
+@keyframes dev-settle {
+  0%, 100% { transform: translateY(0); }
+  35% { transform: translateY(-7px); }
+  60% { transform: translateY(2px); }
+  78% { transform: translateY(0); }
+}
+.dev-empty-title { margin: 0; font-size: 1.3rem; font-weight: 900; letter-spacing: -0.01em; }
+.dev-empty-text { margin: 8px auto 0; max-width: 50ch; color: var(--text-dim); line-height: 1.6; text-wrap: pretty; }
+.dev-empty-key {
+  display: inline-flex; align-items: center; gap: 6px; vertical-align: middle;
+  padding: 2px 9px 2px 7px; border-radius: 999px; white-space: nowrap;
+  font-size: 0.86em; font-weight: 700; color: var(--text); background: rgba(255, 255, 255, 0.1);
+}
+html:root .dev-empty-key svg { width: 15px; height: 15px; }
+/* something is on its way: one quiet line under "Saving now" */
+.dev-empty.dev-empty-quiet { padding: 6px 0 4px; text-align: start; }
+.dev-empty-quiet .dev-empty-text { margin: 0; max-width: none; }
+.dev-empty-quiet .dev-empty-text b { color: var(--text); font-weight: 700; }
+.dev-empty-room { margin: 14px 0 0; color: var(--text-faint); font-size: 0.85rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.dev-offers { max-width: 860px; margin: 28px auto 0; text-align: start; }
+.dev-offers.hidden { display: none; }
+.dev-offers-title { margin: 0 0 10px; font-size: 0.95rem; font-weight: 800; }
+.dev-offers-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 10px; }
+.dev-offer {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  padding: 8px 10px 8px 8px; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--line);
+}
+html[data-look="glass"] .dev-offer {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03) 60%), rgba(12, 14, 26, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--g-edge);
+  border-radius: 16px;
+}
+.dev-offer .dl-poster { width: 44px; border-radius: 7px; }
+.dev-offer-words { min-width: 0; }
+.dev-offer-name { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dev-offer-name small { margin-inline-start: 7px; color: var(--text-dim); font-size: 0.82rem; font-weight: 700; }
+.dev-offer-why { margin-top: 3px; color: var(--text-dim); font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* "Your files" below the saved titles: its empty picker is a strip there */
+.dev-home .lf { margin-top: 26px; }
+.dev-home .saved-section + .lf.lf-empty .lf-drop {
+  min-height: 0; grid-template-columns: auto minmax(0, 1fr) auto; justify-items: stretch; text-align: start;
+  gap: 6px 18px; padding: 18px 22px; border-width: 1.5px;
+}
+.dev-home .saved-section + .lf.lf-empty .lf-drop-words { align-items: flex-start; max-width: none; }
+.dev-home .saved-section + .lf.lf-empty .lf-drop-icon { width: 52px; height: 52px; }
+.dev-home .saved-section + .lf.lf-empty .lf-drop-icon svg { width: 26px; height: 26px; }
+.dev-home .saved-section + .lf.lf-empty .lf-drop-title { font-size: 1.1rem; }
+.dev-home .saved-section + .lf.lf-empty .lf-drop-safe { grid-column: 2 / -1; }
+
+@media (max-width: 640px) {
+  .dev-room, .dev-foot { padding: 12px 14px; }
+  .dev-room-tools { width: 100%; }
+  .saved-keep.fresh { flex-wrap: wrap; }
+  .saved-keep.fresh .dev-note-ok { margin-inline-start: auto; }
+  .dev-room-tools .dev-tool { flex: 1 1 auto; justify-content: center; min-height: 40px; padding-left: 12px; padding-right: 12px; }
+  .dev-group-head { grid-template-columns: 52px minmax(0, 1fr); gap: 12px; padding: 12px 12px 12px 14px; }
+  .dev-group-head .dl-actions { justify-content: space-between; }
+  html:root .dl-row.dev-ep { padding: 9px 8px 9px 14px; gap: 8px; }
+  .dev-ep .dl-actions { grid-column: auto; }
+  .dev-group-foot { padding: 10px 12px 12px 14px; }
+  .dev-row .dl-actions { justify-content: space-between; }
+  .dev-empty { padding: 22px 4px 10px; }
+  .dev-offers-list { grid-template-columns: minmax(0, 1fr); }
+  .dev-home .saved-section + .lf.lf-empty .lf-drop { padding: 14px 16px; }
+  .dev-home .saved-section + .lf.lf-empty .lf-drop-btn { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dev-empty-mark { animation: none; }
+  .dev-room-bar i, .dev-round { transition: none; }
+}
+
+/* ---- Pack for a trip (js/offlinePack.js) ---- */
+html:root .look-notice.trip-sheet {
+  display: flex; flex-direction: column;
+  width: min(540px, 100%);
+  max-height: min(92vh, 780px);
+  padding: 22px 22px 18px;
+}
+.trip-icon { display: grid; place-items: center; color: #6ee7b7; margin-bottom: 6px; }
+html:root .trip-icon svg { width: 38px; height: 38px; }
+.trip-sheet .look-notice-text { margin: 6px 0 14px; }
+.trip-lens { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; flex: none; }
+html:root .chip.trip-len {
+  flex-direction: column; gap: 1px; min-width: 0; padding: 8px 6px; border-radius: 14px; white-space: normal; line-height: 1.2;
+}
+.trip-len span { font-size: 0.86rem; font-weight: 800; }
+.trip-len small { font-size: 0.72rem; font-weight: 700; opacity: 0.7; font-variant-numeric: tabular-nums; }
+html:root .chip.trip-len.on { color: #0b0c14; background: #6ee7b7; border-color: #6ee7b7; box-shadow: none; }
+.trip-list {
+  display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto;
+  min-height: 96px; margin: 14px -8px 0; padding: 2px 8px; overflow-y: auto; overscroll-behavior: contain;
+  text-align: start;
+}
+.trip-wait { margin: auto; padding: 22px 10px; color: var(--text-dim); text-align: center; line-height: 1.5; }
+.trip-row {
+  display: grid; grid-template-columns: 22px 38px minmax(0, 1fr); gap: 12px; align-items: center; flex: none;
+  width: 100%; padding: 7px 10px; border-radius: 12px; text-align: start;
+  color: inherit; background: transparent; box-shadow: inset 0 0 0 1px transparent;
+  transition: background var(--t-fast), box-shadow var(--t-fast);
+}
+.trip-row:hover { background: rgba(255, 255, 255, 0.05); }
+.trip-row.on { background: rgba(110, 231, 183, 0.09); box-shadow: inset 0 0 0 1px rgba(110, 231, 183, 0.3); }
+.trip-row:focus-visible { box-shadow: var(--focus-ring); }
+.trip-tick {
+  position: relative; width: 22px; height: 22px; border-radius: 7px;
+  box-shadow: inset 0 0 0 1.6px rgba(255, 255, 255, 0.42);
+  transition: background var(--t-fast), box-shadow var(--t-fast);
+}
+.trip-row.on .trip-tick { background: #6ee7b7; box-shadow: none; }
+.trip-row.on .trip-tick::after {
+  content: ""; position: absolute; left: 7.5px; top: 3.5px; width: 6px; height: 11px;
+  border: solid #0b0c14; border-width: 0 2.3px 2.3px 0; transform: rotate(45deg);
+}
+.trip-poster { display: block; width: 38px; aspect-ratio: 2/3; border-radius: 6px; overflow: hidden; background: rgba(255, 255, 255, 0.07); }
+.trip-poster img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.trip-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.trip-name { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trip-name small { margin-inline-start: 7px; color: var(--text-dim); font-size: 0.82rem; font-weight: 700; }
+.trip-why { color: var(--text-dim); font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trip-total { flex: none; margin: 12px 0 0; font-size: 0.92rem; font-weight: 800; font-variant-numeric: tabular-nums; text-align: start; }
+.trip-total:empty { display: none; }
+.trip-room { display: flex; align-items: center; gap: 8px; flex: none; margin: 5px 0 0; color: var(--text-dim); font-size: 0.84rem; font-weight: 600; text-align: start; }
+.trip-room:empty { display: none; }
+.trip-room.tight { color: #f5d98a; }
+.trip-room.tight .offline-room-ic { color: #f5c542; }
+.trip-actions { flex: none; margin-top: 16px; }
+html:root .btn.trip-go:disabled { opacity: 0.4; cursor: default; box-shadow: none; transform: none; }
+.trip-none .trip-list { min-height: 0; }
+.trip-none .trip-lens, .trip-none .trip-lead { display: none; }
+@media (max-width: 560px) {
+  .look-notice-wrap.trip-wrap { align-items: flex-end; padding: 0; }
+  html:root .trip-wrap .look-notice.trip-sheet {
+    width: 100%; max-height: 92vh; max-height: 92dvh;
+    border-radius: 22px 22px 0 0;
+    padding: 18px 16px calc(16px + env(safe-area-inset-bottom));
+    animation: sheet-up var(--t-med) var(--ease);
+  }
+  .trip-lens { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html:root .chip.trip-len { flex-direction: row; justify-content: center; align-items: baseline; gap: 7px; }
+  .trip-actions .btn { flex: 1 1 0; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trip-row, .trip-tick { transition: none; }
+  html:root .trip-wrap .look-notice.trip-sheet { animation: none; }
+}
+/* ==== end offline-look (the screen + Pack for a trip) ==== */
+
+/* ==== offline-look (2026-11-10) — no connection
+   The one calm line (ws.js builds it), what rests while it is up
+   (html.net-off), a title page that rests (js/offlineRest.js).
+   Amber = waiting, never an alarm. Values: docs/offline-look.md ==== */
+#offline-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 14px; /* (a phone lifts it above its tab bar: glass.css / responsive.css) */
+  z-index: 9999;
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: calc(100vw - 24px);
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px 7px 11px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  color: #e9ecf4;
+  background: rgba(20, 22, 30, 0.94);
+  border: 1px solid rgba(245, 197, 66, 0.32);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+  animation: net-pill-in 0.28s ease-out both;
+}
+html:root body #offline-banner { border-radius: 999px; }
+#offline-banner::before {
+  content: "";
+  flex: none;
+  width: 17px;
+  height: 17px;
+  background: #f5c542;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.3 7.2A5.6 5.6 0 0 1 17.6 11a3.8 3.8 0 0 1 2.3 6.5M16.5 18.5H7.2a4.2 4.2 0 0 1-1-8.28'/%3E%3Cpath d='M4 4l16 16'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.3 7.2A5.6 5.6 0 0 1 17.6 11a3.8 3.8 0 0 1 2.3 6.5M16.5 18.5H7.2a4.2 4.2 0 0 1-1-8.28'/%3E%3Cpath d='M4 4l16 16'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+#offline-banner a {
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+  color: #6ee7b7;
+  font-weight: 700;
+  text-decoration: none;
+}
+#offline-banner a:hover,
+#offline-banner a:focus-visible { text-decoration: underline; }
+/* already there: the line has nowhere to lead (ws.js marks it by the address —
+   not a :has() rule on <body>: that cost every Home scroll on a computer) */
+#offline-banner[data-there] a { display: none; }
+@media (max-width: 430px) {
+  #offline-banner .ob-more { display: none; }
+}
+/* over the player it sits at the top, clear of the controls; over something
+   that plays from this device it has nothing to say */
+html:root body:has(.player) #offline-banner {
+  top: calc(env(safe-area-inset-top, 0px) + 14px);
+  bottom: auto;
+  left: 0;
+  right: 0;
+}
+@media (max-width: 720px) {
+  html:root body:has(.player) #offline-banner { top: calc(env(safe-area-inset-top, 0px) + 70px); }
+}
+html:root body:has(.player[data-here]) #offline-banner { display: none; }
+@keyframes net-pill-in {
+  from { opacity: 0; transform: translateY(6px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #offline-banner { animation: none; }
+}
+
+/* a toast stands above the line, never under it */
+@media (max-width: 1100px) {
+  html.net-off:root body:not(:has(.player)) #toasts { bottom: 62px; }
+}
+@media (max-width: 720px) {
+  html.net-off:root[data-look="glass"] body:not(:has(.player)) #toasts { bottom: calc(122px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (max-width: 600px) {
+  html.net-off:root:not([data-look="glass"]) body:not(:has(.player)) #toasts { bottom: calc(98px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* what is not on this device rests while there is no connection */
+html.net-off #app .card:not([data-dev="saved"]) { opacity: 0.42; }
+html.net-off #app .card:not([data-dev="saved"]):is(:hover, :focus-visible) { opacity: 0.7; }
+
+/* a title page with no connection */
+.rest-page {
+  max-width: 460px;
+  margin: 0 auto;
+  padding: clamp(40px, 12vh, 120px) var(--page-x) 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.rest-cover {
+  position: relative;
+  width: 132px;
+  aspect-ratio: 2 / 3;
+  margin-bottom: 20px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+}
+.rest-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.rest-page[data-here="0"] .rest-cover img { opacity: 0.45; }
+.rest-cover-mark { position: absolute; right: 7px; bottom: 7px; --dm: 24px; }
+.rest-glyph {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  margin-bottom: 20px;
+  border-radius: 50%;
+  color: #f5c542;
+  background: rgba(245, 197, 66, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(245, 197, 66, 0.22);
+}
+.rest-glyph svg { width: 34px; height: 34px; }
+.rest-page[data-here="1"] .rest-glyph {
+  color: #6ee7b7;
+  background: rgba(110, 231, 183, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(110, 231, 183, 0.24);
+}
+.rest-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f5c542;
+}
+.rest-kicker-ic { display: grid; }
+.rest-kicker-ic svg { width: 15px; height: 15px; }
+.rest-title { margin: 8px 0; font-size: clamp(1.5rem, 4.6vw, 2.1rem); line-height: 1.15; }
+.rest-line { max-width: 34ch; margin: 0 0 22px; color: var(--text-dim); font-size: 1rem; line-height: 1.45; }
+.rest-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.rest-actions .btn { display: inline-flex; align-items: center; gap: 8px; }
+.rest-actions .btn svg { width: 18px; height: 18px; flex: none; }
+/* ==== end offline-look (no connection) ==== */
+
+/* ==== offline-look (2026-11-10) — the sheet's choices, a paused save, what
+   waits for the server's copy. The markup is the system lane's
+   (offlinePicker.js, devicejobs.js); only the look is here.
+   Mint = chosen / here, amber = waiting. Values: docs/offline-look.md ==== */
+
+/* the sheet never outgrows the screen: it scrolls inside itself */
+.look-notice-wrap:has(> .offline-sheet) {
+  padding: max(16px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px));
+}
+html:root .offline-sheet {
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.offline-sheet .look-notice-title { text-wrap: balance; }
+.offline-sheet .look-notice-text { text-wrap: pretty; }
+
+/* a choice that is made says so twice: mint, and a tick */
+html:root .offline-sheet .chip { gap: 6px; }
+html:root .offline-sheet .chip.on {
+  color: #dcfcef;
+  background: rgba(110, 231, 183, 0.16);
+  border-color: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(110, 231, 183, 0.72);
+}
+html:root .offline-sheet .chip.on::before {
+  content: "";
+  flex: none;
+  width: 14px;
+  height: 14px;
+  background: #6ee7b7;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.6 4.6L19 7.7'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.6 4.6L19 7.7'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* Sound: its name on a line of its own, the sounds under it */
+html:root .offline-sounds { gap: 8px; margin-top: 16px; }
+html:root .offline-sounds-label { flex: 1 0 100%; margin: 0 0 -2px; }
+html:root .offline-sound { padding: 8px 14px; }
+
+/* under the sizes: "and every new episode of …" — two rows, one at most —
+   then the standing choice and the way out */
+html:root .offline-sheet .offline-sheet-actions {
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 14px;
+}
+html:root .offline-sheet .offline-toggle {
+  flex: 1 1 100%;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: 14px;
+  white-space: normal;
+  text-align: left;
+}
+/* an empty ring until it is chosen */
+html:root .offline-sheet .offline-toggle::before {
+  content: "";
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.42);
+  background: none;
+  -webkit-mask: none;
+  mask: none;
+}
+html:root .offline-sheet .offline-toggle.on::before {
+  width: 16px;
+  height: 16px;
+  -webkit-mask: none;
+  mask: none;
+  box-shadow: none;
+  background: #6ee7b7 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230b0c14' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.6 4.6L19 7.7'/%3E%3C/svg%3E") center / 11px no-repeat;
+}
+html:root .offline-sheet .offline-toggle + .chip:not(.offline-toggle) { margin-top: 4px; }
+
+/* a save the person paused: its bar rests in amber, it does not glow */
+html:root .device-job[data-state="paused"] .dl-bar-fill { background: rgba(245, 197, 66, 0.62); box-shadow: none; }
+/* Resume is the one button that carries on; Pause is a quiet one */
+.device-job .dl-actions { gap: 8px; }
+
+/* what waits for the server's copy has no picture yet: the waiting sign in
+   its frame — not its name squeezed into a stamp */
+.device-wish .dl-poster .card-fallback {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 0;
+  color: transparent;
+  background: rgba(245, 197, 66, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(245, 197, 66, 0.2);
+}
+.device-wish .dl-poster .card-fallback::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 26px;
+  height: 26px;
+  background: #f5c542;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9.6' fill='none' stroke='%23000' stroke-width='1.8' stroke-dasharray='4.6 2.94'/%3E%3Cpath d='M10.9 5.7h2.2v5.2h2.8L12 15.7l-3.9-4.8h2.8zM7.6 17h8.8v1.7H7.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9.6' fill='none' stroke='%23000' stroke-width='1.8' stroke-dasharray='4.6 2.94'/%3E%3Cpath d='M10.9 5.7h2.2v5.2h2.8L12 15.7l-3.9-4.8h2.8zM7.6 17h8.8v1.7H7.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.device-wish[data-state="wish-failed"] .dl-poster .card-fallback { background: rgba(255, 122, 122, 0.07); box-shadow: inset 0 0 0 1px rgba(255, 122, 122, 0.22); }
+.device-wish[data-state="wish-failed"] .dl-poster .card-fallback::before { background: #ff7a7a; }
+
+/* My downloads: the same mark on its device buttons (no emoji) */
+.dl-wish, .dl-save-device, .dl-open-device { gap: 8px; }
+.dl-wish .dev-ic, .dl-save-device .dev-ic { display: grid; place-items: center; flex: none; }
+.dl-wish .dev-mark, .dl-save-device .dev-mark { --dm: 20px; }
+.dl-wish .dev-mark svg, .dl-save-device .dev-mark svg { width: var(--dm); height: var(--dm); }
+.dl-open-device svg { width: 17px; height: 17px; flex: none; }
+/* (a way in, not a footnote: it does not take the faint colour of its line) */
+html:root .device-summary .dl-open-device { color: var(--text); }
+/* ==== end offline-look (choices, paused, waiting) ==== */
+
+/* ==== offline-choose: "Choose episodes" (js/offlineChoose.js, elia 2026-11-11) ====
+   A sheet with the season's episodes, a tick box each; saved ones wear the mint
+   mark and cannot be ticked; ones not on the server yet say they save when they
+   arrive. The size row, the running total, the room, one Save button. */
+html:root .choose-sheet { width: min(560px, 100%); max-width: 560px; text-align: left; }
+.choose-sheet .look-notice-title { text-align: left; }
+.choose-seasons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+html:root .offline-sheet .chip.choose-season.on::before { display: none; }
+.choose-season-n { color: #6ee7b7; font-weight: 800; }
+.choose-season-only { font-weight: 800; color: var(--text-dim); }
+.choose-tools { display: flex; gap: 8px; margin-top: 10px; }
+.choose-list { display: grid; gap: 6px; margin-top: 10px; }
+.choose-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px;
+  padding: 9px 12px; border-radius: 14px; text-align: left; color: var(--text);
+  background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+button.choose-row:hover, button.choose-row:focus-visible { background: rgba(255, 255, 255, 0.11); box-shadow: var(--focus-ring); }
+.choose-row.on { background: rgba(110, 231, 183, 0.1); box-shadow: inset 0 0 0 1.5px rgba(110, 231, 183, 0.6); }
+.choose-row.fixed { opacity: 0.86; }
+.choose-box {
+  flex: none; width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center;
+  box-shadow: inset 0 0 0 1.6px rgba(255, 255, 255, 0.5); color: #0b0c14; font-weight: 900; font-size: 0.86rem;
+}
+.choose-row.on .choose-box { background: #6ee7b7; box-shadow: none; }
+.choose-box-slot { flex: none; width: 22px; display: grid; place-items: center; }
+.choose-box-slot .dev-mark { --dm: 20px; }
+.choose-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.choose-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.choose-name b { color: var(--text-dim); font-weight: 800; margin-right: 2px; }
+.choose-meta { font-size: 0.8rem; color: var(--text-faint); }
+.choose-what { font-size: 0.8rem; font-weight: 700; }
+.choose-what.st-saved, .choose-what.st-saving { color: #6ee7b7; }
+.choose-what.st-later, .choose-what.st-wished { color: #f5c542; }
+.choose-sizes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+.choose-sizes-label { flex: 1 0 100%; font-weight: 800; margin-bottom: -2px; }
+.choose-total { margin: 14px 0 0; font-weight: 800; }
+.choose-room { margin: 4px 0 0; font-size: 0.86rem; color: var(--text-dim); }
+.choose-room:empty { display: none; }
+.choose-room.tight { color: #ff7a7a; }
+.choose-sheet .choose-save:disabled { opacity: 0.5; }
+@media (max-width: 600px) {
+  .choose-row, .choose-sheet .chip, .choose-tools .btn { min-height: 44px; }
+}
+/* ==== /offline-choose ==== */

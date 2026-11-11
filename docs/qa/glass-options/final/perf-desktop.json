@@ -1,0 +1,232 @@
+{
+ "route": "home",
+ "runs": 4,
+ "cpu": {
+  "phone": 4,
+  "phone-390": 4,
+  "phone-320": 4,
+  "tablet": 2
+ },
+ "summary": {
+  "desktop": {
+   "a": {
+    "scrollMean": 16.45,
+    "scrollP95": 18.1,
+    "scrollP99": 18.35,
+    "scrollWorst": 19,
+    "scrollLate": 0,
+    "scrollFrames": 118,
+    "restMean": 15.95,
+    "restP95": 18.05,
+    "restLate": 0,
+    "droppedPct": null,
+    "compositorFrames": null,
+    "moreFrames": null,
+    "moreP95": null,
+    "moreWorst": null,
+    "moreLate": null
+   },
+   "e": {
+    "scrollMean": 16.35,
+    "scrollP95": 17.85,
+    "scrollP99": 18.2,
+    "scrollWorst": 18,
+    "scrollLate": 0,
+    "scrollFrames": 118,
+    "restMean": 16.05,
+    "restP95": 18.15,
+    "restLate": 0,
+    "droppedPct": null,
+    "compositorFrames": null,
+    "moreFrames": null,
+    "moreP95": null,
+    "moreWorst": null,
+    "moreLate": null
+   }
+  }
+ },
+ "all": {
+  "desktop": {
+   "a": [
+    {
+     "scroll": {
+      "n": 118,
+      "mean": 16.5,
+      "p50": 17.3,
+      "p95": 18.1,
+      "p99": 52.3,
+      "worst": 70,
+      "late": 3
+     },
+     "rest": {
+      "n": 192,
+      "mean": 15.6,
+      "p50": 17.3,
+      "p95": 18.2,
+      "p99": 25.7,
+      "worst": 33,
+      "late": 2
+     },
+     "trace": null,
+     "more": null
+    },
+    {
+     "scroll": {
+      "n": 121,
+      "mean": 15.9,
+      "p50": 17.3,
+      "p95": 18.1,
+      "p99": 18.3,
+      "worst": 19,
+      "late": 0
+     },
+     "rest": {
+      "n": 193,
+      "mean": 15.5,
+      "p50": 17.2,
+      "p95": 18,
+      "p99": 18.5,
+      "worst": 19,
+      "late": 0
+     },
+     "trace": null,
+     "more": null
+    },
+    {
+     "scroll": {
+      "n": 114,
+      "mean": 16.9,
+      "p50": 17.2,
+      "p95": 17.8,
+      "p99": 18.4,
+      "worst": 19,
+      "late": 0
+     },
+     "rest": {
+      "n": 181,
+      "mean": 16.5,
+      "p50": 17.2,
+      "p95": 18.1,
+      "p99": 18.3,
+      "worst": 18,
+      "late": 0
+     },
+     "trace": null,
+     "more": null
+    },
+    {
+     "scroll": {
+      "n": 118,
+      "mean": 16.4,
+      "p50": 17.2,
+      "p95": 18.2,
+      "p99": 18.3,
+      "worst": 18,
+      "late": 0
+     },
+     "rest": {
+      "n": 183,
+      "mean": 16.3,
+      "p50": 17.2,
+      "p95": 17.9,
+      "p99": 18.4,
+      "worst": 19,
+      "late": 0
+     },
+     "trace": null,
+     "more": null
+    }
+   ],
+   "e": [
+    {
+     "scroll": {
+      "n": 120,
+      "mean": 15.9,
+      "p50": 17.3,
+      "p95": 18.2,
+      "p99": 18.3,
+      "worst": 18,
+      "late": 0
+     },
+     "rest": {
+      "n": 188,
+      "mean": 15.9,
+      "p50": 17.2,
+      "p95": 18.2,
+      "p99": 18.5,
+      "worst": 19,
+      "late": 0
+     },
+     "trace": null,
+     "more": null
+    },
+    {
+     "scroll": {
+      "n": 115,
+      "mean": 16.8,
+      "p50": 17.3,
+      "p95": 17.8,
+      "p99": 18.2,
+      "worst": 18,
+      "late": 0
+     },
+     "rest": {
+      "n": 189,
+      "mean": 15.8,
+      "p50": 17.2,
+      "p95": 18.2,
+      "p99": 18.4,
+      "worst": 19,
+      "late": 0
+     },
+     "trace": null,
+     "more": null
+    },
+    {
+     "scroll": {
+      "n": 120,
+      "mean": 16.2,
+      "p50": 17.2,
+      "p95": 17.9,
+      "p99": 18.2,
+      "worst": 18,
+      "late": 0
+     },
+     "rest": {
+      "n": 185,
+      "mean": 16.2,
+      "p50": 17.2,
+      "p95": 17.8,
+      "p99": 18.1,
+      "worst": 18,
+      "late": 0
+     },
+     "trace": null,
+     "more": null
+    },
+    {
+     "scroll": {
+      "n": 116,
+      "mean": 16.5,
+      "p50": 17.2,
+      "p95": 17.8,
+      "p99": 18.2,
+      "worst": 18,
+      "late": 0
+     },
+     "rest": {
+      "n": 180,
+      "mean": 16.6,
+      "p50": 17.3,
+      "p95": 18.1,
+      "p99": 18.2,
+      "worst": 18,
+      "late": 0
+     },
+     "trace": null,
+     "more": null
+    }
+   ]
+  }
+ }
+}

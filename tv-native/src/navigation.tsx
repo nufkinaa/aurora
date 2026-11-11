@@ -53,6 +53,7 @@ const SCREENS = {
   GroupPick: () => require('./screens/GroupPick').default, // [group-pick] What do we watch tonight?
   Franchise: () => require('./screens/Franchise').default, // [franchise] Watch in order
   Calendar: () => require('./screens/Calendar').default, // the rail's Calendar
+  ChildMode: () => require('./screens/ChildMode').default, // Children mode: the account's own switch (childMode.ts)
 } as const;
 
 const WARM_FIRST_MS = 6000; // after Home's own first seconds (its rows, its pictures, the trailer lookup)
@@ -99,6 +100,8 @@ export type RootStackParamList = {
   GroupPick: {code?: string} | undefined;
   // the Calendar (calendar.ts): what is coming up and just out for this person's list
   Calendar: undefined;
+  // Children mode (childMode.ts): turn it on, change who is watching, leave it
+  ChildMode: undefined;
   // `play`: the page presses its own Play once it knows what that means (Home's
   // hero — one press from the sofa to the film; playBest.ts autoPlayStep).
   // [franchise] `save`: the page presses its own Save & watch once, for a film
@@ -205,6 +208,7 @@ export default function AppNavigator() {
         <Stack.Screen name="GroupPick" getComponent={SCREENS.GroupPick} />
         <Stack.Screen name="Franchise" getComponent={SCREENS.Franchise} />
         <Stack.Screen name="Calendar" getComponent={SCREENS.Calendar} />
+        <Stack.Screen name="ChildMode" getComponent={SCREENS.ChildMode} />
         {/* No fade for the player: cross-fading a video surface is expensive
             on a TV GPU and reads as a flicker rather than a transition. */}
         <Stack.Screen name="Player" getComponent={SCREENS.Player} options={{animation: 'none'}} />

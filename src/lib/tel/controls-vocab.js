@@ -16,6 +16,13 @@ module.exports = {
   "browse.sort.open": "w",
   "browse.surprise": "wtp",
   "browse.unwatched": "wtp",
+  // children mode (the account's own switch: public/js/childmode.js, tv-native src/childMode.ts + its sheets — docs/children-mode.md)
+  "child.age": "wtp", // an age chip (Who is watching?)
+  "child.forgot": "wtp", // Forgot the passcode? / Turn off with the password
+  "child.google": "w", // Forgot: Use Google
+  "child.off": "wtp", // Leave Children mode
+  "child.on": "wtp", // Turn on
+  "child.open": "wtp", // the line that opens it (menu, More, Settings)
   // calendar (the Calendar screen: public/js/screens/calendar.js, tv-native screens/Calendar.tsx, phone/screens/Calendar.tsx)
   "calendar.day": "wtp", // a day of the month grid
   "calendar.month": "wtp", // the previous / next month arrows
@@ -35,7 +42,8 @@ module.exports = {
   "detail.download.cancel": "wtp",
   "detail.download.device": "w",
   "detail.episode.download": "w",
-  "detail.episode.offline": "w",
+  "detail.episode.offline": "wp",
+  "detail.episode.wish": "wp", // offline wish: an episode on its way, saved to this phone when it lands
   "detail.episode.play": "wtp",
   "detail.episode.replace": "wt",
   "detail.episode.playontv": "w", // [phone-remote]
@@ -45,8 +53,8 @@ module.exports = {
   "detail.hh.dismiss": "wtp", // "Not for me" on a recommended title
   "detail.mylist": "wtp",
   "detail.offline": "w",
-  "detail.offline.season": "w",
-  "detail.offline.seasonall": "w",
+  "detail.offline.choose": "wp", // a show's "Choose episodes" (offlineChoose.js / phone offline/ChooseSheet.tsx)
+  "detail.offline.wish": "wp", // offline wish: "This device too" beside a download on its way
   "detail.play": "wtp",
   "detail.replace": "wtp",
   "detail.playontv": "w", // [phone-remote]
@@ -76,6 +84,8 @@ module.exports = {
   // downloads
   "downloads.another": "w",
   "downloads.cancel": "w",
+  "downloads.offline.save": "wp", // a ready download saved to this device
+  "downloads.offline.wish": "wp", // a download on its way: "This device too"
   "downloads.open": "w",
   "downloads.play": "w",
   "downloads.remove": "w",
@@ -116,6 +126,7 @@ module.exports = {
   // more (the menu behind the tab bar's More: the phone website's side menu, js/navmore.js, and the phone app's More sheet — docs/android-phone/NAV.md, the same lines)
   "more.apps": "wp",
   "more.calendar": "wp",
+  "more.children": "wp",
   "more.downloads": "wp",
   "more.home": "wp",
   "more.household": "wp",
@@ -137,6 +148,20 @@ module.exports = {
   // newpassword
   "newpassword.signout": "tp",
   "newpassword.submit": "tp",
+  // offline (the size sheet "Save to this device — which size?": tv-native/src/phone/offline/SizeSheet.tsx;
+  // "Choose episodes": public/js/offlineChoose.js and the phone's ChooseSheet.tsx)
+  "offline.choose.all": "wp", // Select all (the season shown)
+  "offline.choose.cancel": "wp", // Not now
+  "offline.choose.clear": "wp", // Clear (the season shown)
+  "offline.choose.pick": "wp", // an episode ticked / unticked
+  "offline.choose.save": "wp", // "Save N episodes"
+  "offline.choose.season": "wp", // the season switch inside the sheet
+  "offline.choose.size": "wp", // the size, once for all of them
+  "offline.always": "p", // "Always use the size I pick"
+  "offline.notnow": "p",
+  "offline.scope.pick": "p", // a wish: "And every new episode of season N" / "…of this show"
+  "offline.size.pick": "p", // a size row (Original, 1080p, 720p, 480p)
+  "offline.sound.pick": "p", // a sound chip (one copy, one sound)
   // party
   "party.join": "tp",
   // peek
@@ -149,10 +174,10 @@ module.exports = {
   "peek.playontv": "w", // [phone-remote]
   "peek.remove": "w",
   // pick
-  "pick.another": "wt",
+  "pick.another": "wtp",
   "pick.example": "wtp",
   "pick.go": "wtp",
-  "pick.open": "wt",
+  "pick.open": "wtp",
   "pick.option": "wtp",
   "pick.retry": "t",
   "pick.unfold": "t",
@@ -169,6 +194,7 @@ module.exports = {
   "player.fullscreen": "w",
   "player.mute": "wtp",
   "player.next": "wtp",
+  "player.offline": "w", // the settings menu's "Save to this device" row
   "player.party": "wtp",
   "player.party.handover": "wtp",
   "player.party.react": "wtp",
@@ -220,30 +246,30 @@ module.exports = {
   "household.tab": "wt",
   // rating
   "rating.star": "wp",
-  // remote (the phone as a remote, #/remote) [phone-remote]
-  "remote.audio": "w",
-  "remote.back": "w",
-  "remote.close": "w",
-  "remote.continuehere": "w", // [play-on-tv] Continue on this phone
-  "remote.device.open": "w",
-  "remote.device.pick": "w",
-  "remote.dpad": "w",
-  "remote.home": "w",
-  "remote.more": "w",
-  "remote.mute": "w",
-  "remote.next": "w",
-  "remote.padmode": "w",
-  "remote.play": "w",
-  "remote.playpause": "w",
-  "remote.rename": "w",
-  "remote.seek": "w",
-  "remote.sheet.pick": "w",
-  "remote.skip": "w",
-  "remote.stop": "w",
-  "remote.subdelay": "w",
-  "remote.subtitles": "w",
-  "remote.view": "w",
-  "remote.volume": "w",
+  // remote (the phone as a remote, #/remote) [phone-remote]; "p": the phone app's remote is the same screen (2026-11-11)
+  "remote.audio": "wp",
+  "remote.back": "wp",
+  "remote.close": "wp",
+  "remote.continuehere": "wp", // [play-on-tv] Continue on this phone
+  "remote.device.open": "wp",
+  "remote.device.pick": "wp",
+  "remote.dpad": "wp",
+  "remote.home": "wp",
+  "remote.more": "wp",
+  "remote.mute": "wp",
+  "remote.next": "wp",
+  "remote.padmode": "wp",
+  "remote.play": "wp",
+  "remote.playpause": "wp",
+  "remote.rename": "wp",
+  "remote.seek": "wp",
+  "remote.sheet.pick": "wp",
+  "remote.skip": "wp",
+  "remote.stop": "wp",
+  "remote.subdelay": "wp",
+  "remote.subtitles": "wp",
+  "remote.view": "wp",
+  "remote.volume": "wp",
   // recommend (the Recommend sheet)
   "recommend.close": "wtp",
   "recommend.person": "wt",
@@ -268,8 +294,28 @@ module.exports = {
   // row
   "row.arrow": "w",
   // saved
-  "saved.play": "w",
-  "saved.remove": "w",
+  "saved.clear.watched": "wp", // On this device: "Remove watched" (Undo on the line that follows)
+  "saved.job.cancel": "p", // a save on its way: Cancel (what it had goes)
+  "saved.job.dismiss": "p", // a save that didn't make it: Dismiss
+  "saved.job.pause": "p", // a save on its way: Pause (what is saved stays)
+  "saved.job.resume": "p", // a paused save: Resume (carries on from where it was)
+  "saved.job.retry": "p", // a save that didn't make it: Retry
+  "saved.next.save": "wp", // under a show: "Choose episodes"
+  "saved.offer.save": "w", // nothing saved yet: one of the titles worth saving
+  "saved.pack": "w", // "Pack for a trip" (opens the sheet)
+  "saved.pack.go": "w", // the sheet: pack what is ticked
+  "saved.pack.length": "w", // the sheet: how long the trip is
+  "saved.pack.pick": "w", // the sheet: a title ticked / unticked
+  "saved.play": "wp",
+  "saved.play.next": "wp", // a show's card: play the episode that is next
+  "saved.remove": "wp",
+  "saved.remove.show": "wp", // a show's card: all its episodes off this device
+  "saved.rest.open": "wp", // a title page with no connection: "On this device"
+  "saved.rest.play": "wp", // a title page with no connection: play the copy on this device
+  "saved.rest.retry": "wp", // a title page with no connection: "Try again"
+  "saved.smartnext": "wp", // the "Keep the next episode ready" switch
+  "saved.wish.cancel": "wp",
+  "saved.wish.dismiss": "wp",
   // search
   "search.clear": "wp",
   "search.recent.pick": "wtp",
@@ -360,11 +406,13 @@ module.exports = {
   "state.action": "t",
   // story (the Aurora Play story frame: public/js/play/story.js — Wrapped and any other story;
   // on the TV the same three moves of screens/Wrapped.tsx: Right or OK, Play/Pause, Left)
-  "story.close": "w",
+  "story.close": "wp",
   "story.next": "wt",
-  "story.pause": "wt",
+  "story.pause": "wtp",
   "story.prev": "wt",
-  "story.skip": "w", // Skip to the summary
+  "story.skip": "wp", // Skip to the summary
+  // toast
+  "toast.action": "p", // the button on a toast (Undo after a Remove)
   // update
   "update.install": "tp",
   "update.later": "tp",
@@ -374,13 +422,13 @@ module.exports = {
   "whatsnew.go": "wt",
   "whatsnew.log": "t",
   // wrapped (Aurora Wrapped, #/wrapped: public/js/screens/wrapped.js)
-  "wrapped.all": "w", // the story's finale: All the numbers
+  "wrapped.all": "wp", // the story's finale: All the numbers
   "wrapped.browse": "w", // Back to browsing / Find something to watch
   "wrapped.done": "t", // the TV story's finale (and its empty page): Done
-  "wrapped.replay": "wt",
+  "wrapped.replay": "wtp",
   "wrapped.retry": "wt",
-  "wrapped.share": "w", // Share / Save the picture (the summary card)
-  "wrapped.story": "w", // the page's Play the story
+  "wrapped.share": "wp", // Share / Save the picture (the summary card)
+  "wrapped.story": "wp", // the page's Play the story
   // xray
   "xray.more": "w",
   // phone — the Android phone app's own controls (tv-native/src/phone)
@@ -419,24 +467,11 @@ module.exports = {
   "phone.player.playontv": "p", // [play-on-tv] the player: Play on TV
   "phone.player.rotate": "p", // the player: Portrait / Landscape
   "phone.player.unlock": "p", // the player: Unlock the controls
-  "phone.remote.arrow": "p", // the remote: an arrow of the pad
-  "phone.remote.audio": "p", // the remote: audio track
-  "phone.remote.back": "p", // the remote: Back
-  "phone.remote.continuehere": "p", // [play-on-tv] the remote: Continue on this phone
   "phone.remote.device": "p", // the remote: which TV
-  "phone.remote.home": "p", // the remote: Home
-  "phone.remote.next": "p", // the remote: next episode
-  "phone.remote.ok": "p", // the remote: OK
   "phone.remote.pair": "p", // Your TVs: Sign in a TV
-  "phone.remote.playpause": "p", // the remote: play / pause
-  "phone.remote.seek": "p", // the remote: jump back / forward
-  "phone.remote.stop": "p", // the remote: stop
-  "phone.remote.subtitles": "p", // the remote: subtitles
-  "phone.remote.volume": "p", // the remote: mute, volume down / up
   "phone.request.leave": "p", // Request access: Cancel / Back to sign in
   "phone.request.send": "p", // Request access: Send my request
   "phone.save.film": "p", // a film's page: save on this phone
-  "phone.save.season": "p", // a show's page: save a season on this phone
   "phone.settings.editprofile": "p", // Settings: Edit profile & password
   "phone.settings.pair": "p", // Settings: Sign in a TV
   "phone.settings.photo": "p", // Settings: Upload a photo / Change photo
@@ -445,7 +480,6 @@ module.exports = {
   "phone.settings.whatsnew": "p", // Settings: What's new
   "phone.settings.saved": "p", // Settings: On this phone
   "phone.settings.saveto": "p", // Saved on this phone: Save to (this phone / SD card)
-  "phone.settings.limit": "p", // Saved on this phone: Space limit
   "phone.settings.switch": "p", // Settings: Switch profile / Sign out
   "phone.settings.wrapped": "p", // Settings: Your Aurora Wrapped
   "phone.taste.retry": "p", // Swipe your taste / Edit list: Try again (titles did not load)

@@ -9,17 +9,10 @@
 //
 // Selected and focused are INDEPENDENT and can co-occur (§5.5). When both, the
 // fill stays white and the shadow deepens — there is no third colour.
-//
-// ON GLASS (`glass`: Browse's filter pane, the one place a chip sits on a glass
-// pane) chosen is the glass's well instead - a darker capsule pressed in, the
-// word in the accent mixed with white (glass.ts, docs/glass-tv.md) - and white
-// means focus and nothing else. Only there: on the bare page the well is black
-// on near-black and the chosen pill all but disappears (photographed on the Mi
-// TV, the AI page), so a chip on the page keeps its white fill.
 import React from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 import Focusable from './Focusable';
-import {ink, well} from '../glass';
+import Icon, {IconName} from './Icon';
 import theme from '../theme';
 
 const {colors, radius} = theme;
@@ -28,13 +21,15 @@ export default function Chip({
   label,
   on,
   bare,
-  glass,
   small,
   hasTVPreferredFocus,
   edgeLeft,
   onPress,
   onFocusChange,
   uiId,
+  icon,
+  iconColor,
+  accessibilityLabel,
   ref,
 }: {
   uiId?: string; // [analytics] which control this is (Focusable.uiId)
@@ -45,9 +40,6 @@ export default function Chip({
   // `.cat-pill` is transparent until it is the active one; the other chips carry
   // a --surface fill and a --line edge at rest.
   bare?: boolean;
-  // The chip sits on a glass pane: chosen is the well with the word in ink.on,
-  // and a bare pill's label is the glass's third voice.
-  glass?: boolean;
   // A tighter pill for pages that set several labelled groups of them close
   // together (the AI page's What / Era / Length). Same look, 36dp tall at
   // 14dp type — the precedent is Btn's `small` (34dp).
@@ -58,6 +50,13 @@ export default function Chip({
   // Bubbled straight from the Focusable — Browse reads it to know focus is back
   // in the filter bands (its collapsed header re-expands on that).
   onFocusChange?: (focused: boolean) => void;
+  // A glyph before the words (Search's suggestions: film or series, in the
+  // card tags' hue) — 16dp, the small chip's line height.
+  icon?: IconName;
+  iconColor?: string;
+  // What a screen reader says when it is not just the label (the film/series
+  // word a chip with only the icon does not print).
+  accessibilityLabel?: string;
   ref?: React.Ref<unknown>;
 }) {
   return (
@@ -66,28 +65,27 @@ export default function Chip({
       ref={ref as never}
       // A white fill needs the ring held off it by a --bg gap, or a white ring on
       // white is invisible from the sofa (§4.1).
-      light={on && !glass}
+      light={on}
       // A SMALL selected pill takes the accent for its ring. Small pills sit
       // shoulder to shoulder in groups (the AI page), and with the same white
       // ring on both, a focused pill read the same whether it was the chosen
       // one or not (Mi TV, 2026-10-09). The large chips keep the white ring:
       // their selected fill is big enough to read on its own.
-      // (On glass the chosen pill is a dark well: the white ring for all.)
-      ring={on && small && !glass ? 'violet' : 'white'}
+      ring={on && small ? 'violet' : 'white'}
       hasTVPreferredFocus={hasTVPreferredFocus}
       edgeLeft={edgeLeft}
       uiId={uiId}
       onFocusChange={onFocusChange}
       onPress={onPress}
-      style={[bare ? styles.bare : styles.surface, small && styles.small, on && !glass && styles.on, bare && on && !glass && styles.barOnLift]}>
+      accessibilityLabel={accessibilityLabel}
+      style={[bare ? styles.bare : styles.surface, small && styles.small, on && styles.on, bare && on && styles.barOnLift, icon && styles.withIcon]}>
       {/* `.picker-btn`'s 1dp --line edge, as an absolutely-positioned child —
           NOT a border on the Focusable itself. A border there replaces the 3dp
           the ring is drawn inside, so the ring ends up painted over its own
           hairline. Same shape as Btn.tsx's rest-state edge. */}
-      {on && glass ? <View style={styles.well} pointerEvents="none" /> : !bare && !on ? <View style={styles.edge} pointerEvents="none" /> : null}
-      <Text
-        style={[bare ? styles.bareText : styles.text, bare && glass && styles.bareTextGlass, small && !bare && styles.smallText, on && (glass ? styles.onTextGlass : styles.onText)]}
-        numberOfLines={1}>
+      {!bare && !on ? <View style={styles.edge} pointerEvents="none" /> : null}
+      {icon ? <Icon name={icon} size={16} color={iconColor || (on ? colors.bg : colors.text)} /> : null}
+      <Text style={[bare ? styles.bareText : styles.text, small && !bare && styles.smallText, on && styles.onText]} numberOfLines={1}>
         {label}
       </Text>
     </Focusable>
@@ -124,6 +122,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   small: {minHeight: 36, paddingVertical: 6, paddingHorizontal: 13},
+  // the glyph and the words side by side (an icon chip)
+  withIcon: {flexDirection: 'row', alignItems: 'center', gap: 8},
   // (a bare pill's faint label keeps its 16dp — P14's faint-colour floor)
   smallText: {fontSize: 14},
   on: {backgroundColor: colors.white},
@@ -135,10 +135,4 @@ const styles = StyleSheet.create({
   bareText: {color: colors.textFaint, fontSize: 16, fontWeight: '800'},
   text: {color: colors.text, fontSize: 16, fontWeight: '700'},
   onText: {color: colors.bg},
-  // On glass. The chosen pill: the well, as an absolute child like `edge` (same
-  // reason), the word in ink.on. A bare pill's label: the page's faint grey is
-  // 2.7:1 on the pane's body, the glass's third voice is 7.3:1.
-  well,
-  bareTextGlass: {color: ink.third},
-  onTextGlass: {color: ink.on},
 });

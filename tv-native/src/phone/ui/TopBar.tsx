@@ -13,7 +13,7 @@ import {openProfileMenu} from '../profileMenu';
 import {useDevices} from '../remote/controller';
 import {pushPhone} from '../nav';
 import {setTab} from '../tabs';
-import {G_EDGE, G_FILL, GUTTER} from '../theme';
+import {E, E_EDGE_FLOAT, GUTTER} from '../theme';
 import Tap from './Tap';
 import {BarBand, StatusScrim} from './Scrims';
 
@@ -30,8 +30,11 @@ export function TopRight({noSettings, tv}: {noSettings?: boolean; tv?: boolean})
     <View style={s.right}>
       {tv && tvs.length ? <IconCircle uiId="nav.remote" icon="tv" label="Your TVs" onPress={() => pushPhone('Remote')} /> : null}
       {noSettings ? null : <IconCircle uiId="nav.settings" icon="navGear" label="Settings" onPress={() => pushScreen('Settings', undefined)} />}
-      <IconCircle uiId="nav.profile" label={`${me?.name || 'Profile'} — profile menu`} onPress={() => openProfileMenu()} size={40}>
-        <Avatar p={me} size={30} round />
+      <IconCircle uiId="nav.profile" label={`${me?.name || 'Profile'}${me?.kids ? ', Children mode on' : ''} — profile menu`} onPress={() => openProfileMenu()} size={40}>
+        {/* Children mode: the website's mint ring round the avatar (screens.css html[data-kids] #nav-profile .avatar) */}
+        <View style={me?.kids ? s.kidsRing : undefined}>
+          <Avatar p={me} size={30} round />
+        </View>
       </IconCircle>
     </View>
   );
@@ -47,7 +50,8 @@ export default function TopBar({solid}: {transparent?: boolean; solid?: boolean}
     <>
     {solid ? <BarBand /> : <StatusScrim />}
     <View pointerEvents="box-none" style={[s.bar, {top}]}>
-      {/* .nav-logo: the mark in a glass pill, 50 x 40, 2 lower than the round ones */}
+      {/* .nav-logo: the mark in a 42 glass circle, level with the round ones (the site's phone
+          logo since 2026-11-10: the 50 x 40 pill was wider than its neighbours) */}
       <Tap uiId="nav.home" accessibilityRole="button" accessibilityLabel="Aurora — Home" onPress={() => setTab('home')} borderless style={s.logo}>
         <Image source={LOGO} style={{width: 26, height: 26}} resizeMode="contain" />
       </Tap>
@@ -63,17 +67,16 @@ export const TOP_BAR_H = 42;
 export {StatusScrim};
 
 const s = StyleSheet.create({
+  kidsRing: {borderRadius: 999, borderWidth: 2, borderColor: '#86efac', padding: 1},
   bar: {position: 'absolute', left: GUTTER, right: GUTTER, height: 42, flexDirection: 'row', alignItems: 'center', zIndex: 10},
   right: {flexDirection: 'row', alignItems: 'center', gap: 10},
   logo: {
-    width: 50,
-    height: 40,
-    marginTop: 4,
-    borderRadius: 20,
-    paddingLeft: 8,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(96,84,230,0.16)',
-    experimental_backgroundImage: G_FILL,
-    ...G_EDGE,
+    backgroundColor: E.chrome,
+    ...E_EDGE_FLOAT,
   },
 });

@@ -12,7 +12,7 @@
 // ProfileCard is the "Your profile" card's insides in Settings
 // (preferences.js profileSection): the face, the edit row, the photo rows.
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
+import {ActivityIndicator, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
 import {api, ApiError, apiOwnHeaders, apiPost, apiRequest, getBaseUrl, Profile, setSession, setToken} from '../../api';
 import {useApp} from '../../AppContext';
@@ -268,6 +268,9 @@ export default function EditProfile() {
 
   return (
     <View style={s.root}>
+      {/* the page shrinks to the room above the keyboard, so the password fields and Save
+          scroll into sight (the sign-in screens' way; Android 15+ no longer resizes the window) */}
+      <KeyboardAvoidingView behavior="height" style={s.root}>
       <ScrollView
         onScroll={bar.onScroll}
         scrollEventThrottle={32}
@@ -350,6 +353,7 @@ export default function EditProfile() {
           </View>
         </Glass>
       </ScrollView>
+      </KeyboardAvoidingView>
       <BackBar solid={bar.solid} />
     </View>
   );
@@ -376,8 +380,8 @@ const s = StyleSheet.create({
   dot: {width: 34, height: 34, borderRadius: 17, margin: 3},
   dotOn: {borderWidth: 3, borderColor: '#fff', transform: [{scale: 1.1}]},
   kidsRow: {flexDirection: 'row', alignItems: 'center', gap: 8},
-  kidsBadge: {backgroundColor: '#ffcf4a', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2},
-  kidsBadgeText: {color: '#2a1d00', fontSize: 12, fontWeight: '900'},
+  kidsBadge: {backgroundColor: '#86efac', borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2},
+  kidsBadgeText: {color: '#0b1a12', fontSize: 12, fontWeight: '900'},
   kidsText: {color: colors.textDim, fontSize: 14.4},
   forgotCur: {alignSelf: 'flex-start', marginBottom: 4},
   removePw: {alignSelf: 'flex-start', minHeight: 40, justifyContent: 'center', paddingHorizontal: 4},

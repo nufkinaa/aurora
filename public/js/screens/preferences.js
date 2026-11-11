@@ -78,6 +78,9 @@ const ICONS = {
   "Upload a photo": '<path d="M4 8.500A1.500 1.500 0 015.500 7H8l1.500-2h5L16 7h2.500A1.500 1.500 0 0120 8.500V18a1.500 1.500 0 01-1.500 1.500h-13A1.500 1.500 0 014 18z"/><circle cx="12" cy="13" r="3.200"/>',
   "Change photo": '<path d="M4 8.500A1.500 1.500 0 015.500 7H8l1.500-2h5L16 7h2.500A1.500 1.500 0 0120 8.500V18a1.500 1.500 0 01-1.500 1.500h-13A1.500 1.500 0 014 18z"/><circle cx="12" cy="13" r="3.200"/>',
   "Remove photo": '<path d="M4 7h16M9 7V4.500h6V7M6.500 7l1 13h9l1-13"/>',
+  // children mode (js/childmode.js): a child's face
+  "Children mode": '<circle cx="12" cy="12" r="9"/><path d="M9 10.500h.01M15 10.500h.01M8.500 14.500a4.500 4.500 0 007 0M9.500 3.500c.5 2 2 3 4.500 3"/>',
+  "Leave Children mode": '<circle cx="12" cy="12" r="9"/><path d="M9 10.500h.01M15 10.500h.01M8.500 14.500a4.500 4.500 0 007 0M9.500 3.500c.5 2 2 3 4.500 3"/>',
   "Your Aurora Wrapped": '<path d="M12 3l1.800 4.700L18.500 9.500l-4.700 1.800L12 16l-1.800-4.700L5.500 9.500l4.700-1.800z"/><path d="M19 15l.800 2.200L22 18l-2.200.800L19 21l-.800-2.200L16 18l2.200-.800z"/>',
   "Swipe your taste": '<rect x="7" y="3.500" width="11" height="16" rx="2" transform="rotate(8 12.500 11.500)"/><rect x="5" y="4.500" width="11" height="16" rx="2"/><path d="M10.500 15.500s-2.800-1.700-2.800-3.700a1.500 1.500 0 012.800-.900 1.500 1.500 0 012.800.900c0 2-2.800 3.700-2.800 3.700z"/>',
   "Help improve Aurora": '<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>',
@@ -548,9 +551,9 @@ export const renderPreferences = async (root) => {
   // Who you are, then what you can do about it — as rows, like every other
   // setting (it was a wall of mismatched pills; elia: "let's organize all
   // this", 2026-10-06).
-  // A kids profile's settings leave out what a child shouldn't change: the
-  // password and sign-in, what Aurora downloads by itself, and the kids
-  // setting (it sits folded in the edit sheet, behind the household PIN).
+  // Children mode's settings (2026-11-11) leave out what a child shouldn't
+  // change: the password and sign-in, what Aurora downloads by itself. The
+  // switch itself is the "Children mode" line (js/childmode.js).
   const kid = state.profile.kids || null;
   const profileSection = section("Your profile", null,
     el("div", { class: "pref-profile page-pad" },
@@ -562,12 +565,15 @@ export const renderPreferences = async (root) => {
         el("div", { class: "pref-profile-name" }, state.profile.name),
         el("div", { class: "pref-profile-sub" },
           kid
-            ? [el("span", { class: "kids-badge" }, "Kids"), ` ${kidsLabel(kid)}`]
+            ? [el("span", { class: "kids-badge" }, "Kids"), ` Children mode · ${kidsLabel(kid)}`]
             : state.profile.hasPassword ? "Password protected" : "No password set")),
     ),
     el("div", { class: "pref-list page-pad" },
-      linkRow(kid ? "Edit profile" : "Edit profile & password", kid ? "Name, avatar and colour." : "Name, avatar, colour, your password — and kids mode.",
+      linkRow(kid ? "Edit profile" : "Edit profile & password", kid ? "Name, avatar and colour." : "Name, avatar, colour and your password.",
         () => profileModal(state.profile, async () => { await loadProfiles(); rerenderInPlace(); })),
+      linkRow(kid ? "Leave Children mode" : "Children mode",
+        kid ? `On for this account — ${kid.maxAge === 0 ? "All ages" : kid.maxAge + "+"}. Leaving takes the passcode.` : "Cleans the feed for children on every device signed in to this account.",
+        () => document.dispatchEvent(new CustomEvent("aurora-child-mode"))),
       linkRow(state.profile.avatarImage ? "Change photo" : "Upload a photo", "A picture of you in place of the emoji — JPEG, PNG or WebP, up to 2 MB.", pickPhoto),
       state.profile.avatarImage && linkRow("Remove photo", "Back to the emoji.", async () => {
         try {

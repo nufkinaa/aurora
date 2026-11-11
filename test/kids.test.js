@@ -190,7 +190,9 @@ test("setKids stores only the clean shape, shows it in the public view, and can 
   const on = profiles.setKids("kid", { maxAge: 7, sneaky: "x" });
   assert.equal(on.ok, true);
   assert.deepEqual(on.profile.kids, { maxAge: 7 });
-  assert.deepEqual(store().profiles.find((p) => p.id === "kid").kids, { maxAge: 7 });
+  // (children mode, 2026-11-11: the switch is children mode on the account; `kids` is its public mirror)
+  assert.equal(store().profiles.find((p) => p.id === "kid").childMode.maxAge, 7);
+  assert.equal("kids" in store().profiles.find((p) => p.id === "kid"), false);
   assert.deepEqual(profiles.kidsOf("kid"), { maxAge: 7 });
   assert.deepEqual(profiles.publicList().find((p) => p.id === "kid").kids, { maxAge: 7 });
 
@@ -203,6 +205,7 @@ test("setKids stores only the clean shape, shows it in the public view, and can 
   const off = profiles.setKids("kid", null);
   assert.equal(off.profile.kids, null);
   assert.equal("kids" in store().profiles.find((p) => p.id === "kid"), false);
+  assert.equal("childMode" in store().profiles.find((p) => p.id === "kid"), false);
 });
 
 test("the ordinary profile update can NOT touch kids mode (it needs the PIN route)", () => {
@@ -486,7 +489,7 @@ test("gate: direct access to a title over the limit is 403 with a clear error", 
   const refused = (r, label) => {
     assert.equal(r.status, 403, label);
     assert.equal(r.passed, false, label);
-    assert.match(r.body.error, /kids profile/, label);
+    assert.match(r.body.error, /Children mode/, label);
     assert.equal(r.body.kids, true, label);
   };
   refused(run({ path: "/api/item/m2" }), "item: 18+ film");
@@ -543,7 +546,7 @@ test("gate: discover meta is judged by the rating that arrives with it", () => {
     const no = run({ path: "/api/discover/meta/movie/tt0000051" }, (q, res) => res.json({ imdbId: "tt0000051", title: "Nope", certificate, synopsis: "secret" }));
     assert.equal(no.status, 403, String(certificate));
     assert.equal(no.body.synopsis, undefined, "nothing of the title leaks with the refusal");
-    assert.match(no.body.error, /kids profile/);
+    assert.match(no.body.error, /Children mode/);
   }
 });
 

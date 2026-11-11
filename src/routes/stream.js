@@ -181,11 +181,20 @@ router.get("/img/still/:id", async (req, res) => {
 // The phone-playable copy made by media/offline.js (Range-capable, so the
 // phone's cache can pull it in one go and the player can seek if it ever
 // plays it straight from here).
+// Its validator is the copy's own name (the source's date and the quality are
+// in it) and size — never its modification time, which every request moves
+// (offline.js touchCopy keeps a copy in use from the sweep): a device saving
+// it in parts compares them, and a moving date read as "the file changed" on
+// every part (2026-11-10).
 router.get("/offline/file/:id", (req, res) => {
-  const file = require("../media/offline").fileFor(req.params.id, req.query.q);
+  const off = require("../media/offline");
+  const file = off.fileFor(req.params.id, off.normQuality(req.query.q, req.query.a));
   if (!file) return res.status(404).send("Not prepared");
   res.setHeader("Cache-Control", "private, max-age=0");
-  res.sendFile(file);
+  let etag = null;
+  try { etag = `"${path.basename(file, ".mp4")}-${fs.statSync(file).size.toString(16)}"`; } catch {}
+  if (etag) res.setHeader("ETag", etag);
+  res.sendFile(file, { etag: !etag, lastModified: !etag });
 });
 
 // A file made overnight for devices that cannot play the title as it is

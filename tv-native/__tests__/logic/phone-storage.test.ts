@@ -1,33 +1,49 @@
-// The phone's storage choices (src/phone/offline/storage.ts): where copies go, the space
-// limit and what it offers to remove, tidy-up timing, keep-next picking and its Wi-Fi rule.
+// The phone's storage rules (src/phone/offline/storage.ts): where copies go, what counts as
+// watched (Remove watched, a press with Undo), the place's groups and lines, and "Keep the next
+// episode ready" — which only ADDS. No space limit and no tidy-up any more: nothing leaves this
+// device by itself, and there is no cap (elia, 2026-11-10/11).
 import {
   Copy,
+  copyLine,
   currentVolume,
-  dueForTidy,
   finishedFrom,
   GB,
+  groupSaved,
   hasChoice,
   isWatched,
-  keepNextNow,
-  keepNextQuality,
-  limitLabel,
-  makeRoom,
-  nextToKeep,
-  overLimit,
+  readNext,
+  roomLine,
+  showLine,
+  smartCandidates,
   STORAGE_DEFAULTS,
-  TIDY_AFTER_MS,
   usedBytes,
   volumeName,
   Volume,
+  watchedCopies,
 } from '../../src/phone/offline/storage';
+import {fmtSize} from '../../src/phone/offline/rules';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const fs = require('fs');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const path = require('path');
+declare const __dirname: string;
 
 const DAY = 24 * 60 * 60 * 1000;
-const NOW = Date.UTC(2026, 10, 6, 12);
+const NOW = Date.UTC(2026, 10, 11, 12);
 const copy = (id: string, o: Partial<Copy> = {}): Copy => ({id, profileId: 'p1', title: id, state: 'done', sizeBytes: 1 * GB, duration: 2700, at: NOW - 10 * DAY, ...o});
 
 describe('the defaults: everything new is OFF', () => {
-  test('no SD card choice, no limit, no tidy-up, no keep-next', () => {
-    expect(STORAGE_DEFAULTS).toEqual({volume: null, limitGb: 0, tidyAfter: false, keepNext: false});
+  test('no SD card choice, no keep-next — and no limit or tidy-up at all', () => {
+    expect(STORAGE_DEFAULTS).toEqual({volume: null, keepNext: false, keepNextAt: 0});
+    expect(Object.keys(STORAGE_DEFAULTS)).not.toContain('limitGb');
+    expect(Object.keys(STORAGE_DEFAULTS)).not.toContain('tidyAfter');
+  });
+  test('nothing in the store removes a copy by itself: removal is only ever the person’s press', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../../src/phone/offline/store.ts'), 'utf-8');
+    expect(src).not.toMatch(/tidyUp|dueForTidy|makeRoom|limitGb\s*>/);
+    // removeCopy (the file actually going) is reached only from removeOffline's Undo timer
+    const calls = src.match(/removeCopy\(/g) || [];
+    expect(calls.length).toBe(2); // the definition and the one call after Undo's 6 s
   });
 });
 
@@ -51,102 +67,80 @@ describe('Save to (this phone / SD card)', () => {
   });
 });
 
-describe('the space limit', () => {
-  test('words', () => {
-    expect(limitLabel(0)).toBe('No limit');
-    expect(limitLabel(10)).toBe('At most 10 GB');
-  });
+describe('watched, and Remove watched', () => {
   test('what is counted: done and on their way, every profile; a failed one is nothing', () => {
     expect(usedBytes([copy('a'), copy('b', {state: 'saving'}), copy('c', {state: 'failed'}), copy('d', {profileId: 'p2'})])).toBe(3 * GB);
   });
-  test('no limit never says full', () => {
-    expect(overLimit(100 * GB, 50 * GB, 0)).toBe(false);
-    expect(overLimit(4 * GB, 1 * GB, 5)).toBe(false);
-    expect(overLimit(4 * GB, 1.5 * GB, 5)).toBe(true);
+  test('watched = finished here, or past 95 %', () => {
+    expect(isWatched(copy('a', {finishedAt: NOW}))).toBe(true);
+    expect(isWatched(copy('a', {position: 2600}))).toBe(true);
+    expect(isWatched(copy('a', {position: 2500}))).toBe(false);
   });
-  test('fits already: nothing to remove', () => {
-    expect(makeRoom([copy('a')], 'p1', 1 * GB, 5)).toEqual([]);
+  test('Remove watched offers the profile’s own finished copies only — never another profile’s, never one on its way', () => {
+    const all = [copy('w', {finishedAt: NOW}), copy('u'), copy('o', {profileId: 'p2', finishedAt: NOW}), copy('s', {state: 'saving', position: 2700})];
+    expect(watchedCopies(all, 'p1').map(c => c.id)).toEqual(['w']);
   });
-  test('full: the OLDEST watched copy is offered, and only as many as it takes', () => {
-    const all = [
-      copy('new-watched', {finishedAt: NOW - 1 * DAY}),
-      copy('old-watched', {finishedAt: NOW - 5 * DAY}),
-      copy('unwatched', {position: 100}),
-      copy('half', {position: 1300}),
-    ];
-    // 4 GB used, limit 4, adding 1: one has to go — the oldest watched
-    expect(makeRoom(all, 'p1', 1 * GB, 4)!.map(c => c.id)).toEqual(['old-watched']);
-    // adding 2: both watched ones
-    expect(makeRoom(all, 'p1', 2 * GB, 4)!.map(c => c.id)).toEqual(['old-watched', 'new-watched']);
-  });
-  test('watched counts as the server does: past 95 %', () => {
-    expect(isWatched({duration: 1000, position: 960})).toBe(true);
-    expect(isWatched({duration: 1000, position: 900})).toBe(false);
-    expect(isWatched({duration: 0, position: 0, finishedAt: NOW})).toBe(true);
-  });
-  test('not enough even with every watched copy gone: nothing offered (null)', () => {
-    expect(makeRoom([copy('w', {finishedAt: NOW - DAY}), copy('u')], 'p1', 3 * GB, 2)).toBeNull();
-  });
-  test('never another profile’s copy, never one still on its way, never the one being saved', () => {
-    const all = [copy('theirs', {profileId: 'p2', finishedAt: NOW - 9 * DAY}), copy('moving', {state: 'saving', finishedAt: NOW - 9 * DAY}), copy('self', {finishedAt: NOW - 9 * DAY}), copy('mine', {finishedAt: NOW - 2 * DAY})];
-    expect(makeRoom(all, 'p1', 1 * GB, 4, 'self')!.map(c => c.id)).toEqual(['mine']);
-  });
-});
-
-describe('tidy up after watching', () => {
-  const ep = (id: string, o: Partial<Copy> = {}) => copy(id, {showId: 's1', season: 1, episode: 1, ...o});
-  test('an episode goes a day after it is finished — not a minute before', () => {
-    expect(dueForTidy([ep('e', {finishedAt: NOW - TIDY_AFTER_MS})], NOW).map(c => c.id)).toEqual(['e']);
-    expect(dueForTidy([ep('e', {finishedAt: NOW - TIDY_AFTER_MS + 60000})], NOW)).toEqual([]);
-  });
-  test('never a film, never one not finished, never one still saving, never the one playing', () => {
-    const all = [copy('film', {finishedAt: NOW - 3 * DAY}), ep('open'), ep('saving', {state: 'saving', finishedAt: NOW - 3 * DAY}), ep('playing', {finishedAt: NOW - 3 * DAY}), ep('due', {finishedAt: NOW - 3 * DAY})];
-    expect(dueForTidy(all, NOW, 'playing').map(c => c.id)).toEqual(['due']);
-  });
-  test('finished, as the server tells it: its flag or past 95 %, at the time it last moved', () => {
-    expect(finishedFrom({position: 10, duration: 100, finished: true, updatedAt: NOW - DAY}, NOW)).toBe(NOW - DAY);
-    expect(finishedFrom({position: 97, duration: 100, updatedAt: NOW - 2 * DAY}, NOW)).toBe(NOW - 2 * DAY);
-    expect(finishedFrom({position: 50, duration: 100, updatedAt: NOW - DAY}, NOW)).toBeNull();
+  test('finished as the server says it (the TV, the website, streamed)', () => {
+    expect(finishedFrom({position: 2600, duration: 2700, updatedAt: NOW - DAY}, NOW)).toBe(NOW - DAY);
+    expect(finishedFrom({finished: true}, NOW)).toBe(NOW);
+    expect(finishedFrom({position: 100, duration: 2700}, NOW)).toBeNull();
     expect(finishedFrom(null, NOW)).toBeNull();
-    // a server clock ahead of the phone's never puts it in the future
-    expect(finishedFrom({finished: true, updatedAt: NOW + DAY}, NOW)).toBe(NOW);
+  });
+  test('the room line', () => {
+    expect(roomLine(6.2 * GB, 18 * GB, fmtSize)).toBe('6.2 GB saved here · room for ≈ 18.0 GB more');
+    expect(roomLine(0, 18 * GB, fmtSize)).toBe('room for ≈ 18.0 GB more');
   });
 });
 
-describe('keep the next episodes ready', () => {
-  const eps = [
-    {id: 's0e1', season: 0, episode: 1},
-    {id: 's1e1', season: 1, episode: 1},
-    {id: 's1e2', season: 1, episode: 2},
-    {id: 's1e3', season: 1, episode: 3},
-    {id: 's2e1', season: 2, episode: 1},
-  ];
-  test('the next 2 after the one watched, in order, across a season', () => {
-    expect(nextToKeep(eps, {season: 1, episode: 1}, new Set()).map(e => e.id)).toEqual(['s1e2', 's1e3']);
-    expect(nextToKeep(eps, {season: 1, episode: 3}, new Set()).map(e => e.id)).toEqual(['s2e1']);
-    expect(nextToKeep([...eps].reverse(), {season: 1, episode: 2}, new Set()).map(e => e.id)).toEqual(['s1e3', 's2e1']);
+describe('the place: films as rows, a show as one group', () => {
+  test('groups, episodes in order, the next one not finished', () => {
+    const all = [
+      copy('f1', {savedAt: NOW - 3}),
+      copy('e3', {showId: 's', showTitle: 'Show', season: 1, episode: 3, savedAt: NOW - 1}),
+      copy('e1', {showId: 's', showTitle: 'Show', season: 1, episode: 1, finishedAt: NOW, savedAt: NOW - 2}),
+      copy('e2', {showId: 's', showTitle: 'Show', season: 1, episode: 2}),
+      copy('x', {state: 'saving'}),
+    ];
+    const g = groupSaved(all);
+    expect(g.map(x => x.kind)).toEqual(['show', 'film']);
+    const show = g[0] as Extract<(typeof g)[number], {kind: 'show'}>;
+    expect(show.episodes.map(e => e.id)).toEqual(['e1', 'e2', 'e3']);
+    expect(show.next?.id).toBe('e2');
+    expect(show.watched).toBe(1);
+    expect(showLine(show, fmtSize)).toBe('3 episodes · 3.0 GB · 1 watched');
   });
-  test('the window stays 2: one already saved (or on its way) is not saved again, and nothing past the window is added', () => {
-    expect(nextToKeep(eps, {season: 1, episode: 1}, new Set(['s1e2'])).map(e => e.id)).toEqual(['s1e3']);
-    expect(nextToKeep(eps, {season: 1, episode: 1}, new Set(['s1e2', 's1e3']))).toEqual([]);
+  test('a film’s line (the site’s)', () => {
+    expect(copyLine({...copy('f', {position: 1500, duration: 5820, quality: 'original'}), audioLabel: 'English'}, fmtSize)).toBe('1 h 12 min left · 1.0 GB · Original quality · English');
+    expect(copyLine(copy('f', {duration: 2700, quality: '720'}), fmtSize)).toBe('45 min · 1.0 GB · 720p');
+    expect(copyLine(copy('f', {finishedAt: NOW, quality: '720'}), fmtSize)).toBe('Watched · 1.0 GB · 720p');
   });
-  test('specials are left out, unless a special is what is being watched', () => {
-    expect(nextToKeep(eps, {season: 1, episode: 3}, new Set()).some(e => e.season === 0)).toBe(false);
-    expect(nextToKeep(eps, {season: 0, episode: 1}, new Set()).map(e => e.id)).toEqual(['s1e1', 's1e2']);
+});
+
+describe('Keep the next episode ready', () => {
+  const ep = (id: string, o: Partial<Copy> = {}) => copy(id, {showId: 's', showTitle: 'Show', season: 1, episode: Number(id.slice(1)) || 1, ...o});
+  test('only episodes saved here, finished AFTER it was turned on, once each', () => {
+    const since = NOW - DAY;
+    const all = [
+      ep('e1', {finishedAt: NOW - 2 * DAY}), // finished before it was on: not a flood
+      ep('e2', {finishedAt: NOW - 1000}),
+      ep('e3', {position: 100}),
+      copy('film', {finishedAt: NOW}), // a film has no next episode
+      ep('e5', {profileId: 'p2', finishedAt: NOW}), // another profile's
+      ep('e6', {state: 'saving', finishedAt: NOW}),
+    ];
+    expect(smartCandidates(all, 'p1', since, new Set()).map(c => c.id)).toEqual(['e2']);
+    expect(smartCandidates(all, 'p1', since, new Set(['e2']))).toEqual([]);
   });
-  test('the last episode: nothing to keep', () => {
-    expect(nextToKeep(eps, {season: 2, episode: 1}, new Set())).toEqual([]);
+  test('finished as the server says it counts too (watched on the TV)', () => {
+    const all = [ep('e3', {position: 100})];
+    expect(smartCandidates(all, 'p1', NOW - DAY, new Set(), {e3: {position: 2650, duration: 2700, updatedAt: NOW}}).map(c => c.id)).toEqual(['e3']);
+    expect(smartCandidates(all, 'p1', NOW - DAY, new Set(), {e3: {position: 2650, duration: 2700, updatedAt: NOW - 2 * DAY}})).toEqual([]);
   });
-  test('Wi-Fi only, and only when it is turned on', () => {
-    expect(keepNextNow(true, 'wifi')).toBe(true);
-    expect(keepNextNow(true, 'cellular')).toBe(false);
-    expect(keepNextNow(true, 'other')).toBe(false);
-    expect(keepNextNow(true, 'none')).toBe(false);
-    expect(keepNextNow(false, 'wifi')).toBe(false);
-  });
-  test('the quality: the person’s, or 720p when they are asked each time', () => {
-    expect(keepNextQuality('ask')).toBe('720');
-    expect(keepNextQuality('480')).toBe('480');
-    expect(keepNextQuality('original')).toBe('original');
+  test('the server’s answer: a library episode to save, or one on its way to wish for', () => {
+    expect(readNext({next: {kind: 'library', id: 'ab12', season: 1, episode: 2}})).toEqual({kind: 'library', id: 'ab12'});
+    expect(readNext({next: {kind: 'stream', imdbId: 'tt1', season: 2, episode: 1, title: 'Pilot'}})).toEqual({kind: 'stream', imdbId: 'tt1', season: 2, episode: 1, title: 'Pilot'});
+    expect(readNext({next: null})).toBeNull();
+    expect(readNext(null)).toBeNull();
+    expect(readNext({next: {kind: 'stream'}})).toBeNull();
   });
 });

@@ -53,14 +53,14 @@ describe('edit profile (profiles.js profileModal)', () => {
     expect(passwordLabel(true)).toBe('Password');
     expect(passwordLabel(false)).toBe('Password (optional)');
     expect(newPasswordPlaceholder(true)).toBe('New password (blank = unchanged)');
-    expect(newPasswordPlaceholder(false)).toBe('Password (optional)');
+    expect(newPasswordPlaceholder(false)).toBe('New password (optional)');
     expect(editRow(false).title).toBe('Edit profile & password');
     expect(editRow(true)).toEqual({title: 'Edit profile', detail: 'Name, avatar and colour.'});
   });
   test('the line under the face', () => {
     expect(profileLine({hasPassword: true})).toBe('Password protected');
     expect(profileLine({hasPassword: false})).toBe('No password set');
-    expect(profileLine({hasPassword: true, kids: {maxAge: 7}})).toBe('Kids · titles up to 7+');
+    expect(profileLine({hasPassword: true, kids: {maxAge: 7}})).toBe('Kids · Children mode · titles up to 7+');
     expect(kidsLabel({maxAge: 0})).toBe('all-ages titles only');
   });
   test('refusals: the server words as a sentence, the site words for a wrong password', () => {

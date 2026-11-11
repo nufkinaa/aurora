@@ -2718,6 +2718,9 @@ export default function Detail({
           badges={[streamMeta?.certificate, anySubs ? 'CC' : null]}
           synopsis={full?.synopsis || streamMeta?.synopsis || item.synopsis}
           synopsisLines={2}
+          // a show's genres, as a film's page and Home's billboard show them
+          // (elia, 2026-11-11: the show page had none)
+          genres={genreSource}
           cast={streamMeta?.cast}
           note={srcNote}
           bottomInset={0}

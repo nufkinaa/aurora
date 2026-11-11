@@ -21,6 +21,8 @@ export type Wrapped = {
   topGenres: {name: string; sec: number}[];
   started: number;
   finished: number;
+  /** the server's own pick for the intervention (src/lib/remarks/roasts.js), up to four */
+  roasts?: string[];
 };
 export type WrappedReply = Wrapped | {empty: true};
 
@@ -75,6 +77,27 @@ export function roastsFor(w: Wrapped, name: string): string[] {
     out.push(`Honestly? Nothing to roast. Balanced viewing, reasonable hours. Who ARE you, ${name}?`);
   }
   return out.slice(0, 4);
+}
+
+/** A kids profile's "highlights": the same stats, said kindly (the site's kindWordsFor). */
+export function kindWordsFor(w: Wrapped, name: string): string[] {
+  const out: string[] = [];
+  if (w.topTitles && w.topTitles[0]) out.push(`Your favourite was “${w.topTitles[0].name}”. Great pick, ${name}!`);
+  if (w.bestStreak >= 3) out.push(`${w.bestStreak} days in a row — that's a real streak!`);
+  if (w.activeDays >= 2) out.push(`You lit up ${w.activeDays} nights of stories.`);
+  if (w.distinctTitles >= 3) out.push(`${w.distinctTitles} different stories explored. What an adventurer.`);
+  if (w.finished >= 1) out.push(`${w.finished} ${w.finished === 1 ? 'story' : 'stories'} watched all the way to the end.`);
+  if (!out.length) out.push(`Your sky is just getting started, ${name}. Every show you watch adds a star!`);
+  return out.slice(0, 4);
+}
+
+/** The intervention's lines (the site's interventionFor): the server's `roasts` as sent (order
+ *  kept, empty ones dropped, four at most), else the rules above; a kids profile never gets
+ *  roasts — its kind words instead, under "The highlights". */
+export function interventionFor(w: Wrapped, name: string, {kids = false}: {kids?: boolean} = {}): string[] {
+  if (kids) return kindWordsFor(w, name);
+  const sent = Array.isArray(w.roasts) ? w.roasts.filter(x => typeof x === 'string' && x.trim()) : [];
+  return sent.length ? sent.slice(0, 4) : roastsFor(w, name);
 }
 
 export type BigCard = {value: string; label: string; sub: string | null};
