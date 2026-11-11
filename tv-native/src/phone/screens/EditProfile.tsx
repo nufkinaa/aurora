@@ -12,7 +12,7 @@
 // ProfileCard is the "Your profile" card's insides in Settings
 // (preferences.js profileSection): the face, the edit row, the photo rows.
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
+import {ActivityIndicator, KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
 import {api, ApiError, apiOwnHeaders, apiPost, apiRequest, getBaseUrl, Profile, setSession, setToken} from '../../api';
 import {useApp} from '../../AppContext';
@@ -268,6 +268,9 @@ export default function EditProfile() {
 
   return (
     <View style={s.root}>
+      {/* the page shrinks to the room above the keyboard, so the password fields and Save
+          scroll into sight (the sign-in screens' way; Android 15+ no longer resizes the window) */}
+      <KeyboardAvoidingView behavior="height" style={s.root}>
       <ScrollView
         onScroll={bar.onScroll}
         scrollEventThrottle={32}
@@ -350,6 +353,7 @@ export default function EditProfile() {
           </View>
         </Glass>
       </ScrollView>
+      </KeyboardAvoidingView>
       <BackBar solid={bar.solid} />
     </View>
   );

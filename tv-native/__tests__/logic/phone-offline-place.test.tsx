@@ -21,6 +21,8 @@ jest.mock('react-native', () => {
     Switch: 'Switch',
     Pressable: 'Pressable',
     Modal: 'Modal',
+    // (the sheet stays above the keyboard: ui/Sheet.tsx listens for it)
+    Keyboard: {addListener: () => ({remove: () => {}})},
     AccessibilityInfo: {isReduceMotionEnabled: () => Promise.resolve(true), addEventListener: () => ({remove: () => {}})},
     useWindowDimensions: () => ({width: 412, height: 915}),
   };

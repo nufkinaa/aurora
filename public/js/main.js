@@ -300,10 +300,15 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
 {
   const pill = $("#nav-dl");
   const ACTIVE = ["pending", "approved", "downloading"];
-  const READY_SHOW_MS = 10000;
-  let readySig = "";
-  let readyTimer = 0;
+  // On a computer the button keeps its place beside Settings (elia,
+  // 2026-11-11: "on desktop sometimes the downloads page btn beside the
+  // settings disappears"): with nothing moving or ready it is a plain
+  // download icon to My downloads (.idle); what has landed no longer rests
+  // out of sight after ten seconds. A phone keeps the pill only while there
+  // is something to say. Kids profiles have no downloads at all.
+  const desk = matchMedia("(hover: hover) and (min-width: 721px)");
   const paint = () => {
+    pill.classList.remove("idle", "rest");
     // Smart downloads (the next episode, fetched ahead by itself) never light
     // the pill: nobody asked for them, so there is nothing to announce. They
     // are on the Downloads page, marked AUTO, for whoever goes looking.
@@ -314,13 +319,6 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
       // computer it is shown for ten seconds — when the app opens, and again
       // whenever the set changes — then rests out of sight, and comes back
       // under the pointer or keyboard focus (CSS: .nav-dl.rest).
-      const sig = ready.map((j) => j.id).sort().join(",");
-      if (sig !== readySig) {
-        readySig = sig;
-        pill.classList.remove("rest");
-        clearTimeout(readyTimer);
-        readyTimer = setTimeout(() => pill.classList.add("rest"), READY_SHOW_MS);
-      }
       pill.innerHTML = "";
       pill.append(el("span", { class: "nav-dl-icon", html: icons.download }), el("i", { class: "nav-dl-badge" }, ready.length > 99 ? "99+" : String(ready.length)));
       pill.title = ready.length === 1 ? `“${ready[0].label || ready[0].title}” is ready to play` : `${ready.length} downloads ready to play`;
@@ -328,13 +326,19 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
       pill.classList.add("ready");
       return pill.classList.remove("hidden");
     }
-    readySig = "";
-    clearTimeout(readyTimer);
-    pill.classList.remove("ready", "rest");
+    pill.classList.remove("ready");
     pill.removeAttribute("aria-label");
     pill.title = "Downloads in progress";
     const act = [...downloads.values()].filter((j) => ACTIVE.includes(j.status) && !j.smart);
-    if (act.length === 0) return pill.classList.add("hidden");
+    if (act.length === 0) {
+      if (!desk.matches || !state.profile || state.profile.kids) return pill.classList.add("hidden");
+      pill.innerHTML = "";
+      pill.append(el("span", { class: "nav-dl-icon", html: icons.download }));
+      pill.title = "My downloads";
+      pill.setAttribute("aria-label", "My downloads");
+      pill.classList.add("idle");
+      return pill.classList.remove("hidden");
+    }
     const pct = Math.round(
       (act.reduce((s, j) => s + (j.progress || 0), 0) / act.length) * 100,
     );
@@ -387,6 +391,9 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
       });
   };
   load();
+  // (a window dragged between phone and computer widths, or another profile: the button follows)
+  desk.addEventListener("change", paint);
+  window.addEventListener("aurora-profile", paint);
   // The read above runs before the profile is known. With no session (an open
   // server) `mine` depends on the profile named: every job read as someone else's,
   // and My downloads opened by its address said "Nothing downloading yet".

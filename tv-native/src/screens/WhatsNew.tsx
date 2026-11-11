@@ -21,7 +21,7 @@ const {colors, fontSize, spacing, radius} = theme;
 // one place to change: its cards say `since: ROUND`, and NEW_FROM = ROUND puts the New
 // ribbon on them alone. (The website has the same cards: public/js/screens/whatsnew.js,
 // ROUND there; its `webOnly` cards — AirPlay from an iPhone — have nothing to do on a TV.)
-export const ROUND = '5.9.3';
+export const ROUND = '5.9.4';
 const NEW_FROM = ROUND;
 const cmpVersion = (a: string, b: string) => {
   const pa = a.split('.').map(Number);
@@ -33,9 +33,26 @@ export const isNewCard = (f: {since?: string}) => !!f.since && cmpVersion(f.sinc
 
 type Feature = {since?: string; glyph: string; title: string; what: string; how: string; go?: {label: string; act: string}};
 export const FEATURES: Feature[] = [
-  // ---- the 2026-11-11 round: the same cards, the same words, on the website ----
+  // ---- 5.9.4 ----
   {
     since: ROUND,
+    glyph: '▶️',
+    title: "Continue Watching, tidied",
+    what: "One card per show: the episode you watched last, whether it was downloaded or streamed. Anything you have finished leaves the row, and stopping in the end credits counts as finished. When you finish an episode, the card moves on to the next one you have not seen.",
+    how: "Open Home: Continue Watching is the first row.",
+    go: {label: 'Go home', act: 'home'},
+  },
+  {
+    since: ROUND,
+    glyph: '🔎',
+    title: "Film or series, at a glance in search",
+    what: "On the TV and in the phone app, every result and every suggestion in search now carries a small sign: a gold film strip for a film, a blue screen for a series. A show's page on the TV also lists its genres, as a film's page always did.",
+    how: "Search → type a few letters.",
+    go: {label: 'Search', act: 'search'},
+  },
+  // ---- the 2026-11-11 round: the same cards, the same words, on the website ----
+  {
+    since: '5.9.3',
     glyph: '🧾',
     title: "A report tells us what happened",
     what: "Report a problem now carries the last things you did, your device and what the player was doing, so a problem can be found without asking you questions. Nothing you type is recorded (no passwords, names or messages; the words of a search are the one exception), and you can read exactly what will be sent before you send it.",
@@ -43,7 +60,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Report a problem', act: 'report'},
   },
   {
-    since: ROUND,
+    since: '5.9.3',
     glyph: '🧹',
     title: "Small things put right",
     what: "A sweep through every screen: words that were cut, rows that sat too close to the edge, a clock that was hard to read, Back that went to the wrong place. Nothing has moved. It just sits right now.",

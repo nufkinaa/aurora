@@ -177,4 +177,50 @@ ui.test("downloads v2: a stalled copy, another copy, held back, waiting for a co
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "no sideways scroll on a phone");
 });
 
+// elia, 2026-11-11: "on desktop sometimes the downloads page btn beside the
+// settings disappears". On a computer the button stays: a plain icon to My
+// downloads when nothing moves, the progress while something downloads, the
+// icon and its count once ready — and that one no longer rests out of sight.
+// A phone shows it only while there is something to say; kids never.
+ui.test("the Downloads button on a computer: always there, idle → progress → ready, never resting out of sight", async ({ page, goto, signIn, freshProfile, lib }) => {
+  let jobs = [];
+  await page.route((url) => url.pathname === "/api/downloads", (route) => route.fulfill({ json: jobs }));
+  await signIn(await freshProfile());
+  await goto("#/");
+  const pill = page.locator("#nav-dl");
+  await page.waitForFunction(() => document.getElementById("nav-dl").classList.contains("idle"));
+  assert.ok(await pill.isVisible(), "idle on a computer: the button is there");
+  assert.equal(await pill.getAttribute("aria-label"), "My downloads");
+  assert.equal(await pill.getAttribute("href"), "#/downloads");
+  // a download starts
+  jobs = [job({ id: "999999999999", title: "Busy Film", label: "Busy Film", progress: 0.5 })];
+  await page.reload();
+  await page.waitForFunction(() => /⬇ 1 · 50%/.test(document.getElementById("nav-dl").textContent));
+  // it lands: the icon with its count, and twelve seconds later it is still in sight
+  jobs = [job({ id: "999999999999", title: "Busy Film", label: "Busy Film", status: "done", phase: null, progress: 1, downloadSpeed: 0, doneAt: new Date().toISOString(), seenAt: null, libraryId: lib.film1.id })];
+  await page.reload();
+  await page.waitForFunction(() => document.getElementById("nav-dl").classList.contains("ready"));
+  await page.mouse.move(5, 600);
+  await page.waitForTimeout(12000);
+  assert.equal(await pill.evaluate((n) => getComputedStyle(n).opacity), "1", "the ready button rested out of sight");
+});
+
+ui.test("the Downloads button on a computer: a kids profile has none (no downloads at all)", async ({ page, goto, signIn, api }) => {
+  await page.route((url) => url.pathname === "/api/downloads", (route) => route.fulfill({ json: [] }));
+  const kid = await api.createProfile("Dl Kid", { open: true, kids: { maxAge: 7 } });
+  await signIn(kid);
+  await goto("#/");
+  await page.locator(".home-greeting").waitFor();
+  await page.waitForTimeout(800);
+  assert.equal(await page.locator("#nav-dl").isVisible(), false, "a kids profile has a Downloads button");
+});
+
+ui.test("the Downloads button on a phone: only while something downloads or is ready", { viewport: { width: 390, height: 844 } }, async ({ page, goto, signIn, freshProfile }) => {
+  await page.route((url) => url.pathname === "/api/downloads", (route) => route.fulfill({ json: [] }));
+  await signIn(await freshProfile());
+  await goto("#/");
+  await page.waitForTimeout(1200);
+  assert.equal(await page.locator("#nav-dl").isVisible(), false);
+});
+
 ui.run({ concurrency: 1 });

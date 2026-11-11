@@ -17,6 +17,7 @@ import {createVoice, nativeVoiceDeps, voiceAvailability, VoiceController} from '
 import {LANG_NAME, LANG_SELF, otherLang, voiceActive, voiceLangFor, VoiceLang, voiceMessage, VoiceState, VOICE_IDLE} from '../../voiceLogic';
 import {personNow, setPersonPref} from '../../personSync';
 import {noResultsText, runSearch, SEARCH_TEXT, SettleNote, shortText} from '../../searchFlow';
+import {kindSpoken, kindSuffix, suggestionKind} from '../../searchKind';
 import type {RootStackParamList} from '../../navigation';
 import {usePNav} from '../nav';
 import Grid from '../ui/Grid';
@@ -34,7 +35,11 @@ import {colors, GUTTER, radius} from '../theme';
 const EMPTY: SearchAnswer = {results: [], related: [], relatedLabel: null, pending: false};
 const clip = (s: string) => (s.length > 34 ? `${s.slice(0, 33)}…` : s);
 const chipLabel = (s: SearchSuggestion) =>
-  s.kind === 'person' ? `${clip(s.name || '')} · person` : s.kind === 'genre' ? `${s.name} · genre` : `${clip(s.title || '')}${s.year ? ` (${s.year})` : ''}`;
+  s.kind === 'person'
+    ? `${clip(s.name || '')} · person`
+    : s.kind === 'genre'
+      ? `${s.name} · genre`
+      : `${clip(s.title || '')}${s.year ? ` (${s.year})` : ''}${kindSuffix(suggestionKind(s))}`;
 
 export function SearchScreen({pushed, startVoice: startWithVoice, startQ}: {pushed?: boolean; startVoice?: boolean; startQ?: string}) {
   const navigation = usePNav();
@@ -261,9 +266,11 @@ export function SearchScreen({pushed, startVoice: startWithVoice, startQ}: {push
       {idle && recent.length ? (
         <View style={s.block}>
           <View style={s.blockHead}>
-            <Text style={s.blockTitle}>Recent searches</Text>
+            <Text style={[s.blockTitle, s.headTitle]}>Recent searches</Text>
             <Tap
               flat
+              hitSlop={12}
+              accessibilityRole="button"
               onPress={() =>
                 api
                   .removeRecentSearch(profileId)
@@ -292,9 +299,21 @@ export function SearchScreen({pushed, startVoice: startWithVoice, startQ}: {push
       ) : null}
       {!idle && suggestions.length ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={s.shelf}>
-          {suggestions.map((sg, i) => (
-            <ChipButton uiId="search.suggestion.pick" key={`${sg.kind}-${i}`} label={chipLabel(sg)} icon={sg.kind === 'person' ? 'person' : sg.kind === 'genre' ? 'sparkle' : 'search'} onPress={() => pickSuggestion(sg)} />
-          ))}
+          {suggestions.map((sg, i) => {
+            // a title says film or series: the card tag's glyph in its hue (the website's and the TV's)
+            const kind = suggestionKind(sg);
+            return (
+              <ChipButton
+                uiId="search.suggestion.pick"
+                key={`${sg.kind}-${i}`}
+                label={chipLabel(sg)}
+                icon={sg.kind === 'person' ? 'person' : sg.kind === 'genre' ? 'sparkle' : kind || 'search'}
+                iconColor={kind === 'series' ? colors.kindSeries : kind === 'film' ? colors.kindFilm : undefined}
+                a11yLabel={kind ? kindSpoken(chipLabel(sg), kind) : undefined}
+                onPress={() => pickSuggestion(sg)}
+              />
+            );
+          })}
         </ScrollView>
       ) : null}
       {!idle && busyText ? (
@@ -348,9 +367,11 @@ const s = StyleSheet.create({
   voice: {flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: GUTTER, paddingVertical: 8},
   voiceText: {flex: 1, color: colors.text, fontSize: 16, fontWeight: '700'},
   block: {marginTop: 14},
-  blockHead: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: GUTTER},
+  // ("Clear" on the heading's line: its 44 dp target made by hitSlop, so it no longer sat 5 dp low)
+  blockHead: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: GUTTER, marginBottom: 14},
+  headTitle: {marginBottom: 0},
   blockTitle: {color: colors.text, fontSize: 17.6, fontWeight: '800', letterSpacing: -0.18, lineHeight: 26.4, marginBottom: 10},
-  link: {color: colors.accent, fontSize: 15, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 14},
+  link: {color: colors.accent, fontSize: 15, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 4},
   wrap: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: GUTTER},
   shelf: {paddingHorizontal: GUTTER, gap: 9, paddingBottom: 6},
   busy: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: GUTTER, paddingVertical: 10},

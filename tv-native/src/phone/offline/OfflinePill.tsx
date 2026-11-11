@@ -21,7 +21,8 @@ export default function OfflinePill({route}: {route: string}) {
   const away = useAway();
   const insets = useSafeAreaInsets();
   const a = useRef(new Animated.Value(0)).current;
-  const hidden = route === 'Player' || route === 'OfflinePlayer';
+  // (over a player, and on the remote — full screen with its own dock at the foot — it is hidden)
+  const hidden = route === 'Player' || route === 'OfflinePlayer' || route === 'Remote';
   const there = route === 'Downloads';
   useEffect(() => {
     if (!away) return;

@@ -204,3 +204,37 @@ Same app build on the Pixel 9 AVD with `adb shell wm size / wm density` (reset a
 | Gesture navigation + punch-hole cutout | Pixel 9 | pass | the pills start at `max(10, status inset) + 2`, the tab bar 10 above the gesture strip |
 
 Every size: no clipping or overlap of the top pills and the status bar / cutout, the tab bar clear of the navigation bar, rows of the site's card sizes (the cards keep their dp size and more of them show on a wider phone, as on the site), long titles end in "…" on one line where the site's do.
+
+## Phone 1.1.3 against the phone website of 1.15.28 (branch `ui-phone2`, 2026-11-11)
+
+The ui-phone fixes of 2026-11-10 (branch `ui-phone`, merged here) plus this round's sweep. Pictures: [`docs/qa/phone-1.1.3/ui-phone2/`](../qa/phone-1.1.3/ui-phone2/).
+
+### Built
+
+| Website 1.15.28 | App | Where |
+|---|---|---|
+| Aurora's remark under the greeting, from the server (`GET /api/profiles/:id/remark`, held 10 min, `seen` ids sent back) | the same: a held or local line at once, the server's in its place (plain swap ≤ 120 ms or reduced motion, else 180 + 180 ms cross-fade); under the billboard (sideways, no billboard) only taken when it needs no more lines | `src/phone/useRemark.ts`, `screens/Home.tsx` over the shared `src/remark.ts` |
+| Kids profiles: warm lines only | the server's warm line only — no local line first (the local lines tease); nothing when the server cannot be had | `useRemark.ts` `firstLine` / `wanted` |
+| Wrapped's intervention: the server's `w.roasts` as sent (≤ 4), else the rules; kids get "The highlights" in kind words | the same (`interventionFor`, `kindWordsFor`) | `src/phone/wrappedWords.ts`, `screens/Wrapped.tsx` (one line; play-phone rebuilds the screen) |
+| Remark on the billboard: `#fff`, 700, on a 1.35 line | the same (was 0.92 white, 600) | `Home.tsx` `slabGreetSub` |
+| Greeting on the billboard, place A; picture at full brightness; soft fade from the top edge; bottom fade | from `ui-phone` (`ui/greetFade.ts`); no letter shadows on the phone (elia 2026-11-10) | `Home.tsx` |
+| Taller bottom bar, clear of the gesture handle | from `ui-phone` (59 dp) | `ui/TabBar.tsx` |
+| The title page's button row shows that it scrolls (half of the next button) | from `ui-phone` (`ui/stripFit.ts`) | `screens/Detail.tsx` |
+| Report a problem carries the trail | already in the app since 1.15.28's report-trail merge (`src/trail.ts`, Tap, navigation, SmallSheets) — nothing to add | — |
+
+### Left, and why
+
+| Website 1.15.28 | Why not in the app | Closest now / proposal |
+|---|---|---|
+| The edge fade on sideways strips (`.fade-strip` mask: title-page buttons, category pills, seasons) | React Native has no mask without a new package (the QA build refuses package changes); an overlay in the page colour shows as a band over the moving sky | the half-cut last button already says "it goes on"; a masked fade needs `@react-native-masked-view` (elia decides) |
+| "What's new" in More opens the **New cards** (`#/new`); the changelog sits under Settings | the app's "What's new" is the changelog only; a cards screen needs phone card words (the phone's own paths), which are written at release | build the cards screen from a shared card list (the TV's `FEATURES` moved to a pure module) once there are phone cards |
+| The grey glass bottom bar (glass-apple, kept on the phone website by elia 2026-11-11) | a look change: shown first, not built | `02-proposal-tab-bar-web-vs-app.png` |
+| Words-only remark kinds (empty My List, no search results…) | not wired on any client yet | — |
+| Games look (Wrapped story, Pick for me, Taste, Pick together) | lane `play-phone` | — |
+| Offline wishes, Pack for a trip, the offline look | lane `offline-phone` | — |
+
+Device check (emulator-5554, QA vc86 = c43bdade): the server's remark on Home (live server, Claude QA) on four pictures, sideways under the billboard; a kids profile's warm line and "The highlights" in Wrapped, a grown-up's Wrapped with the server's roasts (private instance); the player's bottom row upright with Next; the hero score after a display-size change with the app open. Pictures 01–05 in `docs/qa/phone-1.1.3/ui-phone2/`.
+
+### The remote (Your TVs), 2026-11-11
+
+The phone app's remote is now the website's (`public/js/screens/remote.js`, `css/remote.css`), built natively in `src/phone/screens/Remote.tsx` + `src/phone/remote/*` (rules in `remoteRules.ts`, tested): every piece the site's has, the same words and the same glass, full screen. Pairs (website | app) in [`docs/qa/phone-1.1.3/remote/`](../qa/phone-1.1.3/remote/). The app keeps one thing the site's remote has not: **Sign in a TV** (in More, and on "No TV is on").

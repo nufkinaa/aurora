@@ -53,7 +53,7 @@ describe('edit profile (profiles.js profileModal)', () => {
     expect(passwordLabel(true)).toBe('Password');
     expect(passwordLabel(false)).toBe('Password (optional)');
     expect(newPasswordPlaceholder(true)).toBe('New password (blank = unchanged)');
-    expect(newPasswordPlaceholder(false)).toBe('Password (optional)');
+    expect(newPasswordPlaceholder(false)).toBe('New password (optional)');
     expect(editRow(false).title).toBe('Edit profile & password');
     expect(editRow(true)).toEqual({title: 'Edit profile', detail: 'Name, avatar and colour.'});
   });

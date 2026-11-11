@@ -10,6 +10,9 @@ class Value {
   interpolate(cfg) {
     return {interpolated: cfg};
   }
+  stopAnimation(cb) {
+    if (cb) cb(this.v);
+  }
 }
 const anim = () => ({start: cb => cb && cb({finished: true}), stop: () => {}});
 module.exports = {
@@ -20,8 +23,23 @@ module.exports = {
   Text: 'Text',
   Image: 'Image',
   TVFocusGuideView: 'TVFocusGuideView',
-  Animated: {Value, View: 'Animated.View', Image: 'Animated.Image', spring: anim, timing: anim, createAnimatedComponent: c => c},
-  Easing: {bezier: () => t => t},
+  Animated: {
+    Value,
+    View: 'Animated.View',
+    Image: 'Animated.Image',
+    Text: 'Animated.Text',
+    spring: anim,
+    timing: anim,
+    // (the play kit: groups of animations end at once here, like the single ones)
+    loop: anim,
+    sequence: anim,
+    parallel: anim,
+    stagger: anim,
+    delay: anim,
+    createAnimatedComponent: c => c,
+  },
+  Easing: {bezier: () => t => t, linear: t => t, cubic: t => t, quad: t => t, out: f => f, in: f => f, inOut: f => f, back: () => t => t},
+  AccessibilityInfo: {isReduceMotionEnabled: () => Promise.resolve(false), addEventListener: () => ({remove: () => {}})},
   AppState: {addEventListener: () => ({remove: () => {}}), currentState: 'active'},
   NativeModules: {},
   NativeEventEmitter: class {
