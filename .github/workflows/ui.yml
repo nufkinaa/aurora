@@ -40,10 +40,14 @@ env:
   # Google Chrome is on the ubuntu image (H.264/AAC: the test films play; the
   # open-source Chromium build cannot decode them).
   UI_BROWSER: chrome
+  # The home PC's locales: Chrome there is en-GB (24-hour times on the page),
+  # node there is he-IL (the server's "house clock"). Chrome on Linux takes
+  # LANGUAGE first, node's ICU takes LC_ALL.
+  LANGUAGE: en_GB:en
 
 jobs:
   plan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.split.outputs.matrix }}
     steps:
@@ -63,7 +67,7 @@ jobs:
 
   ui:
     needs: plan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
       fail-fast: false
@@ -115,7 +119,49 @@ jobs:
         run: |
           if ! command -v google-chrome >/dev/null; then npx --yes playwright-core install --with-deps chrome; fi
           google-chrome --version
+      # Segoe UI's metrics: the website's font stack ends at "Segoe UI" on the
+      # home PC; on Linux it would land on a much wider face and the tests that
+      # check nothing is cut at 320 px would fail for the font alone. Selawik is
+      # Microsoft's open-source, metric-compatible stand-in for Segoe UI.
+      - name: Fonts
+        run: |
+          mkdir -p ~/.local/share/fonts/selawik ~/.config/fontconfig
+          curl -fsSL --retry 3 --max-time 60 -o "$RUNNER_TEMP/selawik.zip" https://github.com/microsoft/Selawik/releases/download/1.01/Selawik_Release.zip
+          unzip -o -q "$RUNNER_TEMP/selawik.zip" -d ~/.local/share/fonts/selawik
+          cat > ~/.config/fontconfig/fonts.conf <<'XML'
+          <?xml version="1.0"?>
+          <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+          <fontconfig>
+            <alias binding="same"><family>Segoe UI Variable Display</family><prefer><family>Selawik</family></prefer></alias>
+            <alias binding="same"><family>Segoe UI Variable Text</family><prefer><family>Selawik</family></prefer></alias>
+            <alias binding="same"><family>Segoe UI</family><prefer><family>Selawik</family></prefer></alias>
+          </fontconfig>
+          XML
+          fc-cache -f > /dev/null
+          echo "Segoe UI -> $(fc-match 'Segoe UI')"; echo "Segoe UI Variable Display -> $(fc-match 'Segoe UI Variable Display')"
       - run: npm ci --no-audit --no-fund
+      # What the page sees: locale, clock and the font a line of text gets (a notice
+      # on the run's page, readable without signing in).
+      - name: Environment check
+        env:
+          LC_ALL: he_IL.UTF-8
+        run: |
+          node -e '
+          const { chromium } = require("playwright-core");
+          (async () => {
+            const b = await chromium.launch({ channel: "chrome" });
+            const p = await (await b.newContext()).newPage();
+            await p.setContent(`<div id=t style="font-family:-apple-system,BlinkMacSystemFont,&quot;SF Pro Display&quot;,&quot;Segoe UI Variable Display&quot;,&quot;Segoe UI&quot;,Roboto,&quot;Helvetica Neue&quot;,Arial,sans-serif;font-size:16px;display:inline">Home Movies Shows My List More</div>`);
+            const c = await p.evaluate(() => ({ lang: navigator.language, time: new Date(Date.UTC(2026, 0, 1, 15, 4)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), width: document.getElementById("t").getBoundingClientRect().width }));
+            const cdp = await p.context().newCDPSession(p);
+            await cdp.send("DOM.enable"); await cdp.send("CSS.enable");
+            const { root } = await cdp.send("DOM.getDocument");
+            const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: "#t" });
+            const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
+            const node = { locale: Intl.DateTimeFormat().resolvedOptions().locale, hourCycle: new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hourCycle };
+            console.log(`::notice title=UI environment::chrome ${b.version()} lang ${c.lang}, 15:04 UTC reads ${c.time}; text width ${c.width.toFixed(1)}px in ${fonts.map((f) => f.familyName).join(", ")}; node ${node.locale} ${node.hourCycle}; TZ ${process.env.TZ}`);
+            await b.close();
+          })().catch((e) => { console.log(`::warning title=UI environment::${e.message}`); });'
       # The test library (made with ffmpeg on first use, ~30 s): kept between runs.
       - uses: actions/cache@v5
         with:
@@ -123,6 +169,7 @@ jobs:
           key: ui-media-${{ hashFiles('scripts/ui-test-server.js') }}
       - name: test/ui (${{ matrix.est }} s expected)
         env:
+          LC_ALL: he_IL.UTF-8
           UI_OUT: ${{ github.workspace }}/test/ui/artifacts/ci
         run: node tools/ci/ui-shard-run.js ${{ matrix.files }}
       - name: Upload what failed

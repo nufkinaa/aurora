@@ -19,6 +19,7 @@ const { spawn } = require("child_process");
 
 const OUT = process.env.UI_OUT || path.join(process.cwd(), "test", "ui", "artifacts", "ci");
 const RETRY = process.env.UI_RETRY !== "0";
+const FILE_LIMIT_MS = Number(process.env.UI_FILE_LIMIT_MS) || 12 * 60 * 1000;
 fs.mkdirSync(OUT, { recursive: true });
 
 // The failing tests of a TAP file, each with its error text and the first
@@ -28,8 +29,11 @@ const parseTap = (tap) => {
   try { lines = fs.readFileSync(tap, "utf8").split(/\r?\n/); } catch {}
   const fails = [];
   const skipped = [];
+  let last = null;
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i];
+    const done = /^\s*(?:not )?ok \d+ - (.*)$/.exec(l);
+    if (done && /^\s{4}/.test(l)) last = done[1].trim();
     const sk = /^\s*ok \d+ - (.*?)\s*# SKIP\s*(.*)$/.exec(l);
     if (sk) { skipped.push(sk[2] ? `${sk[1]} (${sk[2]})` : sk[1]); continue; }
     const m = /^(\s*)not ok \d+ - (.*)$/.exec(l);
@@ -51,7 +55,7 @@ const parseTap = (tap) => {
     i = j;
     fails.push(f);
   }
-  return { fails, skipped };
+  return { fails, skipped, last };
 };
 // (an annotation is one line: newlines and % are encoded)
 const esc = (t) => String(t).replace(/%/g, "%25").replace(/\r/g, "").replace(/\n/g, "%0A");
@@ -66,14 +70,24 @@ const runFile = (file, attempt) => new Promise((resolve) => {
     "--test-reporter=spec", "--test-reporter-destination=stdout",
     "--test-reporter=tap", `--test-reporter-destination=${tap}`,
     file,
-  ], { stdio: "inherit" });
+  ], { stdio: "inherit", detached: process.platform !== "win32" });
+  // A file that never ends (a handle left open, a hook that hangs) must not
+  // hold the shard until the job's own time limit: its process group goes.
+  let hung = false;
+  const timer = setTimeout(() => {
+    hung = true;
+    console.log(`\n[ui-shard] ${name}: still running after ${FILE_LIMIT_MS / 60000} min — stopping it`);
+    try { process.kill(-child.pid, "SIGKILL"); } catch { try { child.kill("SIGKILL"); } catch {} }
+  }, FILE_LIMIT_MS);
   child.on("exit", (code, signal) => {
+    clearTimeout(timer);
     console.log("::endgroup::");
     const secs = (Date.now() - t0) / 1000;
     const parsed = parseTap(tap);
     // (the file's own describe() fails along with any test in it: not a test name)
     const fails = parsed.fails.filter((f) => f.name !== name);
-    resolve({ name, ok: code === 0, code: code == null ? signal : code, secs, failed: [...new Set(fails.map((f) => f.name))], fails, skipped: parsed.skipped });
+    if (hung) fails.push({ name: `(the file did not finish within ${FILE_LIMIT_MS / 60000} min)`, error: `last test that ended: ${parsed.last || "none"}`, at: "" });
+    resolve({ name, ok: code === 0 && !hung, code: hung ? "timeout" : code == null ? signal : code, secs, failed: [...new Set(fails.map((f) => f.name))], fails, skipped: parsed.skipped });
   });
 });
 
