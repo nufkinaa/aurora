@@ -169,10 +169,10 @@ export default function Gate({onChosen, notice}: {onChosen: OnChosen; notice: st
     const from = w.lock && w.pinFor.mode === 'exit' ? (w.profiles || []).find(x => x.id === w.lock!.id) : null;
     return (
       <Door insets={insets}>
-        <Text style={s.heading}>Grown-ups only</Text>
+        <Text style={s.heading}>{w.pinFor.mode === 'exit' ? 'Children mode' : 'Grown-ups only'}</Text>
         <Text style={s.sub}>
           {w.pinFor.mode === 'exit'
-            ? `Enter the household PIN to leave ${from ? `“${from.name}”` : 'the kids profile'}.`
+            ? `Enter the passcode to leave Children mode${from ? ` on “${from.name}”` : ''}.`
             : `“${w.pinFor.profile.name}” has no password, so the household PIN opens it.`}
         </Text>
         <Field
@@ -182,7 +182,7 @@ export default function Gate({onChosen, notice}: {onChosen: OnChosen; notice: st
           autoFocus
           keyboardType="number-pad"
           maxLength={6}
-          placeholder="PIN"
+          placeholder={w.pinFor.mode === 'exit' ? 'Passcode' : 'PIN'}
           onSubmitEditing={w.submitPin}
           style={s.field}
         />

@@ -26,6 +26,12 @@
 // (profileScope.ts clearProfileCaches): leaving a profile, entering one,
 // signing out, being signed out.
 //
+// CHILDREN MODE (2026-11-11, childMode.ts) going on or off for the account
+// this app is in — here, on another device (the socket), or as an answer
+// says — is treated the same way: the profile's lists are someone else's
+// now. The kids lock follows, everything held is dropped, the app starts
+// again from Home (Main is remounted) and a toast says why.
+//
 // THE VIEWER IS NEVER ASKED WHERE THE SERVER IS. Two addresses live in
 // api.ts's SERVER_CANDIDATES and are tried in that order (src/serverPick.ts):
 // nufurora.com first, and the house server only when nufurora.com does not
@@ -38,12 +44,14 @@ import {markLaunch, primeSnapshot} from './homeSnapshot';
 import {disconnect, onMessage} from './realtime';
 import {showToast} from './toast';
 import {AppContext} from './AppContext';
+import {ChildChange, fromAudience, fromWord, limitOf, onChildModeChanged, toastFor} from './childMode';
 import {
   api,
   ApiError,
   getAuthMode,
   onSigninRequired,
   onPasswordResetRequired,
+  onAudienceChange,
   resolveServer,
   setActiveProfile,
   setBaseUrl,
@@ -56,6 +64,7 @@ import {
   saveServerUrl,
   saveProfile,
   saveKidsLock,
+  clearKidsLock,
   clearProfile,
   loadMustReset,
   saveMustReset,
@@ -134,6 +143,10 @@ export default function AppRoot({ui}: {ui: RootUi}) {
   stageRef.current = stage;
   const profileRef = useRef<string | null>(null);
   profileRef.current = stage === 'home' ? session.profileId : null;
+  // Children mode: the account's limit as this app last knew it (undefined:
+  // not known yet), and a counter that remounts the app when it changes.
+  const kidsRef = useRef<number | null | undefined>(undefined);
+  const [epoch, setEpoch] = useState(0);
 
   // Boot: restore whatever we remembered and jump to the furthest valid stage.
   // The saved server URL decides nothing: the known addresses are tried in
@@ -537,6 +550,70 @@ export default function AppRoot({ui}: {ui: RootUi}) {
     return () => onSigninRequired(null);
   }, []);
 
+  // ---- children mode: follow the account ----
+  const applyChild = async (c: ChildChange) => {
+    const pid = profileRef.current;
+    if (!pid || c.profileId !== pid) return;
+    const now = c.kids ? c.kids.maxAge : null;
+    const known = kidsRef.current;
+    if (known !== undefined && known === now) return;
+    kidsRef.current = now;
+    console.log('[kids] children mode', now === null ? 'off' : `on at ${now}`, 'for', pid);
+    if (c.kids) await saveKidsLock({id: pid, maxAge: c.kids.maxAge});
+    else await clearKidsLock();
+    clearProfileCaches(); // the lists held were someone else's
+    setEpoch(n => n + 1);
+    const t = toastFor(known === undefined ? (now === null ? 0 : null) : known, now, c.note);
+    if (t) showToast(t[0], t[1], 6000);
+  };
+  const applyRef = useRef(applyChild);
+  applyRef.current = applyChild;
+  useEffect(() => {
+    if (stage !== 'home' || !session.profileId) {
+      kidsRef.current = undefined;
+      return;
+    }
+    const pid = session.profileId;
+    let live = true;
+    // what the account is now, without moving anything (entering it took care of the rest)
+    api
+      .profiles()
+      .then(list => {
+        if (live && profileRef.current === pid && kidsRef.current === undefined) {
+          const k = limitOf(list.find(p => p.id === pid));
+          kidsRef.current = k ? k.maxAge : null;
+        }
+      })
+      .catch(() => {});
+    const recheck = () =>
+      api
+        .profiles()
+        .then(list => {
+          const me = list.find(p => p.id === pid);
+          if (me) applyRef.current({profileId: pid, kids: limitOf(me)});
+        })
+        .catch(() => {});
+    const offs = [
+      onChildModeChanged(c => applyRef.current(c)),
+      // another device of the account (or the admin's page) switched it
+      onMessage('child_mode', d => {
+        const c = fromWord(d, pid);
+        if (c) applyRef.current(c);
+      }),
+    ];
+    // an answer filtered for another audience than the one known: ask the server
+    onAudienceChange((who, said) => {
+      if (who !== pid || kidsRef.current === undefined) return;
+      const k = fromAudience(said);
+      if ((k ? k.maxAge : null) !== kidsRef.current) recheck();
+    });
+    return () => {
+      live = false;
+      offs.forEach(off => off());
+      onAudienceChange(null);
+    };
+  }, [stage, session.profileId]);
+
   const switchProfile = async () => {
     // this profile's rows leave the TV's home screen with it — and everything
     // else held in memory for it (the request cache, warmed lists, the AI
@@ -595,7 +672,7 @@ export default function AppRoot({ui}: {ui: RootUi}) {
       {stage === 'banned' ? <Banned reason={banReason} onRetry={() => setBoot(n => n + 1)} /> : null}
       {stage === 'home' && session.profileId ? (
         <AppContext.Provider value={{profileId: session.profileId, switchProfile}}>
-          <Main />
+          <Main key={`main-${epoch}`} />
         </AppContext.Provider>
       ) : null}
     </Frame>

@@ -17,12 +17,12 @@ module.exports = {
   "browse.surprise": "wtp",
   "browse.unwatched": "wtp",
   // children mode (the account's own switch: public/js/childmode.js, tv-native src/childMode.ts + its sheets — docs/children-mode.md)
-  "child.age": "w", // an age chip (Who is watching?)
-  "child.forgot": "w", // Forgot the passcode? / Turn off with the password
+  "child.age": "wtp", // an age chip (Who is watching?)
+  "child.forgot": "wtp", // Forgot the passcode? / Turn off with the password
   "child.google": "w", // Forgot: Use Google
-  "child.off": "w", // Leave Children mode
-  "child.on": "w", // Turn on
-  "child.open": "w", // the menu line that opens the sheet
+  "child.off": "wtp", // Leave Children mode
+  "child.on": "wtp", // Turn on
+  "child.open": "wtp", // the line that opens it (menu, More, Settings)
   // calendar (the Calendar screen: public/js/screens/calendar.js, tv-native screens/Calendar.tsx, phone/screens/Calendar.tsx)
   "calendar.day": "wtp", // a day of the month grid
   "calendar.month": "wtp", // the previous / next month arrows
@@ -127,7 +127,7 @@ module.exports = {
   // more (the menu behind the tab bar's More: the phone website's side menu, js/navmore.js, and the phone app's More sheet — docs/android-phone/NAV.md, the same lines)
   "more.apps": "wp",
   "more.calendar": "wp",
-  "more.children": "w",
+  "more.children": "wp",
   "more.downloads": "wp",
   "more.home": "wp",
   "more.household": "wp",

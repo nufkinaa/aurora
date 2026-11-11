@@ -12,7 +12,7 @@ import type {PhoneIconName} from './ui/Icon';
 export type MoreKey =
   | 'search' | 'home' | 'movies' | 'shows' | 'list' | 'calendar' | 'pick'
   | 'new' | 'saved' | 'downloads' | 'remote' | 'household' | 'wrapped' | 'taste' | 'apps'
-  | 'pair' | 'party' | 'report'
+  | 'children' | 'pair' | 'party' | 'report'
   | 'settings' | 'profile';
 
 export type MoreEntry = {
@@ -42,6 +42,8 @@ const ALL: MoreEntry[] = [
   {key: 'wrapped', label: 'Your Aurora Wrapped', detail: 'Your year in numbers', icon: 'star', uiId: 'more.wrapped', group: 'places'},
   {key: 'taste', label: 'Swipe your taste', detail: 'One title at a time; Home learns', icon: 'people', uiId: 'more.taste', group: 'places'},
   {key: 'apps', label: 'Get the apps', detail: 'Aurora for the TV, the phone and the computer', icon: 'apps', uiId: 'more.apps', group: 'places'},
+  // Children mode (childMode.ts): "Leave Children mode" while it is on
+  {key: 'children', label: 'Children mode', detail: 'A clean feed for children, on every device', icon: 'child', uiId: 'more.children', group: 'actions'},
   {key: 'pair', label: 'Sign in a TV', detail: "Type or scan the code on a TV's screen", icon: 'remote', uiId: 'more.pair', group: 'actions'},
   {key: 'party', label: 'Join a watch party', detail: 'Type the code from another screen', icon: 'people', uiId: 'more.party', group: 'actions'},
   {key: 'report', label: 'Report a problem', detail: 'A few words; the rest comes along', icon: 'warning', uiId: 'more.report', group: 'actions'},
@@ -49,7 +51,17 @@ const ALL: MoreEntry[] = [
   {key: 'profile', label: 'Profile', detail: 'Switch profile, sign out', icon: 'person', uiId: 'more.profile', group: 'foot'},
 ];
 
+// Not while Children mode is on: no downloads, no signing a TV in (the website's rule).
+const NOT_IN_CHILD_MODE = new Set<MoreKey>(['saved', 'downloads', 'pair']);
+
 /** The lines, in order. AI only when the server has AI (GET /api/ai/status); Calendar
- *  only once its screen exists; the profile line wears your name. */
-export const moreEntries = ({ai, calendar = true, name = ''}: {ai: boolean; calendar?: boolean; name?: string}): MoreEntry[] =>
-  ALL.filter(e => (e.key !== 'pick' || ai) && (e.key !== 'calendar' || calendar)).map(e => (e.key === 'profile' && name ? {...e, label: name} : e));
+ *  only once its screen exists; the profile line wears your name. `kids`: Children
+ *  mode is on (its line reads "Leave Children mode"). */
+export const moreEntries = ({ai, calendar = true, name = '', kids = false}: {ai: boolean; calendar?: boolean; name?: string; kids?: boolean}): MoreEntry[] =>
+  ALL.filter(e => (e.key !== 'pick' || ai) && (e.key !== 'calendar' || calendar) && !(kids && NOT_IN_CHILD_MODE.has(e.key))).map(e =>
+    e.key === 'profile' && name
+      ? {...e, label: name}
+      : e.key === 'children' && kids
+        ? {...e, label: 'Leave Children mode', detail: 'Takes the passcode'}
+        : e,
+  );

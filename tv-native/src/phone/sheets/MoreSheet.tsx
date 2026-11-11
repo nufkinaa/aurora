@@ -16,7 +16,7 @@ export default function MoreSheet() {
   const ai = useAiEnabled();
   const {profileId} = useApp();
   const me = useMe(profileId);
-  const all = moreEntries({ai, name: me?.name || ''});
+  const all = moreEntries({ai, name: me?.name || '', kids: !!me?.kids});
   // with the phone's font turned well up, the places alone (the second lines made it a long scroll)
   const big = (useWindowDimensions().fontScale || 1) > 1.3;
   const row = (e: (typeof all)[number]) => (

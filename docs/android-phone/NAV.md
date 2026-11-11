@@ -51,17 +51,21 @@ Scrolls when the font is large.
 | 14| Swipe your taste               | Swipe your taste               | `#/taste`                   | `more.taste`      |
 | 15| Get the apps                   | Get the apps                   | `/install`                  | `more.apps`       |
 | — | hairline                       |                                |                             |                   |
-| 16| Sign in a TV                   | Sign in a TV                   | `#/pair` (type or scan a code) | `more.pair`    |
-| 17| Join a watch party             | Join a watch party             | the join sheet              | `more.party`      |
-| 18| Report a problem               | Report a problem               | the report sheet            | `more.report`     |
+| 16| Children mode                  | Children mode                  | Children mode's sheet (js/childmode.js) | `more.children` |
+| 17| Sign in a TV                   | Sign in a TV                   | `#/pair` (type or scan a code) | `more.pair`    |
+| 18| Join a watch party             | Join a watch party             | the join sheet              | `more.party`      |
+| 19| Report a problem               | Report a problem               | the report sheet            | `more.report`     |
 | — | hairline (the foot)            |                                |                             |                   |
-| 19| Settings                       | Settings                       | `#/preferences`             | `more.settings`   |
-| 20| ‹your name›                    | ‹your name›                    | the profile menu (switch profile, sign out …) | `more.profile` |
+| 20| Settings                       | Settings                       | `#/preferences`             | `more.settings`   |
+| 21| ‹your name›                    | ‹your name›                    | the profile menu (switch profile, sign out …) | `more.profile` |
 
 Rules:
 - **AI** ("AI", the TV's word; it was "AI pick") is listed only when the server has AI
   (`GET /api/ai/status` → `enabled`).
 - **Calendar** is a slot: it appears once the app has its screen (another branch).
+- **Children mode** (2026-11-11, docs/children-mode.md) reads "Leave Children mode" while it is
+  on; then "Saved on this device", "My downloads" and "Sign in a TV" are left out (no downloads,
+  no signing a TV in), on the website and the phone alike.
 - **Your TVs** is always listed (its page says "No TV is on" when none is).
 - **Pick together** (group-pick, 1.15.18) is NOT a More line: the website keeps it in the
   profile menu (js/main.js) and not in its menu behind More, so the phone does the same —

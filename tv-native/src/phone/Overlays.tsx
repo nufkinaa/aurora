@@ -17,6 +17,7 @@ import {JoinPartySheet, ReportSheet} from './sheets/SmallSheets';
 import UpdateSheet from './sheets/UpdateSheet';
 import ProfileMenu from './ui/ProfileMenu';
 import MoreSheet from './sheets/MoreSheet';
+import ChildModeSheet from './sheets/ChildModeSheet';
 
 export default function PhoneOverlays() {
   const o = useOverlay();
@@ -69,6 +70,7 @@ export default function PhoneOverlays() {
       }} /> : null}
       {o?.kind === 'recommend' ? <RecommendSheet title={o.title} imdbId={o.imdbId || null} onClose={closeOverlay} /> : null}
       {o?.kind === 'join' ? <JoinPartySheet onClose={closeOverlay} /> : null}
+      {o?.kind === 'childMode' ? <ChildModeSheet onClose={closeOverlay} /> : null}
       {o?.kind === 'report' ? <ReportSheet hint={o.hint} onClose={closeOverlay} /> : null}
       <UpdateSheet />
       <ProfileMenu />

@@ -46,6 +46,7 @@ import {HouseholdSettings} from '../api'; // [household]
 import {nameWord, WORDS as HH} from '../householdRecs'; // [household]
 import {householdChanged} from '../householdLive'; // [household]
 import {READY_LABEL, READY_NOTE} from '../readyNotice';
+import {ageWords, WORDS as CHILD} from '../childMode';
 
 const {colors, fontSize, spacing, radius} = theme;
 
@@ -502,7 +503,18 @@ export default function Settings({
             />
           ))}
         </View>
-        {/* A kids profile's settings leave out what a child shouldn't change —
+        {/* Children mode (2026-11-11): the account's own switch — the
+            website's "Children mode" line (childMode.ts, screens/ChildMode.tsx) */}
+        <Text style={styles.h2}>{CHILD.title}</Text>
+        <View style={styles.list}>
+          <Row uiId="child.open"
+            label={me?.kids ? CHILD.leave : CHILD.title}
+            note={me?.kids ? CHILD.rowOn(me.kids.maxAge) : CHILD.rowOff}
+            value={me?.kids ? ageWords(me.kids.maxAge) : 'Off'}
+            onPress={() => navigation.navigate('ChildMode')}
+          />
+        </View>
+        {/* Children mode's settings leave out what a child shouldn't change —
             what Aurora downloads by itself, and the sign-in (below) — as on
             the site (preferences.js `kid`). */}
         {me?.kids ? null : (

@@ -71,7 +71,7 @@ function Main() {
     // a newer phone build on the server: the "Update ready" sheet, a few seconds in
     checkOnStart();
     loadMe(profileId)
-      .then(me => wireProfileMenu({switchProfile: () => (resetTabs(), switchProfile()), name: () => me?.name || ''}))
+      .then(me => wireProfileMenu({switchProfile: () => (resetTabs(), switchProfile()), name: () => me?.name || '', kids: () => !!me?.kids}))
       .catch(() => {});
     return () => fg.remove();
   }, [profileId, switchProfile]);

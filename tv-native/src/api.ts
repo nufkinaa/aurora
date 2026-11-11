@@ -84,9 +84,22 @@ function noteAudience(path: string, res: Response) {
     const who = m ? decodeURIComponent(m[1]) : activeProfile;
     if (!who) return;
     const kids = res.headers && typeof res.headers.get === 'function' ? res.headers.get('x-aurora-kids') : null;
-    audiences.set(who, kids ? `kids:${kids}` : 'all');
+    const said = kids ? `kids:${kids}` : 'all';
+    const was = audiences.get(who);
+    audiences.set(who, said);
+    // (children mode: an answer for the profile this app is in that is
+    // filtered differently from the last one — the account went into or out
+    // of children mode while the socket was not listening; childMode.ts asks)
+    if (was !== undefined && was !== said && who === activeProfile && audienceCb) {
+      try { audienceCb(who, said); } catch {}
+    }
   } catch {}
 }
+let audienceCb: ((profileId: string, said: string) => void) | null = null;
+/** Told when the active profile's answers start coming back filtered for another audience. */
+export const onAudienceChange = (cb: ((profileId: string, said: string) => void) | null) => {
+  audienceCb = cb;
+};
 /** What the server last said about whom `profileId`'s answers are filtered for (undefined: nothing yet). */
 export const audienceOf = (profileId: string | null): string | undefined => (profileId ? audiences.get(profileId) : undefined);
 // The profile's unlock token, for the one caller outside this file that must
@@ -175,8 +188,23 @@ export type Profile = {
   // IMDb ids of the shows whose new episodes download by themselves.
   follows?: string[];
   // A kids profile: only titles rated at or under maxAge reach it (the server
-  // filters; lib/kids.js). null / absent for everyone else.
+  // filters; lib/kids.js). null / absent for everyone else. Since 2026-11-11
+  // the mirror of CHILDREN MODE on the account (childMode.ts).
   kids?: {maxAge: number} | null;
+  // Children mode on the account: the age, and since when (null: off). Servers
+  // from before children mode do not send it — `kids` says the same.
+  childMode?: {maxAge: number; since: number | null} | null;
+};
+
+// GET /api/profiles/:id/child-mode — how children mode stands on the account.
+export type ChildModeView = {
+  on: boolean;
+  maxAge: number | null;
+  since: number | null;
+  passcodeSet: boolean;
+  ages: number[];
+  // what "Forgot the passcode?" can use on this account
+  forgot?: {password: boolean; google: boolean};
 };
 
 export type HeroItem = {
@@ -1518,6 +1546,17 @@ export const api = {
       `/api/profiles/${id}/password`,
       {newPassword, currentPassword},
     ),
+  // ---- children mode (2026-11-11, childMode.ts, docs/children-mode.md) ----
+  childMode: (id: string) => request<ChildModeView>(`/api/profiles/${encodeURIComponent(id)}/child-mode`),
+  // { maxAge } (one click once the passcode is set), + newPasscode the first
+  // time, + passcode to raise the age. Throws ApiError (the server's words).
+  childModeOn: (id: string, body: {maxAge: number; newPasscode?: string; passcode?: string}) =>
+    post<{ok: boolean; profile: Profile; childMode: ChildModeView}>(`/api/profiles/${encodeURIComponent(id)}/child-mode`, body),
+  childModeOff: (id: string, passcode: string) =>
+    post<{ok: boolean; profile: Profile; childMode: ChildModeView}>(`/api/profiles/${encodeURIComponent(id)}/child-mode/off`, {passcode}),
+  // { password } | { googleToken }
+  childModeForgot: (id: string, body: {password?: string; googleToken?: string}) =>
+    post<{ok: boolean; profile: Profile; childMode: ChildModeView}>(`/api/profiles/${encodeURIComponent(id)}/child-mode/forgot`, body),
   // ---- kids profiles ----
   // Is a household PIN set at all? (No PIN: leaving a kids profile asks nothing.)
   kidsStatus: () => request<{pinSet: boolean; guard?: boolean}>('/api/kids/status'),

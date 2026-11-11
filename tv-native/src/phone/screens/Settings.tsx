@@ -12,7 +12,8 @@ import {useIsFocused} from '@react-navigation/native';
 import {useApp} from '../../AppContext';
 import {useDownloadLine} from '../../useDownloadLine';
 import {useMe} from '../../navSection';
-import {openActions, openJoinParty, openReport} from '../../overlay';
+import {openActions, openJoinParty, openReport, openChildMode} from '../../overlay';
+import {WORDS as CHILD} from '../../childMode';
 import {loadPrefs, Prefs, PREFS_DEFAULTS, saveAuthSession, savePrefs} from '../../storage';
 import {PERSON_KEYS, PersonKey, SUB_LANGS, SUB_LANG_LABEL} from '../../personPrefs';
 import {onPersonPrefs, refreshPerson, setPersonPref} from '../../personSync';
@@ -231,7 +232,11 @@ export default function Settings() {
         <Section icon="person" title="Your profile">
           {/* the face, Edit profile & password, Upload / Change / Remove photo (EditProfile.tsx) */}
           <ProfileCard profileId={profileId} me={me} />
-          <ListRow uiId="phone.settings.switch" icon="swap" title={getAuthMode() === 'closed' ? 'Sign out' : 'Switch profile'} chevron onPress={() => (resetTabs(), switchProfile())} />
+          {/* Children mode (childMode.ts): the account's own switch; while it is on, no switching profile */}
+          <ListRow uiId="child.open" icon="child" title={me?.kids ? CHILD.leave : CHILD.title} detail={me?.kids ? CHILD.rowOn(me.kids.maxAge) : CHILD.rowOff} chevron onPress={openChildMode} />
+          {me?.kids ? null : (
+            <ListRow uiId="phone.settings.switch" icon="swap" title={getAuthMode() === 'closed' ? 'Sign out' : 'Switch profile'} chevron onPress={() => (resetTabs(), switchProfile())} />
+          )}
           <ListRow uiId="phone.settings.wrapped" icon="sparkle" title="Your Aurora Wrapped" detail="Your year in numbers, with a few roasts." chevron onPress={() => pushPhone('Wrapped', undefined)} />
           <ListRow uiId="settings.taste" icon="star" title="Swipe your taste" detail="Love it, not for me, or haven't seen — one title at a time. Home learns from every answer." chevron onPress={() => pushPhone('Taste', undefined)} />
         </Section>
@@ -251,10 +256,12 @@ export default function Settings() {
         </Section>
 
         <Section icon="info" title="Aurora">
-          <ListRow uiId="settings.downloads" icon="download" title="My downloads" detail={downloadsLine ? `${downloadsLine}. See them, or cancel one.` : 'What you asked the server to fetch — ready, on its way, waiting. And what is saved on this phone.'} chevron onPress={() => navigation.push('Downloads', undefined)} />
+          {me?.kids ? null : <ListRow uiId="settings.downloads" icon="download" title="My downloads" detail={downloadsLine ? `${downloadsLine}. See them, or cancel one.` : 'What you asked the server to fetch — ready, on its way, waiting. And what is saved on this phone.'} chevron onPress={() => navigation.push('Downloads', undefined)} />}
           <ListRow uiId="phone.settings.remote" icon="remote" title="Your TVs" detail="Use this phone as the remote, or play something on a TV." chevron onPress={() => pushPhone('Remote', undefined)} />
           <ListRow uiId="phone.settings.whatsnew" icon="sparkle" title="What's new" detail="The changes to Aurora, newest first." chevron onPress={() => pushPhone('WhatsNew', undefined)} />
-          <ListRow uiId="phone.settings.pair" icon="remote" title="Sign in a TV" detail="Type the code on a TV's sign-in screen — or scan its QR with this phone's camera." chevron onPress={() => pushPhone('PairTv', {code: null})} />
+          {me?.kids ? null : (
+            <ListRow uiId="phone.settings.pair" icon="remote" title="Sign in a TV" detail="Type the code on a TV's sign-in screen — or scan its QR with this phone's camera." chevron onPress={() => pushPhone('PairTv', {code: null})} />
+          )}
           <ListRow uiId="settings.party" icon="people" title="Join a watch party" detail="Type the code from another screen and watch in step." chevron onPress={openJoinParty} />
           <ListRow uiId="settings.report" icon="warning" title="Report a problem" detail="A few words; where you were and the last errors come along by themselves." chevron onPress={() => openReport()} />
         </Section>

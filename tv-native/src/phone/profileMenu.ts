@@ -6,25 +6,30 @@ import {pushScreen} from '../rootNav';
 import {pushPhone} from './nav';
 import {Linking} from 'react-native';
 import {getAuthMode, getBaseUrl} from '../api';
-import {openJoinParty, openReport} from '../overlay';
+import {openChildMode, openJoinParty, openReport} from '../overlay';
 import {WORDS} from '../groupPick';
 
 let switchFn: (() => void) | null = null;
 let nameOf: () => string = () => '';
-/** PhoneMain hands these in once (AppContext lives below the overlays). */
-export const wireProfileMenu = (o: {switchProfile: () => void; name: () => string}) => {
+let kidsOf: () => boolean = () => false;
+/** PhoneMain hands these in once (AppContext lives below the overlays). `kids`: Children mode is on. */
+export const wireProfileMenu = (o: {switchProfile: () => void; name: () => string; kids?: () => boolean}) => {
   switchFn = o.switchProfile;
   nameOf = o.name;
+  kidsOf = o.kids || (() => false);
 };
 
 export type MenuItem = {label: string; uiId: string; onPress: () => void};
 
 /** The menu's lines, in the site's order and words (main.js profile menu); "Your TVs" is the
  *  phone's own, "Get the apps" is the website's /install page (in the browser). */
-export const menuItems = (closed: boolean): MenuItem[] => [
-  {label: closed ? 'Sign out' : 'Switch profile', uiId: 'phone.menu.switch', onPress: () => switchFn?.()},
+//  (Children mode, 2026-11-11: its line under the first; while it is on, no
+//  Switch profile / Sign out and no downloads — leaving it is the way back.)
+export const menuItems = (closed: boolean, kids = false): MenuItem[] => [
+  ...(kids ? [] : [{label: closed ? 'Sign out' : 'Switch profile', uiId: 'phone.menu.switch', onPress: () => switchFn?.()}]),
+  {label: kids ? 'Leave Children mode' : 'Children mode', uiId: 'child.open', onPress: () => openChildMode()},
   {label: 'Settings', uiId: 'phone.menu.settings', onPress: () => pushScreen('Settings', undefined)},
-  {label: 'My downloads', uiId: 'phone.menu.downloads', onPress: () => pushScreen('Downloads', undefined)},
+  ...(kids ? [] : [{label: 'My downloads', uiId: 'phone.menu.downloads', onPress: () => pushScreen('Downloads', undefined)}]),
   {label: 'Your TVs', uiId: 'phone.menu.remote', onPress: () => pushPhone('Remote')},
   {label: 'Calendar', uiId: 'phone.menu.calendar', onPress: () => pushScreen('Calendar', undefined)},
   {label: "What's new", uiId: 'phone.menu.whatsnew', onPress: () => pushPhone('WhatsNew')},
@@ -51,5 +56,5 @@ export const useProfileMenu = () => {
     },
     () => open,
   );
-  return {shown, name: nameOf() || 'Your profile', items: menuItems(getAuthMode() === 'closed')};
+  return {shown, name: nameOf() || 'Your profile', items: menuItems(getAuthMode() === 'closed', kidsOf())};
 };

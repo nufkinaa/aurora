@@ -379,6 +379,15 @@ export default function NavRail({
   if (disabled) return null;
 
   const go = (key: NavSection | 'profile') => {
+    // Children mode (2026-11-11): no switching profile — the pill opens
+    // Children mode, where leaving it (with the passcode) is the way back.
+    if (key === 'profile' && me?.kids) {
+      restore.current = null;
+      instantClose();
+      disarmSwitch();
+      (navigation as {navigate: (name: string) => void}).navigate('ChildMode');
+      return;
+    }
     if (key === 'profile' && !confirmSwitch) {
       // Arm. The pill relabels itself; a second press inside the window is the
       // real switch, and moving anywhere else disarms.
