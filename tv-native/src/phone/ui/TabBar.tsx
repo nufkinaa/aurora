@@ -53,7 +53,7 @@ export default function TabBar() {
   const tab = useTab();
   const moreOn = useMoreShown();
   const insets = useSafeAreaInsets();
-  const {width, height, fontScale, scale: px} = useWindowDimensions();
+  const {width, height, fontScale} = useWindowDimensions();
   const top = barAtTop(width, height);
   const go = (t: Tab) => {
     phoneNative.haptic('tick');
@@ -64,10 +64,8 @@ export default function TabBar() {
   const barW = top ? Math.min(width - 2 * (GUTTER + 50 + 24) - 2 * 100, 440) : Math.min(width - TAB_SIDE * 2, 696); // (the site's island spans the phone; a tablet's top nav takes over past ~720)
   // the words' real widths at the full size (measured once per font scale, below)
   const scale = Math.min(fontScale || 1, MAX_SCALE);
-  // (measured again when the font size OR the display size changes: words measured before a
-  // display-size change were cut to "Movi…" after it — Pixel 9 emulator, ui-phone 2026-11-11)
-  const [measured, setMeasured] = useState<{scale: number; px: number; w: number[]} | null>(null);
-  const words = useMemo(() => (measured && measured.scale === scale && measured.px === px ? measured.w : WORDS.map(w => guessWidth(w, scale))), [measured, scale, px]);
+  const [measured, setMeasured] = useState<{scale: number; w: number[]} | null>(null);
+  const words = useMemo(() => (measured && measured.scale === scale ? measured.w : WORDS.map(w => guessWidth(w, scale))), [measured, scale]);
   const fit = useMemo(() => fitTabs(barW, words, scale), [barW, words, scale]);
   const slots = useMemo(() => tabSlots(barW, words, fit), [barW, words, fit]);
   const got = useRef<number[]>([]);
@@ -76,7 +74,7 @@ export default function TabBar() {
     if (WORDS.every((_, k) => got.current[k] > 0)) {
       const w = [...got.current];
       got.current = [];
-      setMeasured(m => (m && m.scale === scale && m.px === px && m.w.every((x, k) => x === w[k]) ? m : {scale, px, w}));
+      setMeasured(m => (m && m.scale === scale && m.w.every((x, k) => x === w[k]) ? m : {scale, w}));
     }
   };
   // out of the way while a page scrolls down (ui/tabBarShown.ts)
@@ -94,7 +92,7 @@ export default function TabBar() {
       pointerEvents={shown ? 'box-none' : 'none'}
       style={[s.wrap, top ? {top: Math.max(10, insets.top) - 3} : {bottom: tabBottom(insets.bottom)}, {transform: [{translateY: away.interpolate({inputRange: [0, 1], outputRange: [0, drop]})}]}]}>
       {/* the words at the full size, unseen, to measure them (again when the font size changes) */}
-      <View style={s.measure} pointerEvents="none" importantForAccessibility="no-hide-descendants" key={`m${scale}-${px}`}>
+      <View style={s.measure} pointerEvents="none" importantForAccessibility="no-hide-descendants" key={`m${scale}`}>
         {WORDS.map((w, i) => (
           <Text key={w} onLayout={onWord(i)} style={[s.label, s.labelOn]} numberOfLines={1} maxFontSizeMultiplier={MAX_SCALE}>
             {w}
