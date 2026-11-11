@@ -53,7 +53,9 @@ export default function PageHead({title, sub, children, right}: {title: string; 
         </Text>
         {right}
       </View>
-      {sub ? <Text style={s.sub}>{sub}</Text> : null}
+      {/* null = the line is still on its way: its room is kept, so the search box and the
+          chips under it do not jump down when the count arrives (ui-phone 2026-11-10) */}
+      {sub ? <Text style={s.sub}>{sub}</Text> : sub === null ? <Text style={s.sub} importantForAccessibility="no"> </Text> : null}
       {children}
     </View>
   );

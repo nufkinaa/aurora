@@ -42,8 +42,10 @@ export const useTabBarSpace = () => {
  *  phone's bar goes there too (the bottom of a landscape phone is the content's). */
 export const barAtTop = (width: number, height: number) => width > height;
 /** The site's `bottom: max(10px, env(safe-area-inset-bottom) - 14px)`: the bar rides low,
- *  over the gesture strip rather than a whole inset above it. */
-export const tabBottom = (inset: number) => (inset >= 40 ? inset + TAB_INSET : Math.max(TAB_INSET, inset - 14));
+ *  over the gesture strip rather than a whole inset above it — but clear of the gesture
+ *  handle: at inset - 14 Android's handle (drawn 11–14 dp up a 24 dp strip) sat on the
+ *  bar's bottom edge (Pixel 9, ui-phone 2026-11-10), so inset - 6 leaves ~4 dp between. */
+export const tabBottom = (inset: number) => (inset >= 40 ? inset + TAB_INSET : Math.max(TAB_INSET, inset - 6));
 // (an inset of 40+ is a 3-button / 2-button navigation bar, not the gesture strip: the bar
 // sits 10 above it, as the site's does above a browser's own bar — sizes pass 2026-10-29)
 
