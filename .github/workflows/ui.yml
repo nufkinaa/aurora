@@ -129,6 +129,13 @@ jobs:
       # home PC; on Linux it would land on a much wider face and the tests that
       # check nothing is cut at 320 px would fail for the font alone. Selawik is
       # Microsoft's open-source, metric-compatible stand-in for Segoe UI.
+      # LC_ALL=he_IL.UTF-8 needs the locale to exist: without it the C library
+      # falls back to plain ASCII and Chrome cannot open a file with a Hebrew
+      # name (localplay's "סרט חג 2023.mp4" came up empty).
+      - name: Locales
+        run: |
+          sudo locale-gen he_IL.UTF-8 en_GB.UTF-8 > /dev/null
+          LC_ALL=he_IL.UTF-8 locale charmap
       - name: Fonts
         run: |
           mkdir -p ~/.local/share/fonts/selawik ~/.config/fontconfig

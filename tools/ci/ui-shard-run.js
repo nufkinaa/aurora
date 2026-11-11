@@ -121,6 +121,9 @@ const describeFails = (fails) => fails.slice(0, 6).map((f) => {
     for (const s of r.skipped) console.log(`::notice title=Skipped UI test::${esc(`${r.name}: ${s}`)}`);
   }
   fs.writeFileSync(path.join(OUT, "timings.json"), JSON.stringify(timings, null, 1));
+  // (the seconds as a notice too: readable without signing in, for
+  // `tools/ci/ui-shards.js --update` — save the JSON to a file first)
+  console.log(`::notice title=UI shard timings::${JSON.stringify(timings)}`);
   const total = rows.reduce((a, r) => a + r.secs, 0);
   const lines = [
     `### UI shard: ${rows.filter((r) => r.ok).length}/${rows.length} files green, ${Math.round(total / 6) / 10} min`,
