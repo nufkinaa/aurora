@@ -17,7 +17,7 @@ import {createVoice, nativeVoiceDeps, voiceAvailability, VoiceController} from '
 import {LANG_NAME, LANG_SELF, otherLang, voiceActive, voiceLangFor, VoiceLang, voiceMessage, VoiceState, VOICE_IDLE} from '../../voiceLogic';
 import {personNow, setPersonPref} from '../../personSync';
 import {noResultsText, runSearch, SEARCH_TEXT, SettleNote, shortText} from '../../searchFlow';
-import {kindSpoken, kindSuffix, suggestionKind} from '../../searchKind';
+import {kindSpoken, suggestionKind} from '../../searchKind';
 import type {RootStackParamList} from '../../navigation';
 import {usePNav} from '../nav';
 import Grid from '../ui/Grid';
@@ -39,7 +39,7 @@ const chipLabel = (s: SearchSuggestion) =>
     ? `${clip(s.name || '')} · person`
     : s.kind === 'genre'
       ? `${s.name} · genre`
-      : `${clip(s.title || '')}${s.year ? ` (${s.year})` : ''}${kindSuffix(suggestionKind(s))}`;
+      : `${clip(s.title || '')}${s.year ? ` (${s.year})` : ''}`;
 
 export function SearchScreen({pushed, startVoice: startWithVoice, startQ}: {pushed?: boolean; startVoice?: boolean; startQ?: string}) {
   const navigation = usePNav();

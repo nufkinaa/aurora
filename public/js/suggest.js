@@ -7,7 +7,7 @@
 //   genre   searches for it
 // The matched part of each row is marked. A reply for anything but the text
 // in the box right now is dropped, and a newer keystroke cancels the request.
-import { el, debounce, posterImg } from "./ui.js";
+import { el, debounce, posterImg, icons } from "./ui.js";
 import { api } from "./api.js";
 import { state } from "./state.js";
 import { navigate, untilLeave } from "./router.js";
@@ -26,6 +26,15 @@ const ICON = {
   genre:
     '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.500 12.200V5a1.500 1.500 0 011.500-1.500h7.200a1.500 1.500 0 011.060.440l7 7a1.500 1.500 0 010 2.120l-7.200 7.200a1.500 1.500 0 01-2.120 0l-7-7a1.500 1.500 0 01-.440-1.060z"/><circle cx="8" cy="8" r="1.300"/></svg>',
 };
+
+// Film or series, as the search results' corner tag says it (components.js
+// card's kind tag): the same glyph in the same hue, the icon alone (elia,
+// 2026-11-11). The words stay in the row for a screen reader only:
+// "2021 · Film", as the row read before the icon.
+const kindMark = (show, after) =>
+  el("span", { class: `suggest-kind ${show ? "series" : "film"}${after ? " after" : ""}` },
+    el("span", { class: "suggest-kind-icon", "aria-hidden": "true", html: show ? icons.series : icons.film }),
+    el("span", { class: "suggest-kind-word" }, `${after ? " · " : ""}${show ? "Series" : "Film"}`));
 
 // "Dune: Part Two" with [[0, 4]] → <mark>Dune</mark>: Part Two
 export const marked = (text, ranges) => {
@@ -93,7 +102,8 @@ export const attachSuggest = (input, host, opts = {}) => {
         : el("span", { class: "suggest-thumb" }),
       el("span", { class: "suggest-title" }, marked(s.title, s.hl)),
       el("span", { class: "suggest-meta" },
-        [s.year, s.type === "show" ? "Series" : "Film"].filter(Boolean).join(" · ")),
+        s.year ? String(s.year) : null,
+        kindMark(s.type === "show", !!s.year)),
       s.inLibrary && el("span", { class: "disc-tag have" }, "IN LIBRARY"),
     );
   };

@@ -1,7 +1,7 @@
 // Film or series on a search suggestion chip (src/searchKind.ts), the TV's and
 // the phone's: a title's chip carries the card tags' glyph in their hue, a
-// screen reader always hears the word, and the word is printed only when the
-// one switch (SHOW_KIND_WORD) says so. People and genres keep their own chips.
+// screen reader hears the word (the chip prints only the icon — elia's "A").
+// People and genres keep their own chips.
 import React from 'react';
 import TestRenderer, {act} from 'react-test-renderer';
 
@@ -16,7 +16,7 @@ jest.mock('../../src/components/Icon', () => mockHost('Icon'));
 jest.mock('../../src/phone/ui/Tap', () => mockHost('Tap'));
 jest.mock('../../src/phone/ui/Icon', () => mockHost('PhoneIcon'));
 
-import {kindSpoken, kindSuffix, SHOW_KIND_WORD, suggestionKind} from '../../src/searchKind';
+import {kindSpoken, suggestionKind} from '../../src/searchKind';
 import Chip from '../../src/components/Chip';
 import {ChipButton} from '../../src/phone/ui/Buttons';
 import theme from '../../src/theme';
@@ -37,13 +37,9 @@ describe('searchKind', () => {
     expect(suggestionKind({kind: 'person'})).toBeNull();
     expect(suggestionKind({kind: 'genre'})).toBeNull();
   });
-  test('the word after the title follows the switch; the spoken label always has it, once', () => {
-    expect(SHOW_KIND_WORD).toBe(false); // icon only until elia picks (docs/qa/search-icons/options)
-    expect(kindSuffix('series')).toBe('');
-    expect(kindSuffix('series', true)).toBe(' · series');
-    expect(kindSuffix(null, true)).toBe('');
+  test('the spoken label carries the word; a person or a genre is left as it is', () => {
     expect(kindSpoken('Dune (2021)', 'film')).toBe('Dune (2021), film');
-    expect(kindSpoken('Dune (2021) · film', 'film')).toBe('Dune (2021) · film');
+    expect(kindSpoken('Severance (2022)', 'series')).toBe('Severance (2022), series');
     expect(kindSpoken('Tessa · person', null)).toBe('Tessa · person');
   });
 });
