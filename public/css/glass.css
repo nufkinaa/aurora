@@ -5887,6 +5887,15 @@ html[data-look="glass"] .nav-gear svg,
 html[data-look="glass"] .nav-items .nav-item svg {
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
 }
+/* the phone tab bar: what is behind it a step dimmer (0.5 -> 0.47), so
+   every word holds 5:1 over the brightest poster — "More" was 4.85 where
+   the "new" dot's mint glow lights the glass at its shoulder (2026-11-12,
+   test/ui/iphone-content-clear.test.js). The same glass otherwise. */
+@media (max-width: 720px) {
+  html[data-look="glass"]:root .nav-items {
+    --g-blur: blur(3px) saturate(2) brightness(0.47);
+  }
+}
 /* the player's second voice (the clock, the year under the title) on the
    clear chrome over a white frame: lifted one step (3.6:1 before) */
 html[data-look="glass"] .player-bottom,

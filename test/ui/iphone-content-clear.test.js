@@ -375,6 +375,13 @@ for (const look of ["glass", "legacy"]) {
   }
 }
 
+// The brightest grounds a tab's word can land on: the striped poster above,
+// then each of its colours across the whole bar (a white poster, a yellow
+// one…), so every word is read over every one of them, not only the stripe
+// that happens to lie under it. (2026-11-12: "More" read 4.65-4.85 over the
+// stripes — barely over AA; the glass look keeps every word at 5 or more.)
+const FILLS = ["#ffffff", "#fff36b", "#7af7ff", "#ff9cf4", "#b8ff9a"];
+const BAR_MIN = { glass: 5, legacy: 4.5 };
 for (const look of ["glass", "legacy"]) {
   ui.test(`${look}: the tab bar's words read over a bright poster`, { viewport: { width: 393, height: 852 }, device: { screen: { width: 393, height: 852 }, deviceScaleFactor: 3, userAgent: IPHONE } }, async (h) => {
     const { page, signIn, goto } = h;
@@ -382,42 +389,51 @@ for (const look of ["glass", "legacy"]) {
     await signIn(me);
     await goto("#/list");
     await addPoster(page);
-    const bar = await page.evaluate(() => {
-      const b = document.querySelector(".nav-items").getBoundingClientRect();
-      const items = [...document.querySelectorAll(".nav-items > .nav-item")].filter((a) => a.getBoundingClientRect().width > 0 && a.textContent.trim());
-      return {
-        bottom: b.bottom,
-        items: items.map((a) => {
-          const ib = a.getBoundingClientRect();
-          const r = document.createRange(); r.selectNodeContents(a);
-          const tb = r.getBoundingClientRect();
-          return {
-            label: a.textContent.trim(), active: a.classList.contains("active"), tone: a.dataset.tone || "",
-            box: { top: ib.top, bottom: ib.bottom, left: ib.left, right: ib.right },
-            text: { top: tb.top, bottom: tb.bottom, left: tb.left, right: tb.right },
-            color: getComputedStyle(a).color,
-          };
-        }),
-      };
-    });
-    assert.ok(bar.bottom > 600, "the tab bar is not at the bottom");
-    assert.ok(bar.items.length >= 4, "the tab bar's words are not on screen");
-    const png = await shot(page);
     const low = [];
     let worst = Infinity;
-    for (const it of bar.items) {
-      // the ground right above and below each label, inside its own pill (as
-      // wide as the word: the lit pill's rim light curves down at its ends)
-      const ground = it.active
-        ? groundOf(png, it.box, it.text, Math.max(0, it.text.left - it.box.left), true)
-        : groundOf(png, { ...it.box, left: it.text.left, right: it.text.right }, it.text, 0);
-      const c = ratio(over(parseColor(it.color), ground), ground);
-      worst = Math.min(worst, c);
-      if (REPORT) console.log(`  tab bar ${look} ${it.label}${it.active ? " (lit)" : ""}${it.tone ? ` tone=${it.tone}` : ""}: ground rgb(${ground.join(",")}), words ${it.color}, contrast ${c.toFixed(2)}`);
-      if (c < 4.5) low.push(`${it.label}: ${c.toFixed(2)} over rgb(${ground.join(",")})`);
+    for (const fill of [null, ...FILLS]) {
+      if (fill) {
+        await page.evaluate((bg) => {
+          document.getElementById("bright-poster").style.background = bg;
+          document.dispatchEvent(new Event("scroll"));
+        }, fill);
+        await page.waitForTimeout(900);
+      }
+      const bar = await page.evaluate(() => {
+        const b = document.querySelector(".nav-items").getBoundingClientRect();
+        const items = [...document.querySelectorAll(".nav-items > .nav-item")].filter((a) => a.getBoundingClientRect().width > 0 && a.textContent.trim());
+        return {
+          bottom: b.bottom,
+          items: items.map((a) => {
+            const ib = a.getBoundingClientRect();
+            const r = document.createRange(); r.selectNodeContents(a);
+            const tb = r.getBoundingClientRect();
+            return {
+              label: a.textContent.trim(), active: a.classList.contains("active"), tone: a.dataset.tone || "",
+              box: { top: ib.top, bottom: ib.bottom, left: ib.left, right: ib.right },
+              text: { top: tb.top, bottom: tb.bottom, left: tb.left, right: tb.right },
+              color: getComputedStyle(a).color,
+            };
+          }),
+        };
+      });
+      assert.ok(bar.bottom > 600, "the tab bar is not at the bottom");
+      assert.ok(bar.items.length >= 4, "the tab bar's words are not on screen");
+      const png = await shot(page);
+      for (const it of bar.items) {
+        // the ground right above and below each label, inside its own pill (as
+        // wide as the word: the lit pill's rim light curves down at its ends)
+        const ground = it.active
+          ? groundOf(png, it.box, it.text, Math.max(0, it.text.left - it.box.left), true)
+          : groundOf(png, { ...it.box, left: it.text.left, right: it.text.right }, it.text, 0);
+        const c = ratio(over(parseColor(it.color), ground), ground);
+        worst = Math.min(worst, c);
+        if (REPORT) console.log(`  tab bar ${look} ${fill || "stripes"} ${it.label}${it.active ? " (lit)" : ""}${it.tone ? ` tone=${it.tone}` : ""}: ground rgb(${ground.join(",")}), words ${it.color}, contrast ${c.toFixed(2)}`);
+        if (c < BAR_MIN[look]) low.push(`${it.label} over ${fill || "the stripes"}: ${c.toFixed(2)} over rgb(${ground.join(",")})`);
+      }
+      if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `${look}-tabbar-${(fill || "stripes").replace("#", "")}.png`), clip: { x: 0, y: 852 - 140, width: 393, height: 140 } }).catch(() => {});
     }
-    if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `${look}-tabbar.png`), clip: { x: 0, y: 852 - 140, width: 393, height: 140 } }).catch(() => {});
-    assert.deepEqual(low, [], `the tab bar's words under AA (4.5); the worst is ${worst.toFixed(2)}`);
+    assert.deepEqual(low, [], `the tab bar's words under ${BAR_MIN[look]}; the worst is ${worst.toFixed(2)}`);
   });
 }
 
