@@ -59,6 +59,7 @@ const MENU = [
   ["wrapped", "Your Aurora Wrapped", "#/wrapped"],
   ["taste", "Swipe your taste", "#/taste"],
   ["apps", "Get the apps", "/install"],
+  ["children", "Children mode", "sheet:.child-sheet"], // (docs/children-mode.md)
   ["pair", "Sign in a TV", "#/pair"],
   ["party", "Join a watch party", "sheet:.look-notice-wrap input"],
   ["report", "Report a problem", "sheet:.report-wrap"],

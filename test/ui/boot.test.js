@@ -299,11 +299,13 @@ ui.test("the kids hop: a kids profile is never asked for early (its door runs fi
   assert.deepEqual((await r.seen()).surfaces.filter((s) => s !== "error"), ["screen"], "the kids profile comes straight back, no wall on the way");
   assert.deepEqual(r.log.refused, []);
 
-  // kids profile → grown-up: the PIN, then early again as the grown-up
-  await page.click("#nav-profile");
-  await page.click('.nav-menu button:has-text("Switch profile")');
+  // kids profile → grown-up: the passcode, then early again as the grown-up.
+  // (Children mode, 2026-11-11: its menu has no Switch profile — the wall is
+  // reached here as a tab that remembers no profile reaches it.)
+  await page.evaluate(() => localStorage.removeItem("aurora-profile"));
+  await page.reload();
   await page.click('.profiles-gate .profile-tile[title="Grown"]');
-  const sheet = page.locator(".modal", { hasText: "Grown-ups only" });
+  const sheet = page.locator(".modal", { hasText: "Enter the passcode to leave Children mode" });
   await sheet.waitFor();
   await sheet.locator("input.kids-pin-input").fill(PIN);
   await sheet.locator("button", { hasText: "Unlock" }).click();
