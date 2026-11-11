@@ -43,7 +43,8 @@ export default function OfflinePill({route}: {route: string}) {
         <Svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke={AMBER} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
           <Path d={REST} />
         </Svg>
-        <Text style={s.text}>{away === 'server' ? `${awayWords(away)} — trying again…` : awayWords(away)}</Text>
+        {/* (the website's "— trying again…" gives way on a phone: the words and the link fit on one line) */}
+        <Text style={s.text} numberOfLines={1}>{awayWords(away)}</Text>
         {there ? null : (
           <>
             <View style={s.hair} />
