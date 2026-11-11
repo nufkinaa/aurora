@@ -28,6 +28,11 @@ const host = (name: string) => () => {
 jest.mock('../../src/components/Btn', () => host('Btn')());
 jest.mock('../../src/components/Chip', () => host('Chip')());
 jest.mock('../../src/components/Focusable', () => host('Focusable')());
+jest.mock('../../src/play/PlayKey', () => host('PlayKey')());
+jest.mock('../../src/perfTier', () => ({isLite: () => false}));
+jest.mock('../../src/trail', () => ({trail: () => {}}));
+const mockHit = jest.fn();
+jest.mock('../../src/telemetry', () => ({uiHit: (id: string) => mockHit(id)}));
 jest.mock('../../src/components/Icon', () => host('Icon')());
 jest.mock('../../src/components/Sheet', () => host('Sheet')());
 jest.mock('../../src/components/States', () => {
@@ -41,7 +46,16 @@ jest.mock('../../src/api', () => ({
   imgSrc: (p: string | null) => (p ? {uri: p} : null),
 }));
 jest.mock('../../src/useRouteShown', () => ({useRouteShown: () => {}}));
-jest.mock('../../src/focus', () => ({useFocusFallback: () => {}}));
+// the remote: every global key handler mounted (the screen's deck, the reveal's skip)
+const mockKeys = new Set<(e: {eventType: string}) => void>();
+jest.mock('../../src/focus', () => ({
+  useFocusFallback: () => {},
+  noteOwnFocusMove: () => {},
+  pressMovedFocus: () => false,
+  useTVKeys: (fn: (e: {eventType: string}) => void) => {
+    mockKeys.add(fn);
+  },
+}));
 jest.mock('../../src/theme', () => ({
   __esModule: true,
   useTvMetrics: () => ({width: 960, height: 540, safeBottom: 27}),
@@ -102,6 +116,8 @@ jest.mock('../../src/groupPickApi', () => ({
 
 import GroupPick from '../../src/screens/GroupPick';
 import {TUTORIAL, WORDS} from '../../src/groupPick';
+import Burst from '../../src/play/Burst';
+import {SHOW} from '../../src/play/groupShow';
 import type {GroupMember, GroupSession} from '../../src/groupPick';
 
 const OPTIONS = {
@@ -144,7 +160,10 @@ const flush = () => act(async () => {
 });
 const texts = (r: TestRenderer.ReactTestRenderer) =>
   r.root.findAll(n => (n.type as unknown) === 'Text').map(n => [].concat(n.props.children).filter(c => typeof c === 'string').join(''));
-const byUi = (r: TestRenderer.ReactTestRenderer, id: string) => r.root.findAll(n => ['Btn', 'Chip', 'Focusable'].includes(n.type as never) && n.props.uiId === id);
+const byUi = (r: TestRenderer.ReactTestRenderer, id: string) => r.root.findAll(n => ['Btn', 'Chip', 'Focusable', 'PlayKey'].includes(n.type as never) && n.props.uiId === id);
+// the code is a ticket of four tiles: read as one by its label
+const ticket = (r: TestRenderer.ReactTestRenderer) => r.root.findAll(n => (n.type as unknown) === 'View' && typeof n.props.accessibilityLabel === 'string' && /^\w( \w){3}$/.test(n.props.accessibilityLabel)).map(n => n.props.accessibilityLabel.replace(/ /g, ''));
+const remote = (key: string) => act(async () => [...mockKeys].forEach(fn => fn({eventType: key})));
 const one = (r: TestRenderer.ReactTestRenderer, id: string) => {
   const all = byUi(r, id);
   expect({id, count: all.length}).toEqual({id, count: 1});
@@ -170,6 +189,7 @@ const startSession = async (s = session()) => {
 beforeEach(() => {
   jest.clearAllMocks();
   mockBack.length = 0;
+  mockKeys.clear();
   live.stopped = 0;
   rev = 1;
   mockGroup.options.mockResolvedValue(OPTIONS);
@@ -224,7 +244,8 @@ test('Start: the choices go along; the code, the QR code and the address show; S
   await startSession();
   expect(mockGroup.create).toHaveBeenCalledWith({kind: 'movie', mood: 'funny', length: 'any', limitSec: 300}, 'screen');
   expect(live.code).toBe('AB7K');
-  expect(texts(r)).toEqual(expect.arrayContaining(['AB7K', WORDS.joinLine, 'nufurora.com', WORDS.waiting, WORDS.needSomeone]));
+  expect(ticket(r)).toEqual(['AB7K']);
+  expect(texts(r)).toEqual(expect.arrayContaining([WORDS.joinLine, 'nufurora.com', WORDS.waiting, WORDS.needSomeone]));
   expect(r.root.find(n => (n.type as unknown) === 'QRCode').props.value).toBe('https://nufurora.com/#/group/AB7K');
   const deal = one(r, 'group.deal');
   expect(deal.props.hasTVPreferredFocus).toBe(true);
@@ -255,6 +276,7 @@ test('the pick: Play chooses it and starts the library film here — once', asyn
   await startSession(resultOf());
   const play = one(r, 'group.play');
   expect(play.props.hasTVPreferredFocus).toBe(true);
+  expect(texts(r)).not.toContain(SHOW.votesIn); // opened on a result: the still page, no show
   expect(play.props.label).toBe(WORDS.play);
   const chosen = () => session({phase: 'chosen', members: [TV, DANA], chosen: {key: 'a', by: 'Elia', card: CARD_A}});
   mockGroup.choose.mockResolvedValue({session: chosen()});
@@ -265,6 +287,102 @@ test('the pick: Play chooses it and starts the library film here — once', asyn
   expect(nav.replace).toHaveBeenCalledWith('Player', {id: 'lib-a', title: 'Alpha'});
   await act(async () => live.push(chosen())); // the same choice, again over the socket
   expect(nav.replace).toHaveBeenCalledTimes(1);
+});
+
+// ---- the reveal ----
+const keyLabelled = (label: string) => r.root.findAll(n => (n.type as unknown) === 'PlayKey' && n.props.label === label);
+const fired = () => r.root.findAll(n => n.type === Burst).map(n => n.props.fire);
+const toResult = async (res?: GroupSession) => {
+  await open();
+  await startSession(swiping()); // the TV is the screen: it watches the others swipe
+  expect(texts(r)).toContain('0 of 1 done');
+  const out = res || resultOf();
+  out.rev = rev++; // newer than what the screen holds
+  await act(async () => live.push(out));
+};
+
+test('the reveal: once, over the finished result, only after the vote was seen; Skip gives the burst up', async () => {
+  await toResult();
+  expect(texts(r)).toEqual(expect.arrayContaining([SHOW.votesIn, 'Alpha']));
+  // no key of the result under the curtain: OK can only be Skip
+  expect(byUi(r, 'group.play')).toHaveLength(0);
+  const skip = keyLabelled(SHOW.skip);
+  expect(skip).toHaveLength(1);
+  expect(skip[0].props.hasTVPreferredFocus).toBe(true);
+  await act(async () => skip[0].props.onPress());
+  expect(texts(r)).not.toContain(SHOW.votesIn);
+  expect(one(r, 'group.play').props.hasTVPreferredFocus).toBe(true);
+  expect(fired()).toEqual([0]); // skipped: no burst
+  // the same result again (the poll): no second show
+  await act(async () => live.push(resultOf()));
+  expect(texts(r)).not.toContain(SHOW.votesIn);
+});
+
+test('the reveal runs its course: the curtain lifts, the poster drops, ONE burst', async () => {
+  jest.useFakeTimers();
+  try {
+    await toResult();
+    expect(texts(r)).toContain(SHOW.votesIn);
+    await act(async () => {
+      jest.advanceTimersByTime(1600);
+    });
+    expect(texts(r)).not.toContain(SHOW.votesIn);
+    await act(async () => {
+      jest.advanceTimersByTime(600);
+    });
+    expect(fired()).toEqual([1]);
+    // Something else: a quick change, no show and no second burst
+    const second = resultOf();
+    second.result!.index = 1;
+    await act(async () => live.push(second));
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+    });
+    expect(texts(r)).toContain('Beta');
+    expect(texts(r)).not.toContain(SHOW.votesIn);
+    expect(fired()).toEqual([1]);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+test('the reveal: BACK or any direction skips it (BACK does not ask to leave)', async () => {
+  await toResult();
+  expect(texts(r)).toContain(SHOW.votesIn);
+  await act(async () => {
+    expect(mockBack[mockBack.length - 1]()).toBe(true);
+  });
+  expect(texts(r)).not.toContain(SHOW.votesIn);
+  expect(r.root.findAll(n => (n.type as unknown) === 'Sheet')).toHaveLength(0);
+  act(() => r.unmount());
+  mockKeys.clear();
+  await toResult();
+  expect(texts(r)).toContain(SHOW.votesIn);
+  await remote('up');
+  expect(texts(r)).not.toContain(SHOW.votesIn);
+  expect(fired()).toEqual([0]);
+});
+
+test('a tie: the stars decide between the two posters; with the show skipped the line says so', async () => {
+  const tied = resultOf();
+  tied.result!.picks = [
+    {key: 'a', why: '1 yes · 1 no', yes: 1, maybe: 0, no: 1, missing: 0, of: 2, everyone: false, card: CARD_A},
+    {key: 'b', why: '1 yes · 1 no', yes: 1, maybe: 0, no: 1, missing: 0, of: 2, everyone: false, card: CARD_B},
+  ];
+  jest.useFakeTimers();
+  try {
+    await toResult(tied);
+    await act(async () => {
+      jest.advanceTimersByTime(1550);
+    });
+    expect(texts(r)).toContain(SHOW.tie);
+    // both posters stand in the duel (titles drawn on the stand-in tiles: no pictures here)
+    expect(texts(r).filter(t => t === 'Alpha' || t === 'Beta').length).toBeGreaterThanOrEqual(2);
+  } finally {
+    jest.useRealTimers();
+  }
+  await act(async () => keyLabelled(SHOW.skip)[0].props.onPress());
+  expect(texts(r)).toContain(SHOW.tieLine);
 });
 
 test('Something else, then back to the first; Swipe another round for the host', async () => {
@@ -299,7 +417,7 @@ test('no match: the line and another round', async () => {
   expect(one(r, 'group.again').props.hasTVPreferredFocus).toBe(true);
 });
 
-test('the TV swipes too: one card at a time, Yes moves on at once, Undo brings it back', async () => {
+test('the TV swipes too: the deck — OK or RIGHT is Yes, LEFT No, DOWN Maybe; Undo brings the card back', async () => {
   await open();
   await startSession(session({members: [TV, DANA], voters: 1}));
   const asVoter = (o: Partial<GroupSession> = {}) =>
@@ -310,8 +428,10 @@ test('the TV swipes too: one card at a time, Yes moves on at once, Undo brings i
   expect(mockGroup.role).toHaveBeenCalledWith('AB7K', 'voter');
   expect(one(r, 'group.screen').props.label).toBe(WORDS.justShow);
   await act(async () => live.push(asVoter()));
-  expect(texts(r)).toEqual(expect.arrayContaining(['Alpha', '2021 · 1 h 48 · Comedy']));
-  expect(one(r, 'group.yes').props.hasTVPreferredFocus).toBe(true);
+  expect(texts(r)).toEqual(expect.arrayContaining(['Alpha', '2021 · 1 h 48 · Comedy', 'Card 1 of 2', WORDS.yes, WORDS.no, WORDS.maybe]));
+  // the card is the one thing in focus; OK on it is Yes
+  const card = () => one(r, 'group.yes');
+  expect(card().props.hasTVPreferredFocus).toBe(true);
   await press(r, 'group.yes');
   await flush();
   expect(mockGroup.vote).toHaveBeenCalledWith('AB7K', 'a', 'yes');
@@ -320,11 +440,20 @@ test('the TV swipes too: one card at a time, Yes moves on at once, Undo brings i
   await flush();
   expect(mockGroup.vote).toHaveBeenLastCalledWith('AB7K', 'a', null);
   expect(texts(r)).toContain('Alpha');
-  await press(r, 'group.no');
-  await press(r, 'group.maybe');
+  // the directions count only while the card holds the focus
+  await remote('left');
+  expect(mockGroup.vote).toHaveBeenCalledTimes(2);
+  await act(async () => card().props.onFocusChange(true));
+  await remote('left');
+  expect(mockGroup.vote).toHaveBeenLastCalledWith('AB7K', 'a', 'no');
+  expect(mockHit).toHaveBeenLastCalledWith('group.no');
+  await remote('down');
   await flush();
   expect(mockGroup.vote).toHaveBeenLastCalledWith('AB7K', 'b', 'maybe');
+  expect(mockHit).toHaveBeenLastCalledWith('group.maybe');
   expect(texts(r)).toContain(WORDS.doneWaiting);
+  await remote('right'); // nothing left to answer: nothing happens
+  expect(mockGroup.vote).toHaveBeenCalledTimes(4);
 });
 
 test('BACK in a session asks first: Stay, Leave, End for everyone', async () => {
@@ -372,7 +501,8 @@ test('Join with a code: tidied, checked, joined as the screen; the server says w
   mockGroup.join.mockResolvedValueOnce({session: session({code: 'AB7X', you: {id: 'elia|tv', profileId: 'elia', role: 'screen', host: false}, host: {id: 'dana|1', name: 'Dana', profileId: 'dana'}})});
   await act(async () => input().props.onSubmitEditing());
   await flush();
-  expect(texts(r)).toEqual(expect.arrayContaining(['AB7X', WORDS.onlyHost]));
+  expect(ticket(r)).toEqual(['AB7X']);
+  expect(texts(r)).toContain(WORDS.onlyHost);
   expect(byUi(r, 'group.deal')).toHaveLength(0); // only the person who started it deals
 });
 
@@ -380,7 +510,7 @@ test('opened with a code: joins it straight away', async () => {
   mockGroup.join.mockResolvedValue({session: session({code: 'QQ22'})});
   await open({code: 'qq22'});
   expect(mockGroup.join).toHaveBeenCalledWith('QQ22', 'screen');
-  expect(texts(r)).toContain('QQ22');
+  expect(ticket(r)).toEqual(['QQ22']);
 });
 
 test('Add a title: search, the On Aurora badge, In the deck, Added', async () => {
