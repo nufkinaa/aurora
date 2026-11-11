@@ -30,8 +30,11 @@ export function TopRight({noSettings, tv}: {noSettings?: boolean; tv?: boolean})
     <View style={s.right}>
       {tv && tvs.length ? <IconCircle uiId="nav.remote" icon="tv" label="Your TVs" onPress={() => pushPhone('Remote')} /> : null}
       {noSettings ? null : <IconCircle uiId="nav.settings" icon="navGear" label="Settings" onPress={() => pushScreen('Settings', undefined)} />}
-      <IconCircle uiId="nav.profile" label={`${me?.name || 'Profile'} — profile menu`} onPress={() => openProfileMenu()} size={40}>
-        <Avatar p={me} size={30} round />
+      <IconCircle uiId="nav.profile" label={`${me?.name || 'Profile'}${me?.kids ? ', Children mode on' : ''} — profile menu`} onPress={() => openProfileMenu()} size={40}>
+        {/* Children mode: the website's mint ring round the avatar (screens.css html[data-kids] #nav-profile .avatar) */}
+        <View style={me?.kids ? s.kidsRing : undefined}>
+          <Avatar p={me} size={30} round />
+        </View>
       </IconCircle>
     </View>
   );
@@ -64,6 +67,7 @@ export const TOP_BAR_H = 42;
 export {StatusScrim};
 
 const s = StyleSheet.create({
+  kidsRing: {borderRadius: 999, borderWidth: 2, borderColor: '#86efac', padding: 1},
   bar: {position: 'absolute', left: GUTTER, right: GUTTER, height: 42, flexDirection: 'row', alignItems: 'center', zIndex: 10},
   right: {flexDirection: 'row', alignItems: 'center', gap: 10},
   logo: {

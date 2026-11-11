@@ -112,6 +112,9 @@ export default function PhoneNavigator() {
         ref={navRef as never}
         theme={navTheme}
         onReady={() => {
+          // (a fresh start of the app's screens — Children mode going on or off
+          // remounts them, AppRoot — begins with the tab bar out)
+          setTabBarShown(true);
           const r = navRef.getCurrentRoute();
           if (r) routeStarted(`phone:${r.name.toLowerCase()}`, r.key);
           frameScreen((r?.name || 'home').toLowerCase());

@@ -382,6 +382,18 @@ export default function Settings({
           />
         </View>
 
+        {/* Children mode (2026-11-11): the account's own switch, near the top
+            where a parent finds it (Mi TV pass) — the
+            website's "Children mode" line (childMode.ts, screens/ChildMode.tsx) */}
+        <Text style={styles.h2}>{CHILD.title}</Text>
+        <View style={styles.list}>
+          <Row uiId="child.open"
+            label={me?.kids ? CHILD.leave : CHILD.title}
+            note={me?.kids ? CHILD.rowOn(me.kids.maxAge) : CHILD.rowOff}
+            value={me?.kids ? ageWords(me.kids.maxAge) : 'Off'}
+            onPress={() => navigation.navigate('ChildMode')}
+          />
+        </View>
         <Text style={styles.h2}>Aurora</Text>
         <View style={styles.list}>
           <Row uiId="settings.whatsnew"
@@ -502,17 +514,6 @@ export default function Settings({
               onPress={() => (fxWhy ? showToast(fxWhy, '🔈') : set(k, !prefs[k]))}
             />
           ))}
-        </View>
-        {/* Children mode (2026-11-11): the account's own switch — the
-            website's "Children mode" line (childMode.ts, screens/ChildMode.tsx) */}
-        <Text style={styles.h2}>{CHILD.title}</Text>
-        <View style={styles.list}>
-          <Row uiId="child.open"
-            label={me?.kids ? CHILD.leave : CHILD.title}
-            note={me?.kids ? CHILD.rowOn(me.kids.maxAge) : CHILD.rowOff}
-            value={me?.kids ? ageWords(me.kids.maxAge) : 'Off'}
-            onPress={() => navigation.navigate('ChildMode')}
-          />
         </View>
         {/* Children mode's settings leave out what a child shouldn't change —
             what Aurora downloads by itself, and the sign-in (below) — as on

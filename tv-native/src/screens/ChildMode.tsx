@@ -42,6 +42,13 @@ export default function ChildMode({navigation}: Props) {
   const [fieldOn, setFieldOn] = useState<'code' | 'again' | null>(null);
   const againRef = useRef<TextInput>(null);
   const codeRef = useRef<TextInput>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const rowY = useRef(0);
+  // a field is being typed in: its row to the top of the screen, above the keyboard
+  const onField = (which: 'code' | 'again') => {
+    setFieldOn(which);
+    scrollRef.current?.scrollTo({y: Math.max(0, rowY.current - spacing.lg), animated: true});
+  };
 
   useEffect(() => {
     let live = true;
@@ -130,7 +137,7 @@ export default function ChildMode({navigation}: Props) {
       }
     };
     return (
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.content}>
         <Text style={styles.heading}>{WORDS.title}</Text>
         <Text style={styles.sub}>{WORDS.intro}</Text>
         <Text style={styles.label}>{WORDS.who}</Text>
@@ -153,38 +160,45 @@ export default function ChildMode({navigation}: Props) {
         {first ? (
           <>
             <Text style={styles.label}>{WORDS.choose}</Text>
-            <TextInput
-              ref={codeRef}
-              style={[styles.input, fieldOn === 'code' && styles.inputOn]}
-              onFocus={() => setFieldOn('code')}
-              onBlur={() => setFieldOn(null)}
-              value={code}
-              onChangeText={t => setCode(t.replace(/\D/g, '').slice(0, 6))}
-              secureTextEntry
-              keyboardType="number-pad"
-              maxLength={6}
-              placeholder={WORDS.codeHint}
-              placeholderTextColor={colors.textFaint}
-              onSubmitEditing={() => againRef.current?.focus()}
-            />
-            <TextInput
-              ref={againRef}
-              style={[styles.input, styles.inputNext, fieldOn === 'again' && styles.inputOn]}
-              onFocus={() => setFieldOn('again')}
-              onBlur={() => setFieldOn(null)}
-              value={again}
-              onChangeText={t => setAgain(t.replace(/\D/g, '').slice(0, 6))}
-              secureTextEntry
-              keyboardType="number-pad"
-              maxLength={6}
-              placeholder={WORDS.once}
-              placeholderTextColor={colors.textFaint}
-              onSubmitEditing={turnOn}
-            />
             <Text style={styles.note}>{WORDS.chooseNote}</Text>
           </>
         ) : null}
-        <View style={styles.row}>
+        {/* the fields and the buttons on ONE row: with the TV's keyboard up
+            (it takes the lower half) the row is scrolled to the top, so the
+            buttons stay in sight beside what is typed (Mi TV pass) */}
+        <View style={styles.formRow} onLayout={e => (rowY.current = e.nativeEvent.layout.y)}>
+          {first ? (
+            <>
+              <TextInput
+                ref={codeRef}
+                style={[styles.input, styles.inputRow, fieldOn === 'code' && styles.inputOn]}
+                onFocus={() => onField('code')}
+                onBlur={() => setFieldOn(null)}
+                value={code}
+                onChangeText={t => setCode(t.replace(/\D/g, '').slice(0, 6))}
+                secureTextEntry
+                keyboardType="number-pad"
+                maxLength={6}
+                placeholder={WORDS.codeHint}
+                placeholderTextColor={colors.textFaint}
+                onSubmitEditing={() => againRef.current?.focus()}
+              />
+              <TextInput
+                ref={againRef}
+                style={[styles.input, styles.inputRow, fieldOn === 'again' && styles.inputOn]}
+                onFocus={() => onField('again')}
+                onBlur={() => setFieldOn(null)}
+                value={again}
+                onChangeText={t => setAgain(t.replace(/\D/g, '').slice(0, 6))}
+                secureTextEntry
+                keyboardType="number-pad"
+                maxLength={6}
+                placeholder={WORDS.once}
+                placeholderTextColor={colors.textFaint}
+                onSubmitEditing={turnOn}
+              />
+            </>
+          ) : null}
           <Focusable uiId="child.on" round onPress={turnOn} style={[styles.btnPrimary, pick === null && styles.btnDim]}>
             {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.btnPrimaryText}>{WORDS.turnOn}</Text>}
           </Focusable>
@@ -208,8 +222,8 @@ export default function ChildMode({navigation}: Props) {
       const r = raise ? await api.childModeOn(profileId, {maxAge: pick as number, passcode: code}) : await api.childModeOff(profileId, code);
       done(r.profile);
     } catch (e) {
+      // (the keyboard is NOT opened again by itself: the field is one press away)
       fail(e);
-      codeRef.current?.focus();
     } finally {
       setBusy(false);
     }
@@ -228,7 +242,7 @@ export default function ChildMode({navigation}: Props) {
     }
   };
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.content}>
       <Text style={styles.heading}>{WORDS.title}</Text>
       <Text style={styles.sub}>{WORDS.onFor(cur)}</Text>
       <Text style={styles.label}>{WORDS.who}</Text>
@@ -239,6 +253,8 @@ export default function ChildMode({navigation}: Props) {
             uiId="child.age"
             label={ageWords(a)}
             on={pick === a}
+            // first focus: the age it is on (no keyboard opens by itself)
+            hasTVPreferredFocus={a === cur}
             onPress={() => {
               if (a < cur) return younger(a);
               setPick(a);
@@ -248,22 +264,21 @@ export default function ChildMode({navigation}: Props) {
         ))}
       </View>
       <Text style={styles.label}>{raise ? WORDS.enterToAllow(pick as number) : WORDS.enterToLeave}</Text>
-      <TextInput
-        ref={codeRef}
-        style={[styles.input, fieldOn === 'code' && styles.inputOn]}
-        onFocus={() => setFieldOn('code')}
-        onBlur={() => setFieldOn(null)}
-        value={code}
-        onChangeText={t => setCode(t.replace(/\D/g, '').slice(0, 6))}
-        secureTextEntry
-        autoFocus
-        keyboardType="number-pad"
-        maxLength={6}
-        placeholder="Passcode"
-        placeholderTextColor={colors.textFaint}
-        onSubmitEditing={submit}
-      />
-      <View style={styles.row}>
+      <View style={styles.formRow} onLayout={e => (rowY.current = e.nativeEvent.layout.y)}>
+        <TextInput
+          ref={codeRef}
+          style={[styles.input, styles.inputRow, fieldOn === 'code' && styles.inputOn]}
+          onFocus={() => onField('code')}
+          onBlur={() => setFieldOn(null)}
+          value={code}
+          onChangeText={t => setCode(t.replace(/\D/g, '').slice(0, 6))}
+          secureTextEntry
+          keyboardType="number-pad"
+          maxLength={6}
+          placeholder="Passcode"
+          placeholderTextColor={colors.textFaint}
+          onSubmitEditing={submit}
+        />
         <Focusable uiId={raise ? 'child.age' : 'child.off'} round onPress={submit} style={styles.btnPrimary}>
           {busy ? (
             <ActivityIndicator color={colors.bg} />
@@ -288,7 +303,8 @@ export default function ChildMode({navigation}: Props) {
 const styles = StyleSheet.create({
   root: {flex: 1, backgroundColor: colors.bg, padding: spacing.pageX, justifyContent: 'flex-start'},
   scroll: {flex: 1, backgroundColor: colors.bg},
-  content: {padding: spacing.pageX, paddingBottom: spacing.xl},
+  // (room below: the field row can be scrolled to the top while the keyboard is up)
+  content: {padding: spacing.pageX, paddingBottom: 600},
   spinner: {marginTop: spacing.xl, alignSelf: 'flex-start'},
   heading: {color: colors.text, fontSize: fontSize.hero, fontWeight: '900'},
   sub: {color: colors.textDim, fontSize: fontSize.row, marginTop: spacing.sm, maxWidth: 1100},
@@ -307,7 +323,9 @@ const styles = StyleSheet.create({
     maxWidth: 480,
     marginTop: spacing.sm,
   },
-  inputNext: {marginTop: spacing.sm},
+  // the fields beside the buttons, on one row
+  formRow: {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.md, marginTop: spacing.sm},
+  inputRow: {marginTop: 0, width: 300},
   inputOn: {borderColor: colors.focusRing},
   row: {flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.lg},
   btnPrimary: {backgroundColor: colors.white, paddingVertical: 14, paddingHorizontal: 40, minWidth: 150, alignItems: 'center'},

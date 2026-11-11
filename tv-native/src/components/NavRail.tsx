@@ -454,6 +454,7 @@ export default function NavRail({
             profile={it.key === 'profile' ? me?.avatar || '🍿' : undefined}
             profileImage={it.key === 'profile' ? me?.avatarImage || null : undefined}
             profileColor={it.key === 'profile' ? me?.color : undefined}
+            kids={it.key === 'profile' && !!me?.kids}
             name={
               it.key === 'profile'
                 ? confirmSwitch
@@ -582,6 +583,7 @@ function NavItem({
   profile,
   profileImage,
   profileColor,
+  kids,
   name,
   on,
   claimFocus,
@@ -601,6 +603,8 @@ function NavItem({
   profile?: string;
   profileImage?: string | null;
   profileColor?: string | null;
+  // Children mode is on: the website's mint mark (screens.css `html[data-kids] #nav-profile`)
+  kids?: boolean;
   name?: string;
   on?: boolean;
   claimFocus?: boolean;
@@ -626,7 +630,7 @@ function NavItem({
         uiId={uiId}
       onPress={onPress}
         style={styles.profile}>
-        <View style={[styles.avatar, {backgroundColor: profileColor || colors.surfaceHover}]}>
+        <View style={[styles.avatar, {backgroundColor: profileColor || colors.surfaceHover}, kids && styles.avatarKids]}>
           {profileImage ? (
             <Image
               source={imgSrc(profileImage) || undefined}
@@ -641,6 +645,11 @@ function NavItem({
         <Text style={styles.profileName} numberOfLines={1}>
           {name}
         </Text>
+        {kids ? (
+          <View style={styles.kidsPill}>
+            <Text style={styles.kidsPillText}>KIDS</Text>
+          </View>
+        ) : null}
       </Focusable>
     );
   }
@@ -843,4 +852,8 @@ const styles = StyleSheet.create({
   avatarImg: {width: '100%', height: '100%', borderRadius: 999},
   // `.nav-profile` 0.9rem = 14.4px, at the 14dp reading floor.
   profileName: {color: colors.text, fontSize: 14, fontWeight: '600', flexShrink: 1},
+  // Children mode: the mint ring and the KIDS pill (the website's #86efac on #0b1a12)
+  avatarKids: {borderWidth: 2, borderColor: '#86efac'},
+  kidsPill: {backgroundColor: '#86efac', borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1},
+  kidsPillText: {color: '#0b1a12', fontSize: 10, fontWeight: '800', letterSpacing: 0.7},
 });
