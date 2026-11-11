@@ -203,24 +203,71 @@ let restartRetryMs = 2000;
 export const reconnectWait = (base, random = Math.random) => Math.round(base / 2 + random() * (base / 2));
 
 const BANNER_ID = "offline-banner";
+// [offline-look] One calm line, in the words of what is wrong: this device has
+// no connection at all ("line"), or only Aurora is out of reach ("server").
+// Not an alarm — what is on this device still plays, and the line leads
+// there. While it is up, <html class="net-off"> lets what cannot play right
+// now rest (screens.css).
 const showOfflineBanner = () => {
-  if (document.getElementById(BANNER_ID)) return;
-  const b = document.createElement("div");
-  b.id = BANNER_ID;
-  b.textContent = "Can't reach the Aurora server — retrying… ";
+  const why = navigator.onLine === false ? "line" : "server";
+  let b = document.getElementById(BANNER_ID);
+  if (b && b.dataset.why === why) return;
+  if (!b) {
+    b = document.createElement("div");
+    b.id = BANNER_ID;
+    b.setAttribute("role", "status");
+    // styled in screens.css (#offline-banner): a pill at the bottom edge on
+    // desktop and TV, ABOVE the floating tab bar on a phone
+    document.body.append(b);
+  }
+  b.dataset.why = why;
+  const say = document.createElement("span");
+  say.textContent = why === "line" ? "No connection" : "Can't reach Aurora";
+  if (why === "server") {
+    // (the second half gives way on a narrow phone — screens.css)
+    const more = document.createElement("span");
+    more.className = "ob-more";
+    more.textContent = " — trying again…";
+    say.append(more);
+  }
+  b.replaceChildren(say);
   if (window.isSecureContext && "serviceWorker" in navigator) {
     const a = document.createElement("a");
     a.href = "#/saved";
-    a.textContent = "Saved titles still play";
-    a.style.cssText = "color:#fff;text-decoration:underline;margin-left:6px";
+    a.textContent = "On this device";
     b.append(a);
   }
-  // styled in screens.css (#offline-banner): the bottom edge on desktop and
-  // TV, ABOVE the floating tab bar on a glass phone — it used to sit on top
-  // of Home/Movies/Shows there
-  document.body.append(b);
+  document.documentElement.classList.add("net-off");
+  bannerPlace();
 };
-const hideOfflineBanner = () => document.getElementById(BANNER_ID)?.remove();
+// On "On this device" itself the line has nowhere to lead: its link gives
+// way. Said by the address, on each change of screen — a
+// `body:has(.saved-screen)` rule did this before, and cost every scroll of
+// Home on a computer a fifth more style work, connection or not.
+const bannerPlace = () => {
+  const b = document.getElementById(BANNER_ID);
+  if (b) b.toggleAttribute("data-there", /^#\/saved(?![\w-])/.test(location.hash));
+};
+window.addEventListener("aurora-route-start", bannerPlace);
+window.addEventListener("hashchange", bannerPlace);
+const hideOfflineBanner = () => {
+  document.getElementById(BANNER_ID)?.remove();
+  document.documentElement.classList.remove("net-off");
+};
+// The device says it lost its connection: that is known now, not after two
+// failed tries. One request that asks nothing settles whether Aurora is out
+// of reach too (it is not, when the server is this very computer).
+const reach = () => fetch("/api/server-info", { method: "HEAD", cache: "no-store" });
+window.addEventListener("offline", () => {
+  if (state.ws && state.ws.readyState === WebSocket.OPEN) beat(); // (a socket that only looks open is closed by its unanswered beat)
+  reach().catch(() => { if (navigator.onLine === false) showOfflineBanner(); });
+});
+window.addEventListener("online", () => {
+  if (!document.getElementById(BANNER_ID)) return;
+  // the socket never noticed: nothing will re-open it, so ask once
+  if (state.ws && state.ws.readyState === WebSocket.OPEN) reach().then(hideOfflineBanner, showOfflineBanner);
+  else showOfflineBanner(); // (the connection is back, Aurora not yet: the words follow)
+});
 
 // Drop the socket and let the reconnect below open a new one. The server
 // reads who a socket belongs to once, when it connects — so a tab that signs
@@ -284,7 +331,8 @@ export const connect = () => {
       // an announced restart is not "can't reach the server" until it has
       // really taken a while
       const expected = Date.now() < restartingUntil;
-      if (failedAttempts >= (expected ? 5 : 2)) showOfflineBanner();
+      // (no connection at all needs no second try to be believed)
+      if (failedAttempts >= (expected ? 5 : 2) || navigator.onLine === false) showOfflineBanner();
       const wait = expected && failedAttempts === 1
         ? restartRetryMs + Math.round(Math.random() * 3000)
         : reconnectWait(reconnectDelay);

@@ -2776,3 +2776,156 @@ html[data-look="glass"] .calg-arrow { background: rgba(255, 255, 255, 0.07); box
 @media (hover: none) {
   .calg-arrow { width: 44px; height: 44px; }
 }
+
+/* ==================================================================
+   offline-look (2026-11-10) — "on this device", one mark everywhere
+   js/offlineUi.js draws it; docs/offline-look.md lists the values.
+   The mark is one <i class="dev-mark" data-state="…"> holding one svg:
+     none      a thin ring and an arrow landing on a line (can be saved)
+     queued    the ring dotted (waiting for its turn)
+     preparing a quarter of the ring going round (getting ready)
+     saving    the ring fills, mint (the percent is the fill)
+     retrying  the fill in amber (waiting for the connection)
+     paused    the fill in amber, two bars instead of the arrow
+     waiting   the ring dashed, amber (the server has no copy yet)
+     failed    red ring, "!"
+     saved     a solid mint disc, the arrow dark on it
+   Mint = here. Amber = waiting on something. Red = needs you.
+   ================================================================== */
+.dev-mark {
+  --dm: 20px;
+  --dm-here: #6ee7b7;
+  --dm-wait: #f5c542;
+  --dm-bad: #ff7a7a;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: var(--dm);
+  border-radius: calc(var(--dm) / 2);
+  font-style: normal;
+  vertical-align: middle;
+}
+.dev-mark svg {
+  display: block;
+  flex: none;
+  width: var(--dm);
+  height: var(--dm);
+  overflow: visible;
+}
+.dev-mark .dm-disc { fill: transparent; }
+.dev-mark .dm-track { fill: none; stroke: currentColor; stroke-opacity: 0.42; stroke-width: 1.8; }
+.dev-mark .dm-arc {
+  fill: none;
+  stroke: var(--dm-here);
+  stroke-width: 2.3;
+  stroke-linecap: round;
+  stroke-dasharray: 0 100;
+  opacity: 0;
+  transition: stroke-dasharray 420ms var(--ease);
+}
+.dev-mark .dm-glyph { fill: currentColor; }
+.dev-mark .dm-spin { transform-origin: 12px 12px; }
+.dev-mark[data-state="none"] .dm-track { stroke-opacity: 0.6; }
+.dev-mark[data-state="queued"] .dm-track { stroke-dasharray: 2.2 3.832; stroke-linecap: round; stroke-opacity: 0.8; }
+.dev-mark[data-state="saving"] .dm-arc,
+.dev-mark[data-state="retrying"] .dm-arc,
+.dev-mark[data-state="paused"] .dm-arc,
+.dev-mark[data-state="preparing"] .dm-arc { opacity: 1; }
+.dev-mark[data-state="saving"] .dm-track,
+.dev-mark[data-state="retrying"] .dm-track,
+.dev-mark[data-state="paused"] .dm-track,
+.dev-mark[data-state="preparing"] .dm-track { stroke-opacity: 0.28; }
+.dev-mark[data-state="preparing"] .dm-spin { animation: dm-turn 1.1s linear infinite; }
+.dev-mark[data-state="retrying"] .dm-arc,
+.dev-mark[data-state="paused"] .dm-arc { stroke: var(--dm-wait); }
+.dev-mark[data-state="waiting"] .dm-track { stroke: var(--dm-wait); stroke-opacity: 1; stroke-dasharray: 4.6 2.94; }
+.dev-mark[data-state="failed"] .dm-track { stroke: var(--dm-bad); stroke-opacity: 1; }
+.dev-mark[data-state="failed"] .dm-glyph { fill: var(--dm-bad); }
+.dev-mark[data-state="saved"] .dm-disc { fill: var(--dm-here); }
+.dev-mark[data-state="saved"] .dm-track { stroke: none; }
+.dev-mark[data-state="saved"] .dm-glyph { fill: #0b0c14; }
+@keyframes dm-turn { to { transform: rotate(360deg); } }
+/* a save landing: the mark swells once and a mint ring leaves it */
+.dev-mark.landed svg { animation: dm-land 620ms var(--ease) both; }
+.dev-mark.landed::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: dm-ring 900ms ease-out both;
+}
+@keyframes dm-land { 0% { transform: scale(0.6); } 45% { transform: scale(1.34); } 100% { transform: scale(1); } }
+@keyframes dm-ring {
+  0% { box-shadow: 0 0 0 0 rgba(110, 231, 183, 0.75); }
+  100% { box-shadow: 0 0 0 12px rgba(110, 231, 183, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dev-mark .dm-arc { transition: none; }
+  .dev-mark[data-state="preparing"] .dm-spin,
+  .dev-mark.landed svg,
+  .dev-mark.landed::after { animation: none; }
+}
+
+/* on a poster: bottom right, on its own dark disc so it reads on any
+   picture (no blur layer: Home can hold hundreds of cards). The percent
+   while it saves, the number of episodes on a show's poster. */
+.card-dev {
+  --dm: 22px;
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 2;
+  color: #fff;
+  background: rgba(8, 10, 20, 0.82);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+.card-dev b {
+  padding: 0 1px 0 7px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 22px;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.card-dev b:empty { display: none; }
+.card-progress ~ .card-dev { bottom: 18px; }
+html:root .card.has-dev .card-label { right: 38px; }
+
+/* the nav: the way to "On this device" wears the device icon; while a
+   save is under way the icon is the ring */
+#nav-saved { display: inline-flex; align-items: center; gap: 7px; }
+#nav-saved .nav-dev-ic { display: inline-flex; }
+#nav-saved .nav-dev-ic svg { display: block; width: 18px; height: 18px; }
+#nav-saved .nav-dev { --dm: 18px; display: none; }
+#nav-saved.busy .nav-dev { display: inline-flex; }
+#nav-saved.busy .nav-dev-ic { display: none; }
+#nav-saved:focus .dev-mark { --dm-here: #0a7a52; --dm-wait: #8a6500; --dm-bad: #c62828; }
+@media (max-width: 1359px) {
+  #nav-saved { padding-left: 12px; padding-right: 12px; }
+  #nav-saved .nav-saved-word { display: none; }
+}
+/* phones: the place is inside More, so More wears a small ring */
+.nav-more .nav-dev-ring {
+  --dm: 13px;
+  display: none;
+  position: absolute;
+  top: 5px;
+  left: calc(50% + 13px);
+  pointer-events: none;
+}
+.nav-more.dev-busy .nav-dev-ring { display: inline-flex; }
+.nav-dev-ring .dm-glyph { display: none; }
+.nav-dev-ring .dm-track { stroke-width: 3; }
+.nav-dev-ring .dm-arc { stroke-width: 3.4; }
+.nav-dev-ring[data-state="failed"] .dm-disc { fill: var(--dm-bad); }
+html:root .nav-items .nav-more.dev-busy .nav-new-dot { display: none; }
+/* "Save to this device" as a row of the player's menu: the mark sits where
+   the other rows keep their tick, so the words line up */
+html:root .menu-item.menu-dev::before { content: none; }
+.menu-item .menu-dev-mark { --dm: 15px; margin-inline: -1px; }
+.menu-item.menu-dev .tag { text-transform: none; letter-spacing: 0.02em; font-size: 0.74rem; }
+.menu-item.menu-dev[data-state="saved"] .menu-dev-word { color: var(--text); }
+/* ============ end offline-look (components) ============ */

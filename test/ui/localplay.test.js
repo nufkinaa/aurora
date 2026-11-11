@@ -736,14 +736,13 @@ for (const [name, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
       await jobRow(page, "saving").waitFor();
       await shot(page, `${name}-device-saving`);
 
-      // 3. a reload cuts it off: "Interrupted", with Resume
+      // 3. a reload cuts it off: it carries on BY ITSELF from what was saved
+      // (offline 2026-11-10 — it used to say "Interrupted" and wait for Resume,
+      // which started it again from zero; docs/offline-audit.md)
       await page.reload({ waitUntil: "domcontentloaded" });
       release();
       await page.unroute("**/stream/video/**");
       await page.unroute("**/offline/file/**");
-      await jobRow(page, "interrupted").waitFor();
-      assert.match(await jobRow(page, "interrupted").innerText(), /Interrupted[\s\S]*the page was closed or reloaded[\s\S]*Resume starts it again/);
-      await jobRow(page, "interrupted").locator("button", { hasText: "Resume" }).click();
 
       // 4. done: the row goes, the title is in the list, with its size and Remove
       await page.locator(".dl-row", { hasText: film.title }).locator('[data-ui="saved.play"]').waitFor({ timeout: 60000 });

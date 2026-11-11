@@ -214,7 +214,30 @@ const send = (profileId, msg) => {
   return subs.length;
 };
 
+// The same, to ONE browser of this profile: the subscription whose key
+// (sha256 of its endpoint — what the service worker already computes) is
+// `key`. A device's own news ("ready to save on this device",
+// media/offlinewish.js) is not every device's.
+const sendToKey = (profileId, key, msg) => {
+  const s = (store.data.subs || []).find((x) => x.key === key && x.profileId === profileId);
+  if (!s) return 0;
+  store.data.pending = store.data.pending || {};
+  const q = store.data.pending[s.key] || (store.data.pending[s.key] = []);
+  q.push({
+    title: String(msg.title || "Aurora").slice(0, 80),
+    body: String(msg.body || "").slice(0, 200),
+    url: String(msg.url || "/").slice(0, 200),
+    tag: String(msg.tag || "aurora").slice(0, 60),
+    at: Date.now(),
+  });
+  while (q.length > MAX_PENDING) q.shift();
+  store.save();
+  tickle(s); // fire-and-forget
+  return 1;
+};
+
 module.exports = {
+  sendToKey,
   publicKey: () => vapid().publicKey,
   subscribe,
   unsubscribe,

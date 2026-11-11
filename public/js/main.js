@@ -520,6 +520,27 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     // the first screen is done, so its install — which copies the app's code
     // into its cache — does not share a thin line with that screen.
     firstScreen.then(() => offline.registerWorker());
+    // [offline-look] what "on this device" looks like — the mark on posters,
+    // the ring in the nav, a save landing (js/offlineUi.js). After the first
+    // screen, and in an idle moment of its own (not the one the worker's
+    // registration takes): nothing of it is in the way of that screen.
+    const look = firstScreen.then(whenIdle).then(() => import("./offlineUi.js")).then((ui) => { ui.start(); return ui; });
+    look.catch(() => {});
+    // [offline-look] a screen that could not be made with no connection (its
+    // making failed with the worker's "offline" and it drew nothing) rests —
+    // never a blank page (js/offlineRest.js)
+    window.addEventListener("unhandledrejection", (e) => {
+      const err = e.reason;
+      if (!err || !(err.message === "offline" || navigator.onLine === false)) return;
+      const at = location.hash;
+      setTimeout(() => {
+        const app = document.getElementById("app");
+        if (location.hash !== at || !app || app.querySelector(".screen, .player") || (app.innerText || "").trim()) return;
+        import("./offlineRest.js").then((rest) => rest.restBlank()).catch(() => {});
+      }, 300);
+    });
+    // minutes watched with no line reach the server when it is back; said once
+    const deliver = () => offline.flushProgress().then((n) => { if (n > 0) look.then((ui) => ui.delivered(n)).catch(() => {}); }).catch(() => {});
     const nav = $("#nav-saved");
     const paint = async () => {
       let any = false;
@@ -534,13 +555,28 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     offline.onJobs((list) => { if (list.length !== jobsN) { jobsN = list.length; paint(); } });
     window.addEventListener("hashchange", () => setTimeout(paint, 0));
     window.addEventListener("offline", paint);
-    window.addEventListener("online", () => { paint(); offline.flushProgress().catch(() => {}); });
+    // Saves that stopped (a reload, a closed tab, a phone that froze the page,
+    // no line) carry on by themselves from where they were, and this device's
+    // "save it here too" wishes the server made ready are saved (offlineWish.js)
+    // — whenever Aurora opens, the line or the socket comes back, or the app
+    // returns to the front.
+    const carryOn = () => {
+      if (state.profile) offline.rememberWho(state.profile);
+      offline.resumeSaves().catch(() => {});
+      import("./offlineWish.js").then((w) => w.syncWishes()).catch(() => {});
+    };
+    firstScreen.then(() => setTimeout(carryOn, 1500));
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && navigator.onLine !== false) carryOn(); });
+    onMessage("offline_wish", (m) => import("./offlineWish.js").then((w) => w.onWishMessage(m)).catch(() => {}));
+    onMessage("offline_wish_removed", (m) => import("./offlineWish.js").then((w) => w.onWishMessage(m)).catch(() => {}));
+    window.addEventListener("online", () => { paint(); deliver(); carryOn(); });
     // the socket coming back is the surest "server is there" signal — also
     // the moment to fetch skip-intro / X-Ray for copies saved before those
     // travelled with them
     onMessage("welcome", () => {
-      offline.flushProgress().catch(() => {});
+      deliver();
       offline.backfillExtras().catch(() => {});
+      carryOn();
       paint();
     });
   }).catch(() => {});
@@ -906,7 +942,13 @@ const boot = async () => {
     // AFTER startRouter's own first render, and the screen was built twice)
     try { history.replaceState(history.state, "", "#/saved"); } catch { location.hash = "#/saved"; }
     startRouter(document.getElementById("app"));
-    toast(saved.length ? "No server in reach — here is what's saved on this device" : "No server in reach — you can still play a file from this device", "📱");
+    {
+      const off = navigator.onLine === false;
+      const say = saved.length
+        ? `${off ? "No connection" : "Can't reach Aurora"} — here is what's on this device`
+        : `${off ? "No connection" : "Can't reach Aurora"} — a video from this device still plays here`;
+      import("./offlineUi.js").then((ui) => toast(say, ui.mark(saved.length ? "saved" : "none"), null, { quiet: true })).catch(() => toast(say));
+    }
     return;
   }
 
@@ -926,7 +968,8 @@ const boot = async () => {
         // (nothing saved: Saved still plays a file from this device)
         if ((location.hash || "#/") === "#/") {
           navigate("#/saved");
-          toast(list.length ? "You're offline — these are saved on this device" : "You're offline — you can still play a file from this device", "📱");
+          const say = list.length ? "No connection — here is what's on this device" : "No connection — a video from this device still plays here";
+          import("./offlineUi.js").then((ui) => toast(say, ui.mark(list.length ? "saved" : "none"), null, { quiet: true })).catch(() => toast(say));
         }
       }).catch(() => {});
     }

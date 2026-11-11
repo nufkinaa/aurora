@@ -1053,4 +1053,32 @@ const tellSignedOut = (profileId, exceptClientId = "") => {
 // Test-only: the PIN attempt limiter (test/kids.test.js).
 router._internals = { pinAttempt, kidsPinGuard, markEntry, tellSignedOut, gate }; // (gate: routes/household.js guards its routes the same way)
 
+// ---------- "save it to this device too" before the server has it (2026-11-10) ----------
+// A device's standing request for a title still on its way to the library
+// (media/offlinewish.js; the contract: docs/offline-wishes.md).
+//   GET    ?device=<id>   → { wishes: [wish] }   (no device: all of this person's)
+//   POST   { deviceId, scope, type, imdbId?, jobId?, season?, episode?, quality, hevc?, … } → { wish }
+//   DELETE /:wishId       → { ok }   Cancel / Dismiss
+//   POST   /:wishId/saved → { ok }   the device has its copy now
+router.get("/api/profiles/:id/offline-wishes", gate, (req, res) => {
+  const device = req.query.device ? String(req.query.device) : null;
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ wishes: require("../media/offlinewish").list(req.params.id, device) });
+});
+router.post("/api/profiles/:id/offline-wishes", gate, (req, res) => {
+  const r = require("../media/offlinewish").add(req.params.id, req.body || {});
+  if (r.error) return res.status(400).json(r);
+  res.json(r);
+});
+router.delete("/api/profiles/:id/offline-wishes/:wishId", gate, (req, res) => {
+  const r = require("../media/offlinewish").remove(req.params.id, String(req.params.wishId));
+  if (r.error) return res.status(404).json(r);
+  res.json(r);
+});
+router.post("/api/profiles/:id/offline-wishes/:wishId/saved", gate, (req, res) => {
+  const r = require("../media/offlinewish").remove(req.params.id, String(req.params.wishId), { saved: true });
+  if (r.error) return res.status(404).json(r);
+  res.json(r);
+});
+
 module.exports = router;

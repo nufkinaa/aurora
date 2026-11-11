@@ -36,6 +36,7 @@ module.exports = {
   "detail.download.device": "w",
   "detail.episode.download": "w",
   "detail.episode.offline": "w",
+  "detail.episode.wish": "w", // offline wish: an episode on its way, saved to this phone when it lands
   "detail.episode.play": "wtp",
   "detail.episode.replace": "wt",
   "detail.episode.playontv": "w", // [phone-remote]
@@ -47,6 +48,7 @@ module.exports = {
   "detail.offline": "w",
   "detail.offline.season": "w",
   "detail.offline.seasonall": "w",
+  "detail.offline.wish": "w", // offline wish: "This device too" beside a download on its way
   "detail.play": "wtp",
   "detail.replace": "wtp",
   "detail.playontv": "w", // [phone-remote]
@@ -76,6 +78,8 @@ module.exports = {
   // downloads
   "downloads.another": "w",
   "downloads.cancel": "w",
+  "downloads.offline.save": "w", // a ready download saved to this device
+  "downloads.offline.wish": "w", // a download on its way: "This device too"
   "downloads.open": "w",
   "downloads.play": "w",
   "downloads.remove": "w",
@@ -169,6 +173,7 @@ module.exports = {
   "player.fullscreen": "w",
   "player.mute": "wtp",
   "player.next": "wtp",
+  "player.offline": "w", // the settings menu's "Save to this device" row
   "player.party": "wtp",
   "player.party.handover": "wtp",
   "player.party.react": "wtp",
@@ -268,8 +273,23 @@ module.exports = {
   // row
   "row.arrow": "w",
   // saved
+  "saved.clear.watched": "w", // On this device: "Remove watched" (Undo on the line that follows)
+  "saved.next.save": "w", // under a show: "Save the next N"
+  "saved.offer.save": "w", // nothing saved yet: one of the titles worth saving
+  "saved.pack": "w", // "Pack for a trip" (opens the sheet)
+  "saved.pack.go": "w", // the sheet: pack what is ticked
+  "saved.pack.length": "w", // the sheet: how long the trip is
+  "saved.pack.pick": "w", // the sheet: a title ticked / unticked
   "saved.play": "w",
+  "saved.play.next": "w", // a show's card: play the episode that is next
   "saved.remove": "w",
+  "saved.remove.show": "w", // a show's card: all its episodes off this device
+  "saved.rest.open": "w", // a title page with no connection: "On this device"
+  "saved.rest.play": "w", // a title page with no connection: play the copy on this device
+  "saved.rest.retry": "w", // a title page with no connection: "Try again"
+  "saved.smartnext": "w", // the "Keep the next episode ready" switch
+  "saved.wish.cancel": "w",
+  "saved.wish.dismiss": "w",
   // search
   "search.clear": "wp",
   "search.recent.pick": "wtp",

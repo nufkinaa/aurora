@@ -13,6 +13,8 @@ import { SYNC, targetOf, startsIn, decide, landTolerance, aheadOf, readyToGo, wa
 import { showReportSheet, setPlayingContext } from "../report.js";
 import { openReplaceSheet, canOfferReplace, COPY_PROBLEM, GET_ANOTHER } from "../replaceCopy.js";
 import * as offline from "../offline.js";
+import { saveButton } from "../offlineButtons.js"; // "Save to this device" in the settings menu
+import { mark as deviceMark } from "../offlineUi.js"; // (the one mark of "on this device")
 import { localItem, localNext, localPosition, saveLocalPosition, sniffLocal } from "../localplay.js";
 import { failureSentence } from "../localsubs.js";
 import { track } from "../usage.js";
@@ -793,6 +795,16 @@ export const renderPlayer = async (root, { id }) => {
   // so every rule for a saved copy (no probe, no transcode, no server marks)
   // holds; `_local` hides what needs the server even when it is there.
   const localMode = location.hash.includes("local=1");
+  // [offline-look] No connection: the copy on this device plays in its place
+  // (or one calm line says it is not here) — never a player opened on an
+  // answer the worker kept, waiting for a server that is not there.
+  if (!localMode && !offlineMode && (navigator.onLine === false || document.documentElement.classList.contains("net-off"))) {
+    const rest = await import("../offlineRest.js").catch(() => null);
+    if (rest && (await rest.away())) {
+      if (location.hash !== entryHash) return;
+      return rest.restPlay(itemId);
+    }
+  }
   // Torrent sources are handed over directly by the Discover page (no server
   // round-trip); fall back to the API for library items or a page refresh.
   if (localMode) {
@@ -803,9 +815,13 @@ export const renderPlayer = async (root, { id }) => {
       return navigate("#/saved");
     }
   } else if (offlineMode) {
-    const saved = await offline.getSaved(itemId).catch(() => null);
+    let saved = await offline.getSaved(itemId).catch(() => null);
+    // a kids profile plays only what it saved itself (offline.js listSavedFor)
+    const who = state.profile ? { id: state.profile.id, kids: !!state.profile.kids } : offline.lastWho();
+    if (saved && who && who.kids && saved.profileId !== who.id) saved = null;
+    if (saved && saved.pending) saved = null; // its parts are still landing
     if (!saved) {
-      toast("That title isn't saved on this device", "📱");
+      toast("That title isn't saved on this device", deviceMark("none"));
       return navigate("#/saved");
     }
     item = {
@@ -828,6 +844,12 @@ export const renderPlayer = async (root, { id }) => {
     } catch (e) {
       // a kids profile refused it: say so in the server's words
       if (e && /kids profile/i.test(e.message || "")) toast(e.message, "🧸");
+      else {
+        // [offline-look] Aurora is out of reach: the copy on this device plays
+        // in its place; with none, one calm line and back where you were
+        const rest = await import("../offlineRest.js").catch(() => null);
+        if (rest && rest.unreachable(e)) return rest.restPlay(itemId);
+      }
       return navigate("#/");
     }
   }
@@ -3232,7 +3254,8 @@ export const renderPlayer = async (root, { id }) => {
 
   const overlay = el(
     "div",
-    { class: "player" },
+    // (data-here: this plays from the device itself — the "No connection" line has nothing to say over it)
+    { class: "player", "data-here": item._offline || item._local ? "1" : null },
     video,
     spinner,
     torrentStatus,
@@ -4397,6 +4420,7 @@ export const renderPlayer = async (root, { id }) => {
   // pointer back out again).
   let menuPinned = false;
   let menuKind = null;
+  let saveRowStop = null; // the "Save to this device" row follows its save while the menu is up
   let hoverOut = null;
   const cancelHoverOut = () => {
     clearTimeout(hoverOut);
@@ -4407,6 +4431,7 @@ export const renderPlayer = async (root, { id }) => {
     menuPinned = false;
     menuKind = null;
     menuHost.innerHTML = "";
+    if (saveRowStop) { saveRowStop(); saveRowStop = null; }
   };
 
   const toggleMenu = (kind, { pinned = true } = {}) => {
@@ -4609,6 +4634,7 @@ export const renderPlayer = async (root, { id }) => {
 
       const rebuild = () => {
         menu.innerHTML = "";
+        if (saveRowStop) { saveRowStop(); saveRowStop = null; }
         // Audio — only when the file carries more than one track (a dub, a
         // commentary). Picking one restarts the stream at the current
         // position with that track mapped in.
@@ -4680,6 +4706,14 @@ export const renderPlayer = async (root, { id }) => {
             },
           ),
         );
+        // "Save to this device", where the person is when they think of it
+        // (a library title only: a copy that plays here needs none, and a
+        // stream or a file from this device has nothing to save). The row is
+        // painted from the save itself, so an open menu follows it.
+        if (!isTorrent && !item._offline && !item._local && item.id && state.profile && offline.available()) {
+          const row = saveButton(item, { variant: "menu", ui: "player.offline", onLeave: (stop) => { saveRowStop = stop; }, onPress: () => closeMenu() }); // (its data-ui)
+          if (row) menu.append(row);
+        }
         // (Subtitle style moved to the Subtitles menu, 2026-10-19 — the
         // TV's too: it is where you are looking when a cue is hard to read.)
         // (The Skip intro section that used to sit here — ignore the detected
@@ -5585,6 +5619,15 @@ export const renderPlayer = async (root, { id }) => {
     // Never write over a history we could not read (see where it is read).
     if (progressReadFailed) return;
     const d = totalDuration();
+    // A saved copy played with no server from a cold start: the app may not
+    // know the profile — the copy does (offline.js), and its minutes are
+    // queued for that person instead of lost.
+    if (!state.profile && item._offline && item.profileId && d) {
+      const pos = effTime();
+      state.progress[item.id] = { position: Math.floor(pos), duration: Math.floor(d), finished: pos / d > 0.95, updatedAt: Date.now() };
+      offline.queueProgress(item.profileId, item.id, pos, d);
+      return;
+    }
     if (!state.profile || !d) return;
     // (stall recovery) While a rebuilt stream is still coming back, the media
     // clock sits at 0 — saving now would move the resume point to the start

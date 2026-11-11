@@ -51,7 +51,9 @@ import { warmPlay } from "../prefetch.js";
 import { pushScope, popScope } from "../focus.js";
 import { showDownloadPicker } from "../downloadPicker.js";
 import { askCancelDownload } from "../dlcancel.js";
-import { pickOfflineQuality } from "../offlinePicker.js";
+import { saveButton, seasonButton } from "../offlineButtons.js"; // [offline-look] the buttons that put a title on this device
+import { fileIcon } from "../offlineUi.js";
+import { wishButton } from "../offlineWish.js"; // [offline-wish] "this device too" before the server has it
 import { onMessage } from "../ws.js";
 import { attachHold } from "../peek.js";
 import * as narrator from "../narrator.js";
@@ -643,7 +645,8 @@ const playStream = (stream, base, label, season, episode, alts = []) => {
 // miss, and this is the moment to set expectations (a few minutes; and on the
 // rare low-disk request, that an admin has to wave it through first).
 // Same modal pattern as profiles.js: ui-overlay class + focus scope + Back.
-const showDownloadRequested = (label, needsApproval, onStream = null) => {
+// [offline-wish] `wish`: the title, for "Also save it to this device" (offlineWish.js)
+const showDownloadRequested = (label, needsApproval, onStream = null, wish = null) => {
   const close = () => {
     document.removeEventListener("ui-back", onBack);
     popScope(backdrop);
@@ -693,6 +696,8 @@ const showDownloadRequested = (label, needsApproval, onStream = null) => {
             "Stream it meanwhile",
           ),
       ),
+      // [offline-wish] the moment to say "and onto this phone, please"
+      wish && offline.available() && el("div", { class: "dl-confirm-wish" }, wishButton(wish, label, { onLeave: untilLeave })),
     ),
   );
   document.body.append(backdrop);
@@ -741,7 +746,10 @@ const requestDownload = async (stream, base, label, season, episode, { onStream 
     // quiet: the episode card shows the state (and its percent as it comes),
     // so the "Downloading now!" modal would be a second announcement.
     if (quiet) toast(res.needsApproval ? "Requested — waiting for approval" : "Saving — the episode shows its progress", "⬇️");
-    else showDownloadRequested(label, !!res.needsApproval, onStream);
+    else showDownloadRequested(label, !!res.needsApproval, onStream, base.imdbId ? {
+      type, imdbId: base.imdbId, jobId: res.job && res.job.id, season: season || undefined, episode: episode || undefined,
+      title: label, showTitle: type === "show" ? base.title : undefined, poster: base.poster || undefined, duration: runtimeToSeconds(base.runtime),
+    } : null);
     return res;
   } catch (e) {
     // the server's own reason when it gave one ("the download engine isn't
@@ -830,17 +838,17 @@ const ownedRow = ({ id, label, onDownload, item }) =>
         el("div", { class: "src-meta" }, el("span", { class: "src-own" }, "Plays instantly")),
       ),
     ),
-    // onto this device as a file (a computer: savesInsideApp)…
+    // the file itself, for another player (a computer: savesInsideApp)…
     onDownload && !(item && savesInsideApp()) &&
       el("button", { "data-ui": "detail.source.download",
         class: "src-act src-icon focusable",
-        html: `<span class="src-ic">${icons.downloadDevice}</span><span class="src-lbl">Download</span>`,
-        title: "Download the file to this device",
-        "aria-label": "Download the file to this device",
+        html: `<span class="src-ic">${fileIcon}</span><span class="src-lbl">File</span>`,
+        title: "Download the file — into this computer's own folder, to play in another app",
+        "aria-label": "Download the file",
         onclick: onDownload,
       }),
-    // …or kept inside the app, playable with no server in reach
-    item && offlineButton(item, { rail: true }),
+    // …or kept inside Aurora on this device, playable with no connection
+    item && saveButton(item, { variant: "rail", onLeave: untilLeave }),
     el("button", { "data-ui": "detail.source.play",
       class: "src-act src-save src-play focusable",
       html: `<span class="src-ic">${icons.play}</span><span class="dl-cap">Play</span>`,
@@ -1226,6 +1234,13 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
     if (!lib) {
       // a kids profile refused it: say so in the server's words, not a silent trip Home
       if (libErr && /kids profile/i.test(libErr.message || "")) toast(libErr.message, "🧸");
+      else {
+        // [offline-look] Aurora is out of reach: the page rests — what is
+        // known of the title, its copy on this device, the one button that
+        // helps — instead of a trip Home without a word
+        const rest = await import("../offlineRest.js").catch(() => null);
+        if (rest && rest.unreachable(libErr)) return rest.restTitle(screen, { id, source });
+      }
       return navigate("#/");
     }
     // its file is on a storage drive that is not answering (lib/drives):
@@ -1267,6 +1282,11 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
       // (A kids profile refused the title: the server's own words, not a
       // question about the internet.)
       const kidsNo = metaErr && /kids profile/i.test(metaErr.message || "");
+      if (!kidsNo) {
+        // [offline-look] no connection: the page rests (js/offlineRest.js)
+        const rest = await import("../offlineRest.js").catch(() => null);
+        if (rest && rest.unreachable(metaErr) && navigator.onLine === false) return rest.restTitle(screen, { id, source });
+      }
       toast(kidsNo ? metaErr.message : "Couldn't load that title — is the internet up?", kidsNo ? "🧸" : "⚠️");
       if (history.length > 1) return history.back();
       return navigate("#/");
@@ -1449,6 +1469,25 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
     }
   }
   // [/phone-remote]
+  // [offline-look] Save to this device — right after Play: a labelled button
+  // on a computer, among the first tiles on a phone (it sat at the far end of
+  // the strip, off the screen). A film: this film. A series you own: the next
+  // three episodes you haven't finished — the size is asked once, then they
+  // are fetched one after another (a trip, a flight); ones already here are
+  // skipped.
+  if (!isShow && lib) {
+    const ob = saveButton(lib, { variant: "hero", onLeave: untilLeave });
+    if (ob) actions.push(ob);
+  }
+  if (isShow && nextUp && offline.available()) {
+    const sb = seasonButton(() => {
+      const flat = seasons.flatMap((s) => s.episodes).filter((e) => e.local);
+      const from = Math.max(0, flat.findIndex((e) => e.local.id === nextUp.local.id));
+      return flat.slice(from).filter((e) => { const p = progressFor(e.local.id); return !(p && p.finished); });
+    }, view.title, lib && lib.id, { onLeave: untilLeave });
+    if (sb) actions.push(sb);
+  }
+  // [/offline-look]
   // A film we don't own: "Save & watch" is THE button — one press saves the
   // ★ BEST source to the library (the sources list below decides which) and
   // says what happens next; the page follows the download and turns into
@@ -1456,6 +1495,7 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
   let saveBtn = null;
   let cancelBtn = null;
   let cancelFor = null;
+  let wishBtn = null; // [offline-wish] "This device too" beside a download on its way
   let sourcesP = null; // set by the movie branch (loadSources' answer)
   const saveState = (job) => {
     if (!saveBtn) return;
@@ -1478,10 +1518,16 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
       cancelBtn = el("button", { "data-ui": "detail.download.cancel", class: "btn focusable detail-cancel-dl", onclick: () => cancelFor && askCancelDownload(cancelFor) }, "Cancel download");
       saveBtn.after(cancelBtn);
     } else if (!cancelFor && cancelBtn) { cancelBtn.remove(); cancelBtn = null; }
+    // [offline-wish] saved to this device too, by itself, once it lands (offlineWish.js)
+    if (!wishBtn && saveBtn.parentNode && imdbId) {
+      wishBtn = wishButton({ type: "movie", imdbId, jobId: job.id || undefined, title: view.title, poster: view.poster || undefined, duration: runtimeToSeconds(meta && meta.runtime) }, view.title, { onLeave: untilLeave });
+      if (wishBtn) (cancelBtn || saveBtn).after(wishBtn);
+    }
   };
   const saveReset = () => {
     cancelFor = null;
     if (cancelBtn) { cancelBtn.remove(); cancelBtn = null; }
+    if (wishBtn) { wishBtn.remove(); wishBtn = null; }
   };
   if (imdbId && !isShow && !lib && canSource) {
     saveBtn = el("button", { "data-ui": "detail.save",
@@ -1785,28 +1831,14 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
     xrBtn.append(el("span", { class: "btn-label" }, "X-Ray"));
     actions.push(xrBtn);
   }
-  if (!isShow && lib) {
-    const ob = offlineButton(lib, { compact: true });
-    if (ob) actions.push(ob);
-  }
-  // A series you own: one press saves the next three episodes you haven't
-  // finished to this device — the size is asked once, then they are fetched
-  // one after another (a trip, a flight). Episodes already saved are skipped.
-  if (isShow && nextUp && offline.available()) {
-    const sb = seasonOfflineButton(() => {
-      const flat = seasons.flatMap((s) => s.episodes).filter((e) => e.local);
-      const from = Math.max(0, flat.findIndex((e) => e.local.id === nextUp.local.id));
-      return flat.slice(from).filter((e) => { const p = progressFor(e.local.id); return !(p && p.finished); });
-    }, view.title, lib && lib.id);
-    if (sb) actions.push(sb);
-  }
+  // the file itself, for another player — a computer only (savesInsideApp)
   if (!isShow && lib && lib.downloadUrl && !savesInsideApp()) {
     actions.push(
       el("button", { "data-ui": "detail.download.device",
         class: "btn btn-icon focusable",
-        html: icons.downloadDevice,
-        title: "Download to this device",
-        "aria-label": "Download to this device",
+        html: fileIcon,
+        title: "Download the file — into this computer's own folder, to play in another app",
+        "aria-label": "Download the file",
         onclick: () => openDownload(view.title, [lib], deviceKeys),
       }),
     );
@@ -2433,7 +2465,8 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
 
   // Assigned below, once the season bar exists — a season you own nothing in
   // has nothing to offer, so the pill comes and goes with the active season.
-  let downloadSeasonPill = null;
+  let downloadSeasonPill = null; // "Save the season (N)" — to this device, inside Aurora
+  let seasonFilesPill = null; // "Download the files (N)" — the files themselves
   let markSeasonPill = null; // label follows the active season's true state
   const ownedIn = (season) =>
     ((season && season.episodes) || []).filter((r) => r.local && r.local.downloadUrl);
@@ -2449,7 +2482,11 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
       const owned = ownedIn(season);
       downloadSeasonPill.hidden = owned.length === 0;
       if (downloadSeasonPill._relabel) downloadSeasonPill._relabel(owned.length);
-      else downloadSeasonPill.textContent = `Download season to device (${owned.length})`;
+    }
+    if (seasonFilesPill) {
+      const owned = ownedIn(season);
+      seasonFilesPill.hidden = owned.length === 0;
+      seasonFilesPill.textContent = `Download the files (${owned.length})`;
     }
     if (markSeasonPill && season) {
       // Say what the tap will actually DO — the old static label silently
@@ -2639,26 +2676,34 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
       };
 
       const extras = [];
-      // Only an episode we hold on disk can be taken along: on a phone, saved
-      // offline inside Aurora (savesInsideApp); on a computer, as the file.
-      const epOffline = local && local.id && savesInsideApp()
-        ? offlineButton(
+      // Only an episode we hold on disk can be taken along: saved to this
+      // device inside Aurora (any device that can keep copies) — and, on a
+      // computer, as the file too (savesInsideApp).
+      const epOffline = local && local.id
+        ? saveButton(
           { ...local, showId: lib && lib.id, showTitle: view.title, season: row.season, episode: row.episode, title: row.title || local.title, cover: local.cover || (lib && lib.cover) || view.cover },
-          { ep: { label: `episode ${row.episode}` } })
+          { variant: "ep", ep: { label: `episode ${row.episode}` }, onLeave: untilLeave })
         : null;
-      if (epOffline) extras.push(epOffline);
-      else if (local && local.downloadUrl) {
+      // [offline-wish] on its way to the server: saved to this phone by itself when it lands
+      const epWish = !epOffline && !local && job && imdbId && savesInsideApp()
+        ? wishButton({ type: "show", imdbId, jobId: job.id, season: row.season, episode: row.episode, title: row.title || `Episode ${row.episode}`, showTitle: view.title, poster: view.poster || undefined }, `${view.title} S${row.season} E${row.episode}`, { ep: true, onLeave: untilLeave })
+        : null;
+      // (the file first: a narrow window drops it — the season bar still has
+      // "Download the files" — and the three that stay keep their places)
+      if (local && local.downloadUrl && (!epOffline || !savesInsideApp())) {
         extras.push(
           el("button", { "data-ui": "detail.episode.download",
-            class: "ep-action focusable",
-            title: "Download to this device",
-            "aria-label": `Download episode ${row.episode} to this device`,
-            html: icons.downloadDevice,
+            class: "ep-action ep-file focusable" + (epOffline ? " ep-file-extra" : ""),
+            title: "Download the file — into this computer's own folder, to play in another app",
+            "aria-label": `Download the file of episode ${row.episode}`,
+            html: fileIcon,
             onclick: () =>
               openDownload(`${view.title} — S${row.season} E${row.episode}`, [local], deviceKeys),
           }),
         );
       }
+      if (epOffline) extras.push(epOffline);
+      else if (epWish) extras.push(epWish);
       // [phone-remote] an episode on disk plays on the TV from here too
       if (local && local.id) {
         const epItem = { ...local, showId: lib && lib.id, showTitle: view.title, season: row.season, episode: row.episode, title: row.title || local.title, cover: local.cover || (lib && lib.cover) };
@@ -2792,18 +2837,23 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
   // Trailing actions sit apart from the season pills; whichever comes first
   // pushes the pair to the far end of the bar.
   const trailing = [];
-  if (lib && savesInsideApp()) {
-    // a phone: the season saved offline inside Aurora (see savesInsideApp)
-    downloadSeasonPill = seasonOfflineButton(() => {
-      const season = seasons.find((s) => s.number === activeSeason) || seasons[0];
-      return ownedIn(season);
-    }, view.title, lib.id, { pill: true });
-    trailing.push(downloadSeasonPill);
-  } else if (lib) {
-    downloadSeasonPill = el(
+  // the season saved to this device inside Aurora…
+  const seasonSave = lib ? seasonButton(() => {
+    const season = seasons.find((s) => s.number === activeSeason) || seasons[0];
+    return ownedIn(season);
+  }, view.title, lib.id, { pill: true, onLeave: untilLeave }) : null;
+  if (seasonSave) {
+    downloadSeasonPill = seasonSave;
+    trailing.push(seasonSave);
+  }
+  // …and its files for another player: a computer (savesInsideApp), or any
+  // device that cannot keep copies inside Aurora (plain http)
+  if (lib && (!seasonSave || !savesInsideApp())) {
+    seasonFilesPill = el(
       "button",
       {
-        class: "season-pill focusable",
+        class: "season-pill season-files focusable",
+        title: "Download this season's files — into this device's own folder, to play in another app",
         onclick: () => {
           const season =
             seasons.find((s) => s.number === activeSeason) || seasons[0];
@@ -2814,9 +2864,9 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
           );
         },
       },
-      "Download season to device",
+      "Download the files",
     );
-    trailing.push(downloadSeasonPill);
+    trailing.push(seasonFilesPill);
   }
   // One tap for the whole season — as ONE parallel batch with a single
   // repaint (it was N serial requests, each refetching the profile and
@@ -3060,202 +3110,6 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
 // http), the raw file stays the phone's only way.
 const savesInsideApp = () =>
   offline.available() && typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
-
-// One button per library file: Save offline → (preparing 43% → saving 71%)
-// → Saved ✓ (press again to remove). Hidden on plain http, where the
-// browser has no offline storage to offer (see offline.js).
-// `compact`: a round icon button (the title page's action row). `rail`: the
-// 66px action column at the end of a source card, with a caption like the
-// SAVE and DEVICE rails beside it.
-// `ep`: { label } — the small round button on a phone's episode card (where
-// the raw-file download used to be: savesInsideApp below), icon only.
-const offlineButton = (item, { compact = false, rail = false, ep = null } = {}) => {
-  if (!offline.available() || !item || !item.id) return null;
-  const btn = el("button", { "data-ui": ep ? "detail.episode.offline" : "detail.offline",
-    class: ep ? "ep-action ep-offline focusable btn-offline" : rail ? "src-act src-icon focusable btn-offline" : `btn ${compact ? "btn-icon" : ""} focusable btn-offline`,
-    title: "Save offline — keep it inside Aurora on this device, playable with no server in reach",
-    "aria-label": ep ? `Save ${ep.label} offline on this device` : "Save offline on this device",
-  });
-  let saved = false;
-  let busy = false;
-  let aborter = null;
-  const face = (text, icon = "📱") => {
-    btn.innerHTML = "";
-    if (ep) {
-      // the icon, a percentage while it saves, a tick once it is here
-      const pct = /(\d+)%/.exec(text);
-      if (/Saved/.test(text)) btn.append(el("span", { class: "ep-offline-ic", html: icons.downloadDevice }), el("span", { class: "ep-offline-tick", "aria-hidden": "true" }, "✓"));
-      else if (/Waiting|Queued/.test(text)) btn.append(el("span", { class: "ep-offline-wait", "aria-hidden": "true" }, "…"));
-      else if (pct) btn.append(el("span", { class: "ep-offline-pct" }, `${pct[1]}%`));
-      else btn.append(el("span", { class: "ep-offline-ic", html: icons.downloadDevice }));
-      btn.title = /Save offline/.test(text) ? btn.title : text;
-      btn.setAttribute("aria-label", /Save offline/.test(text) ? `Save ${ep.label} offline on this device` : `${ep.label}: ${text}`);
-      return;
-    }
-    if (rail) {
-      const pct = /(\d+)%/.exec(text);
-      btn.append(
-        el("span", { class: "src-ic" }, icon),
-        el("span", { class: "src-lbl" }, pct ? `${pct[1]}%` : /Saved/.test(text) ? "Saved" : "Offline"),
-      );
-      btn.title = text;
-      return;
-    }
-    btn.append(el("span", {}, icon));
-    // compact: the word rides along as the tile label a phone shows under
-    // the icon (details.css .btn-label — hidden on wide screens)
-    btn.append(el("span", { class: compact ? "btn-label" : "" }, text));
-    btn.title = compact ? text : btn.title;
-  };
-  // A save of this title already under way (started here before the page
-  // was left, or by "Save the next 3"): its progress, and a press cancels.
-  const running = () => { const j = offline.jobFor(item.id); return j && offline.ACTIVE_JOB.has(j.state) ? j : null; };
-  const paint = async () => {
-    const j = running();
-    if (j && !busy) {
-      btn.classList.add("busy");
-      const p = Math.round((j.pct || 0) * 100);
-      face(j.state === "queued" ? "Queued" : j.state === "preparing" ? (j.waiting ? "Waiting…" : `Preparing ${p}%`) : `Saving ${p}%`, "⏳");
-      return;
-    }
-    if (!busy) btn.classList.remove("busy");
-    saved = await offline.isSaved(item.id).catch(() => false);
-    btn.classList.toggle("saved", saved);
-    if (ep) btn.classList.toggle("on", saved);
-    face(saved ? "Saved ✓" : "Save offline", saved ? "✅" : "📱");
-  };
-  untilLeave(offline.onJobs(() => { if (!busy) paint(); }));
-  btn.onclick = async () => {
-    if (busy) {
-      if (aborter) aborter.abort(); // a press while saving cancels
-      return;
-    }
-    if (running()) return void offline.cancelJob(item.id);
-    if (saved) {
-      // the small episode button: one tap must not throw a saved copy away
-      if (ep) {
-        return void toast(`Saved on this device — it plays under Saved, with no connection`, "📱", {
-          label: "Remove",
-          onClick: async () => { await offline.removeSaved(item.id).catch(() => {}); toast("Removed from this device", "🗑"); paint(); },
-        });
-      }
-      await offline.removeSaved(item.id);
-      toast("Removed from this device", "🗑");
-      return paint();
-    }
-    busy = true;
-    aborter = new AbortController();
-    btn.classList.add("busy");
-    try {
-      const saved = await offline.saveItem(
-        item,
-        ({ phase, pct, note, waiting }) => {
-          const p = Math.round((pct || 0) * 100);
-          face(phase === "preparing" ? (waiting ? "Waiting…" : `Preparing ${p}%`) : phase === "saving" ? `Saving ${p}%` : phase === "cancelled" ? "Save offline" : "Saved ✓", phase === "cancelled" ? "📱" : "⏳");
-          btn.title = phase === "preparing" || phase === "saving" ? `${note || ""} — press again to cancel`.replace(/^ — /, "") : btn.title;
-        },
-        // Which size, with what each one costs this device — the server
-        // lays out what it can make for this file (offlinePicker.js).
-        (options) => pickOfflineQuality(options, { title: item.title }),
-        aborter.signal,
-      );
-      if (saved && saved.controlled === false) toast(`Saved — reload Aurora once before going offline so it can play here`, "📱");
-      else if (saved) toast(`“${item.showTitle && item.season != null ? `${item.showTitle} S${item.season} E${item.episode}` : item.title}” is saved on this device — find it under Saved`, "📱", { label: "Open Saved", onClick: () => navigate("#/saved") });
-    } catch (e) {
-      if (e && e.name === "AbortError") toast("Save cancelled", "📱");
-      else toast(`Couldn't save: ${e.message}`, "⚠️");
-    }
-    aborter = null;
-    btn.classList.remove("busy");
-    busy = false;
-    paint();
-  };
-  paint();
-  return btn;
-};
-
-// "Save the next 3": the same save as the button above, run for several
-// episodes in a row at one chosen size. `nextEpisodes()` → the rows still to
-// watch, in order (each with .local, the library item).
-const SEASON_SAVE = 3;
-// `pill`: the season bar's "Save season offline (N)" on a phone (in place of
-// "Download season to device", which handed a phone N raw files): every
-// episode of the season on disk, not the next three — btn._relabel(n) keeps
-// its count with the season shown.
-const seasonOfflineButton = (nextEpisodes, showTitle, showId = null, { pill = false } = {}) => {
-  const limit = pill ? Infinity : SEASON_SAVE;
-  const btn = el("button", { "data-ui": pill ? "detail.offline.seasonall" : "detail.offline.season",
-    class: pill ? "season-pill focusable btn-offline" : "btn btn-icon focusable btn-offline",
-    title: pill ? "Save this season's episodes on this device — to watch with no internet" : `Save the next ${SEASON_SAVE} episodes on this device — to watch with no internet`,
-    "aria-label": pill ? "Save this season offline" : `Save the next ${SEASON_SAVE} episodes`,
-  });
-  let busy = false;
-  let aborter = null;
-  let count = 0;
-  const idle = () => (pill ? `Save season offline (${count})` : `Save ${SEASON_SAVE} offline`);
-  const face = (text, icon = "📲") => {
-    if (pill) { btn.textContent = text; return; }
-    btn.innerHTML = "";
-    btn.append(el("span", {}, icon), el("span", { class: "btn-label" }, text));
-  };
-  btn._relabel = (n) => { count = n; if (!busy) face(idle()); };
-  face(idle());
-  btn.onclick = async () => {
-    if (busy) {
-      if (aborter) aborter.abort(); // a press while saving cancels the rest
-      return;
-    }
-    const rows = [];
-    for (const e of nextEpisodes()) {
-      if (rows.length >= limit) break;
-      if (!(await offline.isSaved(e.local.id).catch(() => false))) rows.push(e);
-    }
-    if (!rows.length) return toast(pill ? "This season's episodes are already saved on this device" : "The next episodes are already saved on this device", "📱");
-    busy = true;
-    aborter = new AbortController();
-    btn.classList.add("busy");
-    let quality = null; // asked once, on the first episode, then reused
-    let done = 0;
-    // the ones after the first wait their turn — and say so on "On this device"
-    // (the episode's own name, under its show: devicejobs.js and Saved say "Show · S1 E2 · Name")
-    const asItem = (e) => ({ ...e.local, showTitle, showId: showId || e.local.showId || null, season: e.season, episode: e.episode, title: e.title || e.local.title });
-    for (const e of rows.slice(1)) offline.queueJob(asItem(e));
-    try {
-      for (const [i, e] of rows.entries()) {
-        // (taken off the queue on "On this device" meanwhile: skipped)
-        if (i > 0 && !offline.jobFor(e.local.id)) continue;
-        const tag = `${i + 1} of ${rows.length}`;
-        const saved = await offline.saveItem(
-          asItem(e),
-          ({ phase, pct, waiting }) => {
-            if (phase === "preparing" || phase === "saving") face(waiting ? `${tag} · waiting` : `${tag} · ${Math.round((pct || 0) * 100)}%`, "⏳");
-          },
-          async (options) => {
-            if (quality && options.some((o) => o.quality === quality)) return quality;
-            // a later episode that can't be made at the chosen size: the nearest smaller one it offers
-            if (quality) return (options.find((o) => !o.instant) || options[0]).quality;
-            quality = await pickOfflineQuality(options, { title: pill ? `${showTitle} — ${rows.length} episode${rows.length > 1 ? "s" : ""} of this season` : `${showTitle} — the next ${rows.length} episode${rows.length > 1 ? "s" : ""}` });
-            return quality;
-          },
-          aborter.signal,
-        );
-        if (!saved) break; // the size sheet was dismissed
-        done++;
-      }
-      if (done) toast(`${done} episode${done > 1 ? "s" : ""} of “${showTitle}” saved on this device`, "📱", { label: "Open Saved", onClick: () => navigate("#/saved") });
-    } catch (e) {
-      if (e && e.name === "AbortError") toast(done ? `Stopped — ${done} saved` : "Save cancelled", "📱");
-      else toast(`Saved ${done} — then: ${e.message}`, "⚠️");
-    }
-    // still queued after a stop, an error or a dismissed size sheet: not coming
-    for (const e of rows) { const j = offline.jobFor(e.local.id); if (j && j.state === "queued") offline.dismissJob(e.local.id); }
-    aborter = null;
-    busy = false;
-    btn.classList.remove("busy");
-    face(idle());
-  };
-  return btn;
-};
 
 // ---------- trailer ----------
 // A YouTube embed in a modal over the page (privacy-enhanced host, no
