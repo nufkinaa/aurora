@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.31 — 2026-11-11
+
+- **A clearer glass (website and Android phone app).** The bars and buttons that float over pictures (the top bar, the bar at the bottom of a phone, the round buttons, the buttons on a title's picture, the player's controls) are clearer: the picture's colour comes through, the tab you are on is violet, and there is no bright line along the top. Menus, sheets and the phone's side menu keep their look. On the Android app the bottom bar is a little darker, so rows scrolling under it don't show through.
+- **"Save it to this device when it arrives" no longer misses an episode** that becomes ready while the device is already checking its list.
+- **Aurora for Android phones 1.1.4** — the clearer glass.
+
 ## 1.15.30 — 2026-11-11
 
 - **Film or series, at a glance in search (website too).** The website's results and suggestions now carry the same small sign as the TV and the phone app: a gold film strip for a film, a blue screen for a series.
