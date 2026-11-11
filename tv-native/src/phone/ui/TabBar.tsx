@@ -164,8 +164,8 @@ const s = StyleSheet.create({
   wrap: {position: 'absolute', left: 0, right: 0, alignItems: 'center'},
   // .nav-items (glass E, "Clear"): a 53 tall island, 6 inside, the items 2 apart. The
   // website's is a light 3 px blur with the poster behind dimmed hard; a blur every frame
-  // is what a weak phone cannot pay, so the body does the dimming (Aurora's navy at 58 %: the
-  // picture's light and colour come through, words 4.9:1 over white) — a still fill, the strong edge, the depth.
+  // is what a weak phone cannot pay, so the body does the dimming (Aurora's navy, at 72 % on the
+  // bar: what scrolls under it — words too — must not read through the tabs) — a still fill, the strong edge, the depth.
   bar: {
     height: TAB_H,
     borderRadius: TAB_H / 2,
@@ -173,7 +173,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     padding: 6,
     gap: 2,
-    backgroundColor: E.chrome,
+    backgroundColor: E.bar,
     ...E_EDGE_FLOAT,
   },
   item: {flex: 1, height: PILL_H, borderRadius: PILL_H / 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
