@@ -15,10 +15,7 @@ So Clear is now the glass of **what floats over the pictures**, and everything e
 
 Clear has almost no body: a fifth of a deep indigo-black over a light 3 px blur, so a poster behind a bar stays a poster. The backdrop is dimmed under the glass (brightness 0.5), which is Apple's "dimming layer" for its clear glass. That is what holds white words over a white poster. The blur also doubles the colour's saturation, so the posters' and the sky's colour come through stronger than through today's grey.
 
-A strong edge draws the shape:
-- a light line all round inside, brighter along the top;
-- a dark hairline outside;
-- a small shadow.
+The edge is one faint, even light line all round, a dark hairline outside and a small shadow. There is no light along the top: elia said "glass looks better when there isn't hard white backdrop from the top of the glass". So there is no sheen, no top line, no corner glow, and no top line on the chosen or pressed tab.
 
 Words on it carry a soft shadow of their own. The chosen tab is a lighter capsule in Aurora's violet with its own line, and its word is white.
 
@@ -48,7 +45,7 @@ Each sheet shows the same moment twice, today's glass beside Clear:
 - `01-phone-home.png`, `02-phone-more.png` (the side menu, unchanged), `03-phone-title.png`, `04-phone-sheet.png` (Recommend, unchanged), `05-desktop-home.png`, `06-desktop-menu.png`, `07-desktop-title.png`, `08-player-menu.png`, `09-phone-toast.png` (the toast unchanged, the tab bar Clear), `10-phone-bright.png` (the tab bar over white posters).
 - **`11-colour.png`: the colour through the glass**, today against Clear, in the same frames.
 
-Scenes 01–03 and 05–07 come from this PC's own server with real posters. It was only looked at, as the test profile "Claude QA", and both stylesheets were answered by the rig. The others come from a private test server with made-up art. The sky is held still and the hero does not rotate, so only the glass differs.
+Scenes 01–03 and 05–07 come from this PC's own server with real posters. It was only looked at, as the test profile "Claude QA", and both stylesheets were answered by the rig. The two sides are taken a minute apart, so live state can differ between them (a TV coming online adds "Your TVs" to the profile menu); that is not the glass. The others come from a private test server with made-up art. The sky is held still and the hero does not rotate, so only the glass differs.
 
 ## Colour (`final/colour.md`, `final/11-colour.png`)
 
@@ -56,11 +53,11 @@ These are measured on the glass's own pixels in the same frames. "Colour" is the
 
 | glass part | colour today → Clear | saturation today → Clear |
 |---|---:|---:|
-| phone, round buttons over the sky | 65 → 65 | 0.61 → 0.69 |
-| phone, tab bar over Continue Watching | 23 → 26 | 0.28 → 0.44 |
+| phone, round buttons over the sky | 65 → 66 | 0.60 → 0.69 |
+| phone, tab bar over Continue Watching | 23 → 26 | 0.28 → 0.46 |
 | phone, a film's buttons over its picture | 46 → 46 | 0.37 → 0.37 |
-| desktop, the top bar over the hero | 30 → 31 | 0.32 → 0.36 |
-| desktop, a film's buttons over its picture | 8 → 8 | 0.26 → 0.42 |
+| desktop, the top bar over the hero | 24 → 24 | 0.26 → 0.30 |
+| desktop, a film's buttons over its picture | 8 → 8 | 0.26 → 0.45 |
 
 ## Words over the brightest backgrounds (`final/contrast.md`)
 
@@ -77,7 +74,7 @@ The ratio counted is the WCAG ratio behind the dimmest 1 % of each word's pixels
 | today (1.15.28) | 6 cells | 1.0:1 (the desktop player menu) |
 | **Clear** | **3 cells** | **3.8:1** |
 
-Clear's three cells are all on surfaces that kept today's look, with the same numbers as today: episodes and the season bar, a chip's count, and the Settings panes' icons over the sky painted as one bright green band. Every surface that took Clear reads at **4.6:1 or better**.
+Clear's three cells are all on surfaces that kept today's look, with the same numbers as today: episodes and the season bar, a chip's count, and the Settings panes' icons over the sky painted as one bright green band. Every surface that took Clear reads at **4.7:1 or better**.
 
 ## Speed (CPU ×4 on a phone, the same rig and hour, medians)
 
@@ -104,7 +101,7 @@ Safari has no `prefers-reduced-transparency` media query. An iPhone with Reduce 
 
 React Native has no cheap live backdrop blur. The TV draws pre-rendered glass edges, and the phone app has no blur on its bars either. What carries over from Clear is its edge and its words, not the dim, because nothing behind is blurred or dimmed:
 
-- **TV.** Only what floats over pictures, as on the website: pills, buttons and the player's chrome would take a darker see-through body: about 55–60 % of black instead of a tinted pane, because without the dim the body must hold the words alone. They would take Clear's edge as the pre-rendered rim image: the light line all round, the brighter top line and the dark outside hairline. White words would get a soft shadow, and the chosen item a lighter violet capsule with a line, as on the website. elia wants the TV to keep Aurora's colours ("it needs to still have the aurora colors"). So the rail and the menus would keep their violet and green panels and take only Clear's edge. Focus stays the TV's white fill.
+- **TV.** Only what floats over pictures, as on the website: pills, buttons and the player's chrome would take a darker see-through body: about 55–60 % of black instead of a tinted pane, because without the dim the body must hold the words alone. They would take Clear's edge as the pre-rendered rim image: one faint even light line all round (no light along the top) and the dark outside hairline. White words would get a soft shadow, and the chosen item a lighter violet capsule with a line, as on the website. elia wants the TV to keep Aurora's colours ("it needs to still have the aurora colors"). So the rail and the menus would keep their violet and green panels and take only Clear's edge. Focus stays the TV's white fill.
 - **Phone app.** The same as the TV, and only where the website took Clear (the tab bar, the top buttons, the player's chrome): about 60 % of black, Clear's edges, white words, the violet chosen tab. Its side menu, sheets and lists stay as they are, as on the website. On Android 12 and later, a real 3 px blur with a dim (`RenderEffect`) is possible on the tab bar alone. It would need measuring first on the weakest phone we support.
 
 ## Sources (what each one gave)
