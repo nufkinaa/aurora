@@ -234,3 +234,7 @@ The ui-phone fixes of 2026-11-10 (branch `ui-phone`, merged here) plus this roun
 | Offline wishes, Pack for a trip, the offline look | lane `offline-phone` | — |
 
 Device check (emulator-5554, QA vc86 = c43bdade): the server's remark on Home (live server, Claude QA) on four pictures, sideways under the billboard; a kids profile's warm line and "The highlights" in Wrapped, a grown-up's Wrapped with the server's roasts (private instance); the player's bottom row upright with Next; the hero score after a display-size change with the app open. Pictures 01–05 in `docs/qa/phone-1.1.3/ui-phone2/`.
+
+### The remote (Your TVs), 2026-11-11
+
+The phone app's remote is now the website's (`public/js/screens/remote.js`, `css/remote.css`), built natively in `src/phone/screens/Remote.tsx` + `src/phone/remote/*` (rules in `remoteRules.ts`, tested): every piece the site's has, the same words and the same glass, full screen. Pairs (website | app) in [`docs/qa/phone-1.1.3/remote/`](../qa/phone-1.1.3/remote/). The app keeps one thing the site's remote has not: **Sign in a TV** (in More, and on "No TV is on").
