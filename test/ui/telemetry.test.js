@@ -101,8 +101,12 @@ ui.test("a tagged control is counted, and screens are timed", async ({ page, got
   await sendNow(page);
   const after = await until(async () => {
     const t = await telemetry(api);
-    return count(t, "nav.movies") >= count(before, "nav.movies") + 2 ? t : null;
-  }, "the control counts");
+    // (the screen timings can land a batch after the counts: wait for both —
+    // on a slow machine the first answer had the counts and not yet nav_paint)
+    const timed = t.timings.rows.some((r) => r.app === "web" && r.metric === "nav_paint" && r.dim === "/movies");
+    if (!timed) await sendNow(page); // (measured after the last send: send again)
+    return count(t, "nav.movies") >= count(before, "nav.movies") + 2 && timed ? t : null;
+  }, "the control counts and the Movies screen's paint time");
   assert.equal(count(after, "nav.movies") - count(before, "nav.movies"), 2);
   assert.equal(count(after, "nav.home") - count(before, "nav.home"), 1);
   const movies = after.controls.web.used.find((u) => u.id === "nav.movies");

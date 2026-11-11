@@ -20,7 +20,16 @@ const { suite, player } = require("./helpers");
 const MATAN_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1";
 const IPHONE = { width: 430, height: 745 };
 
+// A machine of 4 CPU threads or fewer (a GitHub runner: 4, shared with this
+// Chrome) has room for about one automatic encode, and this file needs the
+// 'No picture there?' encode while the iPhone's own stream is still held: it
+// was told "Server is busy" there. On such a machine the admin's fixed limit
+// of 2 (the server's old default) is set, as an admin would; on the home PC
+// (12 threads) the budget stays automatic, as before.
+const os = require("os");
+const SMALL = (typeof os.availableParallelism === "function" ? os.availableParallelism() : os.cpus().length) <= 4;
 const ui = suite({
+  ...(SMALL ? { server: { seed: { "settings.json": { maxEncodes: 2 } } } } : {}),
   setup: async (srv) => {
     const p = await srv.api.createProfile("Pocket");
     await srv.api.post("/api/auth/claim", { profileId: p.id, username: "pocket" }, await srv.api.as(p));
