@@ -22,8 +22,7 @@ const {colors, fontSize, spacing, radius} = theme;
 // ribbon on them alone. (The website has the same cards: public/js/screens/whatsnew.js,
 // ROUND there; its `webOnly` cards — AirPlay from an iPhone — have nothing to do on a TV.)
 export const ROUND = '5.9.4';
-// (5.9.3 came out the same morning: its cards keep the ribbon too)
-const NEW_FROM = '5.9.3';
+const NEW_FROM = ROUND;
 const cmpVersion = (a: string, b: string) => {
   const pa = a.split('.').map(Number);
   const pb = b.split('.').map(Number);
@@ -47,7 +46,7 @@ export const FEATURES: Feature[] = [
     since: ROUND,
     glyph: '🔎',
     title: "Film or series, at a glance in search",
-    what: "Every result and every suggestion in search now carries a small sign: a gold film strip for a film, a blue screen for a series. A show's page on the TV also lists its genres, as a film's page always did.",
+    what: "On the TV and in the phone app, every result and every suggestion in search now carries a small sign: a gold film strip for a film, a blue screen for a series. A show's page on the TV also lists its genres, as a film's page always did.",
     how: "Search → type a few letters.",
     go: {label: 'Search', act: 'search'},
   },
