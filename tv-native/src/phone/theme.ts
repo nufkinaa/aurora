@@ -60,12 +60,11 @@ export const G_EDGE = {
    fifth of black). React Native has no live backdrop, so the body does the
    dimming — and it is Aurora's deep navy-violet, not black, and a touch
    lighter (58 %): 42 % of the picture's light and colour comes through, with a
-   violet cast instead of grey. Over a WHITE poster that is (113,112,127):
-   white words 4.9:1. The chosen tab is a violet capsule (Aurora's accent at
-   20 %) with its own line — 4.8:1 over white. The edge is E's: a 1 px light
-   line all round, brighter on top, a little brighter along the foot, and a
-   dark hairline OUTSIDE (a 1 dp spread shadow, no blur; Android 9+). Words
-   carry a soft shadow. */
+   violet cast instead of grey. Over a WHITE poster the Pixel 9 draws it
+   (117,116,131): white words 4.58:1. The chosen tab is a violet capsule
+   (Aurora's accent at 20 %) with its own line — 4.59:1 over white. The edge:
+   a faint even violet rim and a dark hairline outside — no white line along
+   the top (elia's ruling, below). Words carry a soft shadow. */
 export const E = {
   /** what floats over pictures */
   chrome: 'rgba(10,8,34,0.58)',
@@ -73,31 +72,25 @@ export const E = {
   thick: 'rgba(4,4,10,0.94)',
 } as const;
 
-/** --g-sheen: a faint light from the top over the body. */
-export const E_SHEEN = 'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 40%)';
-
-/** --g-edge: 0.3 all round, 0.5 laid over it on top (= 0.65), 0.14 over it at the foot (= 0.4), the dark hairline outside. */
+/** E's rim (elia, 2026-11-11: "glass looks better when there isn't hard white
+ *  backdrop from the top of the glass"): NO bright line along the top and no
+ *  sheen from the top — one faint EVEN rim all round in Aurora's violet, and
+ *  the dark hairline outside it (it parts the glass from a white poster; a
+ *  1 dp spread shadow, no blur; Android 9+). */
 export const E_EDGE = {
   borderWidth: 1,
-  borderTopColor: 'rgba(255,255,255,0.65)',
-  borderLeftColor: 'rgba(255,255,255,0.3)',
-  borderRightColor: 'rgba(255,255,255,0.3)',
-  borderBottomColor: 'rgba(255,255,255,0.4)',
+  borderColor: 'rgba(176,164,255,0.26)',
   boxShadow: '0 0 0 1px rgba(0,0,0,0.38)',
 } as const;
-/** --g-edge-thick (the player's menu): the top line 0.52 over the 0.3 one, the outside line 0.4. */
+/** The player's menu: the same even rim, the outside line 0.4. */
 export const E_EDGE_THICK = {
   ...E_EDGE,
-  borderTopColor: 'rgba(255,255,255,0.66)',
   boxShadow: '0 0 0 1px rgba(0,0,0,0.4)',
 } as const;
-/** --g-edge-thin (small round things): 0.24 all round, 0.4 over it on top, outside 0.3. */
+/** Small round things (the action circles, the player's buttons): fainter still. */
 export const E_EDGE_THIN = {
   borderWidth: 1,
-  borderTopColor: 'rgba(255,255,255,0.54)',
-  borderLeftColor: 'rgba(255,255,255,0.24)',
-  borderRightColor: 'rgba(255,255,255,0.24)',
-  borderBottomColor: 'rgba(255,255,255,0.24)',
+  borderColor: 'rgba(176,164,255,0.2)',
   boxShadow: '0 0 0 1px rgba(0,0,0,0.3)',
 } as const;
 /** The edge with the depth under it (--g-edge + --g-shadow), for what floats (the tab bar, the round
@@ -111,10 +104,7 @@ export const E_EDGE_FLOAT = {
 export const E_WELL = {
   backgroundColor: 'rgba(120,104,240,0.2)',
   borderWidth: 1,
-  borderTopColor: 'rgba(206,198,255,0.62)',
-  borderLeftColor: 'rgba(170,158,255,0.4)',
-  borderRightColor: 'rgba(170,158,255,0.4)',
-  borderBottomColor: 'rgba(170,158,255,0.4)',
+  borderColor: 'rgba(170,158,255,0.4)',
 } as const;
 /** Words on the clearest glass carry a soft shadow of their own (0 1px 3px rgba(0,0,0,.6)). */
 export const E_WORDS = {

@@ -5,7 +5,7 @@ import React from 'react';
 import {ActivityIndicator, StyleSheet, Text, View, ViewStyle, StyleProp} from 'react-native';
 import Tap from './Tap';
 import Icon, {PhoneIconName} from './Icon';
-import {colors, E, E_EDGE, E_EDGE_FLOAT, E_EDGE_THIN, E_SHEEN, E_WORDS, G_EDGE, G_FILL, radius} from '../theme';
+import {colors, E, E_EDGE, E_EDGE_FLOAT, E_EDGE_THIN, E_WORDS, G_EDGE, G_FILL, radius} from '../theme';
 
 type Base = {
   label: string;
@@ -197,7 +197,6 @@ const s = StyleSheet.create({
     height: 50,
     borderRadius: radius.pill,
     backgroundColor: E.chrome,
-    experimental_backgroundImage: E_SHEEN,
     ...E_EDGE,
     flexDirection: 'row',
     alignItems: 'center',
@@ -244,13 +243,12 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionDiscOn: {backgroundColor: colors.accentStrong, borderColor: colors.accentStrong, borderTopColor: 'rgba(255,255,255,0.5)'},
+  actionDiscOn: {backgroundColor: colors.accentStrong, borderColor: colors.accentStrong},
   actionText: {color: 'rgba(243,244,248,0.8)', fontSize: 11.2, fontWeight: '600', textAlign: 'center', lineHeight: 13.44, letterSpacing: 0.11},
   // .nav-gear / .nav-profile / .nav-logo: round glass over the page
   iconCircle: {
     // glass E over the picture
     backgroundColor: E.chrome,
-    experimental_backgroundImage: E_SHEEN,
     ...E_EDGE_FLOAT,
     alignItems: 'center',
     justifyContent: 'center',

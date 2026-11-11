@@ -16,7 +16,7 @@ import {navRef} from '../../rootNav';
 import {setTab, Tab, useTab} from '../tabs';
 import {openMore, useMoreShown} from '../moreMenu';
 import {phoneNative} from '../native';
-import {E, E_EDGE_FLOAT, E_SHEEN, E_WELL, E_WORDS, GUTTER, TAB_H, TAB_INSET, TAB_SIDE} from '../theme';
+import {E, E_EDGE_FLOAT, E_WELL, E_WORDS, GUTTER, TAB_H, TAB_INSET, TAB_SIDE} from '../theme';
 import {BASE_FONT, fitTabs, guessWidth, tabSlots} from './tabFit';
 
 const ITEMS: {tab: Tab; label: string; uiId: string}[] = [
@@ -172,7 +172,6 @@ const s = StyleSheet.create({
     padding: 6,
     gap: 2,
     backgroundColor: E.chrome,
-    experimental_backgroundImage: E_SHEEN,
     ...E_EDGE_FLOAT,
   },
   item: {flex: 1, height: PILL_H, borderRadius: PILL_H / 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
