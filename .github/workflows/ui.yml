@@ -104,14 +104,14 @@ jobs:
         run: node tools/ci/ui-shard-run.js ${{ matrix.files }}
       - name: Upload what failed
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ui-artifacts-${{ matrix.shard }}
           path: test/ui/artifacts/
           retention-days: 7
       - name: Upload timings
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ui-timings-${{ matrix.shard }}
           path: test/ui/artifacts/ci/timings.json
