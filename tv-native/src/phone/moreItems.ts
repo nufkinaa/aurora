@@ -60,7 +60,7 @@ const NOT_IN_CHILD_MODE = new Set<MoreKey>(['saved', 'downloads', 'pair']);
 export const moreEntries = ({ai, calendar = true, name = '', kids = false}: {ai: boolean; calendar?: boolean; name?: string; kids?: boolean}): MoreEntry[] =>
   ALL.filter(e => (e.key !== 'pick' || ai) && (e.key !== 'calendar' || calendar) && !(kids && NOT_IN_CHILD_MODE.has(e.key))).map(e =>
     e.key === 'profile' && name
-      ? {...e, label: name}
+      ? {...e, label: name, ...(kids ? {detail: 'Your profile menu'} : {})}
       : e.key === 'children' && kids
         ? {...e, label: 'Leave Children mode', detail: 'Takes the passcode'}
         : e,
