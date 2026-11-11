@@ -16,7 +16,7 @@ import {useTabBarSpace} from '../ui/TabBar';
 import Glass from '../ui/Glass';
 import {GlassButton, PrimaryButton} from '../ui/Buttons';
 import {setTab} from '../tabs';
-import {BigCard, PREVIEW_CARDS, roastsFor, sinceLine, WrappedReply, wrappedCards} from '../wrappedWords';
+import {BigCard, interventionFor, PREVIEW_CARDS, sinceLine, WrappedReply, wrappedCards} from '../wrappedWords';
 import {colors, GUTTER} from '../theme';
 
 // "Back to browsing" / "Find something to watch": the site goes to #/ — Home
@@ -89,10 +89,10 @@ export default function Wrapped() {
         <Text style={s.since}>{sinceLine(name, w.since)}</Text>
         {cards(wrappedCards(w))}
         <Text style={s.h2} accessibilityRole="header">
-          The intervention section
+          {me?.kids ? 'The highlights' : 'The intervention section'}
         </Text>
         <View style={s.roasts}>
-          {roastsFor(w, name).map((r, i) => (
+          {interventionFor(w, name, {kids: !!me?.kids}).map((r, i) => (
             <View key={i} style={s.roast}>
               <Text style={s.roastText}>{r}</Text>
             </View>

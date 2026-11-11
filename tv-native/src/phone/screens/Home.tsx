@@ -4,7 +4,8 @@
 //                     kicker (FILM / SERIES), title, score · year · kind · genres,
 //                     Stream/Play + Details, and the dots; turns by itself every
 //                     9 s while nobody touches it and it is on screen
-//   the greeting      "Good evening, <name>" and the day's line
+//   the greeting      "Good evening, <name>" and Aurora's remark under it (the server's
+//                     line, ../useRemark.ts — the website's greeting block)
 //   watching together a strip per party in progress, one tap to join
 //   the shelves       every row the server sends, in its order — Continue
 //                     Watching as frame cards (✕ takes one off), "Recommended by
@@ -20,6 +21,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
+  Animated,
   AppState,
   FlatList,
   Image,
@@ -55,6 +57,7 @@ import TopBar, {TOP_BAR_H, useBarTop} from '../ui/TopBar';
 import {useSolidBar} from '../ui/PageHead';
 import {useTabBarSpace} from '../ui/TabBar';
 import {greeting} from '../greeting';
+import {RemarkState, useRemark} from '../useRemark';
 import {heroCover} from '../heroArt';
 import {GreetFade, greetFade} from '../ui/greetFade';
 import {onReselect} from '../tabs';
@@ -146,7 +149,9 @@ type Room = 2 | 1 | 0 | -1 | -2;
 const GREET_TOP = 18; // .home-greeting on the slab: 18 down, 20 in
 const GREET_GAP = 12; // never closer than this to the slide's words
 
-function Billboard({items, onPlay, onDetails, active, greet}: {items: HeroItem[]; onPlay: (it: HeroItem) => void; onDetails: (it: HeroItem) => void; active: boolean; greet: {line: string; name?: string; sub: string} | null}) {
+type SlabGreet = {line: string; name?: string; remark: RemarkState};
+
+function Billboard({items, onPlay, onDetails, active, greet}: {items: HeroItem[]; onPlay: (it: HeroItem) => void; onDetails: (it: HeroItem) => void; active: boolean; greet: SlabGreet | null}) {
   const {width, height} = useWindowDimensions();
   // landscape: a shorter billboard, so the greeting sits above the tab bar at rest — but never
   // so short that a slide's words (kicker, name, buttons; measured) reach up under the top bar
@@ -177,6 +182,16 @@ function Billboard({items, onPlay, onDetails, active, greet}: {items: HeroItem[]
     if (land || !greet || !textH || !greetH || room <= -2) return;
     if (h - 44 - textH - (GREET_TOP + greetH) < GREET_GAP) setRoom(r => (r > -2 ? ((r - 1) as Room) : r));
   }, [land, greet, h, textH, greetH, room]);
+  // the server's remark: on the slab it is always taken, and the greeting makes its room again
+  // (the site's swap: room = 2; fitGreet())
+  const remark = greet ? greet.remark : null;
+  const sub = remark ? remark.text : '';
+  useEffect(() => {
+    if (remark && remark.offer != null) remark.take(true);
+  }, [remark]);
+  useEffect(() => {
+    setRoom(2);
+  }, [sub]);
   const [idx, setIdx] = useState(0);
   const list = useRef<FlatList<HeroItem>>(null);
   const touchedAt = useRef(0);
@@ -243,10 +258,10 @@ function Billboard({items, onPlay, onDetails, active, greet}: {items: HeroItem[]
           <Text style={s.slabGreetLine} numberOfLines={2} accessibilityRole="header">
             {greetLine(greet.line, greet.name)}
           </Text>
-          {room >= 1 ? (
-            <Text style={s.slabGreetSub} numberOfLines={room}>
-              {greet.sub}
-            </Text>
+          {room >= 1 && sub ? (
+            <Animated.Text style={[s.slabGreetSub, {opacity: greet.remark.opacity}]} numberOfLines={room}>
+              {sub}
+            </Animated.Text>
           ) : null}
         </View>
       ) : null}
@@ -545,16 +560,27 @@ export default function Home() {
     return out;
   }, [data]);
   const g = greeting(me?.name || '');
+  const remark = useRemark(profileId, me ? !!me.kids : null, focused);
   // held upright the greeting rides on the billboard (with no billboard, or sideways, it stays under)
   const greetOnSlab = winH > winW && !!data?.hero?.length;
-  const slabGreet = useMemo(() => (me ? {line: g.line, name: me.name, sub: g.sub} : null), [me, g.line, g.sub]);
+  const slabGreet = useMemo(() => (me ? {line: g.line, name: me.name, remark} : null), [me, g.line, remark]);
+  // under the billboard the server's line is only taken when it needs no more lines than the
+  // one on screen (measured off screen first), so nothing under it moves
+  const subLines = useRef(1);
   const renderBlock = ({item}: {item: Block}) => {
     if (item.key === 'hero') return <Billboard items={data?.hero || []} onPlay={heroPlay} onDetails={openDetail} active={focused && heroOn} greet={greetOnSlab ? slabGreet : null} />;
     if (item.key === 'greet')
       return me && !greetOnSlab ? (
         <View style={s.greet}>
           <Text style={s.greetLine}>{greetLine(g.line, me.name)}</Text>
-          <Text style={s.greetSub}>{g.sub}</Text>
+          <Animated.Text style={[s.greetSub, {opacity: remark.opacity}]} onTextLayout={e => (subLines.current = Math.max(1, e.nativeEvent.lines.length))}>
+            {remark.text || ' '}
+          </Animated.Text>
+          {remark.offer != null ? (
+            <Text style={[s.greetSub, s.greetMeasure]} onTextLayout={e => remark.take(e.nativeEvent.lines.length <= subLines.current)} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+              {remark.offer}
+            </Text>
+          ) : null}
         </View>
       ) : null;
     if (item.key === 'parties') return <Parties parties={parties} onJoin={joinParty} />;
@@ -650,6 +676,7 @@ const s = StyleSheet.create({
   greetLine: {color: colors.text, fontSize: 22.4, fontWeight: '900', letterSpacing: -0.22, lineHeight: 33.6},
   greetName: {color: '#a68cff'},
   greetSub: {color: colors.textDim, fontSize: 15.68, fontWeight: '600', lineHeight: 23.5, marginTop: 4},
+  greetMeasure: {position: 'absolute', left: GUTTER, right: GUTTER, top: 0, opacity: 0},
   parties: {paddingHorizontal: GUTTER, marginTop: 14, gap: 8},
   party: {flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radius.l, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassEdge},
   partyIcon: {fontSize: 20},
