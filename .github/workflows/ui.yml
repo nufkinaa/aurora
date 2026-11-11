@@ -133,7 +133,9 @@ jobs:
         run: |
           mkdir -p ~/.local/share/fonts/selawik ~/.config/fontconfig
           curl -fsSL --retry 3 --max-time 60 -o "$RUNNER_TEMP/selawik.zip" https://github.com/microsoft/Selawik/releases/download/1.01/Selawik_Release.zip
-          unzip -o -q "$RUNNER_TEMP/selawik.zip" -d ~/.local/share/fonts/selawik
+          unzip -o -q "$RUNNER_TEMP/selawik.zip" '*.ttf' -d ~/.local/share/fonts/selawik
+          # (line height as on Windows: tools/ci/patch-hhea.js says why)
+          node tools/ci/patch-hhea.js --from-win ~/.local/share/fonts/selawik/*.ttf
           cat > ~/.config/fontconfig/fonts.conf <<'XML'
           <?xml version="1.0"?>
           <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
@@ -158,14 +160,14 @@ jobs:
             const b = await chromium.launch({ channel: "chrome" });
             const p = await (await b.newContext()).newPage();
             await p.setContent(`<div id=t style="font-family:-apple-system,BlinkMacSystemFont,&quot;SF Pro Display&quot;,&quot;Segoe UI Variable Display&quot;,&quot;Segoe UI&quot;,Roboto,&quot;Helvetica Neue&quot;,Arial,sans-serif;font-size:16px;display:inline">Home Movies Shows My List More</div>`);
-            const c = await p.evaluate(() => ({ lang: navigator.language, time: new Date(Date.UTC(2026, 0, 1, 15, 4)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), width: document.getElementById("t").getBoundingClientRect().width }));
+            const c = await p.evaluate(() => ({ lang: navigator.language, time: new Date(Date.UTC(2026, 0, 1, 15, 4)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), width: document.getElementById("t").getBoundingClientRect().width, height: document.getElementById("t").getBoundingClientRect().height }));
             const cdp = await p.context().newCDPSession(p);
             await cdp.send("DOM.enable"); await cdp.send("CSS.enable");
             const { root } = await cdp.send("DOM.getDocument");
             const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: "#t" });
             const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
             const node = { locale: Intl.DateTimeFormat().resolvedOptions().locale, hourCycle: new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hourCycle };
-            console.log(`::notice title=UI environment::chrome ${b.version()} lang ${c.lang}, 15:04 UTC reads ${c.time}; text width ${c.width.toFixed(1)}px in ${fonts.map((f) => f.familyName).join(", ")}; node ${node.locale} ${node.hourCycle}; TZ ${process.env.TZ}`);
+            console.log(`::notice title=UI environment::chrome ${b.version()} lang ${c.lang}, 15:04 UTC reads ${c.time}; text ${c.width.toFixed(1)} x ${c.height.toFixed(2)}px in ${fonts.map((f) => f.familyName).join(", ")}; node ${node.locale} ${node.hourCycle}; TZ ${process.env.TZ}`);
             await b.close();
           })().catch((e) => { console.log(`::warning title=UI environment::${e.message}`); });'
       # The test library (made with ffmpeg on first use, ~30 s): kept between runs.
