@@ -3,6 +3,17 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.30 — 2026-11-11
+
+- **Film or series, at a glance in search (website too).** The website's results and suggestions now carry the same small sign as the TV and the phone app: a gold film strip for a film, a blue screen for a series.
+- **Choose the episodes to save (website and phone app).** "Save the next 3" and "Save the season" make way for one button, Choose episodes: tick the ones you want (the next ones you haven't watched come ticked), Select all for a season, pick the size once, see the total and the room left, then Save. Episodes the server doesn't have yet save themselves when they arrive.
+- **Aurora for Android phones 1.1.3.**
+  - Offline watching like the website: "This device too" on anything on its way (a film, an episode, a season or a whole show) saves it to the phone by itself when it arrives; saves can be paused and pick up where they stopped, a dropped connection is waited out; choose the sound when you save and every subtitle is kept; "Keep the next episode ready" (off unless you turn it on); a calm "No connection" line, and a start with no connection opens on what is on the phone. Nothing leaves the phone unless you remove it, and every Remove can be undone.
+  - The remote does everything the website's does: a touchpad (swipe to move, tap to select), a time bar you can drag, ±10 and ±30 seconds, subtitle timing, Continue Watching to start something on the TV, volume with its level, rename a TV, and it works sideways.
+  - Wrapped is a story of eleven chapters with your viewer type and a picture to share; Pick for me lands its pick on a reel; Taste is a real deck; Pick together reveals the winner like a game show.
+  - Home: the greeting sits on the picture with Aurora's line under it, new each visit (kids get friendly lines only).
+  - Small things put right: a taller bar at the bottom clear of the gesture line, sheets that stay above the keyboard, a title page's buttons that show they scroll, the player's bottom row upright, the score beside the star after a display-size change.
+
 ## 1.15.29 — 2026-11-11
 
 - **The player's menu reads over a bright picture again (website, on a computer).** Settings, subtitles and speed had turned see-through in 1.15.28, so over a light scene the words disappeared. The menu has its dark glass body back.

@@ -21,10 +21,10 @@ import { showReportSheet } from "../report.js";
 // (The TV has the same cards: tv-native/src/screens/WhatsNew.tsx, ROUND there.
 // A card about something only a browser has says `webOnly: true` first —
 // test/whatsnew-parity.test.js leaves it out of the comparison.)
-export const ROUND = "1.15.29";
+export const ROUND = "1.15.30";
 const NEW_FROM = ROUND;
 const FEATURES = [
-  // ---- 1.15.29: two for the website and the TV, one for the website alone ----
+  // ---- 1.15.30: the two of 1.15.29 that now reach every screen, and the episode chooser ----
   {
     since: ROUND, cue: "tap", glyph: "▶️",
     title: "Continue Watching, tidied",
@@ -35,12 +35,19 @@ const FEATURES = [
   {
     since: ROUND, cue: "tap", glyph: "🔎",
     title: "Film or series, at a glance in search",
-    what: "On the TV and in the phone app, every result and every suggestion in search now carries a small sign: a gold film strip for a film, a blue screen for a series. A show's page on the TV also lists its genres, as a film's page always did.",
+    what: "On the website, the TV and the phone app, every result and every suggestion in search now carries a small sign: a gold film strip for a film, a blue screen for a series. A show's page on the TV also lists its genres, as a film's page always did.",
     how: "Search → type a few letters.",
     go: { label: "Search", to: "#/search" },
   },
   {
-    webOnly: true, since: ROUND, cue: "tap", glyph: "⬇️",
+    webOnly: true, since: ROUND, cue: "offline", glyph: "📲",
+    title: "Choose the episodes to save",
+    what: "Pick exactly which episodes of a series go onto this device — for a flight, a train, a weekend away. The next ones you haven't watched come ticked; ones not on the server yet are saved by themselves when they arrive.",
+    how: "Open the series and press Choose episodes. Tick what you want (Select all for the whole season), pick the size once, then Save.",
+    go: { label: "Open Shows", to: "#/shows" },
+  },
+  {
+    webOnly: true, since: "1.15.29", cue: "tap", glyph: "⬇️",
     title: "Downloads stays beside Settings",
     what: "On a computer the Downloads button no longer comes and goes: it sits beside Settings all the time. It shows the progress while something downloads, and how many are ready once they land, until you open them.",
     how: "On a computer: the round download button at the top right, next to Settings.",
@@ -390,13 +397,6 @@ const FEATURES = [
     what: "When something you saved finishes downloading, Aurora tells you once, wherever you are in the app, with Play right on the message.",
     how: "For a notification while Aurora is in the background: Settings → More settings → Downloads → Tell me when it's ready.",
     go: { label: "My downloads", to: "#/downloads" },
-  },
-  {
-    since: "1.6.13", cue: "offline", glyph: "📲",
-    title: "Choose the episodes to save",
-    what: "Pick exactly which episodes of a series go onto this device — for a flight, a train, a weekend away. The next ones you haven't watched come ticked; ones not on the server yet are saved by themselves when they arrive.",
-    how: "Open the series and press Choose episodes. Tick what you want (Select all for the whole season), pick the size once, then Save.",
-    go: { label: "Open Shows", to: "#/shows" },
   },
   {
     since: "1.6.13", cue: "hold", glyph: "🏠",
