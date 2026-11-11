@@ -5,7 +5,7 @@
 // nothing saved for that profile, the plain "Can't reach Aurora." notice is all there is.
 // A kids profile sees only its own copies — the last profile's, never anyone else's.
 import React, {useEffect, useState} from 'react';
-import {ScrollView, StyleSheet, Text, View} from 'react-native';
+import {BackHandler, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {loadSession} from '../../storage';
 import {phoneNative} from '../native';
@@ -26,6 +26,16 @@ export default function OfflineHome({onRetry, fallback}: {onRetry: () => void; f
   }, []);
   const copies = useOfflineOf(who ?? null).filter(c => c.state === 'done' && !!c.file);
   const [playing, setPlaying] = useState<string | null>(null);
+  // (no navigator here: the phone's Back closes the copy that plays, not Aurora)
+  useEffect(() => {
+    if (!playing) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      phoneNative.setOrientation('auto');
+      setPlaying(null);
+      return true;
+    });
+    return () => sub.remove();
+  }, [playing]);
   if (who === undefined) return null;
   if (!copies.length) return <>{fallback}</>;
   if (playing && who) {

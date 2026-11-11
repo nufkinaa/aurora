@@ -94,6 +94,7 @@ import {useWishes} from '../offline/wishes';
 import {toggleWish} from '../offline/wishAsk';
 import {useNoConnection} from '../offline/reach';
 import RestTitle, {copiesOfTitle} from '../offline/RestTitle';
+import {peekLibraryItem} from '../../api';
 import {wishFor, wishOn} from '../offline/wishRules';
 import {useDevices} from '../remote/controller';
 import {sendToTv} from '../remote/playOnTv'; // [play-on-tv]
@@ -1086,7 +1087,12 @@ export default function Detail() {
   if (away && !full && !meta) {
     return (
       <View style={s.root}>
-        <RestTitle title={title} cover={item.cover || item.poster || null} copies={copiesOfTitle(saved, {id: item.inLibrary || item.id, showId: item.inLibrary || item.id})} onRetry={() => setLibraryTick(t => t + 1)} />
+        <RestTitle
+          title={title || peekLibraryItem(item.inLibrary || item.id)?.title || copiesOfTitle(saved, {id: item.inLibrary || item.id}).next?.showTitle || copiesOfTitle(saved, {id: item.inLibrary || item.id}).next?.title || 'This title'}
+          cover={item.cover || item.poster || peekLibraryItem(item.inLibrary || item.id)?.cover || null}
+          copies={copiesOfTitle(saved, {id: item.inLibrary || item.id, showId: item.inLibrary || item.id})}
+          onRetry={() => setLibraryTick(t => t + 1)}
+        />
         <BackBar solid={false} />
       </View>
     );

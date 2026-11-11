@@ -304,7 +304,7 @@ async function finish(it: Saved) {
       continue;
     }
     if (!t.url || !N) continue;
-    const file = await N.fetchSmall(t.url.startsWith('http') ? t.url : base + t.url, headers, `${it.id}-${it.quality}${it.audio ? `-a${it.audio}` : ''}-sub${n++}.vtt`).catch(() => null);
+    const file = await N.fetchSmall(t.url.startsWith('http') ? t.url : base + t.url, headers, `${it.id}-${it.quality}${it.audio ? `-a${it.audio}` : ''}-${it.profileId.slice(0, 12)}-sub${n++}.vtt`).catch(() => null);
     if (file) got.push({label: t.label, lang: t.lang, file});
   }
   put(it.id, {profileId: it.profileId, state: 'done', pct: 1, subs: got, savedAt: Date.now(), waitingWifi: false, speed: 0, eta: 0, error: null, note: null, why: null});

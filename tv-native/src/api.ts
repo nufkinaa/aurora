@@ -1174,6 +1174,13 @@ let homeKept: Kept<Home> | null = null;
 export const keptHomeText = (profileId: string, value: Home): string | null =>
   homeKept && homeKept.who === profileId && homeKept.value === value ? homeKept.text : null;
 let libraryKept: Kept<Library> | null = null;
+/** [offline-phone] A film or a show from the library list already read as this profile — no
+ *  request (a title page with no connection still knows its name). */
+export const peekLibraryItem = (id: string): {title: string; cover?: string | null; poster?: string | null} | null => {
+  const l = libraryKept && libraryKept.who === activeProfile ? libraryKept.value : null;
+  if (!l || !id) return null;
+  return ((l.movies || []).find(m => m.id === id) || (l.shows || []).find(m => m.id === id) || null) as never;
+};
 // NEVER MORE THAN ONE /api/home IN FLIGHT (docs/operations.md): a second ask
 // while the first is on its way — a return to Home during a library refresh —
 // shares its answer.
