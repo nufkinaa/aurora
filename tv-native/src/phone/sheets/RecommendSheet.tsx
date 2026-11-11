@@ -4,7 +4,7 @@
 // people and every refusal are the server's.
 import React, {useEffect, useMemo, useState} from 'react';
 import {ActivityIndicator, Image, StyleSheet, Text, TextInput, View} from 'react-native';
-import {api, HouseholdPerson, imgSrc} from '../../api';
+import {api, HouseholdPerson, imgSrc, peekLibraryItem} from '../../api';
 import {rootNav} from '../../rootNav';
 import {showToast} from '../../toast';
 import {track} from '../../usage';
@@ -42,6 +42,23 @@ export default function RecommendSheet({title, imdbId, onClose}: {title: TitleLi
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  // its name: a title opened from a link (aurora-phone://movie/<id>) has none until its record
+  // loads — the library's copy first, else the record itself; never 'Recommend “”'
+  const given = titleName(title);
+  const [found, setFound] = useState('');
+  const name = given || (title.id ? peekLibraryItem(title.id)?.title : '') || found;
+  useEffect(() => {
+    if (name || !title.id || !profileId || title.source === 'stream') return;
+    let live = true;
+    api
+      .item(title.id, profileId)
+      .then(f => live && setFound(String(f.showTitle || f.title || '')))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title.id, profileId]);
   const loadPeople = () => api.recommendPeople(profileId!, key!, titleType(title)).then(r => r.people || []);
   useEffect(() => {
     track('feat', {f: 'hhrec-open'});
@@ -93,7 +110,7 @@ export default function RecommendSheet({title, imdbId, onClose}: {title: TitleLi
     setBusy(false);
   };
   return (
-    <Sheet visible onClose={onClose} title={pickerTitle(titleName(title))} sub={WORDS.pickerLine}>
+    <Sheet visible onClose={onClose} title={pickerTitle(name)} sub={WORDS.pickerLine}>
       {people === null && !error ? <ActivityIndicator color={colors.text} style={{margin: 24}} /> : null}
       {people && people.length === 0 && !error ? <Text style={s.empty}>There's nobody else on this server yet.</Text> : null}
       {people && people.length ? (

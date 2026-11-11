@@ -117,7 +117,8 @@ export const cardLinesShown = (meta: string | null | undefined, from?: {name?: s
 };
 
 /** The picker's title: Recommend “Dune”. */
-export const pickerTitle = (title: string): string => `Recommend “${title}”`;
+/** (never 'Recommend “”': a title opened from a link has no name until its record loads) */
+export const pickerTitle = (title: string): string => (title.trim() ? `Recommend “${title}”` : 'Recommend');
 /** The send button: "Send" (nobody picked — and then it does nothing) · "Send to N". */
 export const sendLabel = (picked: number): string => (picked > 0 ? `Send to ${picked}` : WORDS.send);
 

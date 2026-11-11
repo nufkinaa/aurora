@@ -89,6 +89,9 @@ describe('the words', () => {
     expect(noteLine('Watch it with the sound up', 'Dana')).toBe('“Watch it with the sound up” — Dana');
     expect(notesOf([{name: 'Dana', note: 'Loved it'}, {name: 'Avi', note: ''}, {name: 'Noa', note: '  '}])).toEqual(['“Loved it” — Dana']);
     expect(pickerTitle('Dune')).toBe('Recommend “Dune”');
+    // a title opened from a link, its name not loaded yet: never empty quotes
+    expect(pickerTitle('')).toBe('Recommend');
+    expect(pickerTitle('  ')).toBe('Recommend');
     expect(sendLabel(0)).toBe('Send');
     expect(sendLabel(1)).toBe('Send to 1');
     expect(sendLabel(3)).toBe('Send to 3');

@@ -1112,7 +1112,7 @@ export default function Detail() {
       {isShow ? <ActionCircle uiId="phone.detail.episodes" icon="series" label="All episodes" onPress={() => scrollRef.current?.scrollTo({y: artH + 160, animated: true})} /> : null}
       {heroJob?.mine ? <ActionCircle uiId="detail.download.cancel" icon="close" label="Cancel download" onPress={() => askCancelJob(heroJob, isShow && heroEp ? `${title} · S${heroEp.season} E${heroEp.episode}` : title)} /> : null}
       <ActionCircle uiId="detail.mylist" icon={inList ? 'check' : 'plus'} label="My List" on={inList} onPress={toggleList} />
-      <ActionCircle uiId="detail.recommend" icon="send" label="Recommend" onPress={() => openRecommend(item, imdb)} />
+      <ActionCircle uiId="detail.recommend" icon="send" label="Recommend" onPress={() => openRecommend(title && !item.title ? {...item, title} : item, imdb)} />
       {isShow && followImdb ? <ActionCircle uiId="detail.follow" icon={following ? 'check' : 'bell'} label={following ? 'Following' : 'Follow'} on={following} onPress={toggleFollow} /> : null}
       {imdb || full ? (
         <ActionCircle uiId="detail.xray"
