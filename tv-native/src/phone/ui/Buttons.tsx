@@ -5,7 +5,7 @@ import React from 'react';
 import {ActivityIndicator, StyleSheet, Text, View, ViewStyle, StyleProp} from 'react-native';
 import Tap from './Tap';
 import Icon, {PhoneIconName} from './Icon';
-import {colors, E, G_EDGE, G_EDGE_FLOAT, G_EDGE_THIN, G_FILL, G_WELL, G_WORDS, radius} from '../theme';
+import {colors, E, E_EDGE, E_EDGE_FLOAT, E_EDGE_THIN, E_SHEEN, E_WORDS, G_EDGE, G_FILL, radius} from '../theme';
 
 type Base = {
   label: string;
@@ -192,13 +192,13 @@ const s = StyleSheet.create({
     overflow: 'hidden',
   },
   primaryText: {color: '#0b0c14', fontSize: 16, fontWeight: '700', letterSpacing: 0.16},
-  // .btn: the glass pill beside it (glass E: the clear body, --g-edge)
+  // .btn: the glass pill beside it — glass E (chrome over pictures: Aurora's navy body, E's edge)
   glass: {
     height: 50,
     borderRadius: radius.pill,
     backgroundColor: E.chrome,
-    experimental_backgroundImage: G_FILL,
-    ...G_EDGE,
+    experimental_backgroundImage: E_SHEEN,
+    ...E_EDGE,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -206,31 +206,31 @@ const s = StyleSheet.create({
     gap: 10,
     overflow: 'hidden',
   },
-  glassText: {color: '#ffffff', fontSize: 16, fontWeight: '700', letterSpacing: 0.16, ...G_WORDS},
+  glassText: {color: '#ffffff', fontSize: 16, fontWeight: '700', letterSpacing: 0.16, ...E_WORDS},
   glassSmall: {height: 39.6, paddingHorizontal: 20},
   glassTextSmall: {fontSize: 14.4, letterSpacing: 0.14},
   emoji: {fontSize: 14.4},
-  // .chip / .season-pill: 40 tall, --g-fill-chip and --g-edge-thin; lit: the well laid over it
+  // .chip / .season-pill: 40 tall, a faint fill and a hairline ring; lit: a brighter fill
   chip: {
     height: 40,
     borderRadius: radius.pill,
-    backgroundColor: E.chip,
-    ...G_EDGE_THIN,
+    backgroundColor: colors.chip,
+    borderWidth: 1,
+    borderColor: colors.chipEdge,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     gap: 6,
     overflow: 'hidden',
   },
-  chipOn: {...G_WELL, backgroundColor: E.chip, experimental_backgroundImage: 'linear-gradient(rgba(255,255,255,0.1), rgba(255,255,255,0.1))'},
-  chipText: {color: '#eceef3', fontSize: 13.6, fontWeight: '700', ...G_WORDS},
+  chipOn: {backgroundColor: colors.chipOn, borderColor: 'rgba(255,255,255,0.08)', borderTopColor: 'rgba(255,255,255,0.35)'},
+  chipText: {color: 'rgba(243,244,248,0.82)', fontSize: 13.6, fontWeight: '700'},
   chipTextOn: {color: '#ffffff'},
   chipBig: {height: 40.8},
   chipTextBig: {fontSize: 15.2, fontWeight: '800'},
   chipTextSmall: {fontSize: 12.16},
-  // the quiet words on a chip, one step lighter (glass E: 3.8:1 before over the sky's brightest)
-  pickerLabel: {color: '#e0e3ea', fontSize: 13.6, fontWeight: '600'},
-  pickerCaret: {color: '#e0e3ea', fontSize: 11.2, fontWeight: '700'},
+  pickerLabel: {color: colors.textFaint, fontSize: 13.6, fontWeight: '600'},
+  pickerCaret: {color: colors.textFaint, fontSize: 11.2, fontWeight: '700'},
   disabled: {opacity: 0.45},
   // .detail-actions-more .btn: 76 wide, the icon in a 52 disc, its word 8 under it
   action: {width: 76, alignItems: 'center', gap: 8},
@@ -238,19 +238,20 @@ const s = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    // the phone's .detail-actions .btn (glass E): --g-fill-slab, --g-edge-thin, no blur
-    backgroundColor: E.slab,
-    ...G_EDGE_THIN,
+    // glass E (the title page's buttons): Aurora's navy body, E's thin edge
+    backgroundColor: E.chrome,
+    ...E_EDGE_THIN,
     alignItems: 'center',
     justifyContent: 'center',
   },
   actionDiscOn: {backgroundColor: colors.accentStrong, borderColor: colors.accentStrong, borderTopColor: 'rgba(255,255,255,0.5)'},
-  actionText: {color: colors.inkDim, fontSize: 11.2, fontWeight: '600', textAlign: 'center', lineHeight: 13.44, letterSpacing: 0.11},
+  actionText: {color: 'rgba(243,244,248,0.8)', fontSize: 11.2, fontWeight: '600', textAlign: 'center', lineHeight: 13.44, letterSpacing: 0.11},
   // .nav-gear / .nav-profile / .nav-logo: round glass over the page
   iconCircle: {
+    // glass E over the picture
     backgroundColor: E.chrome,
-    experimental_backgroundImage: G_FILL,
-    ...G_EDGE_FLOAT,
+    experimental_backgroundImage: E_SHEEN,
+    ...E_EDGE_FLOAT,
     alignItems: 'center',
     justifyContent: 'center',
   },

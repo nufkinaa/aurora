@@ -13,7 +13,7 @@ import {openProfileMenu} from '../profileMenu';
 import {useDevices} from '../remote/controller';
 import {pushPhone} from '../nav';
 import {setTab} from '../tabs';
-import {E, G_EDGE_FLOAT, G_FILL, GUTTER} from '../theme';
+import {E, E_EDGE_FLOAT, E_SHEEN, GUTTER} from '../theme';
 import Tap from './Tap';
 import {BarBand, StatusScrim} from './Scrims';
 
@@ -73,7 +73,7 @@ const s = StyleSheet.create({
     paddingLeft: 8,
     justifyContent: 'center',
     backgroundColor: E.chrome,
-    experimental_backgroundImage: G_FILL,
-    ...G_EDGE_FLOAT,
+    experimental_backgroundImage: E_SHEEN,
+    ...E_EDGE_FLOAT,
   },
 });

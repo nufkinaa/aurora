@@ -170,7 +170,7 @@ import {isPhone} from '../formFactor';
 import PhoneChrome from '../phone/player/PhoneChrome';
 import PhoneGestures from '../phone/player/PhoneGestures';
 import {onPipChange, phoneNative} from '../phone/native';
-import {E as PHONE_GLASS, G_EDGE_THICK as PHONE_EDGE, G_FILL as PHONE_SHEEN} from '../phone/theme';
+import {E as PHONE_GLASS, E_EDGE_THICK as PHONE_EDGE, E_SHEEN as PHONE_SHEEN} from '../phone/theme';
 import {menuMaxHeight} from '../popupFit';
 import {refreshTuning, tuning, TUNING_DEFAULTS} from './tuning';
 import {againStep, CARD_RETRY_MS, REFUSED_UNDER_S, spotOf, StopKind, stopWords, watchNew, watchReset, watchTick} from './recovery';

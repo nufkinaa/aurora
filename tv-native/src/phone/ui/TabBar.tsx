@@ -16,7 +16,7 @@ import {navRef} from '../../rootNav';
 import {setTab, Tab, useTab} from '../tabs';
 import {openMore, useMoreShown} from '../moreMenu';
 import {phoneNative} from '../native';
-import {E, G_EDGE_FLOAT, G_FILL, G_WELL, G_WORDS, GUTTER, TAB_H, TAB_INSET, TAB_SIDE} from '../theme';
+import {E, E_EDGE_FLOAT, E_SHEEN, E_WELL, E_WORDS, GUTTER, TAB_H, TAB_INSET, TAB_SIDE} from '../theme';
 import {BASE_FONT, fitTabs, guessWidth, tabSlots} from './tabFit';
 
 const ITEMS: {tab: Tab; label: string; uiId: string}[] = [
@@ -162,8 +162,8 @@ const s = StyleSheet.create({
   wrap: {position: 'absolute', left: 0, right: 0, alignItems: 'center'},
   // .nav-items (glass E, "Clear"): a 53 tall island, 6 inside, the items 2 apart. The
   // website's is a light 3 px blur with the poster behind dimmed hard; a blur every frame
-  // is what a weak phone cannot pay, so the body does the dimming (62 % of black lets the
-  // same light through as the website's dim) — a still fill, the strong edge, the depth.
+  // is what a weak phone cannot pay, so the body does the dimming (Aurora's navy at 58 %: the
+  // picture's light and colour come through, words 4.9:1 over white) — a still fill, the strong edge, the depth.
   bar: {
     height: TAB_H,
     borderRadius: TAB_H / 2,
@@ -172,15 +172,15 @@ const s = StyleSheet.create({
     padding: 6,
     gap: 2,
     backgroundColor: E.chrome,
-    experimental_backgroundImage: G_FILL,
-    ...G_EDGE_FLOAT,
+    experimental_backgroundImage: E_SHEEN,
+    ...E_EDGE_FLOAT,
   },
   item: {flex: 1, height: PILL_H, borderRadius: PILL_H / 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
-  // .nav-item.active (--g-well): a lighter capsule with its own line
-  pill: {...StyleSheet.absoluteFill, borderRadius: PILL_H / 2, ...G_WELL},
+  // .nav-item.active: Aurora's violet capsule with its own line (glass E keeps the colour)
+  pill: {...StyleSheet.absoluteFill, borderRadius: PILL_H / 2, ...E_WELL},
   pillOff: {opacity: 0},
   // --g-ink: white words, each with its soft shadow (the clearest glass)
-  label: {color: '#ffffff', fontSize: BASE_FONT, fontWeight: '700', lineHeight: 18.24, ...G_WORDS},
+  label: {color: '#ffffff', fontSize: BASE_FONT, fontWeight: '700', lineHeight: 18.24, ...E_WORDS},
   // the words measured at the full size: out of sight, never laid out against the bar
   measure: {position: 'absolute', left: 0, top: 0, opacity: 0, flexDirection: 'row', alignItems: 'flex-start', width: 2000},
   labelOn: {color: '#ffffff'},

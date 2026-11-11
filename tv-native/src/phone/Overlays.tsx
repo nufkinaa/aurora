@@ -8,7 +8,7 @@ import {closeOverlay, useOverlay} from '../overlay';
 import {useToasts} from '../toast';
 import Sheet from './ui/Sheet';
 import ListRow from './ui/Row';
-import {colors, E, G_EDGE_MENU, G_FILL, GUTTER, radius, TAB_H, TAB_INSET} from './theme';
+import {colors, GUTTER, radius, TAB_H, TAB_INSET} from './theme';
 import {tabBottom} from './ui/TabBar';
 import XraySheet from './sheets/XraySheet';
 import ReplaceSheet from './sheets/ReplaceSheet';
@@ -116,10 +116,10 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: radius.l,
-    // glass E's toast: the thick body, the menu's edge and depth
-    backgroundColor: E.thick,
-    experimental_backgroundImage: G_FILL,
-    ...G_EDGE_MENU,
+    backgroundColor: 'rgba(22,24,44,0.96)',
+    borderWidth: 1,
+    borderColor: colors.glassEdge,
+    elevation: 8,
   },
   glyph: {fontSize: 18},
   toastText: {color: colors.text, fontSize: 15, fontWeight: '600', flexShrink: 1},

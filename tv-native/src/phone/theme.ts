@@ -16,22 +16,14 @@ export const colors = {
   bg: '#070811', // glass.css --bg
   textDim: '#c2c7d6', // glass.css --text-dim
   textFaint: '#8c93a8', // glass.css --text-faint
-  // the glass, "Clear" (glass E — elia's choice of five for the website,
-  // 2026-11-11: docs/qa/glass-options/README.md on the website side). The
-  // website dims what is behind its bars (backdrop brightness 0.48 under a
-  // fifth of black): 0.8 x 0.48 lets 38 % of the picture's light through.
-  // React Native has no live backdrop, so the app's body does the dimming
-  // itself: 62 % of black lets the same 38 % through — the same picture
-  // behind, the same words over it, without a blur (3 px on the website).
-  glass: 'rgba(4,4,10,0.7)', // --g-fill-slab: a pane in the page (rows, cards)
-  glassStrong: 'rgba(4,4,10,0.84)',
-  glassEdge: 'rgba(255,255,255,0.3)', // the light line all round (--g-edge)
-  glassTop: 'rgba(255,255,255,0.65)', // …brighter along the top (0.5 over the 0.3 line)
-  glassDark: 'rgba(4,4,10,0.94)', // menus and the search suggestions
-  /** --g-ink-quiet / --g-ink-dim: the quiet words ON a pane, lifted from the page's greys */
-  inkQuiet: '#c0c5d2',
-  inkDim: '#dde0e8',
-  tabPill: 'rgba(255,255,255,0.1)', // --g-well
+  // the glass: the site's --g-fill (a light sheen over the sky) and its edge light
+  glass: 'rgba(255,255,255,0.07)',
+  glassStrong: 'rgba(255,255,255,0.12)',
+  glassEdge: 'rgba(255,255,255,0.14)',
+  glassTop: 'rgba(255,255,255,0.38)', // --g-edge: inset 0 1px 0 rgba(255,255,255,.38)
+  glassDark: 'rgba(10,12,22,0.8)', // menus and the search suggestions
+  // the tab bar's pill on the tab you are on (.nav-item.active)
+  tabPill: 'rgba(255,255,255,0.14)',
   kicker: 'rgba(255,255,255,0.10)',
   kickerFilm: '#f0c67e',
   kickerSeries: '#7fd1e8',
@@ -39,45 +31,53 @@ export const colors = {
   danger: '#ff6b6b',
   scrim: 'rgba(5,6,12,0.55)',
   // .chip / .cat-pill / .picker-btn off, and the lit one
-  chip: 'rgba(0,0,4,0.58)', // --g-fill-chip
-  chipEdge: 'rgba(255,255,255,0.24)', // --g-edge-thin
-  chipOn: 'rgba(255,255,255,0.1)', // --g-well over the chip
+  chip: 'rgba(255,255,255,0.07)',
+  chipEdge: 'rgba(255,255,255,0.10)',
+  chipOn: 'rgba(255,255,255,0.16)',
 };
 
-/** Glass E's bodies (theme of 2026-11-11). `chrome`: what floats over pictures
- *  (the tab bar, the round buttons, the title page's buttons, the player's
- *  pills) — the website's dim, done by the body (see colors.glass above).
- *  `thick`: what carries lines of words (sheets, menus, toasts, the player's
- *  menus) — the website frosts these 10 px; with no frost, sharp words behind
- *  would show between the lines, so the body is fuller (the website's own
- *  rule where it cannot blur: near-opaque). `slab`: panes in the page;
- *  `chip`: chips and pills in the page (no blur on the website either). */
-export const E = {
-  chrome: 'rgba(0,0,4,0.62)',
-  // (0.88 / 0.82 were tried first on the Pixel 9: the page's words and the
-  // player's frame showed sharp between the lines — "text on text"; the
-  // website's own rule where it cannot frost is a near-opaque body)
-  thick: 'rgba(4,4,10,0.94)',
-  /** a sheet over the page's 55 % dim: a touch less body (the dim does part of it) */
-  sheet: 'rgba(4,4,10,0.92)',
-  slab: 'rgba(4,4,10,0.7)',
-  chip: 'rgba(0,0,4,0.58)',
-  /** the chosen tab / a lit chip: a lighter capsule with its own line (--g-well) */
-  well: 'rgba(255,255,255,0.1)',
-  /** a pressed step over any of them (--g-lift) */
-  lift: 'rgba(255,255,255,0.1)',
+/** The site's --g-fill as a React Native gradient (glass.css): the sheen on every glass surface. */
+export const G_FILL = 'linear-gradient(135deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.025) 55%, rgba(255,255,255,0.06) 100%)';
+/** The site's --g-edge, as border colours: a bright top edge, a softer left one, a faint rest. */
+export const G_EDGE = {
+  borderWidth: 1,
+  borderTopColor: 'rgba(255,255,255,0.38)',
+  borderLeftColor: 'rgba(255,255,255,0.16)',
+  borderRightColor: 'rgba(255,255,255,0.07)',
+  borderBottomColor: 'rgba(255,255,255,0.06)',
 } as const;
 
-/** The site's --g-sheen: a faint light from the top over every glass body. */
-export const G_FILL = 'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 40%)';
+/* ---- Glass E ("Clear") on the chrome over pictures (2026-11-11) -----------
+   elia chose E for the website ("I think E looks the best!!") and for the phone
+   app, then narrowed it: "Not everything needs to change to this … make sure
+   we are not losing too much color". So E is ONLY on what floats over a
+   picture — the tab bar, the round top buttons, the logo pill, the glass
+   buttons (the hero's Details, …), the title page's action circles, the
+   player's controls and menu. Sheets, the More menu, the profile menu, toasts,
+   panes and rows in the page keep the 1.1.2 look (the tokens above).
 
-/** --g-edge, glass E: a 1 px light line all round inside (0.3), brighter
- *  along the top (0.5 laid over it = 0.65), a little brighter along the foot
- *  (0.14 over it = 0.4), and a dark hairline OUTSIDE (it parts the glass from
- *  a white poster). Borders draw the inside lines (1 dp, the layout the old
- *  edge had); the outside line is a 1 dp spread shadow with no blur — a
- *  plain ring, no blur pass (Android 9+; older phones keep the light lines). */
-export const G_EDGE = {
+   The website dims what is behind its bars (backdrop brightness 0.48 under a
+   fifth of black). React Native has no live backdrop, so the body does the
+   dimming — and it is Aurora's deep navy-violet, not black, and a touch
+   lighter (58 %): 42 % of the picture's light and colour comes through, with a
+   violet cast instead of grey. Over a WHITE poster that is (113,112,127):
+   white words 4.9:1. The chosen tab is a violet capsule (Aurora's accent at
+   20 %) with its own line — 4.8:1 over white. The edge is E's: a 1 px light
+   line all round, brighter on top, a little brighter along the foot, and a
+   dark hairline OUTSIDE (a 1 dp spread shadow, no blur; Android 9+). Words
+   carry a soft shadow. */
+export const E = {
+  /** what floats over pictures */
+  chrome: 'rgba(10,8,34,0.58)',
+  /** the player's menu: words in lines over a moving frame — near-solid (0.88 showed the frame's shapes sharp between the lines on the Pixel 9) */
+  thick: 'rgba(4,4,10,0.94)',
+} as const;
+
+/** --g-sheen: a faint light from the top over the body. */
+export const E_SHEEN = 'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 40%)';
+
+/** --g-edge: 0.3 all round, 0.5 laid over it on top (= 0.65), 0.14 over it at the foot (= 0.4), the dark hairline outside. */
+export const E_EDGE = {
   borderWidth: 1,
   borderTopColor: 'rgba(255,255,255,0.65)',
   borderLeftColor: 'rgba(255,255,255,0.3)',
@@ -85,14 +85,14 @@ export const G_EDGE = {
   borderBottomColor: 'rgba(255,255,255,0.4)',
   boxShadow: '0 0 0 1px rgba(0,0,0,0.38)',
 } as const;
-/** --g-edge-thick (sheets, menus, toasts): the top line 0.52 over the 0.3 one, the outside line 0.4. */
-export const G_EDGE_THICK = {
-  ...G_EDGE,
+/** --g-edge-thick (the player's menu): the top line 0.52 over the 0.3 one, the outside line 0.4. */
+export const E_EDGE_THICK = {
+  ...E_EDGE,
   borderTopColor: 'rgba(255,255,255,0.66)',
   boxShadow: '0 0 0 1px rgba(0,0,0,0.4)',
 } as const;
-/** --g-edge-thin (chips, small things in the page): 0.24 all round, 0.4 over it on top, outside 0.3. */
-export const G_EDGE_THIN = {
+/** --g-edge-thin (small round things): 0.24 all round, 0.4 over it on top, outside 0.3. */
+export const E_EDGE_THIN = {
   borderWidth: 1,
   borderTopColor: 'rgba(255,255,255,0.54)',
   borderLeftColor: 'rgba(255,255,255,0.24)',
@@ -100,30 +100,24 @@ export const G_EDGE_THIN = {
   borderBottomColor: 'rgba(255,255,255,0.24)',
   boxShadow: '0 0 0 1px rgba(0,0,0,0.3)',
 } as const;
-/** --g-well + --g-well-edge: the chosen tab, a lit chip — 0.3 all round, 0.36 over it on top. */
-export const G_WELL = {
-  backgroundColor: 'rgba(255,255,255,0.1)',
-  borderWidth: 1,
-  borderTopColor: 'rgba(255,255,255,0.55)',
-  borderLeftColor: 'rgba(255,255,255,0.3)',
-  borderRightColor: 'rgba(255,255,255,0.3)',
-  borderBottomColor: 'rgba(255,255,255,0.3)',
-} as const;
-/** The edge with the depth under it (--g-edge + --g-shadow), for what floats:
- *  the tab bar, the round buttons. Drawn around the shape only (RN clips it
- *  out under the body), unlike Android's elevation, which darkens a
- *  see-through body from below. */
-export const G_EDGE_FLOAT = {
-  ...G_EDGE,
+/** The edge with the depth under it (--g-edge + --g-shadow), for what floats (the tab bar, the round
+ *  buttons): drawn around the shape only (RN clips it out under the body), unlike Android's
+ *  elevation, which darkens a see-through body from below. */
+export const E_EDGE_FLOAT = {
+  ...E_EDGE,
   boxShadow: '0 0 0 1px rgba(0,0,0,0.38), 0 6px 18px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.3)',
 } as const;
-/** --g-edge-thick + --g-shadow-menu: a menu or a sheet's depth. */
-export const G_EDGE_MENU = {
-  ...G_EDGE_THICK,
-  boxShadow: '0 0 0 1px rgba(0,0,0,0.4), 0 14px 36px rgba(0,0,0,0.42), 0 2px 6px rgba(0,0,0,0.3)',
+/** The chosen tab / a lit control: Aurora's violet capsule with its own line (4.8:1 over white). */
+export const E_WELL = {
+  backgroundColor: 'rgba(120,104,240,0.2)',
+  borderWidth: 1,
+  borderTopColor: 'rgba(206,198,255,0.62)',
+  borderLeftColor: 'rgba(170,158,255,0.4)',
+  borderRightColor: 'rgba(170,158,255,0.4)',
+  borderBottomColor: 'rgba(170,158,255,0.4)',
 } as const;
 /** Words on the clearest glass carry a soft shadow of their own (0 1px 3px rgba(0,0,0,.6)). */
-export const G_WORDS = {
+export const E_WORDS = {
   textShadowColor: 'rgba(0,0,0,0.6)',
   textShadowOffset: {width: 0, height: 1},
   textShadowRadius: 3,

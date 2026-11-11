@@ -16,7 +16,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Tap from '../ui/Tap';
 import Icon, {PhoneIconName} from '../ui/Icon';
 import {phoneNative} from '../native';
-import {E, G_EDGE, G_EDGE_THIN, G_WELL, G_WORDS} from '../theme';
+import {E, E_EDGE, E_EDGE_THIN, E_WELL, E_WORDS} from '../theme';
 import PlayOnTvSlot from '../remote/PlayOnTvSlot'; // [play-on-tv]
 // [scrub-previews] the picture above the scrub point while the bar is dragged
 import ScrubThumb, {ScrubPics, thumbOuterWidth} from '../../playback/ScrubThumb';
@@ -253,26 +253,27 @@ const s = StyleSheet.create({
   scrimBottom: {position: 'absolute', bottom: 0, left: 0, right: 0, height: 190},
   top: {position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'flex-start', gap: 6},
   titles: {flex: 1, paddingTop: 4, paddingHorizontal: 6},
-  title: {color: '#fff', fontSize: 18, fontWeight: '800', ...G_WORDS},
+  title: {color: '#fff', fontSize: 18, fontWeight: '800', ...E_WORDS},
   // the player's second voice, lifted (glass E: #e3e6ee on the phone's player)
-  sub: {color: '#e3e6ee', fontSize: 14, fontWeight: '600', marginTop: 2, ...G_WORDS},
+  sub: {color: '#e3e6ee', fontSize: 14, fontWeight: '600', marginTop: 2, ...E_WORDS},
   badges: {flexDirection: 'row', gap: 6, marginTop: 6},
   chip: {color: '#fff', fontSize: 11, fontWeight: '800', backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, overflow: 'hidden', letterSpacing: 0.5},
   middle: {position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 44},
   bottom: {position: 'absolute', bottom: 0, left: 0, right: 0},
   timeRow: {flexDirection: 'row', alignItems: 'center', gap: 10},
-  time: {color: '#fff', fontSize: 13, fontWeight: '700', minWidth: 46, fontVariant: ['tabular-nums'], ...G_WORDS},
+  time: {color: '#fff', fontSize: 13, fontWeight: '700', minWidth: 46, fontVariant: ['tabular-nums'], ...E_WORDS},
   timeRight: {textAlign: 'right'},
   row: {flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 4},
   btn: {alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
   // glass E over the video (the website's phone player: never blurred, 62 % of black
   // holds the words alone; the strong edge)
-  big: {backgroundColor: E.chrome, ...G_EDGE},
-  mid: {backgroundColor: E.chrome, ...G_EDGE_THIN},
-  on: {...G_WELL, backgroundColor: E.chrome, experimental_backgroundImage: 'linear-gradient(rgba(255,255,255,0.14), rgba(255,255,255,0.14))'},
+  big: {backgroundColor: E.chrome, ...E_EDGE},
+  mid: {backgroundColor: E.chrome, ...E_EDGE_THIN},
+  // lit: Aurora's violet capsule laid over the body
+  on: {...E_WELL, backgroundColor: E.chrome, experimental_backgroundImage: 'linear-gradient(rgba(120,104,240,0.2), rgba(120,104,240,0.2))'},
   badge: {position: 'absolute', bottom: 4, color: '#fff', fontSize: 9, fontWeight: '900'},
-  next: {flexDirection: 'row', alignItems: 'center', gap: 4, height: 40, paddingHorizontal: 14, borderRadius: 20, backgroundColor: E.chrome, ...G_EDGE, overflow: 'hidden', marginLeft: 4},
-  nextText: {color: '#fff', fontSize: 14, fontWeight: '800', ...G_WORDS},
+  next: {flexDirection: 'row', alignItems: 'center', gap: 4, height: 40, paddingHorizontal: 14, borderRadius: 20, backgroundColor: E.chrome, ...E_EDGE, overflow: 'hidden', marginLeft: 4},
+  nextText: {color: '#fff', fontSize: 14, fontWeight: '800', ...E_WORDS},
   lockOnly: {position: 'absolute'},
   scrubWrap: {flex: 1, height: 36, justifyContent: 'center'},
   track: {height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'visible'},
