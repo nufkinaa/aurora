@@ -3,7 +3,7 @@
    ==========================================================================
    The most see-through: almost no body (a fifth of black) and only a light
    blur (3 px), so a poster behind a bar stays a poster — what holds the
-   words is the backdrop dimmed hard (0.55) under the glass, and a strong
+   words is the backdrop dimmed hard (0.48) under the glass, and a strong
    edge that draws the shape: a 1 px light line all round inside, a brighter
    one along the top, a dark hairline outside (it separates the glass from
    a white page), a small close shadow. Words on the clear bars carry a soft
@@ -18,14 +18,15 @@ html[data-look="glass"][data-glass="e"]:root {
   --g-tint: 0, 0, 4;
   --g-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0) 40%);
   --g-fill: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.2), rgba(var(--g-tint), 0.2));
-  --g-blur: blur(3px) saturate(1.5) brightness(0.55);
+  /* (0.55 first: the island's words read 4.4:1 over a white poster) */
+  --g-blur: blur(3px) saturate(1.5) brightness(0.48);
   --g-tint-deep: 0, 0, 6;
   --g-fill-thick: var(--g-sheen), linear-gradient(rgba(var(--g-tint-deep), 0.4), rgba(var(--g-tint-deep), 0.4));
   --g-fill-sheet: var(--g-sheen), linear-gradient(rgba(var(--g-tint-deep), 0.36), rgba(var(--g-tint-deep), 0.36));
   --g-fill-menu: var(--g-sheen), linear-gradient(rgba(var(--g-tint-deep), 0.42), rgba(var(--g-tint-deep), 0.42));
   --g-tint-slab: 4, 4, 10;
   --g-fill-slab: linear-gradient(rgba(var(--g-tint-slab), 0.5), rgba(var(--g-tint-slab), 0.5));
-  --g-fill-chip: linear-gradient(rgba(var(--g-tint), 0.42), rgba(var(--g-tint), 0.42));
+  --g-fill-chip: linear-gradient(rgba(var(--g-tint), 0.58), rgba(var(--g-tint), 0.58));
   --g-lift: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1));
   /* the edge does the work */
   --g-edge: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.3),
@@ -37,7 +38,7 @@ html[data-look="glass"][data-glass="e"]:root {
   --g-shadow: 0 6px 18px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.3);
   --g-shadow-menu: 0 14px 36px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.3);
   /* the chosen tab: a lighter capsule with its own line */
-  --g-well: rgba(255, 255, 255, 0.16);
+  --g-well: rgba(255, 255, 255, 0.1);
   --g-well-edge: inset 0 0 0 1px rgba(255, 255, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.36);
   --g-ink-on: #fff;
   --g-ink-quiet: #c0c5d2;
@@ -129,4 +130,15 @@ html[data-look="glass"][data-glass="e"][data-fx="lite"]:root .nav-more-sheet { b
       linear-gradient(140deg, rgba(104, 86, 226, 0.26) 0%, rgba(16, 15, 30, 0) 48%, rgba(70, 200, 150, 0.18) 100%),
       var(--g-fill-menu);
   }
+}
+
+/* the quiet words on a chip (a count) over the sky's brightest band: one
+   step lighter than glass.css lifts them (they read under 4.5:1 there,
+   today's glass too) */
+html[data-look="glass"][data-glass="e"]:root .chip,
+html[data-look="glass"][data-glass="e"]:root .cat-pill,
+html[data-look="glass"][data-glass="e"]:root .source-filter,
+html[data-look="glass"][data-glass="e"]:root .picker-btn {
+  --text-faint: #e0e3ea;
+  --text-dim: #eceef3;
 }

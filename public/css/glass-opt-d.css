@@ -5,7 +5,7 @@
    this way:
    - frost: a heavier blur (12 px on the bars, 18 px on menus and sheets)
      over a cool blue-grey body at half strength — milky, soft, the shapes
-     behind gone and their colour kept; the backdrop is dimmed (0.68) so
+     behind gone and their colour kept; the backdrop is dimmed (0.5) so
      white words hold 4.5:1 over a white poster;
    - light angle -45 deg, intensity medium: the light comes from the
      top-left — a glare in that corner, the rim lit along the top and left;
@@ -26,8 +26,10 @@ html[data-look="glass"][data-glass="d"]:root {
   --g-tint: 46, 49, 64;
   --g-sheen: var(--g-grain),
     radial-gradient(130% 110% at 0% 0%, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 52%);
-  --g-fill: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.5), rgba(var(--g-tint), 0.5));
-  --g-blur: blur(12px) saturate(1.35) brightness(0.68);
+  --g-fill: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.54), rgba(var(--g-tint), 0.54));
+  /* (the first try dimmed to 0.68 under 50 %: the bars read 3.5-4.1:1 over
+     a white poster — the glare and the grain lift it) */
+  --g-blur: blur(12px) saturate(1.35) brightness(0.5);
   --g-tint-deep: 30, 32, 44;
   --g-fill-thick: var(--g-sheen), linear-gradient(rgba(var(--g-tint-deep), 0.62), rgba(var(--g-tint-deep), 0.62));
   --g-fill-sheet: var(--g-sheen), linear-gradient(rgba(var(--g-tint-deep), 0.58), rgba(var(--g-tint-deep), 0.58));
@@ -36,7 +38,7 @@ html[data-look="glass"][data-glass="d"]:root {
   --g-fill-slab: var(--g-grain),
     radial-gradient(130% 110% at 0% 0%, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 52%),
     linear-gradient(rgba(var(--g-tint-slab), 0.64), rgba(var(--g-tint-slab), 0.64));
-  --g-fill-chip: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.72), rgba(var(--g-tint), 0.72));
+  --g-fill-chip: var(--g-sheen), linear-gradient(rgba(30, 32, 44, 0.8), rgba(30, 32, 44, 0.8));
   --g-lift: linear-gradient(rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.09));
   /* the rim: light from the top-left; the prism split on the far edges */
   --g-edge: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 1px 0 0 rgba(255, 255, 255, 0.2),
@@ -69,7 +71,7 @@ html[data-look="glass"][data-glass="d"]:root .modal,
 html[data-look="glass"][data-glass="d"]:root .peek,
 html[data-look="glass"][data-glass="d"]:root .look-notice,
 html[data-look="glass"][data-glass="d"]:root .toast {
-  --g-blur: blur(18px) saturate(1.3) brightness(0.64);
+  --g-blur: blur(18px) saturate(1.3) brightness(0.48);
 }
 
 /* the phone's More menu: a frosted pane the height of the screen */
@@ -128,4 +130,15 @@ html[data-look="glass"][data-glass="d"][data-fx="lite"]:root .nav-more-sheet { b
       linear-gradient(140deg, rgba(104, 86, 226, 0.26) 0%, rgba(16, 15, 30, 0) 48%, rgba(70, 200, 150, 0.18) 100%),
       var(--g-fill-menu);
   }
+}
+
+/* the quiet words on a chip (a count) over the sky's brightest band: one
+   step lighter than glass.css lifts them (they read under 4.5:1 there,
+   today's glass too) */
+html[data-look="glass"][data-glass="d"]:root .chip,
+html[data-look="glass"][data-glass="d"]:root .cat-pill,
+html[data-look="glass"][data-glass="d"]:root .source-filter,
+html[data-look="glass"][data-glass="d"]:root .picker-btn {
+  --text-faint: #e0e3ea;
+  --text-dim: #eceef3;
 }

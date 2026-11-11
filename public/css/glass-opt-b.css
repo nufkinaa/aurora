@@ -117,3 +117,14 @@ html[data-look="glass"][data-glass="b"][data-fx="lite"]:root .nav-more-sheet {
       var(--g-fill-menu);
   }
 }
+
+/* the quiet words on a chip (a count) over the sky's brightest band: one
+   step lighter than glass.css lifts them (they read under 4.5:1 there,
+   today's glass too) */
+html[data-look="glass"][data-glass="b"]:root .chip,
+html[data-look="glass"][data-glass="b"]:root .cat-pill,
+html[data-look="glass"][data-glass="b"]:root .source-filter,
+html[data-look="glass"][data-glass="b"]:root .picker-btn {
+  --text-faint: #e0e3ea;
+  --text-dim: #eceef3;
+}

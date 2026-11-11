@@ -5,9 +5,9 @@
    it read as a lens rather than frosting:
    - a much clearer body. A third of a near-black tint instead of A's 72 %
      grey; what keeps white words readable over a white poster is the
-     backdrop DIMMED (brightness 0.6) before it is laid under the glass —
+     backdrop DIMMED (brightness 0.5) before it is laid under the glass —
      Apple's "dimming layer" for clear glass — so the colour of what is
-     behind comes through, its brightness does not (5.0:1 over white);
+     behind comes through, its brightness does not (4.5:1 or more over white);
    - light caught on the edge: a bright crescent along the top-left of the
      rim and a fainter one at the bottom-right (inset shadows offset toward
      the light — the shape of a thick, rounded edge), a soft inner glow;
@@ -25,11 +25,12 @@
 html[data-look="glass"][data-glass="c"]:root {
   --g-tint: 18, 19, 26;
   --g-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0) 42%);
-  /* chrome: 34 % of a near-black over a backdrop dimmed to 60 %. Over a
-     white poster that is a grey of 107 (A: 100) — 5.0:1 for white words with
-     the sheen; over the night sky it is the sky's own colour, darker */
+  /* chrome: 34 % of a near-black over a backdrop dimmed to 50 %. Over a
+     white poster that is a grey of ~95 (A: 100); over the night sky it is
+     the sky's own colour, darker. (The first try dimmed to 60 %: the
+     chosen tab's lighter capsule read 3.4:1 over a white poster.) */
   --g-fill: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.34), rgba(var(--g-tint), 0.34));
-  --g-blur: blur(5px) saturate(1.9) brightness(0.6);
+  --g-blur: blur(5px) saturate(1.9) brightness(0.5);
   /* panes that carry a list or a paragraph: a deeper dim and more frost,
      the words sit on more lines, close together */
   --g-tint-deep: 12, 12, 18;
@@ -38,7 +39,7 @@ html[data-look="glass"][data-glass="c"]:root {
   --g-fill-menu: var(--g-sheen), linear-gradient(rgba(var(--g-tint-deep), 0.52), rgba(var(--g-tint-deep), 0.52));
   --g-tint-slab: 8, 8, 12;
   --g-fill-slab: var(--g-sheen), linear-gradient(rgba(var(--g-tint-slab), 0.6), rgba(var(--g-tint-slab), 0.6));
-  --g-fill-chip: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.62), rgba(var(--g-tint), 0.62));
+  --g-fill-chip: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.7), rgba(var(--g-tint), 0.7));
   --g-lift: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1));
   /* the rim: light from the top-left — a bright crescent where the edge
      faces it, a fainter one opposite, a glow just inside both */
@@ -56,7 +57,7 @@ html[data-look="glass"][data-glass="c"]:root {
   --g-shadow-menu: 0 20px 48px rgba(0, 0, 0, 0.4), 0 4px 10px rgba(0, 0, 0, 0.22);
   /* the chosen tab: not a well but a lens of its own — a lighter capsule
      with its own rim, as iOS 26 lifts the chosen tab */
-  --g-well: rgba(255, 255, 255, 0.14);
+  --g-well: rgba(255, 255, 255, 0.08);
   --g-well-edge: inset 1px 1px 0 -0.25px rgba(255, 255, 255, 0.42), inset -1px -1px 0 -0.25px rgba(255, 255, 255, 0.16),
     inset 0 0 10px rgba(255, 255, 255, 0.05);
   --g-ink-on: #fff;
@@ -156,4 +157,15 @@ html[data-look="glass"][data-glass="c"][data-fx="lite"]:root .nav-more-sheet { b
       linear-gradient(140deg, rgba(104, 86, 226, 0.26) 0%, rgba(16, 15, 30, 0) 48%, rgba(70, 200, 150, 0.18) 100%),
       var(--g-fill-menu);
   }
+}
+
+/* the quiet words on a chip (a count) over the sky's brightest band: one
+   step lighter than glass.css lifts them (they read under 4.5:1 there,
+   today's glass too) */
+html[data-look="glass"][data-glass="c"]:root .chip,
+html[data-look="glass"][data-glass="c"]:root .cat-pill,
+html[data-look="glass"][data-glass="c"]:root .source-filter,
+html[data-look="glass"][data-glass="c"]:root .picker-btn {
+  --text-faint: #e0e3ea;
+  --text-dim: #eceef3;
 }
