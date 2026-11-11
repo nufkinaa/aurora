@@ -123,7 +123,9 @@ const Slide = React.memo(function Slide({item, w, h, top, land, noKicker, foot, 
           </Text>
           {score || facts ? (
             <View style={s.heroMetaRow}>
-              {score ? <Text style={s.star}>★ {score}</Text> : null}
+              {/* (a no-break space: at some display sizes the measured width came a hair short and
+                  the score wrapped onto a clipped second line, leaving the star alone) */}
+              {score ? <Text style={s.star}>{`★\u00a0${score}`}</Text> : null}
               <Text style={s.heroMeta} numberOfLines={1}>
                 {facts}
               </Text>
@@ -653,7 +655,8 @@ const s = StyleSheet.create({
   // the greeting on the slab (the site's .hero > .home-greeting): 18 down, 20 in from the slab
   slabGreet: {position: 'absolute', left: 8 + 20, right: 8 + 20},
   slabGreetLine: {color: colors.text, fontSize: 22.4, fontWeight: '900', letterSpacing: -0.22, lineHeight: 26.9},
-  slabGreetSub: {color: 'rgba(243,244,248,0.92)', fontSize: 15.68, fontWeight: '600', lineHeight: 21.2, marginTop: 4},
+  // .hero > .home-greeting .greet-sub: #fff, 700, on a 1.35 line
+  slabGreetSub: {color: '#fff', fontSize: 15.68, fontWeight: '700', lineHeight: 21.2, marginTop: 4},
   // .hero-inner: 20 in, 44 above the foot (the dots sit under the buttons)
   slideText: {position: 'absolute', left: 20, right: 20, bottom: 44},
   // .hero-kicker: a white veil with a hairline ring, 11.2/800 in the kind's colour

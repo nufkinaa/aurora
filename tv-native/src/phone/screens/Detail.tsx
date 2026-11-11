@@ -1130,7 +1130,7 @@ export default function Detail() {
               {unescapeHtml(title)}
             </Text>
             <View style={s.metaRow}>
-              {typeof rating === 'number' && rating > 0 ? <Text style={s.score}>★ {Math.round(rating * 10) / 10}</Text> : null}
+              {typeof rating === 'number' && rating > 0 ? <Text style={s.score}>{`★\u00a0${Math.round(rating * 10) / 10}`}</Text> : null}
               {facts ? <Text style={s.facts}>{facts}</Text> : null}
             </View>
             {badges.length ? (
