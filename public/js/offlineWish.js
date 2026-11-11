@@ -133,8 +133,13 @@ export const askWish = async (target, label = "") => {
 // ---------- acting on them ----------
 const saving = new Set();
 let syncing = null;
+let again = false;
+// A call that arrives while a sync runs (a "ready" message for the next
+// episode, say) is not lost: that sync read the list before the episode was
+// ready, so one more sync follows it.
 export const syncWishes = () => {
-  if (syncing) return syncing;
+  if (syncing) { again = true; return syncing; }
+  again = false;
   syncing = (async () => {
     // (a profile switch in flight: the kids lock still names the last profile,
     // and a read for the new one is refused — main.js asks again once it is in)
@@ -148,7 +153,10 @@ export const syncWishes = () => {
       if (await saveWish(w)) n++;
     }
     return n;
-  })().finally(() => { syncing = null; });
+  })().finally(() => {
+    syncing = null;
+    if (again) { again = false; syncWishes().catch(() => {}); }
+  });
   return syncing;
 };
 
