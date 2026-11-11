@@ -136,7 +136,9 @@ let syncing = null;
 export const syncWishes = () => {
   if (syncing) return syncing;
   syncing = (async () => {
-    if (!offline.available() || !state.profile) return 0;
+    // (a profile switch in flight: the kids lock still names the last profile,
+    // and a read for the new one is refused — main.js asks again once it is in)
+    if (!offline.available() || !state.profile || state.switching) return 0;
     let r;
     try { r = await api.offlineWishes(state.profile.id, deviceId()); } catch { return 0; }
     wishes = (r && r.wishes) || [];

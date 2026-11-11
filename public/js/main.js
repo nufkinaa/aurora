@@ -566,6 +566,8 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
       import("./offlineWish.js").then((w) => w.syncWishes()).catch(() => {});
     };
     firstScreen.then(() => setTimeout(carryOn, 1500));
+    // (another profile on this device has its own wishes — asked for once the switch is over)
+    window.addEventListener("aurora-profile", () => setTimeout(carryOn, 0));
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && navigator.onLine !== false) carryOn(); });
     onMessage("offline_wish", (m) => import("./offlineWish.js").then((w) => w.onWishMessage(m)).catch(() => {}));
     onMessage("offline_wish_removed", (m) => import("./offlineWish.js").then((w) => w.onWishMessage(m)).catch(() => {}));

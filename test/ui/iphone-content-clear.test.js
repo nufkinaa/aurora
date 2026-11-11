@@ -288,13 +288,24 @@ const decodePng = (buf) => {
 // the brightest colour of a surface's own ground: a band of pixels in the
 // padding above and below its words, across its width (less `side` at each end)
 const shot = async (page) => decodePng(await page.screenshot({ scale: "css" }));
-const groundOf = (png, box, textBox, side = 18) => {
+// `pill`: the surface is a pill (its ends are half circles) — only what is
+// inside its shape is its ground. (The lit tab: the taller bar made it taller,
+// so its ends curve in further than the word's first letter in the top and
+// bottom rows — those corners are the bar, not the ground behind the word.)
+const groundOf = (png, box, textBox, side = 18, pill = false) => {
   let worst = null;
   const rows = [];
   for (let y = Math.ceil(box.top + 3); y < Math.floor(textBox.top - 1); y++) rows.push(y);
   for (let y = Math.ceil(textBox.bottom + 1); y < Math.floor(box.bottom - 3); y++) rows.push(y);
+  const r = (box.bottom - box.top) / 2;
+  const inside = (x, y) => {
+    if (!pill) return true;
+    const cx = Math.min(Math.max(x, box.left + r), box.right - r);
+    return Math.hypot(x - cx, y - (box.top + r)) <= r - 3;
+  };
   for (const y of rows) {
     for (let x = Math.ceil(box.left + side); x < Math.floor(box.right - side); x += 2) {
+      if (!inside(x, y)) continue;
       const px = png.at(x, y);
       if (!worst || lum(px) > lum(worst)) worst = px;
     }
@@ -393,7 +404,9 @@ for (const look of ["glass", "legacy"]) {
     for (const it of bar.items) {
       // the ground right above and below each label, inside its own pill (as
       // wide as the word: the lit pill's rim light curves down at its ends)
-      const ground = groundOf(png, { ...it.box, left: it.text.left, right: it.text.right }, it.text, 0);
+      const ground = it.active
+        ? groundOf(png, it.box, it.text, Math.max(0, it.text.left - it.box.left), true)
+        : groundOf(png, { ...it.box, left: it.text.left, right: it.text.right }, it.text, 0);
       const c = ratio(over(parseColor(it.color), ground), ground);
       worst = Math.min(worst, c);
       if (REPORT) console.log(`  tab bar ${look} ${it.label}${it.active ? " (lit)" : ""}${it.tone ? ` tone=${it.tone}` : ""}: ground rgb(${ground.join(",")}), words ${it.color}, contrast ${c.toFixed(2)}`);
