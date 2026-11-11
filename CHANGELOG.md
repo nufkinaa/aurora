@@ -10,6 +10,7 @@ Shown inside the app under Preferences → What's new. Newest first; one
 - **Downloads stays beside Settings (website, on a computer).** The button no longer comes and goes: with nothing downloading it is a plain download button to My downloads; it shows the progress while something downloads and the count once things are ready, and it no longer fades out of sight after ten seconds.
 - **Film or series, at a glance in search (TV and phone app).** A gold film strip for a film, a blue screen for a series, on every result and suggestion. The website follows once its look is chosen.
 - **A show's page on the TV lists its genres**, as a film's page always did.
+- **Continue Watching, tidied (website, TV, phone app).** One card per series (its newest episode, whether downloaded or streamed); finished films and episodes leave the row, and a stop in the end credits counts as finished; the up-next card skips episodes already watched; ✕ on an episode card takes the whole series off until you watch it again.
 - **Start over stays a little longer** when you come back to something you were watching: six seconds instead of four (website, TV, phone app).
 - **Kids profiles see only kind words on Home** from the first moment: the page no longer shows a teasing line of its own before the server's friendly one arrives.
 - TV 5.9.4.

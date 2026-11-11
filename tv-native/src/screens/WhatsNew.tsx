@@ -37,6 +37,14 @@ export const FEATURES: Feature[] = [
   // ---- 5.9.4 ----
   {
     since: ROUND,
+    glyph: '▶️',
+    title: "Continue Watching, tidied",
+    what: "One card per show: the episode you watched last, whether it was downloaded or streamed. Anything you have finished leaves the row, and stopping in the end credits counts as finished. When you finish an episode, the card moves on to the next one you have not seen.",
+    how: "Open Home: Continue Watching is the first row.",
+    go: {label: 'Go home', act: 'home'},
+  },
+  {
+    since: ROUND,
     glyph: '🔎',
     title: "Film or series, at a glance in search",
     what: "Every result and every suggestion in search now carries a small sign: a gold film strip for a film, a blue screen for a series. A show's page on the TV also lists its genres, as a film's page always did.",

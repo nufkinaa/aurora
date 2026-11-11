@@ -25,7 +25,14 @@ export const ROUND = "1.15.29";
 // (1.15.28 came out the same morning: its cards keep the ribbon too)
 const NEW_FROM = "1.15.28";
 const FEATURES = [
-  // ---- 1.15.29: one for the website alone ----
+  // ---- 1.15.29: one for the website and the TV, one for the website alone ----
+  {
+    since: ROUND, cue: "tap", glyph: "▶️",
+    title: "Continue Watching, tidied",
+    what: "One card per show: the episode you watched last, whether it was downloaded or streamed. Anything you have finished leaves the row, and stopping in the end credits counts as finished. When you finish an episode, the card moves on to the next one you have not seen.",
+    how: "Open Home: Continue Watching is the first row.",
+    go: { label: "Go home", to: "#/" },
+  },
   {
     webOnly: true, since: ROUND, cue: "tap", glyph: "⬇️",
     title: "Downloads stays beside Settings",
