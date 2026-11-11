@@ -296,7 +296,7 @@ module.exports = {
   "saved.remove": "wp",
   "saved.remove.show": "wp", // a show's card: all its episodes off this device
   "saved.rest.open": "wp", // a title page with no connection: "On this device"
-  "saved.rest.play": "w", // a title page with no connection: play the copy on this device
+  "saved.rest.play": "wp", // a title page with no connection: play the copy on this device
   "saved.rest.retry": "wp", // a title page with no connection: "Try again"
   "saved.smartnext": "wp", // the "Keep the next episode ready" switch
   "saved.wish.cancel": "wp",

@@ -249,6 +249,7 @@ object OfflineSaver {
       try {
         if (fetch(j)) {
           if (halted(j)) return
+          if (j.file.exists()) j.file.delete() // (a stale copy of the same name: the new one wins)
           if (!j.part.renameTo(j.file)) throw IOException("could not finish the file on this phone")
           j.state = "done"
           j.bytes = j.file.length()

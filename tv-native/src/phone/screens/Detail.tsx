@@ -92,6 +92,8 @@ import {chooseQuality} from '../offline/choose';
 import {markOf, markWords} from '../offline/rules';
 import {useWishes} from '../offline/wishes';
 import {toggleWish} from '../offline/wishAsk';
+import {useNoConnection} from '../offline/reach';
+import RestTitle, {copiesOfTitle} from '../offline/RestTitle';
 import {wishFor, wishOn} from '../offline/wishRules';
 import {useDevices} from '../remote/controller';
 import {sendToTv} from '../remote/playOnTv'; // [play-on-tv]
@@ -240,6 +242,8 @@ export default function Detail() {
   const saved = useOffline();
   // [offline-phone] this device's wishes: a title on its way, saved here by itself when it lands
   const wishes = useWishes();
+  // [offline-phone] no connection and nothing of the page came: it rests (offline/RestTitle.tsx)
+  const away = useNoConnection();
   // [phone-remote] the profile's TVs that are on: "Play on TV"
   const tvs = useDevices().filter(d => d.caps?.playItem !== false);
   const phoneState = useCallback(
@@ -1079,6 +1083,14 @@ export default function Detail() {
   const trailers = meta?.trailers || [];
   const aired = season?.episodes.filter(e => e.air === 'aired') || [];
   const seasonAllWatched = aired.length > 0 && aired.every(e => e.watched);
+  if (away && !full && !meta) {
+    return (
+      <View style={s.root}>
+        <RestTitle title={title} cover={item.cover || item.poster || null} copies={copiesOfTitle(saved, {id: item.inLibrary || item.id, showId: item.inLibrary || item.id})} onRetry={() => setLibraryTick(t => t + 1)} />
+        <BackBar solid={false} />
+      </View>
+    );
+  }
   return (
     <View style={s.root}>
       <ScrollView

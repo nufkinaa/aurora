@@ -205,7 +205,7 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 421 ids: 243 on the website
 | profile | – | `profile.pick` `profile.pin.submit` `profile.unlock` |
 | recommend | – | `recommend.close` `recommend.send` |
 | report | – | `report.peek` `report.send` |
-| saved (On this device, offline/Place.tsx) | `saved.job.cancel` `saved.job.dismiss` `saved.job.pause` `saved.job.resume` `saved.job.retry` | `saved.clear.watched` `saved.play` `saved.play.next` `saved.remove` `saved.remove.show` `saved.rest.open` `saved.rest.retry` `saved.smartnext` `saved.wish.cancel` `saved.wish.dismiss` |
+| saved (On this device, offline/Place.tsx) | `saved.job.cancel` `saved.job.dismiss` `saved.job.pause` `saved.job.resume` `saved.job.retry` | `saved.clear.watched` `saved.play` `saved.play.next` `saved.remove` `saved.remove.show` `saved.rest.open` `saved.rest.play` `saved.rest.retry` `saved.smartnext` `saved.wish.cancel` `saved.wish.dismiss` |
 | search | – | `search.recent.pick` `search.retry` `search.suggestion.pick` `search.voice` `search.voice.lang` |
 | settings | – | `settings.autoplay` `settings.downloads` `settings.genre` `settings.hh.mute` `settings.hh.sent` `settings.hh.toggle` `settings.party` `settings.ready` `settings.report` `settings.signout` `settings.subs.auto` `settings.subs.lang` `settings.update` `settings.usagestats` |
 | signin | `signin.mode.qr` `signin.mode.typed` | `signin.submit` |

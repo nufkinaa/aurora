@@ -449,7 +449,8 @@ async function drive(entry: Saved, o?: SaveOpts): Promise<SaveResult> {
   const q = entry.quality;
   const a = entry.audio || 0;
   try {
-    put(id, {profileId, state: 'preparing', pct: 0, note: null, error: null, why: null, waiting: false});
+    // (a save carrying on keeps its percent: the server's copy is there already, the part is here)
+    put(id, {profileId, state: 'preparing', note: null, error: null, why: null, waiting: false});
     let st = await api.offlinePrepare(id, q, h, a);
     let misses = 0;
     while (st.state === 'queued' || st.state === 'working') {
