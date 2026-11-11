@@ -453,6 +453,50 @@ class PhoneModule(private val ctx: ReactApplicationContext) : ReactContextBaseJa
     }
   }
 
+  /**
+   * [play-phone] Aurora Wrapped's share card: a PNG (base64, no "data:" prefix) written to the
+   * app's cache (cache/shared/, offered through the FileProvider — res/xml/phone_file_paths.xml)
+   * and handed to Android's share sheet with the words. Resolves true when the sheet opened,
+   * false when nothing could take it (the caller then shares the words alone).
+   */
+  @ReactMethod
+  fun sharePicture(base64: String, fileName: String, title: String, text: String, promise: Promise) {
+    Thread {
+      try {
+        val bytes = android.util.Base64.decode(base64.substringAfter("base64,"), android.util.Base64.DEFAULT)
+        val dir = java.io.File(ctx.cacheDir, "shared")
+        dir.mkdirs()
+        // one picture at a time: the previous share's file goes
+        dir.listFiles()?.forEach { it.delete() }
+        val safe = fileName.replace(Regex("[^A-Za-z0-9._-]"), "-").ifBlank { "aurora-wrapped.png" }
+        val file = java.io.File(dir, if (safe.endsWith(".png")) safe else "$safe.png")
+        file.writeBytes(bytes)
+        val uri = androidx.core.content.FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
+        val send = Intent(Intent.ACTION_SEND).apply {
+          type = "image/png"
+          putExtra(Intent.EXTRA_STREAM, uri)
+          putExtra(Intent.EXTRA_TEXT, text)
+          putExtra(Intent.EXTRA_TITLE, title)
+          clipData = android.content.ClipData.newUri(ctx.contentResolver, title, uri)
+          addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val chooser = Intent.createChooser(send, title).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        main.post {
+          try {
+            val act = ctx.currentActivity ?: activity?.get()
+            if (act != null) act.startActivity(chooser)
+            else ctx.startActivity(chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            promise.resolve(true)
+          } catch (t: Throwable) {
+            promise.resolve(false)
+          }
+        }
+      } catch (t: Throwable) {
+        promise.resolve(false)
+      }
+    }.start()
+  }
+
   // RN's NativeEventEmitter wants these two on Android
   @ReactMethod fun addListener(@Suppress("UNUSED_PARAMETER") name: String) {}
   @ReactMethod fun removeListeners(@Suppress("UNUSED_PARAMETER") count: Double) {}
