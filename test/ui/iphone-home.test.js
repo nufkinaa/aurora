@@ -139,6 +139,44 @@ ui.test("SE (1st) in a Safari tab, a long title: the greeting gives way, nothing
   assert.ok(Number(roomLeft) < 2, `the remark kept its two lines (room ${roomLeft})`);
 });
 
+// 2026-11-12: scrolled a little, the greeting slid under the logo and the
+// round buttons. It rides up with the billboard and has faded out before its
+// words reach them (the phone app's greetShown: gone 4px before, over 16px).
+for (const [name, width, height, inset, screenH] of [CASES[0], CASES[2]]) {
+  ui.test(`${name}: scrolling, the greeting fades out before it reaches the top buttons`, { viewport: { width, height }, device: { screen: { width, height: screenH }, deviceScaleFactor: 3, userAgent: IPHONE } }, async ({ page, context, signIn, freshProfile, goto }) => {
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: inset, topMax: inset, bottom: inset ? 34 : 0, bottomMax: inset ? 34 : 0 } });
+    await signIn(await freshProfile());
+    await openHome(page, goto);
+    // (the server's remark takes the page's own line's place with a short
+    // cross-fade of its own: over before the page is scrolled)
+    await page.waitForTimeout(1200);
+    await page.waitForFunction(() => !document.querySelector(".hero > .home-greeting .greet-sub").style.transition);
+    const at = (y) => page.evaluate(async (y) => {
+      window.scrollTo(0, y);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const bottom = Math.max(...[".nav-logo", ".nav-dl", ".nav-gear", ".nav-profile"].map((s) => document.querySelector(s)?.getBoundingClientRect()).filter((b) => b && b.height).map((b) => b.bottom));
+      const line = document.querySelector(".hero > .home-greeting .greet-line");
+      const sub = document.querySelector(".hero > .home-greeting .greet-sub");
+      return { y: window.scrollY, gap: line.getBoundingClientRect().top - bottom, o: Number(getComputedStyle(line).opacity), so: Number(getComputedStyle(sub).opacity), shade: getComputedStyle(line.parentElement, "::before").opacity };
+    }, y);
+    const rest = await at(0);
+    assert.equal(rest.o, 1, "the greeting is not whole at rest");
+    assert.ok(rest.gap > 12, `at rest the greeting starts ${rest.gap}px under the buttons`);
+    let faded = false;
+    for (let y = 0; y <= 80; y += 2) {
+      const m = await at(y);
+      // whatever of it is still drawn is clear of the buttons
+      if (m.o > 0) assert.ok(m.gap >= 4 - 0.5, `scrolled ${m.y}px: the greeting (opacity ${m.o}) is ${m.gap.toFixed(1)}px from the buttons`);
+      assert.equal(m.so, m.o, `scrolled ${m.y}px: the remark (${m.so}) and the line (${m.o}) fade apart`);
+      assert.equal(m.shade, "1", "the shade from the top went with the words");
+      if (m.o > 0 && m.o < 1) faded = true;
+    }
+    assert.ok(faded, "it went at once instead of fading");
+    assert.equal((await at(0)).o, 1, "back at the top the greeting did not come back");
+  });
+}
+
 // The tab bar clears what the phone keeps at the bottom: an iPhone's home
 // indicator (34px inset: the bar 20px up, as before) and an Android gesture
 // bar (24px inset: 18px up — it used to sit 10px up, on the handle).

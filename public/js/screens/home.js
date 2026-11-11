@@ -529,7 +529,40 @@ export const renderHome = async (root) => {
         room--;
       }
     };
+    // Scrolling (2026-11-12): the greeting rides up with the billboard and has
+    // faded out before its words reach the logo and the round buttons — never
+    // drawn under them. The phone app's numbers (ui/greetFade.ts greetShown):
+    // gone 4px before it gets there, over 16px of scroll. Its words fade, not
+    // the shade it lays on the picture (glass.css --greet-shown).
+    // (at the top it is whole — the slab is laid out 10px under the buttons,
+    // the words 18px down it; scrolled, where they are is read each time,
+    // but only near the top: further down it is long gone)
+    let greetFrame = 0;
+    let greetWas = 1;
+    const fadeGreet = () => {
+      greetFrame = 0;
+      let o = 1;
+      if (heroSlab && greet.parentNode === heroSlab) {
+        const y = window.scrollY || 0;
+        o = y <= 0 ? 1 : 0;
+        if (y > 0 && y < innerHeight / 2) {
+          let bar = 0;
+          for (const sel of [".nav-logo", ".nav-dl", ".nav-remote", ".nav-gear", ".nav-profile"]) {
+            const b = document.querySelector(sel)?.getBoundingClientRect();
+            if (b && b.height) bar = Math.max(bar, b.bottom);
+          }
+          const gap = greet.firstChild.getBoundingClientRect().top - bar; // its words' top under the buttons
+          o = Math.min(1, Math.max(0, Math.round(((gap - 4) / 16) * 100) / 100));
+        }
+      }
+      if (o === greetWas) return;
+      greetWas = o;
+      if (o === 1) greet.style.removeProperty("--greet-shown");
+      else greet.style.setProperty("--greet-shown", String(o));
+    };
+    const onGreetScroll = () => { if (!greetFrame) greetFrame = requestAnimationFrame(fadeGreet); };
     const placeGreet = () => {
+      onGreetScroll();
       const onSlab = !!heroSlab && glass() && upright.matches;
       if (onSlab && greet.parentNode !== heroSlab) heroSlab.insertBefore(greet, heroSlab.querySelector(".hero-dots"));
       else if (!onSlab && heroSlab && greet.parentNode === heroSlab) heroSlab.after(greet);
@@ -543,9 +576,12 @@ export const renderHome = async (root) => {
     upright.addEventListener("change", placeGreet);
     window.addEventListener("resize", placeGreet);
     try { document.fonts.ready.then(() => { if (screen.isConnected) fitGreet(); }); } catch {}
+    window.addEventListener("scroll", onGreetScroll, { passive: true });
     cleanups.push(() => {
       upright.removeEventListener("change", placeGreet);
       window.removeEventListener("resize", placeGreet);
+      window.removeEventListener("scroll", onGreetScroll);
+      if (greetFrame) cancelAnimationFrame(greetFrame);
     });
     // the name's shine (screens.css greet-shine) never ends: held while the
     // greeting is a screen away, at no change to what is on screen (ui.js)

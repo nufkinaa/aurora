@@ -4116,6 +4116,11 @@ html[data-look="glass"]:root .card.wide .card-progress {
       rgba(7, 8, 17, 0.035) 95%,
       rgba(7, 8, 17, 0) 100%);
   }
+  /* as Home scrolls, the words fade out before they reach the top buttons
+     (home.js fadeGreet sets --greet-shown); the shade above stays */
+  html[data-look="glass"]:root .hero > .home-greeting > * {
+    opacity: var(--greet-shown, 1);
+  }
   html[data-look="glass"]:root .hero > .home-greeting .greet-line {
     color: #fff;
     line-height: 1.2;
