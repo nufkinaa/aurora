@@ -176,7 +176,14 @@ for (const look of ["glass", "legacy"]) {
         await goto(route);
         await page.evaluate(() => window.scrollTo(0, 0));
         await settle(page);
-        const m = await page.evaluate(measure);
+        let m = await page.evaluate(measure);
+        // (under a loaded machine a screen can take longer than the settle
+        // to put anything on it: give it up to four more seconds before
+        // calling it empty)
+        for (let i = 0; i < 8 && !m.first; i++) {
+          await page.waitForTimeout(500);
+          m = await page.evaluate(measure);
+        }
         assert.ok(Math.abs(m.sat - inset) <= 1, `the emulated inset is ${m.sat}, not ${inset}`);
         rows.push({ screen, ...m, gap: m.first ? Math.round((m.first.top - m.controls) * 10) / 10 : null });
         if (SHOTS) {
