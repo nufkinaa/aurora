@@ -23,6 +23,10 @@ import {AuthField, AuthShell, Foot, MainButton, TextLink} from '../auth/ui';
 import {readable, W} from '../auth/rules';
 import {colors, G_EDGE, GUTTER} from '../theme';
 
+/** A tile is the face plus this much (the website's 10 each side, and 12 more for the
+ *  name under it: three still fit across a 411 dp phone with the 14 dp gaps). */
+const TILE_ROOM = 32;
+
 function Tile({p, first, onPress, size}: {p: Profile; first: boolean; onPress: () => void; size: number}) {
   return (
     <Tap
@@ -30,7 +34,7 @@ function Tile({p, first, onPress, size}: {p: Profile; first: boolean; onPress: (
       accessibilityRole="button"
       accessibilityLabel={`${p.name}${p.kids ? ', kids profile' : ''}${p.hasPassword ? ', has a password' : ''}${p.locked ? ', locked' : ''}`}
       onPress={onPress}
-      style={[s.tile, first && s.tileFirst, p.locked && s.dim, {width: size + 20}]}>
+      style={[s.tile, first && s.tileFirst, p.locked && s.dim, {width: size + TILE_ROOM}]}>
       <View style={[s.avatar, {width: size, height: size, borderRadius: 20, backgroundColor: p.color || colors.surfaceHover}, first && s.avatarFirst]}>
         {p.avatarImage ? (
           <Image source={imgSrc(p.avatarImage) || undefined} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -45,10 +49,17 @@ function Tile({p, first, onPress, size}: {p: Profile; first: boolean; onPress: (
           </View>
         ) : null}
       </View>
-      <Text style={[s.name, first && s.nameFirst]} numberOfLines={1}>
-        {p.name}
-        {p.locked ? '  🚫' : p.hasPassword ? '  🔒' : ''}
-      </Text>
+      {/* the name gives way, never the lock after it ("Claude QA 🔒" was cut to "Claude QA …") */}
+      <View style={s.nameRow}>
+        <Text style={[s.name, s.nameShrink, first && s.nameFirst]} numberOfLines={1}>
+          {p.name}
+        </Text>
+        {p.locked || p.hasPassword ? (
+          <Text style={[s.name, first && s.nameFirst]} allowFontScaling={false}>
+            {p.locked ? ' 🚫' : ' 🔒'}
+          </Text>
+        ) : null}
+      </View>
     </Tap>
   );
 }
@@ -56,7 +67,7 @@ function Tile({p, first, onPress, size}: {p: Profile; first: boolean; onPress: (
 /** The wall's last tile (.profile-tile.add): a "＋" in an outlined square, "Add profile". */
 function AddTile({onPress, size}: {onPress: () => void; size: number}) {
   return (
-    <Tap uiId="profile.add" accessibilityRole="button" accessibilityLabel={REQUEST.addProfile} onPress={onPress} style={[s.tile, {width: size + 20}]}>
+    <Tap uiId="profile.add" accessibilityRole="button" accessibilityLabel={REQUEST.addProfile} onPress={onPress} style={[s.tile, {width: size + TILE_ROOM}]}>
       <View style={[s.addFace, {width: size, height: size}]}>
         <Text style={s.addPlus} allowFontScaling={false}>
           ＋
@@ -152,6 +163,22 @@ export default function Gate({onChosen, notice}: {onChosen: OnChosen; notice: st
     if (door) return;
     return onAuthLink(url => setDoor({start: 'signin', link: url}));
   }, [door]);
+  // Back on the household PIN goes back to the wall (as on the password's door), not out of the app
+  const pinOpen = !!w.pinFor;
+  const {setPinFor, setPin, setPinError} = w;
+  const leavePin = useCallback(() => {
+    setPinFor(null);
+    setPin('');
+    setPinError('');
+  }, [setPinFor, setPin, setPinError]);
+  useEffect(() => {
+    if (!pinOpen || door) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      leavePin();
+      return true;
+    });
+    return () => sub.remove();
+  }, [pinOpen, door, leavePin]);
 
   if (door) {
     return (
@@ -189,14 +216,7 @@ export default function Gate({onChosen, notice}: {onChosen: OnChosen; notice: st
         {w.pinError ? <Text style={s.error}>{w.pinError}</Text> : null}
         <View style={s.row}>
           <PrimaryButton uiId="profile.pin.submit" label={w.pinFor.mode === 'exit' ? 'Unlock' : 'Open'} onPress={w.submitPin} busy={w.busy} style={s.grow} />
-          <GlassButton
-            label="Back"
-            onPress={() => {
-              w.setPinFor(null);
-              w.setPin('');
-              w.setPinError('');
-            }}
-          />
+          <GlassButton label="Back" onPress={leavePin} />
         </View>
       </Door>
     );
@@ -264,6 +284,8 @@ const s = StyleSheet.create({
   kids: {position: 'absolute', bottom: 6, alignSelf: 'center', backgroundColor: '#ffcf4a', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1},
   kidsText: {color: '#2a1d00', fontSize: 11, fontWeight: '900', letterSpacing: 0.5},
   name: {color: colors.textDim, fontSize: 14.4, fontWeight: '700', lineHeight: 21.6},
+  nameRow: {flexDirection: 'row', alignItems: 'center', maxWidth: '100%'},
+  nameShrink: {flexShrink: 1},
   nameFirst: {color: colors.text},
   // .profile-tile.add .big-avatar: no fill, a 2 dp inset line, the plus 40 in the dim grey
   addFace: {alignItems: 'center', justifyContent: 'center', borderRadius: 20, borderWidth: 2, borderColor: 'rgba(255,255,255,0.14)'},

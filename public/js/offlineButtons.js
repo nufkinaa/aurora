@@ -12,12 +12,10 @@
 //                         words, and what a press does (Stop / Remove…)
 //       A press never destroys anything by itself: on a saved title it says
 //       so and offers Remove; on a running save it offers Stop.
-//   seasonButton(nextEpisodes, showTitle, showId, { pill })   several
-//       episodes at one size asked once: "Save the next 3" on a show's page,
-//       "Save the season (N)" on the season bar.
-//   saveSeveral(items, { signal, sheetTitle, onLine })   the loop under it:
-//       several titles one after another at ONE size, asked once — also what
-//       "Pack for a trip" runs (js/offlinePack.js).
+//   saveSeveral(items, { signal, sheetTitle, onLine, quality })   several
+//       titles one after another at ONE size, asked once (or already chosen:
+//       "Choose episodes", js/offlineChoose.js) — also what "Pack for a trip"
+//       runs (js/offlinePack.js).
 //
 // The saving is js/offline.js (not this file).
 import { el, toast, fmtBytes, fmtDuration } from "./ui.js";
@@ -179,7 +177,9 @@ export const saveButton = (item, { variant = "hero", ep = null, onLeave = null, 
 // → how many were saved. What stopped it is thrown, with e.done = that number.
 // The ones after the first wait their turn as rows on "On this device"; one
 // line says the whole batch landed (the caller's), not one line each.
-export const saveSeveral = async (items, { signal = null, sheetTitle = "", onLine = () => {}, patient = false } = {}) => {
+// `quality`: already chosen (Choose episodes asks it in its own sheet) — each one is saved at
+// it, or at the next size down when its file has no such size; nothing more is asked.
+export const saveSeveral = async (items, { signal = null, sheetTitle = "", onLine = () => {}, patient = false, quality: fixed = null } = {}) => {
   let quality = null; // asked once, then reused
   let done = 0;
   // what they come to together: by running time, and the files' own weight
@@ -202,6 +202,10 @@ export const saveSeveral = async (items, { signal = null, sheetTitle = "", onLin
             if (phase === "preparing" || phase === "saving") { line.pct = pct || 0; line.waiting = !!waiting && phase === "preparing"; onLine(line); }
           },
           async (options) => {
+            if (fixed) {
+              const order = ["original", "1080", "720", "480"];
+              return order.slice(Math.max(0, order.indexOf(fixed))).find((q) => options.some((o) => o.quality === q)) || (options[0] || {}).quality;
+            }
             if (quality && options.some((o) => o.quality === quality)) return quality;
             // a later one that can't be made at the chosen size: the nearest smaller one it offers
             if (quality) return (options.find((o) => !o.instant) || options[0]).quality;
@@ -262,101 +266,5 @@ export const sayBatch = (done, e, { of = "", noun = "episode", held = false } = 
   else toast(`Saved ${done} — then: ${msg}`, mark("failed"), /not enough room/.test(msg) ? { label: "Make room", onClick: open } : null);
 };
 
-// "Save the next 3" / "Save the season (N)": the same save, run for several
-// episodes in a row at one size, asked once. `nextEpisodes()` → the rows to
-// save, in order (each with .local, the library item).
-const NEXT = 3;
-export const seasonButton = (nextEpisodes, showTitle, showId = null, { pill = false, onLeave = null, ui = null } = {}) => {
-  if (!offline.available()) return null;
-  const limit = pill ? Infinity : NEXT;
-  const btn = el("button", {
-    "data-ui": ui || (pill ? "detail.offline.seasonall" : "detail.offline.season"),
-    class: pill ? "season-pill focusable btn-offline season-dev" : "btn focusable btn-offline btn-dev btn-dev-next",
-  });
-  const m = mark("none", 0, pill ? "pill-dev" : "btn-dev-mark");
-  const word = el("span", { class: pill ? "season-dev-word" : "btn-dev-word" });
-  const label = pill ? null : el("span", { class: "btn-label" });
-  btn.append(pill ? m : el("span", { class: "dev-ic" }, m), word);
-  if (label) btn.append(label);
-
-  let busy = false;
-  let aborter = null;
-  let count = 0; // the season bar's own count (every episode of the season on disk)
-  let line = null; // { i, n, pct, waiting } while it runs
-  const asItem = (e) => ({ ...e.local, showTitle, showId: showId || e.local.showId || null, season: e.season, episode: e.episode, title: e.title || e.local.title });
-  // the rows this press would save (not here yet), at most `limit`
-  const todo = () => {
-    const rows = [];
-    for (const e of nextEpisodes()) {
-      if (rows.length >= limit) break;
-      if (!copyHere(e.local.id)) rows.push(e);
-    }
-    return rows;
-  };
-  const paint = () => {
-    let text, tile, st = "none", pct = 0;
-    if (busy && line) {
-      st = line.waiting ? "preparing" : "saving";
-      pct = line.pct;
-      text = line.waiting ? `${line.i} of ${line.n} · waiting for the server` : `${line.i} of ${line.n} · ${pctOf(line.pct)}%`;
-      tile = `${line.i} of ${line.n} · ${line.waiting ? "waiting" : `${pctOf(line.pct)}%`}`;
-    } else if (pill) {
-      text = `Save the season (${count})`;
-    } else {
-      const all = nextEpisodes().slice(0, NEXT).length;
-      const n = todo().length;
-      if (all && !n) { st = "saved"; text = all === 1 ? "The next episode is saved" : `The next ${all} are saved`; tile = "Next saved"; }
-      else if (n <= 1) { text = "Save the next episode"; tile = "Save next"; }
-      else { text = `Save the next ${n}`; tile = `Save next ${n}`; }
-    }
-    setMark(m, st, pct);
-    btn.dataset.state = st;
-    btn.classList.toggle("busy", busy);
-    btn.classList.toggle("saved", st === "saved");
-    if (word.textContent !== text) word.textContent = text;
-    if (label && label.textContent !== tile) label.textContent = tile;
-    const say = pill ? (busy ? `Saving this season to this device: ${text}` : "Save this season to this device") : busy ? `Saving the next episodes to this device: ${text}` : `${text} to this device`;
-    if (btn.getAttribute("aria-label") !== say) btn.setAttribute("aria-label", say);
-    const hint = busy ? "Press for Stop" : pill ? "Save this season's episodes on this device — to watch with no connection" : "Save the next episodes on this device — to watch with no connection. The size is asked once";
-    if (btn.title !== hint) btn.title = hint;
-  };
-  btn._relabel = (n) => { count = n; paint(); };
-
-  btn.onclick = async () => {
-    if (busy) {
-      return void toast(`Saving ${line ? `${line.n} episodes` : "episodes"} of “${showTitle}”${line ? ` — ${line.i} of ${line.n}` : ""}`, mark("saving", line ? line.pct : 0.1), {
-        label: "Stop",
-        onClick: () => { if (aborter) aborter.abort(); },
-      });
-    }
-    await whenIndexed();
-    const rows = todo();
-    if (!rows.length) return void toast(pill ? "This season's episodes are already on this device" : "The next episodes are already on this device", mark("saved"), { label: "Open", onClick: open });
-    busy = true;
-    aborter = new AbortController();
-    line = { i: 1, n: rows.length, pct: 0, waiting: false };
-    paint();
-    const held = () => rows.some((r) => { const j = offline.jobFor(r.local.id); return j && j.state === "paused"; });
-    const of = ` of “${showTitle}”`;
-    try {
-      const done = await saveSeveral(rows.map(asItem), {
-        signal: aborter.signal,
-        sheetTitle: pill ? `${rows.length} episode${rows.length > 1 ? "s" : ""} of “${showTitle}”, this season` : `The next ${rows.length} episode${rows.length > 1 ? "s" : ""} of “${showTitle}”`,
-        onLine: (l) => { line = l; paint(); },
-      });
-      sayBatch(done, null, { of });
-    } catch (e) {
-      sayBatch((e && e.done) || 0, e, { of, held: held() });
-    }
-    aborter = null;
-    busy = false;
-    line = null;
-    paint();
-  };
-
-  const off = [offline.onIndex(paint)];
-  if (onLeave) onLeave(() => off.forEach((fn) => fn()));
-  paint();
-  whenIndexed().then(paint);
-  return btn;
-};
+// ("Save the next 3" / "Save the season (N)" were here: Choose episodes replaced them —
+// js/offlineChoose.js, elia 2026-11-11.)

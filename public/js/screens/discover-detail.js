@@ -51,7 +51,8 @@ import { warmPlay } from "../prefetch.js";
 import { pushScope, popScope } from "../focus.js";
 import { showDownloadPicker } from "../downloadPicker.js";
 import { askCancelDownload } from "../dlcancel.js";
-import { saveButton, seasonButton } from "../offlineButtons.js"; // [offline-look] the buttons that put a title on this device
+import { saveButton } from "../offlineButtons.js"; // [offline-look] the buttons that put a title on this device
+import { chooseButton } from "../offlineChoose.js"; // [offline-choose] "Choose episodes" (replaces Save the next 3 / Save the season)
 import { fileIcon } from "../offlineUi.js";
 import { wishButton } from "../offlineWish.js"; // [offline-wish] "this device too" before the server has it
 import { onMessage } from "../ws.js";
@@ -1471,20 +1472,18 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
   // [/phone-remote]
   // [offline-look] Save to this device — right after Play: a labelled button
   // on a computer, among the first tiles on a phone (it sat at the far end of
-  // the strip, off the screen). A film: this film. A series you own: the next
-  // three episodes you haven't finished — the size is asked once, then they
-  // are fetched one after another (a trip, a flight); ones already here are
-  // skipped.
+  // the strip, off the screen). A film: this film. A series: "Choose episodes" —
+  // a sheet with the season's episodes, the next unwatched ones ticked, the
+  // size asked once for all of them (offlineChoose.js; elia 2026-11-11: "save
+  // next 3 is confusing").
   if (!isShow && lib) {
     const ob = saveButton(lib, { variant: "hero", onLeave: untilLeave });
     if (ob) actions.push(ob);
   }
-  if (isShow && nextUp && offline.available()) {
-    const sb = seasonButton(() => {
-      const flat = seasons.flatMap((s) => s.episodes).filter((e) => e.local);
-      const from = Math.max(0, flat.findIndex((e) => e.local.id === nextUp.local.id));
-      return flat.slice(from).filter((e) => { const p = progressFor(e.local.id); return !(p && p.finished); });
-    }, view.title, lib && lib.id, { onLeave: untilLeave });
+  if (isShow && offline.available() && (lib || imdbId)) {
+    const sb = chooseButton(() => ({ title: view.title, id: (lib && lib.id) || null, imdbId: imdbId || null, poster: view.poster || null, seasons }), {
+      from: () => (nextUp ? { season: nextUp.season, episode: nextUp.episode } : null),
+    });
     if (sb) actions.push(sb);
   }
   // [/offline-look]
@@ -2837,15 +2836,8 @@ export const renderDetail = async (root, { source, type, id, jump = null, save =
   // Trailing actions sit apart from the season pills; whichever comes first
   // pushes the pair to the far end of the bar.
   const trailing = [];
-  // the season saved to this device inside Aurora…
-  const seasonSave = lib ? seasonButton(() => {
-    const season = seasons.find((s) => s.number === activeSeason) || seasons[0];
-    return ownedIn(season);
-  }, view.title, lib.id, { pill: true, onLeave: untilLeave }) : null;
-  if (seasonSave) {
-    downloadSeasonPill = seasonSave;
-    trailing.push(seasonSave);
-  }
+  // (the season onto this device is "Choose episodes" → Select all now, beside Play)
+  const seasonSave = lib && offline.available() ? true : null;
   // …and its files for another player: a computer (savesInsideApp), or any
   // device that cannot keep copies inside Aurora (plain http)
   if (lib && (!seasonSave || !savesInsideApp())) {

@@ -147,8 +147,9 @@ for (const [name, viewport, look] of [["phone 390 glass", PHONE, "glass"], ["pho
       if (phone) {
         assert.equal(await count('.episode-wrap [data-ui="detail.episode.offline"]'), 3, "every episode on disk: Save offline");
         assert.equal(await count('[data-ui="detail.episode.download"]'), 0, "no raw file on a phone's card");
-        const pill = page.locator('[data-ui="detail.offline.seasonall"]');
-        assert.match(await pill.innerText(), /Save the season \(3\)/);
+        // (Save the next 3 / Save the season gave way to one button: Choose episodes — offline-choose.test.js)
+        assert.match(await page.locator('[data-ui="detail.offline.choose"]').first().innerText(), /Choose episodes/);
+        assert.equal(await count('[data-ui="detail.offline.seasonall"]'), 0);
         assert.equal(await count(".season-pill:has-text('Download the files')"), 0);
         // 40 px to the finger, nothing on top of them, nothing past the edge
         await page.evaluate(() => document.querySelector(".episode-wrap").scrollIntoView({ block: "center", inline: "nearest" }));
@@ -167,7 +168,7 @@ for (const [name, viewport, look] of [["phone 390 glass", PHONE, "glass"], ["pho
         assert.equal(await count('[data-ui="detail.episode.download"]'), 3, "a computer: the file, from each card");
         // (offline-look 2026-11-10: a computer keeps copies inside Aurora too — both, side by side)
         assert.equal(await count('[data-ui="detail.episode.offline"]'), 3, "and Save to this device beside it");
-        assert.match(await page.locator('[data-ui="detail.offline.seasonall"]').innerText(), /Save the season \(3\)/);
+        assert.match(await page.locator('[data-ui="detail.offline.choose"]').first().innerText(), /Choose episodes/);
         assert.match(await page.locator(".season-pill", { hasText: "Download the files" }).innerText(), /\(3\)/);
       }
       await go(`#/movie/${srv.lib.film1.id}`, '[data-ui="detail.offline"]');

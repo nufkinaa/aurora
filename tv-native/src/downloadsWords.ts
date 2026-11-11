@@ -68,7 +68,7 @@ export const statusLine = (j: MyDownload) => {
       return `Declined by the admin${stays(j)}`;
     case 'canceled':
       // (who did it: only the person who asked or the admin can)
-      return `${j.canceledBy === 'admin' ? 'Cancelled by the admin' : j.canceledBy === 'self' ? 'Cancelled by you' : 'Canceled'}${stays(j)}`;
+      return `${j.canceledBy === 'admin' ? 'Cancelled by the admin' : j.canceledBy === 'self' ? 'Cancelled by you' : 'Cancelled'}${stays(j)}`;
     case 'error':
       return j.replaces ? `Failed, your copy stays as it was — ${j.error || 'unknown error'}` : `Failed — ${j.error || 'unknown error'}`;
     default:

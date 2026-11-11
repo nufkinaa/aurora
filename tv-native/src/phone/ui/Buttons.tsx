@@ -1,7 +1,7 @@
 // The website's phone buttons (glass.css): the white pill (the one thing to
 // do), the glass pill beside it, the round glass actions with their word
 // underneath (a title page's row), the round glass icon (the top bar).
-import React from 'react';
+import React, {createContext, useContext} from 'react';
 import {ActivityIndicator, StyleSheet, Text, View, ViewStyle, StyleProp} from 'react-native';
 import Tap from './Tap';
 import Icon, {PhoneIconName} from './Icon';
@@ -120,6 +120,10 @@ export function PickerChip({label, value, onPress, uiId}: {label: string; value:
 }
 
 /** Round glass action with its word underneath (a title page's action row). */
+/** The width the round buttons of a strip are given (ui/stripFit.ts: half the next one shows
+ *  when there are more than fit); null: their own 76. */
+export const ActionWidth = createContext<number | null>(null);
+
 export function ActionCircle({
   label,
   icon,
@@ -138,6 +142,7 @@ export function ActionCircle({
    *  round buttons wrap it — device names are 40 characters at most, src/lib/devices.js) */
   lines?: number;
 }) {
+  const width = useContext(ActionWidth);
   return (
     <Tap
       uiId={uiId}
@@ -148,7 +153,7 @@ export function ActionCircle({
       onPress={onPress}
       onLongPress={onLongPress}
       flat
-      style={s.action}>
+      style={width ? [s.action, {width}] : s.action}>
       <View style={[s.actionDisc, on && s.actionDiscOn]}>
         {busy ? (
           <ActivityIndicator color={colors.text} size="small" />

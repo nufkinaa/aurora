@@ -321,14 +321,29 @@ export const savedByItself = (id) => readAuto().ids.includes(id);
 export const lastByItself = () => { const v = readAuto().last; const w = who(); return v && (!v.who || !w || v.who === w.id) ? v : null; };
 // Offered once on a device, when an episode lands and the switch is off:
 // one press turns it on. Never over something that is playing — it waits
-// for the next episode that lands.
+// for the next episode that lands — and never over an open sheet (Choose
+// episodes, the size sheet…): it waits for the sheet to close, then says it
+// once, so it never covers a sheet's total or its Save button.
 const NUDGE_KEY = "aurora-offline-next-asked";
+export const sheetUp = () => !!document.querySelector(".ui-overlay:not(.leaving), .look-notice-wrap:not(.leaving)");
+let nudgeWait = null;
 const nudgeNext = () => {
   if (document.querySelector("#app .player")) return;
   try {
     if (offline.smartNext.get() || localStorage.getItem(NUDGE_KEY)) return;
-    localStorage.setItem(NUDGE_KEY, "1");
   } catch { return; }
+  if (sheetUp()) {
+    if (nudgeWait) return;
+    const until = Date.now() + 30 * 60 * 1000;
+    nudgeWait = setInterval(() => {
+      if (sheetUp() && Date.now() < until) return;
+      clearInterval(nudgeWait);
+      nudgeWait = null;
+      if (Date.now() < until) setTimeout(nudgeNext, 700); // (the sheet's own closing moment first)
+    }, 500);
+    return;
+  }
+  try { localStorage.setItem(NUDGE_KEY, "1"); } catch { return; }
   toast("Want the next episode saved here by itself when you finish one?", mark("none"), {
     label: "Turn on",
     onClick: () => { offline.smartNext.set(true); toast("Done — the next episode is kept ready on this device", mark("saved"), null, { quiet: true }); },

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The phone app's FileProvider (src/phone/AndroidManifest.xml): the TV's own list
+     (main/res/xml/file_paths.xml) plus the share card of Aurora Wrapped
+     (phone/PhoneModule.kt sharePicture writes it to cache/shared/). -->
+<paths>
+    <cache-path name="updates" path="updates/" />
+    <external-files-path name="phone-updates" path="updates/" />
+    <cache-path name="shared" path="shared/" />
+</paths>

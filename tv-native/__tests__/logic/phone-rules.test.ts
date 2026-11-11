@@ -3,7 +3,7 @@
 // described, Home's greeting.
 import {decideDrag, deltaLabel, levelAfter, pinchVerdict, seekTarget, zoneOf, SEEK_SPAN_S} from '../../src/phone/player/gestures';
 import {parsePhoneLink, shareLink} from '../../src/phone/linkParse';
-import {fromNative, nextSaved, noRoomText, pickOption, roomFor, stateLine} from '../../src/phone/offline/rules';
+import {defaultSound, fromNative, fromSaver, jobLook, markOf, markWords, nextSaved, noRoomText, pickOption, qualityLike, roomFor, sizeText, soundLabel, stateLine} from '../../src/phone/offline/rules';
 import {greeting} from '../../src/phone/greeting';
 import {isWeakPhone} from '../../src/phone/lowEnd';
 import {HIDE_AFTER, nextShown, STEP} from '../../src/phone/ui/tabBarShown';
@@ -76,7 +76,7 @@ describe('links into the app', () => {
   });
 });
 
-describe('saving to the phone', () => {
+describe('saving to this device (the phone)', () => {
   const options = [
     {quality: 'original', label: 'Original quality', sizeBytes: 4e9, instant: true},
     {quality: '720', label: '720p', sizeBytes: 1e9},
@@ -96,19 +96,77 @@ describe('saving to the phone', () => {
     expect(roomFor(1000, 0)).toBe(true);
     expect(noRoomText(2 * 1024 ** 3, 512 * 1024 ** 2)).toMatch(/needs about 2\.0 GB and 512 MB is free/);
   });
-  test('DownloadManager’s states', () => {
+  test('DownloadManager’s states (saves begun by 1.1.2 and older)', () => {
     expect(fromNative({status: 'running', bytes: 50, total: 200})).toEqual({state: 'saving', pct: 0.25, waitingWifi: false});
     expect(fromNative({status: 'paused', bytes: 0, total: 0, reason: 3}).waitingWifi).toBe(true);
+    expect(fromNative({status: 'paused', bytes: 0, total: 0, reason: 2}).state).toBe('retrying');
     expect(fromNative({status: 'done'}).state).toBe('done');
     expect(fromNative({status: 'failed', reason: 1006}).error).toMatch(/1006/);
     expect(fromNative({status: 'gone'}).state).toBe('gone');
   });
-  test('the line a copy shows', () => {
-    expect(stateLine({state: 'saving', pct: 0.42, sizeBytes: 1024 ** 3})).toBe('Saving to this phone · 42% of 1.0 GB');
-    expect(stateLine({state: 'saving', waitingWifi: true})).toBe('Waiting for Wi-Fi');
-    expect(stateLine({state: 'preparing', note: 'repackaging — a few seconds'})).toBe('Preparing on the server — repackaging — a few seconds');
-    expect(stateLine({state: 'done', sizeBytes: 300 * 1024 ** 2})).toBe('On this phone · 300 MB');
-    expect(stateLine({state: 'failed', error: 'no space'})).toBe("Couldn't save it — no space");
+  test('the phone’s own saver (OfflineSaver.kt): every state it reports', () => {
+    expect(fromSaver({key: 'k', state: 'running', bytes: 50, total: 200, speed: 10})).toMatchObject({state: 'saving', pct: 0.25, waitingWifi: false, speed: 10, eta: 15});
+    expect(fromSaver({key: 'k', state: 'queued', bytes: 0, total: 0}).state).toBe('queued');
+    expect(fromSaver({key: 'k', state: 'queued', bytes: 10, total: 100}).state).toBe('saving'); // a part already here
+    expect(fromSaver({key: 'k', state: 'retrying', bytes: 10, total: 100}).state).toBe('retrying');
+    expect(fromSaver({key: 'k', state: 'wifi', bytes: 10, total: 100})).toMatchObject({state: 'saving', waitingWifi: true});
+    expect(fromSaver({key: 'k', state: 'paused', pausedBy: 'you', bytes: 10, total: 100})).toMatchObject({state: 'paused', why: 'user', pct: 0.1});
+    expect(fromSaver({key: 'k', state: 'paused', pausedBy: 'offline'}).why).toBe('offline');
+    expect(fromSaver({key: 'k', state: 'failed', error: 'no room'}).error).toBe('no room');
+    expect(fromSaver({key: 'k', state: 'done'}).state).toBe('done');
+    expect(fromSaver({key: 'k', state: 'gone'}).state).toBe('gone');
+  });
+  test('a save’s row, in the website’s words (devicejobs.js)', () => {
+    expect(jobLook({state: 'saving', pct: 0.42, speed: 3.1 * 1024 ** 2, eta: 240})).toEqual({tone: 'busy', head: 'Saving to this device · 42%', line: '3.1 MB/s · about 4 min left', bar: true});
+    expect(jobLook({state: 'queued'})).toMatchObject({tone: 'wait', head: 'Waiting for its turn', bar: false});
+    expect(jobLook({state: 'retrying', pct: 0.42})).toMatchObject({tone: 'wait', head: 'Waiting for the connection · 42%', line: 'it carries on by itself'});
+    expect(jobLook({state: 'paused', pct: 0.42, why: 'user'})).toMatchObject({head: 'Paused at 42%', line: 'What is saved stays here — press Resume to carry on'});
+    expect(jobLook({state: 'paused', pct: 0, why: 'offline'}).line).toMatch(/carries on by itself the next time Aurora is open with a connection, or press Resume/);
+    expect(jobLook({state: 'paused', pct: 0, why: 'offline'}).head).toBe('Paused');
+    expect(jobLook({state: 'failed', error: 'no room'})).toEqual({tone: 'bad', head: "Didn't save", line: 'no room', bar: false});
+    expect(jobLook({state: 'preparing', pct: 0.1, note: 'converting on the server'})).toMatchObject({tone: 'busy', head: 'Preparing on the server · 10%', line: ''});
+    expect(jobLook({state: 'preparing', waiting: true, note: 'waiting for the server — another copy is being made'})).toMatchObject({tone: 'wait', head: 'Waiting for the server', line: 'another copy is being made'});
+    expect(jobLook({state: 'saving', pct: 0.5, waitingWifi: true}).head).toBe('Waiting for Wi-Fi · 50%');
+    expect(jobLook({state: 'done', sizeBytes: 300 * 1024 ** 2})).toMatchObject({head: 'Saved on this device', line: '300 MB'});
+    expect(stateLine({state: 'failed', error: 'no room'})).toBe("Didn't save — no room");
+  });
+  test('the mark and its words (offlineUi.js)', () => {
+    expect(markOf(null)).toBe('none');
+    expect(markOf({state: 'done'})).toBe('saved');
+    expect(markOf({state: 'saving', waitingWifi: true})).toBe('retrying');
+    expect(markWords('none')).toBe('Save to this device');
+    expect(markWords('saving', 0.42)).toBe('Saving 42%');
+    expect(markWords('preparing', 0, true)).toBe('Waiting for the server');
+    expect(markWords('preparing')).toBe('Getting ready');
+    expect(markWords('saved')).toBe('Saved on this device');
+    expect(markWords('waiting')).toBe("Waiting for the server's copy");
+    expect(markWords('failed')).toBe("Didn't save");
+  });
+  test('the sound: the person’s own, else the original language, else the first; commentary never', () => {
+    const sounds = [
+      {index: 0, language: 'eng', channels: 6},
+      {index: 1, language: 'heb', channels: 2},
+      {index: 2, language: 'eng', commentary: true},
+      {index: 3, language: 'fre'},
+    ];
+    expect(defaultSound(sounds, 'he', null)).toBe(1);
+    expect(defaultSound(sounds, 'iw', null)).toBe(1);
+    expect(defaultSound(sounds, null, 'fr')).toBe(3);
+    expect(defaultSound(sounds, 'ja', 'fr')).toBe(3);
+    expect(defaultSound(sounds, null, null)).toBe(0);
+    expect(soundLabel(sounds[0])).toBe('English · 5.1');
+    expect(soundLabel(sounds[1])).toBe('Hebrew');
+    expect(soundLabel(sounds[2])).toBe('English · commentary');
+    expect(soundLabel({index: 4, language: 'und', title: 'Director'})).toBe('Director');
+    expect(soundLabel({index: 4})).toBe('Sound 5');
+  });
+  test('sizes: an estimate wears “≈”, and the size asked for or the next one down', () => {
+    expect(sizeText({sizeBytes: 2.3 * 1024 ** 3, estimated: true})).toBe('≈ 2.3 GB');
+    expect(sizeText({sizeBytes: 2.3 * 1024 ** 3, estimated: true, instant: true})).toBe('2.3 GB');
+    expect(sizeText({sizeBytes: 0})).toBe('');
+    expect(qualityLike('1080', [{quality: '720'}, {quality: '480'}])).toBe('720');
+    expect(qualityLike('original', [{quality: '720'}])).toBe('720');
+    expect(qualityLike('720', [{quality: '720'}])).toBe('720');
   });
   test('Up next among the saved copies', () => {
     const ep = (s: number, e: number, state = 'done') => ({showId: 'sh', season: s, episode: e, state: state as 'done'});

@@ -21,10 +21,12 @@ import {GlassButton} from './ui/Buttons';
 import {wireProfileMenu} from './profileMenu';
 import {resetTabs} from './tabs';
 import {flushOfflineProgress} from './offline/store';
+import {startOfflineLife} from './offline/lifecycle';
 import './remote/controller'; // the profile's TVs, heard from the first socket open
 import {LOW_END} from './lowEnd';
 import {checkOnStart} from './update/store';
 import {deviceInfo} from '../perfTier';
+import {phoneNative} from './native';
 
 // one line for the device pass: which settings this phone runs with
 console.log(`[phone] low-end: ${LOW_END ? 'yes' : 'no'} (${((deviceInfo()?.totalMem || 0) / 1024 ** 3).toFixed(1)} GB, Android ${require('react-native').Platform.Version})`);
@@ -73,7 +75,13 @@ function Main() {
     loadMe(profileId)
       .then(me => wireProfileMenu({switchProfile: () => (resetTabs(), switchProfile()), name: () => me?.name || '', kids: () => !!me?.kids}))
       .catch(() => {});
-    return () => fg.remove();
+    // [offline-phone] saves carry on, this device's wishes are saved when ready, Keep the next
+    // episode ready looks — for THIS profile only, from now until it is left
+    const offline = profileId ? startOfflineLife(profileId) : () => {};
+    return () => {
+      fg.remove();
+      offline();
+    };
   }, [profileId, switchProfile]);
   return (
     <>
@@ -96,14 +104,17 @@ const PHONE_UI: RootUi = {
       </Text>
     </View>
   ),
-  Offline: ({onRetry}) => (
-    <Notice
-      title="Can't reach Aurora."
-      detail="Tried nufurora.com and the house server. Check your connection, then try again."
-      action="Try again"
-      onAction={onRetry}
-    />
-  ),
+  // no server at all: what is saved on this device plays (offline/OfflineHome.tsx); with nothing
+  // saved, the notice
+  Offline: ({onRetry}) => {
+    const OfflineHome = (require('./offline/OfflineHome') as typeof import('./offline/OfflineHome')).default;
+    return (
+      <OfflineHome
+        onRetry={onRetry}
+        fallback={<Notice title="Can't reach Aurora." detail="Tried nufurora.com and the house server. Check your connection, then try again." action="Try again" onAction={onRetry} />}
+      />
+    );
+  },
   Banned: ({reason, onRetry}) => (
     <Notice title="Access denied" detail={reason || 'This phone has been banned from this server.'} action="Try again" onAction={onRetry} />
   ),
@@ -114,6 +125,13 @@ const PHONE_UI: RootUi = {
 };
 
 export default function PhoneApp() {
+  // A fresh start is never inside the player: let the phone turn again. Android keeps an
+  // activity's last asked-for orientation across its process being killed, so a phone that
+  // lost the app while a film played came back to "Can't reach Aurora" / Home stuck
+  // sideways (Pixel 9 emulator, ui-phone 2026-11-10).
+  useEffect(() => {
+    phoneNative.setOrientation('auto');
+  }, []);
   return <AppRoot ui={PHONE_UI} />;
 }
 

@@ -12,7 +12,11 @@ const Person = ({p}: {p: XrayPerson}) => {
   const pic = p.photo ? imgSrc(p.photo) : null;
   return (
     <View style={s.person}>
-      <View style={s.face}>{pic ? <Image source={pic} style={StyleSheet.absoluteFill} resizeMode="cover" /> : <Text style={s.initial}>{(p.name || '?').slice(0, 1)}</Text>}</View>
+      {/* the initial under the photo: a photo that does not come leaves the letter, not an empty disc */}
+      <View style={s.face}>
+        <Text style={s.initial}>{(p.name || '?').slice(0, 1)}</Text>
+        {pic ? <Image source={pic} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
+      </View>
       <View style={{flex: 1}}>
         <Text style={s.name} numberOfLines={1}>
           {p.name}
