@@ -299,7 +299,24 @@ function ReportSheet({hint}: {hint?: string}) {
     }
   };
   return (
-    <Sheet kicker="HELP" title="Report a problem" onClose={closeOverlay}>
+    // Send / See what will be sent / Cancel ride in the sheet's footer, under the scrolling body:
+    // with "See what will be sent" open the body scrolls, and Android scrolled Send only just into
+    // the body's box, so its violet ring was cut at the edge (Mi TV, 5.9.5). Out of the ScrollView
+    // nothing clips the ring, and the buttons stay in view however long the trail is.
+    <Sheet
+      kicker="HELP"
+      title="Report a problem"
+      onClose={closeOverlay}
+      footer={
+        <>
+          {err ? <Text style={styles.error}>{err}</Text> : null}
+          <View style={[styles.actions, styles.actionsSpread, styles.actionsFoot]}>
+            <Primary uiId="report.send" label="Send report" onPress={send} busy={busy} />
+            <Ghost uiId="report.peek" label={peekOpen ? 'Hide what will be sent' : 'See what will be sent'} onPress={togglePeek} />
+            <Ghost label="Cancel" onPress={closeOverlay} />
+          </View>
+        </>
+      }>
       <Text style={styles.body}>
         A few words is enough. Where you are, what is playing, your last steps in the app and facts about this TV come along by themselves — never anything you typed, except a search you ran.
       </Text>
@@ -325,12 +342,6 @@ function ReportSheet({hint}: {hint?: string}) {
           </Text>
         </View>
       ) : null}
-      {err ? <Text style={styles.error}>{err}</Text> : null}
-      <View style={[styles.actions, styles.actionsSpread]}>
-        <Primary uiId="report.send" label="Send report" onPress={send} busy={busy} />
-        <Ghost uiId="report.peek" label={peekOpen ? 'Hide what will be sent' : 'See what will be sent'} onPress={togglePeek} />
-        <Ghost label="Cancel" onPress={closeOverlay} />
-      </View>
     </Sheet>
   );
 }
@@ -986,6 +997,8 @@ const styles = StyleSheet.create({
   // Primary on the left under the field's centre, Cancel pushed to the far
   // right — so DOWN from a text field lands on the primary, not on Cancel.
   actionsSpread: {justifyContent: 'space-between'},
+  // in a Sheet footer: its top padding (and hairline) is the gap the row's marginTop gave in the body
+  actionsFoot: {marginTop: 0},
   trailerErr: {backgroundColor: '#000', paddingHorizontal: 80},
   // X-Ray: a bottom sheet over the page, the phone's shape at TV size.
   xrBackdrop: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 500, elevation: 500, justifyContent: 'flex-end'},

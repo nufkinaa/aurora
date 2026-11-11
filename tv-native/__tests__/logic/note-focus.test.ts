@@ -41,6 +41,18 @@ describe('Report a problem from the player', () => {
     expect(sheet).toMatch(/onBlur=\{\(\) => noteFocusLost\(fieldNode\.current\)\}/);
     expect(sheet).toMatch(/useEffect\(\(\) => \(\) => noteFocusLost\(fieldNode\.current\), \[\]\);/);
   });
+  it('Send / See what will be sent / Cancel sit in the sheet footer, out of the scrolling body (the ring was cut with the trail open)', () => {
+    const o = read('components/Overlays.tsx');
+    const sheet = o.slice(o.indexOf('function ReportSheet('), o.indexOf('function JoinSheet('));
+    const foot = sheet.slice(sheet.indexOf('footer={'), sheet.indexOf('<Text style={styles.body}>'));
+    for (const id of ['report.send', 'report.peek', 'label="Cancel"']) expect(foot).toContain(id);
+    // the body (the Sheet's ScrollView children) carries none of them
+    const body = sheet.slice(sheet.indexOf('<Text style={styles.body}>'));
+    expect(body).not.toMatch(/report\.send|report\.peek|label="Cancel"/);
+    // Sheet.tsx: the footer is drawn after the ScrollView, not inside it
+    const sh = read('components/Sheet.tsx');
+    expect(sh.indexOf('{footer ?')).toBeGreaterThan(sh.indexOf('</ScrollView>'));
+  });
   it('the player never takes focus back to its scrubber while a sheet is up', () => {
     const p = read('playback/Player.tsx');
     expect(p).toMatch(/if \(controlsRef\.current && !overlayOpen\(\)\) scrubRef\.current\?\.requestTVFocus\?\.\(\);/);
