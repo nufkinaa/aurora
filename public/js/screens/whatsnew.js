@@ -371,9 +371,9 @@ const FEATURES = [
   },
   {
     since: "1.6.13", cue: "offline", glyph: "📲",
-    title: "Save the next three",
-    what: "One press on a series you own saves the next three episodes you haven't finished to this device — for a flight, a train, a weekend away.",
-    how: "Open the series and press Save next 3. The size is asked once; episodes already saved are skipped.",
+    title: "Choose the episodes to save",
+    what: "Pick exactly which episodes of a series go onto this device — for a flight, a train, a weekend away. The next ones you haven't watched come ticked; ones not on the server yet are saved by themselves when they arrive.",
+    how: "Open the series and press Choose episodes. Tick what you want (Select all for the whole season), pick the size once, then Save.",
     go: { label: "Open Shows", to: "#/shows" },
   },
   {

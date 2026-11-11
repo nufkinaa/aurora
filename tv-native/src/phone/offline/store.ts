@@ -347,6 +347,9 @@ export type SaveOpts = {
   auto?: {quality: string; kept: 'next' | 'wish'};
   /** one of many (a whole season): no "Saving …" toast of its own */
   quiet?: boolean;
+  /** the size already chosen (Choose episodes asks it once for all): no sheet; the next size
+   *  down when this file has no such size; the person's own sound */
+  quality?: string;
 };
 
 const say = (o: SaveOpts | undefined, text: string, glyph: string) => {
@@ -383,7 +386,9 @@ export async function saveOffline(item: SaveItem, choose: Chooser, o?: SaveOpts)
   if (!options.length) return say(o, "The server can't make a copy of this file for this device", '⚠'), 'failed';
   const chosenAudio = sounds.length ? defaultSound(sounds, likedAudio(), item.originalLanguage) : 0;
   let choice: Choice | null = null;
-  if (o?.auto) {
+  if (o?.quality && !o.auto) {
+    choice = {quality: pickOption(options, o.quality as OfflineQuality)?.quality || options[0].quality, audio: chosenAudio};
+  } else if (o?.auto) {
     const q = pickOption(options, o.auto.quality as OfflineQuality)?.quality || options[0].quality;
     choice = {quality: q, audio: chosenAudio};
   } else {

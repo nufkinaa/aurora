@@ -37,16 +37,19 @@ jest.mock('../../src/phone/offline/store', () => ({
   resumeOffline: jest.fn(),
   removeOffline: jest.fn(),
   setOfflinePrefs: jest.fn(),
-  offlinePrefs: () => ({keepNext: true}),
+  offlinePrefs: () => ({keepNext: true, quality: 'ask'}),
+  useOffline: () => [{id: 'L2', profileId: 'p1', title: 'Two', state: 'done', pct: 1}, {id: 'L3', profileId: 'p1', title: 'Three', state: 'saving', pct: 0.4}],
+  saveOffline: jest.fn(async () => 'started'),
   onOfflinePrefs: () => () => {},
   onOfflineLanded: () => () => {},
 }));
-jest.mock('../../src/phone/offline/wishes', () => ({removeWish: jest.fn()}));
+jest.mock('../../src/phone/offline/wishes', () => ({removeWish: jest.fn(), useWishes: () => [], addWish: jest.fn(async () => ({}))}));
 jest.mock('../../src/toast', () => ({showToast: jest.fn()}));
 
 import {EmptyPlace, JobRow, RoomBlock, SavedTitles, SmartNextFoot, WishRow} from '../../src/phone/offline/Place';
 import SizeSheet, {askSize} from '../../src/phone/offline/SizeSheet';
 import RestTitle, {copiesOfTitle} from '../../src/phone/offline/RestTitle';
+import ChooseSheet, {openChooser} from '../../src/phone/offline/ChooseSheet';
 import {pushPhone} from '../../src/phone/nav';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const mockStore = require('../../src/phone/offline/store');
@@ -230,5 +233,60 @@ describe('a title page with no connection rests', () => {
     expect(texts(r)).toMatch(/2 episodes are on this device — they play with no connection./);
     press(r, 'Play S1 E2');
     expect(pushPhone).toHaveBeenCalledWith('OfflinePlayer', {id: 'e2'});
+  });
+});
+
+describe('Choose episodes', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const {api} = require('../../src/api');
+  test('saved, on its way, on the server and not yet; the next ones ticked; the total; Save', async () => {
+    api.item = jest.fn(async (id: string) => ({id, title: `T ${id}`, duration: 2700, subtitles: []}));
+    const r = render(<ChooseSheet />);
+    act(() =>
+      openChooser({
+        title: 'Test Show',
+        showId: 's',
+        imdbId: 'tt1',
+        seasons: [
+          {
+            number: 1,
+            episodes: [
+              {season: 1, episode: 1, title: 'One', libId: 'L1', duration: 2700, sizeBytes: GB},
+              {season: 1, episode: 2, title: 'Two', libId: 'L2', duration: 2700, sizeBytes: GB},
+              {season: 1, episode: 3, title: 'Three', libId: 'L3', duration: 2700, sizeBytes: GB},
+              {season: 1, episode: 4, title: 'Four', libId: 'L4', duration: 2700, sizeBytes: GB},
+              {season: 1, episode: 5, title: 'Five', libId: null, aired: true},
+            ],
+          },
+          {number: 2, episodes: [{season: 2, episode: 1, title: 'Next year', libId: null, aired: false}]},
+        ],
+        from: {season: 1, episode: 1},
+      }),
+    );
+    const t = texts(r);
+    expect(t).toMatch(/Choose episodes/);
+    expect(t).toMatch(/Season 1.*Season 2/);
+    expect(t).toMatch(/Two \| E2 +\| 45 min \| Saved on this device/);
+    expect(t).toMatch(/Three \| E3 +\| 45 min \| Saving 40%/);
+    expect(t).toMatch(/Five \| E5 +\| ≈ 717 MB \| Not on the server yet — saves here when it arrives/);
+    // the next three that can be ticked: E1, E4, E5
+    const box = (n: string) => r.root.find(x => (x.type as unknown) === 'Pressable' && String(x.props.accessibilityLabel).startsWith(`Episode ${n},`));
+    expect(box('1').props.accessibilityState).toEqual({checked: true});
+    expect(box('4').props.accessibilityState).toEqual({checked: true});
+    expect(box('5').props.accessibilityState).toEqual({checked: true});
+    expect(t).toMatch(/3 episodes · ≈ .* · 1 when it arrives/);
+    press(r, 'Clear');
+    expect(texts(r)).toMatch(/No episodes ticked/);
+    press(r, 'Select all');
+    expect(texts(r)).toMatch(/3 episodes/); // saved and on-its-way ones are never ticked
+    press(r, 'Original');
+    act(() => box('5').props.onPress()); // untick the one not on the server
+    expect(texts(r)).toMatch(/2 episodes · 2.0 GB/);
+    await act(async () => {
+      r.root.find(x => (x.type as unknown) === 'Pressable' && x.props.accessibilityLabel === 'Save 2 episodes').props.onPress();
+      await new Promise<void>(res => setTimeout(res, 0));
+    });
+    expect(mockStore.saveOffline).toHaveBeenCalledTimes(2);
+    expect((mockStore.saveOffline as jest.Mock).mock.calls[0][2]).toEqual({quality: 'original', quiet: true});
   });
 });

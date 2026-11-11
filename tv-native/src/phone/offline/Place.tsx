@@ -23,6 +23,8 @@ import {copyLine, groupSaved, isWatched, roomLine, showLine, watchedCopies} from
 import {removeWish} from './wishes';
 import {wishLook, wishName} from './wishRules';
 import {showToast} from '../../toast';
+import {api} from '../../api';
+import {openChooser} from './ChooseSheet';
 
 const TONE: Record<Tone, string> = {busy: MINT, wait: AMBER, bad: RED, ok: MINT};
 
@@ -126,7 +128,24 @@ const Tag = ({text, tone}: {text: string; tone?: 'mint' | 'dim'}) => (
 );
 
 /** The titles on this device: films as rows, each show one group. */
-export function SavedTitles({copies, onPlay, canRemove = true, landed}: {copies: Saved[]; onPlay: (c: Saved) => void; canRemove?: boolean; landed?: string | null}) {
+// "Choose episodes" under a show: its episodes on the server, the ones after the last one here ticked
+async function chooseMore(showId: string, showTitle: string, last: Saved, cover?: string | null) {
+  try {
+    const show = await api.item(showId);
+    openChooser({
+      title: showTitle,
+      showId,
+      imdbId: show.imdbId || null,
+      poster: cover || show.cover || show.poster || null,
+      seasons: (show.seasons || []).map(se => ({number: se.number, episodes: se.episodes.map(e => ({season: e.season ?? se.number, episode: e.episode, title: e.title || `Episode ${e.episode}`, libId: e.id, duration: e.duration, sizeBytes: e.sizeBytes, aired: true}))})),
+      from: last.season != null && last.episode != null ? {season: last.season, episode: last.episode + 1} : null,
+    });
+  } catch {
+    showToast("Couldn't reach the server — try again", '⚠');
+  }
+}
+
+export function SavedTitles({copies, onPlay, canRemove = true, canChoose = true, landed}: {copies: Saved[]; onPlay: (c: Saved) => void; canRemove?: boolean; canChoose?: boolean; landed?: string | null}) {
   const groups = useMemo(() => groupSaved(copies), [copies]);
   return (
     <>
@@ -165,6 +184,7 @@ export function SavedTitles({copies, onPlay, canRemove = true, landed}: {copies:
                 <Text style={s.line}>{showLine(g, fmtSize)}</Text>
                 <View style={s.actions}>
                   <Btn uiId="saved.play.next" label={`Play S${next.season} E${next.episode}`} primary onPress={() => onPlay(next)} />
+                  {canChoose ? <Btn uiId="saved.next.save" label="Choose episodes" onPress={() => chooseMore(g.showId, g.showTitle, g.episodes[g.episodes.length - 1], g.episodes[0]?.cover)} /> : null}
                   {canRemove ? (
                     <Tap uiId="saved.remove.show" onPress={() => removeOffline(g.episodes.map(e => e.id), `Removed “${g.showTitle}” from this device`)} style={s.bin} accessibilityRole="button" accessibilityLabel={`Remove ${g.showTitle} from this device`}>
                       <Icon name="trash" size={20} color={colors.textDim} />

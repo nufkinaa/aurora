@@ -85,6 +85,7 @@ const DEVICE: Record<string, Record<string, string>> = {
   },
   'phone/offline/reach.ts': {pillShown: 'whether the No connection line is on screen (the screen’s)', pillSubs: 'listeners (the toasts)'},
   'phone/offline/smartNext.ts': {checking: 'a flag: a look is running (it reads the active profile when it runs)'},
+  'phone/offline/ChooseSheet.tsx': {current: 'the Choose episodes sheet that is up (the screen’s; one at a time)', lastSize: 'the size last picked on this phone (a phone’s choice, like the size sheet’s)', subs: 'listeners (the sheet)'},
   'phone/offline/SizeSheet.tsx': {current: 'the size sheet that is up (the screen’s; one at a time)', subs: 'listeners (the sheet)'},
   'phone/navigation.tsx': {lastPlayKey: 'the player screen last looked at (a route key, once per screen)'},
   'phone/remote/controller.ts': {

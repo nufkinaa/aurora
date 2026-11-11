@@ -87,7 +87,8 @@ import {shareLink} from '../linkParse';
 import {phoneNative} from '../native';
 import {FADE_MS, LOW_END} from '../lowEnd';
 import {pushPhone} from '../nav';
-import {saveOffline, useOffline} from '../offline/store';
+import {offlineAvailable, saveOffline, useOffline} from '../offline/store';
+import {openChooser} from '../offline/ChooseSheet';
 import {chooseQuality} from '../offline/choose';
 import {markOf, markWords} from '../offline/rules';
 import {useWishes} from '../offline/wishes';
@@ -802,32 +803,23 @@ export default function Detail() {
     const on = wishOn(wishFor(wishes, t));
     return {label: on ? 'Will be saved to this device' : 'This device too', tag: on ? 'press to stop that' : 'saved here by itself when it arrives', uiId: 'detail.episode.wish', onPress: () => toggleWish(t, `${title} S${ep.season} E${ep.episode}`)};
   };
-  // the whole season in one tap: one size (asked once), then each episode in turn, one
-  // toast for all of them
-  const saveSeasonToPhone = async (eps: UiEp[]) => {
-    let q: {quality: string; audio: number} | null = null;
-    let n = 0;
-    let said = false;
-    for (const ep of eps) {
-      if (!ep.epId) continue;
-      const r = await saveOffline(
-        {id: ep.epId, title: ep.label, showId: full?.id || item.id, showTitle: title, season: ep.season, episode: ep.episode, year, cover: item.cover || item.poster || null, duration: ep.durationSec, subtitles: ep.subs},
-        async o => {
-          if (!q) q = await chooseQuality(`${title} · Season ${ep.season}`)(o);
-          return q;
-        },
-        {quiet: true},
-      );
-      if (r === 'started') {
-        n++;
-        if (!said) {
-          said = true;
-          showToast(`Saving ${eps.length === 1 ? '1 episode' : `${eps.length} episodes`} of “${title}” to this device`, '📱');
-        }
-      }
-      if (r === 'stopped') break;
-    }
-    return n;
+  // [offline-choose] "Choose episodes": the show's episodes in a sheet, the next unwatched ones
+  // ticked, the size once for all (offline/ChooseSheet.tsx — it replaced "Save the season")
+  const chooseEpisodes = () => {
+    const sizes = new Map<string, number>();
+    for (const se of full?.seasons || []) for (const ep of se.episodes) if (ep.sizeBytes) sizes.set(ep.id, ep.sizeBytes);
+    openChooser({
+      title,
+      showId: full?.id || null,
+      imdbId: imdb || null,
+      poster: item.cover || item.poster || full?.cover || null,
+      seasons: seasons.map(se => ({
+        number: se.number,
+        episodes: se.episodes.map(e => ({season: e.season, episode: e.episode, title: e.label, libId: e.epId || null, duration: e.durationSec || (e.durationMin ? e.durationMin * 60 : 0), sizeBytes: e.epId ? sizes.get(e.epId) || 0 : 0, aired: e.air === 'aired'})),
+      })),
+      from: heroEp ? {season: heroEp.season, episode: heroEp.episode} : null,
+      finished: id => !!progress[id]?.finished,
+    });
   };
   const markSeason = () => {
     if (!season) return;
@@ -1183,6 +1175,7 @@ export default function Detail() {
                 onPress={() => toggleWish({type: 'movie', imdbId: imdb, jobId: filmJob.id || null, title, poster: item.cover || item.poster || null, duration: full?.duration || null}, title)}
               />
             ) : null}
+            {isShow && offlineAvailable() && (full || imdb) ? <ActionCircle uiId="detail.offline.choose" icon="downloadDevice" label="Choose episodes" onPress={chooseEpisodes} /> : null}
             {ownedMovieId && movieResume ? <ActionCircle uiId="detail.restart" icon="refresh" label="Start over" onPress={() => navigation.push('Player', {id: ownedMovieId, title, restart: true})} /> : null}
             {isShow ? <ActionCircle uiId="phone.detail.episodes" icon="series" label="All episodes" onPress={() => scrollRef.current?.scrollTo({y: artH + 160, animated: true})} /> : null}
             {heroJob?.mine ? <ActionCircle uiId="detail.download.cancel" icon="close" label="Cancel download" onPress={() => askCancelJob(heroJob, isShow && heroEp ? `${title} · S${heroEp.season} E${heroEp.episode}` : title)} /> : null}
@@ -1276,14 +1269,6 @@ export default function Detail() {
               </View>
             </ScrollView>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pills}>
-              {season && season.episodes.some(e => e.owned && !e.phone) ? (
-                <ChipButton uiId="phone.save.season"
-                  small
-                  label={`Save the season (${season.episodes.filter(e => e.owned && !e.phone).length})`}
-                  icon="downloadDevice"
-                  onPress={() => saveSeasonToPhone(season.episodes.filter(e => e.owned && !e.phone))}
-                />
-              ) : null}
               {aired.length ? <ChipButton uiId="detail.season.watched" small label={seasonAllWatched ? 'Mark season unwatched' : 'Mark season watched'} onPress={markSeason} /> : null}
             </ScrollView>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.epList}>

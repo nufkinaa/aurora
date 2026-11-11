@@ -133,9 +133,9 @@ ui.test("with copies: a show's episodes together and in order with the next one 
     assert.match(await page.locator(`.dev-row[data-id="${srv.lib.film2.id}"]`).innerText(), /Test Film Two[\s\S]*Original quality/);
     // the room: what is here against what is free — a guess, said as one
     assert.match(await page.locator(".dev-room").innerText(), /saved here[\s\S]*≈/);
-    // the episode after the last one here is one press away
+    // more of the show is one press away: Choose episodes (the ones after the last one here ticked)
     await page.waitForSelector('.dev-group [data-ui="saved.next.save"]');
-    assert.match(await page.locator('.dev-group [data-ui="saved.next.save"]').innerText(), /Save the next/);
+    assert.match(await page.locator('.dev-group [data-ui="saved.next.save"]').innerText(), /Choose episodes/);
     // every round button says what it does
     for (const b of await page.locator(".dev-group .dev-round").all()) assert.ok((await b.getAttribute("aria-label")) || (await b.innerText()), "a named button");
 

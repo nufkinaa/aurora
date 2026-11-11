@@ -46,8 +46,7 @@ module.exports = {
   "detail.hh.dismiss": "wtp", // "Not for me" on a recommended title
   "detail.mylist": "wtp",
   "detail.offline": "w",
-  "detail.offline.season": "w",
-  "detail.offline.seasonall": "w",
+  "detail.offline.choose": "wp", // a show's "Choose episodes" (offlineChoose.js / phone offline/ChooseSheet.tsx)
   "detail.offline.wish": "wp", // offline wish: "This device too" beside a download on its way
   "detail.play": "wtp",
   "detail.replace": "wtp",
@@ -141,7 +140,15 @@ module.exports = {
   // newpassword
   "newpassword.signout": "tp",
   "newpassword.submit": "tp",
-  // offline (the size sheet "Save to this device — which size?": tv-native/src/phone/offline/SizeSheet.tsx)
+  // offline (the size sheet "Save to this device — which size?": tv-native/src/phone/offline/SizeSheet.tsx;
+  // "Choose episodes": public/js/offlineChoose.js and the phone's ChooseSheet.tsx)
+  "offline.choose.all": "wp", // Select all (the season shown)
+  "offline.choose.cancel": "wp", // Not now
+  "offline.choose.clear": "wp", // Clear (the season shown)
+  "offline.choose.pick": "wp", // an episode ticked / unticked
+  "offline.choose.save": "wp", // "Save N episodes"
+  "offline.choose.season": "wp", // the season switch inside the sheet
+  "offline.choose.size": "wp", // the size, once for all of them
   "offline.always": "p", // "Always use the size I pick"
   "offline.notnow": "p",
   "offline.scope.pick": "p", // a wish: "And every new episode of season N" / "…of this show"
@@ -285,7 +292,7 @@ module.exports = {
   "saved.job.pause": "p", // a save on its way: Pause (what is saved stays)
   "saved.job.resume": "p", // a paused save: Resume (carries on from where it was)
   "saved.job.retry": "p", // a save that didn't make it: Retry
-  "saved.next.save": "w", // under a show: "Save the next N"
+  "saved.next.save": "wp", // under a show: "Choose episodes"
   "saved.offer.save": "w", // nothing saved yet: one of the titles worth saving
   "saved.pack": "w", // "Pack for a trip" (opens the sheet)
   "saved.pack.go": "w", // the sheet: pack what is ticked
@@ -466,7 +473,6 @@ module.exports = {
   "phone.request.leave": "p", // Request access: Cancel / Back to sign in
   "phone.request.send": "p", // Request access: Send my request
   "phone.save.film": "p", // a film's page: save on this phone
-  "phone.save.season": "p", // a show's page: save a season on this phone
   "phone.settings.editprofile": "p", // Settings: Edit profile & password
   "phone.settings.pair": "p", // Settings: Sign in a TV
   "phone.settings.photo": "p", // Settings: Upload a photo / Change photo

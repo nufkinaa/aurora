@@ -67,7 +67,7 @@ export default function OfflineHome({onRetry, fallback}: {onRetry: () => void; f
       <Text style={[place.sub, {marginBottom: 14}]}>Plays right here — even with no connection</Text>
       <NoServerLine onRetry={onRetry} />
       <Text style={place.h3}>{`Saved for offline · ${copies.length}`}</Text>
-      <SavedTitles copies={copies} canRemove={false} onPlay={c => setPlaying(c.id)} />
+      <SavedTitles copies={copies} canRemove={false} canChoose={false} onPlay={c => setPlaying(c.id)} />
     </ScrollView>
     </View>
   );

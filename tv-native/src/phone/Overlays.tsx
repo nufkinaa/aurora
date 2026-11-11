@@ -8,6 +8,7 @@ import {closeOverlay, useOverlay} from '../overlay';
 import {dropToast, ToastAction, useToasts} from '../toast';
 import Tap from './ui/Tap';
 import SizeSheet from './offline/SizeSheet';
+import ChooseSheet from './offline/ChooseSheet';
 import {PILL_LIFT, usePillShown} from './offline/reach';
 import Sheet from './ui/Sheet';
 import ListRow from './ui/Row';
@@ -77,6 +78,7 @@ export default function PhoneOverlays() {
       <ProfileMenu />
       <MoreSheet />
       <SizeSheet />
+      <ChooseSheet />
       <Toasts />
     </>
   );
