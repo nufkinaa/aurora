@@ -209,7 +209,8 @@ Measured 2026-11-06 on Windows: 78 suites / 937 tests in about 30 s, tsc about 1
 The website's browser suite (`test/ui/*.test.js`, `npm run test:ui` locally: about an hour
 one file at a time on the home PC) runs on GitHub in **8 parallel shards**, each a
 4-vCPU ubuntu-24.04 runner running its files one after another, each file with its own
-private instance and Chrome, exactly as at home. Wall time: about 12 minutes.
+private instance and Chrome, exactly as at home. Wall time: about 10 minutes (first green
+run 2026-11-11: 9.7 min, shards 6.7–9.5 min; 110 files, ~64 min of test time).
 
 - **When:** every push to `master`, `rel-*` and `ui-*` branches; by hand (Actions → UI →
   Run workflow) with an optional `files` input (`party wall`, comma or space separated)
