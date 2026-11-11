@@ -52,7 +52,10 @@ class Clock {
   pause() {
     if (this.pausedAt != null) return;
     this.pausedAt = Date.now();
-    for (const it of this.items) if (it.id) clearTimeout(it.id), (it.id = null);
+    for (const it of this.items) {
+      if (it.id) clearTimeout(it.id);
+      it.id = null;
+    }
   }
   resume() {
     if (this.pausedAt == null) return;

@@ -4,13 +4,13 @@
 // reward (the meteor burst when the viewer type turns over). Each chapter is
 // drawn at its place from the first frame and its pieces arrive by transform
 // and opacity; `still` (calm, a screen reader) draws every finished state.
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {Animated, Image, StyleSheet, Text, View} from 'react-native';
 import Odometer from '../../play/Odometer';
 import Meter from '../../play/Meter';
 import {METEOR_SRC} from '../../play/Burst';
 import {EASE, LINEAR, SPRING, tween, useValue} from '../../play/anim';
-import {GLOW_SRC, Star} from '../../play/Star';
+import {GLOW_SRC} from '../../play/Star';
 import {PLAY} from '../../play/tokens';
 import {Chip, Eyebrow, In, Key, ty} from './ui';
 import {CardBack, CARD_H, CARD_W, Dial, GenreBars, NightSky, Poster, TiltCard, TypeFront, useRun, WeekBars} from './WrappedParts';

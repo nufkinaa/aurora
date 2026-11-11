@@ -1,20 +1,23 @@
-// "AI pick" on the phone — the website's AI page (public/js/screens/pickforme.js)
-// at its phone size: describe the mood, flip Movies / Shows, set the two taste
-// dials, and the server (src/media/ai.js) answers with titles, each with a line
-// on why it fits. Same words, same ask (POST /api/ai/recommend), the same rule
-// for when the page is there at all (GET /api/ai/status → enabled, phone/aiStatus.ts).
+// "AI pick" on the phone — the website's AI page (public/js/screens/pickforme.js, docs/play/
+// pickforme.md "The Draw") at its phone size, in the Aurora Play look: describe the mood, flip
+// Movies / Shows, set the two taste dials (chunky game chips), and the answer is DRAWN — while
+// the server thinks, card backs turn in a reel; the posters roll in, the reel slows and lands
+// on the first pick (a tick each poster that passes), a beat, then the prize: a gold flash, the
+// meteor burst (the flow's one reward), "Tonight's pick", the title, the reason, Open and
+// Another one. Under it "The whole hand": every pick with its reason, the drawn one ringed.
 //
-// The posters are the phone's PosterCard and open through the shared openItem,
-// so a pick opens and plays like a title found any other way. The website's
-// .pfm-results columns are 188 wide at the least, which on a phone is ONE
-// column of whole-width posters; here never fewer than two, 188+ above that.
+// Same words, same ask (POST /api/ai/recommend), the same rule for when the page is there at
+// all (GET /api/ai/status → enabled, phone/aiStatus.ts). A pick opens through the shared
+// openItem, so it opens and plays like a title found any other way.
 //
-// The last answer lives at module scope (as on the site): coming back to the
-// page paints it again instead of spending another ten seconds (and real money)
-// on the same question. It is this profile's: dropped when the profile is left
-// (profileScope.ts), and stamped with whoever asked.
+// The last answer lives at module scope (as on the site): coming back to the page paints the
+// prize again, still — no spin, no burst. It is this profile's: dropped when the profile is
+// left (profileScope.ts), and stamped with whoever asked.
+//
+// Remove animations: no reel; while waiting a still card back and the words; the answer is
+// the prize at once; Another one is a plain swap. No burst.
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ActivityIndicator, Animated, Easing, FlatList, Keyboard, StyleSheet, Text, TextInput, View, useWindowDimensions} from 'react-native';
+import {ActivityIndicator, Animated, Image, Keyboard, LayoutChangeEvent, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions} from 'react-native';
 import {api, HeroItem} from '../../api';
 import {useApp} from '../../AppContext';
 import {useMe} from '../../navSection';
@@ -24,12 +27,19 @@ import {showToast} from '../../toast';
 import {WORDS as GROUP} from '../../groupPick'; // [group-pick]
 import {usePNav} from '../nav';
 import {aiEnabled, aiKnown} from '../aiStatus';
-import {PosterCard} from '../ui/Cards';
 import {BackBar, useColumn, usePageTop, useSolidBar} from '../ui/PageHead';
 import {useTabBarSpace} from '../ui/TabBar';
-import Glass from '../ui/Glass';
 import Tap from '../ui/Tap';
-import {colors, GUTTER} from '../theme';
+import {phoneNative} from '../native';
+import {GUTTER} from '../theme';
+import Burst from '../../play/Burst';
+import {LINEAR, tween, useCalm, useInFront, useTimers, useValue} from '../../play/anim';
+import {GLOW_SRC, Star} from '../../play/Star';
+import {PLAY} from '../../play/tokens';
+import {HOLD_MS, LAND_MS, landingStrip, nextDraw, reelStops, RESPIN_MS, respinStrip} from '../../play/reel';
+import {AURORA, Eyebrow, GameChip, In, Key, PlayCard, PlayRoom, ty} from '../play/ui';
+import {CardBack, Poster} from '../play/art';
+import {DRAW, metaLine, showPips, tickTimes} from '../play/pickWords';
 
 // ---- pickforme.js, verbatim (the ids are what src/media/ai.js understands) ----
 const EXAMPLES = [
@@ -88,13 +98,8 @@ const W = {
 /** The bar's title once the page has scrolled (docs/android-phone/NAV.md's words). */
 const PAGE_TITLE = 'AI'; // the website's and the TV's word (web h1 "AI")
 
-// .pfm .pfm-results: columns of 188 at the least, 12 apart on a phone
-const MIN_COL = 188;
-const GAP = 12;
-const SKELETONS = 6;
-
 type PickItem = HeroItem & {why?: string | null};
-type Answer = {vibe: string; kind: Kind; era: string; length: string; items: PickItem[]; status: string; owner: string};
+type Answer = {vibe: string; kind: Kind; era: string; length: string; items: PickItem[]; status: string; owner: string; draw: number};
 // the last answer, for the profile that asked it (and nobody else)
 let last: Answer | null = null;
 registerProfileCache('phone/screens/Pick', () => {
@@ -111,48 +116,111 @@ export function statusLine(n: number, kind: Kind, vibe: string, cached: boolean,
   );
 }
 
-/** A taste pill (.pfm-pill): wraps to a second line rather than run off a narrow phone. */
-function Pill({label, on, onPress}: {label: string; on: boolean; onPress: () => void}) {
-  return (
-    <Tap
-      uiId="pick.option"
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{selected: on}}
-      onPress={onPress}
-      style={[s.pill, on && s.pillOn]}>
-      <Text style={[s.pillText, on && s.pillTextOn]} numberOfLines={2}>
-        {label}
-      </Text>
-    </Tap>
-  );
-}
+const art = (it: PickItem) => it.cover || it.poster || null;
 
-/** One labelled dial row (.pfm-tune-group): the caps label, then its pills, wrapping. */
+/** One labelled dial row: the caps label, then its chips, wrapping. */
 function Dial({label, options, value, onPick}: {label: string; options: {id: string; label: string}[]; value: string; onPick: (id: string) => void}) {
   return (
     <View style={s.group}>
       <Text style={s.groupLabel}>{label.toUpperCase()}</Text>
       {options.map(o => (
-        <Pill key={o.id} label={o.label} on={o.id === value} onPress={() => onPick(o.id)} />
+        <GameChip key={o.id} uiId="pick.option" label={o.label} on={o.id === value} onPress={() => onPick(o.id)} />
       ))}
     </View>
   );
 }
 
-/** The wait's sweeping bar (.pfm-wait-bar). */
-function SweepBar() {
-  const x = useRef(new Animated.Value(0)).current;
+/** Three stars that light in turn while Aurora thinks. */
+function Dots({calm}: {calm: boolean}) {
+  const t = useValue(0);
   useEffect(() => {
-    const loop = Animated.loop(Animated.timing(x, {toValue: 1, duration: 1500, easing: Easing.bezier(0.2, 0.7, 0.2, 1), useNativeDriver: true}));
+    if (calm) return;
+    const loop = Animated.loop(tween(t, 1, 1500, {easing: LINEAR}));
     loop.start();
     return () => loop.stop();
-  }, [x]);
-  const {width} = useWindowDimensions();
-  const barW = Math.min(430, width * 0.6);
+  }, [t, calm]);
+  const colours = [PLAY.green, PLAY.teal, PLAY.violet];
   return (
-    <View style={[s.bar, {width: barW}]}>
-      <Animated.View style={[s.sweep, {width: barW * 0.38, transform: [{translateX: x.interpolate({inputRange: [0, 1], outputRange: [-barW * 0.4, barW * 1.4]})}]}]} />
+    <View style={s.dots} importantForAccessibility="no-hide-descendants">
+      {colours.map((c, i) => {
+        const a = i / 3;
+        const op = calm ? 0.8 : t.interpolate({inputRange: [0, a, a + 0.16, a + 0.34, 1], outputRange: [0.3, 0.3, 1, 0.3, 0.3], extrapolate: 'clamp'});
+        return (
+          <Animated.View key={i} style={{opacity: op as never}}>
+            <Star size={17} color={c} />
+          </Animated.View>
+        );
+      })}
+    </View>
+  );
+}
+
+type Spin = {cells: (number | 'back')[]; last: number; ms: number; key: number; from?: number} | null;
+
+/** The reel: a poster-sized window, gold notches at the payline; card backs going round while
+ *  waiting, then one strip rolling to its last cell (one value on the native driver). */
+function Reel({w, h, items, mode, spin, showing, calm, flash, onLanded}: {
+  w: number;
+  h: number;
+  items: PickItem[];
+  mode: 'waiting' | 'rolling' | 'won';
+  spin: Spin;
+  showing: number;
+  calm: boolean;
+  flash: Animated.Value;
+  onLanded: () => void;
+}) {
+  const loop = useValue(0);
+  const roll = useValue(0);
+  const landed = useRef(onLanded);
+  landed.current = onLanded;
+  useEffect(() => {
+    if (mode !== 'waiting' || calm) return;
+    loop.setValue(0);
+    const a = Animated.loop(tween(loop, 1, 520 * 2, {easing: LINEAR}));
+    a.start();
+    return () => a.stop();
+  }, [mode, calm, loop]);
+  useEffect(() => {
+    if (!spin || mode !== 'rolling') return;
+    roll.setValue(0);
+    const ticks = tickTimes(spin.last, spin.ms).map(ms => setTimeout(() => phoneNative.haptic('tick'), ms));
+    const a = tween(roll, 1, spin.ms, {easing: LINEAR});
+    a.start(({finished}) => {
+      if (finished) landed.current();
+    });
+    return () => {
+      a.stop();
+      ticks.forEach(clearTimeout);
+    };
+  }, [spin, mode, roll]);
+  const cell = (c: number | 'back', k: number) =>
+    c === 'back' ? (
+      <CardBack key={k} w={w} h={h} word={false} radius={0} />
+    ) : (
+      <Poster key={k} name={items[c]?.title || ''} poster={items[c] ? art(items[c]) : null} w={w} h={h} radius={0} />
+    );
+  let strip: React.ReactNode;
+  if (mode === 'waiting') {
+    strip = (
+      <Animated.View style={{transform: [{translateY: calm ? 0 : (loop.interpolate({inputRange: [0, 1], outputRange: [0, -2 * h]}) as never)}]}}>
+        {['back', 'back', 'back'].map((c, k) => cell(c as 'back', k))}
+      </Animated.View>
+    );
+  } else if (mode === 'rolling' && spin) {
+    const stops = reelStops(spin.last, h, 48);
+    strip = <Animated.View style={{transform: [{translateY: roll.interpolate(stops) as never}]}}>{[...spin.cells, 'back' as const].map((c, k) => cell(c, k))}</Animated.View>;
+  } else {
+    strip = cell(showing, 0);
+  }
+  return (
+    <View style={{width: w + 40, height: h, alignItems: 'center'}} importantForAccessibility="no-hide-descendants">
+      <View style={[s.reel, {width: w, height: h}, mode === 'won' && s.reelWon]}>
+        {strip}
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, s.flash, {opacity: flash}]} />
+      </View>
+      <View style={[s.notch, s.notchL, {top: h / 2 - 7}]} />
+      <View style={[s.notch, s.notchR, {top: h / 2 - 7}]} />
     </View>
   );
 }
@@ -163,9 +231,12 @@ export default function Pick() {
   const column = useColumn();
   const bottom = useTabBarSpace();
   const navigation = usePNav();
+  const front = useInFront(navigation as never);
   const {profileId} = useApp();
   const me = useMe(profileId);
   const {width} = useWindowDimensions();
+  const calm = useCalm();
+  const timers = useTimers();
   if (last && last.owner !== profileId) last = null;
   const mine = last;
 
@@ -175,15 +246,28 @@ export default function Pick() {
   const [era, setEra] = useState(mine?.era || 'any');
   const [length, setLength] = useState(mine?.length || 'any');
   const [busy, setBusy] = useState(false);
-  const [stage, setStage] = useState(0);
+  const [stageNo, setStageNo] = useState(0);
   const [items, setItems] = useState<PickItem[]>(mine?.items || []);
   const [status, setStatus] = useState(mine?.status || '');
+  const [draw, setDraw] = useState(mine?.draw || 0);
+  // the stage: hidden, waiting (backs turn), rolling (the posters roll in), won (the prize)
+  const [mode, setMode] = useState<'none' | 'waiting' | 'rolling' | 'won'>(mine?.items.length ? 'won' : 'none');
+  const [spin, setSpin] = useState<Spin>(null);
+  const [prizeRun, setPrizeRun] = useState(0); // the prize's words rise again for every draw
+  const [fresh, setFresh] = useState(false);
+  const [handShown, setHandShown] = useState(!!mine?.items.length);
+  const [burst, setBurst] = useState({n: 0, x: 0, y: 0});
+  const reelRef = useRef<View>(null);
   const [inputOn, setInputOn] = useState(false);
   const inputRef = useRef<TextInput>(null);
+  const scroller = useRef<ScrollView>(null);
+  const stageY = useRef(0);
   const live = useRef(true);
   const who = useRef(profileId);
   who.current = profileId;
   const busyRef = useRef(false);
+  const flash = useValue(0);
+  const spins = useRef(0);
 
   useEffect(() => {
     live.current = true;
@@ -195,10 +279,18 @@ export default function Pick() {
 
   useEffect(() => {
     if (!busy) return;
-    setStage(0);
-    const t = setInterval(() => setStage(n => Math.min(n + 1, STAGES.length - 1)), STAGE_MS);
+    setStageNo(0);
+    const t = setInterval(() => setStageNo(n => Math.min(n + 1, STAGES.length - 1)), STAGE_MS);
     return () => clearInterval(t);
   }, [busy]);
+
+  // the window, sized from the screen: 170 wide on a phone (150 at 320)
+  const reelW = width <= 340 ? 150 : Math.min(190, Math.round(width * 0.44));
+  const reelH = Math.round(reelW * 1.5);
+
+  const bringStage = useCallback(() => {
+    timers.after(60, () => scroller.current?.scrollTo({y: Math.max(0, stageY.current - top + 20), animated: !calm}));
+  }, [timers, top, calm]);
 
   const ask = useCallback(
     async (override?: string) => {
@@ -214,6 +306,11 @@ export default function Pick() {
       setBusy(true);
       setStatus('');
       setItems([]);
+      setHandShown(false);
+      setDraw(0);
+      setMode('waiting');
+      flash.setValue(0);
+      bringStage();
       const asker = profileId; // an answer belongs to whoever asked
       try {
         const mix = KINDS.find(k => k.id === kind)!.mix;
@@ -221,56 +318,90 @@ export default function Pick() {
         if (asker !== who.current) return; // the profile changed while it was thinking
         const got = (res.items || []) as PickItem[];
         if (!got.length) {
-          if (live.current) setStatus(W.empty);
+          if (live.current) {
+            setStatus(W.empty);
+            setMode('none');
+          }
           return;
         }
         const text = statusLine(got.length, kind, q, !!res.cached, era, length);
         // kept before it is painted: an answer that lands while the page is gone waits for its return
-        last = {vibe: q, kind, era, length, items: got, status: text, owner: asker};
-        if (live.current) {
-          setItems(got);
-          setStatus(text);
+        last = {vibe: q, kind, era, length, items: got, status: text, owner: asker, draw: 0};
+        if (!live.current) return;
+        setItems(got);
+        setStatus(text);
+        if (calm) {
+          setMode('won');
+          setHandShown(true);
+          setPrizeRun(r => r + 1);
+          setFresh(false);
+          return;
         }
+        // the posters roll in and the reel slows onto the first pick
+        const cells: (number | 'back')[] = ['back', ...landingStrip(got.length, 0)];
+        setSpin({cells, last: cells.length - 1, ms: LAND_MS, key: ++spins.current});
+        setFresh(true);
+        setMode('rolling');
       } catch (e) {
-        if (live.current) showToast((e as Error)?.message || W.failed, '🤖');
+        if (live.current) {
+          setMode('none');
+          showToast((e as Error)?.message || W.failed, '🤖');
+        }
       } finally {
         busyRef.current = false;
         if (live.current) setBusy(false);
       }
     },
-    [vibe, kind, era, length, profileId],
+    [vibe, kind, era, length, profileId, calm, flash, bringStage],
   );
+
+  // the reel has stopped: a beat, then the prize (the flow's one reward on a fresh answer)
+  const landed = useCallback(() => {
+    timers.after(HOLD_MS, () => {
+      if (!live.current) return;
+      setMode('won');
+      setHandShown(true);
+      setPrizeRun(r => r + 1);
+      flash.setValue(0);
+      Animated.sequence([tween(flash, 0.55, 120), tween(flash, 0, 420)]).start();
+      if (fresh) {
+        phoneNative.haptic('confirm');
+        reelRef.current?.measureInWindow((x, y, w, h) => setBurst(b => ({n: b.n + 1, x: x + w / 2, y: y + h / 2})));
+      } else phoneNative.haptic('tick');
+    });
+  }, [timers, flash, fresh]);
+
+  const another = useCallback(() => {
+    if (items.length < 2 || mode !== 'won') return;
+    const from = draw;
+    const to = nextDraw(draw, items.length);
+    setDraw(to);
+    if (last && last.items === items) last.draw = to;
+    if (calm) {
+      setPrizeRun(r => r + 1);
+      return;
+    }
+    const cells = respinStrip(items.length, from, to);
+    setFresh(false);
+    setSpin({cells, last: cells.length - 1, ms: RESPIN_MS, key: ++spins.current});
+    setMode('rolling');
+  }, [items, mode, draw, calm]);
 
   const open = useCallback((it: HeroItem) => openItem(navigation, it), [navigation]);
-
-  // the grid: inside the page's column (a tablet / landscape), never fewer than two
-  const pageW = column ? Math.min(width, 820) : width;
-  const avail = pageW - GUTTER * 2;
-  const cols = Math.max(2, Math.floor((avail + GAP) / (MIN_COL + GAP)));
-  const cardW = Math.floor((avail - GAP * (cols - 1)) / cols);
-  const renderPick = useCallback(
-    ({item}: {item: PickItem}) => (
-      <View style={[s.pick, {width: cardW}]}>
-        <PosterCard item={item} width={cardW} onPress={open} />
-        {item.why ? (
-          <Text style={s.why} numberOfLines={3} ellipsizeMode="tail" accessibilityLabel={item.why}>
-            {item.why}
-          </Text>
-        ) : null}
-      </View>
-    ),
-    [cardW, open],
-  );
 
   const shows = kind === 'show';
   const flip = () => {
     setKind(shows ? 'movie' : 'show');
     setLength('any'); // the length ids are per kind
   };
+  const item = items[draw];
+  const onStage = (e: LayoutChangeEvent) => {
+    stageY.current = e.nativeEvent.layout.y;
+  };
 
   const form = (
     <>
-      <Glass style={s.box}>
+      <PlayCard style={s.box}>
         <TextInput
           ref={inputRef}
           style={[s.input, inputOn && s.inputOn]}
@@ -281,25 +412,16 @@ export default function Pick() {
           onSubmitEditing={() => ask()}
           returnKeyType="search"
           placeholder={W.placeholder}
-          placeholderTextColor={colors.textFaint}
-          selectionColor={colors.accent}
-          cursorColor={colors.accent}
+          placeholderTextColor="rgba(232,228,255,0.45)"
+          selectionColor={PLAY.teal}
+          cursorColor={PLAY.teal}
           maxLength={300}
           accessibilityLabel={W.placeholder}
         />
-        <Tap uiId="pick.go" accessibilityRole="button" accessibilityLabel={W.go} accessibilityState={{disabled: busy}} disabled={busy} onPress={() => ask()} style={[s.go, busy && s.goOff]}>
-          <Text style={s.goText}>{W.go}</Text>
-        </Tap>
+        <Key uiId="pick.go" kind="aurora" label={W.go} onPress={() => ask()} disabled={busy} calm={calm} />
         <View style={s.tune}>
           {/* one control, one tap: anywhere on it flips Movies <-> Shows */}
-          <Tap
-            uiId="pick.option"
-            accessibilityRole="switch"
-            accessibilityLabel={W.switchLabel}
-            accessibilityState={{checked: shows}}
-            onPress={flip}
-            flat
-            style={s.switch}>
+          <Tap uiId="pick.option" accessibilityRole="switch" accessibilityLabel={W.switchLabel} accessibilityState={{checked: shows}} onPress={flip} flat style={s.switch}>
             {KINDS.map(k => (
               <View key={k.id} style={[s.switchOpt, k.id === kind && s.switchOptOn]}>
                 <Text style={[s.switchText, k.id === kind && s.switchTextOn]}>{k.label}</Text>
@@ -309,191 +431,238 @@ export default function Pick() {
           <Dial label={W.era} options={ERAS} value={era} onPick={setEra} />
           <Dial label={W.length} options={LENGTHS[kind]} value={length} onPick={setLength} />
         </View>
-      </Glass>
+      </PlayCard>
       <View style={s.examples}>
         <Text style={s.examplesLabel}>{W.tryLabel}</Text>
         {EXAMPLES.map(ex => (
-          <Tap key={ex} uiId="pick.example" accessibilityRole="button" flat onPress={() => ask(ex)} style={s.example}>
-            <Text style={s.exampleText}>{ex}</Text>
-          </Tap>
+          <GameChip key={ex} uiId="pick.example" small label={ex} onPress={() => ask(ex)} />
         ))}
       </View>
-      {status ? <Text style={s.status}>{status}</Text> : null}
     </>
   );
 
-  const header = (
-    <View style={[s.head, {paddingTop: top}]}>
-      <Text style={s.h1} accessibilityRole="header">
-        {W.title}
-      </Text>
-      <Text style={s.sub}>{W.sub}</Text>
-      {/* [group-pick] a few people deciding together — the website's AI page and the TV's have the same card */}
-      <Tap uiId="group.open" accessibilityRole="button" flat onPress={() => navigation.push('GroupPick')} style={s.together}>
-        <Text style={s.togetherTitle}>{GROUP.entry}</Text>
-        <Text style={s.togetherLine}>{GROUP.entryLine}</Text>
-      </Tap>
-      {enabled === null ? (
-        <ActivityIndicator color={colors.text} style={s.loading} />
-      ) : enabled === false ? (
-        <Glass style={s.offBox}>
-          <Text style={s.offText}>{me?.kids ? W.offKids : W.off}</Text>
-        </Glass>
-      ) : (
-        form
-      )}
-    </View>
-  );
+  const stage =
+    mode === 'none' ? null : (
+      <View style={s.stage} onLayout={onStage}>
+        <View style={s.reelHold} ref={reelRef} collapsable={false}>
+          {mode === 'won' ? <Image source={GLOW_SRC} fadeDuration={0} style={[s.reelGlow, {width: reelW * 2.4, height: reelW * 2.4}]} /> : null}
+          <Reel w={reelW} h={reelH} items={items} mode={mode} spin={spin} showing={draw} calm={calm || !front} flash={flash} onLanded={landed} />
+        </View>
+        {mode === 'waiting' ? (
+          <View style={s.wait} accessibilityLiveRegion="polite">
+            <Dots calm={calm} />
+            <Text style={s.waitMsg}>{STAGES[stageNo]}</Text>
+            <Text style={s.waitHint}>{W.waitHint}</Text>
+          </View>
+        ) : (
+          <View style={s.won}>
+            {/* the gold line is up while the reel slows: the side is never empty */}
+            <View style={s.kicker}>
+              <Star size={14} color={PLAY.gold} />
+              <Text style={s.kickerText}>{DRAW.kicker}</Text>
+              {items.length > 1 ? <Text style={s.kickerCount}>{` · ${DRAW.of(draw + 1, items.length)}`}</Text> : null}
+            </View>
+            {mode === 'won' && item ? (
+              <View style={s.prize} accessibilityLiveRegion="polite">
+                <In calm={calm} run={prizeRun} delay={0} ms={420}>
+                  <Text style={[ty.h1, s.prizeTitle]} numberOfLines={3}>
+                    {item.title}
+                  </Text>
+                </In>
+                <In calm={calm} run={prizeRun} delay={70} ms={420}>
+                  <Text style={s.prizeMeta}>{metaLine(item)}</Text>
+                </In>
+                {item.why ? (
+                  <In calm={calm} run={prizeRun} delay={140} ms={420}>
+                    <Text style={[ty.lede, s.prizeWhy]}>{item.why}</Text>
+                  </In>
+                ) : null}
+                <In calm={calm} run={prizeRun} delay={210} ms={420} style={s.prizeKeys}>
+                  <Key uiId="pick.open" kind="gold" label={DRAW.open} onPress={() => open(item)} calm={calm} style={s.grow} />
+                  {items.length > 1 ? <Key uiId="pick.another" label={DRAW.another} trailing="↻" onPress={another} calm={calm} style={s.grow} /> : null}
+                </In>
+                {showPips(items.length) ? (
+                  <View style={s.pips} importantForAccessibility="no-hide-descendants">
+                    {items.map((_, i) => (
+                      <View key={i} style={[s.pip, i === draw && s.pipOn]} />
+                    ))}
+                  </View>
+                ) : null}
+                <Text style={s.sr}>{DRAW.said(item.title || '')}</Text>
+              </View>
+            ) : null}
+          </View>
+        )}
+      </View>
+    );
 
-  const waiting = busy ? (
-    <View>
-      <View style={s.wait}>
-        <Text style={s.waitMsg}>{STAGES[stage]}</Text>
-        <SweepBar />
-        <Text style={s.waitHint}>{W.waitHint}</Text>
+  const hand =
+    handShown && items.length ? (
+      <View style={s.hand}>
+        <Eyebrow star color={PLAY.violet}>
+          {DRAW.hand}
+        </Eyebrow>
+        {status ? <Text style={s.status}>{status}</Text> : null}
+        <View style={s.handList}>
+          {items.map((it, i) => (
+            <Tap key={`${it.id || it.imdbId || it.title}-${i}`} uiId="pick.open" flat accessibilityRole="button" accessibilityLabel={it.title} onPress={() => open(it)} style={[s.handRow, i === draw && s.handRowOn]}>
+              <Poster name={it.title || ''} poster={art(it)} w={62} h={93} radius={10} gold={i === draw} />
+              <View style={s.handText}>
+                <Text style={s.handTitle} numberOfLines={2}>
+                  {it.title}
+                </Text>
+                <Text style={s.handMeta}>{metaLine(it)}</Text>
+                {it.why ? <Text style={s.handWhy}>{it.why}</Text> : null}
+              </View>
+            </Tap>
+          ))}
+        </View>
       </View>
-      {/* poster-shaped placeholders, so the picks land into a layout that already has their shape */}
-      <View style={s.skels}>
-        {Array.from({length: SKELETONS}, (_, i) => (
-          <View key={i} style={[s.skel, {width: cardW, height: Math.round(cardW * 1.5)}]} />
-        ))}
-      </View>
-    </View>
-  ) : null;
+    ) : status && mode === 'none' ? (
+      <Text style={[s.status, {textAlign: 'center'}]}>{status}</Text>
+    ) : null;
 
   return (
     <View style={s.root}>
-      <FlatList
-        key={`cols-${cols}`}
-        data={enabled ? items : []}
-        numColumns={cols}
-        keyExtractor={(it, i) => `${it.id || it.imdbId || it.title}-${i}`}
-        renderItem={renderPick}
-        columnWrapperStyle={s.row}
-        ItemSeparatorComponent={Sep}
-        ListHeaderComponent={header}
-        ListEmptyComponent={waiting}
-        contentContainerStyle={[{paddingBottom: bottom + 16}, column]}
+      <PlayRoom calm={calm} on={front} />
+      <ScrollView
+        ref={scroller}
+        contentContainerStyle={[{paddingTop: top, paddingBottom: bottom + 24, paddingHorizontal: GUTTER}, column]}
         onScroll={bar.onScroll}
         scrollEventThrottle={64}
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        initialNumToRender={cols * 3}
-        maxToRenderPerBatch={cols * 2}
-        windowSize={7}
-      />
+        keyboardDismissMode="on-drag">
+        <View style={s.head}>
+          <Text style={s.h1} accessibilityRole="header">
+            {W.title}
+          </Text>
+          <Text style={[ty.lede, s.sub]}>{W.sub}</Text>
+          {/* [group-pick] a few people deciding together — the website's AI page and the TV's have the same card: a ticket */}
+          <Tap uiId="group.open" accessibilityRole="button" flat onPress={() => navigation.push('GroupPick')} style={s.ticket}>
+            <View style={s.ticketBadge}>
+              <Star size={16} color="#04131a" />
+            </View>
+            <View style={s.ticketText}>
+              <Text style={s.ticketTitle}>{GROUP.entry}</Text>
+              <Text style={s.ticketLine}>{GROUP.entryLine}</Text>
+            </View>
+            <Text style={s.ticketArrow}>→</Text>
+          </Tap>
+        </View>
+        {enabled === null ? (
+          <ActivityIndicator color={PLAY.ink} style={s.loading} />
+        ) : enabled === false ? (
+          <PlayCard style={s.offBox}>
+            <Text style={ty.small}>{me?.kids ? W.offKids : W.off}</Text>
+          </PlayCard>
+        ) : (
+          <>
+            {form}
+            {stage}
+            {hand}
+          </>
+        )}
+      </ScrollView>
+      <Burst fire={burst.n} x={burst.x} y={burst.y} count={16} calm={calm} reach={Math.max(width, 600) * 0.8} />
       <BackBar solid={bar.solid} title={bar.solid ? PAGE_TITLE : undefined} />
     </View>
   );
 }
 
-const Sep = () => <View style={s.sep} />;
-
 const s = StyleSheet.create({
   root: {flex: 1},
-  // ---- .pfm-head ----
-  head: {paddingHorizontal: GUTTER, paddingBottom: 22},
-  h1: {color: colors.text, fontSize: 32, fontWeight: '900', letterSpacing: -0.7, lineHeight: 36},
-  sub: {color: colors.textDim, fontSize: 16.3, lineHeight: 25, marginTop: 12},
+  head: {alignItems: 'center', paddingBottom: 22},
+  h1: {color: PLAY.teal, fontSize: 40, fontWeight: '900', letterSpacing: -1, lineHeight: 46, textShadowColor: 'rgba(58,211,230,0.35)', textShadowRadius: 18, textShadowOffset: {width: 0, height: 0}},
+  sub: {marginTop: 8, fontSize: 16, lineHeight: 23},
   loading: {marginTop: 30},
-  // ---- .gp-entry: the violet-tinted card to Pick together ----
-  together: {marginTop: 22, paddingVertical: 14, paddingHorizontal: 18, gap: 4, borderRadius: 16, backgroundColor: 'rgba(139,123,255,0.12)', borderWidth: 1, borderColor: 'rgba(139,123,255,0.35)'},
-  togetherTitle: {color: colors.text, fontSize: 16.8, fontWeight: '800'},
-  togetherLine: {color: colors.textDim, fontSize: 14.7, lineHeight: 20},
-  // ---- .pfm-box: one calm glass panel ----
-  box: {marginTop: 26, padding: 22, borderRadius: 24, gap: 12},
+  // ---- the ticket to Pick together ----
+  ticket: {
+    marginTop: 22,
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(160,131,255,0.35)',
+    backgroundColor: 'rgba(30,26,72,0.7)',
+    experimental_backgroundImage: 'linear-gradient(135deg, rgba(160,131,255,0.18) 0%, rgba(58,211,230,0.06) 100%)',
+  },
+  ticketBadge: {width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', experimental_backgroundImage: AURORA},
+  ticketText: {flex: 1, gap: 3},
+  ticketTitle: {color: PLAY.ink, fontSize: 16.8, fontWeight: '900'},
+  ticketLine: {color: PLAY.inkDim, fontSize: 14, lineHeight: 19},
+  ticketArrow: {color: PLAY.inkDim, fontSize: 20, fontWeight: '700'},
+  // ---- the question ----
+  box: {padding: 16, gap: 12},
   input: {
     minHeight: 54,
-    backgroundColor: 'rgba(0,0,0,0.42)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 14,
-    color: colors.text,
+    backgroundColor: 'rgba(4,4,16,0.6)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 16,
+    color: PLAY.ink,
     fontSize: 16.8,
     paddingHorizontal: 17,
     paddingVertical: 13,
   },
-  inputOn: {backgroundColor: 'rgba(0,0,0,0.55)', borderColor: 'rgba(139,123,255,0.75)'},
-  // .pfm-go at phone width: the whole width, the violet gradient
-  go: {
-    minHeight: 50,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.accentStrong,
-    experimental_backgroundImage: 'linear-gradient(180deg, #8b7bff, #6c58ff)',
-    boxShadow: '0 10px 26px rgba(108,88,255,0.34)',
+  inputOn: {borderColor: PLAY.teal, boxShadow: '0 0 0 3px rgba(58,211,230,0.18)'},
+  tune: {marginTop: 4, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', gap: 12},
+  switch: {flexDirection: 'row', alignSelf: 'flex-start', width: 236, maxWidth: '100%', padding: 4, borderRadius: 999, backgroundColor: 'rgba(4,4,16,0.6)', borderWidth: 1, borderColor: PLAY.line},
+  switchOpt: {flex: 1, minHeight: 40, borderRadius: 999, alignItems: 'center', justifyContent: 'center', paddingVertical: 8, paddingHorizontal: 6},
+  switchOptOn: {backgroundColor: '#f2efff', borderBottomWidth: 3, borderBottomColor: 'rgba(120,100,200,0.45)'},
+  switchText: {color: PLAY.inkDim, fontSize: 14.7, fontWeight: '800', textAlign: 'center'},
+  switchTextOn: {color: '#1a1640'},
+  group: {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8},
+  groupLabel: {color: 'rgba(232,228,255,0.55)', fontSize: 11.4, fontWeight: '800', letterSpacing: 1.4, marginRight: 2},
+  examples: {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8, paddingTop: 16},
+  examplesLabel: {color: 'rgba(232,228,255,0.55)', fontSize: 12.5, fontWeight: '800', letterSpacing: 0.5},
+  // ---- the stage ----
+  stage: {alignItems: 'center', paddingTop: 30},
+  reelHold: {alignItems: 'center', justifyContent: 'center'},
+  reelGlow: {position: 'absolute', tintColor: PLAY.gold, opacity: 0.3},
+  reel: {
+    borderRadius: 18,
     overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(160,131,255,0.55)',
+    backgroundColor: PLAY.tile,
   },
-  goOff: {opacity: 0.5, boxShadow: 'none'},
-  goText: {color: '#fff', fontSize: 16, fontWeight: '800', textAlign: 'center'},
-  // ---- .pfm-tune: under a hairline ----
-  tune: {marginTop: 6, paddingTop: 18, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', gap: 14},
-  // .pfm-switch: 236 wide (or the box's width, if less), the lit half violet
-  switch: {
-    flexDirection: 'row',
-    alignSelf: 'flex-start',
-    width: 236,
-    maxWidth: '100%',
-    padding: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.13)',
-    borderRadius: 999,
-    backgroundColor: 'rgba(0,0,0,0.42)',
-  },
-  switchOpt: {flex: 1, minHeight: 38, borderRadius: 999, alignItems: 'center', justifyContent: 'center', paddingVertical: 8, paddingHorizontal: 6},
-  switchOptOn: {
-    backgroundColor: colors.accentStrong,
-    experimental_backgroundImage: 'linear-gradient(180deg, #8b7bff, #6c58ff)',
-    boxShadow: '0 6px 18px rgba(108,88,255,0.4)',
-  },
-  switchText: {flexShrink: 1, color: colors.textDim, fontSize: 14.7, fontWeight: '800', textAlign: 'center'},
-  switchTextOn: {color: '#fff'},
-  group: {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 9},
-  groupLabel: {color: colors.textFaint, fontSize: 11.4, fontWeight: '800', letterSpacing: 1},
-  pill: {
-    maxWidth: '100%',
-    minHeight: 36,
-    justifyContent: 'center',
-    paddingVertical: 7,
-    paddingHorizontal: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.045)',
-  },
-  pillOn: {backgroundColor: 'rgba(139,123,255,0.2)', borderColor: 'rgba(139,123,255,0.62)'},
-  pillText: {flexShrink: 1, color: colors.textDim, fontSize: 13.7, fontWeight: '700', textAlign: 'center'},
-  pillTextOn: {color: '#fff'},
-  // ---- .pfm-examples: outside the panel ----
-  examples: {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 14, rowGap: 2, paddingTop: 16},
-  examplesLabel: {color: colors.textFaint, fontSize: 12.5, fontWeight: '800', letterSpacing: 0.5},
-  example: {maxWidth: '100%', paddingVertical: 6},
-  exampleText: {flexShrink: 1, color: colors.accent, fontSize: 13.9},
-  status: {color: colors.textDim, fontSize: 14.1, lineHeight: 20, paddingTop: 22},
+  reelWon: {borderColor: PLAY.gold, borderWidth: 3},
+  flash: {backgroundColor: PLAY.goldHi},
+  notch: {position: 'absolute', width: 0, height: 0, borderTopWidth: 7, borderBottomWidth: 7, borderTopColor: 'transparent', borderBottomColor: 'transparent'},
+  notchL: {left: 6, borderLeftWidth: 10, borderLeftColor: PLAY.gold},
+  notchR: {right: 6, borderRightWidth: 10, borderRightColor: PLAY.gold},
+  wait: {alignItems: 'center', gap: 12, paddingTop: 20, paddingHorizontal: 8},
+  dots: {flexDirection: 'row', gap: 16},
+  waitMsg: {color: PLAY.ink, fontSize: 22, fontWeight: '900', letterSpacing: -0.3, textAlign: 'center'},
+  waitHint: {color: 'rgba(232,228,255,0.55)', fontSize: 14, lineHeight: 20, textAlign: 'center'},
+  won: {alignItems: 'center', alignSelf: 'stretch', paddingTop: 20},
+  kicker: {flexDirection: 'row', alignItems: 'center', gap: 7},
+  kickerText: {color: PLAY.gold, fontSize: 12.5, fontWeight: '900', letterSpacing: 2.2, textTransform: 'uppercase'},
+  kickerCount: {color: 'rgba(232,228,255,0.55)', fontSize: 12.5, fontWeight: '900', letterSpacing: 1.6, textTransform: 'uppercase'},
+  prize: {alignItems: 'center', alignSelf: 'stretch', gap: 10, paddingTop: 10},
+  prizeTitle: {fontSize: 32, lineHeight: 35},
+  prizeMeta: {color: 'rgba(232,228,255,0.62)', fontSize: 15, fontWeight: '800', textAlign: 'center'},
+  prizeWhy: {fontSize: 16.5},
+  prizeKeys: {flexDirection: 'row', gap: 10, alignSelf: 'stretch', marginTop: 8},
+  grow: {flex: 1},
+  pips: {flexDirection: 'row', gap: 7, marginTop: 6},
+  pip: {width: 7, height: 7, borderRadius: 4, backgroundColor: 'rgba(232,228,255,0.25)'},
+  pipOn: {backgroundColor: PLAY.ink},
+  sr: {position: 'absolute', width: 1, height: 1, opacity: 0},
+  // ---- the whole hand ----
+  hand: {paddingTop: 36, gap: 10},
+  status: {color: 'rgba(232,228,255,0.6)', fontSize: 14, lineHeight: 20, textAlign: 'center', paddingTop: 16},
+  handList: {gap: 10, marginTop: 6},
+  handRow: {flexDirection: 'row', gap: 14, padding: 10, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)', backgroundColor: 'rgba(20,18,46,0.6)'},
+  handRowOn: {borderColor: 'rgba(255,209,102,0.55)', backgroundColor: 'rgba(255,209,102,0.07)'},
+  handText: {flex: 1, gap: 3, paddingVertical: 2},
+  handTitle: {color: PLAY.ink, fontSize: 16, fontWeight: '900'},
+  handMeta: {color: 'rgba(232,228,255,0.55)', fontSize: 12.5, fontWeight: '800'},
+  handWhy: {color: PLAY.inkDim, fontSize: 13.6, lineHeight: 19, marginTop: 3},
   // ---- the no-AI line ----
-  offBox: {marginTop: 26, padding: 18},
-  offText: {color: colors.textDim, fontSize: 15.7, lineHeight: 23},
-  // ---- the wait ----
-  wait: {alignItems: 'center', gap: 18, paddingTop: 48, paddingBottom: 10, paddingHorizontal: GUTTER},
-  waitMsg: {color: colors.text, fontSize: 21.6, fontWeight: '700', letterSpacing: -0.26, textAlign: 'center'},
-  bar: {height: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.1)', overflow: 'hidden'},
-  sweep: {height: 4, borderRadius: 999, experimental_backgroundImage: 'linear-gradient(90deg, rgba(139,123,255,0), #8b7bff, rgba(139,123,255,0))'},
-  waitHint: {color: colors.textFaint, fontSize: 13.9, lineHeight: 20, textAlign: 'center'},
-  skels: {flexDirection: 'row', flexWrap: 'wrap', gap: GAP, paddingHorizontal: GUTTER, paddingTop: 22},
-  skel: {borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.06)'},
-  // ---- the picks ----
-  row: {paddingHorizontal: GUTTER, gap: GAP, alignItems: 'flex-start'},
-  sep: {height: 18},
-  pick: {gap: 10},
-  why: {
-    color: colors.textDim,
-    fontSize: 13.1,
-    lineHeight: 19,
-    paddingLeft: 10,
-    borderLeftWidth: 2,
-    borderLeftColor: 'rgba(139,123,255,0.55)',
-  },
+  offBox: {marginTop: 8, padding: 18},
 });

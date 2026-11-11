@@ -131,13 +131,13 @@ export const night = (c: Ctx) => {
   const prime = primeHour(c.w);
   const late = c.w.lateNightSessions || 0;
   const v = c.w.byWeekday || [];
-  const top = v.indexOf(Math.max(...v));
+  const best = v.indexOf(Math.max(...v));
   return {
     eyebrow: 'When you really watch',
-    day: `${DAYS[c.w.topWeekday ?? top] || DAYS[0]}s, `,
+    day: `${DAYS[c.w.topWeekday ?? best] || DAYS[0]}s, `,
     hour: prime == null ? '' : `${hourLabel(prime)}.`,
     prime,
-    topDay: top,
+    topDay: best,
     line: late
       ? c.kids
         ? `${late} late-night adventures. Shh — we won't tell.`

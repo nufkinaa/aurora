@@ -85,7 +85,7 @@ export function PlayRoom({on = true, calm = false}: {on?: boolean; calm?: boolea
 
 // ---------- type ----------
 export const ty = StyleSheet.create({
-  eyebrow: {color: PLAY.green, fontSize: 12.5, lineHeight: 16, fontWeight: '800', letterSpacing: 2.2, includeFontPadding: false},
+  eyebrow: {color: PLAY.green, fontSize: 12.5, lineHeight: 16, fontWeight: '800', letterSpacing: 2.2, textTransform: 'uppercase', includeFontPadding: false},
   // .play-h1 at a phone: 2.2rem / 900, tight
   h1: {color: PLAY.ink, fontSize: 35, lineHeight: 37, fontWeight: '900', letterSpacing: -1.1, textAlign: 'center', includeFontPadding: false},
   // .play-h2: 1.6rem / 850
@@ -104,7 +104,7 @@ export function Eyebrow({children, star, color = PLAY.green, style}: {children: 
     <View style={[st.eyebrow, style]} accessibilityRole="header">
       {star ? <Star size={13} color={color} /> : null}
       <Text style={[ty.eyebrow, {color}]} numberOfLines={1}>
-        {children.toUpperCase()}
+        {children}
       </Text>
     </View>
   );
@@ -222,6 +222,31 @@ export function RoundKey({glyph, onPress, label, uiId, size = 44}: {glyph: React
   );
 }
 
+/** A chunky game chip (.pg-chip): a thick pill with a bottom edge; the chosen one lit and pressed in. */
+export function GameChip({label, on, onPress, uiId, small, disabled}: {label: string; on?: boolean; onPress: () => void; uiId?: string; small?: boolean; disabled?: boolean}) {
+  const press = usePress();
+  return (
+    <Tap
+      uiId={uiId}
+      flat
+      rippleColor="rgba(0,0,0,0)"
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{selected: !!on, disabled: !!disabled}}
+      disabled={disabled}
+      onPress={onPress}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      style={st.chunkHit}>
+      <Animated.View style={[st.chunk, small && st.chunkSmall, on ? st.chunkOn : null, disabled && st.off, {transform: [{scale: press.scale}]}]}>
+        <Text style={[st.chunkText, small && st.chunkTextSmall, on && st.chunkTextOn]} numberOfLines={2}>
+          {label}
+        </Text>
+      </Animated.View>
+    </Tap>
+  );
+}
+
 // ---------- arrival ----------
 /** Comes up into place after `delay` (the website's [data-in]); calm: simply there. */
 export function In({
@@ -330,5 +355,23 @@ const st = StyleSheet.create({
   keyTextBig: {fontSize: 18, lineHeight: 23},
   trailing: {fontSize: 19},
   round: {alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)'},
+  chunkHit: {maxWidth: '100%'},
+  chunk: {
+    minHeight: 40,
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    borderBottomWidth: 3,
+    borderBottomColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(40,36,84,0.6)',
+  },
+  chunkSmall: {minHeight: 36, paddingVertical: 7, paddingHorizontal: 14},
+  chunkOn: {backgroundColor: '#f2efff', borderColor: '#ffffff', borderBottomColor: 'rgba(120,100,200,0.5)', transform: [{translateY: 1}]},
+  chunkText: {color: PLAY.inkDim, fontSize: 14, fontWeight: '800', textAlign: 'center'},
+  chunkTextSmall: {fontSize: 13.4},
+  chunkTextOn: {color: '#1a1640'},
   roundGlyph: {color: PLAY.ink, fontSize: 20, lineHeight: 24, fontWeight: '700', includeFontPadding: false},
 });
