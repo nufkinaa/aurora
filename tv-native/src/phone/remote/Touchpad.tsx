@@ -4,7 +4,7 @@
 // The rules are remoteRules.ts swipeStart / swipeMove / swipeEnd.
 import React, {useMemo, useRef, useState} from 'react';
 import {Animated, Easing, PanResponder, StyleSheet, Text, View} from 'react-native';
-import Svg, {Circle, Defs, Pattern, RadialGradient, Rect, Stop} from 'react-native-svg';
+import Svg, {Circle, Defs, LinearGradient, Mask, Pattern, RadialGradient, Rect, Stop} from 'react-native-svg';
 import {Dir, Swipe, swipeEnd, swipeMove, swipeStart} from './remoteRules';
 import {PANE, RM} from './rmLook';
 import {colors} from '../theme';
@@ -13,6 +13,7 @@ const RIPPLE = 120;
 
 export default function Touchpad({onPress, steerable = true, calm}: {onPress: (k: Dir | 'ok') => void; steerable?: boolean; calm?: boolean}) {
   const [held, setHeld] = useState(false);
+  const [padH, setPadH] = useState(0);
   const ripple = useRef({x: new Animated.Value(-500), y: new Animated.Value(-500), a: new Animated.Value(0)}).current;
   const [kind, setKind] = useState<'ok' | 'arrow'>('arrow');
   const live = useRef({onPress, steerable, calm});
@@ -66,22 +67,32 @@ export default function Touchpad({onPress, steerable = true, calm}: {onPress: (k
   return (
     <View
       style={[s.pad, held && s.padHeld, !steerable && s.off]}
+      onLayout={e => setPadH(Math.round(e.nativeEvent.layout.height))}
       {...pan.panHandlers}
       accessible
       accessibilityRole="adjustable"
       accessibilityLabel="Touchpad: swipe to move, tap to select"
       accessibilityActions={[{name: 'activate'}, {name: 'increment'}, {name: 'decrement'}]}
       onAccessibilityAction={e => onPress(e.nativeEvent.actionName === 'activate' ? 'ok' : e.nativeEvent.actionName === 'increment' ? 'down' : 'up')}>
-      {/* the dots, every 22: faded out under the two hints at the foot */}
-      <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Defs>
-          <Pattern id="rmdots" x={0} y={0} width={22} height={22} patternUnits="userSpaceOnUse">
-            <Circle cx={11} cy={11} r={1.1} fill="rgba(255,255,255,0.26)" />
-          </Pattern>
-        </Defs>
-        <Rect x={0} y={0} width="100%" height="100%" fill="url(#rmdots)" />
-      </Svg>
-      <View style={s.footFade} pointerEvents="none" />
+      {/* the dots, every 22: faded out under the two hints at the foot (the site's mask: from 66
+          above the foot to 40 above it) */}
+      {padH > 80 ? (
+        <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+          <Defs>
+            <Pattern id="rmdots" x={0} y={0} width={22} height={22} patternUnits="userSpaceOnUse">
+              <Circle cx={11} cy={11} r={1.1} fill="rgba(255,255,255,0.26)" />
+            </Pattern>
+            <LinearGradient id="rmfoot" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset={String((padH - 66) / padH)} stopColor="#fff" stopOpacity={1} />
+              <Stop offset={String((padH - 40) / padH)} stopColor="#fff" stopOpacity={0} />
+            </LinearGradient>
+            <Mask id="rmmask" x={0} y={0} width="100%" height="100%" maskUnits="userSpaceOnUse">
+              <Rect x={0} y={0} width="100%" height="100%" fill="url(#rmfoot)" />
+            </Mask>
+          </Defs>
+          <Rect x={0} y={0} width="100%" height="100%" fill="url(#rmdots)" mask="url(#rmmask)" />
+        </Svg>
+      ) : null}
       <View style={[s.glow, held && s.glowOn]} pointerEvents="none" />
       <Animated.View
         pointerEvents="none"
@@ -115,8 +126,6 @@ const s = StyleSheet.create({
   pad: {flex: 1, minHeight: 220, borderRadius: 32, overflow: 'hidden', ...PANE, boxShadow: '0 24px 60px rgba(0,0,0,0.32)'},
   padHeld: {backgroundColor: 'rgba(24,24,34,0.5)'},
   off: {opacity: 0.45},
-  // (a pane-coloured veil over the dots at the foot, where the hints are)
-  footFade: {position: 'absolute', left: 0, right: 0, bottom: 0, height: 70, experimental_backgroundImage: 'linear-gradient(180deg, rgba(14,14,22,0) 0%, rgba(14,14,22,0.55) 60%, rgba(14,14,22,0.6) 100%)'},
   glow: {...StyleSheet.absoluteFill, borderRadius: 32, borderWidth: 1, borderColor: 'rgba(139,123,255,0)'},
   glowOn: {borderColor: 'rgba(139,123,255,0.55)', backgroundColor: 'rgba(139,123,255,0.06)'},
   ripple: {position: 'absolute', left: 0, top: 0, width: RIPPLE, height: RIPPLE},

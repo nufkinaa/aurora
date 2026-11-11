@@ -120,7 +120,8 @@ export default function Remote() {
   const [, setTick] = useState(0);
   const dev: Device | null = (deviceId && list.find(d => d.deviceId === deviceId)) || null;
   const st = useDeviceState(dev ? dev.deviceId : null);
-  const n = st?.now || null;
+  // (no device: nothing plays here — the hook keeps the last state it had for a device gone)
+  const n = (dev && st?.now) || null;
 
   // ------------------------------------------------------------ remembered: device, view, pad
   useEffect(() => {
@@ -236,7 +237,7 @@ export default function Remote() {
     setTick(x => x + 1);
     cmd('seek', {to});
   };
-  const vol = st?.volume || null;
+  const vol = (dev && st?.volume) || null;
   const muted = pendingMute != null ? pendingMute : !!vol?.muted;
   const mute = async () => {
     buzz();
@@ -349,11 +350,12 @@ export default function Remote() {
   }, [paused, calm, pauseA]);
 
   const playing = n && dev ? (
-    <View style={s.section}>
+    <View style={[s.section, short && s.sectionShort]}>
       {short ? null : (
         <Animated.View
           style={[
             s.art,
+            !artPic && s.artNone,
             wideArt ? {width: Math.min(width - 32, 420), aspectRatio: 16 / 9} : {height: artH, aspectRatio: 2 / 3},
             {transform: [{scale: pauseA.interpolate({inputRange: [0, 1], outputRange: [1, 0.94]})}]},
           ]}>
@@ -464,14 +466,15 @@ export default function Remote() {
   ) : null;
 
   const nowView = (
-    <ScrollView style={s.view} contentContainerStyle={s.viewIn} showsVerticalScrollIndicator={false} key="now">
+    <ScrollView style={s.view} contentContainerStyle={[s.viewIn, short && s.viewInShort]} showsVerticalScrollIndicator={false} key="now">
       {state === 'playing' ? playing : state === 'idle' ? idle : empty}
     </ScrollView>
   );
 
-  const dsize = Math.min(width * (both ? 0.4 : 0.78), 300, height * (short ? 0.52 : 0.4), short ? 230 : 300);
+  // (sideways on a phone the Back / Play/Pause / Home row shares the height: a smaller ring)
+  const dsize = Math.min(width * (both ? 0.4 : 0.78), 300, height * (short ? 0.4 : 0.4), short ? 230 : 300);
   const padView = (
-    <View style={[s.view, s.padView, both && s.padViewBoth]} key="pad">
+    <View style={[s.view, s.padView, both && s.padViewBoth, short && s.padViewShort]} key="pad">
       {short ? null : <Seg uiId="remote.padmode" items={[['touch', 'Swipe'], ['buttons', 'Buttons']]} value={pad} onPick={setPad} />}
       <View style={[s.padArea, short && s.padAreaShort]}>
         {pad === 'touch' ? (
@@ -661,8 +664,14 @@ const s = StyleSheet.create({
   view: {flex: 1},
   viewIn: {flexGrow: 1, justifyContent: 'center', paddingTop: 8, paddingBottom: 12},
   section: {gap: 14},
+  // sideways on a phone (.rm-view gap 10, 4 0 18): the chips stay above the dock
+  sectionShort: {gap: 10},
+  viewInShort: {paddingTop: 4, paddingBottom: 18},
+  padViewShort: {gap: 10, paddingTop: 4, paddingBottom: 18},
   // now playing
-  art: {alignSelf: 'center', borderRadius: 18, overflow: 'hidden', backgroundColor: 'rgba(139,123,255,0.4)', experimental_backgroundImage: 'linear-gradient(160deg, rgba(139,123,255,0.5) 0%, rgba(64,196,186,0.25) 100%)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', boxShadow: '0 30px 60px rgba(0,0,0,0.55)'},
+  art: {alignSelf: 'center', borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', boxShadow: '0 30px 60px rgba(0,0,0,0.55)'},
+  // no picture: the site's violet-to-teal tile with the title's letter
+  artNone: {backgroundColor: 'rgba(139,123,255,0.4)', experimental_backgroundImage: 'linear-gradient(160deg, rgba(139,123,255,0.5) 0%, rgba(64,196,186,0.25) 100%)'},
   artLetter: {color: 'rgba(255,255,255,0.85)', fontSize: 64, fontWeight: '800'},
   meta: {alignItems: 'center'},
   eyebrow: {flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 4},
