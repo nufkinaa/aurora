@@ -1,10 +1,12 @@
-// The glass versions side by side: the SAME scenes photographed once per
-// version (A = today's glass, B Aurora, C Liquid, D Frost, E Clear — the
-// version is chosen for the tab as ?glass= would), on the private instance
-// (tools/mobile-perf/instance.js), everything that moves held still
-// (tools/glass-apple/lib.js). sheet.py lays them out.
+// Today's glass and the new one side by side: the SAME scenes photographed
+// on each side — "a" = origin/master's look (the stylesheet answered from
+// a bundle of origin/master's public/css: tools/glass-apple/lib.js, set
+// GA_BEFORE_CSS), "e" = this worktree's ("Clear") — on the private instance
+// (tools/mobile-perf/instance.js), everything that moves held still.
+// sheet.py lays them out. (While the five versions were being chosen, the
+// letters a…e were five looks; e, "Clear", is the one elia chose.)
 //
-//   node tools/glass-options/shoot.js <outdir> [a,b,c,d,e] [scene,scene,…]
+//   node tools/glass-options/shoot.js <outdir> [a,e] [scene,scene,…]
 //
 // Writes <outdir>/<scene>.<version>.png and <scene>.json (title, size,
 // where the glass is — for the enlarged strips).
@@ -120,7 +122,7 @@ const capture = async (page, s, v, out) => {
 };
 
 const main = async () => {
-  const [out = "shots", vArg = "a,b,c,d,e", only = ""] = process.argv.slice(2);
+  const [out = "shots", vArg = "a,e", only = ""] = process.argv.slice(2);
   const versions = vArg.split(",");
   const pick = only ? only.split(",") : null;
   const scenes = SCENES.filter((s) => !pick || pick.some((p) => s.id.startsWith(p)));
@@ -129,13 +131,11 @@ const main = async () => {
   try {
     for (const v of versions) {
       for (const size of [...new Set(scenes.map((s) => s.size))]) {
-        const h = await openPage(b, { size, side: "after", glass: v === "a" ? null : v, dpr: 2 });
+        const h = await openPage(b, { size, side: v === "a" ? "before" : "after", dpr: 2 });
         const { page } = h;
         for (const s of scenes.filter((x) => x.size === size)) {
           try {
             await go(h, typeof s.route === "function" ? s.route(h.inst) : s.route);
-            const got = await page.evaluate(() => document.documentElement.dataset.glass || "a");
-            if (got !== v) throw new Error(`version ${got} on the page, ${v} asked`);
             for (const step of s.stage || []) { await step(page); await sleep(250); }
             await settle(page, h.pending, { quietMs: 500, capMs: 8000 });
             await sleep(400);

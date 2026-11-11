@@ -140,9 +140,8 @@ const syncCss = async () => {
 };
 
 // side: "before" (origin/master's look) | "after" (this worktree)
-// glass: a version of tools/glass-options (b|c|d|e) chosen for the tab, as
-// ?glass= would (index.html boot reads sessionStorage "aurora-glass").
-const openPage = async (browser, { size = "phone", side = "after", sky = DEFAULT_SKY, look = "glass", extra = {}, freeze = true, reducedMotion = false, glass = null, dpr = null } = {}) => {
+// dpr: another device pixel ratio than the size's own (lighter photographs)
+const openPage = async (browser, { size = "phone", side = "after", sky = DEFAULT_SKY, look = "glass", extra = {}, freeze = true, reducedMotion = false, dpr = null } = {}) => {
   const d = SIZES[size];
   if (!d) throw new Error(`unknown size ${size}`);
   await syncCss();
@@ -157,7 +156,6 @@ const openPage = async (browser, { size = "phone", side = "after", sky = DEFAULT
     reducedMotion: reducedMotion ? "reduce" : "no-preference",
   });
   if (freeze) await ctx.addInitScript(FREEZE, [FIXED_NOW, sky]);
-  if (glass) await ctx.addInitScript((g) => { try { sessionStorage.setItem("aurora-glass", g); } catch {} }, glass);
   await ctx.addInitScript(HELPERS);
   if (side === "before") {
     const b = beforeFiles();

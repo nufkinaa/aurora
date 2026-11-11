@@ -1,10 +1,10 @@
 // How well the words on the glass read, measured.
 //
-//   node tools/glass-options/contrast.js <a,b,c,d,e> <outdir> [idFilter]
+//   node tools/glass-options/contrast.js <a,e> <outdir> [idFilter]
 //
-// (tools/glass-apple/contrast.js, one run per glass version instead of
-// before/after: <outdir>/<version>/…, then
-// python tools/glass-apple/contrast.py <outdir>/<version>)
+// (tools/glass-apple/contrast.js, "a" = today's look from origin/master's
+// stylesheet, "e" = this worktree's: <outdir>/<a|e>/…, then
+// python tools/glass-options/contrast.py <outdir> a,e)
 //
 // For every surface in targets.js and every backdrop it can meet (a white
 // poster, a bright one, a mid grey that today's tone flip does not catch,
@@ -18,10 +18,59 @@
 const fs = require("fs");
 const path = require("path");
 const { launch, openPage, go, settle, sleep } = require("../glass-apple/lib");
-const { TARGETS } = require("../glass-apple/targets");
+const { TARGETS: BASE } = require("../glass-apple/targets");
+
+// The player's glass (glass-apple's targets have none): a library film held
+// on one frame with the controls up, a daylight picture laid exactly over
+// the video ("frame": the brightest picture a film can show), the Settings
+// menu opened for the menu.
+const playerOpen = (menu) => async (page) => {
+  await page.waitForSelector(".player video", { timeout: 25000 });
+  await page.evaluate(async () => {
+    const v = document.querySelector(".player video");
+    const once = (ev, ms) => new Promise((res) => { v.addEventListener(ev, res, { once: true }); setTimeout(res, ms); });
+    if (v.readyState < 2) await once("loadeddata", 10000);
+    v.pause();
+  });
+  await page.mouse.move(200, 300);
+  await page.mouse.move(220, 320);
+  await sleep(300);
+  await page.evaluate(() => {
+    document.querySelector(".player").classList.remove("controls-hidden");
+    document.querySelectorAll(".player > .spinner").forEach((n) => n.classList.add("hidden"));
+  });
+  if (menu) {
+    await page.evaluate(() => { const b = document.querySelector('[data-ui="player.settings.open"]'); b && b.click(); });
+    await page.waitForSelector(".player .menu", { timeout: 8000 });
+  }
+  await sleep(400);
+  await page.evaluate(() => document.querySelector(".player").classList.remove("controls-hidden"));
+};
+const frame = async (page) => {
+  await page.evaluate(async () => {
+    const v = document.querySelector(".player video");
+    if (!v || document.getElementById("ga-frame")) return;
+    const img = new Image();
+    img.id = "ga-frame";
+    img.src = window.__ga.poster("white", 1280, 720);
+    await img.decode().catch(() => {});
+    const r = v.getBoundingClientRect();
+    img.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;object-fit:cover;z-index:0;pointer-events:none`;
+    v.after(img);
+    v.style.visibility = "hidden";
+  });
+  await sleep(400);
+};
+const play = (inst) => `#/play/${inst.lib.film1}`;
+const EXTRA = [];
+for (const size of ["desktop", "phone"]) {
+  EXTRA.push({ id: `playerdock.${size}`, name: `Player: the dock and the top pills (${size === "phone" ? "phone 402" : "desktop 1440"})`, size, route: play, open: playerOpen(false), roots: ".player-bottom, .player-top, .resume-card", kinds: ["frame"] });
+  EXTRA.push({ id: `playermenu.${size}`, name: `Player: the Settings menu (${size === "phone" ? "phone 402" : "desktop 1440"})`, size, route: play, open: playerOpen(true), roots: ".player .menu", kinds: ["frame"] });
+}
+const TARGETS = [...BASE, ...EXTRA];
 
 (async () => {
-  const [vArg = "a,b,c,d,e", out = "contrast-out", filter = ""] = process.argv.slice(2);
+  const [vArg = "a,e", out = "contrast-out", filter = ""] = process.argv.slice(2);
   const sides = vArg.split(",");
   const targets = TARGETS.filter((t) => !filter || filter.split(",").some((f) => t.id.includes(f)));
   const b = await launch();
@@ -31,18 +80,27 @@ const { TARGETS } = require("../glass-apple/targets");
       fs.mkdirSync(dir, { recursive: true });
       const sizes = [...new Set(targets.map((t) => t.size))];
       for (const size of sizes) {
-        const h = await openPage(b, { size, side: "after", glass: side === "a" ? null : side });
+        const h = await openPage(b, { size, side: side === "a" ? "before" : "after" });
         const { page } = h;
         for (const t of targets.filter((x) => x.size === size)) {
           try {
-            await go(h, t.route);
+            await go(h, typeof t.route === "function" ? t.route(h.inst) : t.route);
             if (t.open) { await t.open(page); await sleep(500); await settle(page, h.pending, { quietMs: 400, capMs: 6000 }); }
             for (const kind of t.kinds) {
-              if (kind === "art") await page.evaluate(() => window.__ga.whiteArt());
+              if (kind === "frame") await frame(page);
+              else if (kind === "art") await page.evaluate(() => window.__ga.whiteArt());
               else await page.evaluate(([k, keep]) => window.__ga.backdrop(k, { keepContent: keep }), [kind, !!t.keepContent]);
               if (t.reopen) { await t.open(page); await sleep(300); }
               await sleep(250);
-              const labels = await page.evaluate(([sel, max]) => window.__ga.labels(sel, { max }), [t.roots, t.max || 40]);
+              // (a word scrolled out of its pane — a long menu — is not on show:
+              // only the words whose middle lies inside one of the panes count)
+              const labels = await page.evaluate(([sel, max]) => {
+                const panes = [...document.querySelectorAll(sel)].map((e) => e.getBoundingClientRect());
+                return window.__ga.labels(sel, { max }).filter((l) => {
+                  const cx = l.rect[0] + l.rect[2] / 2, cy = l.rect[1] + l.rect[3] / 2;
+                  return panes.some((r) => cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom);
+                });
+              }, [t.roots, t.max || 40]);
               if (!labels.length) { console.log(side, t.id, kind, "NO LABELS"); continue; }
               const vp = page.viewportSize();
               let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;

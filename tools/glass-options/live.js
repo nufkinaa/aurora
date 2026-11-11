@@ -4,15 +4,17 @@
 // never written here). No writes: pages are opened and photographed; a
 // menu is opened and the page reloaded.
 //
-//   node tools/glass-options/live.js <outdir> <rules.md> [a,b,c,d,e] [scene,…]
+//   node tools/glass-options/live.js <outdir> <rules.md> [a,e] [scene,…]
 //
-// The live server does not have this branch's files: the versions' sheets
-// (and glass-lens.js) are answered from this worktree, and the boot's
-// version switch is done by an init script the way index.html does it.
+// The live server serves its own stylesheet: "a" is photographed with the
+// bundle of origin/master's public/css (GA_BEFORE_CSS / the scratch
+// before.css, as tools/glass-apple/lib.js), "e" with this worktree's own
+// (built by src/lib/cssbundle), both answered for /css/aurora.css.
 "use strict";
 const fs = require("fs");
 const path = require("path");
-const { launch, settle, sleep, SIZES, FREEZE, FIXED_NOW, DEFAULT_SKY, ROOT } = require("../glass-apple/lib");
+const { launch, settle, sleep, SIZES, FREEZE, FIXED_NOW, DEFAULT_SKY, ROOT, SCRATCH } = require("../glass-apple/lib");
+const cssbundle = require("../../src/lib/cssbundle");
 const { HELPERS } = require("../glass-apple/stage");
 const { SCENES, capture } = require("./shoot");
 
@@ -22,32 +24,8 @@ const LIVE = "http://localhost:4000";
 // those two are taken on the private instance only)
 const LIVE_OK = ["01", "02", "03", "05", "06", "07", "09", "10"];
 
-const BOOT = () => {
-  if (!document.documentElement) {
-    new MutationObserver((_, mo) => { if (document.documentElement) { mo.disconnect(); BOOT_NOW(); } }).observe(document, { childList: true });
-  } else BOOT_NOW();
-  function BOOT_NOW() {
-  try {
-    const g = sessionStorage.getItem("aurora-glass");
-    if (g && /^[b-e]$/.test(g)) {
-      document.documentElement.dataset.glass = g;
-      const l = document.createElement("link");
-      l.rel = "stylesheet";
-      l.href = "/css/glass-opt-" + g + ".css";
-      document.documentElement.appendChild(l);
-      if (g === "c") {
-        const s = document.createElement("script");
-        s.type = "module";
-        s.src = "/js/glass-lens.js";
-        document.documentElement.appendChild(s);
-      }
-    }
-  } catch {}
-  }
-};
-
 (async () => {
-  const [out = "live", rulesFile, vArg = "a,b,c,d,e", only = ""] = process.argv.slice(2);
+  const [out = "live", rulesFile, vArg = "a,e", only = ""] = process.argv.slice(2);
   const pw = (fs.readFileSync(rulesFile, "utf8").match(/username claudeqa, password ([^)\s]+)\)/) || [])[1];
   if (!pw) throw new Error("no test password in the rules file");
   const versions = vArg.split(",");
@@ -64,11 +42,9 @@ const BOOT = () => {
       });
       await ctx.addInitScript(FREEZE, [FIXED_NOW, DEFAULT_SKY]);
       await ctx.addInitScript(HELPERS);
-      await ctx.addInitScript(BOOT);
-      for (const f of ["b", "c", "d", "e"]) {
-        await ctx.route(`${LIVE}/css/glass-opt-${f}.css`, (r) => r.fulfill({ status: 200, contentType: "text/css; charset=utf-8", body: fs.readFileSync(path.join(ROOT, "public", "css", `glass-opt-${f}.css`)) }));
-      }
-      await ctx.route(`${LIVE}/js/glass-lens.js`, (r) => r.fulfill({ status: 200, contentType: "text/javascript; charset=utf-8", body: fs.readFileSync(path.join(ROOT, "public", "js", "glass-lens.js")) }));
+      let side = "a";
+      const before = fs.readFileSync(process.env.GA_BEFORE_CSS || path.join(SCRATCH, "before.css"));
+      await ctx.route((u) => u.pathname === "/css/aurora.css", (r) => r.fulfill({ status: 200, contentType: "text/css; charset=utf-8", headers: { "cache-control": "no-store" }, body: side === "a" ? before : cssbundle.get(path.join(ROOT, "public", "css")).css }));
       const page = await ctx.newPage();
       const pending = new Set();
       page.on("request", (r) => { if (!r.url().startsWith("data:") && !r.url().startsWith("blob:") && r.resourceType() !== "websocket" && r.resourceType() !== "eventsource") pending.add(r); });
@@ -93,7 +69,7 @@ const BOOT = () => {
       const film = await page.evaluate(() => location.hash);
       console.log("film page", film);
       for (const v of versions) {
-        await page.evaluate((g) => sessionStorage.setItem("aurora-glass", g), v);
+        side = v;
         for (const s of scenes.filter((x) => x.size === size)) {
           try {
             const route = s.route === "home" ? "#/" : s.route === "libfilm" ? film : null;
@@ -102,8 +78,6 @@ const BOOT = () => {
             pending.clear();
             await page.goto(`${LIVE}/${route}`, { waitUntil: "load" });
             await settle(page, pending);
-            const got = await page.evaluate(() => document.documentElement.dataset.glass || "a");
-            if (got !== v) throw new Error(`version ${got} on the page, ${v} asked`);
             for (const step of s.stage || []) { await step(page); await sleep(250); }
             await settle(page, pending, { quietMs: 500, capMs: 8000 });
             await sleep(400);

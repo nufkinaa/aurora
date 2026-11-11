@@ -1,8 +1,8 @@
-// What each glass version costs while the page moves (tools/glass-apple/
-// scrollperf.js, one side per version instead of before/after), and what
-// opening the phone's More menu costs.
+// What the glass costs while the page moves, today's ("a", origin/master's
+// stylesheet) against this worktree's ("e") — tools/glass-apple/
+// scrollperf.js plus what opening the phone's More menu costs.
 //
-//   node tools/glass-options/perf.js <out.json> [size,size] [runs] [a,b,c,d,e]
+//   node tools/glass-options/perf.js <out.json> [size,size] [runs] [a,e]
 //
 // Per run and version, in a fresh context: Home walked once to the bottom so
 // every picture is in, back to the top, four seconds of rest, one steady
@@ -49,7 +49,7 @@ const frameStates = (buf) => {
 };
 
 (async () => {
-  const [outFile = "perf.json", sizesArg = "phone-390", runsArg = "4", vArg = "a,b,c,d,e"] = process.argv.slice(2);
+  const [outFile = "perf.json", sizesArg = "phone-390", runsArg = "4", vArg = "a,e"] = process.argv.slice(2);
   const route = "home";
   const sizes = sizesArg.split(",");
   const runs = Number(runsArg);
@@ -63,13 +63,11 @@ const frameStates = (buf) => {
         // the order turns each run, so neither side always goes first
         const order = sides.map((_, i) => sides[(i + r) % sides.length]);
         for (const side of order) {
-          const h = await openPage(b, { size, side: "after", freeze: false, glass: side === "a" ? null : side });
+          const h = await openPage(b, { size, side: side === "a" ? "before" : "after", freeze: false });
           const { page } = h;
           const cdp = await h.ctx.newCDPSession(page);
           await page.addInitScript(WATCH);
           await go(h, route);
-          const got = await page.evaluate(() => document.documentElement.dataset.glass || "a");
-          if (got !== side) throw new Error(`version ${got} on the page, ${side} asked`);
           await page.waitForSelector(".row .card, .grid .card", { timeout: 30000 });
           // every picture in, before anything is timed
           const max = await page.evaluate(async () => {

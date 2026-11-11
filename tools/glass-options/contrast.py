@@ -15,9 +15,9 @@ from PIL import Image
 
 sys.stdout.reconfigure(encoding="utf-8")
 out = sys.argv[1]
-versions = (sys.argv[2] if len(sys.argv) > 2 else "a,b,c,d,e").split(",")
+versions = (sys.argv[2] if len(sys.argv) > 2 else "a,e").split(",")
 md = sys.argv[3] if len(sys.argv) > 3 else None
-NAMES = {"a": "A today", "b": "B Aurora", "c": "C Liquid", "d": "D Frost", "e": "E Clear"}
+NAMES = {"a": "today", "b": "B Aurora", "c": "C Liquid", "d": "D Frost", "e": "Clear"}
 
 
 def lin(c):
@@ -69,7 +69,7 @@ for v in versions:
             if worst < e.get(v, (99, ""))[0]:
                 e[v] = (worst, l["text"])
 
-KIND = {"white": "white poster", "poster": "bright poster", "mid": "mid grey", "text": "white text under", "skybright": "bright sky band", "black": "black", "sky": "the sky", "art": "white picture"}
+KIND = {"white": "white poster", "poster": "bright poster", "mid": "mid grey", "text": "white text under", "skybright": "bright sky band", "black": "black", "sky": "the sky", "art": "white picture", "frame": "white film frame"}
 lines = ["| surface | words | behind | " + " | ".join(NAMES[v] for v in versions) + " |", "|---|---|---|" + "---:|" * len(versions)]
 fails = {v: 0 for v in versions}
 low = {v: 99 for v in versions}

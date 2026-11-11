@@ -13,7 +13,7 @@ import sys
 
 from PIL import Image, ImageDraw, ImageFont
 
-NAMES = {"a": "A · today", "b": "B · Aurora", "c": "C · Liquid", "d": "D · Frost", "e": "E · Clear"}
+NAMES = {"a": "Today (1.15.28)", "b": "B · Aurora", "c": "C · Liquid", "d": "D · Frost", "e": "Clear (new)"}
 BG = (14, 15, 22)
 INK = (240, 241, 246)
 DIM = (160, 166, 184)
@@ -144,7 +144,7 @@ def overview(shots, out, versions, picks):
     H = heads + sum(lab + max(c.height for c in cs) + GAP * 2 for _, cs in rows)
     sheet = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(sheet)
-    label(d, GAP, 18, "Aurora glass: five versions, the same moments", ft)
+    label(d, GAP, 18, "Aurora glass: today and Clear, the same moments", ft)
     x = GAP
     for (sid, ci, w) in picks:
         label(d, x + 2, 90, PICK_NAMES.get((sid, ci), sid), fs, DIM)
@@ -170,7 +170,7 @@ PICK_NAMES = {
 
 if __name__ == "__main__":
     shots, out = sys.argv[1], sys.argv[2]
-    versions = (sys.argv[3] if len(sys.argv) > 3 else "a,b,c,d,e").split(",")
+    versions = (sys.argv[3] if len(sys.argv) > 3 else "a,e").split(",")
     os.makedirs(out, exist_ok=True)
     ids = sorted({f.rsplit(".", 1)[0] for f in os.listdir(shots) if f.endswith(".json")})
     for sid in ids:
