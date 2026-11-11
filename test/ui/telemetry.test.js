@@ -86,7 +86,9 @@ ui.test("console.warn and a refused request are reported by what the code wrote,
   for (const needle of ["Test Film", "somebody", "secret", "bbbbbbbbbbbb"]) assert.ok(!everything.includes(needle), `"${needle}" reached the server`);
 });
 
-ui.test("a tagged control is counted, and screens are timed", async ({ page, goto, signIn, freshProfile, api }) => {
+// (a send again is a "pagehide" again: the page says goodbye to presence once
+// more, and the server, which has already let it go, answers that with a 404)
+ui.test("a tagged control is counted, and screens are timed", { allow: [/Failed to load resource.*\/api\/presence\/bye/] }, async ({ page, goto, signIn, freshProfile, api }) => {
   await signIn(await freshProfile());
   await goto("#/");
   const before = await telemetry(api);
@@ -99,10 +101,15 @@ ui.test("a tagged control is counted, and screens are timed", async ({ page, got
   await page.waitForFunction(() => location.hash === "#/movies");
   await page.waitForSelector(".card");
   await sendNow(page);
+  let sentAt = Date.now();
   const after = await until(async () => {
     const t = await telemetry(api);
-    return count(t, "nav.movies") >= count(before, "nav.movies") + 2 ? t : null;
-  }, "the control counts");
+    // (the screen timings can land a batch after the counts: wait for both —
+    // on a slow machine the first answer had the counts and not yet nav_paint)
+    const timed = t.timings.rows.some((r) => r.app === "web" && r.metric === "nav_paint" && r.dim === "/movies");
+    if (!timed && Date.now() - sentAt > 1500) { sentAt = Date.now(); await sendNow(page); } // (measured after the last send: send again)
+    return count(t, "nav.movies") >= count(before, "nav.movies") + 2 && timed ? t : null;
+  }, "the control counts and the Movies screen's paint time");
   assert.equal(count(after, "nav.movies") - count(before, "nav.movies"), 2);
   assert.equal(count(after, "nav.home") - count(before, "nav.home"), 1);
   const movies = after.controls.web.used.find((u) => u.id === "nav.movies");

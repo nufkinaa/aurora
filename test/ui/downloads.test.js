@@ -115,10 +115,14 @@ ui.test("a leftover automatic download in the queue is an ordinary queued one: A
 ui.test("the list is read again by itself after a failed read, and fills My downloads in", { allow: [/status of 503 .*\/api\/downloads/] }, async ({ page, goto, signIn, freshProfile }) => {
   const jobs = [job({ id: "999999999999", title: "Back Again Film", label: "Back Again Film" })];
   const p = await freshProfile();
+  // Every read fails until the page has said so: a count of failures raced the
+  // app's other reads (boot, the profile, the socket's first welcome), and on a
+  // fast machine the third read could land before My downloads was painted.
+  let failing = true;
   let failed = 0;
   let served = 0;
   await page.route((url) => url.pathname === "/api/downloads", (route) => {
-    if (failed < 2) { failed++; return route.fulfill({ status: 503, json: { error: "restarting" } }); }
+    if (failing) { failed++; return route.fulfill({ status: 503, json: { error: "restarting" } }); }
     served++;
     return route.fulfill({ json: jobs });
   });
@@ -127,9 +131,10 @@ ui.test("the list is read again by itself after a failed read, and fills My down
   // while it fails the page says so — not "Nothing downloading yet"
   await page.waitForSelector(".dl-retrying");
   assert.match(await page.locator(".dl-retrying").innerText(), /Couldn't load your downloads[\s\S]*trying again/);
+  failing = false;
   await page.waitForSelector('.dl-row[data-id="999999999999"]', { timeout: 20000 });
   assert.equal(await page.locator(".dl-retrying").count(), 0, "the message goes once the list is in");
-  assert.equal(failed, 2, "two reads failed first");
+  assert.ok(failed >= 2, `the reads failed first (${failed})`);
   assert.ok(served >= 1);
   assert.match(await page.locator('.dl-row[data-id="999999999999"] .dl-status').innerText(), /Downloading · 12%/);
   assert.equal(await page.locator(".dl-empty").count(), 0, "not the empty page");

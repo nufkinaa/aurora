@@ -388,10 +388,12 @@ const start = async (opts = {}) => {
     }, null, 2));
 
     // The instance's environment: the caller's, minus anything that could
-    // carry the owner's secrets or make the app think pm2 is watching it.
+    // carry the owner's secrets or make the app think pm2 or systemd is
+    // watching it (INVOCATION_ID: a test run started from a systemd unit —
+    // a GitHub runner is one — would read as "supervised by systemd").
     const env = { ...process.env };
     for (const k of Object.keys(env)) {
-      if (/^(TMDB_|OPENROUTER_|GOOGLE_|AURORA_|VAPID_|TELEGRAM_|NTFY_|pm_|PM2_)/i.test(k) || k === "NODE_OPTIONS" || k === "NODE_TEST_CONTEXT") delete env[k];
+      if (/^(TMDB_|OPENROUTER_|GOOGLE_|AURORA_|VAPID_|TELEGRAM_|NTFY_|pm_|PM2_)/i.test(k) || ["NODE_OPTIONS", "NODE_TEST_CONTEXT", "INVOCATION_ID"].includes(k)) delete env[k];
     }
     Object.assign(env, {
       AURORA_UI_PARENT_PID: String(process.pid),
