@@ -1,0 +1,204 @@
+name: UI
+
+# The website's browser tests (test/ui/*.test.js, `npm run test:ui` locally)
+# split over parallel runners: ~60 min one file at a time on the home PC,
+# about a quarter of that in wall time here. Each shard runs its files one
+# after another, each file with its own private Aurora instance and Chrome
+# (test/ui/helpers.js), exactly as the local run does. No secret is used: the
+# instances make up their own admin password and reach nothing outside.
+#
+#   pushes to master, rel-* and ui-* branches: the whole suite
+#   Run workflow (Actions tab): the whole suite, or `files` (names or paths,
+#   space or comma separated: "party wall" / "test/ui/party.test.js")
+#   tools/ci-ui.sh <branch> reads a run's result per shard from the public API.
+on:
+  push:
+    branches: [master, "rel-*", "ui-*"]
+  workflow_dispatch:
+    inputs:
+      files:
+        description: "Only these test/ui files (names or paths, space/comma separated). Empty = all."
+        required: false
+        default: ""
+      shards:
+        description: "How many runners"
+        required: false
+        default: "8"
+
+permissions:
+  contents: read
+
+# A newer push to the same branch cancels the older run; a by-hand run is its own.
+concurrency:
+  group: ui-${{ github.ref }}-${{ github.event_name == 'push' && 'latest' || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+env:
+  # The household's clock (Israel): the tests that read the hour (overnight's
+  # quiet hours, the calendar's "today") see the same day and hour as at home.
+  TZ: Asia/Jerusalem
+  # Google Chrome is on the ubuntu image (H.264/AAC: the test films play; the
+  # open-source Chromium build cannot decode them).
+  UI_BROWSER: chrome
+  # The home PC's locales: Chrome there is en-GB (24-hour times on the page),
+  # node there is he-IL (the server's "house clock"). Chrome on Linux takes
+  # LANGUAGE first, node's ICU takes LC_ALL.
+  LANGUAGE: en_GB:en
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.split.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            tools/ci
+            test/ui
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - id: split
+        env:
+          FILES: ${{ github.event.inputs.files }}
+          SHARDS: ${{ github.event.inputs.shards || '8' }}
+        run: node tools/ci/ui-shards.js --shards "$SHARDS" --files "$FILES" --github
+
+  ui:
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    name: "ui ${{ matrix.shard }}/${{ matrix.of }}"
+    steps:
+      # (the QA screenshots, ~700 MB, are left out: no browser test reads them)
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/docs/qa/
+            !/docs/android-phone/
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      # ffmpeg + ffprobe 6.0, the version on the home PC (gyan.dev 6.0 there):
+      # the static Linux build of the same release, as the ffmpeg-static
+      # project publishes it on GitHub, fetched once and kept in the Actions
+      # cache. (apt hung for 20+ min on every shard of two runs; the 8.1 build
+      # made one shard hang. apt stays as the last resort, with time limits.)
+      - name: Restore ffmpeg
+        uses: actions/cache@v5
+        with:
+          path: ~/ffmpeg
+          key: ffmpeg-static-b6.0-linux-x64-v1
+      - name: ffmpeg
+        timeout-minutes: 12
+        env:
+          FF_BASE: https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0
+        run: |
+          if [ ! -x ~/ffmpeg/bin/ffmpeg ] || [ ! -x ~/ffmpeg/bin/ffprobe ]; then
+            rm -rf ~/ffmpeg; mkdir -p ~/ffmpeg/bin
+            ok=1
+            for t in ffmpeg ffprobe; do
+              curl -fsSL --retry 3 --max-time 180 "$FF_BASE/$t-linux-x64.gz" | gunzip > ~/ffmpeg/bin/$t && chmod +x ~/ffmpeg/bin/$t || ok=0
+            done
+            if [ $ok = 1 ]; then
+              echo "::notice title=ffmpeg::fetched $FF_BASE: $(cd ~/ffmpeg/bin && sha256sum ffmpeg ffprobe | paste -sd ' ')"
+            else
+              echo "::warning title=ffmpeg::the static build could not be fetched; trying apt"
+              rm -rf ~/ffmpeg; mkdir -p ~/ffmpeg/bin
+              export DEBIAN_FRONTEND=noninteractive
+              timeout 240 sudo -E apt-get update -qq -o Acquire::Retries=3 -o DPkg::Lock::Timeout=60
+              timeout 300 sudo -E apt-get install -y -qq --no-install-recommends -o DPkg::Lock::Timeout=60 ffmpeg > /dev/null
+              ln -s "$(command -v ffmpeg)" ~/ffmpeg/bin/ffmpeg; ln -s "$(command -v ffprobe)" ~/ffmpeg/bin/ffprobe
+            fi
+          fi
+          echo "$HOME/ffmpeg/bin" >> "$GITHUB_PATH"
+          ~/ffmpeg/bin/ffmpeg -version | head -1; ~/ffmpeg/bin/ffprobe -version | head -1
+      - name: Chrome
+        run: |
+          if ! command -v google-chrome >/dev/null; then npx --yes playwright-core install --with-deps chrome; fi
+          google-chrome --version
+      # Segoe UI's metrics: the website's font stack ends at "Segoe UI" on the
+      # home PC; on Linux it would land on a much wider face and the tests that
+      # check nothing is cut at 320 px would fail for the font alone. Selawik is
+      # Microsoft's open-source, metric-compatible stand-in for Segoe UI.
+      # LC_ALL=he_IL.UTF-8 needs the locale to exist: without it the C library
+      # falls back to plain ASCII and Chrome cannot open a file with a Hebrew
+      # name (localplay's "סרט חג 2023.mp4" came up empty).
+      - name: Locales
+        run: |
+          sudo locale-gen he_IL.UTF-8 en_GB.UTF-8 > /dev/null
+          LC_ALL=he_IL.UTF-8 locale charmap
+      - name: Fonts
+        run: |
+          mkdir -p ~/.local/share/fonts/selawik ~/.config/fontconfig
+          curl -fsSL --retry 3 --max-time 60 -o "$RUNNER_TEMP/selawik.zip" https://github.com/microsoft/Selawik/releases/download/1.01/Selawik_Release.zip
+          unzip -o -q "$RUNNER_TEMP/selawik.zip" '*.ttf' -d ~/.local/share/fonts/selawik
+          # (line height as on Windows: tools/ci/patch-hhea.js says why)
+          node tools/ci/patch-hhea.js --from-win ~/.local/share/fonts/selawik/*.ttf
+          cat > ~/.config/fontconfig/fonts.conf <<'XML'
+          <?xml version="1.0"?>
+          <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+          <fontconfig>
+            <alias binding="same"><family>Segoe UI Variable Display</family><prefer><family>Selawik</family></prefer></alias>
+            <alias binding="same"><family>Segoe UI Variable Text</family><prefer><family>Selawik</family></prefer></alias>
+            <alias binding="same"><family>Segoe UI</family><prefer><family>Selawik</family></prefer></alias>
+          </fontconfig>
+          XML
+          fc-cache -f > /dev/null
+          echo "Segoe UI -> $(fc-match 'Segoe UI')"; echo "Segoe UI Variable Display -> $(fc-match 'Segoe UI Variable Display')"
+      - run: npm ci --no-audit --no-fund
+      # What the page sees: locale, clock and the font a line of text gets (a notice
+      # on the run's page, readable without signing in).
+      - name: Environment check
+        env:
+          LC_ALL: he_IL.UTF-8
+        run: |
+          node -e '
+          const { chromium } = require("playwright-core");
+          (async () => {
+            const b = await chromium.launch({ channel: "chrome" });
+            const p = await (await b.newContext()).newPage();
+            await p.setContent(`<div id=t style="font-family:-apple-system,BlinkMacSystemFont,&quot;SF Pro Display&quot;,&quot;Segoe UI Variable Display&quot;,&quot;Segoe UI&quot;,Roboto,&quot;Helvetica Neue&quot;,Arial,sans-serif;font-size:16px;display:inline">Home Movies Shows My List More</div>`);
+            const c = await p.evaluate(() => ({ lang: navigator.language, time: new Date(Date.UTC(2026, 0, 1, 15, 4)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), width: document.getElementById("t").getBoundingClientRect().width, height: document.getElementById("t").getBoundingClientRect().height }));
+            const cdp = await p.context().newCDPSession(p);
+            await cdp.send("DOM.enable"); await cdp.send("CSS.enable");
+            const { root } = await cdp.send("DOM.getDocument");
+            const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: "#t" });
+            const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
+            const node = { locale: Intl.DateTimeFormat().resolvedOptions().locale, hourCycle: new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hourCycle };
+            console.log(`::notice title=UI environment::chrome ${b.version()} lang ${c.lang}, 15:04 UTC reads ${c.time}; text ${c.width.toFixed(1)} x ${c.height.toFixed(2)}px in ${fonts.map((f) => f.familyName).join(", ")}; node ${node.locale} ${node.hourCycle}; TZ ${process.env.TZ}`);
+            await b.close();
+          })().catch((e) => { console.log(`::warning title=UI environment::${e.message}`); });'
+      # The test library (made with ffmpeg on first use, ~30 s): kept between runs.
+      - uses: actions/cache@v5
+        with:
+          path: test/ui/.cache
+          key: ui-media-${{ hashFiles('scripts/ui-test-server.js') }}
+      - name: test/ui (${{ matrix.est }} s expected)
+        env:
+          LC_ALL: he_IL.UTF-8
+          UI_OUT: ${{ github.workspace }}/test/ui/artifacts/ci
+        run: node tools/ci/ui-shard-run.js ${{ matrix.files }}
+      - name: Upload what failed
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ui-artifacts-${{ matrix.shard }}
+          path: test/ui/artifacts/
+          retention-days: 7
+      - name: Upload timings
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ui-timings-${{ matrix.shard }}
+          path: test/ui/artifacts/ci/timings.json
+          retention-days: 14
+          if-no-files-found: ignore

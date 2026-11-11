@@ -21,10 +21,17 @@ import { showReportSheet } from "../report.js";
 // (The TV has the same cards: tv-native/src/screens/WhatsNew.tsx, ROUND there.
 // A card about something only a browser has says `webOnly: true` first —
 // test/whatsnew-parity.test.js leaves it out of the comparison.)
-export const ROUND = "1.15.30";
+export const ROUND = "1.15.31";
 const NEW_FROM = ROUND;
 const FEATURES = [
-  // ---- 1.15.30: the two of 1.15.29 that now reach every screen, and the episode chooser ----
+  // ---- 1.15.31: the clearer glass (website and phone app); the two of 1.15.29 that reach every screen; the chooser of 1.15.30 ----
+  {
+    webOnly: true, since: ROUND, cue: "tap", glyph: "🪟",
+    title: "A clearer glass",
+    what: "The bars and buttons that float over pictures are clearer now: the picture's colour comes through them, the tab you are on is violet, and there is no bright line along the top. Menus, sheets and the phone's side menu keep their look. The Android app has it too.",
+    how: "Nothing to do. Open Home and look at the bars over the picture.",
+    go: { label: "Go home", to: "#/" },
+  },
   {
     since: ROUND, cue: "tap", glyph: "▶️",
     title: "Continue Watching, tidied",
@@ -40,7 +47,7 @@ const FEATURES = [
     go: { label: "Search", to: "#/search" },
   },
   {
-    webOnly: true, since: ROUND, cue: "offline", glyph: "📲",
+    webOnly: true, since: "1.15.30", cue: "offline", glyph: "📲",
     title: "Choose the episodes to save",
     what: "Pick exactly which episodes of a series go onto this device — for a flight, a train, a weekend away. The next ones you haven't watched come ticked; ones not on the server yet are saved by themselves when they arrive.",
     how: "Open the series and press Choose episodes. Tick what you want (Select all for the whole season), pick the size once, then Save.",

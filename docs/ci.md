@@ -204,6 +204,53 @@ the job's sparse checkout (it keeps `docs/qa/household-recs/*.md`, not the scree
 Measured 2026-11-06 on Windows: 78 suites / 937 tests in about 30 s, tsc about 13 s;
 `npm ci` in `tv-native/` about 25 s with a warm cache.
 
+## The browser tests on GitHub (`.github/workflows/ui.yml`)
+
+The website's browser suite (`test/ui/*.test.js`, `npm run test:ui` locally: about an hour
+one file at a time on the home PC) runs on GitHub in **8 parallel shards**, each a
+4-vCPU ubuntu-24.04 runner running its files one after another, each file with its own
+private instance and Chrome, exactly as at home. Wall time: about 10 minutes (first green
+run 2026-11-11: 9.7 min, shards 6.7–9.5 min; 110 files, ~64 min of test time).
+
+- **When:** every push to `master`, `rel-*` and `ui-*` branches; by hand (Actions → UI →
+  Run workflow) with an optional `files` input (`party wall`, comma or space separated)
+  and `shards`. A branch with another name gets a run by pushing it under a `ui-` name:
+  `git push origin HEAD:ui-<branch>`.
+- **Reading the result without signing in:** `tools/ci-ui.sh <branch> [--sha <commit>]
+  [--wait]` prints the run and each shard, and for a red one each failing test with its
+  error and the test-file line (from the run's annotations — the job log itself needs a
+  sign-in). Without a token GitHub allows 60 API calls an hour per address: `--wait`
+  polls every 120 s (2 calls a poll).
+- **The pieces:** `tools/ci/ui-shards.js` splits the files longest-first by
+  `test/ui/durations.json` (the runners' own seconds; a new file counts as the median);
+  `tools/ci/ui-shard-run.js` runs a shard: per file its own `node --test`, a second try
+  for a failing file (a pass then is reported as **flaky**, a warning, never silently),
+  8 minutes at most per file, a step summary, and annotations: the failures, the skips,
+  the seconds per file ("UI shard timings": save those as JSON and run
+  `node tools/ci/ui-shards.js --update <files>` to rebalance). Screenshots and logs of
+  failures are uploaded as the `ui-artifacts-<n>` artifact (7 days).
+- **The machine is made to look like the home PC**, so the same tests hold:
+  `TZ=Asia/Jerusalem`; Chrome in en-GB (`LANGUAGE`, 24-hour times on the page) and node
+  in he-IL (`LC_ALL`, the server's house clock), with those locales generated (without
+  them Chrome could not open a file with a Hebrew name); Google Chrome from the image
+  (the open-source Chromium cannot play the H.264/AAC test films); ffmpeg/ffprobe **6.0**
+  as at home (the static build, cached; apt hung for 20+ minutes in two runs, and an
+  8.1 build left a shard hanging); **Selawik**, Microsoft's open, metric-compatible
+  stand-in for Segoe UI, answering for the Segoe UI names, with its line height set to
+  Segoe UI's Windows one (`tools/ci/patch-hhea.js`) — without it the 320-px "nothing is
+  cut" tests failed on the font alone. An "UI environment" notice on every shard says
+  what the page saw (locale, clock, the font and size of a line of the tab bar's words).
+- **No secrets.** The instances make up their own admin password; nothing leaves them.
+
+What had to change in the tests for Linux, each with its reason in the code:
+`scripts/ui-test-server.js` drops `INVOCATION_ID` from the instance's environment (a
+runner is a systemd unit: the server read as "supervised by systemd"); `iphone-home`
+allows its tab bar half a pixel more on Linux (whole-pixel font metrics); `telemetry`
+waits for the Movies paint time as well as the counts; `scrub-preview` accepts a server
+that made no pictures itself when the test had to make them (Linux holds the idle run
+back while the one-minute load is high); `airplay-iphone` sets the admin's fixed limit
+of 2 encodes on a machine of 4 threads or fewer.
+
 ## Local use
 
 ```sh
@@ -218,6 +265,6 @@ node tools/ci/ci-tests.js simulate --map /tmp/test-map.json --count 30 --full-ms
 ## Decisions for elia
 
 - **Node 20: decided 2026-11-04, elia: "only test 22".** CI runs Node 22 alone, and `engines` says `>=22`. (The "Node.js 20 is deprecated" warning came from checkout/setup-node v4; they are v6 now.) If nufurora.com still runs Node 20, `npm ci` there only warns, but it should move to Node 22 since nothing tests 20 any more.
-- **Browser tests (`npm run test:ui`)**: not in CI. They need Chrome and ffmpeg, take minutes,
-  and flake under load. A nightly-only job is possible later. Not worth it per push.
+- **Browser tests (`npm run test:ui`)**: on GitHub since 2026-11-11 (elia: "yes"), in their
+  own workflow, see "The browser tests on GitHub" above. Not part of `ci.yml`.
 - **tv-native jest**: done 2026-11-06, see "The tv-native job" above.

@@ -177,9 +177,10 @@ for (const look of ["glass", "legacy"]) {
         await page.evaluate(() => window.scrollTo(0, 0));
         await settle(page);
         // (a screen that has not drawn yet — Settings, Wrapped on a busy PC —
-        // is waited for, up to five seconds, before it counts as "nothing")
+        // is waited for, up to five seconds, before it counts as "nothing"; so is one
+        // that shows only its loading placeholder)
         let m = await page.evaluate(measure);
-        for (let i = 0; i < 12 && !m.first; i++) { await page.waitForTimeout(400); m = await page.evaluate(measure); }
+        for (let i = 0; i < 12 && (!m.first || /skeleton/.test(m.first.what || "")); i++) { await page.waitForTimeout(400); m = await page.evaluate(measure); }
         assert.ok(Math.abs(m.sat - inset) <= 1, `the emulated inset is ${m.sat}, not ${inset}`);
         rows.push({ screen, ...m, gap: m.first ? Math.round((m.first.top - m.controls) * 10) / 10 : null });
         if (SHOTS) {

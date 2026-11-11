@@ -5782,3 +5782,147 @@ html[data-fx="lite"] .person-viewer-slide img.person-viewer-up { transition: non
     background: rgba(var(--g-tint), 0.94);
   }
 }
+
+/* ---------- Clear: the glass of the chrome that floats over pictures (2026-11-11) ----------
+   elia chose "Clear" out of five versions (docs/qa/glass-options/README.md)
+   — "not everything needs to change": it is the glass of what floats over
+   the pictures only. The top bar and the phone tab bar, the round buttons
+   and the logo pill, the glass buttons on the hero and a title's page, the
+   player's dock, its top pills, its menus, Up next and the resume card.
+   Everything else (menus and sheets, toasts, the panes and chips in the
+   page, the phone's side menu) keeps the glass above.
+   Clear is almost no body (a fifth of a deep indigo-black) over a light
+   blur (3 px); what holds the words is the backdrop dimmed under the glass
+   (brightness 0.5 — Apple's "dimming layer" for its clear glass) while its
+   colour is saturated (2x), so a poster and the sky keep their colour and
+   white words still read at 4.5:1 or better over a white poster
+   (docs/qa/glass-options/final/contrast.md). The edge is one faint, even
+   light line all round and a dark hairline outside — no light along the
+   top — and a small shadow. The chosen tab is a lighter capsule in Aurora's
+   violet with its own line, its word white. */
+html[data-look="glass"] {
+  /* no light along the top (elia: "glass looks better when there isn't
+     hard white backdrop from the top of the glass"): no sheen, no top
+     line — one faint, even rim all round */
+  --ge-sheen: linear-gradient(transparent, transparent);
+  --ge-fill: var(--ge-sheen), linear-gradient(rgba(8, 6, 22, 0.22), rgba(8, 6, 22, 0.22));
+  --ge-blur: blur(3px) saturate(2) brightness(0.5);
+  --ge-fill-menu: var(--ge-sheen), linear-gradient(rgba(4, 3, 14, 0.52), rgba(4, 3, 14, 0.52));
+  --ge-blur-thick: blur(10px) saturate(1.8) brightness(0.5);
+  --ge-edge: inset 0 0 0 1px rgba(255, 255, 255, 0.22), 0 0 0 1px rgba(0, 0, 0, 0.38);
+  --ge-edge-thick: inset 0 0 0 1px rgba(255, 255, 255, 0.22), 0 0 0 1px rgba(0, 0, 0, 0.4);
+  --ge-shadow: 0 6px 18px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --ge-shadow-menu: 0 14px 36px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --ge-well: rgba(139, 123, 255, 0.24);
+  --ge-well-edge: inset 0 0 0 1px rgba(196, 186, 255, 0.34);
+  --ge-lift: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1));
+}
+html[data-look="glass"] .nav-items,
+html[data-look="glass"] .nav-logo,
+html[data-look="glass"] .nav-profile,
+html[data-look="glass"] .nav-gear,
+html[data-look="glass"] .nav-dl,
+html[data-look="glass"] .nav-remote,
+html[data-look="glass"] .hero-actions .btn:not(.btn-primary),
+html[data-look="glass"] .detail-actions .btn:not(.btn-primary),
+html[data-look="glass"] .player-bottom,
+html[data-look="glass"] .player-top > div,
+html[data-look="glass"] .player-top .pbtn,
+html[data-look="glass"] .upnext,
+html[data-look="glass"] .resume-card,
+html[data-look="glass"] .quality-pill,
+html[data-look="glass"] .party-pill {
+  --g-fill: var(--ge-fill);
+  --g-blur: var(--ge-blur);
+  --g-edge: var(--ge-edge);
+  --g-shadow: var(--ge-shadow);
+  --g-lift: var(--ge-lift);
+  --g-well: var(--ge-well);
+  --g-well-edge: var(--ge-well-edge);
+  --g-ink-on: #fff;
+}
+/* the soft corner light today's glass lays on the bar and the dock goes
+   too: no light from the top on the clear glass */
+html[data-look="glass"] .nav-items::before,
+html[data-look="glass"] .player-bottom::before {
+  display: none;
+}
+/* a tab under the finger: its lens keeps the even rim, no top line */
+html[data-look="glass"] .nav .nav-item:active {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.24), 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+/* the player's menus: the same glass, frosted more for their lines */
+html[data-look="glass"] .player .menu {
+  --g-fill-menu: var(--ge-fill-menu);
+  --g-edge-menu: var(--ge-edge-thick);
+  --g-shadow-menu: var(--ge-shadow-menu);
+  --g-blur: var(--ge-blur-thick);
+}
+/* (on a wider screen the TV's hue lies OVER the menu's body: its
+   background-image alone left the menu with none — white words on a
+   bright frame) */
+@media (min-width: 721px) {
+  html[data-look="glass"] .player .menu {
+    background-image:
+      linear-gradient(140deg, rgba(104, 86, 226, 0.26) 0%, rgba(16, 15, 30, 0) 48%, rgba(70, 200, 150, 0.18) 100%),
+      var(--g-fill-menu);
+  }
+}
+/* words on the clear glass carry a soft shadow of their own */
+html[data-look="glass"] .nav-items .nav-item,
+html[data-look="glass"] .nav-logo,
+html[data-look="glass"] .nav-profile,
+html[data-look="glass"] .nav-dl,
+html[data-look="glass"] .hero-actions .btn:not(.btn-primary),
+html[data-look="glass"] .detail-actions .btn:not(.btn-primary),
+html[data-look="glass"] .player-top .pbtn {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+html[data-look="glass"] .nav-items .nav-item:focus-visible,
+html[data-look="glass"] .hero-actions .btn:focus-visible,
+html[data-look="glass"] .detail-actions .btn:focus-visible {
+  text-shadow: none;
+}
+html[data-look="glass"] .nav-gear svg,
+html[data-look="glass"] .nav-items .nav-item svg {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+}
+/* the player's second voice (the clock, the year under the title) on the
+   clear chrome over a white frame: lifted one step (3.6:1 before) */
+html[data-look="glass"] .player-bottom,
+html[data-look="glass"] .player-top {
+  --text-dim: #e3e6ee;
+  --text-faint: #cdd2de;
+}
+/* Phones: the player's chrome is never blurred over the video (see "Phones:
+   a live blur over moving video" above), so nothing dims what is behind it
+   either — its body holds the words alone: 62 % of black, white words 6:1
+   over a white frame (the clear fifth read 1.4:1). */
+@media (max-width: 720px) {
+  html[data-look="glass"] .player-bottom,
+  html[data-look="glass"] .player-top > div,
+  html[data-look="glass"] .player-top .pbtn,
+  html[data-look="glass"] .upnext,
+  html[data-look="glass"] .resume-card {
+    background: linear-gradient(rgba(0, 0, 4, 0.62), rgba(0, 0, 4, 0.62)), rgba(10, 12, 22, var(--g-under, 0));
+  }
+}
+/* Where nothing behind is blurred or dimmed (reduced transparency, a TV's
+   browser, a weak device, a browser without backdrop-filter), the clear
+   body cannot hold the words: a near-opaque dark grey, the edge kept. */
+html[data-look="glass"][data-fx="lite"]:root {
+  --ge-fill: var(--ge-sheen), linear-gradient(rgba(22, 22, 28, 0.9), rgba(22, 22, 28, 0.9));
+  --ge-fill-menu: var(--ge-sheen), linear-gradient(rgba(16, 16, 20, 0.94), rgba(16, 16, 20, 0.94));
+}
+@media (prefers-reduced-transparency: reduce), (hover: none) and (pointer: coarse) and (min-width: 1200px) {
+  html[data-look="glass"]:root {
+    --ge-fill: var(--ge-sheen), linear-gradient(rgba(22, 22, 28, 0.9), rgba(22, 22, 28, 0.9));
+    --ge-fill-menu: var(--ge-sheen), linear-gradient(rgba(16, 16, 20, 0.94), rgba(16, 16, 20, 0.94));
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-look="glass"]:root {
+    --ge-fill: var(--ge-sheen), linear-gradient(rgba(22, 22, 28, 0.9), rgba(22, 22, 28, 0.9));
+    --ge-fill-menu: var(--ge-sheen), linear-gradient(rgba(16, 16, 20, 0.94), rgba(16, 16, 20, 0.94));
+  }
+}
