@@ -28,8 +28,10 @@ const shot = async (page, name, el = null) => {
 const GB = 1024 ** 3;
 const TZ = "Asia/Jerusalem";
 const ago = (ms) => new Date(Date.now() - ms).toISOString();
-// "Nov 8" for now, in the household's zone (the per-person lines' "last …")
-const today = () => new Intl.DateTimeFormat("en-US", { timeZone: TZ, month: "short", day: "numeric" }).format(new Date());
+// "Nov 8" for a moment some time ago, in the household's zone (the per-person
+// lines' "last …"): each person's newest ask — Niso's and Automatic's 30 min
+// ago, Dor's 3 h ago (past midnight those are different days)
+const dayAgo = (ms) => new Intl.DateTimeFormat("en-US", { timeZone: TZ, month: "short", day: "numeric" }).format(new Date(Date.now() - ms));
 
 const base = { type: "movie", quality: "1080p", sizeBytes: GB, progress: 0, downloadSpeed: 0, alsoBy: [], autoFor: null };
 const JOBS = () => [
@@ -128,11 +130,11 @@ for (const [name, viewport, locale] of [["desktop", DESK, "en-US"], ["phone", PH
     assert.deepEqual(await page.locator("#dl-who-chips button").evaluateAll((bs) => bs.map((b) => [b.dataset.dlWho, b.firstChild.textContent, b.querySelector(".n").textContent])),
       [["all", "Everyone", "8"], ["p:Niso", "Niso", "4"], ["auto", "Automatic", "2"], ["p:Dor", "Dor", "3"], ["unknown", "Unknown", "2"]]);
     await openDetails(page, "d-who");
-    const d = today();
+    const d = dayAgo(30 * 60e3), dd = dayAgo(3 * 3600e3 + 60e3);
     assert.deepEqual(await page.locator("#dl-who-lines .dl-who-line").allInnerTexts(), [
       `Niso — 4 downloads (1 automatic) · 6.0 GB · last ${d}`,
       `Automatic — 2 downloads · 1.0 GB · last ${d}`,
-      `Dor — 3 downloads (1 automatic) · 3.0 GB · last ${d}`,
+      `Dor — 3 downloads (1 automatic) · 3.0 GB · last ${dd}`,
       "Unknown — 2 downloads · last: Unknown",
     ]);
     assert.equal(await page.locator('#dl-who-lines [data-who="p:Niso"]').getAttribute("title"), "2 finished · 2 in flight");
@@ -171,7 +173,7 @@ ui.test("Copy for Claude: who and when on every download line, and the line per 
     await page.waitForFunction(async (h) => (await navigator.clipboard.readText()).replace(/\r\n/g, "\n").startsWith(h), head, { timeout: 15000 });
     return (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
   };
-  const d = today();
+  const d = dayAgo(30 * 60e3), dd = dayAgo(3 * 3600e3 + 60e3);
   await page.click('[data-copy-for="d-flight"]');
   const fl = await clip("## Downloads in flight");
   assert.match(fl, /\| title \| by \| asked \| state \|/);
@@ -179,7 +181,7 @@ ui.test("Copy for Claude: who and when on every download line, and the line per 
   assert.match(fl, /\| Next Show · S1 E3 \| Automatic · Niso's next episode \| asked .+ \(30m ago\) \| downloading \|/);
   assert.match(fl, /\| Queued Unknown \| Unknown \| asked: Unknown \| queued \|/);
   assert.match(fl, /Waiting for approval:\n\| title \| by \| asked \| size \| why held \|\n\|---\|---\|---\|---\|---\|\n\| Dor Film \| Dor \| asked .+ \(3h ago\) \| 1\.0 GB \| Held back: under 10% free \|/);
-  assert.ok(fl.includes(`By person (times in Asia/Jerusalem):\n- Niso — 4 downloads (1 automatic) · 6.0 GB · last ${d}\n- Automatic — 2 downloads · 1.0 GB · last ${d}\n- Dor — 3 downloads (1 automatic) · 3.0 GB · last ${d}\n- Unknown — 2 downloads · last: Unknown`), fl);
+  assert.ok(fl.includes(`By person (times in Asia/Jerusalem):\n- Niso — 4 downloads (1 automatic) · 6.0 GB · last ${d}\n- Automatic — 2 downloads · 1.0 GB · last ${d}\n- Dor — 3 downloads (1 automatic) · 3.0 GB · last ${dd}\n- Unknown — 2 downloads · last: Unknown`), fl);
 
   await page.click('details.more[data-more="d-done"] [data-copy-for="d-done"]');
   const dn = await clip("## Finished");
@@ -192,7 +194,7 @@ ui.test("Copy for Claude: who and when on every download line, and the line per 
 
   await page.click('details.more[data-more="d-who"] [data-copy-for="d-who"]');
   const who = await clip("## Who downloaded what");
-  assert.ok(who.includes(`- Niso — 4 downloads (1 automatic) · 6.0 GB · last ${d} (2 finished · 2 in flight)\n- Automatic — 2 downloads · 1.0 GB · last ${d} (1 finished · 1 in flight)\n- Dor — 3 downloads (1 automatic) · 3.0 GB · last ${d} (2 finished · 1 waiting for approval)\n- Unknown — 2 downloads · last: Unknown (1 in flight · 1 failed, declined or canceled)`), who);
+  assert.ok(who.includes(`- Niso — 4 downloads (1 automatic) · 6.0 GB · last ${d} (2 finished · 2 in flight)\n- Automatic — 2 downloads · 1.0 GB · last ${d} (1 finished · 1 in flight)\n- Dor — 3 downloads (1 automatic) · 3.0 GB · last ${dd} (2 finished · 1 waiting for approval)\n- Unknown — 2 downloads · last: Unknown (1 in flight · 1 failed, declined or canceled)`), who);
   assert.ok(!/undefined|NaN|\[object Object\]/.test(fl + dn + who));
 });
 
