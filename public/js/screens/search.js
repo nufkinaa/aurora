@@ -106,10 +106,10 @@ export const presetSearch = (q) => {
 
 export const renderSearch = async (root) => {
   const owner = whose(); // whoever this page was opened for
-  const results = el("div", { class: "grid" });
+  const results = el("div", { class: "grid search-grid" });
   // the related tail: its own heading and grid, under the matches
   const relatedTitle = el("h2", { class: "row-title" });
-  const relatedGrid = el("div", { class: "grid" });
+  const relatedGrid = el("div", { class: "grid search-grid" });
   const relatedHost = el("div", { class: "search-related hidden" }, relatedTitle, relatedGrid);
   const status = el("div", { class: "empty hidden" });
   // "Searching…" / "Searching the catalogue…" — under whatever is already
@@ -263,7 +263,8 @@ export const renderSearch = async (root) => {
   let nodes = new Map();
   const cardFor = (it, next) => {
     const key = `${it.key}|${it.meta || ""}`;
-    const node = nodes.get(key) || card(it);
+    // (film or series on every result: a search mixes the two)
+    const node = nodes.get(key) || card(it, { showKind: true });
     next.set(key, node);
     return node;
   };
