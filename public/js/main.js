@@ -520,8 +520,9 @@ onMessage("library_updated", () => forgetWarm("/api/catalog"));
     firstScreen.then(() => offline.registerWorker());
     // [offline-look] what "on this device" looks like — the mark on posters,
     // the ring in the nav, a save landing (js/offlineUi.js). After the first
-    // screen: nothing of it is in the way of that screen.
-    const look = firstScreen.then(() => import("./offlineUi.js")).then((ui) => { ui.start(); return ui; });
+    // screen, and in an idle moment of its own (not the one the worker's
+    // registration takes): nothing of it is in the way of that screen.
+    const look = firstScreen.then(whenIdle).then(() => import("./offlineUi.js")).then((ui) => { ui.start(); return ui; });
     look.catch(() => {});
     // [offline-look] a screen that could not be made with no connection (its
     // making failed with the worker's "offline" and it drew nothing) rests —

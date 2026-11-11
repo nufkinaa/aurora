@@ -6025,8 +6025,9 @@ html:root body #offline-banner { border-radius: 999px; }
 }
 #offline-banner a:hover,
 #offline-banner a:focus-visible { text-decoration: underline; }
-/* already there: the line has nowhere to lead */
-body:has(.saved-screen) #offline-banner a { display: none; }
+/* already there: the line has nowhere to lead (ws.js marks it by the address —
+   not a :has() rule on <body>: that cost every Home scroll on a computer) */
+#offline-banner[data-there] a { display: none; }
 @media (max-width: 430px) {
   #offline-banner .ob-more { display: none; }
 }

@@ -238,7 +238,18 @@ const showOfflineBanner = () => {
     b.append(a);
   }
   document.documentElement.classList.add("net-off");
+  bannerPlace();
 };
+// On "On this device" itself the line has nowhere to lead: its link gives
+// way. Said by the address, on each change of screen — a
+// `body:has(.saved-screen)` rule did this before, and cost every scroll of
+// Home on a computer a fifth more style work, connection or not.
+const bannerPlace = () => {
+  const b = document.getElementById(BANNER_ID);
+  if (b) b.toggleAttribute("data-there", /^#\/saved(?![\w-])/.test(location.hash));
+};
+window.addEventListener("aurora-route-start", bannerPlace);
+window.addEventListener("hashchange", bannerPlace);
 const hideOfflineBanner = () => {
   document.getElementById(BANNER_ID)?.remove();
   document.documentElement.classList.remove("net-off");

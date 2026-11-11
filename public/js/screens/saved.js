@@ -231,6 +231,15 @@ export const renderSaved = async (root) => {
   const drop = () => { for (const fn of leaves.splice(0)) { try { fn(); } catch {} } };
   untilLeave(drop);
   const onLeave = (fn) => leaves.push(fn);
+  // its picture — and its name in the frame when the picture cannot be had
+  // (no connection, and this one was never seen here). For the rows and for
+  // the offers of the empty place alike.
+  const poster = (src, name, lazy = false) => {
+    if (!src) return el("div", { class: "card-fallback" }, name);
+    const img = el("img", { src, alt: "", loading: lazy ? "lazy" : null });
+    img.onerror = () => img.replaceWith(el("div", { class: "card-fallback" }, name));
+    return img;
+  };
 
   const paint = async () => {
     const mine = ++gen;
@@ -302,14 +311,6 @@ export const renderSaved = async (root) => {
     const meter = (it) => {
       const pos = at(it);
       return pos && it.duration > 0 ? el("div", { class: "dev-seen", "aria-hidden": "true" }, el("i", { style: `width:${Math.max(3, Math.min(100, Math.round((pos / it.duration) * 100)))}%` })) : null;
-    };
-    // its picture — and its name in the frame when the picture cannot be had
-    // (no connection, and this one was never seen here)
-    const poster = (src, name, lazy = false) => {
-      if (!src) return el("div", { class: "card-fallback" }, name);
-      const img = el("img", { src, alt: "", loading: lazy ? "lazy" : null });
-      img.onerror = () => img.replaceWith(el("div", { class: "card-fallback" }, name));
-      return img;
     };
     // a film, or the one episode of a show that is here
     const fullRow = (it) =>

@@ -288,6 +288,9 @@ ui.test("no connection, calmly: one line that leads to On this device; what is n
     // the player asked for what is not here: one calm line, and back where you were
     await go(page, "#/saved");
     await page.waitForSelector(".saved-screen, .saved-section");
+    // (already there: the line's link has nowhere to lead, and gives way)
+    await until(async () => !(await line.locator("a").isVisible()), "the line's link gives way on the place itself");
+    assert.match(await line.innerText(), /^No connection$/);
     await go(page, `#/play/${away}`);
     await until(() => page.evaluate(() => /isn't on this device — it plays when the connection is back/.test(document.getElementById("toasts").innerText)), "the calm line");
     await until(() => page.evaluate(() => !/^#\/play\//.test(location.hash)), "back out of the player");
