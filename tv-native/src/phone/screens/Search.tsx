@@ -17,6 +17,7 @@ import {createVoice, nativeVoiceDeps, voiceAvailability, VoiceController} from '
 import {LANG_NAME, LANG_SELF, otherLang, voiceActive, voiceLangFor, VoiceLang, voiceMessage, VoiceState, VOICE_IDLE} from '../../voiceLogic';
 import {personNow, setPersonPref} from '../../personSync';
 import {noResultsText, runSearch, SEARCH_TEXT, SettleNote, shortText} from '../../searchFlow';
+import {kindSpoken, kindSuffix, suggestionKind} from '../../searchKind';
 import type {RootStackParamList} from '../../navigation';
 import {usePNav} from '../nav';
 import Grid from '../ui/Grid';
@@ -34,7 +35,11 @@ import {colors, GUTTER, radius} from '../theme';
 const EMPTY: SearchAnswer = {results: [], related: [], relatedLabel: null, pending: false};
 const clip = (s: string) => (s.length > 34 ? `${s.slice(0, 33)}…` : s);
 const chipLabel = (s: SearchSuggestion) =>
-  s.kind === 'person' ? `${clip(s.name || '')} · person` : s.kind === 'genre' ? `${s.name} · genre` : `${clip(s.title || '')}${s.year ? ` (${s.year})` : ''}`;
+  s.kind === 'person'
+    ? `${clip(s.name || '')} · person`
+    : s.kind === 'genre'
+      ? `${s.name} · genre`
+      : `${clip(s.title || '')}${s.year ? ` (${s.year})` : ''}${kindSuffix(suggestionKind(s))}`;
 
 export function SearchScreen({pushed, startVoice: startWithVoice, startQ}: {pushed?: boolean; startVoice?: boolean; startQ?: string}) {
   const navigation = usePNav();
@@ -292,9 +297,21 @@ export function SearchScreen({pushed, startVoice: startWithVoice, startQ}: {push
       ) : null}
       {!idle && suggestions.length ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={s.shelf}>
-          {suggestions.map((sg, i) => (
-            <ChipButton uiId="search.suggestion.pick" key={`${sg.kind}-${i}`} label={chipLabel(sg)} icon={sg.kind === 'person' ? 'person' : sg.kind === 'genre' ? 'sparkle' : 'search'} onPress={() => pickSuggestion(sg)} />
-          ))}
+          {suggestions.map((sg, i) => {
+            // a title says film or series: the card tag's glyph in its hue (the website's and the TV's)
+            const kind = suggestionKind(sg);
+            return (
+              <ChipButton
+                uiId="search.suggestion.pick"
+                key={`${sg.kind}-${i}`}
+                label={chipLabel(sg)}
+                icon={sg.kind === 'person' ? 'person' : sg.kind === 'genre' ? 'sparkle' : kind || 'search'}
+                iconColor={kind === 'series' ? colors.kindSeries : kind === 'film' ? colors.kindFilm : undefined}
+                a11yLabel={kind ? kindSpoken(chipLabel(sg), kind) : undefined}
+                onPress={() => pickSuggestion(sg)}
+              />
+            );
+          })}
         </ScrollView>
       ) : null}
       {!idle && busyText ? (

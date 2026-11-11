@@ -12,6 +12,7 @@
 import React from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 import Focusable from './Focusable';
+import Icon, {IconName} from './Icon';
 import theme from '../theme';
 
 const {colors, radius} = theme;
@@ -26,6 +27,9 @@ export default function Chip({
   onPress,
   onFocusChange,
   uiId,
+  icon,
+  iconColor,
+  accessibilityLabel,
   ref,
 }: {
   uiId?: string; // [analytics] which control this is (Focusable.uiId)
@@ -46,6 +50,13 @@ export default function Chip({
   // Bubbled straight from the Focusable — Browse reads it to know focus is back
   // in the filter bands (its collapsed header re-expands on that).
   onFocusChange?: (focused: boolean) => void;
+  // A glyph before the words (Search's suggestions: film or series, in the
+  // card tags' hue) — 16dp, the small chip's line height.
+  icon?: IconName;
+  iconColor?: string;
+  // What a screen reader says when it is not just the label (the film/series
+  // word a chip with only the icon does not print).
+  accessibilityLabel?: string;
   ref?: React.Ref<unknown>;
 }) {
   return (
@@ -66,12 +77,14 @@ export default function Chip({
       uiId={uiId}
       onFocusChange={onFocusChange}
       onPress={onPress}
-      style={[bare ? styles.bare : styles.surface, small && styles.small, on && styles.on, bare && on && styles.barOnLift]}>
+      accessibilityLabel={accessibilityLabel}
+      style={[bare ? styles.bare : styles.surface, small && styles.small, on && styles.on, bare && on && styles.barOnLift, icon && styles.withIcon]}>
       {/* `.picker-btn`'s 1dp --line edge, as an absolutely-positioned child —
           NOT a border on the Focusable itself. A border there replaces the 3dp
           the ring is drawn inside, so the ring ends up painted over its own
           hairline. Same shape as Btn.tsx's rest-state edge. */}
       {!bare && !on ? <View style={styles.edge} pointerEvents="none" /> : null}
+      {icon ? <Icon name={icon} size={16} color={iconColor || (on ? colors.bg : colors.text)} /> : null}
       <Text style={[bare ? styles.bareText : styles.text, small && !bare && styles.smallText, on && styles.onText]} numberOfLines={1}>
         {label}
       </Text>
@@ -109,6 +122,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   small: {minHeight: 36, paddingVertical: 6, paddingHorizontal: 13},
+  // the glyph and the words side by side (an icon chip)
+  withIcon: {flexDirection: 'row', alignItems: 'center', gap: 8},
   // (a bare pill's faint label keeps its 16dp — P14's faint-colour floor)
   smallText: {fontSize: 14},
   on: {backgroundColor: colors.white},
