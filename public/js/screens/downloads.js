@@ -276,10 +276,17 @@ const row = (job, { others = false } = {}) => {
             const b = e.currentTarget; // gone from the event once the await returns
             b.disabled = true;
             busy.add(job.id);
+            let cancelled = false;
             try {
-              if (!(await askCancelDownload(job))) b.disabled = false;
+              cancelled = !!(await askCancelDownload(job));
+              if (!cancelled) b.disabled = false;
             } finally {
               busy.delete(job.id);
+              // The row may have been drawn again while the question was open
+              // (an update came in): its new button was made while busy, so it
+              // is the one on the page now and it comes back too.
+              const now = document.querySelector(`.dl-row[data-id="${CSS.escape(job.id)}"] [data-ui="downloads.cancel"]`);
+              if (now && now !== b && !cancelled) now.disabled = false;
             }
           },
         }),

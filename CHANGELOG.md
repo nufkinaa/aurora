@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.32 — 2026-11-11
+
+- **My downloads: "Keep going" gives the Cancel button back.** If the page refreshed while you were being asked whether to cancel, the button stayed greyed out after you chose to keep the download.
+
 ## 1.15.31 — 2026-11-11
 
 - **A clearer glass (website and Android phone app).** The bars and buttons that float over pictures (the top bar, the bar at the bottom of a phone, the round buttons, the buttons on a title's picture, the player's controls) are clearer: the picture's colour comes through, the tab you are on is violet, and there is no bright line along the top. Menus, sheets and the phone's side menu keep their look. On the Android app the bottom bar is a little darker, so rows scrolling under it don't show through.
