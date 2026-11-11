@@ -8,6 +8,7 @@ import {closeOverlay, useOverlay} from '../overlay';
 import {dropToast, ToastAction, useToasts} from '../toast';
 import Tap from './ui/Tap';
 import SizeSheet from './offline/SizeSheet';
+import {PILL_LIFT, usePillShown} from './offline/reach';
 import Sheet from './ui/Sheet';
 import ListRow from './ui/Row';
 import {colors, GUTTER, radius, TAB_H, TAB_INSET} from './theme';
@@ -84,8 +85,10 @@ export default function PhoneOverlays() {
 function Toasts() {
   const list = useToasts();
   const insets = useSafeAreaInsets();
+  // (the "No connection" line sits where a toast would: a toast stands above it, never under it)
+  const lift = usePillShown() ? PILL_LIFT : 0;
   return (
-    <View pointerEvents="box-none" style={[s.toasts, {bottom: tabBottom(insets.bottom) + TAB_H + TAB_INSET + 8}]}>
+    <View pointerEvents="box-none" style={[s.toasts, {bottom: tabBottom(insets.bottom) + TAB_H + TAB_INSET + 8 + lift}]}>
       {list.map(t => (
         <ToastPill key={t.id} id={t.id} text={t.text} glyph={t.glyph} action={t.action} />
       ))}

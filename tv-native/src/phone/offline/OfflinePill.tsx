@@ -13,7 +13,7 @@ import {tabBottom} from '../ui/TabBar';
 import {TAB_H, TAB_INSET} from '../theme';
 import {AMBER, MINT} from './Mark';
 import {PLACE} from './rules';
-import {awayWords, useAway} from './reach';
+import {awayWords, setPillShown, useAway} from './reach';
 
 const REST = 'M9.3 7.2A5.6 5.6 0 0 1 17.6 11a3.8 3.8 0 0 1 2.3 6.5M16.5 18.5H7.2a4.2 4.2 0 0 1-1-8.28M4 4l16 16';
 
@@ -30,7 +30,12 @@ export default function OfflinePill({route}: {route: string}) {
       .then(calm => (calm ? a.setValue(1) : Animated.timing(a, {toValue: 1, duration: 280, useNativeDriver: true}).start()))
       .catch(() => a.setValue(1));
   }, [away, a]);
-  if (!away || hidden) return null;
+  const shown = !!away && !hidden;
+  useEffect(() => {
+    setPillShown(shown);
+    return () => setPillShown(false);
+  }, [shown]);
+  if (!shown) return null;
   return (
     <View pointerEvents="box-none" style={[s.wrap, {bottom: tabBottom(insets.bottom) + TAB_H + TAB_INSET + 8}]}>
       <Animated.View accessibilityRole="text" accessibilityLiveRegion="polite" style={[s.pill, {opacity: a, transform: [{translateY: a.interpolate({inputRange: [0, 1], outputRange: [6, 0]})}]}]}>

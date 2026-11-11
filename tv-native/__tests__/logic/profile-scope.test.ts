@@ -83,6 +83,7 @@ const DEVICE: Record<string, Record<string, string>> = {
     likedAudio: "the app's one handler (reads the profile's own sound language when asked)",
     carrying: 'a flag: a carry-on pass is running',
   },
+  'phone/offline/reach.ts': {pillShown: 'whether the No connection line is on screen (the screen’s)', pillSubs: 'listeners (the toasts)'},
   'phone/offline/smartNext.ts': {checking: 'a flag: a look is running (it reads the active profile when it runs)'},
   'phone/offline/SizeSheet.tsx': {current: 'the size sheet that is up (the screen’s; one at a time)', subs: 'listeners (the sheet)'},
   'phone/navigation.tsx': {lastPlayKey: 'the player screen last looked at (a route key, once per screen)'},

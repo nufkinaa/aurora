@@ -41,3 +41,25 @@ export function useAway(): Away {
   return away;
 }
 export const useNoConnection = () => useAway() !== null;
+
+// ---- the line is on screen: a toast stands above it, never under it (the website's rule) ----
+/** How far toasts rise while the line shows: its height (44) and the gap between (8). */
+export const PILL_LIFT = 52;
+let pillShown = false;
+const pillSubs = new Set<(on: boolean) => void>();
+export const setPillShown = (on: boolean) => {
+  if (on === pillShown) return;
+  pillShown = on;
+  for (const fn of [...pillSubs]) fn(on);
+};
+export function usePillShown(): boolean {
+  const [on, setOn] = useState(pillShown);
+  useEffect(() => {
+    pillSubs.add(setOn);
+    setOn(pillShown);
+    return () => {
+      pillSubs.delete(setOn);
+    };
+  }, []);
+  return on;
+}
