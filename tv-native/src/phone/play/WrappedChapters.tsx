@@ -9,7 +9,7 @@ import {Animated, Image, StyleSheet, Text, View} from 'react-native';
 import Odometer from '../../play/Odometer';
 import Meter from '../../play/Meter';
 import {METEOR_SRC} from '../../play/Burst';
-import {EASE, LINEAR, SPRING, tween, useValue} from '../../play/anim';
+import {EASE, LINEAR, SPRING, tween, useTimers, useValue} from '../../play/anim';
 import {GLOW_SRC} from '../../play/Star';
 import {PLAY} from '../../play/tokens';
 import {Chip, Eyebrow, In, Key, ty} from './ui';
@@ -338,9 +338,10 @@ function Longest({c, api}: {c: Ctx; api: ChapterApi}) {
   const l = S.longest(c);
   const still = api.still;
   const [fill, setFill] = useState(still ? (l ? l.fill : 0) : 0);
+  const timers = useTimers();
   useEffect(() => {
-    if (!still && l) api.at(600, () => setFill(l.fill));
-    // (once, when the chapter opens)
+    // (the ribbon fills as the chapter arrives, like its other pieces)
+    if (!still && l) timers.after(600, () => setFill(l.fill));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   if (!l) return null;

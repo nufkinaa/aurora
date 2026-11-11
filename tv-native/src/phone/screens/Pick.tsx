@@ -28,6 +28,7 @@ import {WORDS as GROUP} from '../../groupPick'; // [group-pick]
 import {usePNav} from '../nav';
 import {aiEnabled, aiKnown} from '../aiStatus';
 import {BackBar, useColumn, usePageTop, useSolidBar} from '../ui/PageHead';
+import {useBarTop} from '../ui/TopBar';
 import {useTabBarSpace} from '../ui/TabBar';
 import Tap from '../ui/Tap';
 import {phoneNative} from '../native';
@@ -288,9 +289,19 @@ export default function Pick() {
   const reelW = width <= 340 ? 150 : Math.min(190, Math.round(width * 0.44));
   const reelH = Math.round(reelW * 1.5);
 
+  // On asking, the stage is brought up under the top buttons (the website's bring/settle): the
+  // reel, the prize and its keys then fit the window. It is measured where it lands.
+  const barTop = useBarTop();
+  const bring = useRef(false);
   const bringStage = useCallback(() => {
-    timers.after(60, () => scroller.current?.scrollTo({y: Math.max(0, stageY.current - top + 20), animated: !calm}));
-  }, [timers, top, calm]);
+    bring.current = true;
+    // (a stage that is already on the page lays out nowhere new: brought up from where it is)
+    timers.after(120, () => {
+      if (!bring.current || !stageY.current) return;
+      bring.current = false;
+      scroller.current?.scrollTo({y: Math.max(0, stageY.current - (barTop + 58)), animated: !calm});
+    });
+  }, [timers, barTop, calm]);
 
   const ask = useCallback(
     async (override?: string) => {
@@ -397,6 +408,10 @@ export default function Pick() {
   const item = items[draw];
   const onStage = (e: LayoutChangeEvent) => {
     stageY.current = e.nativeEvent.layout.y;
+    if (!bring.current) return;
+    bring.current = false;
+    const y = Math.max(0, stageY.current - (barTop + 58));
+    timers.after(30, () => scroller.current?.scrollTo({y, animated: !calm}));
   };
 
   const form = (
@@ -462,8 +477,9 @@ export default function Pick() {
               <Text style={s.kickerText}>{DRAW.kicker}</Text>
               {items.length > 1 ? <Text style={s.kickerCount}>{` · ${DRAW.of(draw + 1, items.length)}`}</Text> : null}
             </View>
-            {mode === 'won' && item ? (
-              <View style={s.prize} accessibilityLiveRegion="polite">
+            {item && (mode === 'won' || prizeRun > 0) ? (
+              // (kept in its place while Another one rolls — unseen — so the page under it does not jump)
+              <View style={[s.prize, mode !== 'won' && s.unseen]} accessibilityLiveRegion="polite" importantForAccessibility={mode === 'won' ? 'auto' : 'no-hide-descendants'} pointerEvents={mode === 'won' ? 'auto' : 'none'}>
                 <In calm={calm || prizeRun === 0} run={prizeRun} delay={0} ms={420}>
                   <Text style={[ty.h1, s.prizeTitle]} numberOfLines={3}>
                     {item.title}
@@ -654,6 +670,7 @@ const s = StyleSheet.create({
   pip: {width: 7, height: 7, borderRadius: 4, backgroundColor: 'rgba(232,228,255,0.25)'},
   pipOn: {backgroundColor: PLAY.ink},
   sr: {position: 'absolute', width: 1, height: 1, opacity: 0},
+  unseen: {opacity: 0},
   // ---- the whole hand ----
   hand: {paddingTop: 36, gap: 10},
   status: {color: 'rgba(232,228,255,0.6)', fontSize: 14, lineHeight: 20, textAlign: 'center', paddingTop: 16},

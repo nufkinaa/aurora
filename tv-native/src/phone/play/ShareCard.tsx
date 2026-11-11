@@ -50,7 +50,13 @@ export const posterData = async (poster: string | null | undefined): Promise<str
     const blob = await res.blob();
     return await new Promise<string | null>(resolve => {
       const fr = new FileReader();
-      fr.onload = () => resolve(typeof fr.result === 'string' && fr.result.startsWith('data:image') ? fr.result : null);
+      // (the blob's own type can come back empty: the picture is named a picture here, the
+      // decoder reads what it really is)
+      fr.onload = () => {
+        const r = typeof fr.result === 'string' ? fr.result : '';
+        const at = r.indexOf('base64,');
+        resolve(r.startsWith('data:') && at > 0 && r.length > at + 7 + 64 ? `data:${/^data:image\//.test(r) ? r.slice(5, r.indexOf(';')) : 'image/png'};base64,${r.slice(at + 7)}` : null);
+      };
       fr.onerror = () => resolve(null);
       fr.readAsDataURL(blob);
     });

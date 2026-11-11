@@ -160,7 +160,9 @@ export function Key({
   calm,
   style,
   accessibilityLabel,
+  ink: inkOver,
 }: {
+  ink?: string; // a glass key's words in another colour (End for everyone: rose)
   label: string;
   kind?: KeyKind;
   onPress: () => void;
@@ -176,7 +178,7 @@ export function Key({
   accessibilityLabel?: string;
 }) {
   const press = usePress(calm);
-  const ink = kind === 'gold' ? PLAY.goldInk : kind === 'aurora' ? '#04131a' : kind === 'quiet' ? PLAY.inkDim : PLAY.ink;
+  const ink = inkOver || (kind === 'gold' ? PLAY.goldInk : kind === 'aurora' ? '#04131a' : kind === 'quiet' ? PLAY.inkDim : PLAY.ink);
   return (
     <Tap
       uiId={uiId}

@@ -171,7 +171,7 @@ function AnswerKey({verdict, onPress, off, hit, calm}: {verdict: Verdict; onPres
           verdict === 'love' ? s.discLove : verdict === 'nope' ? s.discNope : s.discSkip,
           {transform: [{scale: Animated.multiply(press.scale, hit.interpolate({inputRange: [0, 1], outputRange: [1, 1.14]}))}]},
         ]}>
-        <Text style={[s.discGlyph, !big && s.discGlyphSmall, {color: verdict === 'skip' ? PLAY.ink : '#1b0f22'}]}>{GLYPH[verdict]}</Text>
+        <Text style={[s.discGlyph, !big && s.discGlyphSmall, {color: verdict === 'skip' ? PLAY.ink : '#1b0f22'}]}>{`${GLYPH[verdict]}︎`}</Text>
       </Animated.View>
       <Text style={s.answerLabel}>{LABEL[verdict]}</Text>
     </Tap>
@@ -270,7 +270,7 @@ function Reward({session, dry, calm, width, onMore, onDone, onNumber}: {
           <In calm={calm} delay={340} style={s.tally}>
             {chips.map(c => (
               <View key={c.key} style={[s.tchip, c.key === 'love' ? s.tchipLove : c.key === 'nope' ? s.tchipNope : null]}>
-                <Text style={[s.tchipText, {color: c.key === 'skip' ? PLAY.inkDim : TINT[c.key]}]}>{c.label}</Text>
+                <Text style={[s.tchipText, {color: c.key === 'skip' ? PLAY.inkDim : TINT[c.key]}]}>{c.label.replace('♥', '♥︎')}</Text>
               </View>
             ))}
           </In>

@@ -153,7 +153,7 @@ function Seat({m, size = 62, fresh, calm, deck}: {m: GroupMember; size?: number;
   const badge = m.role === 'screen' ? WORDS.screenBadge : m.away ? WORDS.awayBadge : voting && m.done ? WORDS.doneBadge : m.host && !voting ? WORDS.hostBadge : '';
   const count = voting && !m.done ? `${m.answered || 0}/${deck}` : '';
   return (
-    <In calm={calm || !fresh} pop style={[s.seat, {width: size + 22}, m.away && s.away]}>
+    <In calm={calm || !fresh} pop style={[s.seat, {width: size + 18}, m.away && s.away]}>
       <View accessible accessibilityLabel={badge ? `${m.name}, ${badge}` : m.name} style={s.seatIn}>
         <View style={[s.seatFace, {width: size, height: size, borderRadius: size / 2}]}>
           <Avatar p={{name: m.name, avatar: m.avatar || '🙂', avatarImage: m.avatarImage || null, color: ''}} size={size - 6} round />
@@ -196,7 +196,7 @@ function Seats({session, calm, deck, room, seen, size}: {session: GroupSession; 
         <Seat key={m.profileId} m={m} calm={calm} fresh={fresh.includes(m.profileId)} deck={deck} size={size} />
       ))}
       {Array.from({length: free}, (_, i) => (
-        <View key={`free${i}`} style={[s.seat, {width: (size || 62) + 22}]} importantForAccessibility="no-hide-descendants">
+        <View key={`free${i}`} style={[s.seat, {width: (size || 62) + 18}]} importantForAccessibility="no-hide-descendants">
           <View style={[s.seatFree, {width: size || 62, height: size || 62, borderRadius: (size || 62) / 2}]}>
             <Text style={s.seatFreeText}>+</Text>
           </View>
@@ -583,7 +583,7 @@ function SwipeStage({
 // Over the result (which is drawn already and waits under it), once per result and only for a
 // page that saw the vote end. A tap anywhere or Skip ends it — and gives up the burst. The
 // server's order is the result; the show only tells it.
-function RevealShow({result, onEnd}: {result: NonNullable<GroupSession['result']>; onEnd: (lifted: boolean) => void}) {
+function RevealShow({result, onEnd, bottom}: {result: NonNullable<GroupSession['result']>; onEnd: (lifted: boolean) => void; bottom: number}) {
   const timers = useTimers();
   const tie = isTie(result) && !!result.picks[1] && !!result.picks[1].card;
   const swap = tie && (Number(result.at) || 0) % 2 === 1; // (the winner is not always on the same side)
@@ -647,7 +647,7 @@ function RevealShow({result, onEnd}: {result: NonNullable<GroupSession['result']
           ) : null}
         </View>
       </Tap>
-      <View style={s.showSkip}>
+      <View style={[s.showSkip, {bottom: bottom + 18}]}>
         <Key label={SHOW.skip} small onPress={() => end(false)} />
       </View>
     </Animated.View>
@@ -1026,7 +1026,7 @@ export default function GroupPick() {
   const footer = shown ? (
     <View style={s.footer}>
       <Key uiId="group.leave" small label={WORDS.leave} onPress={leave} calm={pcalm} />
-      {isHost && step !== 'ended' && step !== 'chosen' ? <Key uiId="group.end" small label={WORDS.endAll} onPress={endAll} disabled={busy === 'end'} calm={pcalm} style={s.endAll} /> : null}
+      {isHost && step !== 'ended' && step !== 'chosen' ? <Key uiId="group.end" small label={WORDS.endAll} onPress={endAll} disabled={busy === 'end'} calm={pcalm} ink={PLAY.rose} /> : null}
     </View>
   ) : null;
   const addButton = <Key uiId="group.add" small label={WORDS.addTitle} glyph="+" onPress={() => setAdding(true)} calm={pcalm} />;
@@ -1115,7 +1115,7 @@ export default function GroupPick() {
         </PlayCard>
         <PlayCard style={s.card}>
           <Text style={s.cardHead}>{joinedLine(shown)}</Text>
-          <Seats session={shown} calm={pcalm} room seen={seen} />
+          <Seats session={shown} calm={pcalm} room seen={seen} size={56} />
           <View style={s.sep} />
           {isHost && opts ? (
             <Choices opts={opts} value={shown.settings} busy={busy === 'settings'} onPick={p => run('settings', () => groupApi.settings(code, p))} />
@@ -1342,7 +1342,7 @@ export default function GroupPick() {
       )}
       {code ? <AddSheet code={code} visible={adding} onClose={() => setAdding(false)} onAdded={() => follow.current?.refresh()} /> : null}
       <Burst fire={burst.n} x={burst.x} y={burst.y} count={16} calm={pcalm} reach={Math.max(win.width, 600) * 0.8} />
-      {showing != null && shown?.result ? <RevealShow result={shown.result} onEnd={endShow} /> : null}
+      {showing != null && shown?.result ? <RevealShow result={shown.result} onEnd={endShow} bottom={bottom} /> : null}
       <BackBar />
     </View>
   );
@@ -1394,7 +1394,7 @@ const s = StyleSheet.create({
   footer: {flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, marginTop: 24},
   endAll: {},
   // seats
-  seats: {flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10},
+  seats: {flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 10},
   seat: {alignItems: 'center'},
   seatIn: {alignItems: 'center', gap: 6},
   away: {opacity: 0.45},

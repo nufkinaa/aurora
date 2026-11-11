@@ -286,7 +286,7 @@ export default function WrappedStory({c, still, poster, onClose}: {c: Ctx; still
             </Text>
           </View>
           <View style={ss.tools}>
-            {still ? null : (
+            {still || info.hold ? null : (
               <RoundKey
                 uiId="story.pause"
                 label={paused ? 'Play' : 'Pause'}
