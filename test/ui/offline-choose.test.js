@@ -143,4 +143,31 @@ for (const [name, viewport] of [["phone", PHONE], ["desktop", DESKTOP]]) {
   });
 }
 
+ui.test("phone: the 'keep the next episode ready' offer never covers an open sheet — it waits for the sheet to close, then says it once", async ({ srv, freshProfile }) => {
+  const profile = await freshProfile();
+  const { context, page, errors } = await open(srv, profile, PHONE);
+  try {
+    await page.evaluate((id) => { location.hash = `#/show/${id}`; }, srv.lib.show.id);
+    await page.locator('[data-ui="detail.offline.choose"]').first().click();
+    await page.waitForSelector(".choose-sheet .choose-row");
+    // an episode lands on this device while the sheet is open (the moment the offer is due)
+    assert.ok(await save(page, srv.lib.e1.id));
+    await page.waitForTimeout(8500); // (the offer comes 6 s after the landing line)
+    const offer = page.locator("#toasts .toast", { hasText: "Want the next episode saved here" });
+    assert.equal(await offer.count(), 0, "nothing on top of the open sheet");
+    // the Save button and the total are not covered by any toast
+    const covered = await page.evaluate(() => {
+      const b = document.querySelector('[data-ui="offline.choose.save"]').getBoundingClientRect();
+      return [...document.querySelectorAll("#toasts .toast")].some((t) => { const r = t.getBoundingClientRect(); return r.bottom > b.top && r.top < b.bottom && r.right > b.left && r.left < b.right; });
+    });
+    assert.equal(covered, false);
+    await page.locator('[data-ui="offline.choose.cancel"]').click();
+    await page.waitForSelector(".choose-sheet", { state: "detached" });
+    await offer.first().waitFor({ timeout: 10000 });
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close().catch(() => {});
+  }
+});
+
 ui.run({ concurrency: 1 });
