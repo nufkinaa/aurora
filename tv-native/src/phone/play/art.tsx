@@ -29,8 +29,16 @@ export function Poster({name, poster, w, h, radius = 14, gold, style}: {name: st
 }
 
 // ---------- the card back (the reel, the fan, the collectible's back) ----------
-export function CardBack({w, h, q, word = true, radius = 16}: {w: number; h: number; q?: boolean; word?: boolean; radius?: number}) {
+export function CardBack({w, h, q, word = true, radius = 16, reel}: {w: number; h: number; q?: boolean; word?: boolean; radius?: number; reel?: boolean}) {
   const ring = Math.round(Math.min(w, h) * 0.34);
+  if (reel) {
+    // the reel's plate (the website's .pg-reel-back): the violet card and its big star
+    return (
+      <View style={[pp.reelBack, {width: w, height: h, borderRadius: radius}]}>
+        <Star size={Math.round(w * 0.36)} color="#8b7bff" />
+      </View>
+    );
+  }
   return (
     <View style={[pp.back, {width: w, height: h, borderRadius: radius}]}>
       <View style={[pp.backRing, {width: ring, height: ring, borderRadius: ring / 2}]}>
@@ -46,6 +54,7 @@ const pp = StyleSheet.create({
   gold: {borderWidth: 2.5, borderColor: PLAY.gold},
   drawn: {justifyContent: 'flex-end', padding: 10},
   drawnName: {color: 'rgba(255,255,255,0.92)', fontWeight: '900', lineHeight: 20},
+  reelBack: {alignItems: 'center', justifyContent: 'center', backgroundColor: '#2a2470', experimental_backgroundImage: 'radial-gradient(circle at 50% 50%, #3a3196 0%, #262063 55%, #1b1748 100%)', borderBottomWidth: 1, borderColor: 'rgba(160,131,255,0.35)'},
   back: {
     alignItems: 'center',
     justifyContent: 'center',

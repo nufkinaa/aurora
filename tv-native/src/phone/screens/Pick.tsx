@@ -196,7 +196,7 @@ function Reel({w, h, items, mode, spin, showing, calm, flash, onLanded}: {
   }, [spin, mode, roll]);
   const cell = (c: number | 'back', k: number) =>
     c === 'back' ? (
-      <CardBack key={k} w={w} h={h} word={false} radius={0} />
+      <CardBack key={k} w={w} h={h} word={false} radius={0} reel />
     ) : (
       <Poster key={k} name={items[c]?.title || ''} poster={items[c] ? art(items[c]) : null} w={w} h={h} radius={0} />
     );
@@ -464,20 +464,20 @@ export default function Pick() {
             </View>
             {mode === 'won' && item ? (
               <View style={s.prize} accessibilityLiveRegion="polite">
-                <In calm={calm} run={prizeRun} delay={0} ms={420}>
+                <In calm={calm || prizeRun === 0} run={prizeRun} delay={0} ms={420}>
                   <Text style={[ty.h1, s.prizeTitle]} numberOfLines={3}>
                     {item.title}
                   </Text>
                 </In>
-                <In calm={calm} run={prizeRun} delay={70} ms={420}>
+                <In calm={calm || prizeRun === 0} run={prizeRun} delay={70} ms={420}>
                   <Text style={s.prizeMeta}>{metaLine(item)}</Text>
                 </In>
                 {item.why ? (
-                  <In calm={calm} run={prizeRun} delay={140} ms={420}>
+                  <In calm={calm || prizeRun === 0} run={prizeRun} delay={140} ms={420}>
                     <Text style={[ty.lede, s.prizeWhy]}>{item.why}</Text>
                   </In>
                 ) : null}
-                <In calm={calm} run={prizeRun} delay={210} ms={420} style={s.prizeKeys}>
+                <In calm={calm || prizeRun === 0} run={prizeRun} delay={210} ms={420} style={s.prizeKeys}>
                   <Key uiId="pick.open" kind="gold" label={DRAW.open} onPress={() => open(item)} calm={calm} style={s.grow} />
                   {items.length > 1 ? <Key uiId="pick.another" label={DRAW.another} trailing="↻" onPress={another} calm={calm} style={s.grow} /> : null}
                 </In>
@@ -505,15 +505,16 @@ export default function Pick() {
         {status ? <Text style={s.status}>{status}</Text> : null}
         <View style={s.handList}>
           {items.map((it, i) => (
-            <Tap key={`${it.id || it.imdbId || it.title}-${i}`} uiId="pick.open" flat accessibilityRole="button" accessibilityLabel={it.title} onPress={() => open(it)} style={[s.handRow, i === draw && s.handRowOn]}>
-              <Poster name={it.title || ''} poster={art(it)} w={62} h={93} radius={10} gold={i === draw} />
-              <View style={s.handText}>
-                <Text style={s.handTitle} numberOfLines={2}>
-                  {it.title}
-                </Text>
-                <Text style={s.handMeta}>{metaLine(it)}</Text>
-                {it.why ? <Text style={s.handWhy}>{it.why}</Text> : null}
+            <Tap key={`${it.id || it.imdbId || it.title}-${i}`} uiId="pick.open" flat accessibilityRole="button" accessibilityLabel={it.why ? `${it.title}. ${it.why}` : it.title} onPress={() => open(it)} style={s.handRow}>
+              <View>
+                <Poster name={it.title || ''} poster={art(it)} w={104} h={156} radius={12} gold={i === draw} />
+                {i === draw ? (
+                  <View style={s.handStar}>
+                    <Star size={14} color={PLAY.goldInk} />
+                  </View>
+                ) : null}
               </View>
+              {it.why ? <Text style={s.handWhy}>{it.why}</Text> : <Text style={s.handWhy}>{it.title}</Text>}
             </Tap>
           ))}
         </View>
@@ -656,13 +657,10 @@ const s = StyleSheet.create({
   // ---- the whole hand ----
   hand: {paddingTop: 36, gap: 10},
   status: {color: 'rgba(232,228,255,0.6)', fontSize: 14, lineHeight: 20, textAlign: 'center', paddingTop: 16},
-  handList: {gap: 10, marginTop: 6},
-  handRow: {flexDirection: 'row', gap: 14, padding: 10, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)', backgroundColor: 'rgba(20,18,46,0.6)'},
-  handRowOn: {borderColor: 'rgba(255,209,102,0.55)', backgroundColor: 'rgba(255,209,102,0.07)'},
-  handText: {flex: 1, gap: 3, paddingVertical: 2},
-  handTitle: {color: PLAY.ink, fontSize: 16, fontWeight: '900'},
-  handMeta: {color: 'rgba(232,228,255,0.55)', fontSize: 12.5, fontWeight: '800'},
-  handWhy: {color: PLAY.inkDim, fontSize: 13.6, lineHeight: 19, marginTop: 3},
+  handList: {gap: 14, marginTop: 6},
+  handRow: {flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 2},
+  handStar: {position: 'absolute', top: -7, left: -7, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: PLAY.gold, borderWidth: 2, borderColor: '#0d0c24'},
+  handWhy: {flex: 1, color: PLAY.inkDim, fontSize: 15, lineHeight: 21, paddingLeft: 12, borderLeftWidth: 2, borderLeftColor: 'rgba(58,211,230,0.55)'},
   // ---- the no-AI line ----
   offBox: {marginTop: 8, padding: 18},
 });
