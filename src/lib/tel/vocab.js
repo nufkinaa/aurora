@@ -38,7 +38,7 @@ const BENIGN = [
   [/Non-Error promise rejection captured/i, "a rejection with nothing in it"],
   [/Require cycle:|VirtualizedList: You have a large list|new NativeEventEmitter/i, "a React Native development notice"],
   // an answer that is a person's own slip, not a fault: a wrong password, PIN or code
-  [/^POST \/api\/(?:profiles\/:id\/unlock|auth\/(?:login|password|claim|device\/approve)|kids\/(?:enter|exit))(?:\?\S*)? → (?:401|403|429)$/, "a wrong password, PIN or code — somebody's answer, not a fault"],
+  [/^POST \/api\/(?:profiles\/:id\/unlock|auth\/(?:login|password|claim|device\/approve)|kids\/(?:enter|exit)|profiles\/:id\/child-mode\/(?:off|forgot)|profiles\/:id\/child-mode|profiles\/:id\/kids)(?:\?\S*)? → (?:401|403|429)$/, "a wrong password, PIN or code — somebody's answer, not a fault"],
 ];
 
 // ---- timings: name -> { label, max ms, dims, from }
@@ -97,6 +97,7 @@ const SEGMENTS = new Set((
   "torrents trailer transcode tree tv-app unban unlock update update-check upnext-dismiss usage video watch-history watchlist web web-callback web-finish " +
   "web-start websub wrapped xray errors alert-rules " +
   "offline-wishes wish-options saved " + // a device's "save it here too" before the server has it (docs/offline-wishes.md)
+  "child-mode forgot off " + // children mode, per account: /api/profiles/:id/child-mode[/off|/forgot], /api/admin/profiles/:id/child-mode (docs/children-mode.md)
   "scrub " + // the progress bar's preview pictures: /api/scrub/:id, /img/scrub/:id/:n.jpg (media/scrubsprites.js)
   "bye tuning tv " +
   "presence activity watched " + // watch time + presence (docs/watch-time.md): /api/presence/bye, /api/admin/activity, /api/profiles/:id/watched // the player's goodbye beacon (/stream/transcode/:id/jit/bye), /api/tv/tuning

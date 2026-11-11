@@ -46,6 +46,7 @@ const kidsDeps = {
   // kids profile it was issued to (fail closed: see profiles.kidsTokenProfile)
   tokenProfile: (token) => profiles.tokenProfile(token) || profiles.kidsTokenProfile(token),
   kidsOf: profiles.kidsOf,
+  sinceOf: profiles.childSince, // (children mode: a "left it" mark from before it frees nothing)
 };
 // Who is asking, as far as kids mode cares: { profile, maxAge, source } | null.
 // A household with no kids profile pays one array scan per request and no more.
@@ -60,7 +61,7 @@ const airKids = (air) => {
 };
 const kidsFor = (req) =>
   req && req.air ? airKids(req.air)
-    : profiles.list().some((p) => p.kids) ? kids.resolveKids(req, kidsDeps) : null;
+    : profiles.anyLimited() ? kids.resolveKids(req, kidsDeps) : null;
 const kidsCertOf = kids.makeCertOf({
   findById: (id) => scanner.findById(id),
   imdbIdFor: (item) => identity.imdbIdFor(item), // the cached id — never a lookup

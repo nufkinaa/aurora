@@ -62,6 +62,10 @@ const newSession = (req, profileId, via) =>
 // `imgHosts`: hosts /img/ext proxies that older servers did not
 // (lib/imghosts.js ADDED_HOSTS) — the TV sends a picture from one of them
 // through the proxy only when the server lists it here.
+// Children mode is on for the account: its sign-in stays as it is until a
+// grown-up leaves it (lib/kids.js refuses the same on /api/profiles/:id/*).
+const CHILD_NO = "Children mode is on — leave it first to change the sign-in.";
+
 router.get("/api/ping", (req, res) => {
   res.json({
     ok: true,
@@ -272,6 +276,8 @@ router.post("/api/auth/claim", async (req, res) => {
     recordFail("claim:" + ip);
     return res.status(proof.status).json({ error: proof.error });
   }
+  // a sign-in chosen from inside children mode would be a password the child knows
+  if (profiles.kidsOf(String(profileId || ""))) return res.status(403).json({ error: CHILD_NO, childMode: true });
   const result = await profiles.claimSignin({ profileId, username, email, password });
   if (result.error) {
     recordFail("claim:" + ip);
@@ -312,6 +318,7 @@ router.get("/api/auth/password/options", (req, res) => {
 router.post("/api/auth/password", async (req, res) => {
   const s = sessionFor(req);
   if (!s) return res.status(401).json({ error: "sign in first" });
+  if (profiles.kidsOf(s.profile.id)) return res.status(403).json({ error: CHILD_NO, childMode: true });
   const { currentPassword, newPassword, signOutOthers } = req.body || {};
   const bad = passrules.check(newPassword, "newPassword");
   if (bad) return res.status(400).json(bad);
@@ -392,6 +399,7 @@ router.get("/api/auth/sessions", (req, res) => {
 router.delete("/api/auth/sessions/:key", (req, res) => {
   const s = sessionFor(req);
   if (!s) return res.status(401).json({ error: "sign in first" });
+  if (profiles.kidsOf(s.profile.id)) return res.status(403).json({ error: CHILD_NO, childMode: true });
   const mine = sessions.listFor(s.profile.id).some((r) => r.key === req.params.key);
   if (!mine) return res.status(404).json({ error: "not found" });
   sessions.revoke(req.params.key);
@@ -532,7 +540,9 @@ router.post("/api/admin/signin/:profileId/password", adminOnly, async (req, res)
 // Each carries an INTENT: "signin" (also what an unknown account turns into a
 // sign-up), "signup", "reset" (a reset token for the linked profile), or "link".
 const gPolls = new Map(); // pollId -> {deviceCode, interval, expiresAt, done, error, session, user, linkSub, signupSub, reset, intent}
-const INTENTS = new Set(["signin", "login", "signup", "reset"]);
+// ("childmode": "Forgot the passcode?" of children mode — the verified
+    // account gets a one-time token for /api/profiles/:id/child-mode/forgot)
+const INTENTS = new Set(["signin", "login", "signup", "reset", "childmode"]);
 const intentOf = (raw) => {
   const s = String(raw || "signin");
   return s === "login" ? "signin" : INTENTS.has(s) ? s : "signin";
@@ -548,6 +558,12 @@ const intentOf = (raw) => {
 //     is held (server-side) for a sign-up request; a locked profile is refused.
 const googleOutcomeFor = (info, req, intent = "signin") => {
   const prof = profiles.byGoogleSub(info.sub);
+  if (intent === "childmode") {
+    if (!prof) return { error: "No Aurora account is linked to that Google account." };
+    if (!profiles.kidsOf(prof.id) && !profiles.childPassSet(prof.id)) return { error: "Children mode isn't on for that account." };
+    authlog.add("child-passcode-google", { profileId: prof.id, ip: realtime.clientIp(req), device: logDevice(req) });
+    return { childReset: { token: require("../lib/childmode").issueResetToken(prof.id), profileId: prof.id, name: prof.name } };
+  }
   if (intent === "reset") {
     if (!prof) return { error: "No Aurora profile is linked to that Google account. Try another way to reset your password." };
     if (prof.locked) return { error: `That profile is locked. Talk to ${adminNameFor(req)}.` };
@@ -574,6 +590,7 @@ const googleOutcomeFor = (info, req, intent = "signin") => {
 // The login-shaped answer of a finished Google step (or its other outcomes).
 const outcomeBody = (o) => {
   if (o.reset) return { ok: true, reset: o.reset };
+  if (o.childReset) return { ok: true, childReset: o.childReset };
   return {
     ok: true, user: o.user, profile: o.profile, profileToken: o.profileToken, session: o.session,
     mustReset: !!o.mustReset, ...(o.passwordSetup ? { passwordSetup: true } : {}),
@@ -645,6 +662,7 @@ router.post("/api/auth/google/poll", async (req, res) => {
     if (p.signupSub) return res.json({ ok: true, signup: { email: p.signupSub.email, name: p.signupSub.name } });
     gPolls.delete(pollId);
     if (p.reset) return res.json({ ok: true, reset: p.reset });
+    if (p.childReset) return res.json({ ok: true, childReset: p.childReset });
     setSessionCookie(req, res, p.session);
     return res.json(outcomeBody(p));
   }
@@ -667,7 +685,7 @@ router.post("/api/auth/google/poll", async (req, res) => {
         if (info.aud !== google.ids().tv || !info.sub) {
           p.done = true;
           p.error = "Google sign-in didn't work. Try again.";
-        } else if (p.intent !== "reset" && sessionFor(req)) {
+        } else if (p.intent !== "reset" && p.intent !== "childmode" && sessionFor(req)) {
           // already signed in → this flow is a LINK, not a login
           p.done = true;
           p.linkSub = info.sub;
@@ -731,6 +749,7 @@ router.get("/api/auth/google/web-start", (req, res) => {
   }
   const s = sessionFor(req);
   const intent = String(req.query.intent || "signin");
+  if (intent === "link" && s && profiles.kidsOf(s.profile.id)) return res.status(403).json({ error: CHILD_NO, childMode: true });
   startWebFlow(req, res, {
     // linking is an EXPLICIT intent from Preferences — never inferred from a
     // cookie the popup happens to carry
@@ -826,7 +845,7 @@ router.post("/api/auth/google/web-finish", (req, res) => {
   // hand the verified identity to the signup endpoint via the same pollId
   // channel the device flow uses — one consumption path
   if (o.signupSub) return res.json(holdSignup(o.signupSub));
-  if (o.reset) return res.json(outcomeBody(o));
+  if (o.reset || o.childReset) return res.json(outcomeBody(o));
   setSessionCookie(req, res, o.session);
   res.json(outcomeBody(o));
 });
@@ -860,7 +879,7 @@ router.post("/api/auth/google/app-finish", (req, res) => {
   const o = h.outcome || {};
   if (o.error) return res.status(401).json({ error: o.error });
   if (o.signupSub) return res.json(holdSignup(o.signupSub));
-  if (o.reset) return res.json(outcomeBody(o));
+  if (o.reset || o.childReset) return res.json(outcomeBody(o));
   res.json(outcomeBody(o));
 });
 
@@ -869,6 +888,7 @@ router.post("/api/auth/google/app-finish", (req, res) => {
 router.post("/api/auth/google/link", (req, res) => {
   const s = sessionFor(req);
   if (!s) return res.status(401).json({ error: "sign in first" });
+  if (profiles.kidsOf(s.profile.id)) return res.status(403).json({ error: CHILD_NO, childMode: true });
   const p = gPolls.get((req.body || {}).pollId);
   if (!p || !p.done || p.error || !p.linkSub) {
     return res.status(400).json({ error: "finish the Google step first" });

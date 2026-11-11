@@ -509,7 +509,9 @@ test("signed-in device: a TV, a paired TV, an old session or a kids profile must
     for (const [S, why] of cases) {
       assert.deepEqual((await srv.call("GET", "/api/auth/password/options", null, S)).body, { hasPassword: true, needsCurrent: true, why }, why);
       const r = await srv.call("POST", "/api/auth/password", { newPassword: "fresh-1" }, S);
-      assert.deepEqual([r.status, r.body.field, r.body.why], [401, "currentPassword", why], why);
+      // (children mode, 2026-11-11: an account in children mode changes no sign-in at all)
+      if (why === "kids") assert.deepEqual([r.status, r.body.childMode], [403, true], why);
+      else assert.deepEqual([r.status, r.body.field, r.body.why], [401, "currentPassword", why], why);
     }
     // a TV the person signed in on a minute ago, by typing the password: they are standing at it
     const now = await sessionOf("p-ana", { kind: "tv", ageMs: 60 * 1000 });

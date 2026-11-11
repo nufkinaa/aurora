@@ -192,7 +192,8 @@ const clearCookie = () => `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0
 //   { profile, maxAge, source } or null.
 //
 // deps: closed() -> bool, session(req) -> { profileId, createdAt } | null,
-//       tokenProfile(token) -> profileId | null, kidsOf(profileId) -> {maxAge} | null
+//       tokenProfile(token) -> profileId | null, kidsOf(profileId) -> {maxAge} | null,
+//       sinceOf(profileId) -> ms children mode began (optional)
 //
 //  - sign-in "closed": the session IS the person; nothing else is consulted
 //    (a kids cookie left by whoever used the browser before must not follow
@@ -228,14 +229,25 @@ const resolveKids = (req, deps) => {
   if (lock) {
     const k = kidsOf(lock.profile);
     const outranked = sess && !kidsOf(sess.profileId) && (sess.createdAt || 0) > lock.at;
-    if (k && !outranked) return { profile: lock.profile, maxAge: k.maxAge, source: "lock" };
+    // (children mode, 2026-11-11: a lock set before the account's children
+    // mode began is from an EARLIER stretch of it, already ended — the device
+    // may be on another account by now, and must not be pulled back in. The
+    // devices of the account are locked afresh when it goes on: the one that
+    // turned it on at once, the others when the socket or an answer's
+    // X-Aurora-Kids tells them. A kids profile carried over by the migration
+    // began at 0, so its devices' locks stand.)
+    const stale = deps.sinceOf ? lock.at < (deps.sinceOf(lock.profile) || 0) : false;
+    if (k && !outranked && !stale) return { profile: lock.profile, maxAge: k.maxAge, source: "lock" };
   }
   const named = [];
   // The session names its profile — unless the PIN took this browser out of
   // that very profile after the session began (see OUT_COOKIE). A sign-in
   // made after that counts again.
   const out = readRelease(req);
-  const leftIt = sess && out && out.profile === sess.profileId && out.at >= (sess.createdAt || 0);
+  // (children mode: a mark older than the account's children mode is from
+  // before it and frees nothing — turning children mode on starts afresh)
+  const leftIt = sess && out && out.profile === sess.profileId && out.at >= (sess.createdAt || 0) &&
+    out.at >= (deps.sinceOf ? deps.sinceOf(sess.profileId) || 0 : 0);
   if (sess && !leftIt) named.push(sess.profileId);
   const token = req.headers && req.headers["x-profile-token"];
   if (token && deps.tokenProfile) named.push(deps.tokenProfile(String(token)));
@@ -315,7 +327,7 @@ const createGate = (deps) => {
     const method = String(req.method || "GET").toUpperCase();
 
     const deny = (error, extra = {}) => res.status(403).json({ error, kids: true, ...extra });
-    const tooOld = () => deny("That one isn't available in a kids profile.");
+    const tooOld = () => deny("That one isn't available in Children mode.");
 
     const ok = (item) => {
       const age = ageOf(deps.certOf(item));
@@ -345,7 +357,7 @@ const createGate = (deps) => {
         let out;
         try { out = fn(body); } catch {
           res.status(500);
-          return send({ error: "Couldn't prepare that for a kids profile.", kids: true });
+          return send({ error: "Couldn't prepare that for Children mode.", kids: true });
         }
         if (out && out.__deny) { res.status(403); return send({ error: out.__deny, kids: true }); }
         return send(out);
@@ -379,14 +391,15 @@ const createGate = (deps) => {
         const hop = method === "POST" && rest === "/unlock" &&
           !!other && typeof other.maxAge === "number" && other.maxAge <= max;
         if (hop) return next();
-        return deny("This device is in a kids profile — a grown-up's PIN switches it.", { kidsLocked: true });
+        return deny("Children mode is on on this device — the passcode switches it.", { kidsLocked: true });
       }
       if (id === kid.profile) {
         // What a child must not do to the profile: put a password on it (and
         // lock the family out), repoint its sign-in, or delete it. The admin's
-        // People tab still does all three.
-        if ((method === "DELETE" && rest === "") || (method === "POST" && /^\/(password|email)$/.test(rest))) {
-          return deny("A kids profile can't change that — ask a grown-up.");
+        // People tab still does all three. (Children mode, 2026-11-11: nor
+        // sign the account out everywhere.)
+        if ((method === "DELETE" && rest === "") || (method === "POST" && /^\/(password|email|signout-everywhere)$/.test(rest))) {
+          return deny("Children mode is on — that can't be changed now.");
         }
         if (method === "GET" && rest === "/watchlist") return fields("items");
         // what the household recommended to it, and what it sent (media/household.js
@@ -491,7 +504,7 @@ const createGate = (deps) => {
       // The title page's own data: the rating arrives WITH the answer (and is
       // cached from then on), so the verdict is given on the way out.
       if (p.startsWith("/api/discover/meta/")) {
-        return rewrite((body) => (ok(body) ? body : { __deny: "That one isn't available in a kids profile." }));
+        return rewrite((body) => (ok(body) ? body : { __deny: "That one isn't available in Children mode." }));
       }
       if (p === "/api/ai/status") return res.json({ enabled: false });
       // X-Ray is a title's cast and scene notes: asked by IMDb id (the site)
@@ -512,7 +525,7 @@ const createGate = (deps) => {
           Array.isArray(body) ? body.filter((j) => j && ok({ imdbId: j.imdbId, _isTorrent: true })) : body);
       }
     }
-    if (p === "/api/ai/recommend") return deny("The recommender is switched off in kids profiles.");
+    if (p === "/api/ai/recommend") return deny("The recommender is switched off in Children mode.");
 
     // ----- one title, asked for directly -----
     const itemM = /^\/api\/item\/(.+)$/.exec(p);

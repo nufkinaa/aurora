@@ -89,7 +89,7 @@ router.post("/api/airplay/link", async (req, res) => {
   const who = askerOf(req);
   if (closed && !who.sessionKey) return res.status(401).json({ error: "sign in first", signinRequired: true });
   const verdict = await kidsVerdict(req, innerPath);
-  if (!verdict.ok) return res.status(verdict.status || 403).json(verdict.body || { error: "That one isn't available in a kids profile.", kids: true });
+  if (!verdict.ok) return res.status(verdict.status || 403).json(verdict.body || { error: "That one isn't available in Children mode.", kids: true });
   const kid = apiLib()._internals.kidsFor(req);
   const { token, expiresAt } = airtoken.mint({
     title,

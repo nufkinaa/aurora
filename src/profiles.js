@@ -89,7 +89,14 @@ const moveGhostStates = (data, file = ORPHANS_FILE, now = Date.now()) => {
 // (moving ghost states aside is the SERVER's job at boot — bootMaintenance —
 // never a side effect of loading this module: a test or a tool that loads it
 // must not arm a write of the household's file; incident 2026-10-18)
-const bootMaintenance = () => { if (!store.safeMode && moveGhostStates(store.data)) store.save(); };
+const bootMaintenance = () => {
+  if (store.safeMode) return;
+  const moved = moveGhostStates(store.data);
+  // kids profiles -> children mode, once (see migrateChildMode)
+  let migrated = 0;
+  try { migrated = migrateChildMode(store.data); } catch (e) { console.error("[children-mode] migration:", e.message); }
+  if (moved || migrated) store.save();
+};
 
 {
   const { WatchJournal } = require("./lib/watchjournal");
@@ -126,6 +133,17 @@ const sameIdentity = (a, b, deps = null) => {
   return !!lib && lib.id === str;
 };
 
+// The age limit on a stored profile: children mode on the account
+// (`childMode: { maxAge, since }`), or — fail closed — the kids field of a
+// profile written before children mode, which the boot migration turns into
+// children mode (migrateChildMode below). null = not limited.
+const limitOfRaw = (p) => {
+  if (!p) return null;
+  if (p.childMode && typeof p.childMode.maxAge === "number") return { maxAge: p.childMode.maxAge, since: p.childMode.since || 0 };
+  if (p.kids && typeof p.kids.maxAge === "number") return { maxAge: p.kids.maxAge, since: 0 };
+  return null;
+};
+
 // Public shape sent to clients — NEVER leaks the password hash/salt, just
 // whether a password is set.
 const pub = (p) => ({
@@ -146,9 +164,13 @@ const pub = (p) => ({
   follows: (p.follows || []).map((f) => f.imdbId), // shows whose new episodes download by themselves
   hasPassword: !!p.passwordHash,
   locked: !!p.locked,
-  // A kids profile: only titles rated at or under maxAge reach it (lib/kids.js).
-  // null for everyone else. Additive — old clients and the TV ignore it.
-  kids: p.kids && typeof p.kids.maxAge === "number" ? { maxAge: p.kids.maxAge } : null,
+  // CHILDREN MODE (2026-11-11, docs/children-mode.md): the account's own
+  // switch. `kids` is kept as its mirror — { maxAge } while children mode is
+  // on — so the apps released before children mode (TV <= 5.9.4, phone
+  // <= 1.1.x) treat the account as the kids profile they know: filtered,
+  // badged, locked, a PIN to leave. null for everyone else.
+  kids: limitOfRaw(p) ? { maxAge: limitOfRaw(p).maxAge } : null,
+  childMode: limitOfRaw(p) ? { maxAge: limitOfRaw(p).maxAge, since: limitOfRaw(p).since || null } : null,
 });
 
 // ---------- sign-in identity (prompt 10: ACCOUNT = PROFILE) ----------
@@ -297,14 +319,14 @@ const resetPassword = (profileId, newPassword) => adminSetPassword(profileId, ne
 // Not for a kids profile (it could not meet it) or one that has a password.
 const requirePasswordSetup = (id) => {
   const p = getRaw(id);
-  if (!p || p.passwordHash || (p.kids && typeof p.kids.maxAge === "number")) return false;
+  if (!p || p.passwordHash || limitOfRaw(p)) return false;
   if (!p.mustSetPassword) { p.mustSetPassword = true; store.save(); }
   return true;
 };
 // Is the password that is due a FIRST one (no password yet)?
 const setupDue = (id) => {
   const p = getRaw(id);
-  return !!(p && p.mustSetPassword && !p.passwordHash && !(p.kids && typeof p.kids.maxAge === "number"));
+  return !!(p && p.mustSetPassword && !p.passwordHash && !limitOfRaw(p));
 };
 
 // The admin panel's per-profile sign-in roster.
@@ -411,10 +433,22 @@ const kidsTokenProfile = (token) => {
 // switch it off — only the household PIN (routes/profiles.js) or the admin
 // (routes/admin.js) reach setKids.
 const kidsRules = require("./lib/kids");
+// { maxAge } while the profile is limited (children mode, or a kids profile
+// not migrated yet), else null. EVERY age check on the server reads this —
+// the gate, remarks, Wrapped, household, group pick, sign-in rules.
 const kidsOf = (id) => {
-  const p = getRaw(id);
-  return p && p.kids && typeof p.kids.maxAge === "number" ? { maxAge: p.kids.maxAge } : null;
+  const k = limitOfRaw(getRaw(id));
+  return k ? { maxAge: k.maxAge } : null;
 };
+// When children mode began on the account (ms; 0 for an old kids profile).
+const childSince = (id) => {
+  const k = limitOfRaw(getRaw(id));
+  return k ? k.since || 0 : 0;
+};
+// Is any account limited? (the gate's one array scan per request)
+const anyLimited = () => store.data.profiles.some((p) => !!limitOfRaw(p));
+// The old name, kept for the admin route and the pre-children-mode app route:
+// it switches CHILDREN MODE now (and drops any old kids field).
 const setKids = (id, value) => {
   const p = getRaw(id);
   if (!p) return { error: "not found" };
@@ -422,10 +456,132 @@ const setKids = (id, value) => {
   if (clean === undefined) {
     return { error: `kids must be null or { maxAge: one of ${kidsRules.AGES.join(", ")} }` };
   }
-  if (clean) p.kids = clean;
-  else delete p.kids;
+  return setChildMode(id, clean ? clean.maxAge : null);
+};
+
+// ---------- children mode (2026-11-11, docs/children-mode.md) ----------
+// Per ACCOUNT (account = profile): `childMode: { maxAge, since }` while on,
+// and the account's passcode `childPass: { salt, hash, setAt, from? }` —
+// scrypt like a password, never in clear, never logged, and KEPT when
+// children mode goes off: the parent chose it once, it is not asked again.
+// Like the old kids field, neither is one of the fields update() accepts.
+const childModeOf = (id) => {
+  const p = getRaw(id);
+  const k = limitOfRaw(p);
+  return k ? { maxAge: k.maxAge, since: k.since || null, migrated: !!(p.childMode && p.childMode.migrated) } : null;
+};
+const childPassSet = (id) => {
+  const p = getRaw(id);
+  return !!(p && p.childPass && p.childPass.hash);
+};
+// On (maxAge: one of AGES) or off (null). `since` moves only when it goes
+// from off to on: lowering or raising the age while on is the same stretch.
+const setChildMode = (id, maxAge) => {
+  const p = getRaw(id);
+  if (!p) return { error: "not found" };
+  if (maxAge === null) {
+    delete p.childMode;
+    delete p.kids;
+  } else {
+    if (!kidsRules.AGES.includes(maxAge)) return { error: `the age is one of ${kidsRules.AGES.join(", ")}` };
+    const was = limitOfRaw(p);
+    // (0 for a kids profile carried over by the migration: it has been on
+    // since before there was a "since", and its devices' locks stand)
+    const since = was ? was.since || 0 : Date.now();
+    p.childMode = { maxAge, since, ...(p.childMode && p.childMode.migrated ? { migrated: true, migratedAt: p.childMode.migratedAt } : {}) };
+    delete p.kids;
+  }
   store.save();
   return { ok: true, profile: pub(p) };
+};
+const setChildPass = async (id, code) => {
+  const p = getRaw(id);
+  if (!p) return { error: "not found" };
+  if (!kidsRules.validPin(code)) return { error: "The passcode is 4 to 6 digits." };
+  const { salt, hash } = await hashPassword(code);
+  p.childPass = { salt, hash, setAt: Date.now() };
+  store.save();
+  return { ok: true };
+};
+// The passcode gone. Children mode can't stand without one (nobody could
+// leave it), so it goes off with it: the admin's "Clear passcode" and the
+// account's own "Forgot the passcode?" both end here.
+const clearChildPass = (id) => {
+  const p = getRaw(id);
+  if (!p) return { error: "not found" };
+  delete p.childPass;
+  delete p.childMode;
+  delete p.kids;
+  store.save();
+  return { ok: true, profile: pub(p) };
+};
+// Is this the account's passcode? A profile still carrying the OLD kids
+// field (not migrated yet) answers to the household PIN, as it did. No
+// passcode: always false, after the same scrypt (timing says nothing).
+const verifyChildPass = async (id, code) => {
+  const p = getRaw(id);
+  if (p && p.childPass && p.childPass.hash && kidsRules.validPin(code)) {
+    return verifyHash(code, p.childPass.salt, p.childPass.hash);
+  }
+  if (p && !(p.childPass && p.childPass.hash) && p.kids && typeof p.kids.maxAge === "number") return verifyKidsPin(code);
+  await hashPassword("0000");
+  return false;
+};
+// Does anything still lean on the household PIN? A passcode the migration
+// copied from it and nobody has changed since, or a kids profile not
+// migrated yet. Until neither is left the admin page does not offer to
+// remove the PIN (it is never removed by itself).
+const householdPinNeeded = () =>
+  store.data.profiles.some((p) => (p.kids && typeof p.kids.maxAge === "number") ||
+    (p.childPass && p.childPass.from === "household-pin"));
+
+// THE MIGRATION (runs at boot, bootMaintenance): every kids profile becomes
+// a normal account with children mode ON at its old limit, its passcode a
+// copy of the household PIN's hash (the same digits open it — nothing opens
+// up for a child). The whole of profiles.json is copied aside first
+// (`profiles.pre-children-mode-<ms>.json`, kept, never deleted by Aurora),
+// and `migrations.childMode` records each run. scripts/children-mode-undo.js
+// turns a run back. Returns how many profiles it changed; with nothing left
+// to change it does nothing at all — so it runs once. Pure but for the
+// backup file.
+const migrateChildMode = (data, { dir = config.DATA_DIR, now = Date.now(), log = console.log } = {}) => {
+  if (!data || !Array.isArray(data.profiles)) return 0;
+  const isOld = (p) => p && p.kids && typeof p.kids.maxAge === "number";
+  const legacy = data.profiles.filter((p) => isOld(p) && !(p.childMode && typeof p.childMode.maxAge === "number"));
+  const leftover = data.profiles.filter((p) => p && p.kids !== undefined && !legacy.includes(p));
+  if (!legacy.length && !leftover.length) return 0;
+  const file = path.join(dir, `profiles.pre-children-mode-${now}.json`);
+  try {
+    require("./lib/jsonstore").atomicWriteSync(file, JSON.stringify(data, null, 1));
+  } catch (e) {
+    // no backup, no migration: the kids profiles stay as they are — and as
+    // strict (kidsOf still reads the old field)
+    console.warn(`[children-mode] migration skipped: the backup ${path.basename(file)} could not be written (${e.message})`);
+    return 0;
+  }
+  const pin = data.kidsPin && data.kidsPin.hash ? data.kidsPin : null;
+  const done = [];
+  for (const p of legacy) {
+    // since 0: on since before children mode existed — the devices locked
+    // to it stay locked (lib/kids.js resolveKids reads locks against since)
+    p.childMode = { maxAge: p.kids.maxAge, since: 0, migrated: true, migratedAt: now };
+    if (!(p.childPass && p.childPass.hash) && pin) p.childPass = { salt: pin.salt, hash: pin.hash, setAt: now, from: "household-pin" };
+    delete p.kids;
+    done.push({ id: p.id, maxAge: p.childMode.maxAge, passcode: !!(p.childPass && p.childPass.hash) });
+  }
+  // (an old kids field next to children mode, or a null one: a leftover;
+  // children mode keeps the stricter of the two ages)
+  for (const p of leftover) {
+    if (isOld(p) && p.childMode && p.kids.maxAge < p.childMode.maxAge) p.childMode.maxAge = p.kids.maxAge;
+    delete p.kids;
+  }
+  const m = data.migrations && typeof data.migrations === "object" ? data.migrations : (data.migrations = {});
+  const runs = Array.isArray(m.childMode) ? m.childMode : (m.childMode = []);
+  runs.push({ at: now, backup: path.basename(file), profiles: done });
+  log(`[children-mode] migrated ${done.length} kids profile(s) to children mode` +
+    (done.length ? ` (${done.map((d) => `${d.id} at ${d.maxAge}+${d.passcode ? "" : ", no passcode"}`).join("; ")})` : "") +
+    `; backup ${path.basename(file)}`);
+  return done.length + leftover.length;
 };
 
 // ONE PIN for the household, 4–6 digits, kept the way passwords are: salted
@@ -436,6 +592,11 @@ const setKidsPin = async (pin) => {
   if (!kidsRules.validPin(pin)) return { error: "The PIN is 4 to 6 digits." };
   const { salt, hash } = await hashPassword(pin);
   store.data.kidsPin = { salt, hash, setAt: Date.now() };
+  // (children mode: a migrated account whose passcode is still the copy of
+  // the household PIN follows the change — the same digits keep opening it)
+  for (const p of store.data.profiles) {
+    if (p.childPass && p.childPass.from === "household-pin") p.childPass = { salt, hash, setAt: Date.now(), from: "household-pin" };
+  }
   store.save();
   return { ok: true };
 };
@@ -451,11 +612,11 @@ const clearKidsPin = () => {
 // asks for it wherever an unlock token is handed out). Kids profiles and
 // password-protected ones are untouched; with no PIN or no kids profile,
 // nothing changes for anyone.
-const kidsGuard = () => kidsPinSet() && store.data.profiles.some((p) => p.kids && typeof p.kids.maxAge === "number");
+const kidsGuard = () => kidsPinSet() && store.data.profiles.some((p) => !!limitOfRaw(p));
 const needsKidsPin = (id) => {
   if (!kidsGuard()) return false;
   const p = getRaw(id);
-  return !!p && !p.passwordHash && !(p.kids && typeof p.kids.maxAge === "number");
+  return !!p && !p.passwordHash && !limitOfRaw(p);
 };
 
 // With no PIN set there is nothing to match: always false (the routes decide
@@ -551,7 +712,7 @@ const setMustReset = (id, on) => {
 // that is made a kids profile while a reset is pending stops owing it.
 const resetDue = (id) => {
   const p = getRaw(id);
-  if (!p || (p.kids && typeof p.kids.maxAge === "number")) return false;
+  if (!p || limitOfRaw(p)) return false;
   // (auth-round) or a first password, owed by a Google-only profile
   return !!((p.mustReset && p.passwordHash) || (p.mustSetPassword && !p.passwordHash));
 };
@@ -1888,6 +2049,16 @@ module.exports = {
   setKidsPin,
   clearKidsPin,
   verifyKidsPin,
+  childModeOf,
+  childSince,
+  anyLimited,
+  childPassSet,
+  setChildMode,
+  setChildPass,
+  clearChildPass,
+  verifyChildPass,
+  householdPinNeeded,
+  migrateChildMode,
   unlock,
   setPassword,
   requestProfile,
