@@ -87,29 +87,35 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # ffmpeg + ffprobe: the static build the ffmpeg.org download page links to
-      # (FFmpeg-Builds, formerly BtbN, on GitHub), fetched once and kept in the Actions cache. apt was
-      # the first try and hung for 20+ min on every shard of one run (a slow
-      # mirror); it stays as the fallback, with a time limit.
+      # ffmpeg + ffprobe 6.0, the version on the home PC (gyan.dev 6.0 there):
+      # the static Linux build of the same release, as the ffmpeg-static
+      # project publishes it on GitHub, fetched once and kept in the Actions
+      # cache. (apt hung for 20+ min on every shard of two runs; the 8.1 build
+      # made one shard hang. apt stays as the last resort, with time limits.)
       - name: Restore ffmpeg
-        id: ffcache
         uses: actions/cache@v5
         with:
           path: ~/ffmpeg
-          key: ffmpeg-builds-n8.1-linux64-gpl-v1
+          key: ffmpeg-static-b6.0-linux-x64-v1
       - name: ffmpeg
         timeout-minutes: 12
         env:
-          FF_URL: https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-linux64-gpl-8.1.tar.xz
+          FF_BASE: https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0
         run: |
-          if [ ! -x ~/ffmpeg/bin/ffmpeg ]; then
-            mkdir -p ~/ffmpeg
-            if ! curl -fsSL --retry 3 --max-time 240 "$FF_URL" | tar -xJ -C ~/ffmpeg --strip-components=1; then
+          if [ ! -x ~/ffmpeg/bin/ffmpeg ] || [ ! -x ~/ffmpeg/bin/ffprobe ]; then
+            rm -rf ~/ffmpeg; mkdir -p ~/ffmpeg/bin
+            ok=1
+            for t in ffmpeg ffprobe; do
+              curl -fsSL --retry 3 --max-time 180 "$FF_BASE/$t-linux-x64.gz" | gunzip > ~/ffmpeg/bin/$t && chmod +x ~/ffmpeg/bin/$t || ok=0
+            done
+            if [ $ok = 1 ]; then
+              echo "::notice title=ffmpeg::fetched $FF_BASE: $(cd ~/ffmpeg/bin && sha256sum ffmpeg ffprobe | paste -sd ' ')"
+            else
               echo "::warning title=ffmpeg::the static build could not be fetched; trying apt"
               rm -rf ~/ffmpeg; mkdir -p ~/ffmpeg/bin
               export DEBIAN_FRONTEND=noninteractive
-              timeout 240 sudo -E apt-get update -qq -o Acquire::Retries=3
-              timeout 300 sudo -E apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null
+              timeout 240 sudo -E apt-get update -qq -o Acquire::Retries=3 -o DPkg::Lock::Timeout=60
+              timeout 300 sudo -E apt-get install -y -qq --no-install-recommends -o DPkg::Lock::Timeout=60 ffmpeg > /dev/null
               ln -s "$(command -v ffmpeg)" ~/ffmpeg/bin/ffmpeg; ln -s "$(command -v ffprobe)" ~/ffmpeg/bin/ffprobe
             fi
           fi

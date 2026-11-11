@@ -19,7 +19,7 @@ const { spawn } = require("child_process");
 
 const OUT = process.env.UI_OUT || path.join(process.cwd(), "test", "ui", "artifacts", "ci");
 const RETRY = process.env.UI_RETRY !== "0";
-const FILE_LIMIT_MS = Number(process.env.UI_FILE_LIMIT_MS) || 12 * 60 * 1000;
+const FILE_LIMIT_MS = Number(process.env.UI_FILE_LIMIT_MS) || 8 * 60 * 1000;
 fs.mkdirSync(OUT, { recursive: true });
 
 // The failing tests of a TAP file, each with its error text and the first
@@ -106,7 +106,8 @@ const describeFails = (fails) => fails.slice(0, 6).map((f) => {
     let r = await runFile(file, 1);
     timings[r.name] = Math.round(r.secs);
     let flaky = false;
-    if (!r.ok && RETRY) {
+    // (no second try for a file that hung: it would only hang again)
+    if (!r.ok && RETRY && r.code !== "timeout") {
       const first = r;
       r = await runFile(file, 2);
       if (r.ok) { flaky = true; r.failed = first.failed; r.fails = first.fails; }

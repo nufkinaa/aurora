@@ -104,7 +104,10 @@ ui.test("the server's index: one picture every 10 s, sheets that are real pictur
   assert.equal((await fetch(srv.url + `/img/scrub/${lib.film1.id}/9.jpg`)).status, 404);
   // what it cost, for the admin
   const sum = await srv.api.adminGet("/api/admin/scrub");
-  assert.ok(sum.titles >= 3 && sum.bytes > 0, JSON.stringify(sum));
+  // (`bytes` there is what the SERVER made since it started: when the test had
+  // to make the pictures itself — the idle run starved, or on Linux held back
+  // by the one-minute load, as on a CI runner — the server made none)
+  assert.ok(sum.titles >= 3 && (madeHere > 0 || sum.bytes > 0), JSON.stringify(sum));
   if (madeHere) console.log(`# (${madeHere} title(s) made by the test: the server's idle-priority run was starved by a busy machine)`);
 });
 

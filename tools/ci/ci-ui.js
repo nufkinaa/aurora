@@ -15,7 +15,11 @@ const WORKFLOW = "ui.yml";
 const args = process.argv.slice(2);
 const opt = (n, d = null) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
 const branch = args.find((a, i) => !a.startsWith("--") && !["--sha", "--every"].includes(args[i - 1]));
-const sha = opt("--sha");
+let sha = opt("--sha");
+// (the API matches whole commit ids only: a short one is completed by git)
+if (sha && sha.length < 40) {
+  try { sha = require("child_process").execFileSync("git", ["rev-parse", sha], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch {}
+}
 const wait = args.includes("--wait");
 const every = Math.max(30, Number(opt("--every", 120)) || 120);
 
