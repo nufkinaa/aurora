@@ -27,7 +27,7 @@ export const colors = {
   glassStrong: 'rgba(4,4,10,0.84)',
   glassEdge: 'rgba(255,255,255,0.3)', // the light line all round (--g-edge)
   glassTop: 'rgba(255,255,255,0.65)', // …brighter along the top (0.5 over the 0.3 line)
-  glassDark: 'rgba(4,4,10,0.88)', // menus and the search suggestions
+  glassDark: 'rgba(4,4,10,0.94)', // menus and the search suggestions
   /** --g-ink-quiet / --g-ink-dim: the quiet words ON a pane, lifted from the page's greys */
   inkQuiet: '#c0c5d2',
   inkDim: '#dde0e8',
@@ -54,9 +54,12 @@ export const colors = {
  *  `chip`: chips and pills in the page (no blur on the website either). */
 export const E = {
   chrome: 'rgba(0,0,4,0.62)',
-  thick: 'rgba(4,4,10,0.88)',
+  // (0.88 / 0.82 were tried first on the Pixel 9: the page's words and the
+  // player's frame showed sharp between the lines — "text on text"; the
+  // website's own rule where it cannot frost is a near-opaque body)
+  thick: 'rgba(4,4,10,0.94)',
   /** a sheet over the page's 55 % dim: a touch less body (the dim does part of it) */
-  sheet: 'rgba(4,4,10,0.82)',
+  sheet: 'rgba(4,4,10,0.92)',
   slab: 'rgba(4,4,10,0.7)',
   chip: 'rgba(0,0,4,0.58)',
   /** the chosen tab / a lit chip: a lighter capsule with its own line (--g-well) */
