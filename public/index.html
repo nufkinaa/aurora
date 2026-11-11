@@ -39,6 +39,29 @@
         // Glass is the default; only a profile that chose the classic look
         // ("legacy") boots without it.
         if (localStorage.getItem("aurora-look") !== "legacy") document.documentElement.dataset.look = "glass";
+        // Glass versions to choose from (review only, 2026-11-11 — branch
+        // glass-options, docs/qa/glass-options/README.md): ?glass=b|c|d|e
+        // shows that version in THIS tab (kept in sessionStorage), ?glass=a
+        // goes back. Nothing chosen = today's glass, nothing extra loaded.
+        try {
+          const q = /[?&]glass=([a-e])(?:&|$)/.exec(location.search);
+          if (q) sessionStorage.setItem("aurora-glass", q[1]);
+          const g = sessionStorage.getItem("aurora-glass");
+          if (g && /^[b-e]$/.test(g)) {
+            document.documentElement.dataset.glass = g;
+            const l = document.createElement("link");
+            l.rel = "stylesheet";
+            l.href = "/css/glass-opt-" + g + ".css";
+            l.setAttribute("blocking", "render");
+            document.head.appendChild(l);
+            if (g === "c") {
+              const s = document.createElement("script");
+              s.type = "module";
+              s.src = "/js/glass-lens.js";
+              document.head.appendChild(s);
+            }
+          }
+        } catch {}
         // An iPhone with the Dynamic Island (14 Pro and later): the top
         // controls sit a little lower (tokens.css --top-gap). From the Home
         // Screen the top inset says so by itself; in a Safari tab it is 0 on

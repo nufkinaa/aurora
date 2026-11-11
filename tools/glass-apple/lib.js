@@ -25,6 +25,7 @@ const SIZES = {
   "phone-320": { width: 320, height: 640, dpr: 3, mobile: true, ua: UA_PHONE },
   "phone-375": { width: 375, height: 812, dpr: 3, mobile: true, ua: UA_PHONE },
   "phone": { width: 402, height: 874, dpr: 3, mobile: true, ua: UA_PHONE },
+  "phone-390": { width: 390, height: 844, dpr: 3, mobile: true, ua: UA_PHONE },
   "phone-430": { width: 430, height: 932, dpr: 3, mobile: true, ua: UA_PHONE },
   "tablet-768": { width: 768, height: 1024, dpr: 2, mobile: true, ua: UA_TABLET },
   "tablet": { width: 1024, height: 768, dpr: 2, mobile: true, ua: UA_TABLET },
@@ -139,14 +140,16 @@ const syncCss = async () => {
 };
 
 // side: "before" (origin/master's look) | "after" (this worktree)
-const openPage = async (browser, { size = "phone", side = "after", sky = DEFAULT_SKY, look = "glass", extra = {}, freeze = true, reducedMotion = false } = {}) => {
+// glass: a version of tools/glass-options (b|c|d|e) chosen for the tab, as
+// ?glass= would (index.html boot reads sessionStorage "aurora-glass").
+const openPage = async (browser, { size = "phone", side = "after", sky = DEFAULT_SKY, look = "glass", extra = {}, freeze = true, reducedMotion = false, glass = null, dpr = null } = {}) => {
   const d = SIZES[size];
   if (!d) throw new Error(`unknown size ${size}`);
   await syncCss();
   const inst = INST();
   const ctx = await browser.newContext({
     viewport: { width: d.width, height: d.height },
-    deviceScaleFactor: d.dpr,
+    deviceScaleFactor: dpr || d.dpr,
     isMobile: d.mobile,
     hasTouch: d.mobile,
     ...(d.ua ? { userAgent: d.ua } : {}),
@@ -154,6 +157,7 @@ const openPage = async (browser, { size = "phone", side = "after", sky = DEFAULT
     reducedMotion: reducedMotion ? "reduce" : "no-preference",
   });
   if (freeze) await ctx.addInitScript(FREEZE, [FIXED_NOW, sky]);
+  if (glass) await ctx.addInitScript((g) => { try { sessionStorage.setItem("aurora-glass", g); } catch {} }, glass);
   await ctx.addInitScript(HELPERS);
   if (side === "before") {
     const b = beforeFiles();
@@ -202,4 +206,4 @@ const go = async (h, route) => {
   await settle(h.page, h.pending);
 };
 
-module.exports = { ROOT, INST, SCRATCH, SIZES, launch, openPage, syncCss, settle, go, sleep, DEFAULT_SKY };
+module.exports = { ROOT, INST, SCRATCH, SIZES, launch, openPage, syncCss, settle, go, sleep, DEFAULT_SKY, FREEZE, FIXED_NOW };
