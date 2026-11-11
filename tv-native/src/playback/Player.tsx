@@ -1884,8 +1884,9 @@ export default function Player({
       if (stream) toast(`Resuming from ${fmt(r)}`);
       else {
         setResumeCard({at: r});
-        // toned down (elia): four seconds, and a smaller, dimmer card (see styles.resumeCard)
-        setTimeout(() => !exited.current && setResumeCard(null), 4000);
+        // a smaller, dimmer card (see styles.resumeCard); six seconds — elia
+        // had it cut to four, then (2026-11-11) "should stay just a bit longer"
+        setTimeout(() => !exited.current && setResumeCard(null), 6000);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
