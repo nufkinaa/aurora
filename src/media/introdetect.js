@@ -1654,6 +1654,22 @@ const get = (episodeId) => {
   };
 };
 
+// Where one episode's end credits start (seconds), or null — what get()
+// answers for `credits.start`, without get()'s walk over the whole library
+// (the show is named by the caller). Continue Watching asks it per card
+// (media/continuerow.js: a stop in the credits is a finished episode).
+const creditsStart = (episodeId, showId) => {
+  let r = store.data[episodeId];
+  if (!r) return null;
+  if (r.mtime) {
+    const entry = scanner.resolve(episodeId);
+    const now = entry ? mtimeOf(entry.path) : 0;
+    if (now && now !== r.mtime) r = { db: r.db };
+  }
+  const pick = chooseCredits(r, showId ? trustOf(showId) : {});
+  return pick && Number.isFinite(pick.start) ? pick.start : null;
+};
+
 // (a probe pass that found nothing new has nothing for this pass either: the
 // scan that preceded it already asked for one, below)
 scanner.events.on("enriched", (info) => {
@@ -1718,4 +1734,4 @@ const forget = (episodeId) => {
   return true;
 };
 
-module.exports = { run, get, forget, coverage, busy, fillEpisode, refreshFromDatabases, request, landed, _internals: { comparisonOf, matchesOf, copyOf, cardFrames, refineCreditsByCard, findCard, refineCreditsByPicture, scoreSources, trustedSource, trustOf, creditsFrom, recapVerdict, CREDITS_MIN_S, chooseIntro, chooseRecap, dbShift, checkDbIntro, checkRecap, analyzeCredits, dbChanged, previousOf, mergePrints, sliceFor, orderSiblings, RANK, HEAD_FIRST_S, analyzeIntro, analyzeEpisode, siblingsOf, knownIntros, learn, introFrom, write, runEpisode, contextOf, pumpUrgent, urgentQ, soon, store, prints, headLimit, INTRO_MIN_S, INTRO_LONE_MIN_S, INTRO_MAX_S, PRINT_MARGIN_S, fingerprint, fingerprintAsync, longestRun, consensus, fromChapters, similar, tightenStart, parseBlackdetect, snapToBlack, INVALID, FRAME, HOP, SR, ANALYSIS_V, analysisDue, noneRecord, NONE_RETRY_MS, mtimeOf, chooseCredits, cvDue, cvRecord, CV_V, CV_SURE, CV_ALONE, AGREE_S, cvAborts: () => cvAborts, mtimeMemoFor: (fn) => { mtimeMemo = new Map(); try { return fn(); } finally { mtimeMemo = null; } } } };
+module.exports = { run, get, creditsStart, forget, coverage, busy, fillEpisode, refreshFromDatabases, request, landed, _internals: { comparisonOf, matchesOf, copyOf, cardFrames, refineCreditsByCard, findCard, refineCreditsByPicture, scoreSources, trustedSource, trustOf, creditsFrom, recapVerdict, CREDITS_MIN_S, chooseIntro, chooseRecap, dbShift, checkDbIntro, checkRecap, analyzeCredits, dbChanged, previousOf, mergePrints, sliceFor, orderSiblings, RANK, HEAD_FIRST_S, analyzeIntro, analyzeEpisode, siblingsOf, knownIntros, learn, introFrom, write, runEpisode, contextOf, pumpUrgent, urgentQ, soon, store, prints, headLimit, INTRO_MIN_S, INTRO_LONE_MIN_S, INTRO_MAX_S, PRINT_MARGIN_S, fingerprint, fingerprintAsync, longestRun, consensus, fromChapters, similar, tightenStart, parseBlackdetect, snapToBlack, INVALID, FRAME, HOP, SR, ANALYSIS_V, analysisDue, noneRecord, NONE_RETRY_MS, mtimeOf, chooseCredits, cvDue, cvRecord, CV_V, CV_SURE, CV_ALONE, AGREE_S, cvAborts: () => cvAborts, mtimeMemoFor: (fn) => { mtimeMemo = new Map(); try { return fn(); } finally { mtimeMemo = null; } } } };
