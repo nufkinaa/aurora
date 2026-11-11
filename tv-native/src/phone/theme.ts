@@ -74,8 +74,9 @@ export const SHELF_GAP = 9;
 // Hit targets: Android's 48dp minimum (the site's are 40–44; the app keeps a
 // 48 dp touch area with hitSlop where the drawn control is smaller).
 export const TAP = 48;
-// The floating tab bar (.nav-items: 53 tall, 12 from the sides, 10 from the bottom)
-export const TAB_H = 53;
+// The floating tab bar (.nav-items: 12 from the sides, 10 from the bottom). 59 tall, as the site
+// (was 53; elia 2026-11-10: "just a tiny bit taller" — the pill, 47, grows with it)
+export const TAB_H = 59;
 export const TAB_INSET = 10;
 export const TAB_SIDE = 12;
 

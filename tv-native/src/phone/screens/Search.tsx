@@ -261,9 +261,11 @@ export function SearchScreen({pushed, startVoice: startWithVoice, startQ}: {push
       {idle && recent.length ? (
         <View style={s.block}>
           <View style={s.blockHead}>
-            <Text style={s.blockTitle}>Recent searches</Text>
+            <Text style={[s.blockTitle, s.headTitle]}>Recent searches</Text>
             <Tap
               flat
+              hitSlop={12}
+              accessibilityRole="button"
               onPress={() =>
                 api
                   .removeRecentSearch(profileId)
@@ -348,9 +350,11 @@ const s = StyleSheet.create({
   voice: {flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: GUTTER, paddingVertical: 8},
   voiceText: {flex: 1, color: colors.text, fontSize: 16, fontWeight: '700'},
   block: {marginTop: 14},
-  blockHead: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: GUTTER},
+  // ("Clear" on the heading's line: its 44 dp target made by hitSlop, so it no longer sat 5 dp low)
+  blockHead: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: GUTTER, marginBottom: 14},
+  headTitle: {marginBottom: 0},
   blockTitle: {color: colors.text, fontSize: 17.6, fontWeight: '800', letterSpacing: -0.18, lineHeight: 26.4, marginBottom: 10},
-  link: {color: colors.accent, fontSize: 15, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 14},
+  link: {color: colors.accent, fontSize: 15, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 4},
   wrap: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: GUTTER},
   shelf: {paddingHorizontal: GUTTER, gap: 9, paddingBottom: 6},
   busy: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: GUTTER, paddingVertical: 10},

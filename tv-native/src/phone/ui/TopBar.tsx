@@ -47,7 +47,8 @@ export default function TopBar({solid}: {transparent?: boolean; solid?: boolean}
     <>
     {solid ? <BarBand /> : <StatusScrim />}
     <View pointerEvents="box-none" style={[s.bar, {top}]}>
-      {/* .nav-logo: the mark in a glass pill, 50 x 40, 2 lower than the round ones */}
+      {/* .nav-logo: the mark in a 42 glass circle, level with the round ones (the site's phone
+          logo since 2026-11-10: the 50 x 40 pill was wider than its neighbours) */}
       <Tap uiId="nav.home" accessibilityRole="button" accessibilityLabel="Aurora — Home" onPress={() => setTab('home')} borderless style={s.logo}>
         <Image source={LOGO} style={{width: 26, height: 26}} resizeMode="contain" />
       </Tap>
@@ -66,11 +67,10 @@ const s = StyleSheet.create({
   bar: {position: 'absolute', left: GUTTER, right: GUTTER, height: 42, flexDirection: 'row', alignItems: 'center', zIndex: 10},
   right: {flexDirection: 'row', alignItems: 'center', gap: 10},
   logo: {
-    width: 50,
-    height: 40,
-    marginTop: 4,
-    borderRadius: 20,
-    paddingLeft: 8,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(96,84,230,0.16)',
     experimental_backgroundImage: G_FILL,

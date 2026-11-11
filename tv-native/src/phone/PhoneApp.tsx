@@ -25,6 +25,7 @@ import './remote/controller'; // the profile's TVs, heard from the first socket 
 import {LOW_END} from './lowEnd';
 import {checkOnStart} from './update/store';
 import {deviceInfo} from '../perfTier';
+import {phoneNative} from './native';
 
 // one line for the device pass: which settings this phone runs with
 console.log(`[phone] low-end: ${LOW_END ? 'yes' : 'no'} (${((deviceInfo()?.totalMem || 0) / 1024 ** 3).toFixed(1)} GB, Android ${require('react-native').Platform.Version})`);
@@ -114,6 +115,13 @@ const PHONE_UI: RootUi = {
 };
 
 export default function PhoneApp() {
+  // A fresh start is never inside the player: let the phone turn again. Android keeps an
+  // activity's last asked-for orientation across its process being killed, so a phone that
+  // lost the app while a film played came back to "Can't reach Aurora" / Home stuck
+  // sideways (Pixel 9 emulator, ui-phone 2026-11-10).
+  useEffect(() => {
+    phoneNative.setOrientation('auto');
+  }, []);
   return <AppRoot ui={PHONE_UI} />;
 }
 

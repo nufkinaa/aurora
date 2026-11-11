@@ -11,7 +11,7 @@
 // the player's own (playback/Player.tsx), shared with the TV; this file only
 // draws the touch controls and hands the presses back.
 import React, {useMemo, useRef, useState} from 'react';
-import {Image, PanResponder, StyleSheet, Text, View} from 'react-native';
+import {Image, PanResponder, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Tap from '../ui/Tap';
 import Icon, {PhoneIconName} from '../ui/Icon';
@@ -20,6 +20,7 @@ import PlayOnTvSlot from '../remote/PlayOnTvSlot'; // [play-on-tv]
 // [scrub-previews] the picture above the scrub point while the bar is dragged
 import ScrubThumb, {ScrubPics, thumbOuterWidth} from '../../playback/ScrubThumb';
 import {thumbLeft} from '../../playback/scrubPreview';
+import {playerRowFit} from './rowFit';
 
 const SCRIM_TOP = require('../../assets/player-top.png');
 const SCRIM_BOTTOM = require('../../assets/player-bottom.png');
@@ -71,8 +72,8 @@ const fmt = (s: number) => {
   return (h ? `${h}:${String(m).padStart(2, '0')}` : `${m}`) + `:${String(sec).padStart(2, '0')}`;
 };
 
-function Btn({icon, label, onPress, big, badge, on, mid, uiId}: {icon: PhoneIconName; label: string; onPress: () => void; big?: boolean; badge?: string; on?: boolean; mid?: boolean; uiId?: string}) {
-  const size = big ? 76 : mid ? 56 : 48;
+function Btn({icon, label, onPress, big, badge, on, mid, uiId, px}: {icon: PhoneIconName; label: string; onPress: () => void; big?: boolean; badge?: string; on?: boolean; mid?: boolean; uiId?: string; px?: number}) {
+  const size = big ? 76 : mid ? 56 : px || 48;
   return (
     <Tap
       uiId={uiId}
@@ -159,8 +160,13 @@ function Scrubber({shown, duration, bufPct, marks, band, onScrub, onSeek, onTouc
 
 export default function PhoneChrome(p: ChromeProps) {
   const insets = useSafeAreaInsets();
+  const {width} = useWindowDimensions();
   const padL = Math.max(insets.left, 12) + 4;
   const padR = Math.max(insets.right, 12) + 4;
+  // the bottom row's buttons sized to the width (rowFit.ts: upright, "Next" fell off the edge);
+  // the 2 is the gap the spacer between the two groups adds
+  const rowButtons = (p.hasSubs ? 1 : 0) + (p.simple ? 0 : 4) + 2;
+  const row = playerRowFit(width - padL - padR - 2, rowButtons, !!p.next);
   if (p.locked) {
     return (
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -221,24 +227,31 @@ export default function PhoneChrome(p: ChromeProps) {
           <Text style={[s.time, s.timeRight]}>{p.duration ? `-${fmt(left)}` : ''}</Text>
         </View>
         <View style={s.row} pointerEvents="box-none">
-          {p.hasSubs ? <Btn uiId="player.subtitles.open" icon="cc" label="Subtitles" onPress={() => p.onMenu('cc')} badge={p.subsOff ? 'off' : undefined} /> : null}
+          {p.hasSubs ? <Btn uiId="player.subtitles.open" icon="cc" label="Subtitles" onPress={() => p.onMenu('cc')} badge={p.subsOff ? 'off' : undefined} px={row.size} /> : null}
           {p.simple ? null : (
             <>
-              <Btn uiId="player.settings.open" icon="gear" label="Audio and settings" onPress={() => p.onMenu('settings')} />
-              <Btn uiId="player.speed.open" icon="speed" label="Speed" onPress={() => p.onMenu('speed')} badge={p.rate === 1 ? undefined : `${p.rate}×`} />
-              <Btn uiId="player.xray" icon="xray" label="X-Ray" onPress={p.onXray} />
-              <Btn uiId="player.party" icon="people" label="Watch together" onPress={() => p.onMenu('party')} />
+              <Btn uiId="player.settings.open" icon="gear" label="Audio and settings" onPress={() => p.onMenu('settings')} px={row.size} />
+              <Btn uiId="player.speed.open" icon="speed" label="Speed" onPress={() => p.onMenu('speed')} badge={p.rate === 1 ? undefined : `${p.rate}×`} px={row.size} />
+              <Btn uiId="player.xray" icon="xray" label="X-Ray" onPress={p.onXray} px={row.size} />
+              <Btn uiId="player.party" icon="people" label="Watch together" onPress={() => p.onMenu('party')} px={row.size} />
             </>
           )}
           <View style={{flex: 1}} />
-          <Btn uiId="phone.player.fit" icon="aspect" label={p.fit === 'fill' ? 'Fit the picture' : 'Fill the screen'} onPress={p.onFit} on={p.fit === 'fill'} />
-          <Btn uiId="phone.player.rotate" icon="rotate" label={p.landscape ? 'Portrait' : 'Landscape'} onPress={p.onRotate} />
+          <Btn uiId="phone.player.fit" icon="aspect" label={p.fit === 'fill' ? 'Fit the picture' : 'Fill the screen'} onPress={p.onFit} on={p.fit === 'fill'} px={row.size} />
+          <Btn uiId="phone.player.rotate" icon="rotate" label={p.landscape ? 'Portrait' : 'Landscape'} onPress={p.onRotate} px={row.size} />
           {p.next ? (
-            <Tap uiId="player.next" onPress={p.onNext} style={s.next} accessibilityRole="button" accessibilityLabel={`Next episode — ${p.next}`}>
+            <Tap
+              uiId="player.next"
+              onPress={p.onNext}
+              style={row.nextWord ? s.next : [s.next, s.nextRound, {width: row.size, height: row.size, borderRadius: row.size / 2}]}
+              accessibilityRole="button"
+              accessibilityLabel={`Next episode — ${p.next}`}>
               <Icon name="next" size={22} color="#fff" />
-              <Text style={s.nextText} numberOfLines={1}>
-                Next
-              </Text>
+              {row.nextWord ? (
+                <Text style={s.nextText} numberOfLines={1}>
+                  Next
+                </Text>
+              ) : null}
             </Tap>
           ) : null}
         </View>
@@ -269,6 +282,7 @@ const s = StyleSheet.create({
   badge: {position: 'absolute', bottom: 4, color: '#fff', fontSize: 9, fontWeight: '900'},
   next: {flexDirection: 'row', alignItems: 'center', gap: 4, height: 40, paddingHorizontal: 14, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.16)', overflow: 'hidden', marginLeft: 4},
   nextText: {color: '#fff', fontSize: 14, fontWeight: '800'},
+  nextRound: {paddingHorizontal: 0, justifyContent: 'center'},
   lockOnly: {position: 'absolute'},
   scrubWrap: {flex: 1, height: 36, justifyContent: 'center'},
   track: {height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'visible'},

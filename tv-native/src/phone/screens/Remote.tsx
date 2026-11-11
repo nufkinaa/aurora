@@ -22,6 +22,7 @@ import {PLAY_ON} from '../../remote/playOnWords'; // [play-on-tv]
 import {BackBar, useColumn, useSolidBar} from '../ui/PageHead';
 import {ChipButton} from '../ui/Buttons';
 import Tap from '../ui/Tap';
+import {useTabBarSpace} from '../ui/TabBar';
 import Icon, {PhoneIconName} from '../ui/Icon';
 import {Bar} from '../ui/Cards';
 import {phoneNative} from '../native';
@@ -47,6 +48,7 @@ export default function Remote() {
   const bar = useSolidBar();
   const column = useColumn();
   const insets = useSafeAreaInsets();
+  const tabSpace = useTabBarSpace(); // the floating tab bar is over this page too
   const list = useDevices();
   // [play-on-tv] opened by Play on TV: that TV
   const asked = (useRoute().params as {deviceId?: string} | undefined)?.deviceId || null;
@@ -80,7 +82,7 @@ export default function Remote() {
   const poster = now?.poster ? imgSrc(now.poster) : null;
   return (
     <View style={s.root}>
-      <ScrollView onScroll={bar.onScroll} scrollEventThrottle={32} contentContainerStyle={[{paddingTop: insets.top + 70, paddingBottom: insets.bottom + 40, paddingHorizontal: GUTTER}, column]}>
+      <ScrollView onScroll={bar.onScroll} scrollEventThrottle={32} contentContainerStyle={[{paddingTop: insets.top + 70, paddingBottom: tabSpace + 24, paddingHorizontal: GUTTER}, column]}>
         <Text style={s.h1}>Your TVs</Text>
         {!list.length ? (
           <View style={s.empty}>
