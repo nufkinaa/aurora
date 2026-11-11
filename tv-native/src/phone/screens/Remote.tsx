@@ -344,6 +344,11 @@ export default function Remote() {
   const artPic = n ? n.poster || n.backdrop || null : null;
   const wideArt = !!n && !n.poster && !!n.backdrop;
   const artH = Math.min(height * (short ? 0 : land ? 0.34 : height < 700 ? 0.24 : width <= 340 ? 0.18 : 0.34), 300);
+  // the transport's row: ±30 ±10 around the big play, the site's gap clamp(6, 3vw, 18); on a narrow
+  // column (a 360 dp phone, or the now half sideways) the smaller sizes, so ±30 is never cut
+  const nowW = both ? ((width - insets.left - insets.right - 48 - 24) * 1.15) / 2.15 : width - insets.left - insets.right - 32;
+  const tGap = Math.max(6, Math.min(18, width * 0.03));
+  const tight = short || 4 * 54 + 84 + 4 * tGap > nowW;
   const pauseA = useRef(new Animated.Value(paused ? 1 : 0)).current;
   useEffect(() => {
     Animated.timing(pauseA, {toValue: paused ? 1 : 0, duration: calm ? 0 : 420, useNativeDriver: true}).start();
@@ -384,23 +389,24 @@ export default function Remote() {
         duration={n.duration || 0}
         disabled={!n.canSeek || !n.duration}
         buffering={!!n.buffering}
+        compact={short}
         onDrag={held => (clock.current.dragging = held)}
         onSeek={seek}
       />
-      <View style={s.transport}>
-        <Tap uiId="remote.skip" borderless accessibilityRole="button" accessibilityLabel="Back 30 seconds" onPress={() => skip(-30)} style={[s.skip, short && s.skipShort]}>
+      <View style={[s.transport, {gap: tight ? 6 : tGap}]}>
+        <Tap uiId="remote.skip" borderless accessibilityRole="button" accessibilityLabel="Back 30 seconds" onPress={() => skip(-30)} style={[s.skip, tight && s.skipShort]}>
           <RemoteIcon name="back" n={30} size={30} />
         </Tap>
-        <Tap uiId="remote.skip" borderless accessibilityRole="button" accessibilityLabel="Back 10 seconds" onPress={() => skip(-10)} style={[s.skip, short && s.skipShort]}>
+        <Tap uiId="remote.skip" borderless accessibilityRole="button" accessibilityLabel="Back 10 seconds" onPress={() => skip(-10)} style={[s.skip, tight && s.skipShort]}>
           <RemoteIcon name="back" n={10} size={30} />
         </Tap>
-        <Tap uiId="remote.playpause" borderless accessibilityRole="button" accessibilityLabel={paused ? 'Play' : 'Pause'} onPress={toggle} style={[s.play, short && s.playShort]}>
-          <RemoteIcon name={paused ? 'play' : 'pause'} size={short ? 32 : 38} color="#0b0c14" />
+        <Tap uiId="remote.playpause" borderless accessibilityRole="button" accessibilityLabel={paused ? 'Play' : 'Pause'} onPress={toggle} style={[s.play, tight && s.playShort]}>
+          <RemoteIcon name={paused ? 'play' : 'pause'} size={tight ? 32 : 38} color="#0b0c14" />
         </Tap>
-        <Tap uiId="remote.skip" borderless accessibilityRole="button" accessibilityLabel="Forward 10 seconds" onPress={() => skip(10)} style={[s.skip, short && s.skipShort]}>
+        <Tap uiId="remote.skip" borderless accessibilityRole="button" accessibilityLabel="Forward 10 seconds" onPress={() => skip(10)} style={[s.skip, tight && s.skipShort]}>
           <RemoteIcon name="fwd" n={10} size={30} />
         </Tap>
-        <Tap uiId="remote.skip" borderless accessibilityRole="button" accessibilityLabel="Forward 30 seconds" onPress={() => skip(30)} style={[s.skip, short && s.skipShort]}>
+        <Tap uiId="remote.skip" borderless accessibilityRole="button" accessibilityLabel="Forward 30 seconds" onPress={() => skip(30)} style={[s.skip, tight && s.skipShort]}>
           <RemoteIcon name="fwd" n={30} size={30} />
         </Tap>
       </View>
@@ -648,7 +654,7 @@ const s = StyleSheet.create({
   centerText: {textAlign: 'center'},
   // top: close · the device · more (48 | 1fr | 48, 8 apart, 8 10 4)
   top: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingBottom: 4, minHeight: 60},
-  topShort: {minHeight: 50},
+  topShort: {minHeight: 44, paddingBottom: 0},
   iconBtn: {width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', ...PANE},
   pickWrap: {flex: 1, minWidth: 0, alignItems: 'center'},
   picker: {flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingLeft: 12, paddingRight: 14, borderRadius: 999, maxWidth: '100%', ...LIFT},
@@ -666,8 +672,8 @@ const s = StyleSheet.create({
   section: {gap: 14},
   // sideways on a phone (.rm-view gap 10, 4 0 18): the chips stay above the dock
   sectionShort: {gap: 10},
-  viewInShort: {paddingTop: 4, paddingBottom: 18},
-  padViewShort: {gap: 10, paddingTop: 4, paddingBottom: 18},
+  viewInShort: {paddingTop: 0, paddingBottom: 8},
+  padViewShort: {gap: 10, paddingTop: 0, paddingBottom: 8},
   // now playing
   art: {alignSelf: 'center', borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', boxShadow: '0 30px 60px rgba(0,0,0,0.55)'},
   // no picture: the site's violet-to-teal tile with the title's letter

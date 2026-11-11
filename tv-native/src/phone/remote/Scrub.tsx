@@ -7,11 +7,13 @@ import {fmtClock, scrubAt, share} from './remoteRules';
 import {RM} from './rmLook';
 import {colors} from '../theme';
 
-export default function Scrub({position, duration, disabled, buffering, onDrag, onSeek}: {
+export default function Scrub({position, duration, disabled, buffering, compact, onDrag, onSeek}: {
   position: number;
   duration: number;
   disabled?: boolean;
   buffering?: boolean;
+  /** sideways on a phone: a shorter hit area */
+  compact?: boolean;
   /** true while a finger holds it (the parent stops taking the TV's clock) */
   onDrag: (held: boolean) => void;
   onSeek: (to: number) => void;
@@ -53,7 +55,7 @@ export default function Scrub({position, duration, disabled, buffering, onDrag, 
   return (
     <View style={s.root}>
       <View
-        style={s.hit}
+        style={[s.hit, compact && s.hitCompact]}
         onLayout={e => setW(e.nativeEvent.layout.width)}
         {...pan.panHandlers}
         accessible
@@ -81,6 +83,7 @@ export default function Scrub({position, duration, disabled, buffering, onDrag, 
 const s = StyleSheet.create({
   root: {paddingHorizontal: 4, paddingTop: 2},
   hit: {height: 34, justifyContent: 'center'},
+  hitCompact: {height: 26},
   track: {height: 8, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.18)'},
   trackHeld: {height: 12},
   fill: {height: '100%', borderRadius: 999, experimental_backgroundImage: `linear-gradient(90deg, ${RM.accent} 0%, #a6c8ff 100%)`, boxShadow: '0 0 14px rgba(139,123,255,0.55)'},
