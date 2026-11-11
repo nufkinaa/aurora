@@ -13,6 +13,9 @@ const lazy = require("./lib/lazy");
 const identityLib = lazy(require, "./media/identity");
 const imdbLib = lazy(require, "./media/imdb");
 const discoverLib = lazy(require, "./media/discover");
+const continueRowLib = lazy(require, "./media/continuerow");
+const introdetectLib = lazy(require, "./media/introdetect");
+const skipsegmentsLib = lazy(require, "./media/skipsegments");
 
 // profiles.json is written whole on every change except a playback tick;
 // ticks go to the watch journal between full writes (lib/watchjournal.js has
@@ -1444,68 +1447,69 @@ const setLikedGenres = (profileId, genres) => {
 
 const getLikedGenres = (profileId) => stateFor(profileId).likedGenres;
 
-// Items for the Continue Watching row: in-progress videos, most recent first.
-// Finished episodes advance to the next episode of the show.
+// Items for the Continue Watching row: in-progress videos, most recent first,
+// one card per series (its newest episode, or the next one not yet finished),
+// nothing finished. The rules live in media/continuerow.js.
 const continueWatching = (profileId) => {
   const state = stateFor(profileId);
-  const identity = identityLib();
-  const maps = identity._internals.libraryMaps();
   // The title view: a library episode first watched as a stream shows up
   // under its library id here, with the stream's position.
-  const entries = Object.entries(getProgressView(profileId)).sort(
-    (a, b) => b[1].updatedAt - a[1].updatedAt
-  );
-
-  const items = [];
-  const seenShows = new Set();
-  const seenStream = new Set(); // dedupe streamed content by title/show
-
-  for (const [itemId, prog] of entries) {
-    if (items.length >= 12) break;
-
-    // Torrent streams: resolve from the stored play-item (not in the scanner).
-    if (itemId.startsWith("torrent|")) {
-      const meta = state.streamItems[itemId];
-      if (!meta || prog.finished || prog.position <= 10) continue;
-      // Downloaded since: the library copy carries this history now (the
-      // title view above) and its own entry renders the card — a card that
-      // plays the file, not the torrent.
-      let owned = null;
-      try { owned = identity.findLibraryPlayable(meta, maps); } catch {}
-      if (owned) continue;
-      // One card per show/title — the most recent episode (entries are sorted
-      // newest-first). imdbId is the SHOW's id for episodes, so all episodes of
-      // one show collapse to its latest; also kills same-episode duplicates
-      // from watching it via two different sources.
-      const key = meta.imdbId || itemId;
-      if (seenStream.has(key)) continue;
-      seenStream.add(key);
-      items.push({ ...meta, progress: prog });
-      continue;
-    }
-
-    const item = scanner.findById(itemId);
-    if (!item || item.type === "show") continue;
-
-    const isEpisode = !!item.showId;
-    if (isEpisode && seenShows.has(item.showId)) continue;
-
-    if (prog.finished) {
-      if (!isEpisode) continue; // finished movies drop off
-      const next = nextEpisode(item.showId, itemId);
-      if (!next) continue;
-      seenShows.add(item.showId);
-      // Dismissed via the card's ✕. Keyed to the SPECIFIC next episode, so the
-      // dismissal expires by itself: watch further and the candidate changes,
-      // and the card comes back for the new episode.
-      if (state.upNextDismissed[item.showId] === next.id) continue;
-      items.push({ ...next, progress: null, upNext: true });
-    } else if (prog.position > 10) {
-      if (isEpisode) seenShows.add(item.showId);
-      items.push({ ...item, progress: prog });
-    }
-  }
+  const view = getProgressView(profileId);
+  const items = continueRowLib().pick(Object.entries(view), continueDeps(state, view));
   return items.map(realEpisodeName);
+};
+
+// The lookups the Continue Watching rules need, over one profile's state.
+const continueDeps = (state, view = null) => {
+  const identity = identityLib();
+  const maps = identity._internals.libraryMaps();
+  return {
+    streamMeta: (id) => state.streamItems[id] || null,
+    ownedPlayable: (meta) => {
+      try { return identity.findLibraryPlayable(meta, maps); } catch { return null; }
+    },
+    libraryItem: (id) => scanner.findById(id),
+    show: (id) => scanner.findById(id),
+    showImdb: (show) => show.imdbId || identity.imdbIdFor(show) || null,
+    libraryShowFor: ({ imdbId, title, year }) => {
+      try {
+        const lib = identity.findLibraryFor({ imdbId, type: "series", title, year }, maps);
+        return lib && lib.type === "show" ? lib : null;
+      } catch { return null; }
+    },
+    progressOf: (id) => (view ? view[id] : state.progress[id]) || null,
+    creditsLibrary: (episodeId, showId, prog) => libraryCreditsAt(episodeId, showId, prog),
+    creditsStream: (meta, prog) => streamCreditsAt(meta, prog),
+    upNextDismissed: state.upNextDismissed,
+    hidden: state.cwHidden || {},
+  };
+};
+
+// Where a library episode's end credits start, as measured on its file — when
+// the row's length is that file's (a row carried over from a stream of
+// another cut is not timed by this file's credits).
+const libraryCreditsAt = (episodeId, showId, prog) => {
+  try {
+    const ep = scanner.findById(episodeId);
+    if (ep && ep.duration > 0 && prog && prog.duration > 0 && Math.abs(ep.duration - prog.duration) > 90) return null;
+    return introdetectLib().creditsStart(episodeId, showId);
+  } catch {
+    return null;
+  }
+};
+
+// A streamed title's credits, from the skip databases' cached answer for that
+// runtime (never a network call from here).
+const streamCreditsAt = (meta, prog) => {
+  try {
+    if (!meta || !/^tt\d+$/.test(String(meta.imdbId || ""))) return null;
+    const ask = { imdbId: meta.imdbId, season: meta.season ?? null, episode: meta.episode ?? null };
+    const sk = skipsegmentsLib();
+    const r = sk.cached({ ...ask, duration: prog && prog.duration }) || sk.cached({ ...ask, duration: meta.duration });
+    return r && r.credits && Number.isFinite(r.credits.start) ? r.credits.start : null;
+  } catch {
+    return null;
+  }
 };
 
 // A library episode whose file carried no name is "Episode 3" in the scanner;
@@ -1658,8 +1662,31 @@ const clearProgress = (profileId, itemId) => {
   const state = stateFor(profileId);
   ensureTitles();
   noteDismissed(state, itemId, titleKeyOf);
+  hideSeries(state, itemId);
   clearTitle(state, itemId, titleKeyOf);
   store.save();
+};
+
+// The ✕ on an episode's card takes its WHOLE series off Continue Watching
+// (one card per series — without this an older episode of it took the
+// card's place): stamped now, read by media/continuerow.js, which shows the
+// series again once something of it is watched after the stamp. Bounded.
+const CW_HIDDEN_MAX = 200;
+const hideSeries = (state, itemId, now = Date.now()) => {
+  let key = null;
+  try {
+    const cr = continueRowLib();
+    const ser = cr.seriesFor(itemId, continueDeps(state));
+    key = ser ? cr.hiddenKey(ser) : null;
+  } catch { key = null; }
+  if (!key) return;
+  if (!state.cwHidden) state.cwHidden = {};
+  state.cwHidden[key] = now;
+  const keys = Object.keys(state.cwHidden);
+  if (keys.length > CW_HIDDEN_MAX) {
+    keys.sort((a, b) => state.cwHidden[a] - state.cwHidden[b]);
+    for (const k of keys.slice(0, keys.length - CW_HIDDEN_MAX)) delete state.cwHidden[k];
+  }
 };
 
 // Removing a title from Continue Watching deletes its history — and with it
@@ -1927,5 +1954,5 @@ module.exports = {
   issueToken,
   // Test-only: the pure halves of the watchlist identity work, plus the
   // store handle + norms so auth tests can run on a stubbed store.
-  _internals: { journal: () => journal, isPlaybackTick, moveGhostStates, entryKey, sameIdentity, materializeWatchlist, foldTitles, materializeProgress, clearTitle, markTitle, restoreTitle, rewatchCount, noteDismissed, store, normUsername, normEmail, validEmail, hashPassword, verifyHash, noteSearch, dropSearch },
+  _internals: { journal: () => journal, continueDeps, hideSeries, isPlaybackTick, moveGhostStates, entryKey, sameIdentity, materializeWatchlist, foldTitles, materializeProgress, clearTitle, markTitle, restoreTitle, rewatchCount, noteDismissed, store, normUsername, normEmail, validEmail, hashPassword, verifyHash, noteSearch, dropSearch },
 };
