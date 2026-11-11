@@ -201,9 +201,11 @@ function Top({c, api}: {c: Ctx; api: ChapterApi}) {
 function Podium({c, api}: {c: Ctx; api: ChapterApi}) {
   const p = S.podium(c);
   const still = api.still;
+  // (a short phone: the pedestals and the posters come down with the height that is left)
+  const k = Math.max(0.6, Math.min(1, api.height / 720));
   const colW = Math.min(118, Math.floor((api.width - 24) / 3));
-  const pw = (rank: number) => (rank === 1 ? Math.round(colW * 0.92) : Math.round(colW * 0.8));
-  const blockH = (rank: number) => (rank === 1 ? 150 : rank === 2 ? 104 : 78);
+  const pw = (rank: number) => Math.round((rank === 1 ? colW * 0.92 : colW * 0.8) * k);
+  const blockH = (rank: number) => Math.round((rank === 1 ? 150 : rank === 2 ? 104 : 78) * k);
   const drop = (rank: number) => (rank === 1 ? 2100 : rank === 2 ? 1300 : 700);
   return (
     <View style={cs.center}>
