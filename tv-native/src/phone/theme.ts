@@ -71,7 +71,7 @@ export const E = {
   /** the tab bar: the same navy, fuller — it floats over whatever scrolls under it,
    *  words included (a shelf's name, a poster's fallback title), and at 58 % those
    *  read sharp through "Home · Movies" with no blur to soften them (Pixel 9, 1.1.3) */
-  bar: 'rgba(10,8,34,0.72)',
+  bar: 'rgba(10,8,34,0.86)',
   /** the player's menu: words in lines over a moving frame — near-solid (0.88 showed the frame's shapes sharp between the lines on the Pixel 9) */
   thick: 'rgba(4,4,10,0.94)',
 } as const;
