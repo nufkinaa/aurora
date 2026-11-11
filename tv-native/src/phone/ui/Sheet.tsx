@@ -4,7 +4,7 @@
 import React, {useEffect, useRef} from 'react';
 import {Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {colors, GUTTER, radius} from '../theme';
+import {colors, E, G_EDGE_THICK, G_FILL, GUTTER, radius} from '../theme';
 
 export default function Sheet({
   visible,
@@ -66,12 +66,14 @@ const s = StyleSheet.create({
   sheet: {
     position: 'absolute',
     bottom: 0,
-    backgroundColor: '#141629',
-    experimental_backgroundImage: 'linear-gradient(180deg, #1b1d36 0%, #121327 100%)',
+    // glass E's sheet: a near-black body that lets a little of the dimmed page through
+    // (the website frosts it 10 px; with no frost the body is fuller, so no sharp word
+    // behind shows between the lines), the strong edge, the light line brighter on top
+    backgroundColor: E.sheet,
+    experimental_backgroundImage: G_FILL,
     borderTopLeftRadius: radius.xl + 6,
     borderTopRightRadius: radius.xl + 6,
-    borderWidth: 1,
-    borderColor: colors.glassEdge,
+    ...G_EDGE_THICK,
     borderBottomWidth: 0,
     paddingTop: 10,
   },

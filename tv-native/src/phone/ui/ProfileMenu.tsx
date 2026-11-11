@@ -11,7 +11,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {closeProfileMenu, useProfileMenu} from '../profileMenu';
 import {useBarTop} from './TopBar';
 import Tap from './Tap';
-import {colors, G_EDGE, G_FILL, GUTTER} from '../theme';
+import {colors, E, G_EDGE_MENU, G_FILL, GUTTER} from '../theme';
 
 export default function ProfileMenu() {
   const {shown, name, items} = useProfileMenu();
@@ -76,11 +76,13 @@ const s = StyleSheet.create({
     right: GUTTER + 2,
     padding: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(14,16,30,0.94)',
+    // glass E's menu (--g-fill-menu, --g-edge-menu, --g-shadow-menu): the body fuller
+    // than the website's, which frosts what is behind (a menu's lines sit right over
+    // the page); the depth is a shadow around the shape, not Android's elevation,
+    // which shows through a see-through body
+    backgroundColor: E.thick,
     experimental_backgroundImage: G_FILL,
-    ...G_EDGE,
-    elevation: 16,
-    shadowColor: '#000',
+    ...G_EDGE_MENU,
   },
   head: {paddingTop: 8, paddingHorizontal: 12, paddingBottom: 10, marginBottom: 6, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)'},
   name: {color: colors.text, fontSize: 16, fontWeight: '800', lineHeight: 24},

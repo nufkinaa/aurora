@@ -170,6 +170,7 @@ import {isPhone} from '../formFactor';
 import PhoneChrome from '../phone/player/PhoneChrome';
 import PhoneGestures from '../phone/player/PhoneGestures';
 import {onPipChange, phoneNative} from '../phone/native';
+import {E as PHONE_GLASS, G_EDGE_THICK as PHONE_EDGE, G_FILL as PHONE_SHEEN} from '../phone/theme';
 import {menuMaxHeight} from '../popupFit';
 import {refreshTuning, tuning, TUNING_DEFAULTS} from './tuning';
 import {againStep, CARD_RETRY_MS, REFUSED_UNDER_S, spotOf, StopKind, stopWords, watchNew, watchReset, watchTick} from './recovery';
@@ -6333,17 +6334,25 @@ const styles = StyleSheet.create({
     // aurora's green from the foot, over a near-opaque navy.
     // fully opaque: at 0.97 a bright cue under the sheet still read through it
     // ("Knox! Sto|p!" — Mi TV, 2026-11-10)
-    backgroundColor: 'rgb(16,15,30)',
-    experimental_backgroundImage:
-      'linear-gradient(140deg, rgba(104,86,226,0.30) 0%, rgba(16,15,30,0) 48%, rgba(70,200,150,0.20) 100%)',
     borderRadius: radius.l,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
     minWidth: 280,
     maxWidth: 400,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-    borderTopColor: 'rgba(255,255,255,0.20)',
+    ...(PHONE
+      ? // [android-phone] glass E ("Clear", the phone website's menu at phone sizes: no
+        // hue there): a near-black body — fuller than the website's, which frosts the
+        // frame behind, so a bright cue under it is not a sharp word between the
+        // lines — and the strong edge. No blurred depth over moving video.
+        {backgroundColor: PHONE_GLASS.thick, experimental_backgroundImage: PHONE_SHEEN, ...PHONE_EDGE}
+      : {
+          backgroundColor: 'rgb(16,15,30)',
+          experimental_backgroundImage:
+            'linear-gradient(140deg, rgba(104,86,226,0.30) 0%, rgba(16,15,30,0) 48%, rgba(70,200,150,0.20) 100%)',
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.10)',
+          borderTopColor: 'rgba(255,255,255,0.20)',
+        }),
   },
   menuScroll: {flexGrow: 0},
   menuTitleRow: {flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.sm, marginLeft: 12},
