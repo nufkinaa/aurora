@@ -46,7 +46,7 @@ export const FEATURES: Feature[] = [
     since: ROUND,
     glyph: '🔎',
     title: "Film or series, at a glance in search",
-    what: "On the TV and in the phone app, every result and every suggestion in search now carries a small sign: a gold film strip for a film, a blue screen for a series. A show's page on the TV also lists its genres, as a film's page always did.",
+    what: "On the website, the TV and the phone app, every result and every suggestion in search now carries a small sign: a gold film strip for a film, a blue screen for a series. A show's page on the TV also lists its genres, as a film's page always did.",
     how: "Search → type a few letters.",
     go: {label: 'Search', act: 'search'},
   },

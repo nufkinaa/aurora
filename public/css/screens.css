@@ -1298,6 +1298,73 @@ html[data-look="glass"] .screen.taste-swipe > * { animation-fill-mode: backwards
 .suggest-genre .suggest-icon {
   border-radius: 8px;
 }
+/* Film or series, in search only (elia, 2026-11-11: the icon alone — option A
+   of docs/qa/search-icons/options). A title's suggestion row: the results'
+   corner-tag glyph in its hue after the year; the word is there for a screen
+   reader only. */
+.suggest-kind {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -2px;
+}
+/* (after the year) */
+.suggest-kind.after {
+  margin-left: 7px;
+}
+.suggest-kind-icon {
+  display: inline-grid;
+}
+.suggest-kind-icon svg {
+  width: 14px;
+  height: 14px;
+}
+.suggest-kind.film .suggest-kind-icon {
+  color: var(--kind-film);
+}
+.suggest-kind.series .suggest-kind-icon {
+  color: var(--kind-series);
+}
+.suggest-kind-word {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* the result cards' corner tag (components.js card showKind): the icon alone
+   in its dark disc, at every size and in both looks (Home's mixed rows keep
+   the word on wide screens) */
+html:root .screen .search-grid .card-tag.kind {
+  padding: 5px;
+}
+html:root .screen .search-grid .card-tag.kind svg {
+  width: 13px;
+  height: 13px;
+}
+.search-grid .card-tag.kind span[data-t] {
+  display: none;
+}
+@media (max-width: 720px) {
+  html:root .screen .search-grid .card-tag.kind {
+    padding: 4px;
+  }
+  html:root .screen .search-grid .card-tag.kind svg {
+    width: 11px;
+    height: 11px;
+  }
+}
+/* a 320 phone: the classic look's NEW pill reached the disc (1 px apart) */
+@media (max-width: 360px) {
+  html:root .screen .search-grid .card-tag.kind {
+    right: 6px;
+    padding: 3px;
+  }
+  html:root .screen .search-grid .card-tag.kind svg {
+    width: 10px;
+    height: 10px;
+  }
+}
 
 /* a recent search: the chip that runs it, and a small ✕ that forgets it */
 .recent-chip {
@@ -6340,3 +6407,49 @@ html:root .device-job[data-state="paused"] .dl-bar-fill { background: rgba(245, 
 /* (a way in, not a footnote: it does not take the faint colour of its line) */
 html:root .device-summary .dl-open-device { color: var(--text); }
 /* ==== end offline-look (choices, paused, waiting) ==== */
+
+/* ==== offline-choose: "Choose episodes" (js/offlineChoose.js, elia 2026-11-11) ====
+   A sheet with the season's episodes, a tick box each; saved ones wear the mint
+   mark and cannot be ticked; ones not on the server yet say they save when they
+   arrive. The size row, the running total, the room, one Save button. */
+html:root .choose-sheet { width: min(560px, 100%); max-width: 560px; text-align: left; }
+.choose-sheet .look-notice-title { text-align: left; }
+.choose-seasons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+html:root .offline-sheet .chip.choose-season.on::before { display: none; }
+.choose-season-n { color: #6ee7b7; font-weight: 800; }
+.choose-season-only { font-weight: 800; color: var(--text-dim); }
+.choose-tools { display: flex; gap: 8px; margin-top: 10px; }
+.choose-list { display: grid; gap: 6px; margin-top: 10px; }
+.choose-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px;
+  padding: 9px 12px; border-radius: 14px; text-align: left; color: var(--text);
+  background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+button.choose-row:hover, button.choose-row:focus-visible { background: rgba(255, 255, 255, 0.11); box-shadow: var(--focus-ring); }
+.choose-row.on { background: rgba(110, 231, 183, 0.1); box-shadow: inset 0 0 0 1.5px rgba(110, 231, 183, 0.6); }
+.choose-row.fixed { opacity: 0.86; }
+.choose-box {
+  flex: none; width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center;
+  box-shadow: inset 0 0 0 1.6px rgba(255, 255, 255, 0.5); color: #0b0c14; font-weight: 900; font-size: 0.86rem;
+}
+.choose-row.on .choose-box { background: #6ee7b7; box-shadow: none; }
+.choose-box-slot { flex: none; width: 22px; display: grid; place-items: center; }
+.choose-box-slot .dev-mark { --dm: 20px; }
+.choose-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.choose-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.choose-name b { color: var(--text-dim); font-weight: 800; margin-right: 2px; }
+.choose-meta { font-size: 0.8rem; color: var(--text-faint); }
+.choose-what { font-size: 0.8rem; font-weight: 700; }
+.choose-what.st-saved, .choose-what.st-saving { color: #6ee7b7; }
+.choose-what.st-later, .choose-what.st-wished { color: #f5c542; }
+.choose-sizes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+.choose-sizes-label { flex: 1 0 100%; font-weight: 800; margin-bottom: -2px; }
+.choose-total { margin: 14px 0 0; font-weight: 800; }
+.choose-room { margin: 4px 0 0; font-size: 0.86rem; color: var(--text-dim); }
+.choose-room:empty { display: none; }
+.choose-room.tight { color: #ff7a7a; }
+.choose-sheet .choose-save:disabled { opacity: 0.5; }
+@media (max-width: 600px) {
+  .choose-row, .choose-sheet .chip, .choose-tools .btn { min-height: 44px; }
+}
+/* ==== /offline-choose ==== */

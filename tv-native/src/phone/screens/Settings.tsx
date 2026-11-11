@@ -34,7 +34,7 @@ import Icon from '../ui/Icon';
 import {useTabBarSpace} from '../ui/TabBar';
 import {resetTabs} from '../tabs';
 import {listVolumes, OFFLINE_QUALITIES, offlinePrefs, OfflinePrefs, setOfflinePrefs, useOfflineUsage} from '../offline/store';
-import {currentVolume, hasChoice, KEEP_NEXT, LIMIT_CHOICES, limitLabel, Volume, volumeName} from '../offline/storage';
+import {currentVolume, hasChoice, Volume, volumeName} from '../offline/storage';
 import {colors, GUTTER} from '../theme';
 
 import {checkNow, running} from '../update/store';
@@ -60,7 +60,8 @@ const Section = ({icon, title, sub, children}: {icon: React.ComponentProps<typeo
 const Toggle = ({value, onChange, disabled}: {value: boolean; onChange: (v: boolean) => void; disabled?: boolean}) => (
   <Switch value={value} onValueChange={onChange} disabled={disabled} trackColor={{false: 'rgba(255,255,255,0.22)', true: colors.accentStrong}} thumbColor={value ? '#fff' : '#d8dae4'} />
 );
-const Value = ({text}: {text: string}) => <Text style={s.value}>{text}</Text>;
+// (a long value — a card's name in "Save to" — wraps in its own room, never squeezing the row's title)
+const Value = ({text}: {text: string}) => <Text style={s.value} numberOfLines={2}>{text}</Text>;
 
 function HouseholdPrefs({profileId, onSent}: {profileId: string; onSent: () => void}) {
   const [st, setSt] = useState<HouseholdSettings | null>(null);
@@ -147,12 +148,6 @@ export default function Settings() {
           tag: `${gb(v.free)} free of ${gb(v.total)}`,
           onPress: () => setOff({volume: v.primary ? null : v.path}),
         })),
-    });
-  const pickLimit = () =>
-    openActions({
-      title: 'Space limit',
-      sub: 'The most saved copies may take on this phone. When it is full, Aurora offers to remove the oldest one you have watched.',
-      items: LIMIT_CHOICES.map(g => ({label: `${limitLabel(g)}${offline.limitGb === g ? '  ✓' : ''}`, onPress: () => setOff({limitGb: g})})),
     });
   const genreGroups = useRef(new Map<string, string[]>());
 
@@ -260,11 +255,11 @@ export default function Settings() {
         </Section>
 
         <Section icon="play" title="Playback">
-          <ListRow uiId="settings.autoplay" title="Autoplay next episode" detail="Start the next episode automatically when one finishes." right={<Toggle value={!!prefs.autoplayNext} onChange={v => set('autoplayNext', v)} />} />
+          <ListRow uiId="settings.autoplay" title="Autoplay next episode" detail="Start the next episode automatically when one finishes." right={<Toggle value={!!prefs.autoplayNext} onChange={v => set('autoplayNext', v)} />} onPress={() => set('autoplayNext', !(!!prefs.autoplayNext))} />
         </Section>
 
         <Section icon="cc" title="Subtitles">
-          <ListRow uiId="settings.subs.auto" title="Turn subtitles on automatically" detail="When a title offers subtitles, switch one on without asking." right={<Toggle value={!!prefs.subsDefault} onChange={v => set('subsDefault', v)} />} />
+          <ListRow uiId="settings.subs.auto" title="Turn subtitles on automatically" detail="When a title offers subtitles, switch one on without asking." right={<Toggle value={!!prefs.subsDefault} onChange={v => set('subsDefault', v)} />} onPress={() => set('subsDefault', !(!!prefs.subsDefault))} />
           <ListRow uiId="settings.subs.lang" title="Preferred subtitle language" detail="The language to pick. If a title doesn't have it, Aurora goes and gets it." right={<Value text={SUB_LANG_LABEL[prefs.subLang] || SUB_LANG_LABEL.any} />} onPress={() => cycle('subLang', SUB_LANGS)} />
           <View style={s.preview}>
             <SubStylePreview style={subStyle} sizePx={{S: 16, M: 20, L: 24, XL: 28}[subStyle.subSize]} />
@@ -288,12 +283,12 @@ export default function Settings() {
 
         {me?.kids ? null : (
           <Section icon="download" title="Downloads">
-            <ListRow title="Get the next episode ready" detail="While you watch, Aurora fetches the next episode so it starts at once." right={<Toggle value={!!prefs.smartDownloads} onChange={v => set('smartDownloads', v)} />} />
-            <ListRow title="Tidy up after watching" detail="Episodes Aurora fetched for you are removed once you've watched them. Nothing you saved yourself is touched." right={<Toggle value={!!prefs.smartCleanup} onChange={v => set('smartCleanup', v)} />} />
+            <ListRow title="Get the next episode ready" detail="While you watch, Aurora fetches the next episode so it starts at once." right={<Toggle value={!!prefs.smartDownloads} onChange={v => set('smartDownloads', v)} />} onPress={() => set('smartDownloads', !(!!prefs.smartDownloads))} />
+            <ListRow title="Tidy up after watching" detail="Episodes Aurora fetched for you are removed once you've watched them. Nothing you saved yourself is touched." right={<Toggle value={!!prefs.smartCleanup} onChange={v => set('smartCleanup', v)} />} onPress={() => set('smartCleanup', !(!!prefs.smartCleanup))} />
           </Section>
         )}
 
-        <Section icon="downloadDevice" title="Saved on this phone" sub={usage.count ? `${usage.count} saved · ${gb(usage.bytes)} used · ${gb(usage.free)} free` : 'Nothing saved yet'}>
+        <Section icon="downloadDevice" title="Saved on this device" sub={usage.count ? `${usage.count} saved · ${gb(usage.bytes)} used · ${gb(usage.free)} free` : 'Nothing saved yet'}>
           <ListRow
             title="Quality"
             detail="What a film or an episode is saved at. Ask: choose each time, with the sizes."
@@ -317,29 +312,20 @@ export default function Settings() {
               onPress={pickVolume}
             />
           ) : null}
+          {/* (no space limit and no tidy-up any more: nothing leaves this device by itself, and
+              there is no cap — elia, 2026-11-10/11. Remove watched on On this device is one press, with Undo.) */}
           <ListRow
-            uiId="phone.settings.limit"
-            title="Space limit"
-            detail={offline.limitGb > 0 ? `${gb(usage.bytes)} of ${offline.limitGb} GB used. When it is full, Aurora offers to remove the oldest copy you've watched.` : 'Use as much as there is free. Or set the most saved copies may take.'}
-            right={<Value text={limitLabel(offline.limitGb)} />}
-            onPress={pickLimit}
-          />
-          <ListRow
-            title="Tidy up this phone after watching"
-            detail="A saved episode leaves this phone a day after you finish it. Films stay."
-            right={<Toggle value={offline.tidyAfter} onChange={v => setOff({tidyAfter: v})} />}
-          />
-          <ListRow
-            title="Keep the next episodes on this phone"
-            detail={`While you watch a show, its next ${KEEP_NEXT} episodes are saved on this phone. On Wi-Fi only, never mobile data.`}
+            uiId="saved.smartnext"
+            title="Keep the next episode ready"
+            detail="When you finish a saved episode, the next one saves itself. Nothing is removed."
             right={<Toggle value={offline.keepNext} onChange={v => setOff({keepNext: v})} />}
           />
-          <ListRow uiId="phone.settings.saved" icon="storage" title="On this phone" detail="Play, or remove, what is saved here." chevron onPress={() => navigation.push('Downloads', undefined)} />
+          <ListRow uiId="phone.settings.saved" icon="storage" title="On this device" detail="Play, or remove, what is saved here." chevron onPress={() => navigation.push('Downloads', undefined)} />
         </Section>
 
         <Section icon="bell" title="Notifications">
           {/* the person's (follows them to the website and the TV) */}
-          <ListRow uiId="settings.ready" title={READY_LABEL} detail={READY_NOTE} right={<Toggle value={prefs.readyNotice !== false} onChange={v => set('readyNotice', v)} />} />
+          <ListRow uiId="settings.ready" title={READY_LABEL} detail={READY_NOTE} right={<Toggle value={prefs.readyNotice !== false} onChange={v => set('readyNotice', v)} />} onPress={() => set('readyNotice', !(prefs.readyNotice !== false))} />
           <ListRow
             title="Tell me when a download lands"
             detail={notifyNote || 'When something you asked for or follow has downloaded, this phone says so.'}
@@ -366,7 +352,7 @@ export default function Settings() {
           <ListRow uiId="settings.usagestats"
             title="Usage stats"
             detail="Which screens and features get used, and how long they took — to your own server only, never anything typed. Off here is off for you on every device."
-            right={<Toggle value={prefs.usageStats !== false} onChange={v => set('usageStats', v)} />}
+            right={<Toggle value={prefs.usageStats !== false} onChange={v => set('usageStats', v)} />} onPress={() => set('usageStats', !(prefs.usageStats !== false))}
           />
         </Section>
 
@@ -414,7 +400,7 @@ const s = StyleSheet.create({
   h2: {color: colors.text, fontSize: 17.6, fontWeight: '800', letterSpacing: -0.18, lineHeight: 26.4},
   headSub: {color: colors.textDim, fontSize: 14.4, marginTop: 4, lineHeight: 21.6},
   note: {color: colors.textDim, fontSize: 14.4, lineHeight: 21.6, paddingHorizontal: 20, marginTop: 4},
-  value: {color: colors.textDim, fontSize: 14.4, fontWeight: '700'},
+  value: {color: colors.textDim, fontSize: 14.4, fontWeight: '700', maxWidth: '42%', textAlign: 'right'},
   chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 20, paddingVertical: 10},
   preview: {marginHorizontal: 20, marginVertical: 8},
   // .pref-profile: a 56 dp avatar, the name 16.8/800, "No password set" 13.44

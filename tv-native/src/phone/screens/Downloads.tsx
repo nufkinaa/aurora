@@ -1,11 +1,15 @@
 // Downloads on the phone — two lists, the website's two pages in one:
 //
-//   On this phone   the copies saved here (play them with no server at all),
-//                   the ones on their way (preparing on the server, saving,
-//                   waiting for Wi-Fi) with Cancel, and the ones that failed
+//   On this device  the website's place (offline/Place.tsx, docs/offline-look.md): what is
+//                   being saved here (Pause / Resume / Cancel / Retry), what this device waits
+//                   for that the server does not have yet (a wish: Cancel / Dismiss), the copies
+//                   saved here (play them with no server at all; Remove with Undo), and the
+//                   "Keep the next episode ready" switch
 //   My downloads    what you asked the SERVER to fetch — ready to play, on its
 //                   way, waiting on an admin, didn't make it — then what the
-//                   rest of the house has moving. Live over the socket.
+//                   rest of the house has moving. Live over the socket. A row on
+//                   its way offers "This device too" (saved here by itself when it
+//                   lands); a ready one "Save to this device".
 //
 // A server row's actions are the TV's and the site's (downloadsLogic.ts); its
 // words are shared with the TV page (downloadsWords.ts).
@@ -27,13 +31,20 @@ import {useTabBarSpace} from '../ui/TabBar';
 import Tap from '../ui/Tap';
 import Icon from '../ui/Icon';
 import {artSrc, Bar} from '../ui/Cards';
-import {cancelOffline, removeOffline, Saved, useOffline, useOfflineUsage} from '../offline/store';
-import {ACTIVE_STATES, fmtSize, stateLine} from '../offline/rules';
+import {offlineAvailable, saveOffline, useOffline, useOfflineUsage} from '../offline/store';
+import {markOf, MOVING_STATES, PLACE} from '../offline/rules';
+import {chooseQuality} from '../offline/choose';
+import {useWishes} from '../offline/wishes';
+import {toggleWish} from '../offline/wishAsk';
+import {wishFor, wishOn} from '../offline/wishRules';
+import {useNoConnection} from '../offline/reach';
+import Mark from '../offline/Mark';
+import {EmptyPlace, JobRow, NoServerLine, RoomBlock, s as place, SavedTitles, SmartNextFoot, useLanded, WishRow} from '../offline/Place';
 import {colors, GUTTER, radius} from '../theme';
 
 const LABEL: Record<DownloadAction, string> = {play: 'Play', title: 'Title page', retry: 'Try again', another: 'Pick another version', remove: 'Remove from this list', confirmCancel: 'Cancel'};
 
-function Row({pic, title, line, sub, pct, right, onPress, onLongPress, tone}: {pic?: string | null; title: string; line: string; sub?: string | null; pct?: number | null; right?: React.ReactNode; onPress?: () => void; onLongPress?: () => void; tone?: 'ok' | 'warn' | 'live'}) {
+function Row({pic, title, line, sub, pct, right, below, onPress, onLongPress, tone}: {pic?: string | null; title: string; line: string; sub?: string | null; pct?: number | null; right?: React.ReactNode; below?: React.ReactNode; onPress?: () => void; onLongPress?: () => void; tone?: 'ok' | 'warn' | 'live'}) {
   const src = pic ? artSrc(pic, 60).src : null;
   return (
     <Tap uiId="downloads.row" flat onPress={onPress} onLongPress={onLongPress} disabled={!onPress && !onLongPress} style={s.row} accessibilityRole="button" accessibilityLabel={`${title}, ${line}`}>
@@ -47,6 +58,7 @@ function Row({pic, title, line, sub, pct, right, onPress, onLongPress, tone}: {p
         </Text>
         {sub ? <Text style={s.sub}>{sub}</Text> : null}
         {pct != null ? <Bar f={pct} bead={false} style={{marginTop: 8}} /> : null}
+        {below}
       </View>
       {right}
     </Tap>
@@ -73,6 +85,9 @@ export default function Downloads() {
   const bottom = useTabBarSpace();
   const phone = useOffline();
   const usage = useOfflineUsage();
+  const wishes = useWishes();
+  const noLink = useNoConnection();
+  const landed = useLanded();
   const [jobs, setJobs] = useState<Map<string, MyDownload> | null>(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -202,43 +217,71 @@ export default function Downloads() {
         onPress={acts.press ? () => (acts.press === 'menu' ? menu(j, acts.all) : run(acts.press as DownloadAction, j)) : undefined}
         onLongPress={acts.all.length ? () => menu(j, acts.all) : undefined}
         right={acts.label ? <Text style={s.act}>{acts.label.replace('▶  ', '')}</Text> : null}
+        below={own ? deviceButton(j) : null}
       />
     );
   };
 
-  // ---- a phone copy's actions ----
-  const phoneRow = (c: Saved) => {
-    const active = ACTIVE_STATES.includes(c.state);
-    const name = c.showTitle && c.season != null ? `${c.showTitle} · S${c.season} E${c.episode}` : c.title;
-    return (
-      <Row
-        key={`p-${c.id}`}
-        pic={c.cover}
-        title={name}
-        line={stateLine(c)}
-        sub={c.state === 'done' ? c.quality === 'original' ? 'Original quality' : `${c.quality}p` : null}
-        pct={active ? c.pct : null}
-        tone={c.state === 'done' ? 'ok' : c.state === 'failed' ? 'warn' : 'live'}
-        onPress={() => {
-          if (c.state === 'done') pushPhone('OfflinePlayer', {id: c.id});
-          else if (active) openActions({title: name, sub: stateLine(c), items: [{label: 'Cancel', danger: true, onPress: () => cancelOffline(c.id)}]});
-          else openActions({title: name, sub: stateLine(c), items: [{label: 'Remove', danger: true, onPress: () => removeOffline(c.id)}]});
-        }}
-        onLongPress={() =>
-          openActions({
-            title: name,
-            sub: stateLine(c),
-            items: [
-              ...(c.state === 'done' ? [{label: 'Play', onPress: () => pushPhone('OfflinePlayer', {id: c.id})}] : []),
-              {label: active ? 'Cancel' : 'Remove from this phone', danger: true, onPress: () => (active ? cancelOffline(c.id) : removeOffline(c.id))},
-            ],
-          })
-        }
-        right={c.state === 'done' ? <Icon name="play" size={22} color={colors.text} /> : active ? <Text style={s.act}>Cancel</Text> : null}
-      />
-    );
+  // ---- onto THIS device (the website's My downloads buttons) ----
+  // On its way: "This device too" — saved here by itself once it lands (a wish). Ready:
+  // "Save to this device" — the same save as the title page's.
+  const wishTarget = (j: MyDownload) => ({
+    type: j.type === 'show' ? ('show' as const) : ('movie' as const),
+    imdbId: j.imdbId || '',
+    jobId: j.id,
+    season: j.type === 'show' ? j.season ?? null : null,
+    episode: j.type === 'show' ? j.episode ?? null : null,
+    title: j.label || j.title || null,
+    showTitle: j.type === 'show' ? j.title || null : null,
+    poster: j.poster || null,
+  });
+  const deviceButton = (j: MyDownload) => {
+    if (!offlineAvailable() || !j.mine) return null;
+    const live = ['pending', 'approved', 'downloading'].includes(j.status);
+    if (live && j.imdbId) {
+      const t = wishTarget(j);
+      const on = wishOn(wishFor(wishes, t));
+      return (
+        <Tap uiId="downloads.offline.wish" onPress={() => toggleWish(t, j.label || j.title || '')} style={[s.dev, on && s.devOn]} accessibilityRole="button" accessibilityState={{selected: on}} accessibilityLabel={on ? 'It will be saved on this device when it arrives — press to stop that' : 'Save it on this device as soon as it arrives'}>
+          <Mark state={on ? 'waiting' : 'none'} size={18} />
+          <Text style={s.devText}>{on ? 'Will be saved here' : 'This device too'}</Text>
+        </Tap>
+      );
+    }
+    if (isReady(j) && j.libraryId) {
+      const c = phone.find(x => x.id === j.libraryId);
+      const here = c?.state === 'done';
+      return (
+        <Tap
+          uiId="downloads.offline.save"
+          onPress={async () => {
+            if (c && (here || MOVING_STATES.includes(c.state))) return;
+            try {
+              const item = await api.item(j.libraryId!, profileId);
+              await saveOffline(
+                {id: item.id, title: item.title, showId: item.showId || null, showTitle: item.showTitle || null, season: item.season ?? null, episode: item.episode ?? null, year: item.year ?? null, cover: item.cover || item.poster || j.poster || null, duration: item.duration, subtitles: (item.subtitles || []).filter(t => !!t.url).map(t => ({label: t.label, lang: t.lang, url: t.url as string})), originalLanguage: item.originalLanguage || null},
+                chooseQuality(j.label || j.title || item.title),
+              );
+            } catch (e) {
+              showToast(`Didn't save — ${(e as Error)?.message || 'try again'}`, '⚠️');
+            }
+          }}
+          style={[s.dev, here && s.devOn]}
+          accessibilityRole="button"
+          accessibilityLabel={here ? 'Saved on this device' : 'Save to this device'}>
+          <Mark state={markOf(c)} pct={c?.pct || 0} size={18} />
+          <Text style={s.devText}>{here ? 'On this device' : c && MOVING_STATES.includes(c.state) ? 'Saving…' : 'Save to this device'}</Text>
+        </Tap>
+      );
+    }
+    return null;
   };
 
+  // this device: saves on their way (and the ones that need you), what it waits for, what is here
+  const jobsHere = phone.filter(c => MOVING_STATES.includes(c.state) || c.state === 'failed').sort((a, b) => a.at - b.at);
+  // (a ready wish whose copy is already on its way here shows as that save's row instead)
+  const waitingWishes = wishes.filter(w => !(w.state === 'ready' && w.libraryId && phone.some(c => c.id === w.libraryId)));
+  const savedHere = phone.filter(c => c.state === 'done');
   const ready = mine.filter(isReady).sort((a, b) => (a.seenAt ? 1 : 0) - (b.seenAt ? 1 : 0));
   const moving = mine.filter(j => ACTIVE.includes(j.status) || (j.status === 'done' && !isReady(j)));
   const waiting = mine.filter(j => j.status === 'pending');
@@ -264,9 +307,30 @@ export default function Downloads() {
           />
         }>
         <Text style={s.h1}>Downloads</Text>
-        <Text style={s.h2}>On this phone</Text>
-        <Text style={s.hint}>{usage.count ? `${usage.count} saved · ${fmtSize(usage.bytes)} · ${fmtSize(usage.free)} free` : 'Save a film or an episode from its page to watch it with no connection.'}</Text>
-        {phone.map(phoneRow)}
+        <View style={s.placeHead}>
+          <Icon name="downloadDevice" size={22} color={colors.text} />
+          <Text style={[s.h2, {marginTop: 0, paddingHorizontal: 0}]}>{PLACE}</Text>
+        </View>
+        <Text style={s.hint}>Plays right here — even with no connection</Text>
+        {noLink ? <NoServerLine onRetry={load} /> : null}
+        {jobsHere.length ? <Text style={place.h3}>Saving now</Text> : null}
+        {jobsHere.map(c => (
+          <JobRow key={`j-${c.id}`} c={c} />
+        ))}
+        {waitingWishes.length ? <Text style={place.h3}>Waiting for the server's copy</Text> : null}
+        {waitingWishes.map(w => (
+          <WishRow key={`w-${w.id}`} w={w} />
+        ))}
+        {savedHere.length ? (
+          <>
+            <Text style={place.h3}>{`Saved for offline · ${savedHere.length}`}</Text>
+            <RoomBlock copies={phone} free={usage.free} profileId={profileId} />
+            <SavedTitles copies={savedHere} onPlay={c => pushPhone('OfflinePlayer', {id: c.id})} landed={landed} />
+          </>
+        ) : (
+          <EmptyPlace free={usage.free} moving={jobsHere.length > 0 || waitingWishes.length > 0} />
+        )}
+        <SmartNextFoot copies={phone} />
 
         <Text style={s.h2} onLayout={e => onServerHead(e.nativeEvent.layout.y)}>
           My downloads
@@ -306,4 +370,9 @@ const s = StyleSheet.create({
   line: {color: colors.textDim, fontSize: 13, marginTop: 3},
   sub: {color: colors.textFaint, fontSize: 12, marginTop: 2},
   act: {color: colors.accent, fontSize: 14, fontWeight: '800'},
+  placeHead: {flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: GUTTER, marginTop: 22},
+  // the device button on a server row (My downloads): the mark and its words
+  dev: {flexDirection: 'row', alignSelf: 'flex-start', alignItems: 'center', gap: 8, minHeight: 44, marginTop: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.glassStrong, borderWidth: 1, borderColor: colors.glassEdge},
+  devOn: {backgroundColor: 'rgba(110,231,183,0.12)', borderColor: 'rgba(110,231,183,0.45)'},
+  devText: {color: colors.text, fontSize: 14, fontWeight: '800'},
 });

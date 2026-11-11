@@ -37,6 +37,9 @@ const PROFILE: Record<string, string[]> = {
   'phone/tabs.ts': ['current'],
   // [android-phone] the profile's TVs, as the remote sees them
   'phone/remote/controller.ts': ['devices', 'household', 'watchId'],
+  // [offline-phone] this device's wishes for the profile, which profile they are read for, and
+  // the read in flight (an answer for the last profile is dropped: `gen`)
+  'phone/offline/wishes.ts': ['wishes', 'subs', 'armed', 'gen', 'busy', 'syncing'],
   // [phone-nav] AI pick: whether this profile has the recommender, and its last answer
   'phone/aiStatus.ts': ['known', 'asking'],
   // [calendar-grid] the day picked on the month: Back from a title lands on it, the next profile starts fresh
@@ -66,17 +69,24 @@ const DEVICE: Record<string, Record<string, string>> = {
     items: 'the copies saved on this phone — each tagged with its profile, and a profile is shown only its own',
     loaded: 'a flag: the list has been read from storage',
     subs: 'listeners',
-    prefs: 'this phone’s saving choices (quality, Wi-Fi only, where, the space limit, tidy-up, keep-next)',
+    prefs: 'this phone’s saving choices (quality, Wi-Fi only, where, keep the next episode ready)',
     ticker: 'a timer (DownloadManager progress)',
     hevc: 'what this phone decodes',
     space: 'this phone’s free space',
     playedChain: 'one write at a time to the queue of offline watch time (each entry is tagged with its profile)',
     flushingPlayed: 'a flag: the queue is being sent',
-    playing: 'the saved copy on screen now (never tidied away under the person)',
-    tidying: 'a flag: a tidy-up pass is running (it works over every profile’s copies, each tagged with its profile)',
-    tidyTimer: 'a timer (the hourly tidy-up)',
+    playing: 'the saved copy on screen now',
+    driving: 'the saves this run is taking forward (each keyed by its profile and title)',
+    removing: 'copies the person removed, held 6 s for Undo (each keyed by its profile and title)',
+    prefSubs: 'listeners',
+    landSubs: 'listeners',
+    likedAudio: "the app's one handler (reads the profile's own sound language when asked)",
+    carrying: 'a flag: a carry-on pass is running',
   },
-  'phone/offline/keepNext.ts': {busy: 'shows being looked at this moment (one pass per show at a time)'},
+  'phone/offline/reach.ts': {pillShown: 'whether the No connection line is on screen (the screen’s)', pillSubs: 'listeners (the toasts)'},
+  'phone/offline/smartNext.ts': {checking: 'a flag: a look is running (it reads the active profile when it runs)'},
+  'phone/offline/ChooseSheet.tsx': {current: 'the Choose episodes sheet that is up (the screen’s; one at a time)', lastSize: 'the size last picked on this phone (a phone’s choice, like the size sheet’s)', subs: 'listeners (the sheet)'},
+  'phone/offline/SizeSheet.tsx': {current: 'the size sheet that is up (the screen’s; one at a time)', subs: 'listeners (the sheet)'},
   'phone/navigation.tsx': {lastPlayKey: 'the player screen last looked at (a route key, once per screen)'},
   'phone/remote/controller.ts': {
     remoteId: 'this phone, as a remote (the same for every profile on it)',

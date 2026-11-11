@@ -76,7 +76,8 @@ import {
 } from '../../detailLogic';
 import type {RootStackParamList} from '../../navigation';
 import {usePNav} from '../nav';
-import {ActionCircle, ChipButton, PrimaryButton} from '../ui/Buttons';
+import {ActionCircle, ActionWidth, ChipButton, PrimaryButton} from '../ui/Buttons';
+import {stripItemWidth} from '../ui/stripFit';
 import {artSrc, Bar, PosterCard} from '../ui/Cards';
 import Icon from '../ui/Icon';
 import Tap from '../ui/Tap';
@@ -87,8 +88,16 @@ import {shareLink} from '../linkParse';
 import {phoneNative} from '../native';
 import {FADE_MS, LOW_END} from '../lowEnd';
 import {pushPhone} from '../nav';
-import {saveOffline, useOffline} from '../offline/store';
-import {chooseQuality, confirmRoom} from '../offline/choose';
+import {offlineAvailable, saveOffline, useOffline} from '../offline/store';
+import {openChooser} from '../offline/ChooseSheet';
+import {chooseQuality} from '../offline/choose';
+import {markOf, markWords} from '../offline/rules';
+import {useWishes} from '../offline/wishes';
+import {toggleWish} from '../offline/wishAsk';
+import {useNoConnection} from '../offline/reach';
+import RestTitle, {copiesOfTitle} from '../offline/RestTitle';
+import {peekLibraryItem} from '../../api';
+import {wishFor, wishOn} from '../offline/wishRules';
 import {useDevices} from '../remote/controller';
 import {sendToTv} from '../remote/playOnTv'; // [play-on-tv]
 import {PLAY_ON} from '../../remote/playOnWords';
@@ -192,6 +201,8 @@ export default function Detail() {
   const isShow = item.type === 'show';
   const imdbKind: 'movie' | 'show' = isShow ? 'show' : 'movie';
 
+  // the round actions' strip: its width as laid out (the screen's), for stripFit
+  const [stripW, setStripW] = useState(width); // (the screen's until it is laid out: no jump on the first frame)
   const [full, setFull] = useState<Item | null>(null);
   const [meta, setMeta] = useState<DiscoverMeta | null>(null);
   const [loading, setLoading] = useState(true);
@@ -234,6 +245,10 @@ export default function Detail() {
   const scrollRef = useRef<ScrollView>(null);
   // copies saved on this phone (phone/offline/store.ts)
   const saved = useOffline();
+  // [offline-phone] this device's wishes: a title on its way, saved here by itself when it lands
+  const wishes = useWishes();
+  // [offline-phone] no connection and nothing of the page came: it rests (offline/RestTitle.tsx)
+  const away = useNoConnection();
   // [phone-remote] the profile's TVs that are on: "Play on TV"
   const tvs = useDevices().filter(d => d.caps?.playItem !== false);
   const phoneState = useCallback(
@@ -243,6 +258,12 @@ export default function Detail() {
     },
     [saved],
   );
+  // what the device button says (the website's words: Save to this device → Saving 42% → Saved on this device)
+  const phoneWords = (id: string) => {
+    const c = saved.find(x => x.id === id);
+    const st = markOf(c);
+    return st === 'none' ? 'Save to device' : markWords(st, c?.pct || 0, !!c?.waiting);
+  };
 
   // the device pass's timing: from the page's mount to its button knowing what it does
   const t0 = useRef(Date.now());
@@ -677,7 +698,6 @@ export default function Detail() {
       saveOffline(
         {id: ep.epId, title: ep.label, showId: full?.id || item.id, showTitle: title, season: ep.season, episode: ep.episode, year, cover: item.cover || item.poster || full?.cover || null, duration: ep.durationSec, subtitles: ep.subs},
         chooseQuality(`${title} · S${ep.season} E${ep.episode}`),
-        {confirmRoom: confirmRoom(`${title} · S${ep.season} E${ep.episode}`)},
       );
     },
     [full, item.id, item.cover, item.poster, title, year],
@@ -686,9 +706,8 @@ export default function Detail() {
     if (!ownedMovieId) return;
     if (phoneState(ownedMovieId) === 'done') return pushPhone('OfflinePlayer', {id: ownedMovieId});
     saveOffline(
-      {id: ownedMovieId, title, year, cover: full?.cover || item.cover || item.poster || null, duration: full?.duration, subtitles: (full?.subtitles || []).filter(t => !!t.url).map(t => ({label: t.label, lang: t.lang, url: t.url}))},
+      {id: ownedMovieId, title, year, cover: full?.cover || item.cover || item.poster || null, duration: full?.duration, subtitles: (full?.subtitles || []).filter(t => !!t.url).map(t => ({label: t.label, lang: t.lang, url: t.url})), originalLanguage: full?.originalLanguage || null},
       chooseQuality(title),
-      {confirmRoom: confirmRoom(title)},
     );
   };
 
@@ -762,7 +781,9 @@ export default function Detail() {
         items: [
           ...(running?.mine ? [{label: 'Cancel the download', tag: 'it asks first', onPress: () => askCancelRef.current(running, `${title} · S${ep.season} E${ep.episode}`)}] : []),
           ...(ep.owned ? [{label: 'Play', onPress: () => playEpisode(ep)}] : [{label: SAVE_WATCH, tag: 'the best source, saved to the server', onPress: () => saveBest(ep.season, ep.episode, true, ep.air)}]),
-          ...(ep.owned ? [{label: ep.phone === 'done' ? 'Play the copy on this phone' : ep.phone ? 'Saving to this phone…' : 'Save to this phone', tag: ep.phone ? undefined : 'watch it with no connection', onPress: () => saveEpisodeToPhone(ep)}] : []),
+          ...(ep.owned ? [{label: ep.phone === 'done' ? 'Play the copy on this device' : ep.phone && ep.epId ? phoneWords(ep.epId) : 'Save to this device', tag: ep.phone ? undefined : 'plays with no connection', uiId: 'detail.episode.offline', onPress: () => saveEpisodeToPhone(ep)}] : []),
+          // [offline-phone] on its way to the server: saved here by itself when it lands (a wish)
+          ...(!ep.owned && running && imdb ? [episodeWishItem(ep)] : []),
           ...(!ep.owned ? [{label: 'Sources', tag: 'streams and downloads', onPress: () => openSources(ep.season, ep.episode)}] : []),
           ...(ep.owned && ep.epId && replaceOffered({libraryId: ep.epId, kids: peekMe(profileId)?.kids, torrentsOff}) ? [{label: 'Get another version', tag: 'a problem with this copy', uiId: 'detail.replace', onPress: () => openReplace({libraryId: ep.epId!, title: `${title} · S${ep.season} E${ep.episode}`, context: {title, itemId: ep.epId}})}] : []),
           {
@@ -776,34 +797,32 @@ export default function Detail() {
         ],
       });
     },
-    [title, playEpisode, saveBest, openSources, setEpisodeWatched, saveEpisodeToPhone, profileId, torrentsOff],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [title, playEpisode, saveBest, openSources, setEpisodeWatched, saveEpisodeToPhone, profileId, torrentsOff, wishes, imdb],
   );
-  // the whole season in one tap: one quality (asked once), then each episode in turn, one
-  // toast for all of them; the space limit is asked about once, a full one stops the rest
-  const saveSeasonToPhone = async (eps: UiEp[]) => {
-    let q: string | null = null;
-    let n = 0;
-    let said = false;
-    for (const ep of eps) {
-      if (!ep.epId) continue;
-      const r = await saveOffline(
-        {id: ep.epId, title: ep.label, showId: full?.id || item.id, showTitle: title, season: ep.season, episode: ep.episode, year, cover: item.cover || item.poster || null, duration: ep.durationSec, subtitles: ep.subs},
-        async options => {
-          if (!q) q = await chooseQuality(`${title} · Season ${ep.season}`)(options);
-          return q;
-        },
-        {quiet: true, confirmRoom: confirmRoom(`${title} · Season ${ep.season}`)},
-      );
-      if (r === 'started') {
-        n++;
-        if (!said) {
-          said = true;
-          showToast(`Saving ${eps.length === 1 ? '1 episode' : `${eps.length} episodes`} of Season ${ep.season} to this phone`, '📱');
-        }
-      }
-      if (r === 'stopped' || r === 'full') break;
-    }
-    return n;
+  // [offline-phone] "This device too" for an episode on its way (the website's episode button)
+  const episodeWishItem = (ep: UiEp) => {
+    const t = {type: 'show' as const, imdbId: imdb as string, jobId: jobsRef.current[ep.key]?.id || null, season: ep.season, episode: ep.episode, title: ep.label || `Episode ${ep.episode}`, showTitle: title, poster: item.cover || item.poster || null};
+    const on = wishOn(wishFor(wishes, t));
+    return {label: on ? 'Will be saved to this device' : 'This device too', tag: on ? 'press to stop that' : 'saved here by itself when it arrives', uiId: 'detail.episode.wish', onPress: () => toggleWish(t, `${title} S${ep.season} E${ep.episode}`)};
+  };
+  // [offline-choose] "Choose episodes": the show's episodes in a sheet, the next unwatched ones
+  // ticked, the size once for all (offline/ChooseSheet.tsx — it replaced "Save the season")
+  const chooseEpisodes = () => {
+    const sizes = new Map<string, number>();
+    for (const se of full?.seasons || []) for (const ep of se.episodes) if (ep.sizeBytes) sizes.set(ep.id, ep.sizeBytes);
+    openChooser({
+      title,
+      showId: full?.id || null,
+      imdbId: imdb || null,
+      poster: item.cover || item.poster || full?.cover || null,
+      seasons: seasons.map(se => ({
+        number: se.number,
+        episodes: se.episodes.map(e => ({season: e.season, episode: e.episode, title: e.label, libId: e.epId || null, duration: e.durationSec || (e.durationMin ? e.durationMin * 60 : 0), sizeBytes: e.epId ? sizes.get(e.epId) || 0 : 0, aired: e.air === 'aired'})),
+      })),
+      from: heroEp ? {season: heroEp.season, episode: heroEp.episode} : null,
+      finished: id => !!progress[id]?.finished,
+    });
   };
   const markSeason = () => {
     if (!season) return;
@@ -1009,6 +1028,9 @@ export default function Detail() {
     console.log(`[phone] title page ready +${Date.now() - t0.current}ms`);
   }
   const primaryStill = isShow && heroEp?.thumb ? artSrc(heroEp.thumb, 80).src : null;
+  // a still that cannot be had leaves the button: an empty dark box pushed its words off-centre
+  const stillKey = primaryStill ? JSON.stringify(primaryStill) : '';
+  const [stillFailed, setStillFailed] = useState('');
 
   // ---- more like this ----
   useEffect(() => {
@@ -1060,6 +1082,65 @@ export default function Detail() {
   const trailers = meta?.trailers || [];
   const aired = season?.episodes.filter(e => e.air === 'aired') || [];
   const seasonAllWatched = aired.length > 0 && aired.every(e => e.watched);
+  // the round actions (only those that apply); when they are more than fit, each is sized so
+  // that half of the next one shows past the edge (ui/stripFit.ts)
+  const actionButtons = (
+    <>
+      {tvs.length && (ownedMovieId || heroEp?.owned) ? <ActionCircle uiId="phone.detail.playon" icon="cast" label={tvs.length === 1 ? PLAY_ON.buttonFor(tvs[0].name) : PLAY_ON.button} lines={0} onPress={playOnTv} /> : null}
+      {!isShow && !ownedMovieId && imdb ? <ActionCircle uiId="detail.sources" icon="play" label="Stream instead" onPress={() => openSources()} /> : null}
+      {ownedMovieId ? (
+        <ActionCircle uiId="phone.save.film"
+          icon="downloadDevice"
+          label={phoneWords(ownedMovieId)}
+          on={phoneState(ownedMovieId) === 'done'}
+          onPress={saveFilmToPhone}
+        />
+      ) : null}
+      {!ownedMovieId && filmJob?.mine && imdb ? (
+        // [offline-phone] the film on its way to the server: saved here by itself when it lands
+        <ActionCircle
+          uiId="detail.offline.wish"
+          icon="downloadDevice"
+          label={wishOn(wishFor(wishes, {type: 'movie', imdbId: imdb})) ? 'Will be saved to this device' : 'This device too'}
+          on={wishOn(wishFor(wishes, {type: 'movie', imdbId: imdb}))}
+          onPress={() => toggleWish({type: 'movie', imdbId: imdb, jobId: filmJob.id || null, title, poster: item.cover || item.poster || null, duration: full?.duration || null}, title)}
+        />
+      ) : null}
+      {/* [offline-choose] which episodes go onto this phone (offline/ChooseSheet.tsx) */}
+      {isShow && offlineAvailable() && (full || imdb) ? <ActionCircle uiId="detail.offline.choose" icon="downloadDevice" label="Choose episodes" onPress={chooseEpisodes} /> : null}
+      {ownedMovieId && movieResume ? <ActionCircle uiId="detail.restart" icon="refresh" label="Start over" onPress={() => navigation.push('Player', {id: ownedMovieId, title, restart: true})} /> : null}
+      {isShow ? <ActionCircle uiId="phone.detail.episodes" icon="series" label="All episodes" onPress={() => scrollRef.current?.scrollTo({y: artH + 160, animated: true})} /> : null}
+      {heroJob?.mine ? <ActionCircle uiId="detail.download.cancel" icon="close" label="Cancel download" onPress={() => askCancelJob(heroJob, isShow && heroEp ? `${title} · S${heroEp.season} E${heroEp.episode}` : title)} /> : null}
+      <ActionCircle uiId="detail.mylist" icon={inList ? 'check' : 'plus'} label="My List" on={inList} onPress={toggleList} />
+      <ActionCircle uiId="detail.recommend" icon="send" label="Recommend" onPress={() => openRecommend(item, imdb)} />
+      {isShow && followImdb ? <ActionCircle uiId="detail.follow" icon={following ? 'check' : 'bell'} label={following ? 'Following' : 'Follow'} on={following} onPress={toggleFollow} /> : null}
+      {imdb || full ? (
+        <ActionCircle uiId="detail.xray"
+          icon="xray"
+          label="X-Ray"
+          onPress={() => openXray({query: full && !isShow ? {itemId: full.id} : {type: isShow ? 'series' : 'movie', imdbId: imdb}, title})}
+        />
+      ) : null}
+      {ownedMovieId ? <ActionCircle uiId="detail.watched" icon="check" label={movieWatched ? 'Watched' : 'Mark watched'} on={movieWatched} onPress={toggleMovieWatched} /> : null}
+      {ownedMovieId && replaceOffered({libraryId: ownedMovieId, kids: peekMe(profileId)?.kids, torrentsOff}) ? <ActionCircle uiId="detail.replace" icon="refresh" label="Another version" onPress={() => openReplace({libraryId: ownedMovieId, title, context: {title, itemId: ownedMovieId}})} /> : null}
+      {trailers.length || imdb ? <ActionCircle uiId="detail.trailer" icon="film" label="Trailer" onPress={() => openTrailer(trailers, title, {imdbId: imdb, type: isShow ? 'show' : 'movie', year})} /> : null}
+      <ActionCircle uiId="phone.detail.share" icon="share" label="Share" onPress={share} />
+    </>
+  );
+  const actionW = stripItemWidth({room: stripW, count: React.Children.toArray(actionButtons.props.children).length, lead: GUTTER - 8, gap: 2, base: 76, min: 70, max: 92});
+  if (away && !full && !meta) {
+    return (
+      <View style={s.root}>
+        <RestTitle
+          title={title || peekLibraryItem(item.inLibrary || item.id)?.title || copiesOfTitle(saved, {id: item.inLibrary || item.id}).next?.showTitle || copiesOfTitle(saved, {id: item.inLibrary || item.id}).next?.title || 'This title'}
+          cover={item.cover || item.poster || peekLibraryItem(item.inLibrary || item.id)?.cover || null}
+          copies={copiesOfTitle(saved, {id: item.inLibrary || item.id, showId: item.inLibrary || item.id})}
+          onRetry={() => setLibraryTick(t => t + 1)}
+        />
+        <BackBar solid={false} />
+      </View>
+    );
+  }
   return (
     <View style={s.root}>
       <ScrollView
@@ -1076,6 +1157,9 @@ export default function Detail() {
         <View style={{height: artH}}>
           {art ? <Image source={art} style={StyleSheet.absoluteFill} resizeMode="cover" fadeDuration={FADE_MS} /> : null}
           <View style={s.artFade} pointerEvents="none" />
+          {/* the cover ends in the page colour; this carries it on into the sky under the page,
+              so no hard line shows where the picture stops (ui-phone 2026-11-10) */}
+          <View style={s.artJoin} pointerEvents="none" />
           <View style={[s.lockup, wide && {left: Math.max(GUTTER, (width - 820) / 2), right: Math.max(GUTTER, (width - 820) / 2)}]} onLayout={e => {
             const h = Math.ceil(e.nativeEvent.layout.height);
             if (Math.abs(h - lockH) > 1) setLockH(h);
@@ -1087,7 +1171,7 @@ export default function Detail() {
               {unescapeHtml(title)}
             </Text>
             <View style={s.metaRow}>
-              {typeof rating === 'number' && rating > 0 ? <Text style={s.score}>★ {Math.round(rating * 10) / 10}</Text> : null}
+              {typeof rating === 'number' && rating > 0 ? <Text style={s.score}>{`★\u00a0${Math.round(rating * 10) / 10}`}</Text> : null}
               {facts ? <Text style={s.facts}>{facts}</Text> : null}
             </View>
             {badges.length ? (
@@ -1116,7 +1200,7 @@ export default function Detail() {
               else if (!isShow && !ownedMovieId) openSources();
             }}
             style={s.primary}
-            leading={primaryStill ? <Image source={primaryStill} style={s.primaryStill} /> : null}
+            leading={primaryStill && stillFailed !== stillKey ? <Image source={primaryStill} style={s.primaryStill} onError={() => setStillFailed(stillKey)} /> : null}
           />
           {statusLine ? (
             <View style={s.status}>
@@ -1125,35 +1209,11 @@ export default function Detail() {
             </View>
           ) : null}
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.actionsStrip} contentContainerStyle={s.actions}>
-            {tvs.length && (ownedMovieId || heroEp?.owned) ? <ActionCircle uiId="phone.detail.playon" icon="cast" label={tvs.length === 1 ? PLAY_ON.buttonFor(tvs[0].name) : PLAY_ON.button} lines={0} onPress={playOnTv} /> : null}
-            {!isShow && !ownedMovieId && imdb ? <ActionCircle uiId="detail.sources" icon="play" label="Stream instead" onPress={() => openSources()} /> : null}
-            {ownedMovieId ? (
-              <ActionCircle uiId="phone.save.film"
-                icon="downloadDevice"
-                label={phoneState(ownedMovieId) === 'done' ? 'On this phone' : phoneState(ownedMovieId) ? 'Saving…' : 'Save to phone'}
-                on={phoneState(ownedMovieId) === 'done'}
-                onPress={saveFilmToPhone}
-              />
-            ) : null}
-            {ownedMovieId && movieResume ? <ActionCircle uiId="detail.restart" icon="refresh" label="Start over" onPress={() => navigation.push('Player', {id: ownedMovieId, title, restart: true})} /> : null}
-            {isShow ? <ActionCircle uiId="phone.detail.episodes" icon="series" label="All episodes" onPress={() => scrollRef.current?.scrollTo({y: artH + 160, animated: true})} /> : null}
-            {heroJob?.mine ? <ActionCircle uiId="detail.download.cancel" icon="close" label="Cancel download" onPress={() => askCancelJob(heroJob, isShow && heroEp ? `${title} · S${heroEp.season} E${heroEp.episode}` : title)} /> : null}
-            <ActionCircle uiId="detail.mylist" icon={inList ? 'check' : 'plus'} label="My List" on={inList} onPress={toggleList} />
-            <ActionCircle uiId="detail.recommend" icon="send" label="Recommend" onPress={() => openRecommend(item, imdb)} />
-            {isShow && followImdb ? <ActionCircle uiId="detail.follow" icon={following ? 'check' : 'bell'} label={following ? 'Following' : 'Follow'} on={following} onPress={toggleFollow} /> : null}
-            {imdb || full ? (
-              <ActionCircle uiId="detail.xray"
-                icon="xray"
-                label="X-Ray"
-                onPress={() => openXray({query: full && !isShow ? {itemId: full.id} : {type: isShow ? 'series' : 'movie', imdbId: imdb}, title})}
-              />
-            ) : null}
-            {ownedMovieId ? <ActionCircle uiId="detail.watched" icon="check" label={movieWatched ? 'Watched' : 'Mark watched'} on={movieWatched} onPress={toggleMovieWatched} /> : null}
-            {ownedMovieId && replaceOffered({libraryId: ownedMovieId, kids: peekMe(profileId)?.kids, torrentsOff}) ? <ActionCircle uiId="detail.replace" icon="refresh" label="Another version" onPress={() => openReplace({libraryId: ownedMovieId, title, context: {title, itemId: ownedMovieId}})} /> : null}
-            {trailers.length || imdb ? <ActionCircle uiId="detail.trailer" icon="film" label="Trailer" onPress={() => openTrailer(trailers, title, {imdbId: imdb, type: isShow ? 'show' : 'movie', year})} /> : null}
-            <ActionCircle uiId="phone.detail.share" icon="share" label="Share" onPress={share} />
+          <ActionWidth.Provider value={actionW}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.actionsStrip} contentContainerStyle={s.actions} onLayout={e => setStripW(Math.round(e.nativeEvent.layout.width))}>
+            {actionButtons}
           </ScrollView>
+          </ActionWidth.Provider>
           {/* [franchise] "Part of … · 12 of 34 · Watch in order" */}
           <FranchiseLine imdbId={imdb} type={isShow ? 'series' : 'movie'} profileId={profileId} onOpen={openFranchise} />
 
@@ -1229,14 +1289,6 @@ export default function Detail() {
               </View>
             </ScrollView>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pills}>
-              {season && season.episodes.some(e => e.owned && !e.phone) ? (
-                <ChipButton uiId="phone.save.season"
-                  small
-                  label={`Save season offline (${season.episodes.filter(e => e.owned && !e.phone).length})`}
-                  icon="downloadDevice"
-                  onPress={() => saveSeasonToPhone(season.episodes.filter(e => e.owned && !e.phone))}
-                />
-              ) : null}
               {aired.length ? <ChipButton uiId="detail.season.watched" small label={seasonAllWatched ? 'Mark season unwatched' : 'Mark season watched'} onPress={markSeason} /> : null}
             </ScrollView>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.epList}>
@@ -1270,6 +1322,7 @@ const s = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     experimental_backgroundImage: 'linear-gradient(180deg, rgba(7,8,17,0.4) 0%, rgba(7,8,17,0) 24%, rgba(7,8,17,0.18) 48%, rgba(7,8,17,0.82) 82%, rgba(7,8,17,1) 100%)',
   },
+  artJoin: {position: 'absolute', left: 0, right: 0, top: '100%', height: 96, experimental_backgroundImage: 'linear-gradient(180deg, rgba(7,8,17,1) 0%, rgba(7,8,17,0.55) 45%, rgba(7,8,17,0) 100%)'},
   // the words on the cover: 16 in, 20 above its foot
   lockup: {position: 'absolute', left: GUTTER, right: GUTTER, bottom: 20},
   // .hero-kicker on a title page: tinted in the kind's colour, a ring of it

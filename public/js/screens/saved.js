@@ -29,7 +29,8 @@ import * as offline from "../offline.js";
 import { yourFilesSection } from "../localview.js";
 import { deviceJobsSection } from "../devicejobs.js";
 import { mark, deviceIcon, trashIcon, restIcon, bagIcon, savedByItself, lastByItself } from "../offlineUi.js";
-import { saveButton, seasonButton } from "../offlineButtons.js";
+import { saveButton } from "../offlineButtons.js";
+import { chooseButton } from "../offlineChoose.js";
 
 // (an episode whose only name is its file's — "Show S01E02" — is not named twice)
 const epName = (it) => (it.title && it.title !== it.showTitle && !/^.+ S\d+E\d+$/i.test(it.title) ? it.title : "");
@@ -226,7 +227,7 @@ export const renderSaved = async (root) => {
 
   // ---------- the titles ----------
   let gen = 0;
-  const trees = new Map(); // showId -> the show with its episodes (for "Save the next N")
+  const trees = new Map(); // showId -> the show with its episodes (for "Choose episodes")
   const leaves = []; // the live buttons of the last paint (their listeners)
   const drop = () => { for (const fn of leaves.splice(0)) { try { fn(); } catch {} } };
   untilLeave(drop);
@@ -386,7 +387,7 @@ export const renderSaved = async (root) => {
     more(mine);
   };
 
-  // "Save the next N" under a show: the episodes after the last one here.
+  // "Choose episodes" under a show: its episodes, the ones after the last one here ticked.
   // (A show's episodes come with the show itself — asked for only when a show
   // is on this screen and the server is in reach; once per visit.)
   const treeOf = (id) => {
@@ -407,7 +408,9 @@ export const renderSaved = async (root) => {
       flat.sort((a, b) => a.season - b.season || a.episode - b.episode);
       const after = flat.filter((e) => e.season > last.season || (e.season === last.season && e.episode > last.episode));
       if (!after.length) continue;
-      const btn = seasonButton(() => after.filter((e) => { const p = progressFor(e.local.id); return !(p && p.finished); }), showTitle, showId, { onLeave, ui: "saved.next.save" }); // (its data-ui)
+      const seasonsOf = (show.seasons || []).map((sn) => ({ number: Number(sn.number), episodes: (sn.episodes || []).map((e) => ({ season: e.season ?? sn.number, episode: e.episode, title: e.title, local: e })) }));
+      const next = after.find((e) => { const p = progressFor(e.local.id); return !(p && p.finished); }) || after[0];
+      const btn = chooseButton(() => ({ title: showTitle, id: showId, imdbId: show.imdbId || null, poster: show.cover || show.poster || null, seasons: seasonsOf }), { from: () => ({ season: next.season, episode: next.episode }), ui: "saved.next.save", small: true }); // (its data-ui)
       if (!btn) continue;
       btn.classList.add("small");
       foot.append(btn);

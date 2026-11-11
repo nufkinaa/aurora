@@ -57,7 +57,7 @@ export const EDIT = {
 } as const;
 
 export const passwordLabel = (hasPw: boolean) => (hasPw ? 'Password' : 'Password (optional)');
-export const newPasswordPlaceholder = (hasPw: boolean) => (hasPw ? 'New password (blank = unchanged)' : 'Password (optional)');
+export const newPasswordPlaceholder = (hasPw: boolean) => (hasPw ? 'New password (blank = unchanged)' : 'New password (optional)');
 
 /** The Settings row that opens the editor (preferences.js): a kids profile has no password to edit. */
 export const editRow = (kids: boolean) =>
