@@ -38,6 +38,7 @@ import {createVoice, nativeVoiceDeps, setSearchVoiceKey, voiceAvailability, Voic
 import {LANG_NAME, LANG_SELF, otherLang, voiceActive, voiceLangFor, VoiceLang, voiceMessage, VoiceState, VOICE_IDLE} from '../voiceLogic';
 import {personNow, setPersonPref} from '../personSync';
 import {noResultsText, runSearch, SEARCH_TEXT, SettleNote, shortText} from '../searchFlow';
+import {kindSpoken, kindSuffix, suggestionKind} from '../searchKind';
 
 const {colors, radius, fontSize, spacing, CLEARANCE} = theme;
 const EMPTY: SearchAnswer = {results: [], related: [], relatedLabel: null, pending: false};
@@ -48,7 +49,7 @@ const chipLabel = (s: SearchSuggestion) =>
     ? `${clip(s.name || '')} · person`
     : s.kind === 'genre'
       ? `${s.name} · genre`
-      : `${clip(s.title || '')}${s.year ? ` (${s.year})` : ''}`;
+      : `${clip(s.title || '')}${s.year ? ` (${s.year})` : ''}${kindSuffix(suggestionKind(s))}`;
 
 export default function Search({
   navigation,
@@ -398,6 +399,9 @@ export default function Search({
 
   const query = q.trim();
   const data = query ? answer.results : popular;
+  // Film or series on every result (a search mixes the two; the website's
+  // search cards wear the same tag) — not on "Popular in this house".
+  const kinds = !!query;
   const renderCard = useCallback(
     ({item, index}: {item: HeroItem; index: number}) => (
       <Card
@@ -406,9 +410,10 @@ export default function Search({
         onPress={openDetail}
         onFocus={onCardFocus}
         edgeLeft={index % cols === 0}
+        showKind={kinds}
       />
     ),
-    [openDetail, cols, onCardFocus],
+    [openDetail, cols, onCardFocus, kinds],
   );
   // The related tail: its heading, then the grid goes on. In the footer (a
   // divider cannot sit inside a multi-column list) — eighteen cards at most.
@@ -431,6 +436,7 @@ export default function Search({
                 onPress={openDetail}
                 onFocus={onCardFocus}
                 edgeLeft={c === 0}
+                showKind
               />
             ))}
           </View>
@@ -522,18 +528,25 @@ export default function Search({
       ) : null}
       {chips.length > 0 ? (
         <View style={styles.chips}>
-          {chips.map((s, at) => (
-            <Chip
-              uiId="search.suggestion.pick"
-              key={`${s.kind}-${s.id || s.imdbId || s.name}`}
-              ref={at === 0 ? firstChipRef : undefined}
-              small
-              label={chipLabel(s)}
-              edgeLeft={at === 0}
-              onFocusChange={onChipFocus}
-              onPress={() => pickSuggestion(s)}
-            />
-          ))}
+          {chips.map((s, at) => {
+            // a title says film or series: the card tags' glyph in their hue
+            const kind = suggestionKind(s);
+            return (
+              <Chip
+                uiId="search.suggestion.pick"
+                key={`${s.kind}-${s.id || s.imdbId || s.name}`}
+                ref={at === 0 ? firstChipRef : undefined}
+                small
+                label={chipLabel(s)}
+                icon={kind || undefined}
+                iconColor={kind === 'series' ? colors.kindSeries : kind === 'film' ? colors.kindFilm : undefined}
+                accessibilityLabel={kind ? kindSpoken(chipLabel(s), kind) : undefined}
+                edgeLeft={at === 0}
+                onFocusChange={onChipFocus}
+                onPress={() => pickSuggestion(s)}
+              />
+            );
+          })}
         </View>
       ) : null}
       {recents.length > 0 ? (

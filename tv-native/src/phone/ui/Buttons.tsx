@@ -68,17 +68,37 @@ export function GlassButton({label, icon, onPress, onLongPress, busy, disabled, 
 }
 
 /** A glass chip (.chip, .season-pill, .cat-pill with `big`): "Unwatched", "Season 1", "All". */
-export function ChipButton({label, icon, onPress, active, style, disabled, uiId, big, small}: Base & {active?: boolean; big?: boolean; small?: boolean}) {
+export function ChipButton({
+  label,
+  icon,
+  onPress,
+  active,
+  style,
+  disabled,
+  uiId,
+  big,
+  small,
+  iconColor,
+  a11yLabel,
+}: Base & {
+  active?: boolean;
+  big?: boolean;
+  small?: boolean;
+  /** the icon's own hue (Search's film / series suggestions) */
+  iconColor?: string;
+  /** what a screen reader says, when it is more than the label */
+  a11yLabel?: string;
+}) {
   return (
     <Tap
       uiId={uiId}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={a11yLabel || label}
       accessibilityState={{selected: !!active}}
       onPress={onPress}
       disabled={disabled}
       style={[s.chip, big && s.chipBig, active && s.chipOn, disabled && s.disabled, style]}>
-      {icon ? <Icon name={icon} size={16} color={colors.text} /> : null}
+      {icon ? <Icon name={icon} size={16} color={iconColor || colors.text} /> : null}
       <Text style={[s.chipText, big && s.chipTextBig, small && s.chipTextSmall, active && s.chipTextOn]} numberOfLines={1}>
         {label}
       </Text>
