@@ -88,6 +88,16 @@ describe('the reel', () => {
     // nothing to roll: flat
     expect(reel.reelStops(0, 225).outputRange.every(v => Math.abs(v) === 0)).toBe(true);
   });
+
+  test('reelStops from where the waiting reel stands: starts there, ends on the same cell', () => {
+    const {outputRange} = reel.reelStops(10, 240, 48, 0.4);
+    expect(outputRange[0]).toBeCloseTo(-0.4 * 240, 6);
+    expect(outputRange[outputRange.length - 1]).toBe(-10 * 240);
+    expect(Math.min(...outputRange)).toBeGreaterThan(-10.1 * 240);
+    // never backwards before the overshoot
+    const upTo = outputRange.indexOf(Math.min(...outputRange));
+    expect(outputRange.slice(0, upTo + 1).every((v, i, a) => i === 0 || v <= a[i - 1])).toBe(true);
+  });
 });
 
 describe('telling a vote', () => {
