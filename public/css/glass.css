@@ -16,70 +16,94 @@
 html[data-look="glass"] {
   --g-radius: 20px;
   --g-radius-l: 30px;
-  /* ---- the material: "Clear" (elia chose it 2026-11-11 out of five —
-     docs/qa/glass-options/README.md) -----------------------------------
-     The most see-through glass: almost no body (a fifth of black) over a
-     light blur (3 px), so a poster behind a bar stays a poster. What holds
-     the words is the backdrop DIMMED hard under the glass (brightness 0.48
-     — Apple's "dimming layer" for its clear glass): its colour comes
-     through, its brightness does not; white words hold 4.5:1 or better over
-     a white poster (docs/qa/glass-options/final/contrast.md). A strong edge
-     draws the shape: a 1 px light line all round inside, a brighter one
-     along the top, a dark hairline outside (it parts the glass from a white
-     page), a small close shadow. Words on the bars carry a soft shadow of
-     their own (below, "words on the clearest glass").
+  /* ---- the material (2026-11-10 — docs/glass-apple.md) -------------------
+     Apple's dark glass, measured off elia's iPhone: a dark NEUTRAL body that
+     lets through about a quarter of what is behind it (colour arrives by the
+     blur's saturation, not by a tint of ours); white words that read over
+     anything, because the body ALONE holds them at 4.5:1 over a white poster
+     — with or without a backdrop filter; and a rim that is light caught on
+     an edge — a hairline along the top, a fainter one along the foot, a soft
+     glow inside both that reads as thickness — where there was an outline.
        --g-fill        chrome: what floats over pictures (bars, buttons,
                        pills, the player's dock)
-       --g-fill-thick  what carries a list or a paragraph (sheets, dialogs,
-                       toasts) — these also frost more (10 px, below)
+       --g-fill-thick  what carries a list or a paragraph (menus, sheets,
+                       dialogs, toasts) — a deeper floor (--g-tint-deep)
        --g-fill-sheet  the same over the dimmed page (a dialog)
        --g-fill-menu   a drop-down menu (the profile menu, a picker's list,
-                       the player's menus)
-       --g-fill-slab   panes that lie in the page, over the sky only (no blur)
-       --g-fill-chip   a chip or a pill in the page (no blur)
-       --g-lift        a hover / pressed step, laid over any of them
-       --g-well        the chosen tab: a lighter capsule with its own line
-     Where nothing is blurred or dimmed behind the glass (reduced
-     transparency, a TV's browser, a weak device — further down) the bodies
-     are near-opaque instead. */
-  --g-tint: 0, 0, 4;
-  --g-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0) 40%);
-  --g-fill: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.2), rgba(var(--g-tint), 0.2));
-  --g-blur: blur(3px) saturate(1.5) brightness(0.48);
-  /* lines of words (sheets, menus, a toast): more frost, a deeper dim */
-  --g-blur-thick: blur(10px) saturate(1.5) brightness(0.5);
-  --g-tint-deep: 0, 0, 6;
-  --g-fill-thick: var(--g-sheen), linear-gradient(rgba(var(--g-tint-deep), 0.4), rgba(var(--g-tint-deep), 0.4));
-  --g-fill-sheet: var(--g-sheen), linear-gradient(rgba(var(--g-tint-deep), 0.36), rgba(var(--g-tint-deep), 0.36));
-  --g-fill-menu: var(--g-sheen), linear-gradient(rgba(var(--g-tint-deep), 0.42), rgba(var(--g-tint-deep), 0.42));
-  --g-tint-slab: 4, 4, 10;
-  /* (in the page, nothing blurs or dims behind a pane: its body alone holds
-     the words over the sky's brightest band — 0.5 read 3.0:1 there, 0.64
-     4.1:1) */
-  --g-fill-slab: linear-gradient(rgba(var(--g-tint-slab), 0.7), rgba(var(--g-tint-slab), 0.7));
-  --g-fill-chip: linear-gradient(rgba(var(--g-tint), 0.58), rgba(var(--g-tint), 0.58));
-  --g-lift: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1));
+                       the player's menus): the chrome's own body, fuller
+       --g-fill-slab   panes that lie in the page, over the sky only
+       --g-lift        a hover / pressed step, laid over any of the three
+       --g-well        the chosen tab: a darker capsule pressed into the bar,
+                       its word in the accent (--g-ink-on)
+     One body colour (--g-tint) for all of it. The numbers and the contrast
+     they give are in docs/glass-apple.md and docs/qa/glass-apple/contrast.md. */
+  --g-tint: 40, 40, 46;
+  --g-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 48%);
+  --g-fill: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.72), rgba(var(--g-tint), 0.72));
+  /* The thick pane has a deeper floor and lets more through: 79 % of a
+     near-black instead of 84 % of the body grey. Over white it is the same
+     grey as before (72 against 74), over anything darker it is darker — so
+     every word on it reads as well or better — and what is behind shows a
+     third more, which is what makes it glass and not a card. */
+  --g-tint-deep: 24, 24, 28;
+  --g-fill-thick: var(--g-sheen), linear-gradient(rgba(var(--g-tint-deep), 0.79), rgba(var(--g-tint-deep), 0.79));
+  /* a menu or a sheet that opens over the dimmed page (the dim is 55 % of
+     black, so nothing behind it is brighter than a grey of 118): 70 % is
+     enough for the same floor, and twice as much shows through as before */
+  --g-fill-sheet: var(--g-sheen), linear-gradient(rgba(var(--g-tint-deep), 0.7), rgba(var(--g-tint-deep), 0.7));
+  /* A drop-down MENU is not let through more. Its lines are short, close
+     together and sit right over whatever the page has there — through the
+     deeper floor a poster showed as a smudge behind a word and a button as a
+     ghost (the second jury, scenes 05 and 18). So a menu keeps the body, the
+     rim and the shadow the first jury approved: 84 % of the chrome's grey,
+     the plain rim with its 1 px outside line, the two-layer shadow. */
+  --g-fill-menu: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.84), rgba(var(--g-tint), 0.84));
+  --g-edge-menu: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.055), inset 0 8px 10px -8px rgba(255, 255, 255, 0.18),
+    inset 0 -7px 9px -8px rgba(255, 255, 255, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.26);
+  --g-shadow-menu: 0 12px 32px rgba(0, 0, 0, 0.32), 0 2px 6px rgba(0, 0, 0, 0.2);
+  /* A pane in the page has no blur and only the sky behind it. A grey body
+     laid a grey veil over the sky's colour (a row went muddy); a near-black
+     one at 67 % only darkens it, so the row keeps the sky's own hue — a third
+     of it shows, against a quarter. Over the brightest the sky gets it is
+     no lighter than the 76 % grey was, and over the sky as it is, darker. */
+  --g-tint-slab: 10, 10, 14;
+  --g-fill-slab: var(--g-sheen), linear-gradient(rgba(var(--g-tint-slab), 0.67), rgba(var(--g-tint-slab), 0.67));
+  /* A chip is not that pane. A row of near-black pills read as holes in the
+     page, and the chosen one — a darker well — no longer stood apart from
+     them (the second jury, scene 23). A chip keeps the body the first jury
+     approved: 76 % of the chrome's grey, lighter than its own chosen well. */
+  --g-fill-chip: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.76), rgba(var(--g-tint), 0.76));
+  --g-lift: linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07));
   --g-fill-strong: linear-gradient(135deg, rgba(20, 22, 38, 0.42), rgba(14, 16, 30, 0.28));
-  /* the edge does the work */
-  --g-edge: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.3),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.38);
-  --g-edge-thick: inset 0 1px 0 rgba(255, 255, 255, 0.52), inset 0 0 0 1px rgba(255, 255, 255, 0.3),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.4);
-  --g-edge-menu: var(--g-edge-thick);
-  --g-edge-thin: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.24), 0 0 0 1px rgba(0, 0, 0, 0.3);
-  --g-shadow: 0 6px 18px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.3);
-  --g-shadow-menu: 0 14px 36px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.3);
-  --g-well: rgba(255, 255, 255, 0.1);
-  --g-well-edge: inset 0 0 0 1px rgba(255, 255, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.36);
+  --g-edge: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.055), inset 0 8px 10px -8px rgba(255, 255, 255, 0.18),
+    inset 0 -7px 9px -8px rgba(255, 255, 255, 0.08), 0 0 0 0.5px rgba(0, 0, 0, 0.3);
+  /* the rim of a THICK pane (a menu, a sheet, a toast): the body is the most
+     opaque of the three, so the thickness has to come from the light on its
+     edge — a brighter hairline, a deeper glow under it, a faint one down each
+     side and along the foot. All of it stays within 10 px of the edge, clear
+     of the words. */
+  --g-edge-thick: inset 0 1px 0 rgba(255, 255, 255, 0.36), inset 0 -1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.075), inset 0 14px 16px -12px rgba(255, 255, 255, 0.22),
+    inset 0 -12px 14px -12px rgba(255, 255, 255, 0.1), inset 12px 0 14px -13px rgba(255, 255, 255, 0.07),
+    inset -12px 0 14px -13px rgba(255, 255, 255, 0.07), 0 0 0 0.5px rgba(0, 0, 0, 0.3);
+  --g-shadow: 0 14px 34px rgba(0, 0, 0, 0.34), 0 3px 8px rgba(0, 0, 0, 0.22), 0 1px 2px rgba(0, 0, 0, 0.22);
+  --g-blur: blur(6px) saturate(1.8);
+  /* the rim for small things in the page (a chip, a round button): the top
+     hairline and the faint outline, without the inner glow */
+  --g-edge-thin: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --g-well: rgba(0, 0, 0, 0.4);
+  --g-well-edge: inset 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 -1px 0 rgba(255, 255, 255, 0.09);
   --g-ink: #fff;
-  /* the chosen tab's word: white on its lighter capsule (the accent, even
-     lifted toward white, fell under 4.5:1 there over a pale backdrop) */
   --g-ink-on: #fff;
-  /* the quietest words ON a pane (a hint, a count) and the second voice (a
-     note under a label, a row's small icon): lifted from the page's own
-     greys, which are drawn for the dark sky */
-  --g-ink-quiet: #c0c5d2;
-  --g-ink-dim: #dde0e8;
+  /* the quietest words ON a pane (a hint, a count): the page's own faint
+     grey is drawn for the dark sky — on a pane that lets a quarter of the
+     sky through it falls under 4.5:1, so a pane lifts it one step */
+  --g-ink-quiet: #b2b8ca;
+  /* and the second voice (a note under a label, a row's small icon) likewise */
+  --g-ink-dim: #d0d5e2;
   --g-progress: linear-gradient(90deg, #8b7bff, #a6c8ff);
   --g-glow: 0 0 10px rgba(139, 123, 255, 0.6);
   --bg: #070811;
@@ -90,6 +114,14 @@ html[data-look="glass"] {
   --radius: 16px;
   --radius-l: 24px;
   --t-slow: 420ms;
+}
+/* the chosen tab's word: the profile's accent, lifted towards white so it
+   holds 4.5:1 on the well whatever the accent (a browser without color-mix
+   keeps the white word) */
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  html[data-look="glass"] {
+    --g-ink-on: color-mix(in srgb, var(--accent) 60%, #fff);
+  }
 }
 html[data-look="glass"][data-theme="warm"] {
   --bg: #100d08;
@@ -4856,17 +4888,13 @@ html[data-look="glass"][data-fx="lite"] * {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
-/* with no blur and no dim behind it, the clear glass would show sharp
-   letters and full-bright pictures through a fifth of black: every body is
-   near-opaque instead, a dark grey (the rims stay) */
-html[data-look="glass"][data-fx="lite"]:root {
-  --g-tint: 22, 22, 28;
-  --g-tint-deep: 16, 16, 20;
-  --g-fill: var(--g-sheen), linear-gradient(rgba(22, 22, 28, 0.9), rgba(22, 22, 28, 0.9));
-  --g-fill-thick: var(--g-sheen), linear-gradient(rgba(16, 16, 20, 0.94), rgba(16, 16, 20, 0.94));
+/* with no blur behind it the thick pane keeps the body it had before it was
+   let through more: what shows through an unblurred pane is sharp letters,
+   not light */
+html[data-look="glass"][data-fx="lite"] {
+  --g-tint-deep: var(--g-tint);
+  --g-fill-thick: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.84), rgba(var(--g-tint), 0.84));
   --g-fill-sheet: var(--g-fill-thick);
-  --g-fill-menu: var(--g-fill-thick);
-  --g-fill-chip: linear-gradient(rgba(22, 22, 28, 0.82), rgba(22, 22, 28, 0.82));
 }
 html[data-look="glass"][data-fx="lite"] .nav-items,
 html[data-look="glass"][data-fx="lite"] .nav-logo,
@@ -5702,16 +5730,11 @@ html[data-fx="lite"] .person-viewer-slide img.person-viewer-up { transition: non
    file); their own floors above come later in the file and would otherwise
    win. */
 @media (prefers-reduced-transparency: reduce), (hover: none) and (pointer: coarse) and (min-width: 1200px) {
-  /* and every body is near-opaque where nothing blurs or dims behind it
-     (as for a weak device, above) */
+  /* and the thick pane keeps its fuller body where nothing blurs behind it */
   html[data-look="glass"]:root {
-    --g-tint: 22, 22, 28;
-    --g-tint-deep: 16, 16, 20;
-    --g-fill: var(--g-sheen), linear-gradient(rgba(22, 22, 28, 0.9), rgba(22, 22, 28, 0.9));
-    --g-fill-thick: var(--g-sheen), linear-gradient(rgba(16, 16, 20, 0.94), rgba(16, 16, 20, 0.94));
+    --g-tint-deep: var(--g-tint);
+    --g-fill-thick: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.84), rgba(var(--g-tint), 0.84));
     --g-fill-sheet: var(--g-fill-thick);
-    --g-fill-menu: var(--g-fill-thick);
-    --g-fill-chip: linear-gradient(rgba(22, 22, 28, 0.82), rgba(22, 22, 28, 0.82));
   }
   html[data-look="glass"]:root .toast,
   html[data-look="glass"]:root .nav-items {
@@ -5721,114 +5744,73 @@ html[data-fx="lite"] .person-viewer-slide img.person-viewer-up { transition: non
   }
 }
 
-/* ---------- the clear glass's own rules (2026-11-11) ----------
-   The material at the top of this file is "Clear" (elia's choice out of
-   five: docs/qa/glass-options/README.md). What goes with it: */
-/* words that lie on the clearest glass carry a soft shadow of their own */
-html[data-look="glass"] .nav-item,
+/* ---------- Clear: the glass of the chrome that floats over pictures (2026-11-11) ----------
+   elia chose "Clear" out of five versions (docs/qa/glass-options/README.md)
+   — "not everything needs to change": it is the glass of what floats over
+   the pictures only. The top bar and the phone tab bar, the round buttons
+   and the logo pill, the glass buttons on the hero and a title's page, the
+   player's dock, its top pills, its menus, Up next and the resume card.
+   Everything else (menus and sheets, toasts, the panes and chips in the
+   page, the phone's side menu) keeps the glass above.
+   Clear is almost no body (a fifth of a deep indigo-black) over a light
+   blur (3 px); what holds the words is the backdrop dimmed under the glass
+   (brightness 0.5 — Apple's "dimming layer" for its clear glass) while its
+   colour is saturated (2x), so a poster and the sky keep their colour and
+   white words still read at 4.5:1 or better over a white poster
+   (docs/qa/glass-options/final/contrast.md). A strong edge draws the shape:
+   a light line all round, a brighter one along the top, a dark hairline
+   outside, a small shadow. The chosen tab is a lighter capsule in Aurora's
+   violet with its own line, its word white. */
+html[data-look="glass"] {
+  --ge-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0) 40%);
+  --ge-fill: var(--ge-sheen), linear-gradient(rgba(8, 6, 22, 0.22), rgba(8, 6, 22, 0.22));
+  --ge-blur: blur(3px) saturate(2) brightness(0.5);
+  --ge-fill-menu: var(--ge-sheen), linear-gradient(rgba(4, 3, 14, 0.52), rgba(4, 3, 14, 0.52));
+  --ge-blur-thick: blur(10px) saturate(1.8) brightness(0.5);
+  --ge-edge: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.38);
+  --ge-edge-thick: inset 0 1px 0 rgba(255, 255, 255, 0.52), inset 0 0 0 1px rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.4);
+  --ge-shadow: 0 6px 18px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --ge-shadow-menu: 0 14px 36px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --ge-well: rgba(139, 123, 255, 0.24);
+  --ge-well-edge: inset 0 0 0 1px rgba(196, 186, 255, 0.36), inset 0 1px 0 rgba(226, 220, 255, 0.42);
+  --ge-lift: linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1));
+}
+html[data-look="glass"] .nav-items,
 html[data-look="glass"] .nav-logo,
 html[data-look="glass"] .nav-profile,
+html[data-look="glass"] .nav-gear,
 html[data-look="glass"] .nav-dl,
-html[data-look="glass"] .btn:not(.btn-primary),
-html[data-look="glass"] .chip,
-html[data-look="glass"] .cat-pill,
-html[data-look="glass"] .player-top .pbtn {
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+html[data-look="glass"] .nav-remote,
+html[data-look="glass"] .hero-actions .btn:not(.btn-primary),
+html[data-look="glass"] .detail-actions .btn:not(.btn-primary),
+html[data-look="glass"] .player-bottom,
+html[data-look="glass"] .player-top > div,
+html[data-look="glass"] .player-top .pbtn,
+html[data-look="glass"] .upnext,
+html[data-look="glass"] .resume-card,
+html[data-look="glass"] .quality-pill,
+html[data-look="glass"] .party-pill {
+  --g-fill: var(--ge-fill);
+  --g-blur: var(--ge-blur);
+  --g-edge: var(--ge-edge);
+  --g-shadow: var(--ge-shadow);
+  --g-lift: var(--ge-lift);
+  --g-well: var(--ge-well);
+  --g-well-edge: var(--ge-well-edge);
+  --g-ink-on: #fff;
 }
-html[data-look="glass"] .nav-item:focus-visible,
-html[data-look="glass"] .btn:not(.btn-primary):focus-visible {
-  text-shadow: none;
+/* the player's menus: the same glass, frosted more for their lines */
+html[data-look="glass"] .player .menu {
+  --g-fill-menu: var(--ge-fill-menu);
+  --g-edge-menu: var(--ge-edge-thick);
+  --g-shadow-menu: var(--ge-shadow-menu);
+  --g-blur: var(--ge-blur-thick);
 }
-html[data-look="glass"] .nav-gear svg,
-html[data-look="glass"] .nav-item svg {
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
-}
-/* what carries lines of words (menus, sheets, dialogs, a toast) frosts
-   more and dims deeper, so a poster behind is light and colour, not a
-   shape under the words */
-html[data-look="glass"] .nav-menu,
-html[data-look="glass"] .menu,
-html[data-look="glass"] .dropdown,
-html[data-look="glass"] .suggest-list,
-html[data-look="glass"] .modal,
-html[data-look="glass"] .peek,
-html[data-look="glass"] .look-notice,
-html[data-look="glass"] .party-panel,
-html[data-look="glass"] .toast {
-  --g-blur: var(--g-blur-thick);
-}
-/* the quiet words on a chip (a count) over the sky's brightest band: one
-   step lighter than every other pane lifts them (they read 3.8:1 there) */
-html[data-look="glass"] .chip,
-html[data-look="glass"] .cat-pill,
-html[data-look="glass"] .source-filter,
-html[data-look="glass"] .picker-btn {
-  --text-faint: #e0e3ea;
-  --text-dim: #eceef3;
-}
-/* the phone's More menu (responsive.css draws the TV's opaque panel for
-   both looks): in the glass look, a clear pane the height of the screen,
-   the page frosted and dimmed behind it, a light line down its edge. The
-   frost comes on once the pane has slid in (a frosted pane re-blurs the
-   whole screen on every frame of the slide: the opening's late frames went
-   2 -> 5 at CPU x4), and goes before it slides out; without it, the page's
-   own words showed sharp between the rows. */
-html[data-look="glass"] .nav-more-sheet {
-  background: linear-gradient(rgba(0, 0, 6, 0.4), rgba(0, 0, 6, 0.4));
-  -webkit-backdrop-filter: blur(10px) saturate(1.5) brightness(0.48);
-  backdrop-filter: blur(10px) saturate(1.5) brightness(0.48);
-  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.3), 1px 0 0 rgba(0, 0, 0, 0.4);
-  animation: nav-more-in 280ms var(--ease) both, nav-more-frost 1ms 280ms step-end both;
-}
-/* (the dim's fade-in must not stay applied once it has run: an element
-   held at the end of an opacity animation is a "backdrop root", and the
-   pane's frost then saw only the dim, never the page) */
-html[data-look="glass"] .nav-more-wrap:not(.leaving) {
-  animation-fill-mode: backwards;
-}
-html[data-look="glass"] .nav-more-wrap.leaving .nav-more-sheet {
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  background: linear-gradient(rgba(0, 0, 6, 0.8), rgba(0, 0, 6, 0.8));
-}
-@keyframes nav-more-frost {
-  from { -webkit-backdrop-filter: none; backdrop-filter: none; background: linear-gradient(rgba(0, 0, 6, 0.8), rgba(0, 0, 6, 0.8)); }
-}
-@media (prefers-reduced-motion: reduce) {
-  html[data-look="glass"] .nav-more-sheet,
-  html[data-look="glass"] .nav-more-wrap.leaving .nav-more-sheet {
-    animation: none;
-  }
-}
-html[data-look="glass"] .nav-more-sheet::after,
-html[data-look="glass"] .nav-more-hues {
-  display: none;
-}
-html[data-look="glass"] .nav-more-item.active,
-html[data-look="glass"] .nav-more-profile {
-  background: rgba(255, 255, 255, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.26);
-}
-@media (prefers-reduced-transparency: reduce) {
-  html[data-look="glass"] .nav-more-sheet {
-    background: #101016;
-  }
-}
-/* a browser that draws no backdrop filter at all: the bodies of a weak
-   device (above) */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  html[data-look="glass"]:root {
-    --g-tint: 22, 22, 28;
-    --g-tint-deep: 16, 16, 20;
-    --g-fill: var(--g-sheen), linear-gradient(rgba(22, 22, 28, 0.9), rgba(22, 22, 28, 0.9));
-    --g-fill-thick: var(--g-sheen), linear-gradient(rgba(16, 16, 20, 0.94), rgba(16, 16, 20, 0.94));
-    --g-fill-sheet: var(--g-fill-thick);
-    --g-fill-menu: var(--g-fill-thick);
-    --g-fill-chip: linear-gradient(rgba(22, 22, 28, 0.82), rgba(22, 22, 28, 0.82));
-  }
-}
-/* the player's menus on a wider screen: the TV's hue OVER the menu's body
-   (the hue's background-image alone left the menu without one) */
+/* (on a wider screen the TV's hue lies OVER the menu's body: its
+   background-image alone left the menu with none — white words on a
+   bright frame) */
 @media (min-width: 721px) {
   html[data-look="glass"] .player .menu {
     background-image:
@@ -5836,11 +5818,36 @@ html[data-look="glass"] .nav-more-profile {
       var(--g-fill-menu);
   }
 }
-/* Phones: the player's chrome is not blurred over the video (the cost —
-   see "Phones: a live blur over moving video" above), so nothing dims what
-   is behind it either: its body holds the words alone — 62 % of black,
-   white words 6:1 over a white frame (the clear 20 % read 1.4:1). The party
-   panel carries a paragraph: fuller still. */
+/* words on the clear glass carry a soft shadow of their own */
+html[data-look="glass"] .nav-items .nav-item,
+html[data-look="glass"] .nav-logo,
+html[data-look="glass"] .nav-profile,
+html[data-look="glass"] .nav-dl,
+html[data-look="glass"] .hero-actions .btn:not(.btn-primary),
+html[data-look="glass"] .detail-actions .btn:not(.btn-primary),
+html[data-look="glass"] .player-top .pbtn {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+html[data-look="glass"] .nav-items .nav-item:focus-visible,
+html[data-look="glass"] .hero-actions .btn:focus-visible,
+html[data-look="glass"] .detail-actions .btn:focus-visible {
+  text-shadow: none;
+}
+html[data-look="glass"] .nav-gear svg,
+html[data-look="glass"] .nav-items .nav-item svg {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+}
+/* the player's second voice (the clock, the year under the title) on the
+   clear chrome over a white frame: lifted one step (3.6:1 before) */
+html[data-look="glass"] .player-bottom,
+html[data-look="glass"] .player-top {
+  --text-dim: #e3e6ee;
+  --text-faint: #cdd2de;
+}
+/* Phones: the player's chrome is never blurred over the video (see "Phones:
+   a live blur over moving video" above), so nothing dims what is behind it
+   either — its body holds the words alone: 62 % of black, white words 6:1
+   over a white frame (the clear fifth read 1.4:1). */
 @media (max-width: 720px) {
   html[data-look="glass"] .player-bottom,
   html[data-look="glass"] .player-top > div,
@@ -5849,14 +5856,23 @@ html[data-look="glass"] .nav-more-profile {
   html[data-look="glass"] .resume-card {
     background: linear-gradient(rgba(0, 0, 4, 0.62), rgba(0, 0, 4, 0.62)), rgba(10, 12, 22, var(--g-under, 0));
   }
-  html[data-look="glass"] .party-panel {
-    background: linear-gradient(rgba(0, 0, 4, 0.8), rgba(0, 0, 4, 0.8));
+}
+/* Where nothing behind is blurred or dimmed (reduced transparency, a TV's
+   browser, a weak device, a browser without backdrop-filter), the clear
+   body cannot hold the words: a near-opaque dark grey, the edge kept. */
+html[data-look="glass"][data-fx="lite"]:root {
+  --ge-fill: var(--ge-sheen), linear-gradient(rgba(22, 22, 28, 0.9), rgba(22, 22, 28, 0.9));
+  --ge-fill-menu: var(--ge-sheen), linear-gradient(rgba(16, 16, 20, 0.94), rgba(16, 16, 20, 0.94));
+}
+@media (prefers-reduced-transparency: reduce), (hover: none) and (pointer: coarse) and (min-width: 1200px) {
+  html[data-look="glass"]:root {
+    --ge-fill: var(--ge-sheen), linear-gradient(rgba(22, 22, 28, 0.9), rgba(22, 22, 28, 0.9));
+    --ge-fill-menu: var(--ge-sheen), linear-gradient(rgba(16, 16, 20, 0.94), rgba(16, 16, 20, 0.94));
   }
 }
-/* the player's second voice (the clock, the year under the title) on its
-   clear chrome over a white frame: lifted like every pane's (3.6:1 before) */
-html[data-look="glass"] .player-bottom,
-html[data-look="glass"] .player-top {
-  --text-dim: #e3e6ee;
-  --text-faint: #cdd2de;
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-look="glass"]:root {
+    --ge-fill: var(--ge-sheen), linear-gradient(rgba(22, 22, 28, 0.9), rgba(22, 22, 28, 0.9));
+    --ge-fill-menu: var(--ge-sheen), linear-gradient(rgba(16, 16, 20, 0.94), rgba(16, 16, 20, 0.94));
+  }
 }
