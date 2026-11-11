@@ -3,6 +3,17 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.28 — 2026-11-11
+
+- **Wrapped, Pick for me, Taste and Pick together play like games (website).** Wrapped is a story you tap through, with numbers that count up and a card to share at the end. Pick for me draws your film like a reel that slows and lands. Taste is a deck of cards you throw right or left. Pick together plays in turns, with a tally and a reveal. What they do is the same; the TV and the phone app get the same look in their next update.
+- **Watching with no connection, made simple (website).** One name and one sign everywhere: Save to this device. A ring on the poster fills as it saves. You can ask for a film, an episode or a whole show before the server has it, and it saves itself when the server's copy is ready. Pack for a trip saves what you are in the middle of in one go. A save can be paused and picked up again, takes every subtitle and the sound you chose, and is quicker in Chrome. With no connection, Aurora shows what is on this device instead of an empty page. Nothing is ever removed from your device by itself.
+- **Report a problem tells us what happened** (website, TV, phone app, and the admin page that reads it). A report now carries the last things you did, your device and what the player was doing. Nothing you type is recorded (no passwords, names or messages; the words of a search are the one exception). "See what will be sent" shows you exactly what goes.
+- **Home on a phone sits right (website).** On an iPhone the big picture starts below the settings and profile buttons and the greeting sits on it, top left, with a soft shade from the top so it reads over any picture. The Aurora mark's box fits the mark, the bar at the bottom is a little taller, and the row of buttons on a title's page shows that it scrolls sideways.
+- **Aurora has a lot more to say.** The line under the greeting has 891 lines for 73 situations: the hour, the day, a show you left, a long night, a week away. It teases habits and taste, never the person. Kids get friendly lines only.
+- **Smoother to look at.** The sky keeps moving while you scroll on a computer. A picture that arrives sharper fades in softly. Pages and the server do less work for the same result, and nothing looks different for it.
+- **Small things put right** on the website, the admin page and the TV (Aurora TV 5.9.3): words that were cut, rows too close to the edge, a clock that was hard to read, Back that went to the wrong place.
+- The phone app's update (1.1.3) follows separately.
+
 ## 1.15.27 — 2026-11-10
 
 - **The Calendar is a real month** on the website, the TV and the phone app (Aurora TV 5.9.2, Aurora for Android phones 1.1.2). Each day shows its releases as posters (fanned on wide screens, one poster filling the day on phones and the TV), with the kind on a coloured edge and a tick for what's already on the server. The picked day's releases sit beside or under the month with Play and Save & watch. There is a Next up line, a Month / List switch remembered per device, the keyboard, D-pad and swipe to move between days and months, and reduced motion is honoured. Days and "today" follow the device's own time zone and week start. Older apps keep their unchanged lists.
