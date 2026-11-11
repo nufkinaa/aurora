@@ -673,7 +673,6 @@ export const cs = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.13)',
     backgroundColor: '#17152f',
     experimental_backgroundImage: 'linear-gradient(180deg, #221f42 0%, #141229 100%)',
-    boxShadow: '0 18px 40px -18px rgba(0,0,0,0.9)',
   },
   roastQ: {color: PLAY.gold, fontSize: 34, lineHeight: 34, fontWeight: '900', marginTop: -2},
   roastText: {flex: 1, color: PLAY.ink, fontSize: 17, lineHeight: 23, fontWeight: '800'},

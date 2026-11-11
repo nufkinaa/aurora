@@ -235,7 +235,7 @@ export default function Pick() {
   const front = useInFront(navigation as never);
   const {profileId} = useApp();
   const me = useMe(profileId);
-  const {width} = useWindowDimensions();
+  const {width, height} = useWindowDimensions();
   const calm = useCalm();
   const timers = useTimers();
   if (last && last.owner !== profileId) last = null;
@@ -458,7 +458,8 @@ export default function Pick() {
 
   const stage =
     mode === 'none' ? null : (
-      <View style={s.stage} onLayout={onStage}>
+      // (at least a window tall, so it can be brought up under the top buttons even when nothing is under it yet)
+      <View style={[s.stage, {minHeight: Math.max(0, height - barTop - 58 - bottom)}]} onLayout={onStage}>
         <View style={s.reelHold} ref={reelRef} collapsable={false}>
           {mode === 'won' ? <Image source={GLOW_SRC} fadeDuration={0} style={[s.reelGlow, {width: reelW * 2.4, height: reelW * 2.4}]} /> : null}
           <Reel w={reelW} h={reelH} items={items} mode={mode} spin={spin} showing={draw} calm={calm || !front} flash={flash} onLanded={landed} />
