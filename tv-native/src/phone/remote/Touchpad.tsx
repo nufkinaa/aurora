@@ -11,7 +11,7 @@ import {colors} from '../theme';
 
 const RIPPLE = 120;
 
-export default function Touchpad({onPress, steerable = true, calm}: {onPress: (k: Dir | 'ok') => void; steerable?: boolean; calm?: boolean}) {
+export default function Touchpad({onPress, steerable = true, calm, short}: {onPress: (k: Dir | 'ok') => void; steerable?: boolean; calm?: boolean; short?: boolean}) {
   const [held, setHeld] = useState(false);
   const [padH, setPadH] = useState(0);
   const ripple = useRef({x: new Animated.Value(-500), y: new Animated.Value(-500), a: new Animated.Value(0)}).current;
@@ -66,7 +66,7 @@ export default function Touchpad({onPress, steerable = true, calm}: {onPress: (k
   }, []);
   return (
     <View
-      style={[s.pad, held && s.padHeld, !steerable && s.off]}
+      style={[s.pad, short && s.padShort, held && s.padHeld, !steerable && s.off]}
       onLayout={e => setPadH(Math.round(e.nativeEvent.layout.height))}
       {...pan.panHandlers}
       accessible
@@ -124,6 +124,8 @@ export default function Touchpad({onPress, steerable = true, calm}: {onPress: (k
 
 const s = StyleSheet.create({
   pad: {flex: 1, minHeight: 220, borderRadius: 32, overflow: 'hidden', ...PANE, boxShadow: '0 24px 60px rgba(0,0,0,0.32)'},
+  // sideways on a phone (.rm-touch min-height 120)
+  padShort: {minHeight: 120},
   padHeld: {backgroundColor: 'rgba(24,24,34,0.5)'},
   off: {opacity: 0.45},
   glow: {...StyleSheet.absoluteFill, borderRadius: 32, borderWidth: 1, borderColor: 'rgba(139,123,255,0)'},

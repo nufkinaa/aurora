@@ -484,7 +484,7 @@ export default function Remote() {
       {short ? null : <Seg uiId="remote.padmode" items={[['touch', 'Swipe'], ['buttons', 'Buttons']]} value={pad} onPick={setPad} />}
       <View style={[s.padArea, short && s.padAreaShort]}>
         {pad === 'touch' ? (
-          <Touchpad onPress={k => (uiHit('remote.dpad', 'touch'), press(k))} steerable={steer} calm={calm} />
+          <Touchpad onPress={k => (uiHit('remote.dpad', 'touch'), press(k))} steerable={steer} calm={calm} short={short} />
         ) : (
           <View style={[s.dpad, {width: dsize, height: dsize, borderRadius: dsize / 2}, !steer && s.dim]} pointerEvents={steer ? 'auto' : 'none'} accessibilityRole="none">
             <Tap uiId="remote.dpad" borderless accessibilityRole="button" accessibilityLabel="Up" onPress={() => press('up')} style={[s.dkey, {left: dsize / 3, top: 0, width: dsize / 3, height: dsize / 3}]}>
@@ -673,7 +673,7 @@ const s = StyleSheet.create({
   // sideways on a phone (.rm-view gap 10, 4 0 18): the chips stay above the dock
   sectionShort: {gap: 10},
   viewInShort: {paddingTop: 0, paddingBottom: 8},
-  padViewShort: {gap: 10, paddingTop: 0, paddingBottom: 8},
+  padViewShort: {gap: 10, paddingTop: 0, paddingBottom: 8, justifyContent: 'space-between'},
   // now playing
   art: {alignSelf: 'center', borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', boxShadow: '0 30px 60px rgba(0,0,0,0.55)'},
   // no picture: the site's violet-to-teal tile with the title's letter
