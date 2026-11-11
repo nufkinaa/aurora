@@ -83,11 +83,34 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # ffmpeg + ffprobe: the static build the ffmpeg.org download page links to
+      # (BtbN, on GitHub), fetched once and kept in the Actions cache. apt was
+      # the first try and hung for 20+ min on every shard of one run (a slow
+      # mirror); it stays as the fallback, with a time limit.
+      - name: Restore ffmpeg
+        id: ffcache
+        uses: actions/cache@v5
+        with:
+          path: ~/ffmpeg
+          key: ffmpeg-btbn-n7.1-linux64-gpl-v1
       - name: ffmpeg
+        timeout-minutes: 12
+        env:
+          FF_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-linux64-gpl-7.1.tar.xz
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null
-          ffmpeg -version | head -1
+          if [ ! -x ~/ffmpeg/bin/ffmpeg ]; then
+            mkdir -p ~/ffmpeg
+            if ! curl -fsSL --retry 3 --max-time 240 "$FF_URL" | tar -xJ -C ~/ffmpeg --strip-components=1; then
+              echo "::warning title=ffmpeg::the static build could not be fetched; trying apt"
+              rm -rf ~/ffmpeg; mkdir -p ~/ffmpeg/bin
+              export DEBIAN_FRONTEND=noninteractive
+              timeout 240 sudo -E apt-get update -qq -o Acquire::Retries=3
+              timeout 300 sudo -E apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null
+              ln -s "$(command -v ffmpeg)" ~/ffmpeg/bin/ffmpeg; ln -s "$(command -v ffprobe)" ~/ffmpeg/bin/ffprobe
+            fi
+          fi
+          echo "$HOME/ffmpeg/bin" >> "$GITHUB_PATH"
+          ~/ffmpeg/bin/ffmpeg -version | head -1; ~/ffmpeg/bin/ffprobe -version | head -1
       - name: Chrome
         run: |
           if ! command -v google-chrome >/dev/null; then npx --yes playwright-core install --with-deps chrome; fi
