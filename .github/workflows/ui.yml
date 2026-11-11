@@ -1,0 +1,119 @@
+name: UI
+
+# The website's browser tests (test/ui/*.test.js, `npm run test:ui` locally)
+# split over parallel runners: ~60 min one file at a time on the home PC,
+# about a quarter of that in wall time here. Each shard runs its files one
+# after another, each file with its own private Aurora instance and Chrome
+# (test/ui/helpers.js), exactly as the local run does. No secret is used: the
+# instances make up their own admin password and reach nothing outside.
+#
+#   pushes to master, rel-* and ui-* branches: the whole suite
+#   Run workflow (Actions tab): the whole suite, or `files` (names or paths,
+#   space or comma separated: "party wall" / "test/ui/party.test.js")
+#   tools/ci-ui.sh <branch> reads a run's result per shard from the public API.
+on:
+  push:
+    branches: [master, "rel-*", "ui-*"]
+  workflow_dispatch:
+    inputs:
+      files:
+        description: "Only these test/ui files (names or paths, space/comma separated). Empty = all."
+        required: false
+        default: ""
+      shards:
+        description: "How many runners"
+        required: false
+        default: "8"
+
+permissions:
+  contents: read
+
+# A newer push to the same branch cancels the older run; a by-hand run is its own.
+concurrency:
+  group: ui-${{ github.ref }}-${{ github.event_name == 'push' && 'latest' || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+env:
+  # The household's clock (Israel): the tests that read the hour (overnight's
+  # quiet hours, the calendar's "today") see the same day and hour as at home.
+  TZ: Asia/Jerusalem
+  # Google Chrome is on the ubuntu image (H.264/AAC: the test films play; the
+  # open-source Chromium build cannot decode them).
+  UI_BROWSER: chrome
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.split.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            tools/ci
+            test/ui
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - id: split
+        env:
+          FILES: ${{ github.event.inputs.files }}
+          SHARDS: ${{ github.event.inputs.shards || '8' }}
+        run: node tools/ci/ui-shards.js --shards "$SHARDS" --files "$FILES" --github
+
+  ui:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    name: "ui ${{ matrix.shard }}/${{ matrix.of }}"
+    steps:
+      # (the QA screenshots, ~700 MB, are left out: no browser test reads them)
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/docs/qa/
+            !/docs/android-phone/
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null
+          ffmpeg -version | head -1
+      - name: Chrome
+        run: |
+          if ! command -v google-chrome >/dev/null; then npx --yes playwright-core install --with-deps chrome; fi
+          google-chrome --version
+      - run: npm ci --no-audit --no-fund
+      # The test library (made with ffmpeg on first use, ~30 s): kept between runs.
+      - uses: actions/cache@v5
+        with:
+          path: test/ui/.cache
+          key: ui-media-${{ hashFiles('scripts/ui-test-server.js') }}
+      - name: test/ui (${{ matrix.est }} s expected)
+        env:
+          UI_OUT: ${{ github.workspace }}/test/ui/artifacts/ci
+        run: node tools/ci/ui-shard-run.js ${{ matrix.files }}
+      - name: Upload what failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-artifacts-${{ matrix.shard }}
+          path: test/ui/artifacts/
+          retention-days: 7
+      - name: Upload timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-timings-${{ matrix.shard }}
+          path: test/ui/artifacts/ci/timings.json
+          retention-days: 14
+          if-no-files-found: ignore
