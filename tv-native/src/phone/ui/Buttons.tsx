@@ -5,7 +5,7 @@ import React, {createContext, useContext} from 'react';
 import {ActivityIndicator, StyleSheet, Text, View, ViewStyle, StyleProp} from 'react-native';
 import Tap from './Tap';
 import Icon, {PhoneIconName} from './Icon';
-import {colors, G_EDGE, G_FILL, radius} from '../theme';
+import {colors, E, E_EDGE, E_EDGE_FLOAT, E_EDGE_THIN, E_WORDS, G_EDGE, G_FILL, radius} from '../theme';
 
 type Base = {
   label: string;
@@ -217,13 +217,12 @@ const s = StyleSheet.create({
     overflow: 'hidden',
   },
   primaryText: {color: '#0b0c14', fontSize: 16, fontWeight: '700', letterSpacing: 0.16},
-  // .btn: the glass pill beside it (--g-fill and --g-edge)
+  // .btn: the glass pill beside it — glass E (chrome over pictures: Aurora's navy body, E's edge)
   glass: {
     height: 50,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(12,14,30,0.42)',
-    experimental_backgroundImage: G_FILL,
-    ...G_EDGE,
+    backgroundColor: E.chrome,
+    ...E_EDGE,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -231,7 +230,7 @@ const s = StyleSheet.create({
     gap: 10,
     overflow: 'hidden',
   },
-  glassText: {color: colors.text, fontSize: 16, fontWeight: '700', letterSpacing: 0.16},
+  glassText: {color: '#ffffff', fontSize: 16, fontWeight: '700', letterSpacing: 0.16, ...E_WORDS},
   glassSmall: {height: 39.6, paddingHorizontal: 20},
   glassTextSmall: {fontSize: 14.4, letterSpacing: 0.14},
   emoji: {fontSize: 14.4},
@@ -263,9 +262,9 @@ const s = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: 'rgba(255,255,255,0.09)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.13)',
+    // glass E (the title page's buttons): Aurora's navy body, E's thin edge
+    backgroundColor: E.chrome,
+    ...E_EDGE_THIN,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -273,9 +272,9 @@ const s = StyleSheet.create({
   actionText: {color: 'rgba(243,244,248,0.8)', fontSize: 11.2, fontWeight: '600', textAlign: 'center', lineHeight: 13.44, letterSpacing: 0.11},
   // .nav-gear / .nav-profile / .nav-logo: round glass over the page
   iconCircle: {
-    backgroundColor: 'rgba(96,84,230,0.22)',
-    experimental_backgroundImage: G_FILL,
-    ...G_EDGE,
+    // glass E over the picture
+    backgroundColor: E.chrome,
+    ...E_EDGE_FLOAT,
     alignItems: 'center',
     justifyContent: 'center',
   },

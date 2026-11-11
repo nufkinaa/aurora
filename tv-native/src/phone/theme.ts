@@ -47,6 +47,72 @@ export const G_EDGE = {
   borderBottomColor: 'rgba(255,255,255,0.06)',
 } as const;
 
+/* ---- Glass E ("Clear") on the chrome over pictures (2026-11-11) -----------
+   elia chose E for the website ("I think E looks the best!!") and for the phone
+   app, then narrowed it: "Not everything needs to change to this … make sure
+   we are not losing too much color". So E is ONLY on what floats over a
+   picture — the tab bar, the round top buttons, the logo pill, the glass
+   buttons (the hero's Details, …), the title page's action circles, the
+   player's controls and menu. Sheets, the More menu, the profile menu, toasts,
+   panes and rows in the page keep the 1.1.2 look (the tokens above).
+
+   The website dims what is behind its bars (backdrop brightness 0.48 under a
+   fifth of black). React Native has no live backdrop, so the body does the
+   dimming — and it is Aurora's deep navy-violet, not black, and a touch
+   lighter (58 %): 42 % of the picture's light and colour comes through, with a
+   violet cast instead of grey. Over a WHITE poster the Pixel 9 draws it
+   (117,116,131): white words 4.58:1. The chosen tab is a violet capsule
+   (Aurora's accent at 20 %) with its own line — 4.59:1 over white. The edge:
+   a faint even violet rim and a dark hairline outside — no white line along
+   the top (elia's ruling, below). Words carry a soft shadow. */
+export const E = {
+  /** what floats over pictures */
+  chrome: 'rgba(10,8,34,0.58)',
+  /** the player's menu: words in lines over a moving frame — near-solid (0.88 showed the frame's shapes sharp between the lines on the Pixel 9) */
+  thick: 'rgba(4,4,10,0.94)',
+} as const;
+
+/** E's rim (elia, 2026-11-11: "glass looks better when there isn't hard white
+ *  backdrop from the top of the glass"): NO bright line along the top and no
+ *  sheen from the top — one faint EVEN rim all round in Aurora's violet, and
+ *  the dark hairline outside it (it parts the glass from a white poster; a
+ *  1 dp spread shadow, no blur; Android 9+). */
+export const E_EDGE = {
+  borderWidth: 1,
+  borderColor: 'rgba(176,164,255,0.26)',
+  boxShadow: '0 0 0 1px rgba(0,0,0,0.38)',
+} as const;
+/** The player's menu: the same even rim, the outside line 0.4. */
+export const E_EDGE_THICK = {
+  ...E_EDGE,
+  boxShadow: '0 0 0 1px rgba(0,0,0,0.4)',
+} as const;
+/** Small round things (the action circles, the player's buttons): fainter still. */
+export const E_EDGE_THIN = {
+  borderWidth: 1,
+  borderColor: 'rgba(176,164,255,0.2)',
+  boxShadow: '0 0 0 1px rgba(0,0,0,0.3)',
+} as const;
+/** The edge with the depth under it (--g-edge + --g-shadow), for what floats (the tab bar, the round
+ *  buttons): drawn around the shape only (RN clips it out under the body), unlike Android's
+ *  elevation, which darkens a see-through body from below. */
+export const E_EDGE_FLOAT = {
+  ...E_EDGE,
+  boxShadow: '0 0 0 1px rgba(0,0,0,0.38), 0 6px 18px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.3)',
+} as const;
+/** The chosen tab / a lit control: Aurora's violet capsule with its own line (4.8:1 over white). */
+export const E_WELL = {
+  backgroundColor: 'rgba(120,104,240,0.2)',
+  borderWidth: 1,
+  borderColor: 'rgba(170,158,255,0.4)',
+} as const;
+/** Words on the clearest glass carry a soft shadow of their own (0 1px 3px rgba(0,0,0,.6)). */
+export const E_WORDS = {
+  textShadowColor: 'rgba(0,0,0,0.6)',
+  textShadowOffset: {width: 0, height: 1},
+  textShadowRadius: 3,
+} as const;
+
 export const space = {xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32};
 // the page gutter (`--page-x` = 16px at 411)
 export const GUTTER = 16;
