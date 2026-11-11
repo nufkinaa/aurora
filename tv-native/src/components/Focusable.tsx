@@ -21,7 +21,7 @@
 // key in the same frame Android moved focus, with no JS on the path, and which
 // carries the `cardlayer` / `shadowcache` render fixes. Card / Btn / Chip /
 // NavItem pass the same props to both and do not know which they got.
-import React, {useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   Animated,
   DeviceEventEmitter,
@@ -37,7 +37,6 @@ import {noteFocus, noteFocusLost} from '../focus';
 import {uiHit} from '../telemetry'; // [analytics]
 import {nativeOn, tellRingClaimed} from '../render';
 import {isPhone} from '../formFactor';
-import {NO_SHADOW} from '../glass';
 import {QA_BUILD, isFocusLogging, isTracing, logFocus, logRing, onQaChange, traceValue} from '../qa';
 import AuroraFocusable, {Commands, FocusChangeEvent} from '../specs/AuroraFocusableNativeComponent';
 import theme from '../theme';
@@ -65,15 +64,6 @@ const LIGHT_GAP = 3;
 const LIGHT_RING = focus.borderWidth + 1;
 // The second half of --focus-ring: `0 10px 24px rgba(0,0,0,.5)`.
 const TOKEN_SHADOW = '0 10px 24px rgba(0,0,0,0.5)';
-
-// The TV's opaque glass sheets (Sheet, X-Ray, a person's sheet) wrap what they
-// hold in <FlatFocus.Provider value={true}>: a Focusable in there draws its
-// ring WITHOUT the drop shadow. The shadow lifts a focused element off a
-// picture; on a flat grey sheet it only showed where the sheet's scroll boxes
-// cut it - a square dark box round the round Play button, round X-Ray's first
-// face (Mi TV, two judges, 2026-11-10). The phone's sheets never provide it,
-// and the phone's Focusable does not read it.
-export const FlatFocus = React.createContext(false);
 
 // Ring colour, per the two tokens above.
 export type FocusRing = 'white' | 'violet' | 'none';
@@ -276,8 +266,6 @@ function JsFocusable({
   nativeID,
   ref,
 }: Props) {
-  // in one of the TV's opaque sheets: the ring without its drop shadow (FlatFocus above)
-  const flatFocus = useContext(FlatFocus) && !isPhone();
   const anim = useRef(new Animated.Value(0)).current;
   // The SCALE runs on its own spring while the ring's opacity stays on a timing
   // curve. A spring is what makes focus feel physical rather than mechanical —
@@ -562,7 +550,6 @@ function JsFocusable({
                 opacity: anim,
                 borderColor: RING_COLOR[ring === 'none' ? 'white' : ring],
               },
-              flatFocus ? styles.noShadow : null,
             ]}
           />
         </>
@@ -581,7 +568,6 @@ function JsFocusable({
             ringWidth != null ? {borderWidth: ringWidth} : null,
             ringColor ? {borderColor: ringColor} : null,
             shadow ? {boxShadow: shadow} : null,
-            flatFocus ? styles.noShadow : null,
           ]}
         />
       )}
@@ -677,9 +663,7 @@ function NativeFocusable({
 
   const flat = StyleSheet.flatten([styles.base, round && {borderRadius: radius.pill}, style]) as ViewStyle;
   const ringRadius = (flat.borderRadius as number) ?? radius.m;
-  // in an opaque sheet: no drop shadow (a transparent one tells the native view to make none)
-  const flatFocus = useContext(FlatFocus);
-  const sh = parseShadow(flatFocus ? NO_SHADOW : shadow ?? TOKEN_SHADOW);
+  const sh = parseShadow(shadow ?? TOKEN_SHADOW);
 
   const handleFocusChange = useCallback(
     (e: {nativeEvent: FocusChangeEvent}) => {
@@ -801,8 +785,6 @@ const styles = StyleSheet.create({
     borderWidth: LIGHT_GAP,
     borderColor: colors.bg,
   },
-  // FlatFocus: the ring alone
-  noShadow: {boxShadow: NO_SHADOW},
   lightRing: {
     position: 'absolute',
     top: -(LIGHT_GAP + LIGHT_RING),

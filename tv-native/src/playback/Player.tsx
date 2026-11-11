@@ -163,8 +163,6 @@ import {personNow} from '../personSync';
 import {track} from '../usage';
 import {clearImageMemory, isLowRam} from '../perfTier';
 import {RootStackParamList} from '../navigation';
-import {glassMenu, ink, inkOnWhite, NO_SHADOW, quietFocus} from '../glass';
-import GlassEdge from '../components/GlassEdge';
 import theme, {useTvMetrics} from '../theme';
 // [android-phone] the phone app draws its own touch controls over this same
 // player (docs/android-phone/PLAN.md); on a TV `PHONE` is false and none of it runs
@@ -513,25 +511,10 @@ const MenuItem = React.forwardRef<
     uiId?: string; // [analytics] which control this is (Focusable.uiId)
   }
 >(function PlayerMenuItem({label, tag, on, star, sub, icon, dim, hasTVPreferredFocus, onPress, onFocusChange, uiId}, ref) {
-  // The TV: the focused row is the white fill with dark words - the rail's focused item, the
-  // transport's focused button - and not a slightly lighter grey pill on a grey menu (which the
-  // set row's lilac word made weaker still: two judges, 2026-11-10). The fill rides on
-  // highlightColor, natively; the words need this one bit of state, as PBtn's icon does - a
-  // handful of rows that exist while a menu is open. The phone: nothing changes.
-  //   the SET row under focus keeps its accent: the tick, the icon and the second line in
-  //     inkOnWhite.set (a black tick alone was all that said "set");
-  //   a row that CANNOT be chosen gets the quiet focus - an outline, no white fill - and keeps
-  //     light words, its title as strong as its note (glass.ts quietFocus).
-  const [focused, setFocused] = useState(false);
-  const lit = focused && !PHONE && !dim; // on the white fill
-  const quiet = focused && !PHONE && !!dim; // in the outline
-  const litSet = lit && on ? styles.menuLitSet : null;
   const name = (
-    <Text
-      style={[styles.menuItemText, on && styles.menuItemTextOn, dim && styles.menuItemDim, lit && styles.menuLit, quiet && styles.menuQuiet]}
-      numberOfLines={1}>
+    <Text style={[styles.menuItemText, on && styles.menuItemTextOn, dim && styles.menuItemDim]} numberOfLines={1}>
       {label}
-      {star ? <Text style={[styles.menuStar, lit && styles.menuLitStar]}>{'  ★'}</Text> : null}
+      {star ? <Text style={styles.menuStar}>{'  ★'}</Text> : null}
     </Text>
   );
   return (
@@ -539,83 +522,29 @@ const MenuItem = React.forwardRef<
       ref={ref}
       round
       noScale
-      ring={!PHONE && dim ? 'white' : 'none'}
-      ringWidth={!PHONE && dim ? quietFocus.ringWidth : undefined}
-      ringColor={!PHONE && dim ? quietFocus.ring : undefined}
-      shadow={!PHONE && dim ? NO_SHADOW : undefined}
-      highlightColor={PHONE ? colors.surfaceHover : dim ? quietFocus.fill : colors.white}
+      ring="none"
+      highlightColor={colors.surfaceHover}
       hasTVPreferredFocus={hasTVPreferredFocus}
-      onFocusChange={
-        PHONE
-          ? onFocusChange
-          : f => {
-              setFocused(f);
-              onFocusChange?.(f);
-            }
-      }
+      onFocusChange={onFocusChange}
       uiId={uiId}
       onPress={onPress}
       style={styles.menuItem}>
-      <Text style={[styles.menuCheck, !on && styles.menuCheckOff, lit && styles.menuLit, litSet]}>✓</Text>
-      {icon ? (
-        <Icon
-          name={icon}
-          size={14}
-          color={PHONE ? (on ? colors.text : colors.textDim) : lit ? (on ? inkOnWhite.set : inkOnWhite.text) : on ? ink.on : ink.text}
-        />
-      ) : null}
+      <Text style={[styles.menuCheck, !on && styles.menuCheckOff]}>✓</Text>
+      {icon ? <Icon name={icon} size={14} color={on ? colors.text : colors.textDim} /> : null}
       {sub ? (
         <View style={styles.menuItemCol}>
           {name}
-          <Text style={[styles.menuSub, lit && styles.menuLitSecond, litSet]} numberOfLines={dim ? 2 : 1}>
+          <Text style={styles.menuSub} numberOfLines={dim ? 2 : 1}>
             {sub}
           </Text>
         </View>
       ) : (
         name
       )}
-      {tag ? <Text style={[styles.menuTag, lit && styles.menuLitSecond]}>{tag}</Text> : null}
+      {tag ? <Text style={styles.menuTag}>{tag}</Text> : null}
     </Focusable>
   );
 });
-
-// A nudge of the subtitle timing ("-5s", "+0.5s", "Reset"): on the TV the same white fill and
-// dark word under focus as a menu row; on the phone as it was.
-function SyncBtn({
-  label,
-  a11y,
-  onPress,
-  onFocusChange,
-}: {
-  label: string;
-  a11y: string;
-  onPress: () => void;
-  onFocusChange?: (f: boolean) => void;
-}) {
-  const [focused, setFocused] = useState(false);
-  return (
-    <Focusable
-      round
-      noScale
-      ring="none"
-      highlightColor={PHONE ? colors.surfaceHover : colors.white}
-      accessibilityLabel={a11y}
-      onFocusChange={
-        PHONE
-          ? onFocusChange
-          : f => {
-              setFocused(f);
-              onFocusChange?.(f);
-            }
-      }
-      onPress={onPress}
-      style={styles.syncBtn}>
-      <Text style={[styles.syncBtnText, focused && !PHONE && styles.menuLit]} numberOfLines={1}>
-        {label}
-      </Text>
-    </Focusable>
-  );
-}
 
 // A subtitle track as the player uses it: the server's track plus `key`, a
 // stable unique id for the menu and the current selection (subTracks.ts
@@ -5536,7 +5465,6 @@ export default function Player({
           stray D-pad press wanders to the transport bar behind the overlay. */}
       {menu === 'cc' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
-          {PHONE ? null : <GlassEdge radius={18} />}
           <MenuTitle icon="cc" label="SUBTITLES" />
           <ScrollView ref={ccScroll} style={styles.menuScroll}>
             {/* The site's first CC entry: one press that drops any manual delay
@@ -5612,27 +5540,47 @@ export default function Player({
                 <MenuTitle icon="forward10" label="SUBTITLE TIMING" gap />
                 <View style={styles.syncRow}>
                   {[-5, -0.5].map(d => (
-                    <SyncBtn
+                    <Focusable
                       key={d}
-                      label={`−${Math.abs(d)}s`}
-                      a11y={`Subtitles ${Math.abs(d)} seconds earlier`}
+                      round
+                      noScale
+                      ring="none"
+                      highlightColor={colors.surfaceHover}
+                      accessibilityLabel={`Subtitles ${Math.abs(d)} seconds earlier`}
                       onFocusChange={markZone('menu')}
                       onPress={() => nudgeSubs(d)}
-                    />
+                      style={styles.syncBtn}>
+                      <Text style={styles.syncBtnText} numberOfLines={1}>{`−${Math.abs(d)}s`}</Text>
+                    </Focusable>
                   ))}
                   <Text style={styles.syncValue} numberOfLines={1}>
                     {`${subOffset >= 0 ? '+' : '−'}${Math.abs(subOffset).toFixed(1)}s`}
                   </Text>
                   {[0.5, 5].map(d => (
-                    <SyncBtn
+                    <Focusable
                       key={d}
-                      label={`+${d}s`}
-                      a11y={`Subtitles ${d} seconds later`}
+                      round
+                      noScale
+                      ring="none"
+                      highlightColor={colors.surfaceHover}
+                      accessibilityLabel={`Subtitles ${d} seconds later`}
                       onFocusChange={markZone('menu')}
                       onPress={() => nudgeSubs(d)}
-                    />
+                      style={styles.syncBtn}>
+                      <Text style={styles.syncBtnText} numberOfLines={1}>{`+${d}s`}</Text>
+                    </Focusable>
                   ))}
-                  <SyncBtn label="Reset" a11y="Reset subtitle timing" onFocusChange={markZone('menu')} onPress={resetSubDelay} />
+                  <Focusable
+                    round
+                    noScale
+                    ring="none"
+                    highlightColor={colors.surfaceHover}
+                    accessibilityLabel="Reset subtitle timing"
+                    onFocusChange={markZone('menu')}
+                    onPress={resetSubDelay}
+                    style={styles.syncBtn}>
+                    <Text style={styles.syncBtnText} numberOfLines={1}>Reset</Text>
+                  </Focusable>
                 </View>
               </>
             ) : null}
@@ -5659,7 +5607,6 @@ export default function Player({
       {/* Speed — the site's SPEEDS menu. */}
       {menu === 'speed' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
-          {PHONE ? null : <GlassEdge radius={18} />}
           <MenuTitle icon="speed" label="SPEED" />
           <ScrollView style={styles.menuScroll}>
             {SPEEDS.map(sp => (
@@ -5687,7 +5634,6 @@ export default function Player({
           you set mid-film. */}
       {menu === 'settings' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
-          {PHONE ? null : <GlassEdge radius={18} />}
           {/* Its own scroller (it had none: a film with several dubs and an
               intro to mark ran past the top of the screen). */}
           <ScrollView ref={gearScroll} style={styles.menuScroll} showsVerticalScrollIndicator={false}>
@@ -5871,7 +5817,6 @@ export default function Player({
       ))}
       {menu === 'party' ? (
         <TVFocusGuideView trapFocusUp trapFocusDown trapFocusLeft trapFocusRight style={[styles.menu, {maxHeight: menuH}]}>
-          {PHONE ? null : <GlassEdge radius={18} />}
           <MenuTitle icon="people" label="WATCH TOGETHER" />
           <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>
           {partyInfo ? (
@@ -6383,35 +6328,27 @@ const styles = StyleSheet.create({
     right: PHONE ? 16 : spacing.pageX,
     bottom: PHONE ? 104 : 124,
     maxHeight: '62%',
-    // THE TV: a menu of the app's glass (glass.ts, docs/glass-tv.md) - the
-    // neutral body, the rim of light, the sheen; the glow and the soft shadow are
-    // <GlassEdge>, pictures (a blurred boxShadow and a stack of gradients cost frames here). Fully opaque:
-    // at 0.97 a bright cue under the sheet still read through it ("Knox! Sto|p!"
-    // - Mi TV, 2026-11-10). It was a navy body with the room's violet and green
-    // in it (elia, 2026-10-07: "give the background there a bit hue"); the glass
-    // is neutral everywhere now, and the film brings the colour.
-    // [android-phone] the phone keeps the navy and its hues until its own lane
-    // moves it to the glass.
-    ...(PHONE
-      ? {
-          backgroundColor: 'rgb(16,15,30)',
-          experimental_backgroundImage:
-            'linear-gradient(140deg, rgba(104,86,226,0.30) 0%, rgba(16,15,30,0) 48%, rgba(70,200,150,0.20) 100%)',
-          borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.10)',
-          borderTopColor: 'rgba(255,255,255,0.20)',
-        }
-      : glassMenu),
+    // A little of the room's light in the glass (elia, 2026-10-07: "give the
+    // background there a bit hue"): the site's violet from the top-left, the
+    // aurora's green from the foot, over a near-opaque navy.
+    // fully opaque: at 0.97 a bright cue under the sheet still read through it
+    // ("Knox! Sto|p!" — Mi TV, 2026-11-10)
+    backgroundColor: 'rgb(16,15,30)',
+    experimental_backgroundImage:
+      'linear-gradient(140deg, rgba(104,86,226,0.30) 0%, rgba(16,15,30,0) 48%, rgba(70,200,150,0.20) 100%)',
     borderRadius: radius.l,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
     minWidth: 280,
     maxWidth: 400,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    borderTopColor: 'rgba(255,255,255,0.20)',
   },
   menuScroll: {flexGrow: 0},
   menuTitleRow: {flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.sm, marginLeft: 12},
   menuTitle: {
-    color: PHONE ? colors.textDim : ink.third,
+    color: colors.textDim,
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 2,
@@ -6450,8 +6387,7 @@ const styles = StyleSheet.create({
   syncBtnText: {color: colors.text, fontSize: fontSize.small, fontWeight: '800'},
   // The ✓ column. Present on every row (transparent when off) so labels align —
   // the site reserves 13px the same way.
-  // (the TV: the tick and the chosen row's word in ink.on, every other row white - glass.ts)
-  menuCheck: {width: 18, color: PHONE ? colors.text : ink.on, fontSize: fontSize.small, fontWeight: '800'},
+  menuCheck: {width: 18, color: colors.text, fontSize: fontSize.small, fontWeight: '800'},
   menuCheckOff: {opacity: 0},
   // .sub-sync .tag — the current delay, sitting between the two pairs of nudges.
   syncValue: {
@@ -6463,21 +6399,20 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   // .menu-item .tag { margin-left: auto }
-  // (the TV: the page's faint grey is 2.7:1 on the glass body - its third voice instead)
-  menuTag: {color: PHONE ? colors.textFaint : ink.third, fontSize: 12, fontWeight: '700', marginLeft: 'auto'},
+  menuTag: {color: colors.textFaint, fontSize: 12, fontWeight: '700', marginLeft: 'auto'},
   // NOT flex:1. The tag is pushed right by its own auto margin (which is what
   // the site does), because a flexing label shrinks to whatever the box already
   // is instead of making the box wide enough — "Resync subtitles" came out as
   // "Resync sub…" inside a menu with room to spare.
-  menuItemText: {color: PHONE ? colors.textDim : ink.text, fontSize: fontSize.small, fontWeight: '700', flexShrink: 1},
-  menuItemTextOn: {color: PHONE ? colors.text : ink.on},
+  menuItemText: {color: colors.textDim, fontSize: fontSize.small, fontWeight: '700', flexShrink: 1},
+  menuItemTextOn: {color: colors.text},
   // the ★ track (resync.ts / the server's starBest): the star in the score
   // gold, and "Matches this release" under the label, small and dim — a
   // second line rather than a tag, so it never squeezes the label or the
   // "Embedded" tag beside it
   menuStar: {color: colors.star, fontSize: 12, fontWeight: '900'},
   menuItemCol: {flexShrink: 1},
-  menuSub: {color: PHONE ? colors.textDim : ink.third, fontSize: 12, fontWeight: '600', marginTop: 2},
+  menuSub: {color: colors.textDim, fontSize: 12, fontWeight: '600', marginTop: 2},
   upNext: {
     position: 'absolute',
     right: PHONE ? 16 : spacing.pageX, // [android-phone]
@@ -6634,12 +6569,4 @@ const styles = StyleSheet.create({
   // [player-options]
   stylePreview: {marginHorizontal: 8, marginTop: 4, marginBottom: 6},
   menuItemDim: {opacity: 0.5},
-  // [glass] the TV's FOCUSED menu row: dark words on the white fill (glass.ts inkOnWhite)
-  menuLit: {color: inkOnWhite.text},
-  menuLitSecond: {color: inkOnWhite.second},
-  menuLitStar: {color: inkOnWhite.star},
-  // the SET row under focus: its tick and second line keep an accent, deep enough for white
-  menuLitSet: {color: inkOnWhite.set},
-  // a row that cannot apply here, under its quiet focus (an outline): the title solid, as its note
-  menuQuiet: {color: ink.third, opacity: 1},
 });
