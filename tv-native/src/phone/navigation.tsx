@@ -99,7 +99,7 @@ export default function PhoneNavigator() {
   useEffect(() => warm(), []);
   useEffect(() => () => restoreWindowBackground(), []);
   useLinks();
-  // the tab bar is drawn over every screen but the player
+  // the tab bar is drawn over every screen but the players and the remote
   const [route, setRoute] = useState('Home');
   return (
     <View style={s.root}>
@@ -168,7 +168,8 @@ export default function PhoneNavigator() {
           />
         </Stack.Navigator>
       </NavigationContainer>
-      {route !== 'Player' && route !== 'OfflinePlayer' ? <TabBar /> : null}
+      {/* (the remote is full screen, as the site's: its own dock is at the foot) */}
+      {route !== 'Player' && route !== 'OfflinePlayer' && route !== 'Remote' ? <TabBar /> : null}
       <PhoneOverlays />
     </View>
   );

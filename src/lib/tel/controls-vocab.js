@@ -225,30 +225,30 @@ module.exports = {
   "household.tab": "wt",
   // rating
   "rating.star": "wp",
-  // remote (the phone as a remote, #/remote) [phone-remote]
-  "remote.audio": "w",
-  "remote.back": "w",
-  "remote.close": "w",
-  "remote.continuehere": "w", // [play-on-tv] Continue on this phone
-  "remote.device.open": "w",
-  "remote.device.pick": "w",
-  "remote.dpad": "w",
-  "remote.home": "w",
-  "remote.more": "w",
-  "remote.mute": "w",
-  "remote.next": "w",
-  "remote.padmode": "w",
-  "remote.play": "w",
-  "remote.playpause": "w",
-  "remote.rename": "w",
-  "remote.seek": "w",
-  "remote.sheet.pick": "w",
-  "remote.skip": "w",
-  "remote.stop": "w",
-  "remote.subdelay": "w",
-  "remote.subtitles": "w",
-  "remote.view": "w",
-  "remote.volume": "w",
+  // remote (the phone as a remote, #/remote) [phone-remote]; "p": the phone app's remote is the same screen (2026-11-11)
+  "remote.audio": "wp",
+  "remote.back": "wp",
+  "remote.close": "wp",
+  "remote.continuehere": "wp", // [play-on-tv] Continue on this phone
+  "remote.device.open": "wp",
+  "remote.device.pick": "wp",
+  "remote.dpad": "wp",
+  "remote.home": "wp",
+  "remote.more": "wp",
+  "remote.mute": "wp",
+  "remote.next": "wp",
+  "remote.padmode": "wp",
+  "remote.play": "wp",
+  "remote.playpause": "wp",
+  "remote.rename": "wp",
+  "remote.seek": "wp",
+  "remote.sheet.pick": "wp",
+  "remote.skip": "wp",
+  "remote.stop": "wp",
+  "remote.subdelay": "wp",
+  "remote.subtitles": "wp",
+  "remote.view": "wp",
+  "remote.volume": "wp",
   // recommend (the Recommend sheet)
   "recommend.close": "wtp",
   "recommend.person": "wt",
@@ -436,20 +436,8 @@ module.exports = {
   "phone.player.playontv": "p", // [play-on-tv] the player: Play on TV
   "phone.player.rotate": "p", // the player: Portrait / Landscape
   "phone.player.unlock": "p", // the player: Unlock the controls
-  "phone.remote.arrow": "p", // the remote: an arrow of the pad
-  "phone.remote.audio": "p", // the remote: audio track
-  "phone.remote.back": "p", // the remote: Back
-  "phone.remote.continuehere": "p", // [play-on-tv] the remote: Continue on this phone
   "phone.remote.device": "p", // the remote: which TV
-  "phone.remote.home": "p", // the remote: Home
-  "phone.remote.next": "p", // the remote: next episode
-  "phone.remote.ok": "p", // the remote: OK
   "phone.remote.pair": "p", // Your TVs: Sign in a TV
-  "phone.remote.playpause": "p", // the remote: play / pause
-  "phone.remote.seek": "p", // the remote: jump back / forward
-  "phone.remote.stop": "p", // the remote: stop
-  "phone.remote.subtitles": "p", // the remote: subtitles
-  "phone.remote.volume": "p", // the remote: mute, volume down / up
   "phone.request.leave": "p", // Request access: Cancel / Back to sign in
   "phone.request.send": "p", // Request access: Send my request
   "phone.save.film": "p", // a film's page: save on this phone
