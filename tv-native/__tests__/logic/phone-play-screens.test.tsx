@@ -233,6 +233,23 @@ describe('the story', () => {
     act(() => r.unmount());
     expect(setTabBarShown).toHaveBeenLastCalledWith(true);
   });
+  test('a chapter’s timed moments land on its own visit’s clock (the intervention deals its lines)', () => {
+    jest.useFakeTimers();
+    const r = mount(<WrappedStory c={c} still={false} poster={null} onClose={() => {}} />);
+    act(() => r.root.find(n => (n.type as unknown) === 'Tap' && n.props.uiId === 'story.skip').props.onPress());
+    // back one: the intervention, its lines not dealt yet
+    const back = r.root.find(n => (n.type as unknown) === 'Text' && n.props.accessibilityLabel === 'Previous chapter');
+    act(() => back.props.onPress());
+    expect(has(r, 'We need to talk, Maya.')).toBe(true);
+    const dealt = () => texts(r).filter(x => x === 'Second line.').length; // (the card itself, not the screen reader's line)
+    expect(dealt()).toBe(0);
+    act(() => {
+      jest.advanceTimersByTime(1300 + 2700 + 50);
+    });
+    expect(dealt()).toBe(1);
+    act(() => r.unmount());
+    jest.useRealTimers();
+  });
   test('pause shows Play; a still story has no pause key', () => {
     const r = mount(<WrappedStory c={c} still={false} poster={null} onClose={() => {}} />);
     const pause = r.root.find(n => (n.type as unknown) === 'Tap' && n.props.uiId === 'story.pause');

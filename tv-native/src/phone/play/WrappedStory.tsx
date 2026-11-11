@@ -107,19 +107,24 @@ export default function WrappedStory({c, still, poster, onClose}: {c: Ctx; still
   goRef.current = go;
 
   // ---- the clock of this visit ----
-  const clock = useRef(new Clock());
-  const prog = useRef({base: 0, since: 0, ms: 0});
+  // (made as the visit is drawn, not in an effect: a chapter's own effects run before this
+  // screen's, and the times they ask for must land on this visit's clock, not the last one's)
   const id = chapters[at];
   const info = infos[at];
-  useEffect(() => {
-    clock.current.stop();
-    clock.current = new Clock();
+  const clockOf = useRef({visit: -1, clock: new Clock()});
+  const prog = useRef({base: 0, since: 0, ms: 0});
+  if (clockOf.current.visit !== visit) {
+    clockOf.current.clock.stop();
+    clockOf.current = {visit, clock: new Clock()};
     prog.current = {base: 0, since: Date.now(), ms: info.ms};
+  }
+  const clock = {current: clockOf.current.clock};
+  useEffect(() => () => clockOf.current.clock.stop(), []);
+  useEffect(() => {
     if (!still) {
       enter.setValue(0);
       tween(enter, 1, 420, {easing: EASE}).start();
     }
-    return () => clock.current.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visit]);
 
