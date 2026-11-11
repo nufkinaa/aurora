@@ -6340,11 +6340,15 @@ const styles = StyleSheet.create({
     minWidth: 280,
     maxWidth: 400,
     ...(PHONE
-      ? // [android-phone] glass E ("Clear", the phone website's menu at phone sizes: no
-        // hue there): a near-black body — fuller than the website's, which frosts the
-        // frame behind, so a bright cue under it is not a sharp word between the
-        // lines — and the strong edge. No blurred depth over moving video.
-        {backgroundColor: PHONE_GLASS.thick, experimental_backgroundImage: PHONE_SHEEN, ...PHONE_EDGE}
+      ? // [android-phone] glass E ("Clear", the phone website's player menu): the room's
+        // hue over a near-black body — fuller than the website's, which frosts the frame
+        // behind, so a bright cue under it is not a sharp word between the lines — and
+        // the strong edge. No blurred depth over moving video.
+        {
+          backgroundColor: PHONE_GLASS.thick,
+          experimental_backgroundImage: `linear-gradient(140deg, rgba(104,86,226,0.26) 0%, rgba(16,15,30,0) 48%, rgba(70,200,150,0.18) 100%), ${PHONE_SHEEN}`,
+          ...PHONE_EDGE,
+        }
       : {
           backgroundColor: 'rgb(16,15,30)',
           experimental_backgroundImage:
