@@ -114,4 +114,25 @@ ui.test("an iPhone upright: the server's line on the billboard, clear of its wor
 }, async (fx) => {
   await run(fx, { onHero: true });
 });
+ui.test("a kids profile: no line of the page's own (they tease), only the server's", { viewport: DESKTOP }, async ({ page, signIn, api, goto }) => {
+  const kid = await api.createProfile("Remark Kid", { open: true, kids: { maxAge: 7 } });
+  let served = null;
+  await page.route("**/api/profiles/*/remark*", async (route) => {
+    const resp = await route.fetch();
+    const body = await resp.text();
+    await new Promise((r) => setTimeout(r, 1500));
+    try { served = JSON.parse(body); } catch {}
+    await route.fulfill({ response: resp, body });
+  });
+  await signIn(kid);
+  await goto("#/");
+  await page.locator(".home-greeting .greet-sub").waitFor();
+  const first = await page.textContent(".home-greeting .greet-sub");
+  assert.ok(!LOCAL.includes(first), `a kids profile was shown a line of the page's own: "${first}"`);
+  assert.equal(first.trim(), "", "until the server answers, the line is empty");
+  for (let i = 0; i < 60 && !served; i++) await page.waitForTimeout(250);
+  if (served && served.text) {
+    await page.waitForFunction((t) => document.querySelector(".home-greeting .greet-sub")?.textContent === t, served.text, { timeout: 5000 });
+  }
+});
 ui.run({ concurrency: 1 });
