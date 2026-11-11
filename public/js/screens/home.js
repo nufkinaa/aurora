@@ -550,10 +550,12 @@ export const renderHome = async (root) => {
     // it comes (a quick swap, or a short cross-fade once the page is on
     // screen), and under the billboard only when it needs no more room than
     // the one it replaces, so the page never moves. On the billboard the
-    // greeting makes its own room (fitGreet).
+    // greeting makes its own room (fitGreet). A kids profile gets no line of
+    // the page's own (those tease): only the server's, which is kind to kids;
+    // until it comes, an empty line keeps its room.
     const profileId = state.profile.id;
     const held = heldRemark(profileId);
-    sub.textContent = held ? held.text : localRemark(now);
+    sub.textContent = held ? held.text : state.profile.kids ? "\u00a0" : localRemark(now);
     if (!held) {
       const asked = performance.now();
       fetchRemark(profileId).then((r) => {

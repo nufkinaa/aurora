@@ -21,54 +21,76 @@ import { showReportSheet } from "../report.js";
 // (The TV has the same cards: tv-native/src/screens/WhatsNew.tsx, ROUND there.
 // A card about something only a browser has says `webOnly: true` first —
 // test/whatsnew-parity.test.js leaves it out of the comparison.)
-export const ROUND = "1.15.28";
+export const ROUND = "1.15.29";
 const NEW_FROM = ROUND;
 const FEATURES = [
+  // ---- 1.15.29: two for the website and the TV, one for the website alone ----
+  {
+    since: ROUND, cue: "tap", glyph: "▶️",
+    title: "Continue Watching, tidied",
+    what: "One card per show: the episode you watched last, whether it was downloaded or streamed. Anything you have finished leaves the row, and stopping in the end credits counts as finished. When you finish an episode, the card moves on to the next one you have not seen.",
+    how: "Open Home: Continue Watching is the first row.",
+    go: { label: "Go home", to: "#/" },
+  },
+  {
+    since: ROUND, cue: "tap", glyph: "🔎",
+    title: "Film or series, at a glance in search",
+    what: "On the TV and in the phone app, every result and every suggestion in search now carries a small sign: a gold film strip for a film, a blue screen for a series. A show's page on the TV also lists its genres, as a film's page always did.",
+    how: "Search → type a few letters.",
+    go: { label: "Search", to: "#/search" },
+  },
+  {
+    webOnly: true, since: ROUND, cue: "tap", glyph: "⬇️",
+    title: "Downloads stays beside Settings",
+    what: "On a computer the Downloads button no longer comes and goes: it sits beside Settings all the time. It shows the progress while something downloads, and how many are ready once they land, until you open them.",
+    how: "On a computer: the round download button at the top right, next to Settings.",
+    go: { label: "My downloads", to: "#/downloads" },
+  },
   // ---- the 2026-11-11 round: two for the website and the TV; five for the website alone (the apps follow) ----
   {
-    since: ROUND, cue: "tap", glyph: "🧾",
+    since: "1.15.28", cue: "tap", glyph: "🧾",
     title: "A report tells us what happened",
     what: "Report a problem now carries the last things you did, your device and what the player was doing, so a problem can be found without asking you questions. Nothing you type is recorded (no passwords, names or messages; the words of a search are the one exception), and you can read exactly what will be sent before you send it.",
     how: "Your profile menu → Report a problem → See what will be sent.",
     go: { label: "Report something", to: "report" },
   },
   {
-    since: ROUND, cue: "tap", glyph: "🧹",
+    since: "1.15.28", cue: "tap", glyph: "🧹",
     title: "Small things put right",
     what: "A sweep through every screen: words that were cut, rows that sat too close to the edge, a clock that was hard to read, Back that went to the wrong place. Nothing has moved. It just sits right now.",
     how: "Nothing to do. Use Aurora as always.",
     go: { label: "Go home", to: "#/" },
   },
   {
-    webOnly: true, since: ROUND, cue: "tap", glyph: "🎲",
+    webOnly: true, since: "1.15.28", cue: "tap", glyph: "🎲",
     title: "Wrapped, Pick for me, Taste and Pick together play like games",
     what: "Wrapped is a story you tap through, with numbers that count up and a card to share at the end. Pick for me draws your film like a reel that slows and lands. Taste is a deck of cards: throw one right to like it, left to pass. Pick together plays in turns, with a tally and a reveal. The TV and the phone app get the same look in their next update.",
     how: "Your profile menu (More on a phone) → Your Aurora Wrapped, Swipe your taste or Pick together. AI → Pick for me.",
     go: { label: "Open Wrapped", to: "#/wrapped" },
   },
   {
-    webOnly: true, since: ROUND, cue: "tap", glyph: "📥",
+    webOnly: true, since: "1.15.28", cue: "tap", glyph: "📥",
     title: "Watching with no connection, made simple",
     what: "One name and one sign everywhere: Save to this device. A small ring on the poster fills as it saves and turns solid when the copy is here. Ask for a title before the server has it, and it saves itself when the server's copy is ready. Pack for a trip saves what you are in the middle of in one go. With no connection, Aurora shows what is on this device instead of an empty page. Nothing is ever removed from your device by itself.",
     how: "A title's page → Save to this device. Your copies: the menu → On this device.",
     go: { label: "On this device", to: "#/saved" },
   },
   {
-    webOnly: true, since: ROUND, cue: "tap", glyph: "📱",
+    webOnly: true, since: "1.15.28", cue: "tap", glyph: "📱",
     title: "Home on a phone sits right",
     what: "The big picture starts below the settings and profile buttons, and the greeting sits on it, top left, readable over any picture. The Aurora mark's box fits the mark. The bar at the bottom is a little taller, and the row of buttons on a title's page shows that it scrolls sideways.",
     how: "Open Aurora on a phone.",
     go: { label: "Go home", to: "#/" },
   },
   {
-    webOnly: true, since: ROUND, cue: "tap", glyph: "😏",
+    webOnly: true, since: "1.15.28", cue: "tap", glyph: "😏",
     title: "Aurora has a lot more to say",
     what: "The line under the greeting now has hundreds of new things to say, and it notices more: the hour, the day, a show you left, a long night, a week away. It teases your habits and your taste, never you. Kids get friendly lines only.",
     how: "Open Home and read the line under your name. It changes through the day.",
     go: { label: "Go home", to: "#/" },
   },
   {
-    webOnly: true, since: ROUND, cue: "tap", glyph: "✨",
+    webOnly: true, since: "1.15.28", cue: "tap", glyph: "✨",
     title: "Smoother to look at",
     what: "The sky behind the pages keeps moving while you scroll on a computer. A picture that arrives sharper now fades in softly. Pages and the server answer a little faster, and nothing looks different for it.",
     how: "Scroll Home on a computer and watch the sky.",

@@ -1705,6 +1705,12 @@ html[data-look="glass"] .hero-layer.on {
 html[data-look="glass"] .nav-gear {
   flex: none;
 }
+/* The gear is a round 42px button, its icon centred by the grid: on a phone
+   it must not take the tab items' padding (14px above and below since the
+   taller bar), which left 14px for a 19px icon and pushed it 2.5px low. */
+html[data-look="glass"] .nav-item.nav-gear {
+  padding: 0;
+}
 @media (max-width: 720px) {
   html[data-look="glass"] .episode-bar {
     width: 72px;
@@ -4350,6 +4356,29 @@ html[data-look="glass"] .nav-dl.ready {
 .nav-dl.ready.hidden {
   display: none;
 }
+/* Downloads, always there on a computer (2026-11-11): with nothing moving or
+   ready, a plain round download button to My downloads, the gear's twin. */
+.nav-dl.idle,
+html[data-look="glass"] .nav-dl.idle {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+}
+.nav-dl.idle {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+}
+.nav-dl.idle:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+html[data-look="glass"] .nav-dl.idle {
+  color: var(--g-ink);
+}
 .nav-dl-icon {
   display: grid;
   place-items: center;
@@ -4930,6 +4959,16 @@ html[data-look="glass"] .player .menu,
 .xray-sheet-page > .xray-panel {
   background-image: linear-gradient(140deg, rgba(104, 86, 226, 0.26) 0%, rgba(16, 15, 30, 0) 48%, rgba(70, 200, 150, 0.18) 100%);
   background-attachment: local;
+}
+/* On a computer the glass player menu's body IS its background images (the
+   sheen and the fill, --g-fill-menu): the hue above replaced them, and over a
+   bright frame the menu was a clear pane under white words. The hue goes on
+   top of the body instead. (Phones draw that menu as a flat tint, which the
+   hue never touched.) */
+@media (min-width: 721px) {
+  html[data-look="glass"] .player .menu {
+    background-image: linear-gradient(140deg, rgba(104, 86, 226, 0.26) 0%, rgba(16, 15, 30, 0) 48%, rgba(70, 200, 150, 0.18) 100%), var(--g-fill-menu);
+  }
 }
 .menu-title {
   display: flex;
