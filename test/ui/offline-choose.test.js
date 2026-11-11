@@ -12,7 +12,18 @@ const path = require("path");
 const assert = require("node:assert/strict");
 const { suite, DESKTOP, PHONE } = require("./helpers");
 
-const ui = suite();
+// the catalogue (cache/meta.json, discover.js): season 1 has a 4th episode the server does not
+// hold; season 2 is not out yet
+const day = (n) => new Date(Date.now() + n * 86400000).toISOString();
+const series = (imdbId, title, eps) => ({
+  at: Date.now(), v: 4,
+  data: {
+    id: imdbId, type: "show", imdbId, title, year: 2020, poster: null, backdrop: null, logo: null, synopsis: "", genres: [], rating: null, runtime: null, cast: [], director: null,
+    seasons: Object.values(eps.reduce((acc, [s, e, released]) => { (acc[s] = acc[s] || { number: s, episodes: [] }).episodes.push({ season: s, episode: e, title: `Episode ${e}`, overview: "", thumbnail: null, released }); return acc; }, {})),
+    episodeCount: eps.length, tmdbId: null, trailers: [], certificate: null, kidsAge: null, originalLanguage: null,
+  },
+});
+const ui = suite({ server: { seed: { "cache/meta.json": { "series|tt9000003": series("tt9000003", "Test Show", [[1, 1, day(-30)], [1, 2, day(-30)], [1, 3, day(-30)], [1, 4, day(-2)], [2, 1, day(300)]]) } } } });
 const SHOTS = path.join(__dirname, "..", "..", "docs", "qa", "phone-1.1.3", "offline-phone", "choose");
 const shot = async (page, name) => {
   if (!process.env.UI_SHOTS) return;
@@ -27,21 +38,10 @@ const until = async (fn, what, ms = 45000) => {
     await new Promise((r) => setTimeout(r, 200));
   }
 };
-// the catalogue: season 1 has a 4th episode the server does not hold; season 2 is not out yet
-const meta = (show) => ({
-  imdbId: show.imdbId, type: "series", title: "Test Show", year: 2020, poster: null,
-  seasons: [
-    { number: 1, episodes: [1, 2, 3, 4].map((n) => ({ episode: n, title: `Episode ${n}`, released: `2020-01-0${n}` })) },
-    { number: 2, episodes: [{ episode: 1, title: "Next Year", released: "2099-01-01" }] },
-  ],
-});
-
 const open = async (srv, profile, viewport) => {
   const phone = viewport.width < 600;
   const context = await ui.browser.newContext({ viewport, serviceWorkers: "allow", ...(phone ? { hasTouch: true, isMobile: true, deviceScaleFactor: 2 } : {}) });
   await context.route((url) => url.origin !== srv.url && /^https?:$/.test(url.protocol), (route) => route.fulfill({ status: 404, body: "" }).catch(() => {}));
-  const show = await srv.api.get(`/api/item/${srv.lib.show.id}`);
-  await context.route(/\/api\/discover\/meta\/series\//, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(meta(show)) }));
   const page = await context.newPage();
   page.setDefaultTimeout(20000);
   const errors = [];
@@ -56,10 +56,10 @@ const open = async (srv, profile, viewport) => {
       localStorage.setItem("aurora-nav-hinted", "1");
     } catch {}
   }, { id: profile.id });
-  await page.goto(`${srv.url}/#/saved`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${srv.url}/#/saved`, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForSelector("#app .screen", { timeout: 30000 });
   await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 30000 });
-  return { context, page, errors, show };
+  return { context, page, errors };
 };
 const save = (page, id) => page.evaluate(async (x) => {
   const o = await import("/js/offline.js");
@@ -92,11 +92,11 @@ for (const [name, viewport] of [["phone", PHONE], ["desktop", DESKTOP]]) {
       assert.match(await rowText(page, "1x2"), /E2[\s\S]*Saved on this device/);
       assert.equal(await page.locator('.choose-row[data-key="1x2"]').evaluate((n) => n.tagName), "DIV", "a saved one cannot be ticked");
       assert.match(await rowText(page, "1x4"), /E4[\s\S]*Not on the server yet — saves here when it arrives/);
-      assert.match(await rowText(page, "1x3"), /E3[\s\S]*min[\s\S]*(MB|GB)/);
+      assert.match(await rowText(page, "1x3"), /E3[\s\S]*\d+ ?m(in)? · ≈ [\d.]+ (MB|GB)/);
       // ticked to begin with: the next ones not watched (E1 is, E2 is here) — across the season end
       assert.deepEqual(await ticked(page), ["1x3", "1x4"]);
       assert.match(await page.locator(".choose-total").innerText(), /^3 episodes · ≈ .* · 2 when they arrive$/);
-      assert.match(await page.locator(".choose-season.on").innerText(), /Season 1 · 2/);
+      assert.match(await page.locator(".choose-season.on").innerText(), /Season 1\s*· 2/);
       await shot(page, `after-${name}-chooser-open`);
       // season 2 inside the sheet: not out yet, ticked
       await page.locator(".choose-season", { hasText: "Season 2" }).click();
@@ -142,3 +142,5 @@ for (const [name, viewport] of [["phone", PHONE], ["desktop", DESKTOP]]) {
     }
   });
 }
+
+ui.run({ concurrency: 1 });

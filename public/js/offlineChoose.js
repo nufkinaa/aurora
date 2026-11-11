@@ -200,7 +200,7 @@ export const openChooser = async (show, { from = null } = {}) => {
       finish(true);
       run(show, picked, quality);
     };
-    const card = el("div", { class: "look-notice sheet offline-sheet choose-sheet", role: "dialog", "aria-modal": "true", "aria-label": "Choose episodes" },
+    const card = el("div", { class: "look-notice sheet offline-sheet choose-sheet dressed", role: "dialog", "aria-modal": "true", "aria-label": "Choose episodes" },
       el("div", { class: "look-notice-title" }, "Choose episodes"),
       el("p", { class: "look-notice-text choose-lead" }, `“${show.title}” — tick the ones to save on this device. They play with no connection.`),
       seasonBar,
