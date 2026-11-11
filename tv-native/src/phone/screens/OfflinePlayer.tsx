@@ -1,11 +1,15 @@
-// Playing a copy SAVED ON THIS PHONE — no server needed: the file, its
-// subtitles beside it, and the phone's own controls (the same PhoneChrome and
+// Playing a copy SAVED ON THIS DEVICE — no server needed: the file, its
+// subtitles beside it (every track the title has), and the phone's own controls (the same PhoneChrome and
 // gestures as the full player). Where you are is kept on the phone and sent to
 // your profile when the server answers (store.ts noteOfflineProgress), so the
 // TV and the website pick up where the phone left off. Up next is the next
 // saved episode of the show: it starts at the end when the person's "play the
 // next episode" setting is on; off, the end says what is next and waits for
 // Play now.
+//
+// The view (OfflinePlayerView) is also what the "Can't reach Aurora" screen plays a copy with
+// (offline/OfflineHome.tsx) — before any profile is in and with no navigator: it is handed the
+// copy's profile and what to do on Back / Next.
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {AppState, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import Video, {SelectedTrackType, TextTrackType, VideoRef} from 'react-native-video';
@@ -14,7 +18,7 @@ import {replacePhone, usePNav} from '../nav';
 import PhoneChrome from '../player/PhoneChrome';
 import PhoneGestures from '../player/PhoneGestures';
 import {phoneNative} from '../native';
-import {flushOfflineProgress, listOffline, noteOfflinePlayed, noteOfflineProgress, offlineFor} from '../offline/store';
+import {flushOfflineProgress, noteOfflinePlayed, noteOfflineProgress, offlineForProfile} from '../offline/store';
 import {getActiveProfile} from '../../api';
 import {reportActivity} from '../../realtime';
 import {createWatchClock} from '../../watchClock';
@@ -22,6 +26,7 @@ import {nextSaved} from '../offline/rules';
 import {personNow} from '../../personSync';
 import {loadPrefs} from '../../storage';
 import {showToast} from '../../toast';
+import {openActions} from '../../overlay';
 import Tap from '../ui/Tap';
 import {colors} from '../theme';
 
@@ -30,8 +35,37 @@ type Params = {OfflinePlayer: {id: string}};
 export default function OfflinePlayer() {
   const route = useRoute<RouteProp<Params, 'OfflinePlayer'>>();
   const navigation = usePNav();
+  return (
+    <OfflinePlayerView
+      id={route.params.id}
+      profileId={getActiveProfile()}
+      onBack={() => navigation.goBack()}
+      onNext={id => replacePhone('OfflinePlayer', {id})}
+      orient={o => navigation.setOptions({orientation: o} as never)}
+      pickSubs
+    />
+  );
+}
+
+export function OfflinePlayerView({
+  id,
+  profileId,
+  onBack,
+  onNext,
+  orient,
+  pickSubs = false,
+}: {
+  id: string;
+  profileId: string | null;
+  onBack: () => void;
+  onNext: (id: string) => void;
+  orient: (o: 'landscape' | 'portrait') => void;
+  /** a sheet lists the subtitle tracks (in the app); without one, the CC button steps through them */
+  pickSubs?: boolean;
+}) {
   const {width, height} = useWindowDimensions();
-  const it = offlineFor(route.params.id);
+  const mineHere = offlineForProfile(profileId);
+  const it = mineHere.find(x => x.id === id && x.state === 'done') || null;
   const ref = useRef<VideoRef>(null);
   const [paused, setPaused] = useState(false);
   const [cur, setCur] = useState(0);
@@ -45,7 +79,7 @@ export default function OfflinePlayer() {
   const hide = useRef<ReturnType<typeof setTimeout> | null>(null);
   const curRef = useRef(0);
   const lastSave = useRef(0);
-  const next = it ? nextSaved(listOffline(), it) : null;
+  const next = it ? nextSaved(mineHere, it) : null;
   // the person's "play the next episode" (personSync when the server was
   // heard this run, else the setting kept on the phone)
   const autoplayKept = useRef(true);
@@ -74,8 +108,8 @@ export default function OfflinePlayer() {
       const st = state || (pausedRef.current ? 'paused' : 'playing');
       const live = reportActivity('Watching', label, {position, duration, played, state: st, rate: 1, visible: AppState.currentState === 'active', saved: true});
       if (!live) {
-        const profileId = it.profileId || getActiveProfile();
-        if (profileId) noteOfflinePlayed({sitting: sitting.current, profileId, label, position, duration}, played);
+        const who = it.profileId || getActiveProfile();
+        if (who) noteOfflinePlayed({sitting: sitting.current, profileId: who, label, position, duration}, played);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -103,7 +137,7 @@ export default function OfflinePlayer() {
   useEffect(() => {
     phoneNative.setKeepAwake(true);
     phoneNative.setImmersive(true);
-    navigation.setOptions({orientation: 'landscape'} as never);
+    orient('landscape');
     show();
     // the person's subtitle language, when a saved track has it
     const want = personNow()?.subLang;
@@ -115,7 +149,7 @@ export default function OfflinePlayer() {
       reportRef.current(); // the last seconds played
       reportActivity('Browsing');
       flushOfflineProgress(); // (what was kept, with the device named)
-      if (it) noteOfflineProgress(it.id, curRef.current, dur || it.duration || 0);
+      if (it) noteOfflineProgress(it.id, curRef.current, dur || it.duration || 0, it.profileId);
       phoneNative.setKeepAwake(false);
       phoneNative.setImmersive(false);
       phoneNative.setPip(false);
@@ -130,7 +164,10 @@ export default function OfflinePlayer() {
   if (!it || !it.file) {
     return (
       <View style={s.center}>
-        <Text style={s.msg}>This copy is not on the phone any more.</Text>
+        <Text style={s.msg}>This copy isn't on this device any more.</Text>
+        <Tap uiId="player.back" onPress={onBack} style={[s.cardBtn, {marginTop: 16, alignSelf: 'center'}]} accessibilityRole="button">
+          <Text style={s.cardBtnText}>Back</Text>
+        </Tap>
       </View>
     );
   }
@@ -167,14 +204,14 @@ export default function OfflinePlayer() {
           if (preview == null) setCur(p.currentTime);
           if (Date.now() - lastSave.current > 15000) {
             lastSave.current = Date.now();
-            noteOfflineProgress(it.id, p.currentTime, dur || it.duration || 0);
+            noteOfflineProgress(it.id, p.currentTime, dur || it.duration || 0, it.profileId);
           }
         }}
         onEnd={() => {
           reportRef.current('ended');
-          noteOfflineProgress(it.id, dur, dur);
-          if (!next) navigation.goBack();
-          else if (personNow()?.autoplayNext ?? autoplayKept.current) replacePhone('OfflinePlayer', {id: next.id});
+          noteOfflineProgress(it.id, dur, dur, it.profileId);
+          if (!next) onBack();
+          else if (personNow()?.autoplayNext ?? autoplayKept.current) onNext(next.id);
           else {
             setPaused(true);
             setEndCard(true);
@@ -204,7 +241,7 @@ export default function OfflinePlayer() {
         <PhoneChrome
           title={title}
           subtitle={sub}
-          badges={['ON THIS PHONE']}
+          badges={['ON THIS DEVICE']}
           paused={paused}
           shown={preview != null ? preview : cur}
           duration={dur}
@@ -221,7 +258,7 @@ export default function OfflinePlayer() {
           next={next ? `S${next.season} E${next.episode}` : null}
           pip={phoneNative.pipSupported()}
           simple
-          onBack={() => navigation.goBack()}
+          onBack={onBack}
           onToggle={() => {
             setPaused(p => !p);
             show();
@@ -240,14 +277,25 @@ export default function OfflinePlayer() {
             show();
           }}
           onMenu={m => {
-            if (m === 'cc' && it.subs.length) {
+            if (m === 'cc' && it.subs.length && pickSubs && it.subs.length > 2) {
+              // every track the copy carries, by name, and Off
+              openActions({
+                title: 'Subtitles',
+                sub: `${it.subs.length} saved with this copy`,
+                items: [
+                  ...it.subs.map((t, i) => ({label: `${t.label || `Subtitles ${i + 1}`}${i === subIdx ? '  ✓' : ''}`, uiId: 'player.subtitles.pick', onPress: () => setSubIdx(i)})),
+                  {label: `Off${subIdx == null ? '  ✓' : ''}`, uiId: 'player.subtitles.pick', onPress: () => setSubIdx(null)},
+                ],
+              });
+              show();
+            } else if (m === 'cc' && it.subs.length) {
               // cycle: each saved track, then off
               setSubIdx(i => (i == null ? 0 : i + 1 < it.subs.length ? i + 1 : null));
               show();
             } else showToast(m === 'cc' ? 'No subtitles were saved with this copy' : 'Not on a saved copy', 'ℹ️');
           }}
           onXray={() => showToast('X-Ray needs the server', 'ℹ️')}
-          onNext={() => next && replacePhone('OfflinePlayer', {id: next.id})}
+          onNext={() => next && onNext(next.id)}
           onLock={on => {
             setLocked(on);
             show();
@@ -256,7 +304,7 @@ export default function OfflinePlayer() {
           onRotate={() => {
             const n = !landscape;
             setLandscape(n);
-            navigation.setOptions({orientation: n ? 'landscape' : 'portrait'} as never);
+            orient(n ? 'landscape' : 'portrait');
           }}
           onPip={() => phoneNative.enterPip()}
           onTouch={show}
@@ -268,7 +316,7 @@ export default function OfflinePlayer() {
           <Text style={s.cardTitle} numberOfLines={2}>
             {`S${next.season} E${next.episode}${next.title && !/^Episode \d+$/.test(next.title) ? ` · ${next.title}` : ''}`}
           </Text>
-          <Tap uiId="player.upnext.play" onPress={() => replacePhone('OfflinePlayer', {id: next.id})} style={s.cardBtn} accessibilityRole="button">
+          <Tap uiId="player.upnext.play" onPress={() => onNext(next.id)} style={s.cardBtn} accessibilityRole="button">
             <Text style={s.cardBtnText}>▶  Play now</Text>
           </Tap>
         </View>

@@ -34,7 +34,7 @@ import Icon from '../ui/Icon';
 import {useTabBarSpace} from '../ui/TabBar';
 import {resetTabs} from '../tabs';
 import {listVolumes, OFFLINE_QUALITIES, offlinePrefs, OfflinePrefs, setOfflinePrefs, useOfflineUsage} from '../offline/store';
-import {currentVolume, hasChoice, KEEP_NEXT, LIMIT_CHOICES, limitLabel, Volume, volumeName} from '../offline/storage';
+import {currentVolume, hasChoice, Volume, volumeName} from '../offline/storage';
 import {colors, GUTTER} from '../theme';
 
 import {checkNow, running} from '../update/store';
@@ -147,12 +147,6 @@ export default function Settings() {
           tag: `${gb(v.free)} free of ${gb(v.total)}`,
           onPress: () => setOff({volume: v.primary ? null : v.path}),
         })),
-    });
-  const pickLimit = () =>
-    openActions({
-      title: 'Space limit',
-      sub: 'The most saved copies may take on this phone. When it is full, Aurora offers to remove the oldest one you have watched.',
-      items: LIMIT_CHOICES.map(g => ({label: `${limitLabel(g)}${offline.limitGb === g ? '  ✓' : ''}`, onPress: () => setOff({limitGb: g})})),
     });
   const genreGroups = useRef(new Map<string, string[]>());
 
@@ -293,7 +287,7 @@ export default function Settings() {
           </Section>
         )}
 
-        <Section icon="downloadDevice" title="Saved on this phone" sub={usage.count ? `${usage.count} saved · ${gb(usage.bytes)} used · ${gb(usage.free)} free` : 'Nothing saved yet'}>
+        <Section icon="downloadDevice" title="Saved on this device" sub={usage.count ? `${usage.count} saved · ${gb(usage.bytes)} used · ${gb(usage.free)} free` : 'Nothing saved yet'}>
           <ListRow
             title="Quality"
             detail="What a film or an episode is saved at. Ask: choose each time, with the sizes."
@@ -317,24 +311,15 @@ export default function Settings() {
               onPress={pickVolume}
             />
           ) : null}
+          {/* (no space limit and no tidy-up any more: nothing leaves this device by itself, and
+              there is no cap — elia, 2026-11-10/11. Remove watched on On this device is one press, with Undo.) */}
           <ListRow
-            uiId="phone.settings.limit"
-            title="Space limit"
-            detail={offline.limitGb > 0 ? `${gb(usage.bytes)} of ${offline.limitGb} GB used. When it is full, Aurora offers to remove the oldest copy you've watched.` : 'Use as much as there is free. Or set the most saved copies may take.'}
-            right={<Value text={limitLabel(offline.limitGb)} />}
-            onPress={pickLimit}
-          />
-          <ListRow
-            title="Tidy up this phone after watching"
-            detail="A saved episode leaves this phone a day after you finish it. Films stay."
-            right={<Toggle value={offline.tidyAfter} onChange={v => setOff({tidyAfter: v})} />}
-          />
-          <ListRow
-            title="Keep the next episodes on this phone"
-            detail={`While you watch a show, its next ${KEEP_NEXT} episodes are saved on this phone. On Wi-Fi only, never mobile data.`}
+            uiId="saved.smartnext"
+            title="Keep the next episode ready"
+            detail="When you finish a saved episode, the next one saves itself. Nothing is removed."
             right={<Toggle value={offline.keepNext} onChange={v => setOff({keepNext: v})} />}
           />
-          <ListRow uiId="phone.settings.saved" icon="storage" title="On this phone" detail="Play, or remove, what is saved here." chevron onPress={() => navigation.push('Downloads', undefined)} />
+          <ListRow uiId="phone.settings.saved" icon="storage" title="On this device" detail="Play, or remove, what is saved here." chevron onPress={() => navigation.push('Downloads', undefined)} />
         </Section>
 
         <Section icon="bell" title="Notifications">

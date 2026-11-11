@@ -88,7 +88,11 @@ import {phoneNative} from '../native';
 import {FADE_MS, LOW_END} from '../lowEnd';
 import {pushPhone} from '../nav';
 import {saveOffline, useOffline} from '../offline/store';
-import {chooseQuality, confirmRoom} from '../offline/choose';
+import {chooseQuality} from '../offline/choose';
+import {markOf, markWords} from '../offline/rules';
+import {useWishes} from '../offline/wishes';
+import {toggleWish} from '../offline/wishAsk';
+import {wishFor, wishOn} from '../offline/wishRules';
 import {useDevices} from '../remote/controller';
 import {sendToTv} from '../remote/playOnTv'; // [play-on-tv]
 import {PLAY_ON} from '../../remote/playOnWords';
@@ -234,6 +238,8 @@ export default function Detail() {
   const scrollRef = useRef<ScrollView>(null);
   // copies saved on this phone (phone/offline/store.ts)
   const saved = useOffline();
+  // [offline-phone] this device's wishes: a title on its way, saved here by itself when it lands
+  const wishes = useWishes();
   // [phone-remote] the profile's TVs that are on: "Play on TV"
   const tvs = useDevices().filter(d => d.caps?.playItem !== false);
   const phoneState = useCallback(
@@ -243,6 +249,12 @@ export default function Detail() {
     },
     [saved],
   );
+  // what the device button says (the website's words: Save to this device → Saving 42% → Saved on this device)
+  const phoneWords = (id: string) => {
+    const c = saved.find(x => x.id === id);
+    const st = markOf(c);
+    return st === 'none' ? 'Save to device' : markWords(st, c?.pct || 0, !!c?.waiting);
+  };
 
   // the device pass's timing: from the page's mount to its button knowing what it does
   const t0 = useRef(Date.now());
@@ -677,7 +689,6 @@ export default function Detail() {
       saveOffline(
         {id: ep.epId, title: ep.label, showId: full?.id || item.id, showTitle: title, season: ep.season, episode: ep.episode, year, cover: item.cover || item.poster || full?.cover || null, duration: ep.durationSec, subtitles: ep.subs},
         chooseQuality(`${title} · S${ep.season} E${ep.episode}`),
-        {confirmRoom: confirmRoom(`${title} · S${ep.season} E${ep.episode}`)},
       );
     },
     [full, item.id, item.cover, item.poster, title, year],
@@ -686,9 +697,8 @@ export default function Detail() {
     if (!ownedMovieId) return;
     if (phoneState(ownedMovieId) === 'done') return pushPhone('OfflinePlayer', {id: ownedMovieId});
     saveOffline(
-      {id: ownedMovieId, title, year, cover: full?.cover || item.cover || item.poster || null, duration: full?.duration, subtitles: (full?.subtitles || []).filter(t => !!t.url).map(t => ({label: t.label, lang: t.lang, url: t.url}))},
+      {id: ownedMovieId, title, year, cover: full?.cover || item.cover || item.poster || null, duration: full?.duration, subtitles: (full?.subtitles || []).filter(t => !!t.url).map(t => ({label: t.label, lang: t.lang, url: t.url})), originalLanguage: full?.originalLanguage || null},
       chooseQuality(title),
-      {confirmRoom: confirmRoom(title)},
     );
   };
 
@@ -762,7 +772,9 @@ export default function Detail() {
         items: [
           ...(running?.mine ? [{label: 'Cancel the download', tag: 'it asks first', onPress: () => askCancelRef.current(running, `${title} · S${ep.season} E${ep.episode}`)}] : []),
           ...(ep.owned ? [{label: 'Play', onPress: () => playEpisode(ep)}] : [{label: SAVE_WATCH, tag: 'the best source, saved to the server', onPress: () => saveBest(ep.season, ep.episode, true, ep.air)}]),
-          ...(ep.owned ? [{label: ep.phone === 'done' ? 'Play the copy on this phone' : ep.phone ? 'Saving to this phone…' : 'Save to this phone', tag: ep.phone ? undefined : 'watch it with no connection', onPress: () => saveEpisodeToPhone(ep)}] : []),
+          ...(ep.owned ? [{label: ep.phone === 'done' ? 'Play the copy on this device' : ep.phone && ep.epId ? phoneWords(ep.epId) : 'Save to this device', tag: ep.phone ? undefined : 'plays with no connection', uiId: 'detail.episode.offline', onPress: () => saveEpisodeToPhone(ep)}] : []),
+          // [offline-phone] on its way to the server: saved here by itself when it lands (a wish)
+          ...(!ep.owned && running && imdb ? [episodeWishItem(ep)] : []),
           ...(!ep.owned ? [{label: 'Sources', tag: 'streams and downloads', onPress: () => openSources(ep.season, ep.episode)}] : []),
           ...(ep.owned && ep.epId && replaceOffered({libraryId: ep.epId, kids: peekMe(profileId)?.kids, torrentsOff}) ? [{label: 'Get another version', tag: 'a problem with this copy', uiId: 'detail.replace', onPress: () => openReplace({libraryId: ep.epId!, title: `${title} · S${ep.season} E${ep.episode}`, context: {title, itemId: ep.epId}})}] : []),
           {
@@ -776,32 +788,39 @@ export default function Detail() {
         ],
       });
     },
-    [title, playEpisode, saveBest, openSources, setEpisodeWatched, saveEpisodeToPhone, profileId, torrentsOff],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [title, playEpisode, saveBest, openSources, setEpisodeWatched, saveEpisodeToPhone, profileId, torrentsOff, wishes, imdb],
   );
-  // the whole season in one tap: one quality (asked once), then each episode in turn, one
-  // toast for all of them; the space limit is asked about once, a full one stops the rest
+  // [offline-phone] "This device too" for an episode on its way (the website's episode button)
+  const episodeWishItem = (ep: UiEp) => {
+    const t = {type: 'show' as const, imdbId: imdb as string, jobId: jobsRef.current[ep.key]?.id || null, season: ep.season, episode: ep.episode, title: ep.label || `Episode ${ep.episode}`, showTitle: title, poster: item.cover || item.poster || null};
+    const on = wishOn(wishFor(wishes, t));
+    return {label: on ? 'Will be saved to this device' : 'This device too', tag: on ? 'press to stop that' : 'saved here by itself when it arrives', uiId: 'detail.episode.wish', onPress: () => toggleWish(t, `${title} S${ep.season} E${ep.episode}`)};
+  };
+  // the whole season in one tap: one size (asked once), then each episode in turn, one
+  // toast for all of them
   const saveSeasonToPhone = async (eps: UiEp[]) => {
-    let q: string | null = null;
+    let q: {quality: string; audio: number} | null = null;
     let n = 0;
     let said = false;
     for (const ep of eps) {
       if (!ep.epId) continue;
       const r = await saveOffline(
         {id: ep.epId, title: ep.label, showId: full?.id || item.id, showTitle: title, season: ep.season, episode: ep.episode, year, cover: item.cover || item.poster || null, duration: ep.durationSec, subtitles: ep.subs},
-        async options => {
-          if (!q) q = await chooseQuality(`${title} · Season ${ep.season}`)(options);
+        async o => {
+          if (!q) q = await chooseQuality(`${title} · Season ${ep.season}`)(o);
           return q;
         },
-        {quiet: true, confirmRoom: confirmRoom(`${title} · Season ${ep.season}`)},
+        {quiet: true},
       );
       if (r === 'started') {
         n++;
         if (!said) {
           said = true;
-          showToast(`Saving ${eps.length === 1 ? '1 episode' : `${eps.length} episodes`} of Season ${ep.season} to this phone`, '📱');
+          showToast(`Saving ${eps.length === 1 ? '1 episode' : `${eps.length} episodes`} of “${title}” to this device`, '📱');
         }
       }
-      if (r === 'stopped' || r === 'full') break;
+      if (r === 'stopped') break;
     }
     return n;
   };
@@ -1131,9 +1150,19 @@ export default function Detail() {
             {ownedMovieId ? (
               <ActionCircle uiId="phone.save.film"
                 icon="downloadDevice"
-                label={phoneState(ownedMovieId) === 'done' ? 'On this phone' : phoneState(ownedMovieId) ? 'Saving…' : 'Save to phone'}
+                label={phoneWords(ownedMovieId)}
                 on={phoneState(ownedMovieId) === 'done'}
                 onPress={saveFilmToPhone}
+              />
+            ) : null}
+            {!ownedMovieId && filmJob?.mine && imdb ? (
+              // [offline-phone] the film on its way to the server: saved here by itself when it lands
+              <ActionCircle
+                uiId="detail.offline.wish"
+                icon="downloadDevice"
+                label={wishOn(wishFor(wishes, {type: 'movie', imdbId: imdb})) ? 'Will be saved to this device' : 'This device too'}
+                on={wishOn(wishFor(wishes, {type: 'movie', imdbId: imdb}))}
+                onPress={() => toggleWish({type: 'movie', imdbId: imdb, jobId: filmJob.id || null, title, poster: item.cover || item.poster || null, duration: full?.duration || null}, title)}
               />
             ) : null}
             {ownedMovieId && movieResume ? <ActionCircle uiId="detail.restart" icon="refresh" label="Start over" onPress={() => navigation.push('Player', {id: ownedMovieId, title, restart: true})} /> : null}
@@ -1232,7 +1261,7 @@ export default function Detail() {
               {season && season.episodes.some(e => e.owned && !e.phone) ? (
                 <ChipButton uiId="phone.save.season"
                   small
-                  label={`Save season offline (${season.episodes.filter(e => e.owned && !e.phone).length})`}
+                  label={`Save the season (${season.episodes.filter(e => e.owned && !e.phone).length})`}
                   icon="downloadDevice"
                   onPress={() => saveSeasonToPhone(season.episodes.filter(e => e.owned && !e.phone))}
                 />

@@ -4,7 +4,10 @@
 import {useEffect, useState} from 'react';
 import {trail} from './trail'; // [report trail] the words of every toast shown
 
-export type Toast = {id: number; text: string; glyph?: string};
+// `action`: one press on the toast itself (the phone's Undo after a Remove — the TV draws
+// toasts without it)
+export type ToastAction = {label: string; onPress: () => void};
+export type Toast = {id: number; text: string; glyph?: string; action?: ToastAction};
 let list: Toast[] = [];
 let nextId = 1;
 const subs = new Set<(t: Toast[]) => void>();
@@ -12,9 +15,9 @@ const emit = () => {
   for (const fn of subs) fn(list);
 };
 
-export const showToast = (text: string, glyph?: string, ms = 3800) => {
+export const showToast = (text: string, glyph?: string, ms = 3800, action?: ToastAction) => {
   trail('toast', {m: text});
-  const t = {id: nextId++, text, glyph};
+  const t: Toast = {id: nextId++, text, glyph, ...(action ? {action} : {})};
   list = [...list.slice(-2), t]; // never more than three stacked
   emit();
   setTimeout(() => {
@@ -32,4 +35,10 @@ export const useToasts = () => {
     };
   }, []);
   return state;
+};
+
+/** Take a toast down now (its action was pressed). */
+export const dropToast = (id: number) => {
+  list = list.filter(x => x.id !== id);
+  emit();
 };

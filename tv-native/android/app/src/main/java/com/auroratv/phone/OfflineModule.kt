@@ -24,11 +24,12 @@ import java.util.concurrent.Executors
  * "AuroraOffline" — films and episodes saved ON THE PHONE (src/phone/offline/).
  *
  * The server makes the copy (the website's /api/offline/prepare flow); the bytes then come
- * down through Android's own DownloadManager, which is what makes a save behave like a phone
- * download should: it carries on in the background and with the app closed, picks up again
- * after a dropped line, waits for Wi-Fi when asked to, and shows its progress in the
- * notification shade. The file lands in this app's own storage (no storage permission; it
- * goes when the app is uninstalled):
+ * down in parts through OfflineSaver.kt (save / pauseSave / stopSave / saves): it carries on
+ * in the background, waits out a dropped line, waits for Wi-Fi when asked to, PAUSES and
+ * carries on from where it was, and shows its progress in the notification shade. (Saves
+ * begun by phone builds up to 1.1.2 went through Android's DownloadManager — start / status /
+ * cancel are kept for those.) The file lands in this app's own storage (no storage permission;
+ * it goes when the app is uninstalled):
  *
  *   <external files>/offline/<name>   (the films, and their subtitles beside them)
  *
@@ -83,6 +84,85 @@ class OfflineModule(private val ctx: ReactApplicationContext) : ReactContextBase
       promise.resolve(out)
     } catch (t: Throwable) {
       promise.reject("start", t.message, t)
+    }
+  }
+
+  // ---- saves in parts (OfflineSaver.kt): pause, carry on, a dropped line waited out ----
+
+  /**
+   * Save (or carry on saving) the copy at `url` as `name` — the part already here is kept and
+   * the rest asked for. Resolves {key, file}. `key` names the save in the calls below.
+   */
+  @ReactMethod
+  fun save(key: String, url: String, headers: ReadableMap?, name: String, title: String, wifiOnly: Boolean, promise: Promise) {
+    try {
+      val hs = HashMap<String, String>()
+      val it = headers?.keySetIterator()
+      while (it != null && it.hasNextKey()) {
+        val k = it.nextKey()
+        headers.getString(k)?.let { v -> hs[k] = v }
+      }
+      // a save that has its part on a volume already carries on there (a card chosen later is for the next one)
+      val safe = safeName(name)
+      val there = allDirs().map { File(it, safe) }.firstOrNull { File(it.parentFile, it.name + ".part").exists() }
+      val file = there ?: File(dir(), safe)
+      val j = OfflineSaver.start(ctx, key, url, hs, file, title, wifiOnly)
+      val out = Arguments.createMap()
+      out.putString("key", j.key)
+      out.putString("file", j.file.absolutePath)
+      promise.resolve(out)
+    } catch (t: Throwable) {
+      promise.reject("save", t.message, t)
+    }
+  }
+
+  /** The person's Pause: what is saved stays on the phone; it carries on only when asked (save again). */
+  @ReactMethod
+  fun pauseSave(key: String, promise: Promise) {
+    promise.resolve(OfflineSaver.pause(key))
+  }
+
+  /** Cancel a save: it stops and its unfinished part is thrown away. */
+  @ReactMethod
+  fun stopSave(key: String, promise: Promise) {
+    promise.resolve(OfflineSaver.stop(key))
+  }
+
+  /**
+   * Where each save stands: {key, state (queued|running|retrying|wifi|paused|done|failed|gone),
+   * bytes, total, speed (bytes a second), pausedBy (you|offline), error}. "gone": this run does
+   * not know it (the app was closed) — `part` then says how much of it is on the phone.
+   */
+  @ReactMethod
+  fun saves(keys: ReadableArray, files: ReadableArray, promise: Promise) {
+    try {
+      val out = Arguments.createArray()
+      for (i in 0 until keys.size()) {
+        val key = keys.getString(i) ?: continue
+        val m = Arguments.createMap()
+        m.putString("key", key)
+        val j = OfflineSaver.status(key)
+        if (j == null) {
+          m.putString("state", "gone")
+          val f = if (i < files.size()) files.getString(i) else null
+          if (!f.isNullOrEmpty()) {
+            val file = File(f)
+            m.putDouble("part", OfflineSaver.partSize(file).toDouble())
+            m.putBoolean("whole", file.exists() && file.length() > 0 && OfflineSaver.partSize(file) == 0L)
+          }
+        } else {
+          m.putString("state", j.state)
+          m.putDouble("bytes", j.bytes.toDouble())
+          m.putDouble("total", j.total.toDouble())
+          m.putDouble("speed", j.speed)
+          j.pausedBy?.let { m.putString("pausedBy", it) }
+          j.error?.let { m.putString("error", it) }
+        }
+        out.pushMap(m)
+      }
+      promise.resolve(out)
+    } catch (t: Throwable) {
+      promise.reject("saves", t.message, t)
     }
   }
 
@@ -176,7 +256,8 @@ class OfflineModule(private val ctx: ReactApplicationContext) : ReactContextBase
       val f = File(path)
       // only ever inside an offline folder (the phone's or the SD card's)
       val inside = allDirs().any { d -> f.canonicalPath.startsWith(d.canonicalPath + File.separator) }
-      promise.resolve(inside && f.delete())
+      if (inside) File(f.parentFile, f.name + ".part").let { if (it.exists()) it.delete() }
+      promise.resolve(inside && (f.delete() || !f.exists()))
     } catch (t: Throwable) {
       promise.resolve(false)
     }

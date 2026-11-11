@@ -21,6 +21,7 @@ import {GlassButton} from './ui/Buttons';
 import {wireProfileMenu} from './profileMenu';
 import {resetTabs} from './tabs';
 import {flushOfflineProgress} from './offline/store';
+import {startOfflineLife} from './offline/lifecycle';
 import './remote/controller'; // the profile's TVs, heard from the first socket open
 import {LOW_END} from './lowEnd';
 import {checkOnStart} from './update/store';
@@ -73,7 +74,13 @@ function Main() {
     loadMe(profileId)
       .then(me => wireProfileMenu({switchProfile: () => (resetTabs(), switchProfile()), name: () => me?.name || ''}))
       .catch(() => {});
-    return () => fg.remove();
+    // [offline-phone] saves carry on, this device's wishes are saved when ready, Keep the next
+    // episode ready looks — for THIS profile only, from now until it is left
+    const offline = profileId ? startOfflineLife(profileId) : () => {};
+    return () => {
+      fg.remove();
+      offline();
+    };
   }, [profileId, switchProfile]);
   return (
     <>
@@ -96,14 +103,17 @@ const PHONE_UI: RootUi = {
       </Text>
     </View>
   ),
-  Offline: ({onRetry}) => (
-    <Notice
-      title="Can't reach Aurora."
-      detail="Tried nufurora.com and the house server. Check your connection, then try again."
-      action="Try again"
-      onAction={onRetry}
-    />
-  ),
+  // no server at all: what is saved on this device plays (offline/OfflineHome.tsx); with nothing
+  // saved, the notice
+  Offline: ({onRetry}) => {
+    const OfflineHome = (require('./offline/OfflineHome') as typeof import('./offline/OfflineHome')).default;
+    return (
+      <OfflineHome
+        onRetry={onRetry}
+        fallback={<Notice title="Can't reach Aurora." detail="Tried nufurora.com and the house server. Check your connection, then try again." action="Try again" onAction={onRetry} />}
+      />
+    );
+  },
   Banned: ({reason, onRetry}) => (
     <Notice title="Access denied" detail={reason || 'This phone has been banned from this server.'} action="Try again" onAction={onRetry} />
   ),

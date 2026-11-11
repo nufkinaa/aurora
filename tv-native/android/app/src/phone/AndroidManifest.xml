@@ -21,6 +21,9 @@
          MediaSessionService, declared below) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- saving a film onto the phone keeps going with the app in the background, its progress
+         in the notification shade (OfflineSaver.kt's OfflineSaveService) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
@@ -118,6 +121,11 @@
           <action android:name="androidx.media3.session.MediaSessionService" />
         </intent-filter>
       </service>
+      <!-- A save to the phone in progress (OfflineSaver.kt): keeps it going in the background. -->
+      <service
+        android:name="com.auroratv.phone.OfflineSaveService"
+        android:exported="false"
+        android:foregroundServiceType="dataSync" />
       <!-- Hears the result of a quiet update (UpdateResultReceiver.kt). -->
       <receiver android:name=".UpdateResultReceiver" android:exported="false" />
       <!-- The device harness's door: disabled unless a QA variant asked for it (-PqaReceiver). -->
