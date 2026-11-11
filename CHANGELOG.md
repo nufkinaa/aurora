@@ -3,6 +3,18 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.29 — 2026-11-11
+
+- **The player's menu reads over a bright picture again (website, on a computer).** Settings, subtitles and speed had turned see-through in 1.15.28, so over a light scene the words disappeared. The menu has its dark glass body back.
+- **The Settings button's gear sits in the middle of its circle (website, on a phone).** Since the taller bar at the bottom it sat a little low.
+- **Downloads stays beside Settings (website, on a computer).** The button no longer comes and goes: with nothing downloading it is a plain download button to My downloads; it shows the progress while something downloads and the count once things are ready, and it no longer fades out of sight after ten seconds.
+- **Film or series, at a glance in search (TV and phone app).** A gold film strip for a film, a blue screen for a series, on every result and suggestion. The website follows once its look is chosen.
+- **A show's page on the TV lists its genres**, as a film's page always did.
+- **Continue Watching, tidied (website, TV, phone app).** One card per series (its newest episode, whether downloaded or streamed); finished films and episodes leave the row, and a stop in the end credits counts as finished; the up-next card skips episodes already watched; ✕ on an episode card takes the whole series off until you watch it again.
+- **Start over stays a little longer** when you come back to something you were watching: six seconds instead of four (website, TV, phone app).
+- **Kids profiles see only kind words on Home** from the first moment: the page no longer shows a teasing line of its own before the server's friendly one arrives.
+- TV 5.9.4.
+
 ## 1.15.28 — 2026-11-11
 
 - **Wrapped, Pick for me, Taste and Pick together play like games (website).** Wrapped is a story you tap through, with numbers that count up and a card to share at the end. Pick for me draws your film like a reel that slows and lands. Taste is a deck of cards you throw right or left. Pick together plays in turns, with a tally and a reveal. What they do is the same; the TV and the phone app get the same look in their next update.

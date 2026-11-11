@@ -5575,7 +5575,7 @@ export const renderPlayer = async (root, { id }) => {
       setTimeout(() => node.remove(), 550);
     };
     overlay.append(resumeCard);
-    timer = setTimeout(dismiss, 4000);
+    timer = setTimeout(dismiss, 6000); // (elia 2026-11-11: "just a bit longer" — was 4 s)
   };
 
   // ---------- progress persistence ----------
