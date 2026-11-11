@@ -32,3 +32,17 @@ describe('greetFade', () => {
     expect(stops[stops.length - 1][1]).toBe(100);
   });
 });
+
+import {footFade, FOOT_WORDS_ALPHA} from '../../src/phone/ui/greetFade';
+
+describe('footFade', () => {
+  it('holds enough under the title for white art to read', () => {
+    expect(contrast(GREETING, through(WHITE, FOOT_WORDS_ALPHA))).toBeGreaterThanOrEqual(4.5);
+  });
+  it('is as deep as the words and eases out to nothing', () => {
+    const f = footFade(204);
+    expect(f.height).toBe(276);
+    expect(f.gradient.startsWith('linear-gradient(0deg, rgba(7,8,17,0.92) 0%, rgba(7,8,17,0.62) 73.9%')).toBe(true);
+    expect(f.gradient.endsWith('rgba(7,8,17,0) 100%)')).toBe(true);
+  });
+});

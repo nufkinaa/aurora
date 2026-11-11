@@ -41,3 +41,23 @@ export const contrast = (a: readonly number[], b: readonly number[]) => {
 };
 /** the art's colour seen through the fade at `alpha` */
 export const through = (art: readonly number[], alpha: number) => art.map((v, i) => Math.round(v * (1 - alpha) + INK[i] * alpha));
+
+/** The fade from the billboard's FOOT, under the kicker, title, facts and buttons: as deep as
+ *  those words (measured, from the slab's foot to the kicker's top) and FOOT_EASE more, holding
+ *  FOOT_WORDS_ALPHA at the kicker so a title on white art still reads (~4.8:1), the picture
+ *  untouched above it. */
+export const FOOT_ALPHA = 0.92;
+export const FOOT_WORDS_ALPHA = 0.62;
+export const FOOT_EASE = 72;
+export function footFade(wordsHeight: number): GreetFade {
+  const height = Math.round(wordsHeight + FOOT_EASE);
+  const at = (y: number) => `${Math.round((y / height) * 1000) / 10}%`;
+  const c = (a: number) => `rgba(${INK.join(',')},${a})`;
+  const tail = [0.25, 0.5, 0.75].map(k => {
+    const s = 1 - (3 * k * k - 2 * k * k * k);
+    return `${c(Math.round(FOOT_WORDS_ALPHA * s * 100) / 100)} ${at(wordsHeight + FOOT_EASE * k)}`;
+  });
+  // (0deg: from the foot up)
+  const gradient = `linear-gradient(0deg, ${c(FOOT_ALPHA)} 0%, ${c(FOOT_WORDS_ALPHA)} ${at(wordsHeight)}, ${tail.join(', ')}, ${c(0)} 100%)`;
+  return {height, gradient};
+}

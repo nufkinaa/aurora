@@ -56,7 +56,7 @@ import {useSolidBar} from '../ui/PageHead';
 import {useTabBarSpace} from '../ui/TabBar';
 import {greeting} from '../greeting';
 import {heroCover} from '../heroArt';
-import {GreetFade, greetFade} from '../ui/greetFade';
+import {footFade, GreetFade, greetFade} from '../ui/greetFade';
 import {onReselect} from '../tabs';
 import {phoneNative} from '../native';
 import {FADE_MS, LISTS} from '../lowEnd';
@@ -90,7 +90,7 @@ function greetLine(line: string, name?: string) {
 const kindOf = (it: HeroItem) => (it.type === 'show' || (it as {type?: string}).type === 'series' ? 'show' : 'movie');
 
 // ---------------------------------------------------------------- billboard
-const Slide = React.memo(function Slide({item, w, h, top, land, noKicker, fadeH, topFade, onPlay, onDetails, onTextH}: {item: HeroItem; w: number; h: number; top: number; land?: boolean; noKicker?: boolean; fadeH: number; topFade?: GreetFade | null; onPlay: (it: HeroItem) => void; onDetails: (it: HeroItem) => void; onTextH?: (h: number) => void}) {
+const Slide = React.memo(function Slide({item, w, h, top, land, noKicker, foot, topFade, onPlay, onDetails, onTextH}: {item: HeroItem; w: number; h: number; top: number; land?: boolean; noKicker?: boolean; foot: GreetFade; topFade?: GreetFade | null; onPlay: (it: HeroItem) => void; onDetails: (it: HeroItem) => void; onTextH?: (h: number) => void}) {
   const show = kindOf(item) === 'show';
   const portrait = h > w;
   // a phone held upright: the POSTER (large) fills the billboard, as on the site (ui.js
@@ -107,7 +107,7 @@ const Slide = React.memo(function Slide({item, w, h, top, land, noKicker, fadeH,
         {/* the picture at its own brightness (elia 2026-11-10): a fade from the foot only as tall
             as the words on it, and, with the greeting on the slab, a soft one from the top edge
             behind the greeting alone (ui/greetFade.ts); no shadow on the letters */}
-        <View style={[s.slideFade, {height: fadeH}]} pointerEvents="none" />
+        <View style={[s.slideFade, {height: foot.height, experimental_backgroundImage: foot.gradient}]} pointerEvents="none" />
         {topFade ? <View style={[s.topFade, {height: topFade.height, experimental_backgroundImage: topFade.gradient}]} pointerEvents="none" /> : null}
         <View style={s.slideText} onLayout={onTextH ? e => onTextH(Math.ceil(e.nativeEvent.layout.height)) : undefined}>
           {noKicker ? null : (
@@ -167,7 +167,7 @@ function Billboard({items, onPlay, onDetails, active, greet}: {items: HeroItem[]
   // sideways, the site's wide billboard: 12 from the edges and nearly the whole height (345 of 411)
   const h = Math.max(Math.round(land ? height - 66 : Math.min(height * 0.6, 530) + greetRoom - (top - 8)), floor);
   // the fade from the foot: as tall as the words it carries, and a little over
-  const fadeH = textH ? Math.min(h, textH + 44 + 56) : Math.round(h * 0.55);
+  const foot = useMemo(() => footFade(Math.min(h - 72, (textH || Math.round(h * 0.4)) + 44)), [h, textH]);
   // the greeting gives way to a long title (measured): two lines of remark, one, none, then the tag
   const [room, setRoom] = useState<Room>(2);
   const [greetH, setGreetH] = useState(0);
@@ -215,7 +215,7 @@ function Billboard({items, onPlay, onDetails, active, greet}: {items: HeroItem[]
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         keyExtractor={(it, i) => `${it.id || it.imdbId || it.title}-${i}`}
-        renderItem={({item}) => <Slide item={item} w={width} h={h} top={top} land={land} noKicker={!land && room <= -2} fadeH={fadeH} topFade={topFade} onPlay={onPlay} onDetails={onDetails} onTextH={onTextH} />}
+        renderItem={({item}) => <Slide item={item} w={width} h={h} top={top} land={land} noKicker={!land && room <= -2} foot={foot} topFade={topFade} onPlay={onPlay} onDetails={onDetails} onTextH={onTextH} />}
         getItemLayout={(_, i) => ({length: width, offset: width * i, index: i})}
         onScrollBeginDrag={() => {
           touchedAt.current = Date.now();
@@ -223,7 +223,7 @@ function Billboard({items, onPlay, onDetails, active, greet}: {items: HeroItem[]
         onMomentumScrollEnd={onEnd}
         initialNumToRender={2}
         windowSize={3}
-        extraData={`${width}|${h}|${room}|${fadeH}|${topFade?.height || 0}`}
+        extraData={`${width}|${h}|${room}|${foot.height}|${topFade?.height || 0}`}
         onContentSizeChange={snap}
       />
       <View style={s.dots} pointerEvents="none">
@@ -622,7 +622,6 @@ const s = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    experimental_backgroundImage: 'linear-gradient(0deg, rgba(7,8,17,0.92) 0%, rgba(7,8,17,0.62) 45%, rgba(7,8,17,0) 100%)',
   },
   topFade: {position: 'absolute', left: 0, right: 0, top: 0},
   // the greeting on the slab (the site's .hero > .home-greeting): 18 down, 20 in from the slab
