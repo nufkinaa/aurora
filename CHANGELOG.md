@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.33 — 2026-11-11
+
+- **Children mode (website, TV and phone app).** One press cleans the feed for your child on every device signed in to your account. You pick who is watching each time you turn it on (All ages, 7+, 12+ or 16+); a younger age is one press, an older one or leaving asks for your passcode, which you choose the first time and Aurora remembers. Every screen of the account follows at once, and the server's age check filters everything, so nothing slips through. Forgot the passcode? Your account's password (or Google on the website) clears it, and so can the admin page.
+- **Kids profiles are now Children mode.** Each kids profile becomes an account with Children mode on at its old age, and the household PIN is its passcode, so nothing opens up for a child. A backup is kept and the change can be undone.
+- TV 5.9.5 and Android phone 1.1.5 — Children mode, and the KIDS badge in the same mint everywhere.
+
 ## 1.15.32 — 2026-11-11
 
 - **My downloads: "Keep going" gives the Cancel button back.** If the page refreshed while you were being asked whether to cancel, the button stayed greyed out after you chose to keep the download.

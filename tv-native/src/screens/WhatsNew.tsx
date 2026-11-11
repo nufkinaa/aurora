@@ -21,7 +21,7 @@ const {colors, fontSize, spacing, radius} = theme;
 // one place to change: its cards say `since: ROUND`, and NEW_FROM = ROUND puts the New
 // ribbon on them alone. (The website has the same cards: public/js/screens/whatsnew.js,
 // ROUND there; its `webOnly` cards — AirPlay from an iPhone — have nothing to do on a TV.)
-export const ROUND = '5.9.4';
+export const ROUND = '5.9.5';
 const NEW_FROM = ROUND;
 const cmpVersion = (a: string, b: string) => {
   const pa = a.split('.').map(Number);
@@ -33,9 +33,18 @@ export const isNewCard = (f: {since?: string}) => !!f.since && cmpVersion(f.sinc
 
 type Feature = {since?: string; glyph: string; title: string; what: string; how: string; go?: {label: string; act: string}};
 export const FEATURES: Feature[] = [
-  // ---- 5.9.4 ----
+  // ---- 5.9.5: Children mode, the same card, the same words, on the website ----
   {
     since: ROUND,
+    glyph: '🧸',
+    title: "Children mode",
+    what: "One press cleans the feed for your child on every device signed in to your account: pick who is watching (All ages, 7+, 12+ or 16+) each time you turn it on. You choose a passcode the first time; leaving takes it. A younger age is one press, an older one asks for the passcode. Kids profiles are now Children mode.",
+    how: "Settings → Children mode.",
+    go: {label: 'Go home', act: 'home'},
+  },
+  // ---- 5.9.4 ----
+  {
+    since: '5.9.4',
     glyph: '▶️',
     title: "Continue Watching, tidied",
     what: "One card per show: the episode you watched last, whether it was downloaded or streamed. Anything you have finished leaves the row, and stopping in the end credits counts as finished. When you finish an episode, the card moves on to the next one you have not seen.",
@@ -43,7 +52,7 @@ export const FEATURES: Feature[] = [
     go: {label: 'Go home', act: 'home'},
   },
   {
-    since: ROUND,
+    since: '5.9.4',
     glyph: '🔎',
     title: "Film or series, at a glance in search",
     what: "On the website, the TV and the phone app, every result and every suggestion in search now carries a small sign: a gold film strip for a film, a blue screen for a series. A show's page on the TV also lists its genres, as a film's page always did.",

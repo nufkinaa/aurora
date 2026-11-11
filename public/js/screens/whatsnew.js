@@ -21,26 +21,34 @@ import { showReportSheet } from "../report.js";
 // (The TV has the same cards: tv-native/src/screens/WhatsNew.tsx, ROUND there.
 // A card about something only a browser has says `webOnly: true` first —
 // test/whatsnew-parity.test.js leaves it out of the comparison.)
-export const ROUND = "1.15.31";
+export const ROUND = "1.15.33";
 const NEW_FROM = ROUND;
 const FEATURES = [
+  // ---- 1.15.33: Children mode, on the website, the TV and the phone app ----
+  {
+    since: ROUND, cue: "tap", glyph: "🧸",
+    title: "Children mode",
+    what: "One press cleans the feed for your child on every device signed in to your account: pick who is watching (All ages, 7+, 12+ or 16+) each time you turn it on. You choose a passcode the first time; leaving takes it. A younger age is one press, an older one asks for the passcode. Kids profiles are now Children mode.",
+    how: "Your profile menu (More on a phone) → Children mode.",
+    go: { label: "Go home", to: "#/" },
+  },
   // ---- 1.15.31: the clearer glass (website and phone app); the two of 1.15.29 that reach every screen; the chooser of 1.15.30 ----
   {
-    webOnly: true, since: ROUND, cue: "tap", glyph: "🪟",
+    webOnly: true, since: "1.15.31", cue: "tap", glyph: "🪟",
     title: "A clearer glass",
     what: "The bars and buttons that float over pictures are clearer now: the picture's colour comes through them, the tab you are on is violet, and there is no bright line along the top. Menus, sheets and the phone's side menu keep their look. The Android app has it too.",
     how: "Nothing to do. Open Home and look at the bars over the picture.",
     go: { label: "Go home", to: "#/" },
   },
   {
-    since: ROUND, cue: "tap", glyph: "▶️",
+    since: "1.15.29", cue: "tap", glyph: "▶️",
     title: "Continue Watching, tidied",
     what: "One card per show: the episode you watched last, whether it was downloaded or streamed. Anything you have finished leaves the row, and stopping in the end credits counts as finished. When you finish an episode, the card moves on to the next one you have not seen.",
     how: "Open Home: Continue Watching is the first row.",
     go: { label: "Go home", to: "#/" },
   },
   {
-    since: ROUND, cue: "tap", glyph: "🔎",
+    since: "1.15.29", cue: "tap", glyph: "🔎",
     title: "Film or series, at a glance in search",
     what: "On the website, the TV and the phone app, every result and every suggestion in search now carries a small sign: a gold film strip for a film, a blue screen for a series. A show's page on the TV also lists its genres, as a film's page always did.",
     how: "Search → type a few letters.",
