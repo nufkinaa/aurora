@@ -206,7 +206,7 @@ test('Taste: the keys answer at once, the stars light and say something, the rou
   await flush();
   expect(has('4 / 4')).toBe(true);
   expect(has('answers — Home is already using them')).toBe(true);
-  expect(has('♥ 3 loved')).toBe(true);
+  expect(has('♥FE0E 3 loved')).toBe(true); // (the heart drawn as text, not an emoji)
   expect(has('✕ 1 not for you')).toBe(true);
   expect(has('Aurora learned')).toBe(true);
   expect(byUi('taste.more')).toHaveLength(1);
