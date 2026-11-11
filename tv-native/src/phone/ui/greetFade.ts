@@ -61,3 +61,18 @@ export function footFade(wordsHeight: number): GreetFade {
   const gradient = `linear-gradient(0deg, ${c(FOOT_ALPHA)} 0%, ${c(FOOT_WORDS_ALPHA)} ${at(wordsHeight)}, ${tail.join(', ')}, ${c(0)} 100%)`;
   return {height, gradient};
 }
+
+// ---------------------------------------------------------------- as Home scrolls
+// (2026-11-12) The greeting rides up with the billboard; before it reaches the round logo and the
+// top buttons it has faded out — never drawn under them. The website's home.js uses the same
+// numbers (fadeGreet).
+/** gone this far (dp) before its words' top would meet the buttons' row */
+export const GREET_CLEAR = 4;
+/** the fade's length (dp of scroll) */
+export const GREET_FADE = 16;
+/** The greeting's opacity at scroll `y`. `room`: how far under the buttons' row its words start
+ *  at rest (on the phone: the slab's 10 + the greeting's 18 = 28). Pulled down (y < 0): shown. */
+export function greetShown(y: number, room: number): number {
+  const o = (room - GREET_CLEAR - y) / GREET_FADE;
+  return o >= 1 ? 1 : o <= 0 ? 0 : Math.round(o * 100) / 100;
+}

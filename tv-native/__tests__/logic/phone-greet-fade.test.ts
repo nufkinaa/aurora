@@ -1,6 +1,6 @@
 // Home's greeting on the billboard reads over any picture through a fade from the top edge
 // alone (elia 2026-11-10), and the fade has no band where it ends.
-import {contrast, greetFade, through, TOP_ALPHA, WORDS_ALPHA} from '../../src/phone/ui/greetFade';
+import {contrast, GREET_CLEAR, greetFade, greetShown, through, TOP_ALPHA, WORDS_ALPHA} from '../../src/phone/ui/greetFade';
 
 const WHITE = [255, 255, 255];
 const GREETING = [243, 244, 248]; // colors.text
@@ -44,5 +44,32 @@ describe('footFade', () => {
     expect(f.height).toBe(276);
     expect(f.gradient.startsWith('linear-gradient(0deg, rgba(7,8,17,0.92) 0%, rgba(7,8,17,0.62) 73.9%')).toBe(true);
     expect(f.gradient.endsWith('rgba(7,8,17,0) 100%)')).toBe(true);
+  });
+});
+
+// 2026-11-12: scrolled a little, the greeting slid under the round logo and the top buttons
+describe('greetShown (the greeting as Home scrolls)', () => {
+  const ROOM = 28; // the slab 10 under the buttons' row, the greeting 18 down on it
+  it('is whole at rest, pulled down, and while it is still well clear of the buttons', () => {
+    expect(greetShown(0, ROOM)).toBe(1);
+    expect(greetShown(-60, ROOM)).toBe(1);
+    expect(greetShown(8, ROOM)).toBe(1);
+  });
+  it('fades as it nears them and is gone before its words reach their row', () => {
+    expect(greetShown(16, ROOM)).toBe(0.5);
+    expect(greetShown(ROOM - GREET_CLEAR, ROOM)).toBe(0);
+    for (let y = 0; y <= 400; y += 1) {
+      // whatever is still drawn has its top under the buttons' row
+      if (greetShown(y, ROOM) > 0) expect(ROOM - y).toBeGreaterThan(GREET_CLEAR);
+    }
+  });
+  it('goes down smoothly as the page goes up', () => {
+    let was = 1;
+    for (let y = 0; y <= 40; y += 0.5) {
+      const o = greetShown(y, ROOM);
+      expect(o).toBeLessThanOrEqual(was);
+      expect(was - o).toBeLessThanOrEqual(0.0401);
+      was = o;
+    }
   });
 });

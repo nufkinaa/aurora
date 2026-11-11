@@ -23,6 +23,7 @@ import {
   ActivityIndicator,
   Animated,
   AppState,
+  Easing,
   FlatList,
   Image,
   NativeScrollEvent,
@@ -59,7 +60,7 @@ import {useTabBarSpace} from '../ui/TabBar';
 import {greeting} from '../greeting';
 import {RemarkState, useRemark} from '../useRemark';
 import {heroCover} from '../heroArt';
-import {footFade, GreetFade, greetFade} from '../ui/greetFade';
+import {footFade, GreetFade, greetFade, greetShown} from '../ui/greetFade';
 import {onReselect} from '../tabs';
 import {phoneNative} from '../native';
 import {FADE_MS, LISTS} from '../lowEnd';
@@ -150,10 +151,13 @@ export const slabTop = (barTop: number) => barTop + TOP_BAR_H + 10;
 type Room = 2 | 1 | 0 | -1 | -2;
 const GREET_TOP = 18; // .home-greeting on the slab: 18 down, 20 in
 const GREET_GAP = 12; // never closer than this to the slide's words
+/** how far under the buttons' row the greeting's words start at rest: the slab's 10 (slabTop) and
+ *  its own 18 — as Home scrolls it fades out within this (ui/greetFade.ts greetShown) */
+const GREET_ROOM = slabTop(0) - TOP_BAR_H + GREET_TOP;
 
 type SlabGreet = {line: string; name?: string; remark: RemarkState};
 
-function Billboard({items, onPlay, onDetails, active, greet}: {items: HeroItem[]; onPlay: (it: HeroItem) => void; onDetails: (it: HeroItem) => void; active: boolean; greet: SlabGreet | null}) {
+function Billboard({items, onPlay, onDetails, active, greet, shown}: {items: HeroItem[]; onPlay: (it: HeroItem) => void; onDetails: (it: HeroItem) => void; active: boolean; greet: SlabGreet | null; shown?: Animated.Value}) {
   const {width, height} = useWindowDimensions();
   // landscape: a shorter billboard, so the greeting sits above the tab bar at rest — but never
   // so short that a slide's words (kicker, name, buttons; measured) reach up under the top bar
@@ -249,10 +253,11 @@ function Billboard({items, onPlay, onDetails, active, greet}: {items: HeroItem[]
         ))}
       </View>
       {!land && greet ? (
-        // over the pager, so it stays put while the slides go by (each slide carries the fade)
-        <View
+        // over the pager, so it stays put while the slides go by (each slide carries the fade);
+        // as Home scrolls it fades out before it reaches the top buttons (`shown`)
+        <Animated.View
           pointerEvents="none"
-          style={[s.slabGreet, {top: top + GREET_TOP}]}
+          style={[s.slabGreet, {top: top + GREET_TOP}, shown ? {opacity: shown} : null]}
           onLayout={e => {
             const g = Math.ceil(e.nativeEvent.layout.height);
             setGreetH(was => (Math.abs(was - g) > 1 ? g : was));
@@ -265,7 +270,7 @@ function Billboard({items, onPlay, onDetails, active, greet}: {items: HeroItem[]
               {sub}
             </Animated.Text>
           ) : null}
-        </View>
+        </Animated.View>
       ) : null}
     </View>
   );
@@ -384,6 +389,22 @@ export default function Home() {
   const listRef = useRef<FlatList<Block>>(null);
   // the billboard's picture may sit under the bar; its words and buttons may not
   const bar = useSolidBar(data?.hero.length ? 140 : 12);
+  // the greeting on the billboard: whole at rest, faded out before it scrolls up under the round
+  // logo and the top buttons (2026-11-12). Set from the scroll (64 ms apart) and eased between
+  // those on the native side, so it moves with the page; the drag's end and the fling's end give
+  // the last word (a throttled scroll event can be dropped).
+  const greetOpacity = useRef(new Animated.Value(1)).current;
+  const greetTo = useRef(1);
+  const fadeGreet = useCallback(
+    (y: number) => {
+      const o = greetShown(y, GREET_ROOM);
+      if (o === greetTo.current) return;
+      greetTo.current = o;
+      Animated.timing(greetOpacity, {toValue: o, duration: 64, easing: Easing.linear, useNativeDriver: true, isInteraction: false}).start();
+    },
+    [greetOpacity],
+  );
+  const onScrollEnd = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => fadeGreet(e.nativeEvent.contentOffset.y), [fadeGreet]);
 
   // the launch mark the device checks read: Home's shelves first on screen
   const firstData = useRef(data);
@@ -570,7 +591,7 @@ export default function Home() {
   // one on screen (measured off screen first), so nothing under it moves
   const subLines = useRef(1);
   const renderBlock = ({item}: {item: Block}) => {
-    if (item.key === 'hero') return <Billboard items={data?.hero || []} onPlay={heroPlay} onDetails={openDetail} active={focused && heroOn} greet={greetOnSlab ? slabGreet : null} />;
+    if (item.key === 'hero') return <Billboard items={data?.hero || []} onPlay={heroPlay} onDetails={openDetail} active={focused && heroOn} greet={greetOnSlab ? slabGreet : null} shown={greetOpacity} />;
     if (item.key === 'greet')
       return me && !greetOnSlab ? (
         <View style={s.greet}>
@@ -620,9 +641,12 @@ export default function Home() {
         onScroll={e => {
           bar.onScroll(e);
           const y = e.nativeEvent.contentOffset.y;
+          fadeGreet(y);
           const on = y < 300;
           if (on !== heroOn) setHeroOn(on);
         }}
+        onScrollEndDrag={onScrollEnd}
+        onMomentumScrollEnd={onScrollEnd}
         scrollEventThrottle={64}
         initialNumToRender={LISTS.homeInitial}
         maxToRenderPerBatch={LISTS.homeBatch}
