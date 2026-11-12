@@ -1330,7 +1330,8 @@ function ResultView({
       {/* Under the curtain the words and the poster wait unseen: they come in
           with the drop (or at once when the show was skipped), never seen,
           gone and back. */}
-      <Rise run={`${drop.run}:${index}`} calm={calm || !fresh} delay={fresh ? 180 : 0} dy={16} style={[styles.resultText, hidden && styles.unseen]}>
+      <View style={[styles.resultText, hidden && styles.unseen]}>
+        <Rise run={`${drop.run}:${index}`} calm={calm || !fresh} delay={fresh ? 180 : 0} dy={16}>
         <View style={styles.prizeKicker}>
           <Star size={15} color={PLAY.gold} />
           <Text style={styles.resultKicker}>{WORDS.resultTitle.toUpperCase()}</Text>
@@ -1364,7 +1365,8 @@ function ResultView({
             {session.you?.host ? <PlayKey uiId="group.again" glyph="↻" label={WORDS.again} dim={busy === 'again'} onPress={onAgain} /> : null}
           </View>
         )}
-      </Rise>
+        </Rise>
+      </View>
       <View
         style={[{width: posterW, height: posterH}, hidden && styles.unseen]}
         onLayout={e => {
