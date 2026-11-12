@@ -263,6 +263,17 @@ that made no pictures itself when the test had to make them (Linux holds the idl
 back while the one-minute load is high); `airplay-iphone` sets the admin's fixed limit
 of 2 encodes on a machine of 4 threads or fewer.
 
+The offline files were flaky there (2026-11-12: a stress run, every offline file 24 times
+on 6 runners with no retry: 21 failures on master, none in 48 after). Two were races in the app,
+fixed in `js/offline.js`: a save that failed (out of room) or was cancelled cleared up
+while its other parts were still being written, and kept some of them for good; and a save
+that landed before the offline look had started (`js/offlineUi.js` starts in an idle moment
+after the first screen) was never announced, nor followed by the one-time "keep the next
+episode ready" offer. The rest were tests asking too early: they now wait for the real
+condition (a cancelled save's subtitles are cleared just after its toast; the page says
+"wished" a moment after the server has the wish; My downloads repaints the button being
+scrolled to; the stage helper's answer is written whole before it is read).
+
 ## Local use
 
 ```sh
