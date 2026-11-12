@@ -21,7 +21,7 @@ const {colors, fontSize, spacing, radius} = theme;
 // one place to change: its cards say `since: ROUND`, and NEW_FROM = ROUND puts the New
 // ribbon on them alone. (The website has the same cards: public/js/screens/whatsnew.js,
 // ROUND there; its `webOnly` cards — AirPlay from an iPhone — have nothing to do on a TV.)
-export const ROUND = '5.9.5';
+export const ROUND = '5.9.6';
 const NEW_FROM = ROUND;
 const cmpVersion = (a: string, b: string) => {
   const pa = a.split('.').map(Number);
@@ -33,9 +33,18 @@ export const isNewCard = (f: {since?: string}) => !!f.since && cmpVersion(f.sinc
 
 type Feature = {since?: string; glyph: string; title: string; what: string; how: string; go?: {label: string; act: string}};
 export const FEATURES: Feature[] = [
-  // ---- 5.9.5: Children mode, the same card, the same words, on the website ----
+  // ---- 5.9.6: the TV plays like a game, the same card, the same words, on the website ----
   {
     since: ROUND,
+    glyph: '🎲',
+    title: "Game night on the TV",
+    what: "Pick together turns the TV into the party: the code as a ticket, everyone takes a seat, the votes come in with a drumroll and one burst for tonight's pick. Pick for me draws its answer on a reel, Taste is a real deck for the remote, and Your Aurora Wrapped tells your year as a story.",
+    how: "On the TV: AI → Pick for me or Pick together; Settings → Swipe your taste or Your Aurora Wrapped.",
+    go: {label: 'Settings', act: 'settings'},
+  },
+  // ---- 5.9.5: Children mode, the same card, the same words, on the website ----
+  {
+    since: '5.9.5',
     glyph: '🧸',
     title: "Children mode",
     what: "One press cleans the feed for your child on every device signed in to your account: pick who is watching (All ages, 7+, 12+ or 16+) each time you turn it on. You choose a passcode the first time; leaving takes it. A younger age is one press, an older one asks for the passcode. Kids profiles are now Children mode.",

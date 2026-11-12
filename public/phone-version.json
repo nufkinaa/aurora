@@ -1,5 +1,5 @@
 {
-  "versionName": "1.1.5",
-  "date": "2026-11-11",
-  "notes": "Children mode: one tap cleans the feed for your child on every device of your account; leaving takes your passcode."
+  "versionName": "1.1.6",
+  "date": "2026-11-12",
+  "notes": "Small things put right: the greeting no longer slides under the top buttons, and Recommend always names the title."
 }

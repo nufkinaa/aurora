@@ -3,6 +3,14 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.34 — 2026-11-12
+
+- **Game night on the TV (TV 5.9.6).** Pick together turns the TV into the party: the code as a ticket, everyone takes a seat, a ribbon for each voter, and a reveal with a drumroll, a tie-break when it's close and one burst for tonight's pick; the TV can vote with the remote too (right yes, left no, down maybe). Pick for me draws its answer on a reel, Taste is a real deck with stamps and a star meter, and Your Aurora Wrapped tells your year as a story (Settings). Children mode gets kind words only.
+- **The greeting on a phone's Home** fades away before it reaches the logo and the round buttons as you scroll, instead of sliding under them (website and Android app).
+- **Recommend always names the title** on the Android app, also when the title was opened from a link (Android phone 1.1.6).
+- **The words on a phone's bottom bar** read clearly over the brightest posters (website).
+- **Report a problem on the TV:** its buttons sit at the bottom of the sheet, so the focus ring around Send is never cut.
+
 ## 1.15.33 — 2026-11-11
 
 - **Children mode (website, TV and phone app).** One press cleans the feed for your child on every device signed in to your account. You pick who is watching each time you turn it on (All ages, 7+, 12+ or 16+); a younger age is one press, an older one or leaving asks for your passcode, which you choose the first time and Aurora remembers. Every screen of the account follows at once, and the server's age check filters everything, so nothing slips through. Forgot the passcode? Your account's password (or Google on the website) clears it, and so can the admin page.

@@ -21,12 +21,20 @@ import { showReportSheet } from "../report.js";
 // (The TV has the same cards: tv-native/src/screens/WhatsNew.tsx, ROUND there.
 // A card about something only a browser has says `webOnly: true` first —
 // test/whatsnew-parity.test.js leaves it out of the comparison.)
-export const ROUND = "1.15.33";
+export const ROUND = "1.15.34";
 const NEW_FROM = ROUND;
 const FEATURES = [
+  // ---- 1.15.34: the TV plays like a game (the same card on the TV) ----
+  {
+    since: ROUND, cue: "tap", glyph: "🎲",
+    title: "Game night on the TV",
+    what: "Pick together turns the TV into the party: the code as a ticket, everyone takes a seat, the votes come in with a drumroll and one burst for tonight's pick. Pick for me draws its answer on a reel, Taste is a real deck for the remote, and Your Aurora Wrapped tells your year as a story.",
+    how: "On the TV: AI → Pick for me or Pick together; Settings → Swipe your taste or Your Aurora Wrapped.",
+    go: { label: "Settings", to: "#/preferences" },
+  },
   // ---- 1.15.33: Children mode, on the website, the TV and the phone app ----
   {
-    since: ROUND, cue: "tap", glyph: "🧸",
+    since: "1.15.33", cue: "tap", glyph: "🧸",
     title: "Children mode",
     what: "One press cleans the feed for your child on every device signed in to your account: pick who is watching (All ages, 7+, 12+ or 16+) each time you turn it on. You choose a passcode the first time; leaving takes it. A younger age is one press, an older one asks for the passcode. Kids profiles are now Children mode.",
     how: "Your profile menu (More on a phone) → Children mode.",
