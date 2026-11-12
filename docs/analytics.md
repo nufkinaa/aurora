@@ -137,7 +137,7 @@ A control is tagged where it is built:
 - website: `"data-ui": "detail.play"` on the element (one delegated click listener reads it; nothing is ever guessed from a control's text). A control that is not a click on an element — a keyboard shortcut, a tap zone — calls `uiHit("player.seek.fwd")`.
 - TV: `uiId="detail.play"` on a `Focusable`, `Btn` or `Chip` (and the small wrappers that pass it through). Without it nothing happens.
 
-The vocabulary (`src/lib/tel/controls-vocab.js`) — 421 ids: 243 on the website, 190 on the TV, 106 on both. 223 on the phone app (letter `p`, the table after this one).
+The vocabulary (`src/lib/tel/controls-vocab.js`) — 498 ids: 314 on the website, 247 on the TV, 159 on both. 354 on the phone app (letter `p`, the table after this one).
 
 | Area | Website only | TV app only | Both |
 |---|---|---|---|
@@ -171,14 +171,14 @@ The vocabulary (`src/lib/tel/controls-vocab.js`) — 421 ids: 243 on the website
 | row | `row.arrow` | – | – |
 | saved | `saved.clear.watched` `saved.next.save` `saved.offer.save` `saved.pack` `saved.pack.go` `saved.pack.length` `saved.pack.pick` `saved.play` `saved.play.next` `saved.remove` `saved.remove.show` `saved.rest.open` `saved.rest.play` `saved.rest.retry` `saved.smartnext` `saved.wish.cancel` `saved.wish.dismiss` | – | – |
 | search | `search.clear` | – | `search.recent.pick` `search.suggestion.pick` `search.voice` `search.voice.lang` `search.retry` |
-| settings | `settings.accent` `settings.done` `settings.link` `settings.look` `settings.rows.hide` `settings.theme` `settings.toggle` | `settings.audio.dialogue` `settings.audio.night` `settings.autoplay` `settings.av.fps` `settings.av.surround` `settings.downloads` `settings.genre` `settings.notices` `settings.party` `settings.ready` `settings.report` `settings.signout` `settings.taste` `settings.subs.auto` `settings.subs.bg` `settings.subs.color` `settings.subs.lang` `settings.subs.opacity` `settings.subs.pos` `settings.subs.size` `settings.subs.weight` `settings.trailers` `settings.tvname` `settings.tvname.pick` `settings.update` `settings.usagestats` `settings.whatsnew` `settings.hh.sent` `settings.hh.toggle` | `settings.hh.mute` |
+| settings | `settings.accent` `settings.done` `settings.link` `settings.look` `settings.rows.hide` `settings.theme` `settings.toggle` | `settings.audio.dialogue` `settings.audio.night` `settings.autoplay` `settings.av.fps` `settings.av.surround` `settings.downloads` `settings.genre` `settings.notices` `settings.party` `settings.ready` `settings.report` `settings.signout` `settings.taste` `settings.wrapped` `settings.subs.auto` `settings.subs.bg` `settings.subs.color` `settings.subs.lang` `settings.subs.opacity` `settings.subs.pos` `settings.subs.size` `settings.subs.weight` `settings.trailers` `settings.tvname` `settings.tvname.pick` `settings.update` `settings.usagestats` `settings.whatsnew` `settings.hh.sent` `settings.hh.toggle` | `settings.hh.mute` |
 | taste | `taste.back` `taste.edit` `taste.key` `taste.swipe` `taste.unnope` | – | `taste.done` `taste.love` `taste.more` `taste.nope` `taste.skip` `taste.undo` |
 | signin | `signin.getapps` | `signin.mode.google` `signin.submit` | – |
 | state | – | `state.action` | – |
-| story (the Aurora Play story frame, js/play/story.js: Wrapped) | `story.close` `story.next` `story.pause` `story.prev` `story.skip` | – | – |
+| story (the Aurora Play story frame, js/play/story.js: Wrapped; on the TV screens/Wrapped.tsx) | `story.close` `story.skip` | – | `story.next` `story.pause` `story.prev` |
 | update | – | `update.install` `update.later` `update.restart` `update.retry` | – |
 | whatsnew | – | `whatsnew.log` | `whatsnew.go` |
-| wrapped | `wrapped.all` `wrapped.browse` `wrapped.replay` `wrapped.retry` `wrapped.share` `wrapped.story` | – | – |
+| wrapped | `wrapped.all` `wrapped.browse` `wrapped.share` `wrapped.story` | `wrapped.done` | `wrapped.replay` `wrapped.retry` |
 | xray | `xray.more` | – | – |
 
 <!-- phone-controls -->

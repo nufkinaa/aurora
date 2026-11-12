@@ -380,6 +380,12 @@ export default function Settings({
             value="›"
             onPress={() => navigation.push('Taste')}
           />
+          <Row uiId="settings.wrapped"
+            label="Your Aurora Wrapped"
+            note="Your year in Aurora, told as a story: your hours, your number one, your viewer type."
+            value="›"
+            onPress={() => navigation.push('Wrapped')}
+          />
         </View>
 
         {/* Children mode (2026-11-11): the account's own switch, near the top

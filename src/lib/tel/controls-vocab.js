@@ -174,10 +174,10 @@ module.exports = {
   "peek.playontv": "w", // [phone-remote]
   "peek.remove": "w",
   // pick
-  "pick.another": "wp",
+  "pick.another": "wtp",
   "pick.example": "wtp",
   "pick.go": "wtp",
-  "pick.open": "wp",
+  "pick.open": "wtp",
   "pick.option": "wtp",
   "pick.retry": "t",
   "pick.unfold": "t",
@@ -345,6 +345,7 @@ module.exports = {
   "settings.rows.hide": "w",
   "settings.signout": "tp",
   "settings.taste": "tp",
+  "settings.wrapped": "t", // Settings: Your Aurora Wrapped (the phone has its own: phone.settings.wrapped)
   "settings.subs.auto": "tp",
   "settings.subs.bg": "t",
   "settings.subs.color": "t",
@@ -403,11 +404,12 @@ module.exports = {
   "signin.submit": "tp",
   // state
   "state.action": "t",
-  // story (the Aurora Play story frame: public/js/play/story.js — Wrapped and any other story)
+  // story (the Aurora Play story frame: public/js/play/story.js — Wrapped and any other story;
+  // on the TV the same three moves of screens/Wrapped.tsx: Right or OK, Play/Pause, Left)
   "story.close": "wp",
-  "story.next": "w",
-  "story.pause": "wp",
-  "story.prev": "w",
+  "story.next": "wt",
+  "story.pause": "wtp",
+  "story.prev": "wt",
   "story.skip": "wp", // Skip to the summary
   // toast
   "toast.action": "p", // the button on a toast (Undo after a Remove)
@@ -422,8 +424,9 @@ module.exports = {
   // wrapped (Aurora Wrapped, #/wrapped: public/js/screens/wrapped.js)
   "wrapped.all": "wp", // the story's finale: All the numbers
   "wrapped.browse": "w", // Back to browsing / Find something to watch
-  "wrapped.replay": "wp",
-  "wrapped.retry": "w",
+  "wrapped.done": "t", // the TV story's finale (and its empty page): Done
+  "wrapped.replay": "wtp",
+  "wrapped.retry": "wt",
   "wrapped.share": "wp", // Share / Save the picture (the summary card)
   "wrapped.story": "wp", // the page's Play the story
   // xray

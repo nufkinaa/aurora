@@ -13,7 +13,7 @@ import {QA_BUILD, navDone} from './qa';
 const QA_NAV_WAIT_MS = 10000;
 
 /** PURE-ish: `home` | `browse:movie|show` | `detail:<id>` | `detail:tt…[:show]` | `mylist` |
- *  `search` | `settings` | `household[:sent]` → the route dispatched, or `err …`. */
+ *  `search` | `settings` | `taste` | `pick` | `group` | `wrapped` | `household[:sent]` → the route dispatched, or `err …`. */
 export const qaNavigate = (target: string): string => {
   const [kind, rest, extra] = target.split(':');
   const dispatch = (name: string, params?: object) => {
@@ -55,6 +55,16 @@ export const qaNavigate = (target: string): string => {
     case 'taste':
       dispatch('Taste');
       return 'Taste';
+    // [play] the other Aurora Play screens, for the look and frame checks
+    case 'pick':
+      dispatch('Pick');
+      return 'Pick';
+    case 'group':
+      dispatch('GroupPick');
+      return 'GroupPick';
+    case 'wrapped':
+      dispatch('Wrapped');
+      return 'Wrapped';
     case 'household':
       // [household] the Show all page; `household:sent` on its You sent tab
       dispatch('Household', rest === 'sent' ? {tab: 'sent'} : undefined);

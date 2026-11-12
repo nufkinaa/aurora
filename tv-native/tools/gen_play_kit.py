@@ -27,6 +27,10 @@ plain <Image> under a transform.
                     so a title can sit on a poster.
   play-back.png     the back of a play card (the reel turns these while it
                     waits): the tile colours, a star and its ring.
+  play-face.png     the face of Wrapped's viewer-type card, under its
+                    constellation: night, a violet dome high up, a low band of
+                    aurora leaning across the foot, a few faint stars. (The
+                    card's gold edge is a plain border, drawn by the screen.)
 """
 import math
 import os
@@ -289,6 +293,37 @@ def back():
     save(img.resize((W, H), Image.LANCZOS), 'play-back.png')
 
 
+def face():
+    W, H, SS = 160, 240, 2
+    w, h = W * SS, H * SS
+    img = Image.new('RGB', (w, h))
+    p = img.load()
+    for y in range(h):
+        ty = y / h
+        for x in range(w):
+            tx = x / w
+            c = stops(ty, [(0, NIGHT2), (0.55, NIGHT1), (1, NIGHT0)])
+            # the dome: a violet light behind where the constellation stands
+            d = math.hypot((tx - 0.5) / 0.62, (ty - 0.38) / 0.42)
+            c = over(c, VIOLET, 0.40 * max(0.0, 1 - d) ** 1.5)
+            # the aurora: a band low on the card, leaning up to the right
+            band = (ty - (0.74 - 0.12 * tx)) / 0.085
+            c = over(c, mix(GREEN, TEAL, tx), 0.34 * math.exp(-band * band))
+            # a second, fainter one under it
+            band = (ty - (0.86 - 0.07 * tx)) / 0.06
+            c = over(c, mix(TEAL, VIOLET, tx), 0.18 * math.exp(-band * band))
+            p[x, y] = tuple(int(round(v)) for v in c)
+    layer = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    rnd = random.Random(11)
+    for _ in range(26):
+        x, y = rnd.uniform(0.07, 0.93) * w, rnd.uniform(0.05, 0.6) * h
+        r = rnd.choice([1.0, 1.0, 1.4, 1.9])
+        d.ellipse([x - r, y - r, x + r, y + r], fill=(232, 228, 255, rnd.randint(38, 96)))
+    img = Image.alpha_composite(img.convert('RGBA'), layer).convert('RGB')
+    save(img.resize((W, H), Image.LANCZOS), 'play-face.png')
+
+
 if __name__ == '__main__':
     room()
     star()
@@ -298,3 +333,4 @@ if __name__ == '__main__':
     meteor()
     shade()
     back()
+    face()

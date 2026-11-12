@@ -338,3 +338,65 @@ script of key presses — and the app's own frame counter. The budget: a play
 screen at rest draws nothing (0 frames a second when nothing changes, apart
 from the five twinkles); the answer on the deck, the reel's landing and the
 burst hold the TV's rate as well as the old screens' plain moves did.
+
+## As built (device pass on the Mi TV, 2026-11-12)
+
+Built on master e231a337 (TV 5.9.5) plus the play-tv commits; checked on the
+Mi TV with QA builds vc260 → vc265 against a private server (drawn posters, a
+year of viewing, throwaway voters scripted over the API). Shots and clips:
+docs/play/shots/tv/ (before = vc259, the 5.9.5 QA build; after = these builds).
+
+**Pick together** is built as designed, with these differences:
+
+- The TV as a voter uses the **Taste deck's remote**, not three keys under the
+  card: the card holds the focus, RIGHT (or OK) = Yes, LEFT = No, DOWN = Maybe,
+  UP = Undo and the header. The answers stand where their keys are, the stamp
+  (YES / NO / MAYBE) is slammed on and the card is thrown — one native run, as
+  in Taste. The last card is thrown before the next view takes the page.
+- **Seats**: five fit a row; the dashed "there is room" seats only fill the row
+  (never a row of their own); 64 dp seats shrink to 52 from seven people, 44
+  from eleven.
+- **The time ribbon steps** once a second (no tween): a second is about a dot of
+  ribbon, and a tween every second kept the TV drawing for the whole round.
+- **The reveal** covers the result from its first frame (no flash of the bare
+  result); under it the words and the poster wait unseen and come in with the
+  drop. The tie's two posters load unseen and appear with "A tie — the stars
+  decide". Skip holds the focus (OK can never press Play under the curtain);
+  any direction or Back skips; the burst is given only when the show runs its
+  course. Play takes the focus when the curtain lifts.
+- Undo is per round (it was carried into "Swipe another round").
+- The page's eyebrow says "PICK TOGETHER" (the start page's big line is "What
+  do we watch tonight?"); the sheets say the same.
+
+**Taste / Pick for me / Wrapped** — fixed on the device:
+
+- Taste: the round's end takes the focus to Keep going (the answer that ended
+  the round unmounted the card and Android put the focus on Undo); the last
+  card is thrown before the end appears; "♥ loved" is a text heart in the
+  answer's green (the emoji ignored the colour); a round with nothing in it
+  ends on an aurora Done, not a gold one (gold is for a win); a star over
+  "That's every title we had for you".
+- Pick for me: "★ TONIGHT'S PICK" in gold only once the prize has landed (it
+  showed while the reel was still slowing).
+- Taste and Pick together: the moving cards are on hardware layers and the
+  glow under the deck is gone (it cost frames: see below).
+
+**Measured** (`dumpsys gfxinfo`, the same key script on the same private
+server; janky = Android's "missed deadline" share):
+
+| Screen, script | Before (vc259) | After |
+|---|---|---|
+| Taste, 12 answers 0.8 s apart | 282 frames, 2.8 % janky, p50 17 / p90 28 ms | 546 frames, 3.3 %, p50 20 / p90 34 (first build without the layers: 5.0 %, p50 28) |
+| Pick for me, the ask to the answer | 23 frames, 8.7 %, p50 25 / p90 109 | the whole draw: 337 frames, 3.3 %, p50 20 / p90 27; Another one 128 frames, 1.6 % |
+| Pick together, the TV votes 10 times | 91 frames, 16.5 %, p50 18 / p90 21 | 410 frames, 5.1 %, p50 20 / p90 36 |
+| Pick together, the big screen waiting, 5 s | 12 frames, 25 % | 108 frames (the room's twinkles), 4.6 %, p50 12 |
+| Wrapped, 30 s of the story | — (new) | 1781 frames, 0.7 %, p50 18 / p99 31 |
+
+The new screens draw two to five times more frames (things move now); the
+share of late frames is lower everywhere except Taste, which is half a point
+above the old one.
+
+**Not checked on the device**: "Remove animations" (calm) — it is an Android
+system setting and this pass does not change system settings; calm is covered
+by the jest suites (every screen's calm path). Hebrew titles were seen on
+Wrapped's podium; long titles on the Pick together result and the Taste deck.

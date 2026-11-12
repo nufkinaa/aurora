@@ -14,9 +14,10 @@ const path = require('path');
 
 const SRC = path.join(__dirname, '../../src');
 
-const GUARDED = ['components/NavRail.tsx', 'screens/Browse.tsx', 'screens/Calendar.tsx', 'screens/Franchise.tsx', 'screens/Home.tsx', 'screens/Household.tsx', 'screens/MyList.tsx', 'screens/Pick.tsx', 'screens/Search.tsx', 'screens/Taste.tsx'];
+const GUARDED = ['components/NavRail.tsx', 'screens/Browse.tsx', 'screens/Calendar.tsx', 'screens/Franchise.tsx', 'screens/GroupPick.tsx', 'screens/Home.tsx', 'screens/Household.tsx', 'screens/MyList.tsx', 'screens/Pick.tsx', 'screens/Search.tsx', 'screens/Taste.tsx', 'screens/Wrapped.tsx'];
 const EXEMPT: Record<string, string> = {
   'focus.ts': 'the hook itself',
+  'play/group/parts.tsx': "Pick together's reveal: any direction skips the show — acts on what was pressed, never on where focus is",
   'playback/Player.tsx': 'acts on what was pressed, never on where focus is',
   'screens/CalendarMonth.tsx': 'rewind / fast-forward turn the month: acts on what was pressed, never on where focus is (and neither key moves focus)',
   'components/RecommendSheet.tsx': "the note field's own DOWN / UP (to Send / the faces): acts on what was pressed while the field held focus — Android searches from the cursor of a long note and picks the wrong button",

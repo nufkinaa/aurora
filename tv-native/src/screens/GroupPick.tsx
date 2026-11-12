@@ -1,23 +1,37 @@
-// "What do we watch tonight?" — the TV as the room's main screen.
+// "What do we watch tonight?" — the TV as the room's main screen, in the
+// Aurora Play look ("Party night", docs/play/tv.md).
 //
-// The TV starts a session (or joins one with a code), shows the code and a QR
-// code big enough to scan from the sofa, and the people in the room join on
-// their phones. While they swipe it shows how far everyone is and the time
-// left; then the pick, with the server's why ("3 of 3 said yes"), and one
-// press plays it. "Swipe on this screen too" makes the TV a voter as well:
-// one card at a time with Yes / Maybe / No.
+// The TV starts a session (or joins one with a code), shows the code as a
+// ticket and a QR code big enough to scan from the sofa, and the people in
+// the room join on their phones — each one takes a seat. While they swipe it
+// shows everyone's ribbon and the time draining; then the reveal ("The votes
+// are in…", a tie-break when the top two were level, the drop, one burst) and
+// the pick, with the server's why and its tally as stars, and one press plays
+// it. "Swipe on this screen too" makes the TV a voter as well: the Taste deck.
 //
 // What is drawn follows the session (groupPick.ts stepOf, groupPickTv.ts
 // viewOf); followGroup (groupPickApi.ts) keeps it live — socket + slow poll —
 // and every action's own answer is handed to it (follow.take), so the screen
 // never waits for the next poll to show what was just pressed.
 //
-// THE REMOTE. Each view's main action holds the focus as it appears (Start,
-// Start swiping, Yes, Play…); the few header buttons sit above it. BACK in a
-// session that is still going asks first (Stay / Leave / End for everyone) —
-// a stray Back never drops the room's screen. Back in the explanation opened
-// from "How it works" closes it. Anywhere else Back leaves the screen; the
-// live follow stops on unmount (the server marks this box away by itself).
+// THE REMOTE. Each view's main key holds the focus as it appears (Start,
+// Start swiping, More time, the card, Play…); the header's keys sit above it.
+// On the deck the card holds the focus inside a focus guide that traps LEFT,
+// RIGHT and DOWN: RIGHT (or OK) = Yes, LEFT = No, DOWN = Maybe, UP = Undo and
+// the header. A press that only just carried focus onto the card is not an
+// answer (focus.ts pressMovedFocus). BACK in a session that is still going
+// asks first (Stay / Leave / End for everyone) — a stray Back never drops the
+// room's screen; during the reveal BACK (or any key) skips the show. Back in
+// the explanation opened from "How it works" closes it. Anywhere else Back
+// leaves the screen; the live follow stops on unmount (the server marks this
+// box away by itself).
+//
+// THE SHOW. Once per result, and only on a screen that saw the vote end (a
+// late join or a restart gets the still page), the reveal plays over the
+// finished result; the burst is its one reward. Skipping it gives the burst
+// up. "Something else" is a quick change of the card: no show, no burst.
+// Calm (Remove animations, a lite box): no show, nothing pops, the tie is a
+// line, the time ribbon steps.
 //
 // PLAY. The room's screen is where the film plays (groupPick.ts playsHere):
 // on this TV as the screen, Play — or anyone's Play on their phone — starts
@@ -25,7 +39,7 @@
 // film goes straight to the player; a series or a catalogue title opens its
 // title page (routeFor), replacing this screen: the evening is decided.
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ActivityIndicator, BackHandler, Image, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
+import {ActivityIndicator, Animated, BackHandler, Image, ScrollView, StyleSheet, Text, TextInput, TVFocusGuideView, View} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import QRCode from 'react-native-qrcode-svg';
 import Svg, {Circle, Line, Path, Rect, Text as SvgText} from 'react-native-svg';
@@ -37,10 +51,10 @@ import Sheet from '../components/Sheet';
 import {ErrorState} from '../components/States';
 import {artPath, artPx, getBaseUrl, imgSrc} from '../api';
 import {useRouteShown} from '../useRouteShown';
-import {useFocusFallback} from '../focus';
+import {noteOwnFocusMove, pressMovedFocus, useFocusFallback, useTVKeys} from '../focus';
+import {uiHit} from '../telemetry'; // [analytics]
 import {
   GroupCard,
-  GroupMember,
   GroupOptions,
   GroupSearchHit,
   GroupSession,
@@ -69,12 +83,10 @@ import {GroupFollow, followGroup, groupApi, playTarget} from '../groupPickApi';
 import {
   LocalVotes,
   autoStart,
-  badgesOf,
   chosenKey,
   countdown,
   firstSettings,
   nextPick,
-  personProgress,
   pickCount,
   routeFor,
   sessionLive,
@@ -87,16 +99,34 @@ import {
 } from '../groupPickTv';
 import {RootStackParamList} from '../navigation';
 import theme, {useTvMetrics} from '../theme';
+import {EASE, LINEAR, SPRING, tween, useCalm, useInFront, useTimers, useValue} from '../play/anim';
+import Burst from '../play/Burst';
+import {Answer, Plates, Shade, Stamp, Tile} from '../play/Cards';
+import {answerRun, depthOf, layerAt, PEEK} from '../play/deck';
+import Meter from '../play/Meter';
+import {Rise, useEnter} from '../play/Motion';
+import PlayKey from '../play/PlayKey';
+import Room from '../play/Room';
+import {Glow, Star} from '../play/Star';
+import {isTie} from '../play/tally';
+import {PLAY, T} from '../play/tokens';
+import {Poster} from '../play/wrapped/parts';
+import {SHOW, tieSides, verdictForGroupKey} from '../play/groupShow';
+import {Duel, Reveal, Seats, TallyStars, Ticket, seatBadge} from '../play/group/parts';
 
-const {colors, fontSize, spacing, radius} = theme;
-const YES = '#6ee7a8';
-const MAYBE = '#f5c542';
-const NO = '#ff7b8a';
+const {colors, spacing, radius} = theme;
 const ERR = '#ff9b9b';
+const RUN = answerRun(T.slam, T.throw); // the stops of an answer's one run
+const STAMP: Record<GroupVerdict, string> = {yes: 'YES', no: 'NO', maybe: 'MAYBE'};
+const INK: Record<GroupVerdict, string> = {yes: PLAY.yes, no: PLAY.no, maybe: PLAY.maybe};
+const HEAD_H = 54; // the header row and the air under it
+const TOP_H = 46; // the deck's own top row (the time, the count, Undo)
+const FOOT_H = 64; // "Maybe" and the card's line, under the deck
 
 type Props = NativeStackScreenProps<RootStackParamList, 'GroupPick'>;
 type SheetKind = null | 'join' | 'add' | 'settings' | 'leave';
 type FocusRef = React.RefObject<{requestTVFocus?: () => void} | null>;
+type Leaving = {card: GroupCard; verdict: GroupVerdict; n: number};
 
 const messageOf = (e: unknown): string => {
   const m = (e as {message?: string})?.message;
@@ -127,6 +157,12 @@ export default function GroupPick({navigation, route}: Props) {
   const busyRef = useRef<string | null>(null);
   const mainRef = useRef<{requestTVFocus?: () => void} | null>(null);
   useFocusFallback(mainRef as never);
+  const calm = useCalm();
+  const calmRef = useRef(calm);
+  calmRef.current = calm;
+  const inFront = useInFront(navigation as never);
+  const timers = useTimers();
+  const seen = useRef(new Set<string>()); // who has had their seat's entrance
 
   // ---------- the choices (and whether the explanation was seen) ----------
   const loadOptions = useCallback(() => {
@@ -174,6 +210,11 @@ export default function GroupPick({navigation, route}: Props) {
       if (follow.current === f) follow.current = null;
     };
   }, [code]);
+  // a new round (Swipe another round) starts with nothing to undo
+  const round = raw ? `${raw.code}:${raw.round}` : '';
+  useEffect(() => {
+    history.current = [];
+  }, [round]);
   // this box's answers drop out once the server says them back
   useEffect(() => {
     if (raw) setLocal(l => (Object.keys(l).length ? settleLocal(raw, l) : l));
@@ -245,12 +286,50 @@ export default function GroupPick({navigation, route}: Props) {
       });
   }, [form, enter]);
 
+  // ---------- the deck's motion (the same run as Taste's) ----------
+  const out = useValue(0); // the answered card: 0 -> 1 (stamped, then thrown)
+  const pop = useValue(1); // the next card coming up: 0 -> 1
+  const hitNo = useValue(0); // the answers' labels: lit for a moment
+  const hitYes = useValue(0);
+  const hitMaybe = useValue(0);
+  const flights = useRef(0);
+  const [leaving, setLeaving] = useState<Leaving | null>(null);
+  const arrive = useCallback(
+    (delay = 0) => {
+      pop.stopAnimation();
+      pop.setValue(0);
+      tween(pop, 1, calmRef.current ? 120 : T.rise, {delay: calmRef.current ? 0 : delay}).start();
+    },
+    [pop],
+  );
+  const fly = useCallback(
+    (card: GroupCard, verdict: GroupVerdict) => {
+      const lit = verdict === 'yes' ? hitYes : verdict === 'no' ? hitNo : hitMaybe;
+      if (!calmRef.current) {
+        lit.stopAnimation();
+        lit.setValue(0);
+        Animated.sequence([tween(lit, 1, 90), tween(lit, 0, 170)]).start();
+      }
+      out.stopAnimation();
+      out.setValue(0);
+      const n = ++flights.current;
+      setLeaving({card, verdict, n});
+      // finished or cut short, this flight's card goes; a newer one stays
+      tween(out, 1, calmRef.current ? 140 : RUN.total, {easing: calmRef.current ? EASE : LINEAR}).start(() =>
+        setLeaving(l => (l && l.n === n ? null : l)),
+      );
+      arrive(T.slam);
+    },
+    [out, arrive, hitYes, hitNo, hitMaybe],
+  );
+
   const vote = useCallback(
     (card: GroupCard, verdict: GroupVerdict) => {
       if (!code) return;
       history.current.push(card.key);
       setLocal(l => ({...l, [card.key]: verdict}));
       setErr('');
+      fly(card, verdict);
       groupApi
         .vote(code, card.key, verdict)
         .then(() => follow.current?.refresh())
@@ -264,19 +343,31 @@ export default function GroupPick({navigation, route}: Props) {
           setErr(messageOf(e));
         });
     },
-    [code],
+    [code, fly],
   );
+  const cardRef = useRef<View>(null);
+  const cardFocused = useRef(false);
   const undo = useCallback(() => {
     if (!code || !session) return;
     const {key, history: rest} = undoTarget(history.current, session.mine);
     history.current = rest;
     if (!key) return;
     setLocal(l => ({...l, [key]: null}));
+    setLeaving(null);
+    arrive();
+    // back to the card it brought back (Undo was pressed up above it)
+    setTimeout(() => {
+      const node = cardRef.current as unknown as {requestTVFocus?: () => void} | null;
+      if (node?.requestTVFocus) {
+        noteOwnFocusMove();
+        node.requestTVFocus();
+      }
+    }, 0);
     groupApi
       .vote(code, key, null)
       .then(() => follow.current?.refresh())
       .catch(e => setErr(messageOf(e)));
-  }, [code, session]);
+  }, [code, session, arrive]);
 
   // Play: this box starts the title once per chosen session — whoever pressed it
   const startCard = useCallback(
@@ -324,14 +415,88 @@ export default function GroupPick({navigation, route}: Props) {
     setTutorial(null);
   }, [tutorial]);
 
+  // ---------- the reveal ----------
+  // Once per result, only for a screen that saw the vote (the deck or the
+  // others' ribbons) — a late join or a restart opens on the still page.
+  const sawVoting = useRef(false);
+  const shownFor = useRef<number | null>(null);
+  const [showing, setShowing] = useState<number | null>(null);
+  const [drop, setDrop] = useState({run: 0, index: -1});
+  const [fire, setFire] = useState(0);
+  const resultAt = view === 'result' && session?.result ? Number(session.result.at) || 0 : null;
+  const resultAtRef = useRef(resultAt);
+  resultAtRef.current = resultAt;
+  const hasPick = !!(session && currentPick(session));
+  useEffect(() => {
+    if (view === 'swipe' || view === 'waiting') sawVoting.current = true;
+    if (resultAt === null) return;
+    if (sawVoting.current && shownFor.current !== resultAt && !calm && hasPick) {
+      shownFor.current = resultAt;
+      setShowing(resultAt);
+    }
+    sawVoting.current = false;
+  }, [view, resultAt, calm, hasPick]);
+  // The curtain is up from the very first frame of the result (the effect above
+  // would leave one frame of the bare result, keys and all, before it).
+  const due = resultAt !== null && sawVoting.current && shownFor.current !== resultAt && !calm && hasPick;
+  const curtain = showing !== null ? showing : due ? resultAt : null;
+  // a result that has gone (another round, the session ended) takes its show along
+  useEffect(() => {
+    if (showing !== null && resultAt !== showing) setShowing(null);
+  }, [showing, resultAt]);
+  const endShow = useCallback(
+    (lifted: boolean) => {
+      if (resultAtRef.current !== null) shownFor.current = resultAtRef.current;
+      sawVoting.current = false;
+      setShowing(null);
+      // Play holds the focus again (the curtain's Skip has gone)
+      timers.after(0, () => {
+        if (mainRef.current?.requestTVFocus) {
+          noteOwnFocusMove();
+          mainRef.current.requestTVFocus();
+        }
+      });
+      if (!lifted) return;
+      // the drop, and the one meteor burst from the poster
+      setDrop(d => ({run: d.run + 1, index: session?.result?.index ?? 0}));
+      timers.after(440, () => setFire(f => f + 1));
+    },
+    [timers, session],
+  );
+
+  // The deck's last answer unmounts the card under the focus; Android would
+  // hand it to whatever is nearest. The next view's main key takes it (the
+  // reveal hands it over itself when its curtain lifts).
+  // The deck's last answer: its card finishes its flight on the deck before
+  // the next view takes the page (most of the time the result is in by then,
+  // and "waiting" never flashes up for a moment in between).
+  const shownView = view === 'waiting' && leaving && raw?.phase === 'swiping' ? 'swipe' : view;
+  const lastView = useRef(shownView);
+  useEffect(() => {
+    const was = lastView.current;
+    lastView.current = shownView;
+    if (was !== 'swipe' || shownView === 'swipe' || sheet) return;
+    return timers.after(60, () => {
+      if (backState.current.showing) return;
+      if (mainRef.current?.requestTVFocus) {
+        noteOwnFocusMove();
+        mainRef.current.requestTVFocus();
+      }
+    });
+  }, [shownView, sheet, timers]);
+
   // ---------- BACK ----------
-  const backState = useRef({sheet, tutorial, live: false});
-  backState.current = {sheet, tutorial, live: sessionLive(raw, lost)};
+  const backState = useRef({sheet, tutorial, live: false, showing: false});
+  backState.current = {sheet, tutorial, live: sessionLive(raw, lost), showing: curtain !== null};
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (!navigation.isFocused()) return false;
       const b = backState.current;
       if (b.sheet) return false; // the sheet's own Back closes it
+      if (b.showing) {
+        endShow(false); // the show is not a resting state: Back skips it
+        return true;
+      }
       if (b.tutorial === 'howto') {
         setTutorial(null);
         return true;
@@ -343,7 +508,26 @@ export default function GroupPick({navigation, route}: Props) {
       return false;
     });
     return () => sub.remove();
-  }, [navigation]);
+  }, [navigation, endShow]);
+
+  // ---------- the remote on the deck ----------
+  const left = shownView === 'swipe' && session ? unanswered(session) : [];
+  const card = left[0];
+  const voteRef = useRef(vote);
+  voteRef.current = vote;
+  const cardNow = useRef(card);
+  cardNow.current = card;
+  useTVKeys(
+    useCallback((evt: {eventType: string}) => {
+      if (!cardFocused.current || !cardNow.current) return;
+      // not the release of the press that carried focus onto the card
+      if (pressMovedFocus()) return;
+      const v = verdictForGroupKey(evt.eventType);
+      if (!v) return;
+      uiHit(v === 'yes' ? 'group.yes' : v === 'no' ? 'group.no' : 'group.maybe'); // [analytics]
+      voteRef.current(cardNow.current, v);
+    }, []),
+  );
 
   // ---------- drawing ----------
   const isHost = !!session?.you?.host;
@@ -356,18 +540,19 @@ export default function GroupPick({navigation, route}: Props) {
       onLeave={() => setSheet('leave')}
     />
   );
+  const since = Date.now() - (follow.current?.receivedAt() ?? Date.now());
 
   let body: React.ReactNode = null;
   if (view === 'loading') {
     body = (
       <View style={styles.center}>
-        <ActivityIndicator color={colors.text} />
+        <ActivityIndicator color={PLAY.ink} />
       </View>
     );
   } else if (view === 'failed') {
     body = <ErrorState message={WORDS.noReach} onAction={loadOptions} edgeLeft={false} />;
   } else if (view === 'tutorial') {
-    body = <Tutorial mainRef={mainRef} onDone={finishTutorial} />;
+    body = <Tutorial mainRef={mainRef} calm={calm} onDone={finishTutorial} />;
   } else if (view === 'start') {
     body = (
       <StartView
@@ -387,6 +572,8 @@ export default function GroupPick({navigation, route}: Props) {
         session={session}
         options={options}
         busy={busy}
+        calm={calm}
+        seen={seen}
         onDeal={() => {
           if (!session.voters) return setErr(WORDS.needSomeone);
           run('deal', () => groupApi.start(session.code));
@@ -396,17 +583,28 @@ export default function GroupPick({navigation, route}: Props) {
         onRole={() => run('screen', () => groupApi.role(session.code, session.you?.role === 'voter' ? 'screen' : 'voter'))}
       />
     );
-  } else if (session && view === 'swipe') {
-    const left = unanswered(session);
+  } else if (session && shownView === 'swipe') {
+    const room = height - spacing.pageY - safeBottom - HEAD_H - TOP_H - PEEK - FOOT_H;
+    const cardH = Math.max(200, Math.min(Math.round(height * 0.6), room));
     body = (
-      <SwipeView
-        mainRef={mainRef}
+      <DeckView
         session={session}
-        card={left[0]}
-        since={Date.now() - (follow.current?.receivedAt() ?? Date.now())}
+        card={card}
+        next={left[1]}
+        left={left.length}
+        since={since}
+        calm={calm}
+        cardH={cardH}
         canUndo={history.current.length > 0}
-        posterH={Math.round(height * 0.56)}
-        onVote={vote}
+        leaving={leaving}
+        out={out}
+        pop={pop}
+        hits={{yes: hitYes, no: hitNo, maybe: hitMaybe}}
+        cardRef={cardRef}
+        onCardFocus={f => {
+          cardFocused.current = f;
+        }}
+        onYes={() => card && vote(card, 'yes')}
         onUndo={undo}
       />
     );
@@ -415,8 +613,10 @@ export default function GroupPick({navigation, route}: Props) {
       <WaitingView
         mainRef={mainRef}
         session={session}
-        since={Date.now() - (follow.current?.receivedAt() ?? Date.now())}
+        since={since}
         busy={busy}
+        calm={calm}
+        seen={seen}
         canUndo={session.you?.role === 'voter' && history.current.length > 0}
         onUndo={undo}
         onExtend={() => run('extend', () => groupApi.extend(session.code))}
@@ -430,7 +630,11 @@ export default function GroupPick({navigation, route}: Props) {
         mainRef={mainRef}
         session={session}
         busy={busy}
-        posterH={Math.round(height * 0.56)}
+        calm={calm}
+        posterH={Math.round(height * 0.58)}
+        hidden={curtain !== null}
+        drop={drop}
+        fire={fire}
         onPlay={play}
         onNext={i => run('next', () => groupApi.pick(session.code, i))}
         onAgain={() => run('again', () => groupApi.again(session.code))}
@@ -439,15 +643,14 @@ export default function GroupPick({navigation, route}: Props) {
   } else if (session && view === 'nomatch') {
     body = (
       <Calm
-        mainRef={mainRef}
-        icon="sparkle"
+        glyph="✦"
         title={WORDS.noMatch}
         line={isHost ? WORDS.noMatchLine : WORDS.onlyHost}
         actions={
           isHost ? (
-            <Btn uiId="group.again" ref={mainRef} label={WORDS.again} icon="refresh" hasTVPreferredFocus dim={busy === 'again'} onPress={() => run('again', () => groupApi.again(session.code))} />
+            <PlayKey uiId="group.again" ref={mainRef} kind="aurora" big glyph="↻" label={WORDS.again} hasTVPreferredFocus dim={busy === 'again'} onPress={() => run('again', () => groupApi.again(session.code))} />
           ) : (
-            <Btn uiId="group.leave" ref={mainRef} label={WORDS.leave} hasTVPreferredFocus onPress={() => leave(false)} />
+            <PlayKey uiId="group.leave" ref={mainRef} label={WORDS.leave} hasTVPreferredFocus onPress={() => leave(false)} />
           )
         }
       />
@@ -458,15 +661,15 @@ export default function GroupPick({navigation, route}: Props) {
     const scr = screenOf(session);
     body = (
       <Calm
-        mainRef={mainRef}
-        icon="play"
+        glyph="▶"
         title={WORDS.enjoy}
         big={c?.card.title}
+        poster={c?.card || null}
         line={[c ? `${c.by} ${WORDS.pressedPlay}` : '', !here && scr ? (scr.app === 'tv' ? WORDS.startingOnTv : WORDS.startingOnScreen) : ''].filter(Boolean).join(' · ')}
         actions={
           <>
-            {here && c ? <Btn uiId="group.play" primary icon="play" label={WORDS.play} onPress={() => startCard(c.card)} /> : null}
-            <Btn uiId="group.leave" ref={mainRef} label={WORDS.leave} hasTVPreferredFocus={!here} onPress={() => leave(false)} />
+            {here && c ? <PlayKey uiId="group.play" kind="gold" big glyph="▶" label={WORDS.play} onPress={() => startCard(c.card)} /> : null}
+            <PlayKey uiId="group.leave" ref={mainRef} label={WORDS.leave} hasTVPreferredFocus={!here} onPress={() => leave(false)} />
           </>
         }
       />
@@ -474,18 +677,27 @@ export default function GroupPick({navigation, route}: Props) {
   } else if (view === 'ended') {
     body = (
       <Calm
-        mainRef={mainRef}
-        icon="info"
+        glyph="☾"
         title={WORDS.ended}
         line={lost || session?.ended?.reason || ''}
-        actions={<Btn uiId="group.leave" ref={mainRef} label={WORDS.leave} hasTVPreferredFocus onPress={() => leave(false)} />}
+        actions={<PlayKey uiId="group.leave" ref={mainRef} label={WORDS.leave} hasTVPreferredFocus onPress={() => leave(false)} />}
       />
     );
   }
 
+  // the show's tie-break: the two posters, the server's pick on its side
+  const duel: Duel = useMemo(() => {
+    const r = session?.result;
+    if (curtain === null || !r || !isTie(r) || !r.picks[1]?.card) return null;
+    const {swap, winner} = tieSides(r.at);
+    const a = r.picks[0].card;
+    const b = r.picks[1].card;
+    return {posters: swap ? [b, a] : [a, b], winner};
+  }, [curtain, session]);
+
   return (
     <View style={[styles.root, {paddingBottom: safeBottom}]}>
-      {view === 'result' && session ? <Backdrop card={currentPick(session)?.card || null} /> : null}
+      <Room on={inFront && curtain === null} calm={calm} />
       {header}
       <View style={styles.body}>{body}</View>
       {err ? (
@@ -494,6 +706,11 @@ export default function GroupPick({navigation, route}: Props) {
           <Text style={styles.errText} numberOfLines={2}>
             {err}
           </Text>
+        </View>
+      ) : null}
+      {curtain !== null ? (
+        <View style={styles.curtain}>
+          <Reveal key={curtain} duel={duel} onEnd={endShow} inFront={inFront} />
         </View>
       ) : null}
 
@@ -509,7 +726,7 @@ export default function GroupPick({navigation, route}: Props) {
       ) : null}
       {sheet === 'add' && session ? <AddSheet code={session.code} onClose={() => setSheet(null)} onAdded={() => follow.current?.refresh()} /> : null}
       {sheet === 'settings' && session ? (
-        <Sheet kicker={WORDS.feature.toUpperCase()} width={760} onClose={() => setSheet(null)}>
+        <Sheet kicker={WORDS.entry.toUpperCase()} width={760} onClose={() => setSheet(null)}>
           <SettingsGroups options={options} value={session.settings} onChange={p => run('option', () => groupApi.settings(session.code, p))} first />
           <View style={styles.sheetActions}>
             <Btn label={WORDS.close} onPress={() => setSheet(null)} />
@@ -517,7 +734,7 @@ export default function GroupPick({navigation, route}: Props) {
         </Sheet>
       ) : null}
       {sheet === 'leave' ? (
-        <Sheet kicker={WORDS.feature.toUpperCase()} title={WORDS.leaveAsk} onClose={() => setSheet(null)}>
+        <Sheet kicker={WORDS.entry.toUpperCase()} title={WORDS.leaveAsk} onClose={() => setSheet(null)}>
           <Text style={styles.sheetText}>{WORDS.leaveLine}</Text>
           <View style={styles.sheetActions}>
             <Btn label={WORDS.stay} hasTVPreferredFocus onPress={() => setSheet(null)} />
@@ -535,57 +752,62 @@ function Header({showHowto, showLeave, claimLeave, onHowto, onLeave}: {showHowto
   return (
     <View style={styles.head}>
       <View style={styles.kickerRow}>
-        <Icon name="people" size={16} color={colors.accent} />
-        <Text style={styles.kicker}>{WORDS.feature.toUpperCase()}</Text>
+        <Star size={14} color={PLAY.gold} />
+        <Text style={styles.kicker}>{WORDS.entry.toUpperCase()}</Text>
       </View>
       <View style={styles.headBtns}>
-        {showHowto ? <Btn uiId="group.howto" small icon="info" label={WORDS.howItWorks} onPress={onHowto} /> : null}
+        {showHowto ? <PlayKey uiId="group.howto" small glyph="?" label={WORDS.howItWorks} onPress={onHowto} /> : null}
         {/* asks first (the sheet holds Leave and End for everyone) */}
-        {showLeave ? <Btn small label={WORDS.leave} hasTVPreferredFocus={claimLeave} onPress={onLeave} /> : null}
+        {showLeave ? <PlayKey small label={WORDS.leave} hasTVPreferredFocus={claimLeave} onPress={onLeave} /> : null}
       </View>
     </View>
   );
 }
 
 // ---------------------------------------------------------------- the explanation
-function Tutorial({mainRef, onDone}: {mainRef: FocusRef; onDone: () => void}) {
+function Tutorial({mainRef, calm, onDone}: {mainRef: FocusRef; calm: boolean; onDone: () => void}) {
   const [i, setI] = useState(0);
   const step = TUTORIAL[i];
   const last = i === TUTORIAL.length - 1;
   return (
     <View style={styles.tutRow}>
-      <View style={styles.artPanel}>
+      <Rise run={i} calm={calm} dy={8} style={styles.artPanel}>
         <Art name={step.art} />
-      </View>
+      </Rise>
       <View style={styles.tutText}>
         <View style={styles.dots}>
           {TUTORIAL.map((_, n) => (
-            <View key={n} style={[styles.dot, n === i && styles.dotOn]} />
+            <View key={n} style={[styles.dot, n <= i && styles.dotLit, n === i && styles.dotOn]} />
           ))}
         </View>
-        <Text style={styles.h1}>{step.title}</Text>
-        <Text style={styles.tutBody}>{step.body}</Text>
+        <Rise run={i} calm={calm}>
+          <Text style={styles.h1}>{step.title}</Text>
+        </Rise>
+        <Rise run={i} i={1} calm={calm}>
+          <Text style={styles.tutBody}>{step.body}</Text>
+        </Rise>
         <View style={styles.actions}>
-          <Btn
+          <PlayKey
             uiId="group.tutorial.next"
             ref={mainRef as never}
-            primary
+            kind="aurora"
+            big
             label={last ? WORDS.letsGo : WORDS.next}
             hasTVPreferredFocus
             onPress={() => (last ? onDone() : setI(i + 1))}
           />
-          {last ? null : <Btn uiId="group.tutorial.skip" label={WORDS.skip} onPress={onDone} />}
+          {last ? null : <PlayKey uiId="group.tutorial.skip" label={WORDS.skip} onPress={onDone} />}
         </View>
       </View>
     </View>
   );
 }
 
-// Four calm line drawings, one per step (TUTORIAL[].art).
+// Four calm line drawings, one per step (TUTORIAL[].art), in the night sky's colours.
 function Art({name}: {name: 'tv' | 'phones' | 'swipe' | 'result'}) {
-  const line = 'rgba(255,255,255,0.55)';
-  const faint = 'rgba(255,255,255,0.14)';
-  const a = colors.accent;
+  const line = 'rgba(232,228,255,0.55)';
+  const faint = 'rgba(232,228,255,0.1)';
+  const a = PLAY.violet;
   return (
     <Svg width={260} height={176} viewBox="0 0 260 176">
       {name === 'tv' ? (
@@ -593,38 +815,38 @@ function Art({name}: {name: 'tv' | 'phones' | 'swipe' | 'result'}) {
           <Rect x={30} y={18} width={200} height={120} rx={12} fill={faint} stroke={line} strokeWidth={2.5} />
           <Line x1={100} y1={152} x2={160} y2={152} stroke={line} strokeWidth={3} strokeLinecap="round" />
           <Line x1={130} y1={138} x2={130} y2={152} stroke={line} strokeWidth={3} />
-          <SvgText x={96} y={88} fill={colors.text} fontSize={30} fontWeight="bold" textAnchor="middle" letterSpacing={4}>
+          <SvgText x={96} y={88} fill={PLAY.gold} fontSize={30} fontWeight="bold" textAnchor="middle" letterSpacing={4}>
             AB7K
           </SvgText>
           <Rect x={160} y={46} width={50} height={50} rx={6} fill="#ffffff" />
-          <Rect x={166} y={52} width={14} height={14} fill={colors.bg} />
-          <Rect x={190} y={52} width={14} height={14} fill={colors.bg} />
-          <Rect x={166} y={76} width={14} height={14} fill={colors.bg} />
-          <Rect x={190} y={78} width={8} height={8} fill={colors.bg} />
+          <Rect x={166} y={52} width={14} height={14} fill={PLAY.night1} />
+          <Rect x={190} y={52} width={14} height={14} fill={PLAY.night1} />
+          <Rect x={166} y={76} width={14} height={14} fill={PLAY.night1} />
+          <Rect x={190} y={78} width={8} height={8} fill={PLAY.night1} />
         </>
       ) : name === 'phones' ? (
         <>
           <Rect x={52} y={22} width={70} height={132} rx={12} fill={faint} stroke={line} strokeWidth={2.5} transform="rotate(-8 87 88)" />
           <Rect x={138} y={22} width={70} height={132} rx={12} fill={faint} stroke={line} strokeWidth={2.5} transform="rotate(8 173 88)" />
-          <Rect x={66} y={44} width={42} height={60} rx={6} fill={a} opacity={0.7} transform="rotate(-8 87 88)" />
-          <Rect x={152} y={44} width={42} height={60} rx={6} fill={a} opacity={0.7} transform="rotate(8 173 88)" />
-          <SvgText x={87} y={130} fill={colors.text} fontSize={13} fontWeight="bold" textAnchor="middle" transform="rotate(-8 87 88)">
+          <Rect x={66} y={44} width={42} height={60} rx={6} fill={a} opacity={0.75} transform="rotate(-8 87 88)" />
+          <Rect x={152} y={44} width={42} height={60} rx={6} fill={PLAY.teal} opacity={0.75} transform="rotate(8 173 88)" />
+          <SvgText x={87} y={130} fill={PLAY.ink} fontSize={13} fontWeight="bold" textAnchor="middle" transform="rotate(-8 87 88)">
             AB7K
           </SvgText>
-          <SvgText x={173} y={130} fill={colors.text} fontSize={13} fontWeight="bold" textAnchor="middle" transform="rotate(8 173 88)">
+          <SvgText x={173} y={130} fill={PLAY.ink} fontSize={13} fontWeight="bold" textAnchor="middle" transform="rotate(8 173 88)">
             AB7K
           </SvgText>
         </>
       ) : name === 'swipe' ? (
         <>
           <Rect x={92} y={8} width={76} height={110} rx={10} fill={faint} stroke={line} strokeWidth={2.5} />
-          <Rect x={102} y={18} width={56} height={62} rx={6} fill={a} opacity={0.55} />
+          <Rect x={102} y={18} width={56} height={62} rx={6} fill={a} opacity={0.6} />
           <Line x1={104} y1={94} x2={156} y2={94} stroke={line} strokeWidth={3} strokeLinecap="round" />
           <Line x1={104} y1={104} x2={140} y2={104} stroke={faint} strokeWidth={3} strokeLinecap="round" />
           {[
-            {x: 82, c: YES, t: '✓'},
-            {x: 130, c: MAYBE, t: '?'},
-            {x: 178, c: NO, t: '✕'},
+            {x: 82, c: PLAY.no, t: '✕'},
+            {x: 130, c: PLAY.maybe, t: '?'},
+            {x: 178, c: PLAY.yes, t: '✓'},
           ].map(b => (
             <React.Fragment key={b.t}>
               <Circle cx={b.x} cy={148} r={17} fill="none" stroke={b.c} strokeWidth={2.5} />
@@ -636,13 +858,10 @@ function Art({name}: {name: 'tv' | 'phones' | 'swipe' | 'result'}) {
         </>
       ) : (
         <>
-          <Rect x={86} y={22} width={88} height={130} rx={10} fill={faint} stroke={line} strokeWidth={2.5} />
-          <Rect x={96} y={32} width={68} height={84} rx={6} fill={a} opacity={0.55} />
+          <Rect x={86} y={22} width={88} height={130} rx={10} fill={faint} stroke={PLAY.gold} strokeWidth={2.5} />
+          <Rect x={96} y={32} width={68} height={84} rx={6} fill={a} opacity={0.6} />
           <Line x1={98} y1={130} x2={162} y2={130} stroke={line} strokeWidth={3} strokeLinecap="round" />
-          <Path
-            d="M196 22 l7.6 15.4 17 2.5 -12.3 12 2.9 16.9 -15.2 -8 -15.2 8 2.9 -16.9 -12.3 -12 17 -2.5 z"
-            fill={colors.star}
-          />
+          <Path d="M196 22 l7.6 15.4 17 2.5 -12.3 12 2.9 16.9 -15.2 -8 -15.2 8 2.9 -16.9 -12.3 -12 17 -2.5 z" fill={PLAY.gold} />
         </>
       )}
     </Svg>
@@ -690,7 +909,7 @@ function SettingsGroups({
 function Group({label, children}: {label: string; children: React.ReactNode}) {
   return (
     <View style={styles.group}>
-      <Text style={styles.groupLabel}>{label}</Text>
+      <Text style={styles.groupLabel}>{label.toUpperCase()}</Text>
       <View style={styles.chips}>{children}</View>
     </View>
   );
@@ -722,8 +941,8 @@ function StartView({
         <SettingsGroups options={options} value={form} onChange={onChange} />
       </View>
       <View style={styles.actions}>
-        <Btn uiId="group.start" ref={mainRef as never} primary icon="play" label={WORDS.startHere} hasTVPreferredFocus dim={busy} onPress={onStart} />
-        <Btn uiId="group.join" icon="people" label={WORDS.joinCode} onPress={onJoin} />
+        <PlayKey uiId="group.start" ref={mainRef as never} kind="aurora" big star label={WORDS.startHere} hasTVPreferredFocus dim={busy} onPress={onStart} />
+        <PlayKey uiId="group.join" label={WORDS.joinCode} onPress={onJoin} />
       </View>
     </View>
   );
@@ -735,6 +954,8 @@ function LobbyView({
   session,
   options,
   busy,
+  calm,
+  seen,
   onDeal,
   onAdd,
   onSettings,
@@ -744,6 +965,8 @@ function LobbyView({
   session: GroupSession;
   options: GroupOptions | null;
   busy: string | null;
+  calm: boolean;
+  seen: React.MutableRefObject<Set<string>>;
   onDeal: () => void;
   onAdd: () => void;
   onSettings: () => void;
@@ -758,11 +981,9 @@ function LobbyView({
     <View style={styles.lobby}>
       <View style={styles.joinPanel}>
         <Text style={styles.panelKicker}>{WORDS.joinTitle.toUpperCase()}</Text>
-        <Text style={styles.code} accessibilityLabel={session.code.split('').join(' ')}>
-          {session.code}
-        </Text>
+        <Ticket code={session.code} calm={calm} />
         <View style={styles.qr}>
-          <QRCode value={joinUrl(base, session.code)} size={128} backgroundColor="#ffffff" color="#0b0c14" />
+          <QRCode value={joinUrl(base, session.code)} size={120} backgroundColor="#ffffff" color="#0b0c14" />
         </View>
         <Text style={styles.joinLine}>{WORDS.joinLine}</Text>
         <Text style={styles.hostLine} numberOfLines={1}>
@@ -774,18 +995,16 @@ function LobbyView({
         <Text style={styles.joined} numberOfLines={1}>
           {joinedLine(session)}
         </Text>
-        <View style={styles.people}>
-          {people.map(m => (
-            <Person key={m.id} m={m} badges={badgesOf(m, session.phase)} />
-          ))}
+        <View style={styles.seatsBox}>
+          <Seats people={people} seen={seen} calm={calm} room badgeOf={m => seatBadge(m, false, 0)} />
         </View>
 
         <View style={styles.settingsRow}>
-          <Icon name="sparkle" size={16} color={colors.accent} />
+          <Star size={14} color={PLAY.teal} />
           <Text style={styles.settingsText} numberOfLines={1}>
             {settingsLine(session.settings, options)}
           </Text>
-          {host ? <Btn small label={WORDS.change} onPress={onSettings} /> : null}
+          {host ? <PlayKey small label={WORDS.change} onPress={onSettings} /> : null}
         </View>
 
         {added.length ? (
@@ -803,10 +1022,10 @@ function LobbyView({
 
         <View style={styles.actions}>
           {host ? (
-            <Btn uiId="group.deal" ref={mainRef as never} primary icon="play" label={WORDS.startSwiping} hasTVPreferredFocus dim={!session.voters || busy === 'deal'} onPress={onDeal} />
+            <PlayKey uiId="group.deal" ref={mainRef as never} kind="aurora" big star label={WORDS.startSwiping} hasTVPreferredFocus dim={!session.voters || busy === 'deal'} onPress={onDeal} />
           ) : null}
-          <Btn uiId="group.add" ref={host ? undefined : (mainRef as never)} icon="plus" label={WORDS.addTitle} hasTVPreferredFocus={!host} onPress={onAdd} />
-          <Btn uiId="group.screen" icon={voter ? 'check' : 'people'} label={voter ? WORDS.justShow : WORDS.swipeHereToo} dim={busy === 'screen'} onPress={onRole} />
+          <PlayKey uiId="group.add" ref={host ? undefined : (mainRef as never)} glyph="+" label={WORDS.addTitle} hasTVPreferredFocus={!host} onPress={onAdd} />
+          <PlayKey uiId="group.screen" glyph={voter ? '✓' : undefined} label={voter ? WORDS.justShow : WORDS.swipeHereToo} dim={busy === 'screen'} onPress={onRole} />
         </View>
         {host && !session.voters ? <Text style={styles.hint}>{WORDS.needSomeone}</Text> : null}
         {!host ? <Text style={styles.hint}>{WORDS.onlyHost}</Text> : null}
@@ -815,120 +1034,183 @@ function LobbyView({
   );
 }
 
-function Avatar({m, size = 40}: {m: GroupMember; size?: number}) {
-  const pic = m.avatarImage ? imgSrc(m.avatarImage) : null;
+// ---------------------------------------------------------------- the clock
+function Clock({session, since, calm, width, big}: {session: GroupSession; since: number; calm: boolean; width: number; big?: boolean}) {
+  if (!session.deadline) return null;
+  const c = countdown(session, since);
   return (
-    <View style={[styles.avatar, {width: size, height: size, borderRadius: size / 2}]}>
-      {pic ? (
-        <Image source={pic} style={{width: size, height: size}} resizeMode="cover" fadeDuration={0} />
-      ) : (
-        <Text style={{fontSize: Math.round(size * 0.5)}}>{m.role === 'screen' && !m.avatar ? '📺' : m.avatar || '🍿'}</Text>
-      )}
+    <View style={[styles.clock, big && styles.clockBig]}>
+      {/* steps once a second, no tween: a second is about a dot of ribbon, and a
+          tween every second would keep the TV drawing for the whole round */}
+      <Meter value={c.frac} width={width} height={big ? 10 : 7} calm tint={c.left <= 15 ? PLAY.rose : undefined} />
+      <Text style={[styles.clockText, big && styles.clockTextBig, c.left <= 15 && styles.clockLow]}>{c.text}</Text>
     </View>
   );
 }
-function Person({m, badges, line}: {m: GroupMember; badges: string[]; line?: string}) {
+
+// ---------------------------------------------------------------- swiping here: the deck
+// What a card shows: its poster (or a tile), and on its foot, over the baked
+// shade, the title and what it is; the On Aurora badge.
+const CardFace = React.memo(function CardFace({card, width}: {card: GroupCard; width: number}) {
+  const src = picture(card.poster, width);
+  const meta = cardMeta(card);
   return (
-    <View style={[styles.person, m.away && styles.personAway]}>
-      <Avatar m={m} />
-      <View style={styles.personText}>
-        <Text style={styles.personName} numberOfLines={1}>
-          {m.name}
+    <>
+      {src ? <Image source={src} style={styles.poster} resizeMode="cover" fadeDuration={0} /> : <Tile style={styles.poster} />}
+      <Shade height="56%" />
+      {card.lib ? (
+        <View style={styles.libBadge}>
+          <Text style={styles.libBadgeText}>{WORDS.libBadge}</Text>
+        </View>
+      ) : null}
+      <View style={styles.foot}>
+        <Text style={styles.cardTitle} numberOfLines={2}>
+          {card.title}
         </Text>
-        {line || badges.length ? (
-          <Text style={[styles.personBadge, line === WORDS.doneBadge && {color: YES}]} numberOfLines={1}>
-            {[line, ...badges.filter(b => b !== line)].filter(Boolean).join(' · ')}
+        {meta ? (
+          <Text style={styles.cardMeta} numberOfLines={1}>
+            {meta}
           </Text>
         ) : null}
       </View>
-    </View>
+    </>
   );
-}
+});
 
-// ---------------------------------------------------------------- the clock
-function Clock({session, since, wide}: {session: GroupSession; since: number; wide?: boolean}) {
-  const c = countdown(session, since);
-  if (!session.deadline) return null;
-  return (
-    <View style={[styles.clock, wide && styles.clockWide]}>
-      <View style={[styles.clockBar, wide && styles.clockBarWide]}>
-        <View style={[styles.clockFill, {width: `${Math.round(c.frac * 1000) / 10}%`}, c.left <= 15 && styles.clockLow]} />
-      </View>
-      <Text style={[styles.clockText, wide && styles.clockTextWide]}>{c.text}</Text>
-    </View>
-  );
-}
-
-// ---------------------------------------------------------------- swiping here
-function SwipeView({
-  mainRef,
+function DeckView({
   session,
   card,
+  next,
+  left,
   since,
+  calm,
+  cardH,
   canUndo,
-  posterH,
-  onVote,
+  leaving,
+  out,
+  pop,
+  hits,
+  cardRef,
+  onCardFocus,
+  onYes,
   onUndo,
 }: {
-  mainRef: FocusRef;
   session: GroupSession;
   card: GroupCard | undefined;
+  next: GroupCard | undefined;
+  left: number;
   since: number;
+  calm: boolean;
+  cardH: number;
   canUndo: boolean;
-  posterH: number;
-  onVote: (c: GroupCard, v: GroupVerdict) => void;
+  leaving: Leaving | null;
+  out: Animated.Value;
+  pop: Animated.Value;
+  hits: Record<GroupVerdict, Animated.Value>;
+  cardRef: React.RefObject<View | null>;
+  onCardFocus: (f: boolean) => void;
+  onYes: () => void;
   onUndo: () => void;
 }) {
-  const posterW = Math.round((posterH * 2) / 3);
-  const done = Object.keys(session.mine).length;
-  if (!card) return null;
-  const src = picture(card.poster, posterW);
-  const seen = seenLine(card.seenBy);
-  const by = addedLine(card.addedBy);
+  const cardW = Math.round((cardH * 2) / 3);
+  const deckN = session.deck.length;
+  const handN = Math.max(1, Math.min(deckN, deckN - left + 1));
+  const behindAt = layerAt(0, cardH);
+  const nextSrc = next ? picture(next.poster, cardW) : null;
+  const seen = card ? seenLine(card.seenBy) : '';
+  const by = card ? addedLine(card.addedBy) : '';
+  const leaveStyle = leaving
+    ? (() => {
+        if (calm) return {opacity: out.interpolate({inputRange: [0, 1], outputRange: [1, 0]})};
+        const dir = leaving.verdict === 'yes' ? 1 : leaving.verdict === 'no' ? -1 : 0;
+        const along = (reach: number) => out.interpolate({inputRange: RUN.travel.inputRange, outputRange: RUN.travel.outputRange.map(p => +(p * reach).toFixed(1))});
+        return {
+          opacity: out.interpolate(RUN.fade),
+          transform: [
+            {translateX: along(dir * cardW * 2.4)},
+            {translateY: along(dir ? -cardH * 0.08 : cardH * 1.1)},
+            {rotate: out.interpolate({inputRange: RUN.travel.inputRange, outputRange: RUN.travel.outputRange.map(p => `${(p * dir * 16).toFixed(2)}deg`)})},
+          ],
+        };
+      })()
+    : null;
+  const stampStyle = calm ? null : {opacity: out.interpolate(RUN.stampIn), transform: [{scale: out.interpolate(RUN.stampScale)}]};
+  const popStyle = calm
+    ? {opacity: pop.interpolate({inputRange: [0, 1], outputRange: [0.4, 1]})}
+    : {
+        transform: [
+          {translateY: pop.interpolate({inputRange: [0, 1], outputRange: [PEEK / 2, 0]})},
+          {scale: pop.interpolate({inputRange: [0, 1], outputRange: [behindAt.scale, 1]})},
+        ],
+      };
+  const veilStyle = {opacity: calm ? 0 : pop.interpolate({inputRange: [0, 1], outputRange: [0.55, 0]})};
   return (
-    <View>
-      <View style={styles.swipeTop}>
-        <Clock session={session} since={since} />
-        <Text style={styles.count}>
-          {Math.min(done + 1, session.deck.length)} / {session.deck.length}
+    <View style={styles.deck}>
+      <View style={styles.deckTop}>
+        <Clock session={session} since={since} calm={calm} width={200} />
+        <Text style={styles.hand}>{SHOW.card(handN, deckN)}</Text>
+        <Text style={styles.countDim} numberOfLines={1}>
+          {progressLine(session)}
         </Text>
-        <Text style={styles.countDim}>{progressLine(session)}</Text>
+        <View style={styles.grow} />
+        {/* always there (dim with nothing to undo): a key that vanished under the focus would drop it */}
+        <PlayKey uiId="group.undo" small glyph="↶" label={WORDS.undo} dim={!canUndo} onPress={onUndo} />
       </View>
-      <View style={styles.swipeRow}>
-        <View style={[styles.poster, {width: posterW, height: posterH}]}>
-          {src ? (
-            <Image source={src} style={styles.fill} resizeMode="cover" fadeDuration={0} />
-          ) : (
-            <View style={styles.posterFallback}>
-              <Text style={styles.posterFallbackText}>{card.title}</Text>
-            </View>
-          )}
-          {card.lib ? (
-            <View style={styles.libBadge}>
-              <Text style={styles.libBadgeText}>{WORDS.libBadge}</Text>
-            </View>
-          ) : null}
+      <View style={styles.band}>
+        <View style={styles.arena}>
+          <Answer glyph="◀" label={WORDS.no} color={INK.no} hit={hits.no} side="left" />
+          <View style={{width: cardW, height: cardH + PEEK}}>
+            <Plates left={depthOf(left)} width={cardW} height={cardH} />
+            {next ? (
+              <View renderToHardwareTextureAndroid
+                  pointerEvents="none" style={[styles.card, {width: cardW, height: cardH, transform: [{translateY: behindAt.translateY}, {scale: behindAt.scale}]}]}>
+                {nextSrc ? <Image source={nextSrc} style={styles.poster} resizeMode="cover" fadeDuration={0} /> : <Tile style={styles.poster} />}
+                <View style={[styles.veil, styles.veilOn]} />
+              </View>
+            ) : null}
+            <TVFocusGuideView trapFocusLeft trapFocusRight trapFocusDown style={{position: 'absolute', left: 0, top: 0, width: cardW, height: cardH}}>
+              {card ? (
+                <Focusable
+                  ref={cardRef as never}
+                  uiId="group.yes"
+                  hasTVPreferredFocus
+                  scaleTo={1.02}
+                  accessibilityLabel={`${card.title}. Right or OK: yes. Left: no. Down: maybe.`}
+                  onFocusChange={onCardFocus}
+                  onPress={onYes}
+                  style={[styles.card, {width: cardW, height: cardH}]}>
+                  <Animated.View renderToHardwareTextureAndroid style={[styles.fill, popStyle]}>
+                    <CardFace card={card} width={cardW} />
+                    <Animated.View pointerEvents="none" style={[styles.veil, veilStyle]} />
+                  </Animated.View>
+                </Focusable>
+              ) : leaving ? null : (
+                <View style={[styles.card, styles.waitingCard, {width: cardW, height: cardH}]}>
+                  <ActivityIndicator color={PLAY.ink} />
+                </View>
+              )}
+            </TVFocusGuideView>
+            {leaving ? (
+              <Animated.View renderToHardwareTextureAndroid pointerEvents="none" style={[styles.leaving, {width: cardW, height: cardH}, leaveStyle]}>
+                <View style={[styles.card, {width: cardW, height: cardH}]}>
+                  <CardFace card={leaving.card} width={cardW} />
+                </View>
+                <Animated.View
+                  style={[styles.stampAt, leaving.verdict === 'yes' ? styles.stampYes : leaving.verdict === 'no' ? styles.stampNo : styles.stampMaybe, stampStyle]}>
+                  <Stamp label={STAMP[leaving.verdict]} color={INK[leaving.verdict]} tilt={leaving.verdict === 'yes' ? -10 : leaving.verdict === 'no' ? 10 : 0} size={leaving.verdict === 'maybe' ? 22 : 30} />
+                </Animated.View>
+              </Animated.View>
+            ) : null}
+          </View>
+          <Answer glyph="▶" label={WORDS.yes} color={INK.yes} hit={hits.yes} side="right" />
         </View>
-        <View style={styles.swipeInfo}>
-          <Text style={styles.cardTitle} numberOfLines={2}>
-            {card.title}
-          </Text>
-          <Text style={styles.meta} numberOfLines={1}>
-            {cardMeta(card)}
-          </Text>
-          {card.line ? (
-            <Text style={styles.cardLine} numberOfLines={3}>
-              {card.line}
+        <View style={styles.under}>
+          <Answer glyph="▼" label={WORDS.maybe} color={INK.maybe} hit={hits.maybe} side="down" />
+          {card && (card.line || seen || by) ? (
+            <Text style={styles.line} numberOfLines={2}>
+              {[card.line, [by, seen].filter(Boolean).join(' · ')].filter(Boolean).join('  —  ')}
             </Text>
           ) : null}
-          {seen ? <Text style={styles.note}>{seen}</Text> : null}
-          {by ? <Text style={styles.note}>{by}</Text> : null}
-          <View style={styles.actions}>
-            <Btn uiId="group.yes" ref={mainRef as never} icon="check" label={WORDS.yes} hasTVPreferredFocus onPress={() => onVote(card, 'yes')} />
-            <Btn uiId="group.maybe" glyph="?" label={WORDS.maybe} onPress={() => onVote(card, 'maybe')} />
-            <Btn uiId="group.no" icon="close" label={WORDS.no} onPress={() => onVote(card, 'no')} />
-            <Btn uiId="group.undo" small label={`↶ ${WORDS.undo}`} dim={!canUndo} onPress={onUndo} />
-          </View>
         </View>
       </View>
     </View>
@@ -941,6 +1223,8 @@ function WaitingView({
   session,
   since,
   busy,
+  calm,
+  seen,
   canUndo,
   onUndo,
   onExtend,
@@ -951,6 +1235,8 @@ function WaitingView({
   session: GroupSession;
   since: number;
   busy: string | null;
+  calm: boolean;
+  seen: React.MutableRefObject<Set<string>>;
   canUndo: boolean;
   onUndo: () => void;
   onExtend: () => void;
@@ -960,46 +1246,57 @@ function WaitingView({
   const host = !!session.you?.host;
   const voter = session.you?.role === 'voter';
   const people = votersOf(peopleOf(session));
+  const deck = session.deck.length;
   return (
     <View style={styles.waiting}>
       {voter ? <Text style={styles.waitKicker}>{WORDS.doneWaiting}</Text> : null}
       <Text style={styles.progressBig}>{progressLine(session) || WORDS.waiting}</Text>
-      <Clock session={session} since={since} wide />
-      <View style={[styles.people, styles.peopleCenter]}>
-        {people.map(m => (
-          <Person key={m.id} m={m} badges={m.away ? [WORDS.awayBadge] : []} line={personProgress(m, session.deck.length)} />
-        ))}
+      <Clock session={session} since={since} calm={calm} width={420} big />
+      <View style={styles.waitSeats}>
+        <Seats people={people} seen={seen} calm={calm} deck={deck} center badgeOf={m => seatBadge(m, true, deck)} />
       </View>
       <View style={[styles.actions, styles.actionsCenter]}>
         {host ? (
           <>
-            <Btn uiId="group.extend" ref={mainRef as never} icon="clock" label={WORDS.oneMore} hasTVPreferredFocus dim={busy === 'extend'} onPress={onExtend} />
-            <Btn uiId="group.finish" label={WORDS.showNow} dim={busy === 'finish'} onPress={onFinish} />
+            <PlayKey uiId="group.extend" ref={mainRef as never} glyph="+" label={WORDS.oneMore} hasTVPreferredFocus dim={busy === 'extend'} onPress={onExtend} />
+            <PlayKey uiId="group.finish" kind="aurora" star label={WORDS.showNow} dim={busy === 'finish'} onPress={onFinish} />
           </>
         ) : null}
-        {voter ? <Btn uiId="group.undo" ref={host ? undefined : (mainRef as never)} hasTVPreferredFocus={!host} small label={`↶ ${WORDS.undo}`} dim={!canUndo} onPress={onUndo} /> : null}
-        {voter ? <Btn uiId="group.screen" small label={WORDS.justShow} dim={busy === 'screen'} onPress={onRole} /> : null}
+        {voter ? <PlayKey uiId="group.undo" ref={host ? undefined : (mainRef as never)} hasTVPreferredFocus={!host} small glyph="↶" label={WORDS.undo} dim={!canUndo} onPress={onUndo} /> : null}
+        {voter ? <PlayKey uiId="group.screen" small label={WORDS.justShow} dim={busy === 'screen'} onPress={onRole} /> : null}
       </View>
     </View>
   );
 }
 
 // ---------------------------------------------------------------- the pick
-function Backdrop({card}: {card: GroupCard | null}) {
-  const src = card ? picture(card.backdrop, 960) : null;
-  if (!src) return null;
+// The poster falls into place once, at the end of the show (`drop`): a short
+// fall with a spring. Any other change of the card (Something else) is a
+// quick fade, no fall.
+function Drop({run, falls, calm, children}: {run: string; falls: boolean; calm: boolean; children: React.ReactNode}) {
+  const v = useEnter(run, {ms: falls ? 620 : 260, easing: falls ? SPRING : EASE, calm});
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Image source={src} style={[styles.fill, styles.backdropImg]} resizeMode="cover" fadeDuration={0} />
-      <View style={[StyleSheet.absoluteFill, styles.veil]} />
-    </View>
+    <Animated.View
+      style={{
+        opacity: v.interpolate({inputRange: [0, falls ? 0.25 : 1, 1], outputRange: [0, 1, 1], extrapolate: 'clamp'}),
+        transform: falls
+          ? [{translateY: v.interpolate({inputRange: [0, 1], outputRange: [-70, 0]})}, {scale: v.interpolate({inputRange: [0, 1], outputRange: [1.12, 1]})}]
+          : [{translateY: v.interpolate({inputRange: [0, 1], outputRange: [8, 0]})}],
+      }}>
+      {children}
+    </Animated.View>
   );
 }
+
 function ResultView({
   mainRef,
   session,
   busy,
+  calm,
   posterH,
+  hidden,
+  drop,
+  fire,
   onPlay,
   onNext,
   onAgain,
@@ -1007,77 +1304,121 @@ function ResultView({
   mainRef: FocusRef;
   session: GroupSession;
   busy: string | null;
+  calm: boolean;
   posterH: number;
+  hidden: boolean; // under the reveal's curtain: no keys yet (OK must not press Play under it)
+  drop: {run: number; index: number};
+  fire: number;
   onPlay: (key: string) => void;
   onNext: (index: number) => void;
   onAgain: () => void;
 }) {
+  const [at, setAt] = useState({x: 0, y: 0});
   const pick = currentPick(session);
   if (!pick) return null;
+  const r = session.result;
+  const index = r?.index ?? 0;
   const card = pick.card;
   const posterW = Math.round((posterH * 2) / 3);
-  const src = picture(card.poster, posterW);
   const next = nextPick(session);
   const count = pickCount(session);
+  const fresh = drop.run > 0 && drop.index === index && !calm;
+  const tieLine = !!r && index === 0 && isTie(r) && !fresh;
   return (
     <View style={styles.resultRow}>
-      <View style={styles.resultText}>
-        <Text style={styles.resultKicker}>
-          {WORDS.resultTitle.toUpperCase()}
-          {count ? <Text style={styles.resultCount}>{`   ${count}`}</Text> : null}
-        </Text>
+      {/* the words come up together, as the poster lands */}
+      {/* Under the curtain the words and the poster wait unseen: they come in
+          with the drop (or at once when the show was skipped), never seen,
+          gone and back. */}
+      <View style={[styles.resultText, hidden && styles.unseen]}>
+        <Rise run={`${drop.run}:${index}`} calm={calm || !fresh} delay={fresh ? 180 : 0} dy={16}>
+        <View style={styles.prizeKicker}>
+          <Star size={15} color={PLAY.gold} />
+          <Text style={styles.resultKicker}>{WORDS.resultTitle.toUpperCase()}</Text>
+          {count ? <Text style={styles.resultCount}>{count}</Text> : null}
+        </View>
         <Text style={styles.resultTitle} numberOfLines={2}>
           {card.title}
         </Text>
         <Text style={styles.meta} numberOfLines={1}>
           {cardMeta(card)}
         </Text>
-        {pick.why ? (
-          <View style={[styles.why, pick.everyone && styles.whyAll]}>
-            <Icon name="check" size={16} color={pick.everyone ? YES : colors.accent} />
-            <Text style={styles.whyText}>{pick.why}</Text>
-          </View>
-        ) : null}
+        <View style={styles.tallyRow}>
+          <TallyStars pick={pick} fresh={fresh} calm={calm} />
+          {pick.why ? (
+            <View style={[styles.why, pick.everyone && styles.whyAll]}>
+              <Text style={[styles.whyText, styles.whyTick, pick.everyone && styles.whyTickAll]}>✓</Text>
+              <Text style={styles.whyText}>{pick.why}</Text>
+            </View>
+          ) : null}
+        </View>
+        {tieLine ? <Text style={styles.tieLine}>{SHOW.tieLine}</Text> : null}
         {card.line ? (
           <Text style={styles.cardLine} numberOfLines={3}>
             {card.line}
           </Text>
         ) : null}
-        <View style={styles.actions}>
-          <Btn uiId="group.play" ref={mainRef as never} primary icon="play" label={playLabel(session)} hasTVPreferredFocus dim={busy === 'play'} onPress={() => onPlay(pick.key)} />
-          {next ? <Btn uiId="group.next" label={next.label} dim={busy === 'next'} onPress={() => onNext(next.index)} /> : null}
-          {session.you?.host ? <Btn uiId="group.again" icon="refresh" label={WORDS.again} dim={busy === 'again'} onPress={onAgain} /> : null}
-        </View>
+        {hidden ? null : (
+          <View style={styles.actions}>
+            <PlayKey uiId="group.play" ref={mainRef as never} kind="gold" big glyph="▶" label={playLabel(session)} hasTVPreferredFocus dim={busy === 'play'} onPress={() => onPlay(pick.key)} />
+            {next ? <PlayKey uiId="group.next" label={next.label} dim={busy === 'next'} onPress={() => onNext(next.index)} /> : null}
+            {session.you?.host ? <PlayKey uiId="group.again" glyph="↻" label={WORDS.again} dim={busy === 'again'} onPress={onAgain} /> : null}
+          </View>
+        )}
+        </Rise>
       </View>
-      {src ? (
-        <View style={[styles.poster, {width: posterW, height: posterH}]}>
-          <Image source={src} style={styles.fill} resizeMode="cover" fadeDuration={0} />
-        </View>
-      ) : null}
+      <View
+        style={[{width: posterW, height: posterH}, hidden && styles.unseen]}
+        onLayout={e => {
+          const l = e.nativeEvent.layout;
+          setAt({x: Math.round(l.x + l.width / 2), y: Math.round(l.y + l.height / 2)});
+        }}>
+        {calm ? null : (
+          <Glow
+            size={Math.round(posterH * 1.5)}
+            color={PLAY.gold}
+            opacity={0.16}
+            style={{position: 'absolute', left: Math.round((posterW - posterH * 1.5) / 2), top: Math.round((posterH - posterH * 1.5) / 2)}}
+          />
+        )}
+        <Drop run={`${drop.run}:${index}:${pick.key}`} falls={fresh} calm={calm}>
+          <View style={styles.prizeEdge}>
+            <Poster poster={card.poster} title={card.title} width={posterW - 6} height={posterH - 6} radius={16} size={22} />
+          </View>
+        </Drop>
+      </View>
+      <Burst fire={fire} x={at.x} y={at.y} calm={calm} seed={index + 3} />
     </View>
   );
 }
 
 // ---------------------------------------------------------------- calm one-liners (no match, chosen, ended)
 function Calm({
-  icon,
+  glyph,
   title,
   big,
+  poster,
   line,
   actions,
 }: {
-  mainRef: FocusRef;
-  icon: 'sparkle' | 'play' | 'info';
+  glyph: string;
   title: string;
   big?: string;
+  poster?: GroupCard | null;
   line?: string;
   actions: React.ReactNode;
 }) {
   return (
     <View style={styles.center}>
-      <View style={styles.calmIcon}>
-        <Icon name={icon} size={26} color={colors.accent} />
-      </View>
+      {poster ? (
+        <View style={styles.calmPoster}>
+          <Poster poster={poster.poster} title={poster.title} width={120} height={180} radius={14} size={15} />
+        </View>
+      ) : (
+        <View style={styles.calmIcon}>
+          <Text style={styles.calmGlyph}>{glyph}</Text>
+        </View>
+      )}
       <Text style={styles.calmTitle}>{title}</Text>
       {big ? (
         <Text style={styles.calmBig} numberOfLines={2}>
@@ -1106,7 +1447,7 @@ function JoinSheet({onClose, onJoin}: {onClose: () => void; onJoin: (code: strin
     if (m) setErr(m);
   };
   return (
-    <Sheet kicker={WORDS.feature.toUpperCase()} title={WORDS.joinCode} onClose={onClose}>
+    <Sheet kicker={WORDS.entry.toUpperCase()} title={WORDS.joinCode} onClose={onClose}>
       <Text style={styles.sheetText}>{WORDS.codeHelp}</Text>
       <Text style={styles.fieldLabel}>{WORDS.codeLabel}</Text>
       <TextInput
@@ -1171,7 +1512,7 @@ function AddSheet({code, onClose, onAdded}: {code: string; onClose: () => void; 
       .catch(e => setErr(messageOf(e)));
   };
   return (
-    <Sheet kicker={WORDS.feature.toUpperCase()} title={WORDS.addTitle} width={640} onClose={onClose}>
+    <Sheet kicker={WORDS.entry.toUpperCase()} title={WORDS.addTitle} width={640} onClose={onClose}>
       <Text style={styles.sheetText}>{WORDS.addLine}</Text>
       <View style={styles.searchField}>
         <Icon name="search" size={18} color={colors.textFaint} />
@@ -1219,34 +1560,37 @@ function AddSheet({code, onClose, onAdded}: {code: string; onClose: () => void; 
 }
 
 const styles = StyleSheet.create({
-  // No backgroundColor: the ambient canvas behind the navigator paints the page.
+  // The room paints the page (it lies over the app's ambient canvas).
   root: {flex: 1, paddingHorizontal: spacing.pageX, paddingTop: spacing.pageY},
   body: {flex: 1},
   center: {flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm},
-  fill: {width: '100%', height: '100%'},
+  fill: {position: 'absolute', left: 0, top: 0, right: 0, bottom: 0},
+  grow: {flex: 1},
+  curtain: {position: 'absolute', left: 0, top: 0, right: 0, bottom: 0},
+  unseen: {opacity: 0},
 
-  head: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 40, marginBottom: spacing.md},
+  head: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 40, marginBottom: HEAD_H - 40},
   kickerRow: {flexDirection: 'row', alignItems: 'center', gap: 8},
-  kicker: {color: colors.accent, fontSize: fontSize.small, fontWeight: '800', letterSpacing: 2.4},
+  kicker: {color: PLAY.green, fontSize: 14, lineHeight: 20, fontWeight: '800', letterSpacing: 2.6, includeFontPadding: false},
   headBtns: {flexDirection: 'row', gap: spacing.sm},
 
-  h1: {color: colors.text, fontSize: fontSize.title, lineHeight: 30, fontWeight: '900'},
-  sub: {color: colors.textDim, fontSize: fontSize.body, lineHeight: 21, marginTop: 2, marginBottom: spacing.md},
+  h1: {color: PLAY.ink, fontSize: 30, lineHeight: 37, fontWeight: '900', includeFontPadding: false},
+  sub: {color: PLAY.inkDim, fontSize: 16, lineHeight: 23, marginTop: 4, marginBottom: spacing.md},
   actions: {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.lg},
   actionsCenter: {justifyContent: 'center'},
-  hint: {color: colors.textDim, fontSize: 14, marginTop: spacing.sm},
+  hint: {color: PLAY.inkFaint, fontSize: 14, lineHeight: 19, marginTop: spacing.sm},
 
   panel: {
-    backgroundColor: 'rgba(255,255,255,0.035)',
+    backgroundColor: 'rgba(8,10,29,0.62)',
     borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radius.l,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    borderColor: PLAY.line,
+    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
   },
   groups: {gap: 10},
   group: {flexDirection: 'row', alignItems: 'flex-start', gap: 10},
-  groupLabel: {width: 124, color: colors.textDim, fontSize: 14, fontWeight: '800', paddingTop: 9},
+  groupLabel: {width: 132, color: PLAY.inkFaint, fontSize: 13, lineHeight: 17, fontWeight: '800', letterSpacing: 1.4, paddingTop: 10},
   chips: {flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 8},
 
   // ---- the explanation ----
@@ -1256,131 +1600,124 @@ const styles = StyleSheet.create({
     height: 240,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.l,
-    backgroundColor: 'rgba(255,255,255,0.035)',
+    borderRadius: 22,
+    backgroundColor: 'rgba(8,10,29,0.62)',
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: PLAY.line,
   },
   tutText: {flex: 1},
-  tutBody: {color: colors.textDim, fontSize: 17, lineHeight: 25, marginTop: spacing.sm, maxWidth: 440},
+  tutBody: {color: PLAY.inkDim, fontSize: 18, lineHeight: 26, marginTop: spacing.sm, maxWidth: 460},
   dots: {flexDirection: 'row', gap: 6, marginBottom: spacing.md},
-  dot: {width: 8, height: 8, borderRadius: 4, backgroundColor: colors.surfaceHover},
-  dotOn: {width: 22, backgroundColor: colors.accent},
+  dot: {width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(232,228,255,0.18)'},
+  dotLit: {backgroundColor: 'rgba(92,245,184,0.55)'},
+  dotOn: {width: 26, backgroundColor: PLAY.green},
 
   // ---- lobby ----
   lobby: {flex: 1, flexDirection: 'row', gap: spacing.xl},
   joinPanel: {
-    width: 260,
+    width: 284,
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingTop: 14,
+    paddingBottom: 16,
     paddingHorizontal: 16,
-    borderRadius: radius.l,
-    backgroundColor: 'rgba(255,255,255,0.045)',
+    borderRadius: 22,
+    backgroundColor: 'rgba(8,10,29,0.7)',
     borderWidth: 1,
-    borderColor: colors.line,
-    borderTopColor: 'rgba(255,255,255,0.18)',
+    borderColor: 'rgba(255,209,102,0.32)',
     alignSelf: 'flex-start',
   },
-  panelKicker: {color: colors.textDim, fontSize: 13, fontWeight: '800', letterSpacing: 2},
-  code: {color: colors.text, fontSize: 54, lineHeight: 64, fontWeight: '900', letterSpacing: 10, marginLeft: 10, fontVariant: ['tabular-nums']},
-  qr: {width: 146, height: 146, borderRadius: radius.m, backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center', marginTop: 4},
-  joinLine: {color: colors.textDim, fontSize: 14, lineHeight: 19, textAlign: 'center', marginTop: 10},
-  hostLine: {color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 4},
+  panelKicker: {color: PLAY.gold, fontSize: 13, lineHeight: 17, fontWeight: '800', letterSpacing: 2.4},
+  qr: {width: 136, height: 136, borderRadius: 14, backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center', marginTop: 14},
+  joinLine: {color: PLAY.inkDim, fontSize: 14, lineHeight: 19, textAlign: 'center', marginTop: 10},
+  hostLine: {color: PLAY.ink, fontSize: 16, lineHeight: 21, fontWeight: '800', marginTop: 4},
   lobbyMain: {flex: 1},
-  joined: {color: colors.text, fontSize: fontSize.title, lineHeight: 30, fontWeight: '900'},
-  people: {flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: spacing.md},
-  peopleCenter: {justifyContent: 'center', marginTop: spacing.lg},
-  person: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 6,
-    paddingLeft: 6,
-    paddingRight: 14,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.line,
-    maxWidth: 260,
-  },
-  personAway: {opacity: 0.5},
-  personText: {flexShrink: 1},
-  personName: {color: colors.text, fontSize: 15, fontWeight: '700'},
-  personBadge: {color: colors.textDim, fontSize: 13},
-  avatar: {backgroundColor: colors.surfaceHover, alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
+  joined: {color: PLAY.ink, fontSize: 30, lineHeight: 37, fontWeight: '900', includeFontPadding: false},
+  seatsBox: {marginTop: spacing.md},
   settingsRow: {flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: spacing.lg},
-  settingsText: {flexShrink: 1, color: colors.text, fontSize: 16, fontWeight: '700'},
+  settingsText: {flexShrink: 1, color: PLAY.ink, fontSize: 16, lineHeight: 22, fontWeight: '700'},
   addedBox: {marginTop: spacing.md, gap: 2},
-  smallCaps: {color: colors.textDim, fontSize: 13, fontWeight: '800', letterSpacing: 1.6, marginBottom: 2},
-  addedItem: {color: colors.text, fontSize: 15, fontWeight: '600'},
-  addedBy: {color: colors.textDim, fontSize: 14, fontWeight: '400'},
+  smallCaps: {color: PLAY.inkFaint, fontSize: 13, lineHeight: 17, fontWeight: '800', letterSpacing: 1.6, marginBottom: 2},
+  addedItem: {color: PLAY.ink, fontSize: 15, lineHeight: 21, fontWeight: '600'},
+  addedBy: {color: PLAY.inkDim, fontSize: 14, fontWeight: '400'},
 
   // ---- the clock ----
   clock: {flexDirection: 'row', alignItems: 'center', gap: 10},
-  clockWide: {justifyContent: 'center', marginTop: spacing.md},
-  clockBar: {width: 180, height: 6, borderRadius: 3, backgroundColor: colors.surfaceHover, overflow: 'hidden'},
-  clockBarWide: {width: 420, height: 8, borderRadius: 4},
-  clockFill: {height: '100%', backgroundColor: colors.accent, borderRadius: 4},
-  clockLow: {backgroundColor: MAYBE},
-  clockText: {color: colors.textDim, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'], minWidth: 80},
-  clockTextWide: {color: colors.text, fontSize: 18},
+  clockBig: {justifyContent: 'center', marginTop: spacing.md},
+  clockText: {color: PLAY.inkDim, fontSize: 15, lineHeight: 20, fontWeight: '800', fontVariant: ['tabular-nums'], minWidth: 72},
+  clockTextBig: {color: PLAY.ink, fontSize: 19, lineHeight: 25},
+  clockLow: {color: PLAY.rose},
 
-  // ---- swiping here ----
-  swipeTop: {flexDirection: 'row', alignItems: 'center', gap: spacing.lg, marginBottom: spacing.md},
-  count: {color: colors.text, fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums']},
-  countDim: {color: colors.textDim, fontSize: 14},
-  swipeRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.xl},
-  poster: {borderRadius: radius.l, overflow: 'hidden', backgroundColor: colors.bgRaised, boxShadow: '0 18px 36px rgba(0,0,0,0.6)'},
-  posterFallback: {flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg},
-  posterFallbackText: {color: colors.textDim, fontSize: fontSize.row, fontWeight: '800', textAlign: 'center'},
-  libBadge: {position: 'absolute', left: 8, top: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: 'rgba(11,12,20,0.78)'},
-  libBadgeText: {color: '#8cffbe', fontSize: 13, fontWeight: '800'},
-  swipeInfo: {flex: 1},
-  cardTitle: {color: colors.text, fontSize: 28, lineHeight: 34, fontWeight: '900'},
-  meta: {color: colors.textDim, fontSize: 16, fontWeight: '600', marginTop: 4},
-  cardLine: {color: colors.textDim, fontSize: 16, lineHeight: 23, marginTop: spacing.sm, maxWidth: 520},
-  note: {color: colors.text, fontSize: 14, fontWeight: '600', marginTop: 6},
+  // ---- the deck ----
+  deck: {flex: 1},
+  deckTop: {flexDirection: 'row', alignItems: 'center', gap: spacing.lg, height: 34, marginBottom: TOP_H - 34},
+  hand: {color: PLAY.ink, fontSize: 15, lineHeight: 20, fontWeight: '800', fontVariant: ['tabular-nums']},
+  countDim: {color: PLAY.inkFaint, fontSize: 14, lineHeight: 19, flexShrink: 1},
+  band: {flex: 1, alignItems: 'center', justifyContent: 'center'},
+  arena: {flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 40},
+  card: {position: 'absolute', left: 0, top: 0, borderRadius: 18, overflow: 'hidden', backgroundColor: PLAY.tile},
+  waitingCard: {alignItems: 'center', justifyContent: 'center'},
+  poster: {position: 'absolute', left: 0, top: 0, width: '100%', height: '100%'},
+  veil: {position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: '#06071c'},
+  veilOn: {opacity: 0.55},
+  foot: {position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 14, paddingBottom: 12},
+  cardTitle: {color: PLAY.ink, fontSize: 19, lineHeight: 23, fontWeight: '900', includeFontPadding: false},
+  cardMeta: {color: PLAY.inkDim, fontSize: 13, lineHeight: 18, fontWeight: '700', marginTop: 3},
+  libBadge: {position: 'absolute', left: 10, top: 10, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, backgroundColor: 'rgba(3,4,12,0.78)'},
+  libBadgeText: {color: PLAY.green, fontSize: 13, lineHeight: 17, fontWeight: '800'},
+  leaving: {position: 'absolute', left: 0, top: 0},
+  stampAt: {position: 'absolute', top: 18},
+  stampYes: {left: 12},
+  stampNo: {right: 12},
+  stampMaybe: {left: 0, right: 0, top: '40%', alignItems: 'center'},
+  under: {height: FOOT_H, alignItems: 'center', paddingTop: 8, gap: 4},
+  line: {color: PLAY.inkFaint, fontSize: 13, lineHeight: 18, textAlign: 'center', maxWidth: 600},
 
   // ---- waiting ----
   waiting: {flex: 1, alignItems: 'center', justifyContent: 'center'},
-  waitKicker: {color: YES, fontSize: 16, fontWeight: '700', marginBottom: 6},
-  progressBig: {color: colors.text, fontSize: 44, lineHeight: 52, fontWeight: '900', fontVariant: ['tabular-nums']},
+  waitKicker: {color: PLAY.green, fontSize: 16, lineHeight: 22, fontWeight: '800', marginBottom: 6},
+  progressBig: {color: PLAY.ink, fontSize: 46, lineHeight: 54, fontWeight: '900', fontVariant: ['tabular-nums'], includeFontPadding: false},
+  waitSeats: {marginTop: spacing.lg, maxWidth: 800},
 
   // ---- the pick ----
-  backdropImg: {opacity: 0.38},
-  veil: {backgroundColor: 'rgba(11,12,20,0.55)'},
   resultRow: {flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.xl},
   resultText: {flex: 1},
-  resultKicker: {color: colors.accent, fontSize: 14, fontWeight: '800', letterSpacing: 2.4},
-  resultCount: {color: colors.textDim, letterSpacing: 0.5},
-  resultTitle: {color: colors.text, fontSize: 36, lineHeight: 42, fontWeight: '900', marginTop: 4},
+  prizeKicker: {flexDirection: 'row', alignItems: 'center', gap: 8},
+  resultKicker: {color: PLAY.gold, fontSize: 14, lineHeight: 20, fontWeight: '800', letterSpacing: 2.6, includeFontPadding: false},
+  resultCount: {color: PLAY.inkFaint, fontSize: 14, lineHeight: 20, fontWeight: '700', marginLeft: 6},
+  resultTitle: {color: PLAY.ink, fontSize: 40, lineHeight: 47, fontWeight: '900', marginTop: 6, includeFontPadding: false},
+  meta: {color: PLAY.inkDim, fontSize: 16, lineHeight: 22, fontWeight: '700', marginTop: 4},
+  tallyRow: {flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 14, marginTop: spacing.md},
   why: {
     flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 8,
-    marginTop: spacing.md,
+    gap: 7,
     paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: radius.pill,
-    backgroundColor: 'rgba(139,123,255,0.16)',
+    paddingHorizontal: 13,
+    borderRadius: 999,
+    backgroundColor: 'rgba(160,131,255,0.16)',
     borderWidth: 1,
-    borderColor: 'rgba(139,123,255,0.4)',
+    borderColor: 'rgba(160,131,255,0.42)',
   },
-  whyAll: {backgroundColor: 'rgba(110,231,168,0.12)', borderColor: 'rgba(110,231,168,0.4)'},
-  whyText: {color: colors.text, fontSize: 16, fontWeight: '700'},
+  whyAll: {backgroundColor: 'rgba(92,245,184,0.12)', borderColor: 'rgba(92,245,184,0.42)'},
+  whyText: {color: PLAY.ink, fontSize: 15, lineHeight: 20, fontWeight: '800'},
+  whyTick: {color: PLAY.violet},
+  whyTickAll: {color: PLAY.green},
+  tieLine: {color: PLAY.gold, fontSize: 14, lineHeight: 19, fontWeight: '700', marginTop: 8},
+  cardLine: {color: PLAY.inkDim, fontSize: 16, lineHeight: 23, marginTop: spacing.sm, maxWidth: 520},
+  prizeEdge: {borderRadius: 19, borderWidth: 3, borderColor: PLAY.gold, backgroundColor: PLAY.tile},
 
   // ---- calm states ----
-  calmIcon: {width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(139,123,255,0.14)', marginBottom: 6},
-  calmTitle: {color: colors.text, fontSize: fontSize.title, fontWeight: '900', textAlign: 'center'},
-  calmBig: {color: colors.text, fontSize: 32, lineHeight: 38, fontWeight: '900', textAlign: 'center', maxWidth: 720},
-  calmLine: {color: colors.textDim, fontSize: 16, lineHeight: 23, textAlign: 'center', maxWidth: 600},
+  calmIcon: {width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(160,131,255,0.16)', borderWidth: 1, borderColor: 'rgba(160,131,255,0.4)', marginBottom: 6},
+  calmGlyph: {color: PLAY.ink, fontSize: 24, lineHeight: 30, fontWeight: '900'},
+  calmPoster: {marginBottom: 8, borderRadius: 16, borderWidth: 2, borderColor: PLAY.gold},
+  calmTitle: {color: PLAY.ink, fontSize: 28, lineHeight: 35, fontWeight: '900', textAlign: 'center'},
+  calmBig: {color: PLAY.gold, fontSize: 32, lineHeight: 39, fontWeight: '900', textAlign: 'center', maxWidth: 720},
+  calmLine: {color: PLAY.inkDim, fontSize: 16, lineHeight: 23, textAlign: 'center', maxWidth: 600},
 
   // ---- the error line ----
   errRow: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: spacing.sm},
   errText: {flex: 1, color: ERR, fontSize: 15, fontWeight: '600'},
 
-  // ---- sheets ----
+  // ---- sheets (the app's own) ----
   sheetText: {color: colors.textDim, fontSize: 16, lineHeight: 23},
   sheetErr: {color: ERR, fontSize: 15, fontWeight: '600', marginTop: spacing.sm},
   sheetActions: {flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg},

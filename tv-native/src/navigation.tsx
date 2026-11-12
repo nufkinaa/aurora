@@ -48,6 +48,7 @@ const SCREENS = {
   WhatsNew: () => require('./screens/WhatsNew').default,
   Sources: () => require('./screens/Sources').default,
   Taste: () => require('./screens/Taste').default,
+  Wrapped: () => require('./screens/Wrapped').default,
   Household: () => require('./screens/Household').default, // [household] Show all recommended
   GroupPick: () => require('./screens/GroupPick').default, // [group-pick] What do we watch tonight?
   Franchise: () => require('./screens/Franchise').default, // [franchise] Watch in order
@@ -92,6 +93,7 @@ export type RootStackParamList = {
   Pick: undefined;
   Downloads: undefined;
   Taste: undefined;
+  Wrapped: undefined;
   // [household] "Recommended by your household" — Show all (`tab`: which one opens)
   Household: {tab?: 'forYou' | 'sent'} | undefined;
   // [group-pick] "What do we watch tonight?" — `code`: join that session as the room's screen
@@ -201,6 +203,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Detail" getComponent={SCREENS.Detail} />
         <Stack.Screen name="Sources" getComponent={SCREENS.Sources} />
         <Stack.Screen name="Taste" getComponent={SCREENS.Taste} />
+        <Stack.Screen name="Wrapped" getComponent={SCREENS.Wrapped} />
         <Stack.Screen name="Household" getComponent={SCREENS.Household} />
         <Stack.Screen name="GroupPick" getComponent={SCREENS.GroupPick} />
         <Stack.Screen name="Franchise" getComponent={SCREENS.Franchise} />
