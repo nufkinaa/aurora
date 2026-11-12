@@ -27,24 +27,38 @@ const shot = async (page, name, el = null) => {
 };
 const GB = 1024 ** 3;
 const TZ = "Asia/Jerusalem";
-const ago = (ms) => new Date(Date.now() - ms).toISOString();
-// "Nov 8" for a moment some time ago, in the household's zone (the per-person
-// lines' "last …"): each person's newest ask — Niso's and Automatic's 30 min
-// ago, Dor's 3 h ago (past midnight those are different days)
-const dayAgo = (ms) => new Intl.DateTimeFormat("en-US", { timeZone: TZ, month: "short", day: "numeric" }).format(new Date(Date.now() - ms));
+// The per-person lines' "last Nov 12" is the day of each person's newest ask —
+// Niso's and Automatic's 30 min ago, Dor's 3 h ago — so just after midnight
+// those are different days (and just after New Year's, "Dec 31, 2026"). The
+// queue is seeded once per test, and the expected day is read from those very
+// timestamps the way the page does it (houseDate(t, false) in admin.html): the
+// household's zone, the year only when it is not this year's.
+const houseDay = (iso) => {
+  const year = (d) => new Intl.DateTimeFormat("en", { timeZone: TZ, year: "numeric" }).format(d);
+  const d = new Date(iso);
+  return new Intl.DateTimeFormat("en-US", { timeZone: TZ, month: "short", day: "numeric", ...(year(d) !== year(new Date()) ? { year: "numeric" } : {}) }).format(d);
+};
 
 const base = { type: "movie", quality: "1080p", sizeBytes: GB, progress: 0, downloadSpeed: 0, alsoBy: [], autoFor: null };
-const JOBS = () => [
-  { ...base, id: "fl1", label: "Flight One", status: "downloading", phase: "downloading", progress: 0.4, downloadSpeed: 2e6, by: "Niso", at: ago(2 * 3600e3 + 60e3) },
-  { ...base, id: "fl2", label: "Next Show · S1 E3", type: "show", status: "downloading", phase: "downloading", progress: 0.1, by: "Niso", smart: true, autoFor: "next", at: ago(30 * 60e3) },
-  // an old record: nobody and no time were kept
-  { ...base, id: "fl3", label: "Queued Unknown", status: "approved", by: null },
-  { ...base, id: "pe1", label: "Dor Film", status: "pending", holdReason: "Held back: under 10% free", by: "Dor", at: ago(3 * 3600e3 + 60e3) },
-  { ...base, id: "dn1", label: "Niso Film", status: "done", progress: 1, sizeBytes: 4 * GB, by: "Niso", at: "2026-11-06T17:00:00.000Z", doneAt: "2026-11-06T19:14:00.000Z", libraryId: "mov1" },
-  { ...base, id: "dn2", label: "Some Show · S1 E1", type: "show", status: "done", progress: 1, by: "Dor", smart: true, autoFor: "follow", at: "2026-11-05T07:00:00.000Z", doneAt: "2026-11-05T08:05:00.000Z", libraryId: "ep1" },
-  { ...base, id: "dn3", label: "Some Show · S1 E2", type: "show", status: "done", progress: 1, sizeBytes: 2 * GB, by: "Niso", alsoBy: ["Dor"], at: "2026-11-07T18:00:00.000Z", doneAt: "2026-11-07T20:00:00.000Z", libraryId: "ep2" },
-  { ...base, id: "er1", label: "Broken Film", status: "error", error: "no source", by: null },
-];
+const JOBS = (now = Date.now()) => {
+  const ago = (ms) => new Date(now - ms).toISOString();
+  return [
+    { ...base, id: "fl1", label: "Flight One", status: "downloading", phase: "downloading", progress: 0.4, downloadSpeed: 2e6, by: "Niso", at: ago(2 * 3600e3 + 60e3) },
+    { ...base, id: "fl2", label: "Next Show · S1 E3", type: "show", status: "downloading", phase: "downloading", progress: 0.1, by: "Niso", smart: true, autoFor: "next", at: ago(30 * 60e3) },
+    // an old record: nobody and no time were kept
+    { ...base, id: "fl3", label: "Queued Unknown", status: "approved", by: null },
+    { ...base, id: "pe1", label: "Dor Film", status: "pending", holdReason: "Held back: under 10% free", by: "Dor", at: ago(3 * 3600e3 + 60e3) },
+    { ...base, id: "dn1", label: "Niso Film", status: "done", progress: 1, sizeBytes: 4 * GB, by: "Niso", at: "2026-11-06T17:00:00.000Z", doneAt: "2026-11-06T19:14:00.000Z", libraryId: "mov1" },
+    { ...base, id: "dn2", label: "Some Show · S1 E1", type: "show", status: "done", progress: 1, by: "Dor", smart: true, autoFor: "follow", at: "2026-11-05T07:00:00.000Z", doneAt: "2026-11-05T08:05:00.000Z", libraryId: "ep1" },
+    { ...base, id: "dn3", label: "Some Show · S1 E2", type: "show", status: "done", progress: 1, sizeBytes: 2 * GB, by: "Niso", alsoBy: ["Dor"], at: "2026-11-07T18:00:00.000Z", doneAt: "2026-11-07T20:00:00.000Z", libraryId: "ep2" },
+    { ...base, id: "er1", label: "Broken Film", status: "error", error: "no source", by: null },
+  ];
+};
+// each person's expected "last …" day, from the seeded asks themselves
+const lastDays = (jobs) => {
+  const at = (id) => jobs.find((j) => j.id === id).at;
+  return { d: houseDay(at("fl2")), dd: houseDay(at("pe1")) };
+};
 const TREE = {
   movies: [
     { id: "mov1", title: "Niso Film", year: 2020, cover: null, sizeBytes: 4 * GB, addedAt: Date.parse("2026-11-06T19:14:00Z"), watched: 0 },
@@ -61,14 +75,17 @@ const TREE = {
   disk: { free: 400 * GB, total: 512 * GB },
 };
 
+// seeds the queue once (a tick re-reads the very same one) and hands it back
 const stub = async (page, locale = "en-US") => {
-  await page.route("**/api/downloads", (route) => route.fulfill({ json: JOBS() }));
+  const jobs = JOBS();
+  await page.route("**/api/downloads", (route) => route.fulfill({ json: jobs }));
   await page.route((u) => u.pathname === "/api/admin/library/tree", (route) => route.fulfill({ json: TREE }));
   await page.route((u) => u.pathname === "/api/admin/summary", async (route) => {
     const body = await (await route.fetch()).json();
     body.clock = { tz: TZ, locale, hourCycle: "h23" };
     await route.fulfill({ json: body });
   });
+  return jobs;
 };
 const enter = async (page, srv) => {
   await page.goto(`${srv.url}/admin`);
@@ -90,12 +107,12 @@ const shown = (page) => page.evaluate(() => ({
 
 for (const [name, viewport, locale] of [["desktop", DESK, "en-US"], ["phone", PHONE, "he-IL"]]) {
   ui.test(`who and when on every list, Automatic, Unknown, the person chips and lines (${name}, server locale ${locale})`, { viewport }, async ({ page, srv }) => {
-    await stub(page, locale);
+    const { d, dd } = lastDays(await stub(page, locale));
     await enter(page, srv);
 
     // IN FLIGHT: who, and "asked … ago" with the date as its tooltip
     assert.equal(await flight(page, "fl1").locator(".fl-who").innerText(), "Niso · asked 2h ago");
-    assert.match(await flight(page, "fl1").locator(".fl-who .dl-when").getAttribute("title"), /^[A-Z][a-z]{2} \d+, \d\d:\d\d$/);
+    assert.match(await flight(page, "fl1").locator(".fl-who .dl-when").getAttribute("title"), /^[A-Z][a-z]{2} \d+(, \d{4})?, \d\d:\d\d$/);
     assert.equal(await flight(page, "fl2").locator(".fl-who").innerText(), "Automatic · Niso's next episode · asked 30m ago");
     assert.equal(await flight(page, "fl3").locator(".fl-who").innerText(), "Unknown · asked: Unknown");
     // NEEDS YOU: who and when
@@ -130,7 +147,6 @@ for (const [name, viewport, locale] of [["desktop", DESK, "en-US"], ["phone", PH
     assert.deepEqual(await page.locator("#dl-who-chips button").evaluateAll((bs) => bs.map((b) => [b.dataset.dlWho, b.firstChild.textContent, b.querySelector(".n").textContent])),
       [["all", "Everyone", "8"], ["p:Niso", "Niso", "4"], ["auto", "Automatic", "2"], ["p:Dor", "Dor", "3"], ["unknown", "Unknown", "2"]]);
     await openDetails(page, "d-who");
-    const d = dayAgo(30 * 60e3), dd = dayAgo(3 * 3600e3 + 60e3);
     assert.deepEqual(await page.locator("#dl-who-lines .dl-who-line").allInnerTexts(), [
       `Niso — 4 downloads (1 automatic) · 6.0 GB · last ${d}`,
       `Automatic — 2 downloads · 1.0 GB · last ${d}`,
@@ -167,17 +183,16 @@ for (const [name, viewport, locale] of [["desktop", DESK, "en-US"], ["phone", PH
 }
 
 ui.test("Copy for Claude: who and when on every download line, and the line per person", { viewport: DESK, permissions: ["clipboard-read", "clipboard-write"] }, async ({ page, srv }) => {
-  await stub(page);
+  const { d, dd } = lastDays(await stub(page));
   await enter(page, srv);
   const clip = async (head) => {
     await page.waitForFunction(async (h) => (await navigator.clipboard.readText()).replace(/\r\n/g, "\n").startsWith(h), head, { timeout: 15000 });
     return (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n");
   };
-  const d = dayAgo(30 * 60e3), dd = dayAgo(3 * 3600e3 + 60e3);
   await page.click('[data-copy-for="d-flight"]');
   const fl = await clip("## Downloads in flight");
   assert.match(fl, /\| title \| by \| asked \| state \|/);
-  assert.match(fl, /\| Flight One \| Niso \| asked [A-Z][a-z]{2} \d+, \d\d:\d\d \(2h ago\) \| downloading \|/);
+  assert.match(fl, /\| Flight One \| Niso \| asked [A-Z][a-z]{2} \d+(, \d{4})?, \d\d:\d\d \(2h ago\) \| downloading \|/);
   assert.match(fl, /\| Next Show · S1 E3 \| Automatic · Niso's next episode \| asked .+ \(30m ago\) \| downloading \|/);
   assert.match(fl, /\| Queued Unknown \| Unknown \| asked: Unknown \| queued \|/);
   assert.match(fl, /Waiting for approval:\n\| title \| by \| asked \| size \| why held \|\n\|---\|---\|---\|---\|---\|\n\| Dor Film \| Dor \| asked .+ \(3h ago\) \| 1\.0 GB \| Held back: under 10% free \|/);
