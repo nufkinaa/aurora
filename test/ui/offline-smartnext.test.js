@@ -118,8 +118,11 @@ ui.test("on: the next episode is not on the server yet → a wish for it, at the
     assert.equal(w.quality, "original");
     assert.equal(w.imdbId, "tt9000003");
     assert.equal(w.season, 1);
-    const events = await page.evaluate(() => window.__smart.map((e) => e.type));
-    assert.ok(events.includes("wished"), JSON.stringify(events));
+    // (the page says "wished" once addWish has had its answer and finished —
+    // the server can show the wish a moment before that: on a Linux runner
+    // this was asked in between and saw only ["changed"])
+    await until(async () => (await page.evaluate(() => window.__smart.map((e) => e.type))).includes("wished"), "the page says it wished", 15000)
+      .catch(async (e) => { throw new Error(`${e.message}: ${JSON.stringify(await page.evaluate(() => window.__smart.map((x) => x.type)))}`); });
     assert.deepEqual(errors, []);
   } finally {
     await context.close().catch(() => {});

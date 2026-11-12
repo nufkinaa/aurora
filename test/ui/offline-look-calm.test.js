@@ -348,7 +348,14 @@ for (const [device, viewport] of [["desktop", DESKTOP], ["phone", PHONE]]) {
       assert.deepEqual([b.state, b.emoji], ["saved", false]);
       // the way to the place: the device sign and its one name
       const open2 = page.locator(".dl-open-device");
-      await open2.scrollIntoViewIfNeeded();
+      // (My downloads repaints its rows as the list is read again: the button
+      // found can be replaced by its twin before the scroll — "Element is not
+      // attached to the DOM" on a slower machine. Found again, then.)
+      for (let tries = 0; ; tries++) {
+        try { await open2.scrollIntoViewIfNeeded({ timeout: 10000 }); break; } catch (e) {
+          if (tries >= 5 || !/not attached/i.test(String(e && e.message))) throw e;
+        }
+      }
       assert.equal((await open2.innerText()).trim(), "Open On this device");
       assert.equal(await open2.locator("svg").count(), 1);
       await snap(page, `downloads-saved-${device}`);

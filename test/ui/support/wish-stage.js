@@ -93,7 +93,11 @@ if (process.env.UI_WISH_STAGE === "1" && !process.send && require("worker_thread
         fs.renameSync(p, p.replace(/\.json$/, ".taken"));
         let out;
         try { out = await run(cmd); } catch (e) { out = { ok: false, error: e.message }; }
-        fs.writeFileSync(p.replace(/\.json$/, ".done.json"), JSON.stringify(out));
+        // (written whole, then moved in: the test reads the answer the moment
+        // it exists — a plain write was once read empty, "Unexpected end of
+        // JSON input", on a Linux runner)
+        fs.writeFileSync(p.replace(/\.json$/, ".done.tmp"), JSON.stringify(out));
+        fs.renameSync(p.replace(/\.json$/, ".done.tmp"), p.replace(/\.json$/, ".done.json"));
         process.stdout.write(`[wish-stage] ${cmd.op} → ${JSON.stringify(out)}\n`);
       }
     } catch (e) {

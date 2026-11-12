@@ -150,8 +150,15 @@ ui.test("phone: the 'keep the next episode ready' offer never covers an open she
     await page.evaluate((id) => { location.hash = `#/show/${id}`; }, srv.lib.show.id);
     await page.locator('[data-ui="detail.offline.choose"]').first().click();
     await page.waitForSelector(".choose-sheet .choose-row");
+    // (every line said, with its moment — for the message should the offer not come)
+    await page.evaluate(() => {
+      window.__said = [];
+      new MutationObserver((recs) => { for (const r of recs) for (const n of r.addedNodes) if (n.nodeType === 1) window.__said.push([Math.round(performance.now()), n.textContent]); })
+        .observe(document.getElementById("toasts"), { childList: true });
+    });
     // an episode lands on this device while the sheet is open (the moment the offer is due)
     assert.ok(await save(page, srv.lib.e1.id));
+    const landedAt = await page.evaluate(() => Math.round(performance.now()));
     await page.waitForTimeout(8500); // (the offer comes 6 s after the landing line)
     const offer = page.locator("#toasts .toast", { hasText: "Want the next episode saved here" });
     assert.equal(await offer.count(), 0, "nothing on top of the open sheet");
@@ -163,7 +170,16 @@ ui.test("phone: the 'keep the next episode ready' offer never covers an open she
     assert.equal(covered, false);
     await page.locator('[data-ui="offline.choose.cancel"]').click();
     await page.waitForSelector(".choose-sheet", { state: "detached" });
-    await offer.first().waitFor({ timeout: 10000 });
+    await offer.first().waitFor({ timeout: 10000 }).catch(async (e) => {
+      const why = await page.evaluate(async ({ landedAt, e1 }) => ({
+        now: Math.round(performance.now()), landedAt, said: window.__said,
+        asked: localStorage.getItem("aurora-offline-next-asked"),
+        overlays: [...document.querySelectorAll(".ui-overlay, .look-notice-wrap")].map((n) => n.className),
+        indexed: (await import("/js/offline.js")).savedNow(e1),
+        hash: location.hash,
+      }), { landedAt, e1: srv.lib.e1.id }).catch((x) => String(x));
+      throw new Error(`${e.message.split("\n")[0]}\n${JSON.stringify(why)}`);
+    });
     assert.deepEqual(errors, []);
   } finally {
     await context.close().catch(() => {});

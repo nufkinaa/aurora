@@ -730,6 +730,10 @@ const transfer = async (id, st, onProgress, signal, opts = {}) => {
   const t0 = Date.now();
   let lastLanded = Date.now();
   let inflight = new Map(); // n -> bytes so far
+  // the parts being written right now (each settles once its write and its
+  // own clear-up are over) — see the catch of the rounds below
+  const writing = new Set();
+  const settled = async () => { while (writing.size) await Promise.allSettled([...writing]); };
   const count = () => (size ? Math.ceil(size / PART_BYTES) : 0);
   const landedBytes = () => [...done].reduce((n, i) => n + Math.min(PART_BYTES, size - i * PART_BYTES), 0);
   let lastTick = 0;
@@ -789,22 +793,30 @@ const transfer = async (id, st, onProgress, signal, opts = {}) => {
       },
     }));
     const inFiles = meta && meta.store === "opfs";
+    let wrote;
+    const held = new Promise((r) => { wrote = r; });
+    writing.add(held);
     try {
-      if (inFiles) await opfsPut(id, n, counted);
-      else await c.put(partKey(id, n), new Response(counted, { status: 200, headers: { "Content-Type": "application/octet-stream", "Content-Length": String(want) } }));
-    } catch (e) {
+      try {
+        if (inFiles) await opfsPut(id, n, counted);
+        else await c.put(partKey(id, n), new Response(counted, { status: 200, headers: { "Content-Type": "application/octet-stream", "Content-Length": String(want) } }));
+      } catch (e) {
+        inflight.delete(n);
+        got -= mine;
+        if (inFiles) await opfsDelete(id, n); else await c.delete(partKey(id, n)).catch(() => {});
+        stopped();
+        if (e && e.name === "QuotaExceededError") throw e;
+        throw Object.assign(e, { net: true });
+      }
       inflight.delete(n);
-      got -= mine;
-      if (inFiles) await opfsDelete(id, n); else await c.delete(partKey(id, n)).catch(() => {});
-      stopped();
-      if (e && e.name === "QuotaExceededError") throw e;
-      throw Object.assign(e, { net: true });
-    }
-    inflight.delete(n);
-    if (mine !== want) { // came up short: not a part
-      got -= mine;
-      if (inFiles) await opfsDelete(id, n); else await c.delete(partKey(id, n)).catch(() => {});
-      throw Object.assign(new Error("a part came up short"), { net: true });
+      if (mine !== want) { // came up short: not a part
+        got -= mine;
+        if (inFiles) await opfsDelete(id, n); else await c.delete(partKey(id, n)).catch(() => {});
+        throw Object.assign(new Error("a part came up short"), { net: true });
+      }
+    } finally {
+      writing.delete(held);
+      wrote();
     }
     done.add(n);
     lastLanded = Date.now();
@@ -866,6 +878,14 @@ const transfer = async (id, st, onProgress, signal, opts = {}) => {
       if (fatal) throw fatal;
     } catch (e) {
       document.removeEventListener("visibilitychange", onHidden);
+      // Promise.all gives up at the FIRST failing part, while the other
+      // parts in flight may still be writing. Clearing up under them left
+      // parts behind for good (the file system will not remove a folder
+      // with a file open for writing; a part that finished after the clear-up
+      // stayed): a save that ran out of room, or was cancelled, kept some of
+      // its parts on the device. So the others are stopped, and waited for.
+      inner.abort();
+      await settled();
       if (e && e.name === "QuotaExceededError") { await dropBytes(id); setSaveMeta(id, null); throw new Error(plain(e)); }
       throw e;
     }

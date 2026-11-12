@@ -263,13 +263,20 @@ ui.test("phone: no room on the device says so before anything is fetched; a save
     await page.locator(".device-job button", { hasText: "Cancel" }).click();
     await page.waitForSelector(".device-jobs.hidden", { state: "attached" });
     await page.locator("#toasts .toast", { hasText: "Save cancelled" }).first().waitFor();
-    assert.equal(await page.evaluate(async () => (await caches.open("aurora-media").then((c) => c.keys())).length), 0, "no half a film in the cache");
-    // …nor in the browser's file system (where Chrome saves since round 2)
-    assert.equal(await page.evaluate(async () => {
-      let n = 0;
-      try { const base = await (await navigator.storage.getDirectory()).getDirectoryHandle("aurora-offline"); for await (const [, d] of base.entries()) for await (const _ of d.entries()) n++; } catch {}
-      return n;
-    }), 0, "no half a film in the file system");
+    // (the clear-up runs on after the job is gone and the toast is up: the
+    // record, then the subtitles saved before the picture — on a Linux runner
+    // the two subtitle entries were still there when this was asked at once)
+    const leftHere = () => page.evaluate(async () => {
+      const cache = (await caches.open("aurora-media").then((c) => c.keys())).map((r) => new URL(r.url).pathname);
+      // …nor in the browser's file system (where Chrome saves since round 2)
+      let files = 0;
+      try { const base = await (await navigator.storage.getDirectory()).getDirectoryHandle("aurora-offline"); for await (const [, d] of base.entries()) for await (const _ of d.entries()) files++; } catch {}
+      return { cache, files };
+    });
+    let left = await leftHere();
+    for (const end = Date.now() + 10000; (left.cache.length || left.files) && Date.now() < end; left = await leftHere()) await page.waitForTimeout(200);
+    assert.deepEqual(left.cache, [], "no half a film in the cache");
+    assert.equal(left.files, 0, "no half a film in the file system");
     assert.equal(await page.locator(".saved-section .dl-row").count(), 0);
     await page.unroute("**/stream/video/**");
     assert.deepEqual(errors, []);
