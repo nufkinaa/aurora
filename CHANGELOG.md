@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.35 — 2026-11-12
+
+- **Saving to this device: no pieces left behind.** When a save ran out of room or was cancelled half-way, pieces that were still being written could stay on the device; Aurora now waits for them and clears up everything (website).
+- **"Saved on this device" is always said**, also for an episode that finished saving in the first seconds after Aurora opened (website).
+
 ## 1.15.34 — 2026-11-12
 
 - **Game night on the TV (TV 5.9.6).** Pick together turns the TV into the party: the code as a ticket, everyone takes a seat, a ribbon for each voter, and a reveal with a drumroll, a tie-break when it's close and one burst for tonight's pick; the TV can vote with the remote too (right yes, left no, down maybe). Pick for me draws its answer on a reel, Taste is a real deck with stamps and a star meter, and Your Aurora Wrapped tells your year as a story (Settings). Children mode gets kind words only.
