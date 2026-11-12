@@ -232,7 +232,8 @@ export function Reveal({duel, onEnd, inFront}: {duel: Duel; onEnd: (lifted: bool
           ))}
         </View>
         {duel ? (
-          <View style={s.duel} importantForAccessibility="no-hide-descendants">
+          // mounted from the start (their pictures load unseen), shown at the tie's beat
+          <View style={[s.duel, beat !== 'tie' && s.unseen]} importantForAccessibility="no-hide-descendants">
             {duel.posters.map((p, k) => (
               <DuelCard key={k} p={p} lit={lit === k} won={won && k === duel.winner} />
             ))}
@@ -330,6 +331,7 @@ const s = StyleSheet.create({
   showWords: {color: PLAY.ink, fontSize: 34, lineHeight: 42, fontWeight: '900', textAlign: 'center', includeFontPadding: false},
   showStars: {flexDirection: 'row', gap: 22},
   duel: {flexDirection: 'row', gap: 44, marginTop: 6},
+  unseen: {opacity: 0},
   duelCard: {width: DUEL_W, height: DUEL_H, alignItems: 'center', justifyContent: 'center'},
   duelGlow: {position: 'absolute', left: (DUEL_W - DUEL_W * 2.4) / 2, top: (DUEL_H - DUEL_W * 2.4) / 2},
   duelEdge: {position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderRadius: 14, borderWidth: 3, borderColor: PLAY.gold},

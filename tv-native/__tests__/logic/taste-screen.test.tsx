@@ -206,7 +206,29 @@ describe('the end of a round', () => {
   const playRound = async (n: number, keys = ['right', 'right', 'right', 'left']) => {
     focusCard();
     for (let i = 0; i < n; i++) await key(keys[i % keys.length]);
+    // the round's last card is thrown like the others; the round's end comes when it has flown
+    act(() => {
+      for (const r of mockRuns.filter(x => x.ms !== T.burst)) {
+        mockRuns.splice(mockRuns.indexOf(r), 1);
+        r.done?.({finished: true});
+      }
+    });
+    await flush();
   };
+
+  it('waits for the last card to be thrown: the stamp and the throw are seen, then the end', async () => {
+    await mount();
+    focusCard();
+    for (const k of ['right', 'right', 'right', 'left']) await key(k);
+    expect(byUi('taste.more')).toHaveLength(0); // the last card is still in the air
+    expect(texts()).toContain('NOPE'); // its stamp
+    expect(byUi('taste.love')).toHaveLength(0); // nothing new on top of it
+    act(() => {
+      for (const r of mockRuns.splice(0)) r.done?.({finished: true});
+    });
+    await flush();
+    expect(byUi('taste.more')).toHaveLength(1);
+  });
 
   it('is the reward: the number, the tally, what Aurora learned, Keep going in focus — and one burst', async () => {
     await mount();

@@ -467,11 +467,15 @@ export default function GroupPick({navigation, route}: Props) {
   // The deck's last answer unmounts the card under the focus; Android would
   // hand it to whatever is nearest. The next view's main key takes it (the
   // reveal hands it over itself when its curtain lifts).
-  const lastView = useRef(view);
+  // The deck's last answer: its card finishes its flight on the deck before
+  // the next view takes the page (most of the time the result is in by then,
+  // and "waiting" never flashes up for a moment in between).
+  const shownView = view === 'waiting' && leaving && raw?.phase === 'swiping' ? 'swipe' : view;
+  const lastView = useRef(shownView);
   useEffect(() => {
     const was = lastView.current;
-    lastView.current = view;
-    if (was !== 'swipe' || view === 'swipe' || sheet) return;
+    lastView.current = shownView;
+    if (was !== 'swipe' || shownView === 'swipe' || sheet) return;
     return timers.after(60, () => {
       if (backState.current.showing) return;
       if (mainRef.current?.requestTVFocus) {
@@ -479,7 +483,7 @@ export default function GroupPick({navigation, route}: Props) {
         mainRef.current.requestTVFocus();
       }
     });
-  }, [view, sheet, timers]);
+  }, [shownView, sheet, timers]);
 
   // ---------- BACK ----------
   const backState = useRef({sheet, tutorial, live: false, showing: false});
@@ -507,7 +511,7 @@ export default function GroupPick({navigation, route}: Props) {
   }, [navigation, endShow]);
 
   // ---------- the remote on the deck ----------
-  const left = view === 'swipe' && session ? unanswered(session) : [];
+  const left = shownView === 'swipe' && session ? unanswered(session) : [];
   const card = left[0];
   const voteRef = useRef(vote);
   voteRef.current = vote;
@@ -579,7 +583,7 @@ export default function GroupPick({navigation, route}: Props) {
         onRole={() => run('screen', () => groupApi.role(session.code, session.you?.role === 'voter' ? 'screen' : 'voter'))}
       />
     );
-  } else if (session && view === 'swipe') {
+  } else if (session && shownView === 'swipe') {
     const room = height - spacing.pageY - safeBottom - HEAD_H - TOP_H - PEEK - FOOT_H;
     const cardH = Math.max(200, Math.min(Math.round(height * 0.6), room));
     body = (
@@ -1180,7 +1184,7 @@ function DeckView({
                     <Animated.View pointerEvents="none" style={[styles.veil, veilStyle]} />
                   </Animated.View>
                 </Focusable>
-              ) : (
+              ) : leaving ? null : (
                 <View style={[styles.card, styles.waitingCard, {width: cardW, height: cardH}]}>
                   <ActivityIndicator color={PLAY.ink} />
                 </View>
@@ -1323,7 +1327,10 @@ function ResultView({
   return (
     <View style={styles.resultRow}>
       {/* the words come up together, as the poster lands */}
-      <Rise run={`${drop.run}:${index}`} calm={calm || !fresh} delay={fresh ? 180 : 0} dy={16} style={styles.resultText}>
+      {/* Under the curtain the words and the poster wait unseen: they come in
+          with the drop (or at once when the show was skipped), never seen,
+          gone and back. */}
+      <Rise run={`${drop.run}:${index}`} calm={calm || !fresh} delay={fresh ? 180 : 0} dy={16} style={[styles.resultText, hidden && styles.unseen]}>
         <View style={styles.prizeKicker}>
           <Star size={15} color={PLAY.gold} />
           <Text style={styles.resultKicker}>{WORDS.resultTitle.toUpperCase()}</Text>
@@ -1359,7 +1366,7 @@ function ResultView({
         )}
       </Rise>
       <View
-        style={{width: posterW, height: posterH}}
+        style={[{width: posterW, height: posterH}, hidden && styles.unseen]}
         onLayout={e => {
           const l = e.nativeEvent.layout;
           setAt({x: Math.round(l.x + l.width / 2), y: Math.round(l.y + l.height / 2)});
@@ -1558,6 +1565,7 @@ const styles = StyleSheet.create({
   fill: {position: 'absolute', left: 0, top: 0, right: 0, bottom: 0},
   grow: {flex: 1},
   curtain: {position: 'absolute', left: 0, top: 0, right: 0, bottom: 0},
+  unseen: {opacity: 0},
 
   head: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 40, marginBottom: HEAD_H - 40},
   kickerRow: {flexDirection: 'row', alignItems: 'center', gap: 8},

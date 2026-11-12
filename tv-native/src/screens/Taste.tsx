@@ -305,6 +305,9 @@ export default function Taste({navigation}: NativeStackScreenProps<RootStackPara
   const cur = session.current;
   const next = session.behind;
   const over = loaded === 'ok' && session.roundOver;
+  // The answer that ends a round is thrown like any other: the band stays
+  // (with nothing new on top) until that card has flown, then the round's end.
+  const showEnd = over && !leaving;
   const dry = session.exhausted && !session.queue.length; // every title was answered
   const goal = session.goal;
   const answered = session.answered;
@@ -321,7 +324,7 @@ export default function Taste({navigation}: NativeStackScreenProps<RootStackPara
   const [fire, setFire] = useState<{n: number; count: number}>({n: 0, count: 16});
   const hasSky = !!(end && end.sky);
   useEffect(() => {
-    if (!over || dry || calmNow || bursts.has(goal)) return;
+    if (!showEnd || dry || calmNow || bursts.has(goal)) return;
     const off = timers.after(hasSky ? 520 : 300, () => {
       const first = !bursts.size;
       bursts.add(goal);
@@ -331,13 +334,13 @@ export default function Taste({navigation}: NativeStackScreenProps<RootStackPara
       off();
       setFire(f => (f.n ? {n: 0, count: f.count} : f)); // (the round went on, or was taken back)
     };
-  }, [over, dry, calmNow, goal, hasSky, bursts, timers]);
+  }, [showEnd, dry, calmNow, goal, hasSky, bursts, timers]);
   // The answer that ends a round unmounts the card under the focus, and Android
   // hands the focus to whatever is nearest (it landed on Undo up in the top
   // row, Mi TV 2026-11-12). The end's own key takes it, once, as it appears.
   const endKey = useRef<{requestTVFocus?: () => void} | null>(null);
   useEffect(() => {
-    if (!over) return;
+    if (!showEnd) return;
     const off = timers.after(60, () => {
       if (endKey.current?.requestTVFocus) {
         noteOwnFocusMove();
@@ -345,7 +348,7 @@ export default function Taste({navigation}: NativeStackScreenProps<RootStackPara
       }
     });
     return off;
-  }, [over, goal, timers]);
+  }, [showEnd, goal, timers]);
   // where the number stands in the end's own box: the burst's centre
   const [numY, setNumY] = useState(0);
 
@@ -412,7 +415,7 @@ export default function Taste({navigation}: NativeStackScreenProps<RootStackPara
         <View style={styles.center}>
           <Text style={styles.endText}>Couldn't load titles — try again in a moment.</Text>
         </View>
-      ) : over ? (
+      ) : showEnd ? (
         <View style={styles.end}>
           {end && end.sky ? (
             <SkyLines
@@ -464,7 +467,7 @@ export default function Taste({navigation}: NativeStackScreenProps<RootStackPara
             <View style={{width: cardW, height: cardH + PEEK}}>
               {/* the light the deck stands in */}
               <Plates left={depth} width={cardW} height={cardH} />
-              {next ? (
+              {next && !over ? (
                 <View
                   renderToHardwareTextureAndroid
                   pointerEvents="none"
@@ -474,7 +477,7 @@ export default function Taste({navigation}: NativeStackScreenProps<RootStackPara
                 </View>
               ) : null}
               <TVFocusGuideView trapFocusLeft trapFocusRight trapFocusDown style={{position: 'absolute', left: 0, top: 0, width: cardW, height: cardH}}>
-                {cur ? (
+                {cur && !over ? (
                   <Focusable
                     ref={cardRef}
                     uiId="taste.love"
@@ -491,7 +494,7 @@ export default function Taste({navigation}: NativeStackScreenProps<RootStackPara
                       <Animated.View pointerEvents="none" style={[styles.veil, veilStyle]} />
                     </Animated.View>
                   </Focusable>
-                ) : (
+                ) : over ? null : (
                   <View style={[styles.card, styles.waiting, {width: cardW, height: cardH}]}>
                     <ActivityIndicator color={PLAY.ink} />
                   </View>
