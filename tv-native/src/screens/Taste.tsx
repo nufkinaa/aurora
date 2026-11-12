@@ -56,7 +56,7 @@ import Odometer from '../play/Odometer';
 import PlayKey from '../play/PlayKey';
 import Room from '../play/Room';
 import SkyLines from '../play/SkyLines';
-import {Glow, Star} from '../play/Star';
+import {Star} from '../play/Star';
 import {litAt, marksOf, milestone, readTaste, TasteRead} from '../play/tasteRead';
 import {PLAY, T} from '../play/tokens';
 
@@ -332,6 +332,20 @@ export default function Taste({navigation}: NativeStackScreenProps<RootStackPara
       setFire(f => (f.n ? {n: 0, count: f.count} : f)); // (the round went on, or was taken back)
     };
   }, [over, dry, calmNow, goal, hasSky, bursts, timers]);
+  // The answer that ends a round unmounts the card under the focus, and Android
+  // hands the focus to whatever is nearest (it landed on Undo up in the top
+  // row, Mi TV 2026-11-12). The end's own key takes it, once, as it appears.
+  const endKey = useRef<{requestTVFocus?: () => void} | null>(null);
+  useEffect(() => {
+    if (!over) return;
+    const off = timers.after(60, () => {
+      if (endKey.current?.requestTVFocus) {
+        noteOwnFocusMove();
+        endKey.current.requestTVFocus();
+      }
+    });
+    return off;
+  }, [over, goal, timers]);
   // where the number stands in the end's own box: the burst's centre
   const [numY, setNumY] = useState(0);
 
@@ -429,15 +443,16 @@ export default function Taste({navigation}: NativeStackScreenProps<RootStackPara
           {/* (nothing was asked — a profile with no titles to show: no row of noughts) */}
           {answered ? (
             <Rise run={goal} i={2} delay={120} calm={calmNow} style={styles.tally}>
-              <Chip glyph="♥" color={PLAY.yes} label={`${session.tally.love} loved`} />
+              <Chip glyph={'♥︎'} color={PLAY.yes} label={`${session.tally.love} loved`} />
               <Chip glyph="✕" color={PLAY.no} label={`${session.tally.nope} not for you`} />
               <Chip label={`${session.tally.skip} not seen`} />
             </Rise>
           ) : null}
           {end ? <Learned read={end.read} run={goal} calm={calmNow} /> : null}
           <View style={styles.endActions}>
-            {dry ? null : <PlayKey uiId="taste.more" kind="aurora" big label="Keep going" hasTVPreferredFocus onPress={keepGoing} />}
-            <PlayKey uiId="taste.done" kind="gold" big label="Done" hasTVPreferredFocus={dry} onPress={done} />
+            {dry ? null : <PlayKey uiId="taste.more" ref={endKey} kind="aurora" big label="Keep going" hasTVPreferredFocus onPress={keepGoing} />}
+            {/* gold is for a win: a round with nothing in it ends on a plain key */}
+            <PlayKey uiId="taste.done" ref={dry ? endKey : undefined} kind={answered ? 'gold' : 'aurora'} big label="Done" hasTVPreferredFocus={dry} onPress={done} />
           </View>
           <Burst fire={fire.n} x={(width - 2 * spacing.pageX) / 2} y={numY} count={fire.count} seed={goal} calm={calmNow} />
         </View>
@@ -447,17 +462,10 @@ export default function Taste({navigation}: NativeStackScreenProps<RootStackPara
             <Answer glyph="◀" label={LABEL.nope} color={INK.nope} hit={hitNope} side="left" />
             <View style={{width: cardW, height: cardH + PEEK}}>
               {/* the light the deck stands in */}
-              {calmNow ? null : (
-                <Glow
-                  size={Math.round(cardH * 1.7)}
-                  color={PLAY.green}
-                  opacity={0.1}
-                  style={{position: 'absolute', left: Math.round((cardW - cardH * 1.7) / 2), top: Math.round((cardH - cardH * 1.7) / 2)}}
-                />
-              )}
               <Plates left={depth} width={cardW} height={cardH} />
               {next ? (
                 <View
+                  renderToHardwareTextureAndroid
                   pointerEvents="none"
                   style={[styles.card, {width: cardW, height: cardH, transform: [{translateY: behindAt.translateY}, {scale: behindAt.scale}]}]}>
                   {nextSrc ? <Image source={nextSrc} style={styles.poster} resizeMode="cover" fadeDuration={0} /> : <Tile style={styles.poster} />}
@@ -477,7 +485,7 @@ export default function Taste({navigation}: NativeStackScreenProps<RootStackPara
                     }}
                     onPress={() => answer('love')}
                     style={[styles.card, {width: cardW, height: cardH}]}>
-                    <Animated.View style={[styles.fill, popStyle]}>
+                    <Animated.View renderToHardwareTextureAndroid style={[styles.fill, popStyle]}>
                       <CardFace card={cur} width={cardW} />
                       <Animated.View pointerEvents="none" style={[styles.veil, veilStyle]} />
                     </Animated.View>
@@ -489,7 +497,7 @@ export default function Taste({navigation}: NativeStackScreenProps<RootStackPara
                 )}
               </TVFocusGuideView>
               {leaving ? (
-                <Animated.View pointerEvents="none" style={[styles.leaving, {width: cardW, height: cardH}, leaveStyle]}>
+                <Animated.View renderToHardwareTextureAndroid pointerEvents="none" style={[styles.leaving, {width: cardW, height: cardH}, leaveStyle]}>
                   <View style={[styles.card, {width: cardW, height: cardH}]}>
                     <CardFace card={leaving.card} width={cardW} />
                   </View>

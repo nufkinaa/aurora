@@ -852,7 +852,8 @@ export default function Pick({navigation}: NativeStackScreenProps<RootStackParam
 
       <View style={styles.side}>
         <View style={styles.words}>
-          {won || phase === 'land' ? (
+          {/* gold only once the prize has landed: while the reel slows it is still suspense */}
+          {won ? (
             <View style={styles.prizeKicker}>
               <Star size={15} color={PLAY.gold} />
               <Text style={styles.prizeKickerText}>{DRAW.kicker}</Text>

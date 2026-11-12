@@ -210,6 +210,11 @@ export default function GroupPick({navigation, route}: Props) {
       if (follow.current === f) follow.current = null;
     };
   }, [code]);
+  // a new round (Swipe another round) starts with nothing to undo
+  const round = raw ? `${raw.code}:${raw.round}` : '';
+  useEffect(() => {
+    history.current = [];
+  }, [round]);
   // this box's answers drop out once the server says them back
   useEffect(() => {
     if (raw) setLocal(l => (Object.keys(l).length ? settleLocal(raw, l) : l));
@@ -419,6 +424,8 @@ export default function GroupPick({navigation, route}: Props) {
   const [drop, setDrop] = useState({run: 0, index: -1});
   const [fire, setFire] = useState(0);
   const resultAt = view === 'result' && session?.result ? Number(session.result.at) || 0 : null;
+  const resultAtRef = useRef(resultAt);
+  resultAtRef.current = resultAt;
   const hasPick = !!(session && currentPick(session));
   useEffect(() => {
     if (view === 'swipe' || view === 'waiting') sawVoting.current = true;
@@ -429,12 +436,18 @@ export default function GroupPick({navigation, route}: Props) {
     }
     sawVoting.current = false;
   }, [view, resultAt, calm, hasPick]);
+  // The curtain is up from the very first frame of the result (the effect above
+  // would leave one frame of the bare result, keys and all, before it).
+  const due = resultAt !== null && sawVoting.current && shownFor.current !== resultAt && !calm && hasPick;
+  const curtain = showing !== null ? showing : due ? resultAt : null;
   // a result that has gone (another round, the session ended) takes its show along
   useEffect(() => {
     if (showing !== null && resultAt !== showing) setShowing(null);
   }, [showing, resultAt]);
   const endShow = useCallback(
     (lifted: boolean) => {
+      if (resultAtRef.current !== null) shownFor.current = resultAtRef.current;
+      sawVoting.current = false;
       setShowing(null);
       // Play holds the focus again (the curtain's Skip has gone)
       timers.after(0, () => {
@@ -451,9 +464,26 @@ export default function GroupPick({navigation, route}: Props) {
     [timers, session],
   );
 
+  // The deck's last answer unmounts the card under the focus; Android would
+  // hand it to whatever is nearest. The next view's main key takes it (the
+  // reveal hands it over itself when its curtain lifts).
+  const lastView = useRef(view);
+  useEffect(() => {
+    const was = lastView.current;
+    lastView.current = view;
+    if (was !== 'swipe' || view === 'swipe' || sheet) return;
+    return timers.after(60, () => {
+      if (backState.current.showing) return;
+      if (mainRef.current?.requestTVFocus) {
+        noteOwnFocusMove();
+        mainRef.current.requestTVFocus();
+      }
+    });
+  }, [view, sheet, timers]);
+
   // ---------- BACK ----------
   const backState = useRef({sheet, tutorial, live: false, showing: false});
-  backState.current = {sheet, tutorial, live: sessionLive(raw, lost), showing: showing !== null};
+  backState.current = {sheet, tutorial, live: sessionLive(raw, lost), showing: curtain !== null};
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (!navigation.isFocused()) return false;
@@ -598,7 +628,7 @@ export default function GroupPick({navigation, route}: Props) {
         busy={busy}
         calm={calm}
         posterH={Math.round(height * 0.58)}
-        hidden={showing !== null}
+        hidden={curtain !== null}
         drop={drop}
         fire={fire}
         onPlay={play}
@@ -654,16 +684,16 @@ export default function GroupPick({navigation, route}: Props) {
   // the show's tie-break: the two posters, the server's pick on its side
   const duel: Duel = useMemo(() => {
     const r = session?.result;
-    if (showing === null || !r || !isTie(r) || !r.picks[1]?.card) return null;
+    if (curtain === null || !r || !isTie(r) || !r.picks[1]?.card) return null;
     const {swap, winner} = tieSides(r.at);
     const a = r.picks[0].card;
     const b = r.picks[1].card;
     return {posters: swap ? [b, a] : [a, b], winner};
-  }, [showing, session]);
+  }, [curtain, session]);
 
   return (
     <View style={[styles.root, {paddingBottom: safeBottom}]}>
-      <Room on={inFront && showing === null} calm={calm} />
+      <Room on={inFront && curtain === null} calm={calm} />
       {header}
       <View style={styles.body}>{body}</View>
       {err ? (
@@ -674,9 +704,9 @@ export default function GroupPick({navigation, route}: Props) {
           </Text>
         </View>
       ) : null}
-      {showing !== null ? (
+      {curtain !== null ? (
         <View style={styles.curtain}>
-          <Reveal key={showing} duel={duel} onEnd={endShow} inFront={inFront} />
+          <Reveal key={curtain} duel={duel} onEnd={endShow} inFront={inFront} />
         </View>
       ) : null}
 
@@ -1006,7 +1036,9 @@ function Clock({session, since, calm, width, big}: {session: GroupSession; since
   const c = countdown(session, since);
   return (
     <View style={[styles.clock, big && styles.clockBig]}>
-      <Meter value={c.frac} width={width} height={big ? 10 : 7} ms={900} steady calm={calm} tint={c.left <= 15 ? PLAY.rose : undefined} />
+      {/* steps once a second, no tween: a second is about a dot of ribbon, and a
+          tween every second would keep the TV drawing for the whole round */}
+      <Meter value={c.frac} width={width} height={big ? 10 : 7} calm tint={c.left <= 15 ? PLAY.rose : undefined} />
       <Text style={[styles.clockText, big && styles.clockTextBig, c.left <= 15 && styles.clockLow]}>{c.text}</Text>
     </View>
   );
@@ -1124,17 +1156,10 @@ function DeckView({
         <View style={styles.arena}>
           <Answer glyph="◀" label={WORDS.no} color={INK.no} hit={hits.no} side="left" />
           <View style={{width: cardW, height: cardH + PEEK}}>
-            {calm ? null : (
-              <Glow
-                size={Math.round(cardH * 1.7)}
-                color={PLAY.violet}
-                opacity={0.1}
-                style={{position: 'absolute', left: Math.round((cardW - cardH * 1.7) / 2), top: Math.round((cardH - cardH * 1.7) / 2)}}
-              />
-            )}
             <Plates left={depthOf(left)} width={cardW} height={cardH} />
             {next ? (
-              <View pointerEvents="none" style={[styles.card, {width: cardW, height: cardH, transform: [{translateY: behindAt.translateY}, {scale: behindAt.scale}]}]}>
+              <View renderToHardwareTextureAndroid
+                  pointerEvents="none" style={[styles.card, {width: cardW, height: cardH, transform: [{translateY: behindAt.translateY}, {scale: behindAt.scale}]}]}>
                 {nextSrc ? <Image source={nextSrc} style={styles.poster} resizeMode="cover" fadeDuration={0} /> : <Tile style={styles.poster} />}
                 <View style={[styles.veil, styles.veilOn]} />
               </View>
@@ -1150,7 +1175,7 @@ function DeckView({
                   onFocusChange={onCardFocus}
                   onPress={onYes}
                   style={[styles.card, {width: cardW, height: cardH}]}>
-                  <Animated.View style={[styles.fill, popStyle]}>
+                  <Animated.View renderToHardwareTextureAndroid style={[styles.fill, popStyle]}>
                     <CardFace card={card} width={cardW} />
                     <Animated.View pointerEvents="none" style={[styles.veil, veilStyle]} />
                   </Animated.View>
@@ -1162,7 +1187,7 @@ function DeckView({
               )}
             </TVFocusGuideView>
             {leaving ? (
-              <Animated.View pointerEvents="none" style={[styles.leaving, {width: cardW, height: cardH}, leaveStyle]}>
+              <Animated.View renderToHardwareTextureAndroid pointerEvents="none" style={[styles.leaving, {width: cardW, height: cardH}, leaveStyle]}>
                 <View style={[styles.card, {width: cardW, height: cardH}]}>
                   <CardFace card={leaving.card} width={cardW} />
                 </View>
@@ -1297,20 +1322,19 @@ function ResultView({
   const tieLine = !!r && index === 0 && isTie(r) && !fresh;
   return (
     <View style={styles.resultRow}>
-      <View style={styles.resultText}>
-        <Rise run={`${drop.run}:${index}`} calm={calm || !fresh} delay={fresh ? 260 : 0} style={styles.prizeKicker}>
+      {/* the words come up together, as the poster lands */}
+      <Rise run={`${drop.run}:${index}`} calm={calm || !fresh} delay={fresh ? 180 : 0} dy={16} style={styles.resultText}>
+        <View style={styles.prizeKicker}>
           <Star size={15} color={PLAY.gold} />
           <Text style={styles.resultKicker}>{WORDS.resultTitle.toUpperCase()}</Text>
           {count ? <Text style={styles.resultCount}>{count}</Text> : null}
-        </Rise>
-        <Rise run={`${drop.run}:${index}`} i={1} calm={calm || !fresh} delay={fresh ? 260 : 0}>
-          <Text style={styles.resultTitle} numberOfLines={2}>
-            {card.title}
-          </Text>
-          <Text style={styles.meta} numberOfLines={1}>
-            {cardMeta(card)}
-          </Text>
-        </Rise>
+        </View>
+        <Text style={styles.resultTitle} numberOfLines={2}>
+          {card.title}
+        </Text>
+        <Text style={styles.meta} numberOfLines={1}>
+          {cardMeta(card)}
+        </Text>
         <View style={styles.tallyRow}>
           <TallyStars pick={pick} fresh={fresh} calm={calm} />
           {pick.why ? (
@@ -1333,7 +1357,7 @@ function ResultView({
             {session.you?.host ? <PlayKey uiId="group.again" glyph="↻" label={WORDS.again} dim={busy === 'again'} onPress={onAgain} /> : null}
           </View>
         )}
-      </View>
+      </Rise>
       <View
         style={{width: posterW, height: posterH}}
         onLayout={e => {

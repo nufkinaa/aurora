@@ -368,7 +368,7 @@ describe('the landing', () => {
     act(() => posters.forEach(i => i.props.onLoad()));
     expect(running(LAND_MS)).toHaveLength(1);
     expect(mockLoops.on).toBe(0);
-    expect(texts()).toContain('TONIGHT’S PICK');
+    expect(texts()).not.toContain('TONIGHT’S PICK'); // gold only for the prize, not while the reel slows
     expect(texts()).not.toContain('Pick 1');
     expect(cards()).toHaveLength(0);
     expect(label(mainKey())).toBe('Thinking…');

@@ -28,8 +28,9 @@ export const verdictForGroupKey = (eventType: string): GroupVerdictKey | null =>
 export const seatSize = (people: number) => (people <= 6 ? 64 : people <= 10 ? 52 : 44);
 
 // The two dashed seats that say "there is room": only while the room is
-// small enough for them to mean something.
-export const freeSeats = (people: number) => Math.max(0, Math.min(2, 6 - people));
+// small enough for them to mean something, and never on a row of their own
+// (five seats fill the lobby's row).
+export const freeSeats = (people: number) => Math.max(0, Math.min(2, 5 - people));
 
 // The reveal's beats, in ms from its start. Without a tie: the three stars
 // light (380 ms apart from 200), a breath, then the curtain lifts. With one:
