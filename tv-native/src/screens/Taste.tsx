@@ -427,7 +427,8 @@ export default function Taste({navigation}: NativeStackScreenProps<RootStackPara
             />
           ) : null}
           {dry ? (
-            <Rise run={goal} calm={calmNow}>
+            <Rise run={goal} calm={calmNow} style={styles.dryHead}>
+              <Star size={30} color={PLAY.teal} />
               <Text style={styles.endTitle}>That's every title we had for you</Text>
             </Rise>
           ) : (
@@ -612,6 +613,7 @@ const styles = StyleSheet.create({
   // ---- the end of a round ----
   end: {flex: 1, alignItems: 'center', justifyContent: 'center'},
   sky: {marginBottom: 2},
+  dryHead: {alignItems: 'center', gap: 12},
   endTitle: {color: PLAY.ink, fontSize: 20, lineHeight: 27, fontWeight: '800', textAlign: 'center'},
   endText: {color: PLAY.inkDim, fontSize: 15, lineHeight: 21, textAlign: 'center'},
   tally: {flexDirection: 'row', gap: spacing.sm, marginTop: 12},

@@ -722,7 +722,7 @@ export default function GroupPick({navigation, route}: Props) {
       ) : null}
       {sheet === 'add' && session ? <AddSheet code={session.code} onClose={() => setSheet(null)} onAdded={() => follow.current?.refresh()} /> : null}
       {sheet === 'settings' && session ? (
-        <Sheet kicker={WORDS.feature.toUpperCase()} width={760} onClose={() => setSheet(null)}>
+        <Sheet kicker={WORDS.entry.toUpperCase()} width={760} onClose={() => setSheet(null)}>
           <SettingsGroups options={options} value={session.settings} onChange={p => run('option', () => groupApi.settings(session.code, p))} first />
           <View style={styles.sheetActions}>
             <Btn label={WORDS.close} onPress={() => setSheet(null)} />
@@ -730,7 +730,7 @@ export default function GroupPick({navigation, route}: Props) {
         </Sheet>
       ) : null}
       {sheet === 'leave' ? (
-        <Sheet kicker={WORDS.feature.toUpperCase()} title={WORDS.leaveAsk} onClose={() => setSheet(null)}>
+        <Sheet kicker={WORDS.entry.toUpperCase()} title={WORDS.leaveAsk} onClose={() => setSheet(null)}>
           <Text style={styles.sheetText}>{WORDS.leaveLine}</Text>
           <View style={styles.sheetActions}>
             <Btn label={WORDS.stay} hasTVPreferredFocus onPress={() => setSheet(null)} />
@@ -1438,7 +1438,7 @@ function JoinSheet({onClose, onJoin}: {onClose: () => void; onJoin: (code: strin
     if (m) setErr(m);
   };
   return (
-    <Sheet kicker={WORDS.feature.toUpperCase()} title={WORDS.joinCode} onClose={onClose}>
+    <Sheet kicker={WORDS.entry.toUpperCase()} title={WORDS.joinCode} onClose={onClose}>
       <Text style={styles.sheetText}>{WORDS.codeHelp}</Text>
       <Text style={styles.fieldLabel}>{WORDS.codeLabel}</Text>
       <TextInput
@@ -1503,7 +1503,7 @@ function AddSheet({code, onClose, onAdded}: {code: string; onClose: () => void; 
       .catch(e => setErr(messageOf(e)));
   };
   return (
-    <Sheet kicker={WORDS.feature.toUpperCase()} title={WORDS.addTitle} width={640} onClose={onClose}>
+    <Sheet kicker={WORDS.entry.toUpperCase()} title={WORDS.addTitle} width={640} onClose={onClose}>
       <Text style={styles.sheetText}>{WORDS.addLine}</Text>
       <View style={styles.searchField}>
         <Icon name="search" size={18} color={colors.textFaint} />
