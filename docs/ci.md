@@ -225,10 +225,22 @@ run 2026-11-11: 9.7 min, shards 6.7–9.5 min; 110 files, ~64 min of test time).
   `test/ui/durations.json` (the runners' own seconds; a new file counts as the median);
   `tools/ci/ui-shard-run.js` runs a shard: per file its own `node --test`, a second try
   for a failing file (a pass then is reported as **flaky**, a warning, never silently),
-  8 minutes at most per file, a step summary, and annotations: the failures, the skips,
+  a step summary, and annotations: the failures, the skips,
   the seconds per file ("UI shard timings": save those as JSON and run
   `node tools/ci/ui-shards.js --update <files>` to rebalance). Screenshots and logs of
   failures are uploaded as the `ui-artifacts-<n>` artifact (7 days).
+- **Nothing can hold a shard for long** (run 43151921866: shard 4 sat 40 min in
+  `actions/checkout` — git's fetch never returned — and only the job's limit ended it).
+  Limits, inside out: a file **8 min**, the shard's files **28 min** (both in
+  `ui-shard-run.js`), the test step 31, the job 40; every step that fetches has its own
+  limit, and a checkout that hangs is stopped at 4 min and made again from an empty folder.
+  A file that is stopped goes with **its whole process tree**: the private server and
+  Chrome each run in a process group of their own, so they (and the server's ffmpeg) are
+  found by `UI_SHARD_TAG` in their environment, not only by parent id — and whatever a
+  file that ended normally left running is killed too, and named in the log. A stopped
+  file is not retried; it gets an "UI file stopped" error annotation with its last test,
+  what was killed and its last 25 lines, and its partial log and TAP are uploaded as
+  `ui-hung-<n>`. Files the shard had no time left for are named in an "out of time" error.
 - **The machine is made to look like the home PC**, so the same tests hold:
   `TZ=Asia/Jerusalem`; Chrome in en-GB (`LANGUAGE`, 24-hour times on the page) and node
   in he-IL (`LC_ALL`, the server's house clock), with those locales generated (without

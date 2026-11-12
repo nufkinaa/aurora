@@ -48,10 +48,12 @@ env:
 jobs:
   plan:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     outputs:
       matrix: ${{ steps.split.outputs.matrix }}
     steps:
       - uses: actions/checkout@v6
+        timeout-minutes: 5
         with:
           sparse-checkout: |
             tools/ci
@@ -68,6 +70,12 @@ jobs:
   ui:
     needs: plan
     runs-on: ubuntu-24.04
+    # Time limits, inside out: a file 8 min (tools/ci/ui-shard-run.js), the
+    # shard's files 28 min (the same), the test step 31, the job 40 — each
+    # below the next, so a hang is stopped by the one that can name it and the
+    # uploads after it still run. Every step that fetches something has its
+    # own limit: run 43151921866's shard 4 sat in actions/checkout for 40 min
+    # (git's fetch never returned) and the job limit was the first to act.
     timeout-minutes: 40
     strategy:
       fail-fast: false
@@ -76,7 +84,26 @@ jobs:
     name: "ui ${{ matrix.shard }}/${{ matrix.of }}"
     steps:
       # (the QA screenshots, ~700 MB, are left out: no browser test reads them)
-      - uses: actions/checkout@v6
+      # A checkout normally takes ~15 s; one that hangs is stopped at 4 min and
+      # made once more from an empty folder.
+      - id: checkout
+        uses: actions/checkout@v6
+        timeout-minutes: 4
+        continue-on-error: true
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/docs/qa/
+            !/docs/android-phone/
+      - name: Checkout failed — clear the folder for a second try
+        if: steps.checkout.outcome != 'success'
+        run: |
+          echo "::warning title=Checkout retried::the first checkout ended '${{ steps.checkout.outcome }}' (a hung fetch is stopped at 4 min); trying once more"
+          find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+      - if: steps.checkout.outcome != 'success'
+        uses: actions/checkout@v6
+        timeout-minutes: 6
         with:
           sparse-checkout-cone-mode: false
           sparse-checkout: |
@@ -84,6 +111,7 @@ jobs:
             !/docs/qa/
             !/docs/android-phone/
       - uses: actions/setup-node@v6
+        timeout-minutes: 5
         with:
           node-version: 22
           cache: npm
@@ -94,6 +122,7 @@ jobs:
       # made one shard hang. apt stays as the last resort, with time limits.)
       - name: Restore ffmpeg
         uses: actions/cache@v5
+        timeout-minutes: 5
         with:
           path: ~/ffmpeg
           key: ffmpeg-static-b6.0-linux-x64-v1
@@ -122,6 +151,7 @@ jobs:
           echo "$HOME/ffmpeg/bin" >> "$GITHUB_PATH"
           ~/ffmpeg/bin/ffmpeg -version | head -1; ~/ffmpeg/bin/ffprobe -version | head -1
       - name: Chrome
+        timeout-minutes: 8
         run: |
           if ! command -v google-chrome >/dev/null; then npx --yes playwright-core install --with-deps chrome; fi
           google-chrome --version
@@ -133,10 +163,12 @@ jobs:
       # falls back to plain ASCII and Chrome cannot open a file with a Hebrew
       # name (localplay's "סרט חג 2023.mp4" came up empty).
       - name: Locales
+        timeout-minutes: 3
         run: |
           sudo locale-gen he_IL.UTF-8 en_GB.UTF-8 > /dev/null
           LC_ALL=he_IL.UTF-8 locale charmap
       - name: Fonts
+        timeout-minutes: 3
         run: |
           mkdir -p ~/.local/share/fonts/selawik ~/.config/fontconfig
           curl -fsSL --retry 3 --max-time 60 -o "$RUNNER_TEMP/selawik.zip" https://github.com/microsoft/Selawik/releases/download/1.01/Selawik_Release.zip
@@ -155,9 +187,11 @@ jobs:
           fc-cache -f > /dev/null
           echo "Segoe UI -> $(fc-match 'Segoe UI')"; echo "Segoe UI Variable Display -> $(fc-match 'Segoe UI Variable Display')"
       - run: npm ci --no-audit --no-fund
+        timeout-minutes: 8
       # What the page sees: locale, clock and the font a line of text gets (a notice
       # on the run's page, readable without signing in).
       - name: Environment check
+        timeout-minutes: 3
         env:
           LC_ALL: he_IL.UTF-8
         run: |
@@ -179,16 +213,31 @@ jobs:
           })().catch((e) => { console.log(`::warning title=UI environment::${e.message}`); });'
       # The test library (made with ffmpeg on first use, ~30 s): kept between runs.
       - uses: actions/cache@v5
+        timeout-minutes: 5
         with:
           path: test/ui/.cache
           key: ui-media-${{ hashFiles('scripts/ui-test-server.js') }}
       - name: test/ui (${{ matrix.est }} s expected)
+        timeout-minutes: 31
         env:
           LC_ALL: he_IL.UTF-8
           UI_OUT: ${{ github.workspace }}/test/ui/artifacts/ci
+          UI_FILE_LIMIT_MS: "480000"
+          UI_SHARD_LIMIT_MS: "1680000"
         run: node tools/ci/ui-shard-run.js ${{ matrix.files }}
+      # A file the runner had to stop: its partial log and TAP on their own
+      # (the job log needs a sign-in; its last lines are in the annotation too).
+      - name: Upload a hung file's log
+        if: (success() || failure() || cancelled()) && hashFiles('test/ui/artifacts/ci/hung/*') != ''
+        uses: actions/upload-artifact@v6
+        timeout-minutes: 5
+        with:
+          name: ui-hung-${{ matrix.shard }}
+          path: test/ui/artifacts/ci/hung/
+          retention-days: 14
       - name: Upload what failed
-        if: failure()
+        if: failure() || cancelled()
+        timeout-minutes: 5
         uses: actions/upload-artifact@v6
         with:
           name: ui-artifacts-${{ matrix.shard }}
@@ -196,6 +245,7 @@ jobs:
           retention-days: 7
       - name: Upload timings
         if: always()
+        timeout-minutes: 5
         uses: actions/upload-artifact@v6
         with:
           name: ui-timings-${{ matrix.shard }}
