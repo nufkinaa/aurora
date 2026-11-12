@@ -292,11 +292,18 @@ const landed = (id, title) => {
 };
 // the saves "Keep the next episode ready" started (their landing says so)
 const auto = new Set();
+const titleOf = (j) => (j.item && j.item.showTitle ? nameOf(j.item) : j.title) || (j.item && j.item.title) || "";
 const watchLandings = () => {
   const now = new Map();
-  for (const j of offline.listJobs()) now.set(j.id, { state: j.state, title: (j.item && j.item.showTitle ? nameOf(j.item) : j.title) || (j.item && j.item.title) || "" });
+  for (const j of offline.listJobs()) now.set(j.id, { state: j.state, title: titleOf(j) });
+  const said = new Set();
   for (const [id, was] of before) {
-    if (!now.has(id) && ACTIVE(was.state) && offline.savedNow(id)) landed(id, was.title);
+    if (!now.has(id) && ACTIVE(was.state) && offline.savedNow(id)) { said.add(id); landed(id, was.title); }
+  }
+  // (the saves of this tab that landed before this loop first ran — it
+  // starts in an idle moment after the first screen — or between two looks)
+  for (const l of offline.takeLandings ? offline.takeLandings() : []) {
+    if (!said.has(l.id) && !now.has(l.id) && offline.savedNow(l.id)) { said.add(l.id); landed(l.id, titleOf(l)); }
   }
   before.clear();
   for (const [id, v] of now) before.set(id, v);

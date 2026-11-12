@@ -158,8 +158,14 @@ ui.test("phone: the 'keep the next episode ready' offer never covers an open she
     });
     // an episode lands on this device while the sheet is open (the moment the offer is due)
     assert.ok(await save(page, srv.lib.e1.id));
-    const landedAt = await page.evaluate(() => Math.round(performance.now()));
-    await page.waitForTimeout(8500); // (the offer comes 6 s after the landing line)
+    // the landing line first ("… is on this device"): it is said once the
+    // app's offline look has started — in an idle moment after the first
+    // screen, which on a GitHub runner came after this save had landed (the
+    // landing went unsaid, and the offer with it, until js/offline.js kept
+    // the landings for it: takeLandings)
+    await page.waitForFunction(() => window.__said.some(([, t]) => /is on this device/.test(t)), null, { timeout: 20000 });
+    const landedAt = await page.evaluate(() => window.__said.find(([, t]) => /is on this device/.test(t))[0]);
+    await page.waitForFunction((at) => performance.now() > at + 8500, landedAt, { timeout: 20000, polling: 250 }); // (the offer comes 6 s after the landing line)
     const offer = page.locator("#toasts .toast", { hasText: "Want the next episode saved here" });
     assert.equal(await offer.count(), 0, "nothing on top of the open sheet");
     // the Save button and the total are not covered by any toast

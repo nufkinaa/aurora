@@ -245,6 +245,20 @@ export const listJobs = () => [...jobs.values()].sort((a, b) => a.at - b.at);
 export const jobFor = (id) => jobs.get(id) || null;
 export const onJobs = (fn) => { jobSubs.add(fn); return () => jobSubs.delete(fn); };
 export const dismissJob = (id) => { if (jobs.delete(id)) emitJobs(); };
+// The saves that landed in this tab, for js/offlineUi.js to say so
+// (takeLandings empties the list). offlineUi starts in an idle moment after
+// the first screen — seconds after the page opens on a busy phone — and
+// only learnt of a landing by seeing its job go: a save that landed before
+// it started (one resumed at boot, a small episode saved at once) was never
+// announced, nor followed by the one-time "keep the next episode ready"
+// offer. Kept short, and only for a minute.
+const landings = []; // { id, item, title, at }
+const noteLanding = (item) => {
+  const j = jobs.get(item.id);
+  landings.push({ id: item.id, item: (j && j.item) || jobItem(item), title: (j && j.title) || item.title || "", at: Date.now() });
+  if (landings.length > 20) landings.shift();
+};
+export const takeLandings = () => landings.splice(0).filter((l) => Date.now() - l.at < 60000);
 // A save running here stops (its parts go, and its job). One that is paused,
 // failed or only queued is taken off the list, and what it had saved goes.
 export const cancelJob = (id) => {
@@ -341,7 +355,10 @@ export const saveItem = async (item, onProgress = () => {}, choose = null, signa
   };
   try {
     const saved = await saveOne(item, progress, pick, ctl.signal);
-    if (started) dismissJob(item.id); // done: it is on the Saved list now
+    if (started) {
+      noteLanding(item);
+      dismissJob(item.id); // done: it is on the Saved list now
+    }
     return saved;
   } catch (e) {
     if (started) {
