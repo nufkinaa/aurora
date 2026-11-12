@@ -39,7 +39,7 @@ export const FEATURES: Feature[] = [
     glyph: '🎲',
     title: "Game night on the TV",
     what: "Pick together turns the TV into the party: the code as a ticket, everyone takes a seat, the votes come in with a drumroll and one burst for tonight's pick. Pick for me draws its answer on a reel, Taste is a real deck for the remote, and Your Aurora Wrapped tells your year as a story.",
-    how: "On the TV: AI → Pick for me or Pick together; Settings → Swipe your taste or Your Aurora Wrapped.",
+    how: "On the TV: AI → Pick for me or Pick together. Swipe your taste and Your Aurora Wrapped are in the TV's Settings.",
     go: {label: 'Settings', act: 'settings'},
   },
   // ---- 5.9.5: Children mode, the same card, the same words, on the website ----
