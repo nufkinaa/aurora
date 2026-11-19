@@ -1,0 +1,35 @@
+# Real glass, fourth pass: the measurements. a = today (origin/master's stylesheet and scripts), e = real glass,
+# n = real glass with the lens switched off. Sides take turns within a batch. Desktop 1440x900 unless said.
+
+# Processor time of the page's processes over 8 s, ms (tools/real-glass/player-cost.js)
+# Home at rest, not scrolled (the hero and its glass button in view) - as built: three colour steps, one chain over the pane
+a 1494 1551 1567 1446 1584 1492 1590 1482 | median 1522.5 | 1446-1590
+e 1581 1577 1647 1578 1646 1560 1574 1595 | median 1579.5 | 1560-1647
+n 1449 1514 1494 1606 1539 1497 1564 1488 | median 1505.5 | 1449-1606
+# Home at rest, scrolled 900 px (posters under the bar) - as built
+a 1475 1500 1630 1503 1553 1490 1477 1490 | median 1495 | 1475-1630
+e 1651 1551 1540 1609 1556 1533 1573 1513 | median 1553.5 | 1513-1651
+n 1464 1517 1573 1485 1588 1484 1553 1507 | median 1512 | 1464-1588
+# (tried and taken out) the bevel worked out only in its own strips - four chains: not scrolled, then scrolled
+a 1925 1491 1618 1658 1638 1712 1512 1606 | median 1628 | 1491-1925
+e 1865 2142 1921 1825 1908 1913 1856 1859 | median 1886.5 | 1825-2142
+n 1622 1544 1706 1538 1709 1578 1620 1639 | median 1621 | 1538-1709
+a 1603 2007 1524 1567 1511 1575 1594 1665 | median 1584.5 | 1511-2007
+e 1860 1729 1634 1722 1737 1715 1705 1683 | median 1718.5 | 1634-1860
+n 1580 1721 1584 1562 1553 1629 1628 1535 | median 1582 | 1535-1721
+# a film PAUSED and left alone for eleven seconds (the lens has rested), controls up, nothing of the rig asking for frames
+a 249 235 236 226 234 | median 235 | 226-249
+e 241 242 240 234 239 | median 240 | 234-242
+# a film PAUSED, its first ten seconds (the lens is on the dock and the top pills)
+a 254 240 246 247 240 | median 246 | 240-254
+e 411 409 403 420 399 | median 409 | 399-420
+# a film PLAYING, controls held up
+a 596 688 600 586 595 | median 596 | 586-688
+e 695 868 610 635 615 | median 635 | 610-868
+
+# The More menu's first 700 ms, phone 390x844, CPU x4, 14 runs (tools/real-glass/more-open.js)
+a frames 38 worst 36,35,36,36,35,36,36,35,35,36,37,35,36,34 median worst 36 late 1
+e frames 38 worst 53,35,35,35,36,52,35,36,36,36,36,35,35,36 median worst 36 late 1
+
+# Phone scroll and rest: perf-phone.json (tools/glass-options/perf.js, 8 runs)
+phone-390 {"a":{"scrollMean":17.8,"scrollP95":18.5,"scrollP99":18.6,"scrollWorst":19,"scrollLate":0,"scrollFrames":78,"restMean":17.75,"restP95":18.5,"restLate":0,"droppedPct":null,"compositorFrames":null,"moreFrames":38,"moreP95":18.6,"moreWorst":36,"moreLate":1},"e":{"scrollMean":17.8,"scrollP95":18.5,"scrollP99":18.6,"scrollWorst":19,"scrollLate":0,"scrollFrames":79,"restMean":17.75,"restP95":18.5,"restLate":0,"droppedPct":null,"compositorFrames":null,"moreFrames":38,"moreP95":18.6,"moreWorst":35.5,"moreLate":1}}
