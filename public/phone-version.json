@@ -1,5 +1,5 @@
 {
-  "versionName": "1.1.6",
-  "date": "2026-11-12",
-  "notes": "Small things put right: the greeting no longer slides under the top buttons, and Recommend always names the title."
+  "versionName": "1.1.7",
+  "date": "2026-11-19",
+  "notes": "Continue Watching fixed: one card per series, it follows every device, and minutes watched offline keep their place."
 }
