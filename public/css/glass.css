@@ -6125,3 +6125,19 @@ html[data-look="glass"] .player-top .pbtn:focus-visible::before {
     content: none;
   }
 }
+/* Phones: the lens is the tab bar's alone. The small round buttons and the
+   hero's button keep Clear's plain backdrop under the same rim: with every
+   one of them bending the picture too, the More menu's first frame came a
+   frame later at CPU x4 (71 ms against 53; with the bar alone, 54 —
+   tools/real-glass/more-open.js). At 42 px there is little picture in a
+   bezel to bend; the rim's light carries the look there. */
+@media (max-width: 720px) {
+  html[data-look="glass"][data-lens]:root .nav-logo,
+  html[data-look="glass"][data-lens]:root .nav-profile,
+  html[data-look="glass"][data-lens]:root .nav-gear,
+  html[data-look="glass"][data-lens]:root .nav-dl,
+  html[data-look="glass"][data-lens]:root .nav-remote,
+  html[data-look="glass"][data-lens]:root .hero-actions .btn:not(.btn-primary) {
+    --g-blur: var(--ge-blur);
+  }
+}

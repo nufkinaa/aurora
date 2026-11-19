@@ -4,7 +4,10 @@
 // tools/glass-options/perf.js measures the same once per run; this is the
 // quick, repeated version used to find where a late frame comes from.
 //
-//   node tools/real-glass/more-open.js [runs=10] [a,e,n]
+// "b": e with the tab bar's lens taken off (the round buttons keep theirs);
+// "t": e with the round buttons' lens taken off (the bar keeps its own).
+//
+//   node tools/real-glass/more-open.js [runs=10] [a,e,n,b,t]
 "use strict";
 const { launch, openPage, go, sleep } = require("../glass-apple/lib");
 
@@ -30,6 +33,8 @@ const med = (a) => { const s = [...a].sort((x, y) => x - y); return s[Math.floor
         await h.page.addInitScript(WATCH);
         await go(h, "home");
         await h.page.waitForSelector(".row .card", { timeout: 30000 });
+        const plain = { b: ".nav-items", t: ".nav-logo, .nav-gear, .nav-profile, .nav-dl, .hero-actions .btn" }[side];
+        if (plain) await h.page.addStyleTag({ content: `${plain.split(",").map((x) => `html[data-look="glass"][data-lens]:root ${x.trim()}`).join(",")} { --g-blur: var(--ge-blur) !important; }` });
         await sleep(1500);
         await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
         await sleep(2500);

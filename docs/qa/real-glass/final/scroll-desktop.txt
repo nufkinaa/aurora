@@ -1,0 +1,18 @@
+desktop a {"n":117,"mean":16.4,"worst":19,"late":0,"lensSets":0,"filters":"0->0"}
+desktop e {"n":110,"mean":17.9,"worst":35,"late":1,"lensSets":0,"filters":"8->8"}
+desktop e {"n":109,"mean":17.9,"worst":19,"late":0,"lensSets":0,"filters":"8->8"}
+desktop a {"n":111,"mean":17.9,"worst":19,"late":0,"lensSets":0,"filters":"0->0"}
+desktop a {"n":113,"mean":17.6,"worst":19,"late":0,"lensSets":0,"filters":"0->0"}
+desktop e {"n":111,"mean":18,"worst":35,"late":1,"lensSets":0,"filters":"8->8"}
+desktop e {"n":110,"mean":17.9,"worst":19,"late":0,"lensSets":0,"filters":"8->8"}
+desktop a {"n":111,"mean":18,"worst":36,"late":1,"lensSets":0,"filters":"0->0"}
+desktop a {"n":113,"mean":17.8,"worst":19,"late":0,"lensSets":0,"filters":"0->0"}
+desktop e {"n":108,"mean":17.8,"worst":19,"late":0,"lensSets":0,"filters":"8->8"}
+desktop e {"n":112,"mean":17.9,"worst":19,"late":0,"lensSets":0,"filters":"8->8"}
+desktop a {"n":113,"mean":17.9,"worst":19,"late":0,"lensSets":0,"filters":"0->0"}
+desktop a {"n":113,"mean":17.8,"worst":19,"late":0,"lensSets":0,"filters":"0->0"}
+desktop e {"n":111,"mean":17.9,"worst":19,"late":0,"lensSets":0,"filters":"8->8"}
+desktop e {"n":111,"mean":17.9,"worst":19,"late":0,"lensSets":0,"filters":"8->8"}
+desktop a {"n":109,"mean":17.9,"worst":19,"late":0,"lensSets":0,"filters":"0->0"}
+a mean 17.9 worst 19 late 0 | all late: 0,0,0,1,0,0,0,0
+e mean 17.9 worst 19 late 0 | all late: 1,0,1,0,0,0,0,0
