@@ -62,7 +62,17 @@ The desktop scroll batch of this pass was taken while another build was running 
 
 ## Words on the glass
 
-CONTRAST
+Measured again with `tools/glass-options/contrast.js` (the dimmest 1 % behind each word, over a white poster, a bright poster, mid grey, white text, a bright sky band and black; a white frame for the player), with the body's two gradients in place. Every real-glass surface reads the same as today, to a tenth:
+
+| surface | lowest, today | lowest, real glass |
+|---|---:|---:|
+| phone tab bar, words / chosen tab | 6.3 / 5.4 | 6.3 / 5.4 |
+| phone top buttons | 5.8 | 5.8 |
+| desktop and tablet top bar, words / chosen tab | 5.3 / 5.1 | 5.3 / 5.1 |
+| glass buttons on a title's page, quiet words | 5.7 | 5.7 |
+| the player's dock and pills | 4.7 | 4.7 |
+
+The cells under 4.5:1 are on surfaces this work did not touch (a chip's count, the season bar and a Settings pane's icons over a sky painted as one bright band), with the same numbers on both sides.
 
 ## How it is made
 
@@ -80,7 +90,7 @@ Reduce Transparency, a TV's browser, a weak device, `forced-colors` and `prefers
 
 ## Checks
 
-- `tools/real-glass/layout-same.js`: every element's box against today's stylesheet on six screens at six widths, and every ring against its own surface. LAYOUT
+- `tools/real-glass/layout-same.js`: every element's box against today's stylesheet on six screens at six widths, and every ring against its own surface. Nothing moved in any of the 36 cases, and every ring is its surface's.
 - `test/glasslens.test.js`: the lens is Chromium's alone; the map; the colour steps; a `url()` only under `[data-lens]`; no surface but the bar and the hero's button has a lens at rest; no lens over a playing film.
 - `test/ui/glass-lens.test.js`: rings at 1440, 1024, 768 and 390; the maps come back if taken out; a phone's lens is the tab bar's alone; an iPhone has none; the player takes it only while paused; at 1024 the profile menu opens above the bar; the classic look has none.
 
