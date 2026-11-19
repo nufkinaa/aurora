@@ -43,7 +43,7 @@ const openLive = async (b, { size, side, dpr }) => {
   await page.evaluate(() => document.querySelector(".grid .card, .row .card").click());
   await page.waitForFunction(() => /^#\/(movie|discover\/movie)\//.test(location.hash), null, { timeout: 15000 });
   const film = await page.evaluate(() => location.hash);
-  return { ctx, page, pending, inst: { url: LIVE, routes: { home: "#/", libfilm: film } } };
+  return { ctx, page, pending, inst: { url: LIVE, routes: { home: "#/", libfilm: film, settings: "#/preferences" } } };
 };
 
 const syncJs = () => {
@@ -82,6 +82,13 @@ const SCENES = [
   { id: "d-busy", size: "desktop", route: "home", stage: [busy(0.12)], crops: [".nav"] },
   { id: "d-bright", size: "desktop", route: "home", stage: [bright(0.3, ["cream", "snow", "lemon", "white", "cream", "snow"])], crops: [".nav"] },
   { id: "d-title", size: "desktop", route: "libfilm", crops: [".detail-actions", ".nav"] },
+  // the dark sky alone behind the chrome (Settings), and the widths between a phone and a wide desktop
+  { id: "p-sky", size: "phone-390", route: "settings", crops: [".nav-logo, .nav-gear, .nav-profile, .nav-dl", ".nav-items"] },
+  { id: "d-sky", size: "desktop", route: "settings", crops: [".nav"] },
+  { id: "t-home", size: "tablet", route: "home", crops: [".nav", ".hero-actions"] },
+  { id: "t-busy", size: "tablet", route: "home", stage: [busy(0.15)], crops: [".nav"] },
+  { id: "t7-home", size: "tablet-768", route: "home", crops: [".nav", ".hero-actions"] },
+  { id: "t7-title", size: "tablet-768", route: "libfilm", crops: [".detail-actions", ".nav"] },
 ];
 
 const main = async () => {
@@ -94,7 +101,7 @@ const main = async () => {
   const b = await launch();
   try {
     for (const size of [...new Set(scenes.map((s) => s.size))]) {
-      const h = await (process.env.LIVE ? openLive : openPage)(b, { size, side: name === "today" ? "before" : "after", dpr: size === "desktop" ? 2 : 3 });
+      const h = await (process.env.LIVE ? openLive : openPage)(b, { size, side: name === "today" ? "before" : "after", dpr: SIZES[size].mobile && SIZES[size].width <= 720 ? 3 : 2 });
       const { page } = h;
       for (const s of scenes.filter((x) => x.size === size)) {
         await go(h, s.route);

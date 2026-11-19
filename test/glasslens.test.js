@@ -96,7 +96,7 @@ test("the stylesheet shows a url() backdrop only under html[data-lens], and the 
   assert.ok(seen >= 1, "the lens rule is there");
   // the script's surfaces are the stylesheet's
   const scope = /const SCOPE = \[([\s\S]*?)\]\.join/.exec(js)[1].match(/"[^"]+"/g).map((s) => s.slice(1, -1));
-  assert.ok(scope.length >= 8);
+  assert.ok(scope.includes(".nav-items"));
   // never over a playing film: the lens would be worked out again every frame
   for (const s of scope) assert.doesNotMatch(s, /player|upnext|resume-card|quality-pill|party-pill/, `${s} is the player's`);
   assert.doesNotMatch(css, /\[data-lens\][^{,]*\.(player|upnext|resume-card|quality-pill|party-pill)/, "no lens rule on the player's chrome");

@@ -14,20 +14,14 @@
 // browser's own ResizeObserver says when a size changes; a MutationObserver
 // (coalesced to one pass) finds surfaces as screens come and go.
 
-// what takes the lens: the same list as the "Real glass" section of glass.css
-const SCOPE = [
-  ".nav-items",
-  ".nav-logo",
-  ".nav-profile",
-  ".nav-gear",
-  ".nav-dl",
-  ".nav-remote",
-  ".hero-actions .btn:not(.btn-primary)",
-  ".detail-actions .btn:not(.btn-primary)",
-].join(",");
-// (Not the player's chrome: over a playing film the lens would be worked out
-// again for every frame of it — tools/real-glass/player-cost.js. It wears
-// the rim over Clear's plain blur.)
+// What takes the lens: the same two as the "Real glass" section of glass.css
+// — the bar (the desktop island, the phone tab bar) and the hero's glass
+// button. Not the small buttons, and not the player's chrome: a lens is
+// worked out again for every frame in which what is behind it moves, and
+// with one on every surface that was measured — 12 % more processor time on
+// a desktop Home at rest, nearly four times as much over a playing film
+// (tools/real-glass/player-cost.js). They wear the rim over Clear's blur.
+const SCOPE = [".nav-items", ".hero-actions .btn:not(.btn-primary)"].join(",");
 // On a phone the stylesheet gives the lens to the tab bar alone (the More
 // menu's first frame — glass.css, "Phones: the lens is the tab bar's
 // alone"): no maps are drawn for the rest.
@@ -85,9 +79,10 @@ const smooth = (a, b, x) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a
 // put(x, y, across, down, veil): 128 = straight through; veil 255 = all bevel.
 export function lensMap(w, h, radius, put, res = 1, thick = 1) {
   const { r, bezel } = lensGeometry(w, h, radius, thick);
-  for (let py = 0; py < h * res; py++) {
-    for (let px = 0; px < w * res; px++) {
-      const x = (px + 0.5) / res, y = (py + 0.5) / res;
+  const W = Math.max(2, Math.round(w * res)), H = Math.max(2, Math.round(h * res));
+  for (let py = 0; py < H; py++) {
+    for (let px = 0; px < W; px++) {
+      const x = ((px + 0.5) * w) / W, y = ((py + 0.5) * h) / H;
       // the nearest point of the rounded box's spine, and the way out from it
       const cx = Math.min(Math.max(x, r), w - r), cy = Math.min(Math.max(y, r), h - r);
       let nx = x - cx, ny = y - cy;
@@ -151,11 +146,14 @@ const filterFor = (w, h, radius, look) => {
   const had = filters.get(key);
   if (had) { had.used = ++tick; return had.id; }
   const svg = ensureDefs();
-  // a small round button's map is drawn twice as fine: its whole face is
-  // rim. A bar's is not: the map is decoded again whenever the bar is
-  // painted anew (a tab lighting up).
-  const res = w * h <= 6000 ? 2 : 1;
-  const W = w * res, H = h * res;
+  // The map is a small picture, stretched over the pane: half the pane's
+  // size each way for a bar, the pane's own for a small round button. It is
+  // smooth, so nothing is lost — and it matters: Chromium sends a filter's
+  // picture along with EVERY frame it draws while what is behind the pane
+  // moves (the living sky, a scroll), so a big map is paid for sixty times
+  // a second (tools/real-glass/player-cost.js).
+  const res = Number(window.__rgRes) || (w * h <= 2600 ? 1 : 0.5);
+  const W = Math.max(2, Math.round(w * res)), H = Math.max(2, Math.round(h * res));
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
   const ctx = c.getContext("2d");

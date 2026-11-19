@@ -11,7 +11,8 @@
 // scrolled up and down the whole time by script; SCROLL=touch: by a finger.
 //
 //   node tools/real-glass/player-cost.js [runs=4] [a,e,n] [seconds=10]
-//   a = today's stylesheet and script, e = this worktree, n = e with the lens off
+//   a = today's stylesheet and script, e = this worktree, n = e with the lens off, r = n with no ::before at all,
+//   o = e with only the bar's lens, m = e without the small round buttons' and a title's buttons' lenses
 "use strict";
 const { launch, openPage, go, sleep } = require("../glass-apple/lib");
 
@@ -28,8 +29,9 @@ const r1 = (x) => Math.round(x * 10) / 10;
       // a browser of its own each time: its GPU process's time is this run's alone
       const b = await launch();
       try {
-        const h = await openPage(b, { size: process.env.SIZE || "desktop", side: side === "a" ? "before" : "after", freeze: false, extra: side === "n" ? { "aurora-lens": "off" } : {} });
+        const h = await openPage(b, { size: process.env.SIZE || "desktop", side: side === "a" ? "before" : "after", freeze: false, extra: side === "n" || side === "r" ? { "aurora-lens": "off" } : {} });
         const { page } = h;
+        if (process.env.RES) await page.addInitScript((r) => { window.__rgRes = r; }, Number(process.env.RES)); // (a try: how fine the maps are drawn)
         const home = process.env.WHERE === "home";
         await go(h, home ? "home" : `#/play/${h.inst.lib.film1}`);
         if (home) { await page.waitForSelector(".row .card", { timeout: 30000 }); await page.evaluate(() => scrollTo(0, 900)); }
@@ -45,7 +47,21 @@ const r1 = (x) => Math.round(x * 10) / 10;
           const loop = (t) => { if (last) window.__f.push(t - last); last = t; requestAnimationFrame(loop); };
           requestAnimationFrame(loop);
         }, [home, process.env.SCROLL || ""]);
+        // r = n without the rims' rings (::before): what the rings cost
+        if (side === "r") await page.addStyleTag({ content: "html[data-look='glass']:root *::before { content: none !important; }" });
         await sleep(2500);
+        // TRY=ref: every lens swapped for the plain frosted filter (still a url() filter, no map, no bend);
+        // TRY=one: only the bar keeps its lens; TRY=nomap: lenses without their map picture's cost? (see notes)
+        const how = side === "o" ? "one" : side === "m" ? "mid" : process.env.TRY;
+        if (how) await page.evaluate((how) => {
+          for (const el of document.querySelectorAll("[style*='--rg-lens']")) {
+            if (how === "ref") el.style.setProperty("--rg-lens", "url(#rg-0)");
+            if (how === "one" && !el.matches(".nav-items")) el.style.setProperty("--rg-lens", "url(#rg-0)");
+            if (how === "bar" && el.matches(".nav-items")) el.style.setProperty("--rg-lens", "url(#rg-0)");
+            if (how === "mid" && el.matches(".nav-gear, .nav-dl, .nav-remote, .detail-actions .btn")) el.style.setProperty("--rg-lens", "url(#rg-0)");
+          }
+        }, how);
+        await sleep(500);
         const sys = await b.newBrowserCDPSession();
         const times = async () => Object.fromEntries((await sys.send("SystemInfo.getProcessInfo")).processInfo.map((p) => [`${p.type}:${p.id}`, p.cpuTime]));
         const lens = await page.evaluate(() => [...document.querySelectorAll(".nav-items, .nav-logo, .nav-gear, .nav-profile, .player-bottom, .player-top > div, .player-top .pbtn")].filter((e) => /rg-[1-9]/.test(e.style.getPropertyValue("--rg-lens")) && document.documentElement.dataset.lens).length);

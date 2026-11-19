@@ -6097,15 +6097,17 @@ html[data-look="glass"] .detail-actions .btn.btn-icon {
   }
 }
 /* Chromium: the lens itself (the surface's own map from js/glasslens.js;
-   #rg-0 is "frosted, straight through", there from the first moment) */
+   #rg-0 is "frosted, straight through", there from the first moment).
+   The lens is the BAR's — the desktop island, the phone tab bar — and the
+   hero's glass button's. The other buttons wear the rim over Clear's plain
+   backdrop: at 42 px there is next to no picture in a bezel to bend, and a
+   lens is worked out again for every frame in which what is behind it
+   moves. With one on every button, a desktop Home at rest (the living sky
+   never stands still) used 12 % more processor time than today; with the
+   bar's alone, the same as today (tools/real-glass/player-cost.js,
+   docs/qa/real-glass/README.md). */
 html[data-look="glass"][data-lens] .nav-items,
-html[data-look="glass"][data-lens] .nav-logo,
-html[data-look="glass"][data-lens] .nav-profile,
-html[data-look="glass"][data-lens] .nav-gear,
-html[data-look="glass"][data-lens] .nav-dl,
-html[data-look="glass"][data-lens] .nav-remote,
-html[data-look="glass"][data-lens] .hero-actions .btn:not(.btn-primary),
-html[data-look="glass"][data-lens] .detail-actions .btn:not(.btn-primary) {
+html[data-look="glass"][data-lens] .hero-actions .btn:not(.btn-primary) {
   --g-blur: var(--rg-lens, url(#rg-0)) var(--rg-post);
 }
 /* (The player's chrome wears the rim, not the lens. Over a film what is
@@ -6172,19 +6174,11 @@ html[data-look="glass"] .party-pill:focus-visible::before {
     content: none;
   }
 }
-/* Phones: the lens is the tab bar's alone. The small round buttons and the
-   hero's button keep Clear's plain backdrop under the same rim: with every
-   one of them bending the picture too, the More menu's first frame came a
+/* Phones: the lens is the tab bar's alone — the hero's button keeps the
+   plain backdrop too. With more of them the More menu's first frame came a
    frame later at CPU x4 (71 ms against 53; with the bar alone, 54 —
-   tools/real-glass/more-open.js). At 42 px there is little picture in a
-   bezel to bend; the rim carries the look there. (js/glasslens.js draws
-   no maps for them either.) */
+   tools/real-glass/more-open.js). (js/glasslens.js draws no map for it.) */
 @media (max-width: 720px) {
-  html[data-look="glass"][data-lens]:root .nav-logo,
-  html[data-look="glass"][data-lens]:root .nav-profile,
-  html[data-look="glass"][data-lens]:root .nav-gear,
-  html[data-look="glass"][data-lens]:root .nav-dl,
-  html[data-look="glass"][data-lens]:root .nav-remote,
   html[data-look="glass"][data-lens]:root .hero-actions .btn:not(.btn-primary) {
     --g-blur: var(--ge-blur);
   }
