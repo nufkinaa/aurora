@@ -32,6 +32,15 @@
 //     not, the new list is taken with the current pick pinned at its index.
 //  5. EVERYTHING ELSE TAKES THE NEW ANSWER AS IT IS: shelves below the
 //     viewport, the cards of shelves above it.
+//  6. A LIVE SHELF (`live: true` — Continue Watching) is the person's own
+//     playing state, not a ranking: it always takes the new answer as it is,
+//     on screen or not. A card the answer no longer has is never held — it
+//     was a finished film, or E3 of a series whose card is now E4, and
+//     holding it put two cards of one series side by side after the player
+//     (cw-fix, 2026-11-19). Its cards are known by their series
+//     (`seriesKey`), so E3 becoming E4 is the same card taking new data; the
+//     focused one keeps its index while the answer still has it, and a live
+//     shelf the answer no longer has goes.
 //
 // The NATURAL MOMENTS, when the held parts catch up (`locksFor` modes):
 //   "quiet"  fresh data while the viewer looks: rules 1–5 as written. Asked
@@ -56,7 +65,7 @@
 // and a shelf can be patched card by card.
 
 /** A title's identity on Home (the TV's Row pinKey, the site's rowSig). */
-export const itemKey = (it) => (it && (it.id || it.imdbId || it.title)) || "";
+export const itemKey = (it) => (it && (it.seriesKey || it.id || it.imdbId || it.title)) || "";
 
 const sameValue = (a, b) => {
   if (a === b) return true;
@@ -162,6 +171,32 @@ export const mergeItems = (shown, fresh, lock = {}) => {
   return { items: sameList(out, shown) ? shown : out, held };
 };
 
+/**
+ * A live shelf's cards (rule 6): the new answer's, in its order — the cards
+ * it kept handed back as the same objects when unchanged, the focused one
+ * (`pin`) at its index while the answer still has it, nothing held.
+ */
+export const mergeLive = (shown, fresh, pin = null) => {
+  shown = shown || [];
+  fresh = fresh || [];
+  const shownBy = byKey(shown);
+  const out = [];
+  const used = new Set();
+  for (const f of fresh) {
+    const k = itemKey(f);
+    if (!k || used.has(k)) continue;
+    used.add(k);
+    const old = shownBy.get(k);
+    out.push(old ? settle(old, f) : f);
+  }
+  if (pin && pin.key && out.length > 1) {
+    const at = out.findIndex((it) => itemKey(it) === pin.key);
+    const want = Math.min(Math.max(0, pin.index || 0), out.length - 1);
+    if (at >= 0 && at !== want) out.splice(want, 0, out.splice(at, 1)[0]);
+  }
+  return sameList(out, shown) ? shown : out;
+};
+
 const sameRowHead = (a, b) => {
   const ka = Object.keys(a).filter((k) => k !== "items");
   const kb = Object.keys(b).filter((k) => k !== "items");
@@ -257,7 +292,9 @@ export const mergeHome = (shown, fresh, locks = {}) => {
 
   const rowFor = (s, f, lock) => {
     const pin = focus && focus.rowId === s.id ? { key: focus.key, index: focus.index } : null;
-    const m = mergeItems(s.items, f.items, { keep: lock ? lock.keep : 0, floor: lock ? lock.floor : 0, pin });
+    const m = f.live
+      ? { items: mergeLive(s.items, f.items, pin), held: 0 }
+      : mergeItems(s.items, f.items, { keep: lock ? lock.keep : 0, floor: lock ? lock.floor : 0, pin });
     held += m.held;
     const head = holdHeads.has(s.id) ? s : f;
     if (m.items === s.items && sameRowHead(head, s)) return s;
@@ -278,6 +315,8 @@ export const mergeHome = (shown, fresh, locks = {}) => {
       continue;
     }
     if (!f || !(f.items || []).length) {
+      // (a live shelf the answer no longer has: everything in it is finished)
+      if (s.live) continue;
       rows.push(s);
       held += (s.items || []).length;
       continue;

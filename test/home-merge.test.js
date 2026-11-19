@@ -227,7 +227,7 @@ const dedupe = (items) => {
 test("530 before/after answers: every rule holds on every one", async () => {
   const m = await load();
   const all = allCases();
-  assert.equal(all.length, 530);
+  assert.equal(all.length, 535);
   let checked = 0;
   for (const c of all) {
     const at = `${c.name} (${c.mode})`;
@@ -240,28 +240,40 @@ test("530 before/after answers: every rule holds on every one", async () => {
     // no shelf twice, no card twice in a shelf
     assert.equal(nIndex.size, next.rows.length, `${at}: a shelf twice`);
     for (const x of next.rows) assert.equal(new Set(keys(x.items)).size, x.items.length, `${at}: a card twice in ${x.id}`);
+    // rule 6: a live shelf is the answer's, as it is — the rules below hold
+    // for every other shelf (and one the answer dropped is gone)
+    const liveId = new Set([...sRows, ...c.fresh.rows].filter((x) => x.live).map((x) => x.id));
+    for (const id of liveId) {
+      const f = c.fresh.rows.find((x) => x.id === id);
+      const n = next.rows[nIndex.get(id)];
+      if (!f || !(f.items || []).length) assert.ok(!n, `${at}: a live shelf the answer dropped is still there`);
+      else if (!c.look.focus || c.look.focus.rowId !== id) assert.deepEqual(keys(n.items), keys(dedupe(f.items)), `${at}: live shelf ${id} is not the answer`);
+    }
     // rule 1: the shelves that hold the layout keep their places
-    for (let i = 0; i < locks.keepRows; i++) assert.equal(next.rows[i].id, sRows[i].id, `${at}: shelf ${i} moved`);
+    const kept = sRows.slice(0, locks.keepRows).filter((x) => !(liveId.has(x.id) && !nIndex.has(x.id)));
+    for (let i = 0; i < kept.length; i++) assert.equal(next.rows[i].id, kept[i].id, `${at}: shelf ${i} moved`);
     // rule 2 (quiet): visible cards hold, up to the last visible one; headings too
     if (c.mode === "quiet") {
       for (const v of c.look.rows) {
+        if (liveId.has(v.id)) continue;
         const s = sRows.find((x) => x.id === v.id);
         const n = next.rows[nIndex.get(v.id)];
         assert.deepEqual(keys(n.items).slice(0, v.to), keys(s.items).slice(0, v.to), `${at}: visible cards of ${v.id} moved`);
         assert.equal(n.title, s.title, `${at}: heading of ${v.id}`);
       }
-      assert.equal(m.visibleMoves(c.shown, next, c.look), 0, `${at}: something on screen moved`);
+      if (!liveId.size) assert.equal(m.visibleMoves(c.shown, next, c.look), 0, `${at}: something on screen moved`);
     }
     // idle: no visible shelf shorter than what shows
     if (c.mode === "idle") {
       for (const v of c.look.rows) {
+        if (liveId.has(v.id)) continue;
         const s = sRows.find((x) => x.id === v.id);
         const n = next.rows[nIndex.get(v.id)];
         assert.ok(n.items.length >= Math.min(v.to, s.items.length), `${at}: ${v.id} got shorter than what shows`);
       }
     }
     // rule 3: the focused card
-    if (c.look.focus) {
+    if (c.look.focus && !(liveId.has(c.look.focus.rowId) && !(c.fresh.rows.find((x) => x.id === c.look.focus.rowId) || { items: [] }).items.some((x) => (x.seriesKey || x.id) === c.look.focus.key))) {
       const f = c.look.focus;
       const n = next.rows[nIndex.get(f.rowId)];
       assert.ok(n, `${at}: the focused shelf is gone`);
