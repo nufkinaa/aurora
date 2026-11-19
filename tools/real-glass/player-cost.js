@@ -58,6 +58,8 @@ const r1 = (x) => Math.round(x * 10) / 10;
         // PAUSED=1: the film paused on a frame, the controls up (the lens is on the player's chrome then);
         // HOVER=1: the pointer resting on the settings button (it wears its lens under the pointer)
         if (process.env.PAUSED) { await page.evaluate(() => window.__v.pause()); await sleep(1200); }
+        // REST=1: …and left alone for eleven seconds first (the paused lens rests after ten)
+        if (process.env.REST) await sleep(11000);
         if (process.env.HOVER || side === "h") { const c = await page.evaluate(() => { const r = document.querySelector(".nav-gear").getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }); await page.mouse.move(c[0], c[1]); await sleep(600); }
         // TRY=ref: every lens swapped for the plain frosted filter (still a url() filter, no map, no bend);
         // TRY=one: only the bar keeps its lens; TRY=nomap: lenses without their map picture's cost? (see notes)

@@ -150,7 +150,7 @@ const ensureDefs = () => {
 const LIT = 1.04, LIFT = 0.01;
 
 const filterFor = (w, h, radius, look) => {
-  const key = `${w}x${h}r${Math.round(radius)}t${look.thick}s${look.spread}n${look.taps}b${look.soft}z${look.zones}`;
+  const key = `${w}x${h}r${Math.round(radius)}t${look.thick}s${look.spread}n${look.taps}b${look.soft}`;
   const had = filters.get(key);
   if (had) { had.used = ++tick; return had.id; }
   const svg = ensureDefs();
@@ -173,43 +173,34 @@ const filterFor = (w, h, radius, look) => {
   }, res, look.thick);
   ctx.putImageData(im, 0, 0);
   const id = `rg-${++serial}`;
-  const { depth, bezel, r } = lensGeometry(w, h, radius, look.thick);
+  const { depth } = lensGeometry(w, h, radius, look.thick);
   const f = fe("filter", { id, x: "0", y: "0", width: "100%", height: "100%", "color-interpolation-filters": "sRGB" });
   f.append(fe("feImage", { href: c.toDataURL("image/png"), x: "0", y: "0", width: String(w), height: String(h), preserveAspectRatio: "none", result: "map" }));
   // the face: softly frosted, the whole pane
   f.append(fe("feGaussianBlur", { in: "SourceGraphic", stdDeviation: String(SOFT), result: "soft" }));
-  // The bevel is worked out only where the bevel IS: a strip along the top,
-  // one along the foot and the two ends — not across the face, which is most
-  // of a bar and would be thrown away under the veil. (--rg-zones: 0 works it
-  // out across the whole pane, as before; kept to measure one against the other.)
-  const B = Math.ceil(bezel) + 1, R = Math.ceil(Math.max(r, bezel)) + 1;
-  const zones = look.zones && h > 2 * B + 2 && w > 2 * R + 2
-    ? [[0, 0, w, B], [0, h - B, w, B], [0, B, R, h - 2 * B], [w - R, B, R, h - 2 * B]]
-    : [[0, 0, w, h]];
-  // (how far outside its own strip the bent picture is fetched from)
-  const reach = Math.ceil(depth * (1 + look.spread) + 3 * look.soft) + 2;
-  const taps = lensTaps(look.taps, look.spread);
-  const rims = zones.map(([zx, zy, zw, zh], z) => {
-    const at = { x: String(zx), y: String(zy), width: String(zw), height: String(zh) };
-    const x0 = Math.max(0, zx - reach), y0 = Math.max(0, zy - reach), x1 = Math.min(w, zx + zw + reach), y1 = Math.min(h, zy + zh + reach);
-    // (the bevel's picture a touch soft: squeezed pixel-sharp, it speckles)
-    f.append(fe("feGaussianBlur", { in: "SourceGraphic", stdDeviation: String(look.soft), x: String(x0), y: String(y0), width: String(x1 - x0), height: String(y1 - y0), result: `crisp${z}` }));
-    let sum = null;
-    taps.forEach((tap, i) => {
-      f.append(fe("feDisplacementMap", { in: `crisp${z}`, in2: "map", scale: String(Math.round(depth * 2 * tap.k * 100) / 100), xChannelSelector: "R", yChannelSelector: "G", ...at, result: `bent${z}_${i}` }));
-      const [cr, cg, cb] = tap.rgb.map((v) => [Math.round(v * LIT * 1000) / 1000, v ? Math.round(v * LIFT * 1000) / 1000 : 0]);
-      f.append(fe("feColorMatrix", { in: `bent${z}_${i}`, type: "matrix", values: `${cr[0]} 0 0 0 ${cr[1]}  0 ${cg[0]} 0 0 ${cg[1]}  0 0 ${cb[0]} 0 ${cb[1]}  0 0 0 1 0`, ...at, result: `part${z}_${i}` }));
-      if (sum == null) sum = `part${z}_${i}`;
-      else {
-        f.append(fe("feComposite", { in: sum, in2: `part${z}_${i}`, operator: "arithmetic", k1: "0", k2: "1", k3: "1", k4: "0", ...at, result: `sum${z}_${i}` }));
-        sum = `sum${z}_${i}`;
-      }
-    });
-    // the veil (the map's third number): how much of each pixel is the bevel's
-    f.append(fe("feColorMatrix", { in: "map", type: "matrix", values: "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 1 0 0", ...at, result: `veil${z}` }));
-    f.append(fe("feComposite", { in: sum, in2: `veil${z}`, operator: "in", ...at, result: `rim${z}` }));
-    return `rim${z}`;
+  // (Working the bevel out only in its own strips — top, foot, the two ends —
+  // was tried: it made a lens COST MORE, 8.5 % against 2.9 % on a desktop Home
+  // at rest. What a lens costs while the picture behind it moves goes with
+  // the number of steps in the filter, not with the area they cover, and four
+  // strips are four chains. One chain over the whole pane, as few steps as
+  // the look allows: docs/qa/real-glass/README.md.)
+  // (the bevel's picture a touch soft: squeezed pixel-sharp, it speckles)
+  f.append(fe("feGaussianBlur", { in: "SourceGraphic", stdDeviation: String(look.soft), result: "crisp" }));
+  let sum = null;
+  lensTaps(look.taps, look.spread).forEach((tap, i) => {
+    f.append(fe("feDisplacementMap", { in: "crisp", in2: "map", scale: String(Math.round(depth * 2 * tap.k * 100) / 100), xChannelSelector: "R", yChannelSelector: "G", result: `bent${i}` }));
+    const [cr, cg, cb] = tap.rgb.map((v) => [Math.round(v * LIT * 1000) / 1000, v ? Math.round(v * LIFT * 1000) / 1000 : 0]);
+    f.append(fe("feColorMatrix", { in: `bent${i}`, type: "matrix", values: `${cr[0]} 0 0 0 ${cr[1]}  0 ${cg[0]} 0 0 ${cg[1]}  0 0 ${cb[0]} 0 ${cb[1]}  0 0 0 1 0`, result: `part${i}` }));
+    if (sum == null) sum = `part${i}`;
+    else {
+      f.append(fe("feComposite", { in: sum, in2: `part${i}`, operator: "arithmetic", k1: "0", k2: "1", k3: "1", k4: "0", result: `sum${i}` }));
+      sum = `sum${i}`;
+    }
   });
+  // the veil (the map's third number): how much of each pixel is the bevel's
+  f.append(fe("feColorMatrix", { in: "map", type: "matrix", values: "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 1 0 0", result: "veil" }));
+  f.append(fe("feComposite", { in: sum, in2: "veil", operator: "in", result: "rim" }));
+  const rims = ["rim"];
   const merge = fe("feMerge", {});
   merge.append(fe("feMergeNode", { in: "soft" }), ...rims.map((name) => fe("feMergeNode", { in: name })));
   f.append(merge);
@@ -244,7 +235,7 @@ const apply = (el) => {
   const w = Math.round(el.offsetWidth), h = Math.round(el.offsetHeight);
   if (w < 28 || h < 28 || w * h > 1400 * 220) return plain(el);
   const cs = getComputedStyle(el);
-  const look = { thick: num(cs, "--rg-thick", 1, 0.5, 2), spread: num(cs, "--rg-spread", 0.1, 0, 0.3), taps: num(cs, "--rg-taps", 3, 3, 5) >= 5 ? 5 : 3, soft: num(cs, "--rg-soft", 1.3, 0, 4), zones: num(cs, "--rg-zones", 1, 0, 1) >= 0.5 ? 1 : 0 };
+  const look = { thick: num(cs, "--rg-thick", 1, 0.5, 2), spread: num(cs, "--rg-spread", 0.1, 0, 0.3), taps: num(cs, "--rg-taps", 3, 3, 5) >= 5 ? 5 : 3, soft: num(cs, "--rg-soft", 1.3, 0, 4) };
   const want = `url(#${filterFor(w, h, parseFloat(cs.borderTopLeftRadius) || 0, look)})`;
   if (el.style.getPropertyValue("--rg-lens") !== want) el.style.setProperty("--rg-lens", want);
 };
