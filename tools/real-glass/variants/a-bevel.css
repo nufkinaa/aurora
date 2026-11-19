@@ -2,6 +2,7 @@
    coloured lines at the ends of a pane. No light on the rim at all. */
 html[data-look="glass"] {
   --rg-arc: none;
+  --rg-arc-s: none;
   --rg-rim:
     inset 0 0 0 1px rgba(255, 255, 255, 0.19),
     inset 0 0 7px 0 rgba(255, 255, 255, 0.09),

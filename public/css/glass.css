@@ -6092,3 +6092,36 @@ html[data-look="glass"] .detail-actions .btn.btn-icon {
     content: none;
   }
 }
+/* a pane that takes the keyboard's focus is drawn by its focus ring: the
+   rim's light steps back */
+html[data-look="glass"] .nav-logo:focus-visible::before,
+html[data-look="glass"] .nav-profile:focus-visible::before,
+html[data-look="glass"] .nav-gear:focus-visible::before,
+html[data-look="glass"] .nav-dl:focus-visible::before,
+html[data-look="glass"] .nav-remote:focus-visible::before,
+html[data-look="glass"] .hero-actions .btn:focus-visible::before,
+html[data-look="glass"] .detail-actions .btn:focus-visible::before,
+html[data-look="glass"] .player-top .pbtn:focus-visible::before {
+  opacity: 0;
+}
+/* a browser that cannot cut the ring out of its square would paint the
+   light over the whole pane: it gets none */
+@supports not ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
+  html[data-look="glass"]:root .nav-items::before,
+  html[data-look="glass"]:root .nav-logo::before,
+  html[data-look="glass"]:root .nav-profile::before,
+  html[data-look="glass"]:root .nav-gear::before,
+  html[data-look="glass"]:root .nav-dl::before,
+  html[data-look="glass"]:root .nav-remote::before,
+  html[data-look="glass"]:root .hero-actions .btn:not(.btn-primary)::before,
+  html[data-look="glass"]:root .detail-actions .btn:not(.btn-primary)::before,
+  html[data-look="glass"]:root .player-bottom::before,
+  html[data-look="glass"]:root .player-top > div::before,
+  html[data-look="glass"]:root .player-top .pbtn::before,
+  html[data-look="glass"]:root .upnext::before,
+  html[data-look="glass"]:root .resume-card::before,
+  html[data-look="glass"]:root .quality-pill::before,
+  html[data-look="glass"]:root .party-pill::before {
+    content: none;
+  }
+}

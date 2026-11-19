@@ -17,6 +17,13 @@ html[data-look="glass"] {
     radial-gradient(circle 30px at calc(100% - 2px) 70%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 100%),
     radial-gradient(circle 38px at calc(100% - 8px) calc(100% + 4px), rgba(72, 208, 255, 1), rgba(72, 208, 255, 0) 100%),
     radial-gradient(circle 34px at 100% 16%, rgba(255, 104, 96, 1), rgba(255, 104, 96, 0) 100%);
+  --rg-arc-s:
+    radial-gradient(circle 30px at 2px 30%, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0) 100%),
+    radial-gradient(circle 38px at 8px -4px, rgba(255, 104, 96, 1), rgba(255, 104, 96, 0) 100%),
+    radial-gradient(circle 34px at 0 84%, rgba(72, 208, 255, 1), rgba(72, 208, 255, 0) 100%),
+    radial-gradient(circle 30px at calc(100% - 2px) 70%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 100%),
+    radial-gradient(circle 38px at calc(100% - 8px) calc(100% + 4px), rgba(72, 208, 255, 1), rgba(72, 208, 255, 0) 100%),
+    radial-gradient(circle 34px at 100% 16%, rgba(255, 104, 96, 1), rgba(255, 104, 96, 0) 100%);
   --ge-shadow: 0 14px 30px rgba(0, 0, 0, 0.42), 0 3px 6px rgba(0, 0, 0, 0.34);
 }
 html[data-look="glass"] .nav-items::before,

@@ -251,7 +251,9 @@ export function initGlassLens() {
     if (pending) return;
     pending = setTimeout(() => { pending = 0; scan(); }, 80);
   };
-  const reduce = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-transparency: reduce)") : null;
+  // (reduced transparency, and a TV's browser — where glass.css drops the
+  // blur — get no lens either)
+  const reduce = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-transparency: reduce), (hover: none) and (pointer: coarse) and (min-width: 1200px)") : null;
   const decide = () => {
     const want = root.dataset.look === "glass" && root.dataset.fx !== "lite" && !(reduce && reduce.matches);
     if (want === on) return;
