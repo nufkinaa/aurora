@@ -81,11 +81,37 @@ Today beside real glass, the same moment twice. 01–12 and 14–16 are this PC'
 
 ## Words on the glass
 
-CONTRAST
+Measured again with `tools/glass-options/contrast.js` (the dimmest 1 % behind each word, over a white poster, a bright poster, mid grey, white text, a bright sky band and black; a white frame for the player). Every real-glass surface reads the same as today, to a tenth:
+
+| surface | lowest, today | lowest, real glass |
+|---|---:|---:|
+| phone tab bar, words / chosen tab | 6.3 / 5.4 | 6.3 / 5.4 |
+| phone top buttons | 5.8 | 5.8 |
+| desktop and tablet top bar, words / chosen tab | 5.3 / 5.1 | 5.3 / 5.1 |
+| glass buttons on a title's page, quiet words | 5.7 | 5.7 |
+| the player's dock and pills | 4.7 | 4.7 |
+
+The bend lives in the bevel, where no word is. The three cells under 4.5:1 are the same three as before, on surfaces this work did not touch (a chip's count and the season bar over a sky painted as one bright band).
 
 ## Speed
 
-SPEED
+The numbers are in `final2/timings.txt` and `final2/perf-phone.json`. "Today" is origin/master's stylesheet and script, answered by the rig on the same server in the same minutes, the two sides taking turns.
+
+| | today | real glass |
+|---|---:|---:|
+| phone 390 × 844, CPU ×4: scroll mean / p95 / p99 (ms), 8 runs | 17.8 / 18.5 / 18.6 | 17.8 / 18.5 / 18.65 |
+| phone: late frames in a scroll, and at rest | 0, 0 | 0, 0 |
+| phone: the More menu's worst frame (ms), 14 runs | 53 | 52 |
+| phone: processor time during 6 s of a finger's scroll (ms), 6 runs | 740 | 733 |
+| desktop 1440 × 900: scroll mean (ms), late frames, 8 runs | 17.9, 0 | 17.9, 0–1 |
+| desktop Home at rest: processor time in 8 s (ms), 8 runs | 2225 | 2055 |
+| a film playing, controls up: processor time in 8 s (ms), 4 runs | 735 | 815 |
+
+- Desktop scroll: 7 late frames in all over the 8 runs today, 8 with real glass.
+- The film's two medians are from runs that overlap (695–1067 today, 691–1056 with real glass); frames and dropped video frames are the same (0 of 200).
+- What these numbers looked like before the lens was taken off the buttons and the player is in "Where the lens is" above.
+
+The machine is shared, and other builds ran on it during this work. Batches in which today's own side showed late frames it does not normally have were taken again; the ones kept are the calm ones. The phone's More-menu figure inside `perf-phone.json` (54.5 against 62 over 8 runs) comes from a batch whose last runs were disturbed on both sides; the 14-run measure above is the one to read.
 
 ## The phone app
 

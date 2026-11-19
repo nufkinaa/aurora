@@ -1,14 +1,30 @@
-a frames 37 worst 54,53,36,36,54,54,54,70,70,53,53,54 median worst 54 late 1
-e frames 38 worst 70,54,71,54,53,53,54,53,35,52,36,52 median worst 53 late 1
-a mean 17.9 worst 35 late 1 | all late: 0,1,0,1,1,0,1,0
-e mean 17.9 worst 25 late 0 | all late: 1,0,0,0,0,1,0,1
-a mean 18.1 worst 36 late 1 | all late: 1,4,1,1
-e mean 18.3 worst 36 late 3 | all late: 3,0,3,0
-a {"lens":0,"playing":true,"frames":458,"mean":17.5,"late":0,"video":201,"dropped":0,"gpuMs":0,"rendererMs":671}
-e {"lens":4,"playing":true,"frames":460,"mean":17.4,"late":0,"video":201,"dropped":0,"gpuMs":0,"rendererMs":726}
-e {"lens":4,"playing":true,"frames":458,"mean":17.5,"late":0,"video":200,"dropped":0,"gpuMs":0,"rendererMs":921}
-a {"lens":0,"playing":true,"frames":461,"mean":17.4,"late":0,"video":200,"dropped":0,"gpuMs":0,"rendererMs":875}
-a {"lens":0,"playing":true,"frames":460,"mean":17.4,"late":0,"video":200,"dropped":0,"gpuMs":0,"rendererMs":796}
-e {"lens":4,"playing":true,"frames":461,"mean":17.4,"late":0,"video":200,"dropped":0,"gpuMs":0,"rendererMs":873}
-a over 8s: GPU process 0 ms, page 796 ms, mean frame 17.4 ms, late 0, video frames dropped 0 of 200
-e over 8s: GPU process 0 ms, page 873 ms, mean frame 17.4 ms, late 0, video frames dropped 0 of 200
+# More menu, first 700 ms, phone 390x844 CPU x4, 14 runs (tools/real-glass/more-open.js) — a = today, e = real glass
+a frames 37 worst 106,71,54,35,36,54,36,53,36,53,52,35,36,53 median worst 53 late 1
+e frames 37 worst 70,54,52,37,35,36,54,54,36,52,72,35,71,36 median worst 52 late 1
+
+# Desktop 1440x900, Home scrolled top to bottom, 8 runs (tools/real-glass/scroll-probe.js)
+a mean 17.9 worst 19 late 0 | all late: 0,0,0,3,0,2,2,0
+e mean 17.9 worst 35 late 1 | all late: 1,0,1,0,4,0,2,0
+
+# Desktop Home at rest, processor time of the page's processes over 8 s, ms (tools/real-glass/player-cost.js WHERE=home)
+# a lens on every button (before): a / e
+a 2385 1872 1876 2152 2079 2266 2159 1916 
+e 2694 2404 2080 2668 2180 2511 2328 2060 
+# a (today), e (lens on every button), o (the bar's alone), n (no lens)
+a 2342 2056 2120 1944 1957 2460 
+e 2306 1967 1929 2410 2355 2510 
+o 2224 1863 2063 1949 2397 2008 
+n 2037 2300 1966 1774 2143 2110 
+# as built (the bar and the hero's button): a / e
+a 1820 2182 2268 2417 1967 2401 2373 1973 
+e 1769 1919 2299 2419 2075 2296 2034 2036 
+
+# A film playing with the controls up, processor time of the page's processes over 8 s, ms (tools/real-glass/player-cost.js)
+# with lenses on the player's chrome (before; 3 runs each): a 738 773 732 / e 2758 3702 2741 / n (lens off) 1007 736 717
+# as built (no lens on the player), 4 runs each:
+a 768 695 702 1067
+e 691 737 893 1056
+
+# Phone 390x844, a finger's scroll for 6 s, processor time ms: a / e
+a 660 782 778 736 692 744 
+e 813 680 845 709 756 619 
