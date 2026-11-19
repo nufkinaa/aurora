@@ -632,8 +632,10 @@ export const api = {
   profileState: (id) => json(`/api/profiles/${id}/state`),
   // `item` (optional) is the torrent play-item meta, so Continue Watching can
   // render + resume streamed content.
-  // `extra`: { at } when the position was reached earlier than now (a save
-  // queued with no server), { undo: true } for the Undo of a ✕.
+  // `extra`: { at, sentAt } when the position was reached earlier than now (a
+  // save queued with no server; sentAt = this device's clock as it sends, so
+  // the server reads "how long ago" whatever this clock is off by),
+  // { undo: true } for the Undo of a ✕.
   saveProgress: (id, itemId, position, duration, item, extra = null) =>
     historyWrite(post(`/api/profiles/${id}/progress`, { itemId, position, duration, item, ...(extra || {}) })),
   clearProgress: (id, itemId) =>

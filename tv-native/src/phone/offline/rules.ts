@@ -239,3 +239,18 @@ export function nextSaved<T extends {showId?: string | null; season?: number | n
 /** "Show · S1 E2" for an episode, the title for a film. */
 export const copyName = (it: {title: string; showTitle?: string | null; season?: number | null; episode?: number | null}) =>
   it.showTitle && it.season != null && it.episode != null ? `${it.showTitle} · S${it.season} E${it.episode}` : it.title;
+
+// ---- where a saved copy begins (OfflinePlayer, cw-fix 2026-11-19) ----
+export type ServerRow = {position?: number; finished?: boolean; updatedAt?: number};
+/** How far apart the phone's clock and the server's may be before one spot is
+ *  called newer than the other. */
+export const CLOCKS_APART_MS = 2 * 60 * 1000;
+/** The copy's own spot, or the server's when that is clearly newer (watched
+ *  further on the TV since — the history the title page just read). Only for
+ *  a copy that knows when its spot was saved: copies saved by older builds
+ *  kept no time, and theirs is never assumed older. The two times are two
+ *  clocks, so a couple of minutes either way decides nothing. */
+export function resumeFrom(copy: {position?: number; positionAt?: number}, srv: ServerRow | null | undefined): number {
+  if (srv && !srv.finished && copy.positionAt && (srv.updatedAt || 0) > copy.positionAt + CLOCKS_APART_MS && (srv.position || 0) > 10) return srv.position || 0;
+  return copy.position || 0;
+}

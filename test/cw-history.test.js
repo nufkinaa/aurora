@@ -129,3 +129,39 @@ test("a library episode whose file is gone is known by the title row it wrote", 
   assert.equal(d.goneEpisode("film9"), null, "a film's row is no episode");
   assert.equal(d.goneEpisode("nope"), null);
 });
+
+test("a late save from a device whose clock is behind: how long ago is read from its own clock (sentAt)", () => {
+  const e = SILO("d7", 3, 1);
+  const behind = 10 * 60 * 1000; // the phone's clock runs ten minutes slow
+  // another device saved this episode just now (server clock)
+  profiles.setProgress("ann", e.id, 600, 3000, e);
+  pause();
+  // the phone, with no server, watched on to 20:00 a moment later; on its own
+  // clock that moment reads ten minutes ago, and it sends right away
+  const phoneNow = Date.now() - behind;
+  assert.equal(profiles.setProgress("ann", e.id, 1200, 3000, e, { at: phoneNow }), false,
+    "(as before, `at` alone: ten minutes \"old\" on the server's clock — dropped)");
+  const ok = profiles.setProgress("ann", e.id, 1200, 3000, e, { at: phoneNow, sentAt: phoneNow });
+  assert.equal(ok, true, "with sentAt the phone's clock being slow does not matter");
+  assert.equal(profiles.getProgress("ann")[e.id].position, 1200);
+  assert.ok(Math.abs(profiles.getProgress("ann")[e.id].updatedAt - Date.now()) < 2000, "stamped on the server's clock");
+  const at = phoneNow - 60 * 60 * 1000;
+  // and one really older than the server's history is still dropped
+  profiles.setProgress("ann", e.id, 1500, 3000, e);
+  assert.equal(profiles.setProgress("ann", e.id, 900, 3000, e, { at, sentAt: phoneNow + 5 * 60 * 1000 }), false);
+});
+
+test("the Undo of a ✕ is written to profiles.json (the journal does not carry the lifted hide)", () => {
+  const ep = SILO("u5", 4, 2);
+  profiles.setProgress("bob", ep.id, 800, 3000, ep);
+  const was = { ...profiles.getProgress("bob")[ep.id] };
+  profiles.clearProgress("bob", ep.id);
+  const store = profiles._internals.store;
+  store.flush();
+  assert.equal(store.dirty, false);
+  profiles.setProgress("bob", ep.id, was.position, was.duration, ep, { at: was.updatedAt, undo: true });
+  assert.equal(store.dirty, true, "red before: only the journal heard of it");
+  store.flush();
+  const onDisk = JSON.parse(fs.readFileSync(path.join(root, "data", "profiles.json"), "utf-8"));
+  assert.equal((onDisk.state.bob.cwHidden || {}).tt14688458, undefined, "the hide is gone on disk too");
+});

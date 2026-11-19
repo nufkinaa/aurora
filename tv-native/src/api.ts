@@ -1873,7 +1873,9 @@ export const api = {
     // `at`: when the position was really reached, for a save sent late (the
     // phone's offline queue) — the server drops one older than the history
     // it holds; `undo`: the Undo of a ✕ on Continue Watching.
-    extra?: {at?: number; undo?: boolean},
+    // `sentAt`: this device's clock as it sends (the server reads how long ago
+    // `at` was from the two, whatever this clock is off by).
+    extra?: {at?: number; sentAt?: number; undo?: boolean},
   ) =>
     historyWrite(
       post<{ ok: boolean; stale?: boolean }>(`/api/profiles/${profileId}/progress`, {
@@ -1881,7 +1883,7 @@ export const api = {
         position,
         duration,
         item,
-        ...(extra && extra.at && extra.at > 0 ? {at: extra.at} : {}),
+        ...(extra && extra.at && extra.at > 0 ? {at: extra.at, ...(extra.sentAt ? {sentAt: extra.sentAt} : {})} : {}),
         ...(extra && extra.undo ? {undo: true} : {}),
       }),
     ),

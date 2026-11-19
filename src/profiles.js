@@ -1365,7 +1365,15 @@ const setProgress = (profileId, itemId, position, duration, meta, opts = {}) => 
   let stamp = now;
   const at = Number(opts && opts.at);
   if (Number.isFinite(at) && at > 0) {
-    stamp = Math.min(now, Math.floor(at));
+    // `sentAt`: the device's clock when it sent this — `at` is on the same
+    // clock, so how long ago it was watched is sentAt − at, whatever the
+    // device's clock is off by (a phone running minutes behind the server
+    // had its real offline progress dropped as "older"). Without it, `at`
+    // is taken as it is.
+    const sentAt = Number(opts && opts.sentAt);
+    stamp = Number.isFinite(sentAt) && sentAt > 0
+      ? now - Math.max(0, Math.floor(sentAt - at))
+      : Math.min(now, Math.floor(at));
     const cur = state.progress[itemId];
     const tkey = titleKeyOf(itemId, (meta && typeof meta === "object" ? meta : null) || state.streamItems[itemId]);
     const t = tkey ? state.titles[tkey] : null;
@@ -1405,6 +1413,10 @@ const setProgress = (profileId, itemId, position, duration, meta, opts = {}) => 
   // Not a rewrite of profiles.json: the journal (lib/watchjournal.js).
   bumpState(profileId);
   journal.note(profileId, { progress: [itemId], titles: titled ? [key] : [], streamItems: metaKept ? [itemId] : [] }, { urgent });
+  // (an Undo lifted the ✕'s hidden stamp, which the journal does not carry:
+  // profiles.json is written now, or a restart before the next full write
+  // brought the hide back — newer than the row Undo restored at its old time)
+  if (opts && opts.undo) store.save();
   return true;
 };
 

@@ -132,6 +132,7 @@ function Row({
   store,
   storeKey,
   caption,
+  holdsFocus,
 }: {
   title: string;
   // [household] the cards print their own line (item.meta, "From Dana") — Card's `caption`
@@ -158,6 +159,11 @@ function Row({
   // it the shelf is what it always was.
   store?: Map<string, ShelfMemory>;
   storeKey?: string;
+  // Whether focus is on this shelf now (Home's own record, one function for
+  // every row): a Continue Watching title that left the row under the focus
+  // hands it to the card now at its index only then — never pulling focus
+  // back from the billboard (cw-fix).
+  holdsFocus?: (rowIndex: number) => boolean;
 }) {
   const {width} = useWindowDimensions();
   const geom = useMemo(() => shelfGeom(!!wide, width), [wide, width]);
@@ -222,6 +228,17 @@ function Row({
     const p = pinned.pin;
     if (!p) return;
     const server = (items || []).findIndex(it => pinKey(it) === p.key);
+    // Continue Watching: the focused title left the row (a film finished, the
+    // last episode on disk). It is not held (above), so focus goes to the card
+    // now at its index — before focus.ts's rescue sends it to the billboard
+    // ("BACK takes me to the hero", 2026-10-18), and so the pool's slot is not
+    // handed to an entering card under the focus. The refocus effect below
+    // (the ✕'s) runs in this same commit.
+    if (server < 0 && onRemove) {
+      focusKey.current = null;
+      focusItem.current = undefined;
+      if ((items || []).length && (!holdsFocus || holdsFocus(rowIndex ?? 0))) refocusAt.current = lastIdx.current;
+    }
     // (adb logcat -s ReactNativeJS | grep "\[row\] reread") kept=held: the re-read no longer
     // had the title, it is held where focus is (shelfPin.ts)
     console.log(`[row] reread row=${rowIndex ?? 0} card=${p.key} at=${p.index} server=${server} kept=${server >= 0 ? 'yes' : 'held'}`);

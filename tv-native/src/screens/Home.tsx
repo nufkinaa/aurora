@@ -1173,6 +1173,8 @@ export default function Home({
     [toHero],
   );
 
+  // (Row: is focus on shelf `index` now — one stable function for every row)
+  const rowHoldsFocus = useCallback((index: number) => curRow.current === index, []);
   const toRow = useCallback(
     (index: number) => {
       curRow.current = index;
@@ -1614,6 +1616,7 @@ export default function Home({
               showKind
               wide={r.id === 'continue'}
               onRemove={r.id === 'continue' ? removeFromContinue : undefined}
+              holdsFocus={r.id === 'continue' ? rowHoldsFocus : undefined}
               store={HOME_WINDOW ? shelfStore : undefined}
               storeKey={r.id}
             />
@@ -1621,7 +1624,7 @@ export default function Home({
         </View>
       );
     },
-    [openDetail, openHousehold, playContinue, onRowItemFocus, removeFromContinue, win, rowH, shelfStore, syncTargets],
+    [openDetail, openHousehold, playContinue, onRowItemFocus, removeFromContinue, rowHoldsFocus, win, rowH, shelfStore, syncTargets],
   );
 
   if (!data && !error) {

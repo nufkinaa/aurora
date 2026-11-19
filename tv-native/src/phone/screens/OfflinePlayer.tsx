@@ -22,7 +22,7 @@ import {flushOfflineProgress, noteOfflinePlayed, noteOfflineProgress, offlineFor
 import {api, getActiveProfile} from '../../api';
 import {reportActivity} from '../../realtime';
 import {createWatchClock} from '../../watchClock';
-import {nextSaved} from '../offline/rules';
+import {nextSaved, resumeFrom, ServerRow} from '../offline/rules';
 import {personNow} from '../../personSync';
 import {loadPrefs} from '../../storage';
 import {showToast} from '../../toast';
@@ -91,9 +91,8 @@ export function OfflinePlayerView({
     if (!it) return 0;
     const who = it.profileId || getActiveProfile();
     const st = who ? api.stateIfFresh(who, 10 * 60 * 1000) : null;
-    const srv = st && st.progress ? (st.progress as Record<string, {position?: number; finished?: boolean; updatedAt?: number}>)[it.id] : null;
-    if (srv && !srv.finished && (srv.updatedAt || 0) > (it.positionAt || 0) && (srv.position || 0) > 10) return srv.position || 0;
-    return it.position || 0;
+    const srv = st && st.progress ? (st.progress as Record<string, ServerRow>)[it.id] : null;
+    return resumeFrom(it, srv);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const next = it ? nextSaved(mineHere, it) : null;

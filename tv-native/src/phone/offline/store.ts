@@ -740,7 +740,7 @@ export async function flushOfflineProgress() {
         // `at`: when it was watched — older than what the server has heard
         // since (the TV watched on), it is dropped there instead of stamped
         // "now" and taking Continue Watching back to this episode (cw-fix)
-        await api.saveProgress(p.profileId, p.itemId, p.position, p.duration, undefined, {at: p.at});
+        await api.saveProgress(p.profileId, p.itemId, p.position, p.duration, undefined, {at: p.at, sentAt: Date.now()});
       } catch {
         left.push(p);
       }

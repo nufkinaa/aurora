@@ -131,4 +131,25 @@ ui.test("the ✕ and its Undo: the card comes back in its place, and stays there
   await rowIs(page, (ls) => ls.length === 2 && /Test Film One/.test(ls[0]) && /S1 E2/.test(ls[1]), "after a reload: both, in their places");
 });
 
+ui.test("a series taken off with ✕ comes back on the same visit once it is watched again elsewhere", async ({ page, api, lib, signIn, freshProfile, goto }) => {
+  const p = await freshProfile();
+  await save(api, p, lib.e2.id, 20, 45);
+  await save(api, p, lib.film1.id, 20, 60);
+  await signIn(p);
+  await goto("#/");
+  const ep = page.locator(CARDS, { hasText: "S1 E2" });
+  await ep.waitFor({ timeout: 20000 });
+  await ep.hover();
+  await ep.locator(".card-remove").click();
+  await page.waitForFunction(() => /Removed from Continue Watching/.test(document.getElementById("toasts").innerText));
+  await rowIs(page, (ls) => ls.length === 1 && /Test Film One/.test(ls[0]), "the series is off");
+  // an answer after the ✕ (the server has it off too)
+  await api.adminPost("/api/admin/rescan");
+  await page.waitForTimeout(1500);
+  // the TV watches E3; the next answer this visit gets brings the series back
+  await save(api, p, lib.e3.id, 20, 45);
+  await api.adminPost("/api/admin/rescan");
+  await rowIs(page, (ls) => ls.length === 2 && ls.some((l) => /S1 E3/.test(l)), "red before: the series stayed filtered out for the whole visit");
+});
+
 ui.run({ concurrency: 1 });

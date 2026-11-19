@@ -696,7 +696,8 @@ router.post("/api/profiles/:id/progress", gate, (req, res) => {
   // `at`: when a late save (a queued offline one) was really made; `undo`:
   // the Undo of a ✕ on Continue Watching (profiles.setProgress)
   const at = typeof req.body.at === "number" && Number.isFinite(req.body.at) && req.body.at > 0 ? req.body.at : null;
-  const saved = profiles.setProgress(req.params.id, itemId, position, duration, item, { at, undo: req.body.undo === true });
+  const sentAt = at && typeof req.body.sentAt === "number" && Number.isFinite(req.body.sentAt) && req.body.sentAt > 0 ? req.body.sentAt : null;
+  const saved = profiles.setProgress(req.params.id, itemId, position, duration, item, { at, sentAt, undo: req.body.undo === true });
   // (older than what the history already holds: nothing was written, and
   // nothing downstream is told of a play that is not the newest)
   if (saved === false) return res.json({ ok: true, stale: true });
