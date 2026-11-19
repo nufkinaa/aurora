@@ -157,6 +157,21 @@ const named = () => {
     f.rows[1].items = [it("x"), ...f.rows[1].items.slice(1)];
     add("a card scrolled off to the left of a visible shelf holds (quiet)", "quiet", base, f, { rows: [{ id: "recs", from: 3, to: 7 }], above: 1, focus: null, heroVisible: false, heroIndex: 0 });
   }
+  // 16. a live shelf (Continue Watching, `live: true`): always the new answer,
+  // its cards known by their series — nothing held (cw-fix, 2026-11-19)
+  {
+    const s = clone(base);
+    s.rows[0] = { ...row("continue", [it("e3", 1, { seriesKey: "s:show" }), it("m1"), it("m2"), it("m3")]), live: true };
+    const f = clone(s);
+    f.rows[0].items = [it("e4", 1, { seriesKey: "s:show" }), it("m2"), it("m1")]; // E3 → E4, m3 finished, reordered
+    add("a live shelf takes the new answer as it is: E3 becomes E4 in place, a finished card goes", "quiet", s, f, atTop);
+    add("a live shelf at idle: the new answer as it is", "idle", s, f, atTop);
+    add("a live shelf: the focused card keeps its index while the answer has it", "quiet", s, f, { ...atTop, focus: { rowId: "continue", key: "m1", index: 1 }, heroVisible: false });
+    add("a live shelf: a focused card the answer dropped is not held", "quiet", s, f, { ...atTop, focus: { rowId: "continue", key: "m3", index: 3 }, heroVisible: false });
+    const g = clone(s);
+    g.rows.splice(0, 1);
+    add("a live shelf the answer no longer has goes, even on screen", "quiet", s, g, atTop);
+  }
   return cases;
 };
 

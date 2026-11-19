@@ -879,11 +879,21 @@ export const renderHome = async (root) => {
   // ...and stays gone from any answer that was already on its way when it
   // was taken off (a Home fetched a moment before "Not for me" still has it)
   const takenOff = new Map(); // row id -> Set of item keys
+  // On a live shelf (Continue Watching) a card is taken off by its OWN id, not
+  // its series (itemKey): the same series with another card — watched on, on
+  // the TV — is not what was taken off. And once an answer comes back without
+  // that card the server has it too: the entry goes, so the series can come
+  // back for the rest of the visit when it is watched again (cw-fix).
+  const liveRow = (id) => !!((shown && shown.rows.find((r) => r.id === id)) || {}).live;
+  const offKey = (id, x) => (liveRow(id) ? (x && x.id) || itemKey(x) : itemKey(x));
   const withoutTakenOff = (home) => {
     if (!takenOff.size || !home || !Array.isArray(home.rows)) return home;
     return { ...home, rows: home.rows.map((r) => {
       const off = takenOff.get(r.id);
-      return off && off.size ? { ...r, items: (r.items || []).filter((x) => !off.has(itemKey(x))) } : r;
+      if (!off || !off.size) return r;
+      const items = (r.items || []).filter((x) => !off.has(offKey(r.id, x)));
+      if (r.live) for (const k of [...off]) if (!(r.items || []).some((x) => offKey(r.id, x) === k)) off.delete(k);
+      return { ...r, items };
     }) };
   };
   rowsHost.addEventListener("aurora-shelf-changed", (e) => {
@@ -896,14 +906,14 @@ export const renderHome = async (root) => {
     const last = Math.max(-1, ...built.map((x) => all.indexOf(x)));
     const items = scroller._fillRow ? [...built, ...all.slice(last + 1).filter((x) => !built.includes(x))] : built;
     const before = (shown.rows.find((r) => r.id === id) || { items: [] }).items;
-    const gone = new Set(before.filter((x) => !items.includes(x)).map(itemKey));
+    const gone = new Set(before.filter((x) => !items.includes(x)).map((x) => offKey(id, x)));
     const off = takenOff.get(id) || new Set();
     for (const k of gone) off.add(k);
-    for (const x of items) off.delete(itemKey(x)); // put back (Undo)
+    for (const x of items) off.delete(offKey(id, x)); // put back (Undo)
     takenOff.set(id, off);
     scroller._rowItems = items;
     shown = { ...shown, rows: shown.rows.map((r) => (r.id === id ? { ...r, items } : r)) };
-    if (fresh && gone.size) fresh = { ...fresh, rows: fresh.rows.map((r) => (r.id === id ? { ...r, items: r.items.filter((x) => !gone.has(itemKey(x))) } : r)) };
+    if (fresh && gone.size) fresh = { ...fresh, rows: fresh.rows.map((r) => (r.id === id ? { ...r, items: r.items.filter((x) => !gone.has(offKey(id, x))) } : r)) };
   });
   const ACTIVITY = ["scroll", "pointerdown", "keydown", "wheel", "touchstart", "focusin"];
   for (const t of ACTIVITY) document.addEventListener(t, onActivity, { passive: true, capture: true });
@@ -942,6 +952,23 @@ export const renderHome = async (root) => {
       takeFresh(next);
     } catch {}
   });
+
+  // Back to this tab after a while (cw-fix, 2026-11-19): somebody may have
+  // watched on the TV or the phone meanwhile — Continue Watching above all is
+  // read again (it waited for the next visit to Home). Merged as any fresh
+  // answer is, so nothing on screen jumps but that row.
+  let shownAt = Date.now();
+  const onVisible = async () => {
+    if (document.visibilityState !== "visible" || !screen.isConnected || !state.profile) return;
+    if (Date.now() - shownAt < 15000) return;
+    shownAt = Date.now();
+    try {
+      const next = await api.home(state.profile.id);
+      if (screen.isConnected) takeFresh(next);
+    } catch {}
+  };
+  document.addEventListener("visibilitychange", onVisible);
+  cleanups.push(() => document.removeEventListener("visibilitychange", onVisible));
 
   // Something was recommended to this person: the row takes it in (the toast
   // is js/recommend.js watchArrivals, wherever the person is)

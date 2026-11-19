@@ -19,10 +19,10 @@ import PhoneChrome from '../player/PhoneChrome';
 import PhoneGestures from '../player/PhoneGestures';
 import {phoneNative} from '../native';
 import {flushOfflineProgress, noteOfflinePlayed, noteOfflineProgress, offlineForProfile} from '../offline/store';
-import {getActiveProfile} from '../../api';
+import {api, getActiveProfile} from '../../api';
 import {reportActivity} from '../../realtime';
 import {createWatchClock} from '../../watchClock';
-import {nextSaved} from '../offline/rules';
+import {nextSaved, resumeFrom, ServerRow} from '../offline/rules';
 import {personNow} from '../../personSync';
 import {loadPrefs} from '../../storage';
 import {showToast} from '../../toast';
@@ -78,7 +78,23 @@ export function OfflinePlayerView({
   const [preview, setPreview] = useState<number | null>(null);
   const hide = useRef<ReturnType<typeof setTimeout> | null>(null);
   const curRef = useRef(0);
-  const lastSave = useRef(0);
+  // (the first save waits for real watching: one the moment the copy opened
+  // wrote its own, older spot over what the server had heard since — cw-fix)
+  const lastSave = useRef(Date.now());
+  // Where playback landed (null until the copy has loaded): leaving before it
+  // has moved from there saves nothing. Leaving at once used to save 0 —
+  // the resume point gone everywhere, the series off Continue Watching.
+  const landedAt = useRef<number | null>(null);
+  // Where to begin: the copy's own spot, or the server's when that is newer
+  // (watched further on the TV since — the history the title page just read).
+  const resumeAt = useMemo(() => {
+    if (!it) return 0;
+    const who = it.profileId || getActiveProfile();
+    const st = who ? api.stateIfFresh(who, 10 * 60 * 1000) : null;
+    const srv = st && st.progress ? (st.progress as Record<string, ServerRow>)[it.id] : null;
+    return resumeFrom(it, srv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const next = it ? nextSaved(mineHere, it) : null;
   // the person's "play the next episode" (personSync when the server was
   // heard this run, else the setting kept on the phone)
@@ -149,7 +165,7 @@ export function OfflinePlayerView({
       reportRef.current(); // the last seconds played
       reportActivity('Browsing');
       flushOfflineProgress(); // (what was kept, with the device named)
-      if (it) noteOfflineProgress(it.id, curRef.current, dur || it.duration || 0, it.profileId);
+      if (it && landedAt.current != null && Math.abs(curRef.current - landedAt.current) > 2) noteOfflineProgress(it.id, curRef.current, dur || it.duration || 0, it.profileId);
       phoneNative.setKeepAwake(false);
       phoneNative.setImmersive(false);
       phoneNative.setPip(false);
@@ -196,7 +212,8 @@ export function OfflinePlayerView({
           // rules itself when its view comes up (auto-enter off), and Home then stopped the film
           // instead of shrinking it (measured on the emulator; the streaming player does this too)
           phoneNative.setPip(!paused, d.naturalSize?.width || 16, d.naturalSize?.height || 9);
-          if (it.position && it.position > 10 && (!d.duration || it.position < d.duration - 20)) seek(Math.max(0, it.position - 4));
+          if (resumeAt > 10 && (!d.duration || resumeAt < d.duration - 20)) seek(Math.max(0, resumeAt - 4));
+          landedAt.current = curRef.current;
         }}
         onProgress={p => {
           curRef.current = p.currentTime;

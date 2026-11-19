@@ -45,9 +45,9 @@ const all = (): Case[] => [
 ];
 const keys = (items: m.MergeItem[]) => items.map(x => m.itemKey(x));
 
-test('530 cases: the same answers as the website', () => {
+test('535 cases: the same answers as the website', () => {
   const list = all();
-  expect(list.length).toBe(530);
+  expect(list.length).toBe(535);
   for (const c of list) {
     const got = gen.expectOf(m, c);
     if (c.recorded) expect([c.name, got]).toEqual([c.name, c.recorded]);
@@ -55,9 +55,16 @@ test('530 cases: the same answers as the website', () => {
   }
 });
 
-test('530 cases: nothing on screen moves in "quiet", focus and the slide never move, a second merge is a no-op', () => {
+test('535 cases: nothing on screen moves in "quiet", focus and the slide never move, a second merge is a no-op', () => {
   for (const c of all()) {
     if (!c.shown || !c.fresh) continue;
+    // (a live shelf — Continue Watching — takes the new answer as it is:
+    // homeMerge.js rule 6; the website's test checks those cases)
+    if ([...c.shown.rows, ...c.fresh.rows].some(x => x.live)) {
+      const again = m.mergeHome(m.mergeHome(c.shown, c.fresh, m.locksFor(c.mode, c.look, c.shown.rows)).home, c.fresh, m.locksFor(c.mode, c.look, c.shown.rows));
+      expect([c.name, again.held]).toEqual([c.name, 0]);
+      continue;
+    }
     const locks = m.locksFor(c.mode, c.look, c.shown.rows);
     const r = m.mergeHome(c.shown, c.fresh, locks);
     const next = r.home!;

@@ -1348,16 +1348,46 @@ const remove = (id) => {
 
 // `meta` (optional) is the play-item for a torrent stream, stored so Continue
 // Watching can render + resume it (torrent ids aren't in the scanner).
-const setProgress = (profileId, itemId, position, duration, meta) => {
-  bumpSignals(profileId);
+//
+// `opts.at` (cw-fix, 2026-11-19): when the position was really reached, for a
+// save delivered late — a copy watched with no server, its minutes queued on
+// the device and sent once the server is back. Such a save was stamped "now"
+// and so beat everything watched since on other devices: Continue Watching
+// jumped back to the episode from the plane, a finished title came back
+// unfinished. Now a late save older than what this title's history already
+// holds is dropped, and a newer one keeps its own time (never later than now).
+// `opts.undo`: the Undo of a ✕ on Continue Watching — the series that ✕ took
+// off the row comes back with the row (hideSeries, below).
+// -> false when the save was dropped as older than the history.
+const setProgress = (profileId, itemId, position, duration, meta, opts = {}) => {
   const state = stateFor(profileId);
+  const now = Date.now();
+  let stamp = now;
+  const at = Number(opts && opts.at);
+  if (Number.isFinite(at) && at > 0) {
+    // `sentAt`: the device's clock when it sent this — `at` is on the same
+    // clock, so how long ago it was watched is sentAt − at, whatever the
+    // device's clock is off by (a phone running minutes behind the server
+    // had its real offline progress dropped as "older"). Without it, `at`
+    // is taken as it is.
+    const sentAt = Number(opts && opts.sentAt);
+    stamp = Number.isFinite(sentAt) && sentAt > 0
+      ? now - Math.max(0, Math.floor(sentAt - at))
+      : Math.min(now, Math.floor(at));
+    const cur = state.progress[itemId];
+    const tkey = titleKeyOf(itemId, (meta && typeof meta === "object" ? meta : null) || state.streamItems[itemId]);
+    const t = tkey ? state.titles[tkey] : null;
+    if (Math.max((cur && cur.updatedAt) || 0, (t && t.updatedAt) || 0) > stamp) return false;
+  }
+  bumpSignals(profileId);
   const finished = duration > 0 && position / duration > 0.95;
   const row = {
     position: Math.floor(position),
     duration: Math.floor(duration),
     finished,
-    updatedAt: Date.now(),
+    updatedAt: stamp,
   };
+
   const urgent = !isPlaybackTick(state.progress[itemId], row);
   // A rewatch: this title was FINISHED by watching it (not by a mark), at
   // least six hours ago, and is now being played from the first half again.
@@ -1375,12 +1405,19 @@ const setProgress = (profileId, itemId, position, duration, meta) => {
     state.streamItems[itemId] = meta;
     metaKept = true;
   }
+  // (after the play-item is back: a stream's series is read from it)
+  if (opts && opts.undo) unhideSeries(state, itemId);
   // The shared history row for the TITLE, whatever was played (see titles).
   const key = titleKeyOf(itemId, state.streamItems[itemId]);
   const titled = key ? writeTitle(state, key, row, itemId) : false;
   // Not a rewrite of profiles.json: the journal (lib/watchjournal.js).
   bumpState(profileId);
   journal.note(profileId, { progress: [itemId], titles: titled ? [key] : [], streamItems: metaKept ? [itemId] : [] }, { urgent });
+  // (an Undo lifted the ✕'s hidden stamp, which the journal does not carry:
+  // profiles.json is written now, or a restart before the next full write
+  // brought the hide back — newer than the row Undo restored at its old time)
+  if (opts && opts.undo) store.save();
+  return true;
 };
 
 // Is this save one more tick of steady playback of the same title? Not when
@@ -1635,6 +1672,7 @@ const continueWatching = (profileId) => {
 const continueDeps = (state, view = null) => {
   const identity = identityLib();
   const maps = identity._internals.libraryMaps();
+  let goneIndex = null;
   return {
     streamMeta: (id) => state.streamItems[id] || null,
     ownedPlayable: (meta) => {
@@ -1654,6 +1692,20 @@ const continueDeps = (state, view = null) => {
     creditsStream: (meta, prog) => streamCreditsAt(meta, prog),
     upNextDismissed: state.upNextDismissed,
     hidden: state.cwHidden || {},
+    // ("torrents": false in config.json: a stream card could not be played)
+    streamsOff: () => { try { return !require("./lib/torrentgate").enabled(); } catch { return false; } },
+    // A library episode id whose file is gone: which episode its history
+    // says it was (the title row it last wrote), or null.
+    goneEpisode: (id) => {
+      if (!goneIndex) {
+        goneIndex = new Map();
+        for (const [key, t] of Object.entries(state.titles || {})) {
+          const m = t && t.itemId && /^(tt\d+):(\d+):(\d+)$/.exec(key);
+          if (m && !/^(torrent|stream)\|/.test(t.itemId)) goneIndex.set(t.itemId, { imdbId: m[1], season: Number(m[2]), episode: Number(m[3]) });
+        }
+      }
+      return goneIndex.get(id) || null;
+    },
   };
 };
 
@@ -1859,6 +1911,23 @@ const hideSeries = (state, itemId, now = Date.now()) => {
     keys.sort((a, b) => state.cwHidden[a] - state.cwHidden[b]);
     for (const k of keys.slice(0, keys.length - CW_HIDDEN_MAX)) delete state.cwHidden[k];
   }
+};
+
+// The Undo of that ✕: the series' stamp goes again (with the "did not want to
+// go on" note the ✕ left for the recommender, noteDismissed below).
+const unhideSeries = (state, itemId) => {
+  try {
+    const cr = continueRowLib();
+    const ser = cr.seriesFor(itemId, continueDeps(state));
+    if (ser && state.cwHidden) {
+      if (ser.imdb) delete state.cwHidden[ser.imdb];
+      if (ser.title) delete state.cwHidden[`t:${ser.title}`];
+    }
+  } catch {}
+  try {
+    const key = titleKeyOf(itemId, state.streamItems && state.streamItems[itemId]);
+    if (key && state.dismissed) delete state.dismissed[String(key).split(":")[0]];
+  } catch {}
 };
 
 // Removing a title from Continue Watching deletes its history — and with it

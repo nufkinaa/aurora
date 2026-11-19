@@ -1166,7 +1166,9 @@ export const flushProgress = async () => {
   let n = 0;
   for (const r of rows) {
     try {
-      await api.saveProgress(r.profileId, r.itemId, r.position, r.duration);
+      // `at`: when it was watched — a save older than what the server heard
+      // since (another device watched on) is dropped there, not stamped "now"
+      await api.saveProgress(r.profileId, r.itemId, r.position, r.duration, undefined, r.at > 0 ? { at: r.at, sentAt: Date.now() } : null);
       await tx("progress", "readwrite", (s) => s.delete(r.itemId));
       n++;
     } catch {

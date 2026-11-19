@@ -21,7 +21,7 @@ const {colors, fontSize, spacing, radius} = theme;
 // one place to change: its cards say `since: ROUND`, and NEW_FROM = ROUND puts the New
 // ribbon on them alone. (The website has the same cards: public/js/screens/whatsnew.js,
 // ROUND there; its `webOnly` cards — AirPlay from an iPhone — have nothing to do on a TV.)
-export const ROUND = '5.9.6';
+export const ROUND = '5.9.7';
 const NEW_FROM = ROUND;
 const cmpVersion = (a: string, b: string) => {
   const pa = a.split('.').map(Number);
@@ -33,9 +33,18 @@ export const isNewCard = (f: {since?: string}) => !!f.since && cmpVersion(f.sinc
 
 type Feature = {since?: string; glyph: string; title: string; what: string; how: string; go?: {label: string; act: string}};
 export const FEATURES: Feature[] = [
-  // ---- 5.9.6: the TV plays like a game, the same card, the same words, on the website ----
+  // ---- 5.9.7: Continue Watching made reliable, the same card, the same words, on the website ----
   {
     since: ROUND,
+    glyph: '▶️',
+    title: "Continue Watching, fixed",
+    what: "One card per series, everywhere: back from the player it shows the next episode, never the old one beside it. It follows every device right away, keeps your spot when you open and close a title, and Undo puts a card back where it was.",
+    how: "Open Home: Continue Watching is the first row.",
+    go: {label: 'Go home', act: 'home'},
+  },
+  // ---- 5.9.6: the TV plays like a game, the same card, the same words, on the website ----
+  {
+    since: '5.9.6',
     glyph: '🎲',
     title: "Game night on the TV",
     what: "Pick together turns the TV into the party: the code as a ticket, everyone takes a seat, the votes come in with a drumroll and one burst for tonight's pick. Pick for me draws its answer on a reel, Taste is a real deck for the remote, and Your Aurora Wrapped tells your year as a story.",

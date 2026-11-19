@@ -296,7 +296,30 @@ const post = (url, body) =>
     body: JSON.stringify(body),
   });
 
-const homeInFlight = new Map(); // profile id -> the request on its way
+const homeInFlight = new Map(); // profile id -> { p, gen }: the request on its way
+
+// Writes to the watch history (a progress save, a ✕ on Continue Watching, a
+// mark, an up-next dismissal) still on their way. Home's answer is built from
+// that history, and leaving the player sends its last save and opens Home in
+// the same moment: the Home read could reach the server first and come back
+// with the row from before the film — E3 where E4 is next, the old spot on
+// the bar — and nothing asked again (cw-fix, 2026-11-19). A Home read now
+// waits for those writes (a few seconds at most), and a Home request that set
+// out before the latest write is not shared with a caller after it.
+const historyWrites = new Set();
+let historyGen = 0;
+const historyWrite = (p) => {
+  historyGen++;
+  historyWrites.add(p);
+  const done = () => { historyWrites.delete(p); };
+  p.then(done, done);
+  return p;
+};
+const HISTORY_WAIT_MS = 3000;
+const historySettled = () =>
+  historyWrites.size
+    ? Promise.race([Promise.allSettled([...historyWrites]), new Promise((r) => setTimeout(r, HISTORY_WAIT_MS))])
+    : null;
 
 export const api = {
   // An AirPlay link for the stream an Apple TV should play (public/js/airplay.js,
@@ -310,14 +333,19 @@ export const api = {
   // One Home request in flight per profile, whoever asks: the screen, its
   // refresh after a library change and the prefetch share the same answer
   // instead of each fetching the heaviest thing the server makes.
+  // (…and after the history writes on their way: historyWrite, above)
   home: (profileId) => {
     const key = profileId || "";
-    let p = homeInFlight.get(key);
-    if (!p) {
-      p = json(`/api/home?profile=${encodeURIComponent(key)}`).finally(() => homeInFlight.delete(key));
-      homeInFlight.set(key, p);
-    }
-    return p;
+    const hit = homeInFlight.get(key);
+    if (hit && hit.gen === historyGen) return hit.p;
+    const url = `/api/home?profile=${encodeURIComponent(key)}`;
+    const wait = historySettled();
+    const entry = { gen: historyGen, p: null };
+    entry.p = (wait ? wait.then(() => json(url)) : json(url)).finally(() => {
+      if (homeInFlight.get(key) === entry) homeInFlight.delete(key);
+    });
+    homeInFlight.set(key, entry);
+    return entry.p;
   },
   // Pass the active profile so torrent items can be rebuilt from stored state
   // after a page refresh (harmless for library items).
@@ -604,20 +632,24 @@ export const api = {
   profileState: (id) => json(`/api/profiles/${id}/state`),
   // `item` (optional) is the torrent play-item meta, so Continue Watching can
   // render + resume streamed content.
-  saveProgress: (id, itemId, position, duration, item) =>
-    post(`/api/profiles/${id}/progress`, { itemId, position, duration, item }),
+  // `extra`: { at, sentAt } when the position was reached earlier than now (a
+  // save queued with no server; sentAt = this device's clock as it sends, so
+  // the server reads "how long ago" whatever this clock is off by),
+  // { undo: true } for the Undo of a ✕.
+  saveProgress: (id, itemId, position, duration, item, extra = null) =>
+    historyWrite(post(`/api/profiles/${id}/progress`, { itemId, position, duration, item, ...(extra || {}) })),
   clearProgress: (id, itemId) =>
-    json(`/api/profiles/${id}/progress/${itemId}`, { method: "DELETE" }),
+    historyWrite(json(`/api/profiles/${id}/progress/${encodeURIComponent(itemId)}`, { method: "DELETE" })),
   // Mark watched / unwatched by hand — never read as "watched it just now"
   // (no smart download, no Continue Watching bump). Unwatched puts back what
   // the mark replaced; `restore` sends a snapshot row ({position, duration,
   // finished, updatedAt}) to put back instead. One entry, or { items: [...] }.
-  markWatched: (id, entry) => post(`/api/profiles/${id}/progress/mark`, entry),
+  markWatched: (id, entry) => historyWrite(post(`/api/profiles/${id}/progress/mark`, entry)),
   // Hide a show's synthesized "up next" card. clearProgress can't — the card's
   // id is the NEXT episode's, while the progress row lives under the previous
   // one, so deleting by the card's id was a silent no-op.
   dismissUpNext: (id, showId, episodeId) =>
-    post(`/api/profiles/${id}/upnext-dismiss`, { showId, episodeId }),
+    historyWrite(post(`/api/profiles/${id}/upnext-dismiss`, { showId, episodeId })),
   // itemOrRef: a local id string, or a stream ref {imdbId, type, title, poster, year}
   toggleWatchlist: (id, itemOrRef, add) => {
     forgetWarm(`/api/profiles/${id}/watchlist`); // the list is about to change

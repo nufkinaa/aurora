@@ -5606,7 +5606,21 @@ export const renderPlayer = async (root, { id }) => {
     };
   };
 
+  // Nothing is saved until playback has really MOVED from where it landed (a
+  // few seconds played, or a seek): opening a title and leaving at once wrote
+  // the landing spot — four seconds before the resume point — over it, so
+  // every open-and-back walked the resume point back, and one that began
+  // under 15 s fell off Continue Watching (cw-fix, 2026-11-19).
+  let landedPos = null;
+  let movedSinceLanding = false;
+  video.addEventListener("timeupdate", () => {
+    if (movedSinceLanding || video.seeking || !(video.readyState >= 1)) return;
+    const t = effTime();
+    if (landedPos == null) landedPos = t;
+    else if (Math.abs(t - landedPos) > 2) movedSinceLanding = true;
+  });
   const saveProgress = () => {
+    if (!movedSinceLanding) return;
     // A file from this device: where it was left, kept on this device only.
     if (item._local) {
       const d = totalDuration();

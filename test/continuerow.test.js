@@ -266,3 +266,100 @@ test("profiles: the ✕ stamps the series of a streamed episode (before its play
   hideSeries(film, "torrent|f|0", 7000);
   assert.equal(film.cwHidden, undefined, "a film needs no stamp: its whole history goes");
 });
+
+// ---------- cw-fix, 2026-11-19: elia "continue watching is full of bugs" ----------
+
+test("cw-fix: every card names its series (an episode) or its title (a film) — what Home's merge keys it by", () => {
+  const s = streamEp("k1", 2, 2);
+  const view = { arrival: row(600, 6982, 300), "silo-s1e3": row(3000, 3000, 200), "ted-s1e1": row(400, 1300, 100), [s.id]: row(500, 3000, 50) };
+  const items = run(view, { streamItems: { [s.id]: s } });
+  assert.deepEqual(items.map((i) => [i.id, i.seriesKey]), [
+    ["arrival", "f:tt2543164"],
+    ["silo-s1e4", "s:tt14688458"], // up next carries the series too
+    ["ted-s1e1", "s:t:ted"],
+  ]);
+});
+
+test("cw-fix: finished episodes whose files left the disk keep the series' up next (smart cleanup, a tidy-up)", () => {
+  // S1E1 and S1E2 finished, then deleted: no library item, only their history
+  const gone = { "old-e1": { imdbId: "tt14688458", season: 1, episode: 1 }, "old-e2": { imdbId: "tt14688458", season: 1, episode: 2 } };
+  const view = { "old-e1": row(3000, 3000, 100), "old-e2": row(3000, 3000, 200) };
+  const d = deps(view);
+  d.goneEpisode = (id) => gone[id] || null;
+  const items = cr.pick(Object.entries(view), d);
+  assert.deepEqual(ids(items), ["silo-s1e3"], "red before: the series dropped out of the row");
+  assert.equal(items[0].upNext, true);
+  assert.equal(items[0].seriesKey, "s:tt14688458");
+});
+
+test("cw-fix: a half-watched episode whose file is gone: its copy on disk resumes, else the next one is up next", () => {
+  const gone = { "old-e3": { imdbId: "tt14688458", season: 1, episode: 3 } };
+  // re-downloaded under a new id that carries the same history (the title row)
+  let view = { "old-e3": row(1200, 3000, 200), "silo-s1e3": row(1200, 3000, 200), "silo-s1e1": row(3000, 3000, 100) };
+  let d = deps(view);
+  d.goneEpisode = (id) => gone[id] || null;
+  let items = cr.pick(Object.entries(view), d);
+  assert.deepEqual(ids(items), ["silo-s1e3"]);
+  assert.equal(items[0].progress.position, 1200);
+  assert.ok(!items[0].upNext);
+  // the ghost alone (the new copy has no row of its own yet): that episode, from the top
+  view = { "old-e3": row(1200, 3000, 200) };
+  d = deps(view);
+  d.goneEpisode = (id) => gone[id] || null;
+  items = cr.pick(Object.entries(view), d);
+  assert.deepEqual(ids(items), ["silo-s1e3"]);
+  assert.equal(items[0].upNext, true);
+});
+
+test("cw-fix: two copies of one episode — finishing one never offers the other as up next", () => {
+  const twin = { ...ep("silo", 1, 2), id: "silo-s1e2-4k" };
+  const show = { ...SILO, seasons: [{ number: 1, episodes: [ep("silo", 1, 1), ep("silo", 1, 2), twin, ep("silo", 1, 3)] }] };
+  const view = { "silo-s1e2": row(3000, 3000, 100) };
+  const d = deps(view);
+  d.show = (id) => (id === "silo" ? show : LIB.get(id) || null);
+  d.libraryItem = (id) => (id === twin.id ? twin : LIB.get(id) || null);
+  assert.deepEqual(ids(cr.pick(Object.entries(view), d)), ["silo-s1e3"], "red before: up next was the 4K copy of E2");
+  // the other copy finished: up next skips its episode too
+  const view2 = { "silo-s1e2-4k": row(3000, 3000, 50), "silo-s1e1": row(3000, 3000, 100) };
+  const d2 = deps(view2);
+  d2.show = d.show;
+  d2.libraryItem = d.libraryItem;
+  assert.deepEqual(ids(cr.pick(Object.entries(view2), d2)), ["silo-s1e3"]);
+});
+
+test("cw-fix: a stream titled with its year, or with no IMDb id, is the library's series — one card", () => {
+  const a = { id: "torrent|y1|0", type: "movie", title: "Silo (2023) · S2 E3", season: 2, episode: 3 };
+  const view = { "silo-s1e4": row(1200, 3000, 100), [a.id]: row(500, 3000, 200) };
+  assert.deepEqual(ids(run(view, { streamItems: { [a.id]: a } })), [a.id]);
+  assert.equal(cr.seriesTitleOf({ title: "Silo (2023) · S2 E3" }), "Silo");
+  // the library show named differently from the stream, matched by the library's own lookup
+  const b = { id: "torrent|y2|0", type: "movie", title: "SILO: S2 E1", season: 2, episode: 1 };
+  const v2 = { "silo-s1e4": row(1200, 3000, 100), [b.id]: row(500, 3000, 200) };
+  assert.deepEqual(ids(run(v2, { streamItems: { [b.id]: b } })), [b.id]);
+});
+
+test("cw-fix: a stream whose IMDb id disagrees with the library show of that name stays its own series", () => {
+  const a = { id: "torrent|o9|0", type: "movie", title: "Silo · S1 E1", imdbId: "tt0000001", season: 1, episode: 1 };
+  const view = { "silo-s1e4": row(1200, 3000, 100), [a.id]: row(500, 3000, 200) };
+  const d = deps(view, { streamItems: { [a.id]: a } });
+  d.libraryShowFor = ({ imdbId, title }) => (cr.norm(title) === "silo" ? SILO : null);
+  assert.deepEqual(ids(cr.pick(Object.entries(view), d)), [a.id, "silo-s1e4"]);
+});
+
+test("cw-fix: a row only marked watched (stamp 0) neither shows nor claims a series, with or without a ✕ on record", () => {
+  const view = { "silo-s1e2": { ...row(3000, 3000, 0), marked: true } };
+  assert.deepEqual(ids(run(view)), []);
+  assert.deepEqual(ids(run({ ...view, "silo-s1e1": row(3000, 3000, 100) })), ["silo-s1e3"]);
+});
+
+test("cw-fix: a server that plays no streams shows no stream card — an episode's series keeps its next one on disk", () => {
+  const s = streamEp("so", 1, 3);
+  const f = { id: "torrent|sf|0", type: "movie", title: "Dune", imdbId: "tt1160419" };
+  const view = { [s.id]: row(900, 3000, 200), [f.id]: row(900, 6000, 150), "silo-s1e2": row(3000, 3000, 100) };
+  const d = deps(view, { streamItems: { [s.id]: s, [f.id]: f } });
+  assert.deepEqual(ids(cr.pick(Object.entries(view), d)), [s.id, f.id], "streams on: as they are");
+  d.streamsOff = () => true;
+  const items = cr.pick(Object.entries(view), d);
+  assert.deepEqual(ids(items), ["silo-s1e3"], "no card that could not be played: E3 from the disk instead, the film gone");
+  assert.equal(items[0].upNext, true);
+});

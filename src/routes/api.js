@@ -1158,7 +1158,12 @@ router.get("/api/home", homeWho, heavy.middleware(), keptMeanwhile, (req, res) =
 
   if (profileId) {
     const cw = profiles.continueWatching(profileId);
-    if (cw.length > 0) rows.push({ id: "continue", title: "Continue Watching", items: cw });
+    // `live`: these cards are the person's own playing state, not a ranking —
+    // a device that merges a new answer into what it shows takes this row as
+    // the server sends it (public/js/homeMerge.js): a card the answer no
+    // longer has (a finished film, E3 now that E4 is next) is never held on
+    // screen beside its successor. Each card names its series (`seriesKey`).
+    if (cw.length > 0) rows.push({ id: "continue", title: "Continue Watching", items: cw, live: true });
 
     // New Episodes — shows you follow that have aired something you haven't seen.
     // Same cache-only contract as everything else here.

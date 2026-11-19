@@ -82,8 +82,12 @@ const norm = (s) =>
 // show's name is what is left without the episode code.
 const seriesTitleOf = (meta) => {
   if (!meta) return "";
-  if (meta.showTitle) return String(meta.showTitle);
-  return String(meta.title || "").replace(/\s*[·•|:\-–—]?\s*S\d+\s*[·.\- ]?\s*E\d+\b.*$/i, "").trim();
+  const name = meta.showTitle
+    ? String(meta.showTitle)
+    : String(meta.title || "").replace(/\s*[·•|:\-–—]?\s*S\d+\s*[·.\- ]?\s*E\d+\b.*$/i, "");
+  // ("Silo (2023)": the year is not part of the name — a library show's
+  // title never carries it, and the two must be one series)
+  return name.replace(/\s*\((19|20)\d{2}\)\s*$/, "").trim();
 };
 
 const isStreamEpisode = (meta) =>
@@ -114,29 +118,49 @@ const hiddenKey = ({ imdb, title }) => (imdb ? imdb : title ? `t:${title}` : nul
 const hiddenAt = (hidden, { imdb, title }) =>
   Math.max((imdb && hidden && hidden[imdb]) || 0, (title && hidden && hidden[`t:${title}`]) || 0);
 
+// One card's identity on every screen (cw-fix, 2026-11-19): the SERIES for an
+// episode (so E3 turning into E4 is the same card, updated — never a second
+// one beside it), the title for a film. Home's merge (public/js/homeMerge.js,
+// the TV's port) and the TV's shelf pin key Continue Watching by it.
+const seriesKeyOf = (ser, card, itemId) =>
+  ser ? (ser.imdb ? `s:${ser.imdb}` : `s:t:${ser.title}`) : `f:${(card && card.imdbId) || itemId}`;
+
 // The first episode on disk after (season, episode) — or after `fromId` when
 // that is one of the show's own files — that is not finished.
-const nextUnfinished = (show, from, deps) => {
+const nextUnfinished = (show, from, deps, { inclusive = false } = {}) => {
   if (!show || !show.seasons) return null;
   const flat = show.seasons.flatMap((s) => s.episodes || []);
-  let i = from.id ? flat.findIndex((e) => e.id === from.id) : -1;
+  const S = Number(from.season);
+  const E = Number(from.episode);
+  const numbered = from.season != null && from.episode != null && Number.isFinite(S) && Number.isFinite(E);
+  let i = from.id && !inclusive ? flat.findIndex((e) => e.id === from.id) : -1;
   if (i === -1) {
-    const S = Number(from.season);
-    const E = Number(from.episode);
-    if (!Number.isFinite(S) || !Number.isFinite(E)) return null;
+    if (!numbered) return null;
     // (specials, season 0, never come "next" after a numbered season)
     const after = flat.findIndex((e) => {
       const s = Number(e.season);
       const ep = Number(e.episode);
-      return (s > S && !(s === 0 && S > 0)) || (s === S && ep > E);
+      return (s > S && !(s === 0 && S > 0)) || (s === S && (inclusive ? ep >= E : ep > E));
     });
     if (after === -1) return null;
     i = after - 1;
   }
+  // An episode is finished when ANY copy of it on disk is: two files of one
+  // episode (a 1080p and a 4K, a re-download beside the old file) are two
+  // ids, and a show the IMDb cache never resolved has no shared history row
+  // to join them.
+  const keyOf = (ep) => `${Number(ep.season)}:${Number(ep.episode)}`;
+  const doneSE = new Set();
+  for (const ep of flat) {
+    const prog = deps.progressOf(ep.id);
+    if (prog && (prog.finished || isDone(prog, { episode: true, creditsAt: deps.creditsLibrary(ep.id, show.id, prog) }))) doneSE.add(keyOf(ep));
+  }
   for (let j = i + 1; j < flat.length; j++) {
     const ep = flat[j];
-    const prog = deps.progressOf(ep.id);
-    if (prog && (prog.finished || isDone(prog, { episode: true, creditsAt: deps.creditsLibrary(ep.id, show.id, prog) }))) continue;
+    // never the same episode again, nor one before it (a second copy of an
+    // episode sorts right after the first)
+    if (numbered && !inclusive && Number(ep.season) === S && Number(ep.episode) <= E) continue;
+    if (doneSE.has(keyOf(ep))) continue;
     return { ...ep, showId: show.id, showTitle: show.title, cover: show.cover };
   }
   return null;
@@ -161,12 +185,45 @@ const resolve = (itemId, prog, deps, { keepOwned = false } = {}) => {
       out.ser = meta.imdbId || title ? { imdb: meta.imdbId || null, title: title || null } : { imdb: null, title: `id:${itemId}` };
       out.show = deps.libraryShowFor({ imdbId: meta.imdbId || null, title: seriesTitleOf(meta), year: meta.year || null });
       out.from = { season: meta.season, episode: meta.episode };
+      // The library's show is THE series: its id and name decide, so a stream
+      // titled a little differently ("Silo (2023)", a name with no IMDb id)
+      // is never a second card beside the episodes on disk — unless the two
+      // carry IMDb ids that disagree (two shows that share a name).
+      const libImdb = out.show ? deps.showImdb(out.show) || null : null;
+      if (out.show && (!meta.imdbId || !libImdb || libImdb === meta.imdbId)) {
+        out.ser = { imdb: libImdb || meta.imdbId || null, title: norm(out.show.title) || out.ser.title };
+      }
     }
     out.creditsAt = () => (prog ? deps.creditsStream(meta, prog) : null);
+    // A server that plays no streams ("torrents": false): the card could not
+    // be played. A film's goes; an episode's series keeps its place with the
+    // next one on disk, as for an episode whose file is gone.
+    if (deps.streamsOff && deps.streamsOff()) {
+      if (!out.ser || !out.show) return null;
+      return { ...out, card: null, gone: true };
+    }
     return out;
   }
   const item = deps.libraryItem(itemId);
-  if (!item || item.type === "show") return null;
+  if (!item) {
+    // An episode whose file has left the disk (smart cleanup, a tidy-up, a
+    // re-download under another name): its history still says which episode
+    // it was (the shared title row: "tt…:S:E"), so the series keeps its place
+    // and its up next — it used to drop out of the row altogether.
+    const gone = deps.goneEpisode ? deps.goneEpisode(itemId) : null;
+    if (!gone) return null;
+    const show = deps.libraryShowFor({ imdbId: gone.imdbId, title: null, year: null });
+    if (!show) return null;
+    return {
+      card: null,
+      gone: true,
+      ser: { imdb: deps.showImdb(show) || gone.imdbId, title: norm(show.title) || `lib:${show.id}` },
+      show,
+      from: { season: gone.season, episode: gone.episode },
+      creditsAt: () => null,
+    };
+  }
+  if (item.type === "show") return null;
   const out = { card: { ...item, progress: prog }, ser: null, show: null, from: null, creditsAt: () => null };
   if (item.showId) {
     const show = deps.show(item.showId);
@@ -190,12 +247,18 @@ const seriesFor = (itemId, deps) => {
 // entries: [[itemId, progressRow]] — the progress VIEW (library ids filled in
 // from their title rows), any order.
 const pick = (entries, deps, { max = MAX_ITEMS } = {}) => {
-  const sorted = entries.slice().sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0));
+  // Newest first; on a tie a row that still has its file goes before one
+  // whose file is gone (a re-download's new id carries the same stamp).
+  const isGone = (id) => !String(id).startsWith("torrent|") && !deps.libraryItem(id);
+  const sorted = entries
+    .slice()
+    .sort((a, b) => (b[1] ? b[1].updatedAt || 0 : 0) - (a[1] ? a[1].updatedAt || 0 : 0) || isGone(a[0]) - isGone(b[0]));
   const items = [];
   const series = seriesSet();
   const films = new Set();
   const upNextDismissed = deps.upNextDismissed || {};
   const hidden = deps.hidden || {};
+  const add = (card, e, itemId) => items.push({ ...card, seriesKey: seriesKeyOf(e.ser, card, itemId) });
 
   for (const [itemId, prog] of sorted) {
     if (items.length >= max) break;
@@ -203,6 +266,9 @@ const pick = (entries, deps, { max = MAX_ITEMS } = {}) => {
 
     // (barely started: neither a card nor a claim on the series)
     if (!prog.finished && !((prog.position || 0) > STARTED_S)) continue;
+    // (marked watched and never played here — a mark keeps the stamp it
+    // found, 0 when there was none: "seen elsewhere" is not being watched)
+    if (!(prog.updatedAt > 0)) continue;
     const e = resolve(itemId, prog, deps);
     if (!e) continue;
     const { card, ser, show, from } = e;
@@ -214,7 +280,7 @@ const pick = (entries, deps, { max = MAX_ITEMS } = {}) => {
       const fkey = card.imdbId || itemId;
       if (films.has(fkey)) continue;
       films.add(fkey);
-      if (!done()) items.push(card);
+      if (!done()) add(card, e, itemId);
       continue;
     }
 
@@ -223,18 +289,26 @@ const pick = (entries, deps, { max = MAX_ITEMS } = {}) => {
     series.add(ser);
     // Taken off the row with ✕ after this was watched: the series stays off
     // until something of it is watched again.
-    if (hiddenAt(hidden, ser) >= (prog.updatedAt || 0)) continue;
-    if (!done()) {
-      items.push(card);
+    const hid = hiddenAt(hidden, ser);
+    if (hid && hid >= prog.updatedAt) continue;
+    const finished = done();
+    if (!finished && card) {
+      add(card, e, itemId);
       continue;
     }
-    const next = show ? nextUnfinished(show, from, deps) : null;
+    // Finished — or not, but its file has left the disk: the next episode
+    // on disk not yet finished (for the vanished half-watched one, a copy of
+    // that same episode on disk first).
+    const next = show ? nextUnfinished(show, from, deps, { inclusive: !finished }) : null;
     if (!next) continue;
     // Dismissed via the card's ✕. Keyed to the SPECIFIC next episode, so the
     // dismissal expires by itself: watch further and the candidate changes,
     // and the card comes back for the new episode.
     if (upNextDismissed[show.id] === next.id) continue;
-    items.push({ ...next, progress: null, upNext: true });
+    // (a copy of the very episode that was being watched resumes, it is not "up next")
+    const same = !finished && Number(next.season) === Number(from.season) && Number(next.episode) === Number(from.episode);
+    const nextProg = same ? deps.progressOf(next.id) : null;
+    add(same && nextProg ? { ...next, progress: nextProg } : { ...next, progress: null, upNext: true }, e, next.id);
   }
   return items;
 };
@@ -246,5 +320,6 @@ module.exports = {
   hiddenKey,
   seriesFor,
   norm,
+  seriesKeyOf,
   _internals: { nextUnfinished, plausibleCredits, seriesSet, hiddenAt, EP_DONE, EP_TAIL_S, FILM_DONE, FILM_TAIL_S, TAIL_FLOOR, MAX_ITEMS },
 };

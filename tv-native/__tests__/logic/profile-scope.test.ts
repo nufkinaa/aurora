@@ -148,6 +148,8 @@ const DEVICE: Record<string, Record<string, string>> = {
     heldMarks: 'play marks held through an outage: the box’s playback diagnostics (the server files them by title and address, never by profile)',
     flushingMarks: 'the same (a send in progress)',
     audiences: 'whom each profile’s answers are filtered for, keyed by that profile and only ever read for it (Home’s snapshot check)',
+    historyWrites: 'writes in flight to the server (a Home read waits for them; each is gone once answered, whoever’s it was)',
+    historyGen: 'a count of this box’s writes to the watch history (only ever compared with itself: "anything written since?")',
   },
   'homeSnapshot.ts': {
     marked: 'which launch marks this run has logged',

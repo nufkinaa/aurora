@@ -9,7 +9,9 @@
 // In short: shelves from the top down to the last one on screen keep their
 // places; on screen a shelf's cards up to the last visible one keep their
 // places and titles (data updates in place); the focused card never moves;
-// the billboard keeps its slide; everything else takes the new answer. The
+// the billboard keeps its slide; everything else takes the new answer; a
+// LIVE shelf (Continue Watching, `live: true`) always takes the new answer as
+// it is, its cards known by their series (`seriesKey`), nothing held. The
 // held parts catch up at the natural moments — "quiet" (the view settled
 // somewhere new), "idle" (nothing pressed for a few seconds: on-screen
 // shelves update slot by slot), "away" (Home is not being looked at).
@@ -17,7 +19,7 @@
 // Pure. Items it did not change come back as THE SAME OBJECTS (and the whole
 // answer when nothing changed), so React.memo(Row) / React.memo(Card) hold.
 
-export type MergeItem = {id?: string; imdbId?: string; title?: string} & Record<string, unknown>;
+export type MergeItem = {id?: string; imdbId?: string; title?: string; seriesKey?: string} & Record<string, unknown>;
 export type MergeRow<T extends MergeItem = MergeItem> = {id: string; title?: string; items: T[]} & Record<string, unknown>;
 export type MergeHome<T extends MergeItem = MergeItem> = {hero: T[]; rows: MergeRow<T>[]} & Record<string, unknown>;
 
@@ -40,7 +42,7 @@ export type Locks = {
 };
 
 /** A title's identity on Home (Row.tsx pinKey, the site's rowSig). */
-export const itemKey = (it: MergeItem | null | undefined): string => (it && (it.id || it.imdbId || it.title)) || '';
+export const itemKey = (it: MergeItem | null | undefined): string => (it && (it.seriesKey || it.id || it.imdbId || it.title)) || '';
 
 const sameValue = (a: unknown, b: unknown): boolean => {
   if (a === b) return true;
@@ -149,6 +151,34 @@ export function mergeItems<T extends MergeItem>(
   return {items: sameList(out, shown) ? shown : out, held};
 }
 
+/** A live shelf's cards (homeMerge.js rule 6): the new answer's, in its order,
+ *  unchanged cards as the same objects, the focused one at its index while
+ *  the answer still has it, nothing held. */
+export function mergeLive<T extends MergeItem>(
+  shownIn: T[] | null | undefined,
+  freshIn: T[] | null | undefined,
+  pin: {key: string; index: number} | null = null,
+): T[] {
+  const shown = shownIn || [];
+  const fresh = freshIn || [];
+  const shownBy = byKey(shown);
+  const out: T[] = [];
+  const used = new Set<string>();
+  for (const f of fresh) {
+    const k = itemKey(f);
+    if (!k || used.has(k)) continue;
+    used.add(k);
+    const old = shownBy.get(k);
+    out.push(old ? settle(old, f) : f);
+  }
+  if (pin && pin.key && out.length > 1) {
+    const at = out.findIndex(it => itemKey(it) === pin.key);
+    const want = Math.min(Math.max(0, pin.index || 0), out.length - 1);
+    if (at >= 0 && at !== want) out.splice(want, 0, out.splice(at, 1)[0]);
+  }
+  return sameList(out, shown) ? shown : out;
+}
+
 const sameRowHead = (a: Record<string, unknown>, b: Record<string, unknown>) => {
   const ka = Object.keys(a).filter(k => k !== 'items');
   const kb = Object.keys(b).filter(k => k !== 'items');
@@ -225,7 +255,9 @@ export function mergeHome<H extends MergeHome>(
 
   const rowFor = (s: Row, f: Row, lock: {keep: number; floor: number} | null | undefined): Row => {
     const pin = focus && focus.rowId === s.id ? {key: focus.key, index: focus.index} : null;
-    const m = mergeItems(s.items, f.items, {keep: lock ? lock.keep : 0, floor: lock ? lock.floor : 0, pin});
+    const m = f.live
+      ? {items: mergeLive(s.items, f.items, pin), held: 0}
+      : mergeItems(s.items, f.items, {keep: lock ? lock.keep : 0, floor: lock ? lock.floor : 0, pin});
     held += m.held;
     const head = holdHeads.has(s.id) ? s : f;
     if (m.items === s.items && sameRowHead(head, s)) return s;
@@ -246,6 +278,8 @@ export function mergeHome<H extends MergeHome>(
       continue;
     }
     if (!f || !(f.items || []).length) {
+      // (a live shelf the answer no longer has: everything in it is finished)
+      if (s.live) continue;
       rows.push(s);
       held += (s.items || []).length;
       continue;

@@ -21,12 +21,20 @@ import { showReportSheet } from "../report.js";
 // (The TV has the same cards: tv-native/src/screens/WhatsNew.tsx, ROUND there.
 // A card about something only a browser has says `webOnly: true` first —
 // test/whatsnew-parity.test.js leaves it out of the comparison.)
-export const ROUND = "1.15.34";
+export const ROUND = "1.15.36";
 const NEW_FROM = ROUND;
 const FEATURES = [
+  // ---- 1.15.36: Continue Watching made reliable (the same card on the TV) ----
+  {
+    since: ROUND, cue: "tap", glyph: "▶️",
+    title: "Continue Watching, fixed",
+    what: "One card per series, everywhere: back from the player it shows the next episode, never the old one beside it. It follows every device right away, keeps your spot when you open and close a title, and Undo puts a card back where it was.",
+    how: "Open Home: Continue Watching is the first row.",
+    go: { label: "Go home", to: "#/" },
+  },
   // ---- 1.15.34: the TV plays like a game (the same card on the TV) ----
   {
-    since: ROUND, cue: "tap", glyph: "🎲",
+    since: "1.15.34", cue: "tap", glyph: "🎲",
     title: "Game night on the TV",
     what: "Pick together turns the TV into the party: the code as a ticket, everyone takes a seat, the votes come in with a drumroll and one burst for tonight's pick. Pick for me draws its answer on a reel, Taste is a real deck for the remote, and Your Aurora Wrapped tells your year as a story.",
     how: "On the TV: AI → Pick for me or Pick together. Swipe your taste and Your Aurora Wrapped are in the TV's Settings.",

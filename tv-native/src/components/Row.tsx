@@ -84,7 +84,8 @@ const Track = (NATIVE_ROW ? AuroraRow : Animated.View) as React.ComponentType<Re
 const keyOf = (item: HeroItem, index: number) => item.id || item.imdbId || `${item.title}-${index}`;
 // The same identity without the index, for shelfPin.ts (a title that moved
 // must still be found).
-const pinKey = (item: HeroItem) => item.id || item.imdbId || item.title;
+// (Continue Watching's cards by their series: homeMerge.ts itemKey)
+const pinKey = (item: HeroItem) => item.seriesKey || item.id || item.imdbId || item.title;
 // After a removal: past the sheet's close and its hand-back of focus, inside
 // focus.ts's 120 ms rescue (which then finds focus taken and does nothing).
 const REFOCUS_MS = 60;
@@ -131,6 +132,7 @@ function Row({
   store,
   storeKey,
   caption,
+  holdsFocus,
 }: {
   title: string;
   // [household] the cards print their own line (item.meta, "From Dana") — Card's `caption`
@@ -157,6 +159,11 @@ function Row({
   // it the shelf is what it always was.
   store?: Map<string, ShelfMemory>;
   storeKey?: string;
+  // Whether focus is on this shelf now (Home's own record, one function for
+  // every row): a Continue Watching title that left the row under the focus
+  // hands it to the card now at its index only then — never pulling focus
+  // back from the billboard (cw-fix).
+  holdsFocus?: (rowIndex: number) => boolean;
 }) {
   const {width} = useWindowDimensions();
   const geom = useMemo(() => shelfGeom(!!wide, width), [wide, width]);
@@ -208,7 +215,11 @@ function Row({
   const focusKey = useRef<string | null>(null);
   const focusItem = useRef<HeroItem | undefined>(undefined);
   const pinned = useMemo(() => {
-    const pin: Pin<HeroItem> | null = pinShelf === me && focusKey.current != null ? {key: focusKey.current, index: lastIdx.current, item: focusItem.current} : null;
+    // Continue Watching (the shelf with a ✕) never holds a title its re-read
+    // dropped: that title is finished, or its series' card is the next
+    // episode now — held, it stood beside its successor (cw-fix, 2026-11-19).
+    const pin: Pin<HeroItem> | null =
+      pinShelf === me && focusKey.current != null ? {key: focusKey.current, index: lastIdx.current, item: onRemove ? undefined : focusItem.current} : null;
     return {list: pinFocused(items || [], pinKey, pin), pin};
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items]);
@@ -217,9 +228,20 @@ function Row({
     const p = pinned.pin;
     if (!p) return;
     const server = (items || []).findIndex(it => pinKey(it) === p.key);
+    // Continue Watching: the focused title left the row (a film finished, the
+    // last episode on disk). It is not held (above), so focus goes to the card
+    // now at its index — before focus.ts's rescue sends it to the billboard
+    // ("BACK takes me to the hero", 2026-10-18), and so the pool's slot is not
+    // handed to an entering card under the focus. The refocus effect below
+    // (the ✕'s) runs in this same commit.
+    if (server < 0 && onRemove) {
+      focusKey.current = null;
+      focusItem.current = undefined;
+      if ((items || []).length && (!holdsFocus || holdsFocus(rowIndex ?? 0))) refocusAt.current = lastIdx.current;
+    }
     // (adb logcat -s ReactNativeJS | grep "\[row\] reread") kept=held: the re-read no longer
-    // had the title, it is held where focus is (shelfPin.ts)
-    console.log(`[row] reread row=${rowIndex ?? 0} card=${p.key} at=${p.index} server=${server} kept=${server >= 0 ? 'yes' : 'held'}`);
+    // had the title, it is held where focus is (shelfPin.ts); kept=gone: Continue Watching, not held
+    console.log(`[row] reread row=${rowIndex ?? 0} card=${p.key} at=${p.index} server=${server} kept=${server >= 0 ? 'yes' : onRemove ? 'gone' : 'held'}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pinned]);
   useEffect(

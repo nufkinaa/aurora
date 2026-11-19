@@ -89,6 +89,7 @@ export type Saved = {
   at: number;
   savedAt?: number;
   position?: number; // where it was left, on this phone
+  positionAt?: number; // when (ms) — the newer of this and the server's history resumes (OfflinePlayer)
   finishedAt?: number | null; // when it was finished (here, or as the server tells it)
   /** saved by itself (Keep the next episode ready, or a wish that arrived) — "Kept ready" */
   kept?: 'next' | 'wish' | null;
@@ -644,7 +645,7 @@ export async function noteOfflineProgress(id: string, position: number, duration
   const profileId = owner || getActiveProfile();
   if (!profileId) return;
   const it = getFor(id, profileId);
-  if (it) put(id, {profileId: it.profileId, position, ...(!it.finishedAt && duration > 0 && position / duration > FINISHED_AT ? {finishedAt: Date.now()} : {})});
+  if (it) put(id, {profileId: it.profileId, position, positionAt: Date.now(), ...(!it.finishedAt && duration > 0 && position / duration > FINISHED_AT ? {finishedAt: Date.now()} : {})});
   try {
     await api.saveProgress(profileId, id, position, duration);
   } catch {
@@ -736,7 +737,10 @@ export async function flushOfflineProgress() {
     const left: Pending[] = [];
     for (const p of list) {
       try {
-        await api.saveProgress(p.profileId, p.itemId, p.position, p.duration);
+        // `at`: when it was watched — older than what the server has heard
+        // since (the TV watched on), it is dropped there instead of stamped
+        // "now" and taking Continue Watching back to this episode (cw-fix)
+        await api.saveProgress(p.profileId, p.itemId, p.position, p.duration, undefined, {at: p.at, sentAt: Date.now()});
       } catch {
         left.push(p);
       }

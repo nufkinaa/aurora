@@ -253,6 +253,10 @@ export type HeroItem = {
   // synthesises for Continue Watching. The site labels those cards even when
   // they aren't in a wide row, so the card needs to see it.
   upNext?: boolean;
+  // Continue Watching (cw-fix, 2026-11-19): the card's SERIES ("s:tt…") or
+  // film ("f:…") — what Home's merge and the shelf's focus pin know it by, so
+  // E3 becoming E4 is the same card taking new data, never a second one.
+  seriesKey?: string;
   // [household] A card of "Recommended by your household" (Home's row and the
   // Show all page): `meta` is the line it prints ("From Dana and Avi"), `hh`
   // who recommended it and the newest note (routes/household.js recCard).
@@ -1212,15 +1216,43 @@ export const peekLibraryItem = (id: string): {title: string; cover?: string | nu
 // NEVER MORE THAN ONE /api/home IN FLIGHT (docs/operations.md): a second ask
 // while the first is on its way — a return to Home during a library refresh —
 // shares its answer.
-let homeFlight: {path: string; who: string | null; p: Promise<Home>} | null = null;
+//
+// …and never one that set out before the latest write to the watch history
+// (cw-fix, 2026-11-19). Leaving the player sends its last save and brings
+// Home back in the same moment; the Home read could reach the server first
+// and come back with Continue Watching from before the episode (E3 where E4
+// is next, the old spot on the bar) — and the TV's own Watch Next was written
+// from that. A Home read now waits for the writes on their way (three
+// seconds at most), and a read begun before a write is not shared after it.
+const historyWrites = new Set<Promise<unknown>>();
+let historyGen = 0;
+const historyWrite = <T,>(p: Promise<T>): Promise<T> => {
+  historyGen++;
+  historyWrites.add(p);
+  const done = () => {
+    historyWrites.delete(p);
+  };
+  p.then(done, done);
+  return p;
+};
+/** Moves on every write to the watch history from this device (a progress
+ *  save, a ✕ on Continue Watching, a mark): Home reads again after one. */
+export const historyGeneration = (): number => historyGen;
+const HISTORY_WAIT_MS = 3000;
+const historySettled = (): Promise<unknown> | null =>
+  historyWrites.size ? Promise.race([Promise.allSettled([...historyWrites]), new Promise<void>(r => setTimeout(() => r(), HISTORY_WAIT_MS))]) : null;
+let homeFlight: {path: string; who: string | null; gen: number; p: Promise<Home>} | null = null;
 const readHome = (path: string): Promise<Home> => {
-  if (homeFlight && homeFlight.path === path && homeFlight.who === activeProfile) return homeFlight.p;
-  const p: Promise<Home> = readKept<Home>(path, homeKept, k => {
-    homeKept = k;
-  }).finally(() => {
+  if (homeFlight && homeFlight.path === path && homeFlight.who === activeProfile && homeFlight.gen === historyGen) return homeFlight.p;
+  const read = () =>
+    readKept<Home>(path, homeKept, k => {
+      homeKept = k;
+    });
+  const wait = historySettled();
+  const p: Promise<Home> = (wait ? wait.then(read) : read()).finally(() => {
     if (homeFlight && homeFlight.p === p) homeFlight = null;
   });
-  homeFlight = {path, who: activeProfile, p};
+  homeFlight = {path, who: activeProfile, gen: historyGen, p};
   return p;
 };
 const readLibrary = (): Promise<Library> =>
@@ -1795,15 +1827,19 @@ export const api = {
   // Hide a show's synthesized "up next" card. clearProgress can't (the card's
   // id is the NEXT episode's; the progress row lives under the previous one).
   dismissUpNext: (profileId: string, showId: string, episodeId: string) =>
-    post<{ ok: boolean }>(`/api/profiles/${profileId}/upnext-dismiss`, {
-      showId,
-      episodeId,
-    }),
+    historyWrite(
+      post<{ ok: boolean }>(`/api/profiles/${profileId}/upnext-dismiss`, {
+        showId,
+        episodeId,
+      }),
+    ),
   // "Back on the pile" — the site's Mark-unwatched.
   clearProgress: (profileId: string, itemId: string) =>
-    request<{ ok: boolean }>(
-      `/api/profiles/${profileId}/progress/${encodeURIComponent(itemId)}`,
-      { method: 'DELETE' },
+    historyWrite(
+      request<{ ok: boolean }>(
+        `/api/profiles/${profileId}/progress/${encodeURIComponent(itemId)}`,
+        { method: 'DELETE' },
+      ),
     ),
   // Mark watched / unwatched by hand (src/routes/profiles.js /progress/mark):
   // never read as "watched it just now" — no smart download of the next
@@ -1811,7 +1847,7 @@ export const api = {
   // replaced; `restore` sends this client's own snapshot of the row instead
   // (null = there was none). One call for a whole season.
   markWatched: (profileId: string, items: MarkEntry[]) =>
-    post<{ok: boolean; count: number}>(`/api/profiles/${profileId}/progress/mark`, {items}),
+    historyWrite(post<{ok: boolean; count: number}>(`/api/profiles/${profileId}/progress/mark`, {items})),
   // What a saved copy played with no server (phone/offline/store.ts): the
   // server records each sitting once (by reportId), bounded (telemetry.addOfflinePlay).
   reportWatched: (
@@ -1834,13 +1870,23 @@ export const api = {
     // reappeared anywhere, and one resumed from the web lost its poster the
     // moment the TV saved over it. Same `item` field the browser client sends.
     item?: Record<string, unknown>,
+    // `at`: when the position was really reached, for a save sent late (the
+    // phone's offline queue) — the server drops one older than the history
+    // it holds; `undo`: the Undo of a ✕ on Continue Watching.
+    // `sentAt`: this device's clock as it sends (the server reads how long ago
+    // `at` was from the two, whatever this clock is off by).
+    extra?: {at?: number; sentAt?: number; undo?: boolean},
   ) =>
-    post<{ ok: boolean }>(`/api/profiles/${profileId}/progress`, {
-      itemId,
-      position,
-      duration,
-      item,
-    }),
+    historyWrite(
+      post<{ ok: boolean; stale?: boolean }>(`/api/profiles/${profileId}/progress`, {
+        itemId,
+        position,
+        duration,
+        item,
+        ...(extra && extra.at && extra.at > 0 ? {at: extra.at, ...(extra.sentAt ? {sentAt: extra.sentAt} : {})} : {}),
+        ...(extra && extra.undo ? {undo: true} : {}),
+      }),
+    ),
   // Torrent sources for a title (movie) or episode (series). `title` is the
   // IMDb id; the server does the ranking (BEST/CAM/dubbed) and caps the list.
   torrentSources: (params: {

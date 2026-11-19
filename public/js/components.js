@@ -57,6 +57,14 @@ export const openItem = (item) => {
   // A synthesized card (a party to join, a download that landed) knows where
   // it goes; nothing else about it is a library item.
   if (typeof item._open === "function") return item._open();
+  // A Continue Watching card resumes where it SAYS (cw-fix, 2026-11-19): its
+  // own row came with Home's answer, and when it is newer than this tab's copy
+  // of the history (watched on the TV since) the player — which may not read
+  // the history again for a start moments after the last read — begins there.
+  if (item.id && item.progress && typeof item.progress === "object" && state.progress) {
+    const cur = state.progress[item.id];
+    if (!cur || (cur.updatedAt || 0) < (item.progress.updatedAt || 0)) state.progress[item.id] = { ...item.progress };
+  }
   // Resume a streamed title from Continue Watching: hand the stored play-item
   // straight to the player (its transcode URLs etc. aren't reconstructable from
   // the id alone).
@@ -80,10 +88,21 @@ export const card = (item, { wide = false, onRemove = null, showKind = false, ea
   const isEpisode = !!item.showId && item.type !== "show";
   // Both keys, on purpose: a library-backed list card may carry progress
   // under its STREAM identity (watched via Discover before the download).
-  const prog =
+  const local =
     progressFor(item.id) ||
     (item.imdbId && state.streamProgress && state.streamProgress[item.imdbId]) ||
     null;
+  // A Continue Watching card comes with the server's own row (`progress`),
+  // read with the row itself — this tab's copy of the history is only as new
+  // as its last read, so a film watched on the TV since showed its old spot,
+  // or no bar at all ("new") on the episode the TV had moved to. The newer of
+  // the two wins. An "up next" card has not been started (cw-fix, 2026-11-19).
+  const own = item.progress && typeof item.progress === "object" ? item.progress : null;
+  const prog = item.upNext
+    ? null
+    : own && (!local || (own.updatedAt || 0) >= (local.updatedAt || 0))
+      ? own
+      : local;
   const pct =
     prog && prog.duration > 0 && !prog.finished
       ? Math.min(100, (prog.position / prog.duration) * 100)
@@ -432,18 +451,29 @@ export const patchShelf = (section, items, { title = null, sub = null } = {}) =>
   const lazy = typeof scroller._fillRow === "function";
   const upTo = lazy ? Math.min(items.length, nodes.length) : items.length;
   const active = document.activeElement;
+  // Continue Watching (`_live`): the focused card is replaced too, and the
+  // new one takes the focus — back from the player, focus is on the card that
+  // was pressed, and it went on drawing E3 (and its old bar) while the row's
+  // data said E4 (cw-fix, 2026-11-19)
+  const live = !!section._live;
   for (let i = 0; i < upTo; i++) {
     const node = nodes[i];
     if (node && (node._item || old[i]) === items[i]) continue;
-    if (node && active && node.contains(active)) continue;
+    const focused = !!(node && active && node.contains(active));
+    if (focused && !live) continue;
     const next = card(items[i], cardOpts);
     if (node) {
       next.classList.add("card-swap");
       node.replaceWith(next);
+      if (focused) next.focus({ preventScroll: true });
     } else scroller.append(next);
   }
   for (let i = nodes.length - 1; i >= upTo; i--) {
-    if (!(lazy && i < items.length)) nodes[i].remove();
+    if (lazy && i < items.length) continue;
+    // (a live shelf's focused card that is gone: focus to the one before it)
+    const refocus = live && active && nodes[i].contains(active);
+    nodes[i].remove();
+    if (refocus && scroller.lastElementChild) scroller.lastElementChild.focus({ preventScroll: true });
   }
   scroller._rowItems = items;
   if (title != null) {
@@ -459,8 +489,11 @@ export const continueRow = (title, items, profileId, api, extra = {}) => {
     ...extra,
     wide: true,
     onRemove: async (item, node) => {
-      // Captured BEFORE the clear so Undo can put the exact row back.
-      const prev = progressFor(item.id);
+      // Captured BEFORE the clear so Undo can put the exact row back (the
+      // newer of the card's own row and this tab's copy, as the card drew it).
+      const mine = progressFor(item.id);
+      const own = item.progress && typeof item.progress === "object" ? item.progress : null;
+      const prev = own && (!mine || (own.updatedAt || 0) >= (mine.updatedAt || 0)) ? own : mine;
       const parent = node.parentNode;
       const anchor = node.nextSibling;
       node.remove();
@@ -495,7 +528,10 @@ export const continueRow = (title, items, profileId, api, extra = {}) => {
                         const { progress, upNext, ...rest } = item;
                         meta = rest;
                       }
-                      await api.saveProgress(profileId, item.id, prev.position, prev.duration, meta);
+                      // (`at`: back in its old place in the row, not first;
+                      // `undo`: the series the ✕ took off comes back with it)
+                      await api.saveProgress(profileId, item.id, prev.position, prev.duration, meta,
+                        { undo: true, ...(prev.updatedAt > 0 ? { at: prev.updatedAt } : {}) });
                       if (parent && parent.isConnected) { parent.insertBefore(node, anchor && anchor.isConnected ? anchor : null); parent.dispatchEvent(new CustomEvent("aurora-shelf-changed", { bubbles: true })); }
                     } catch {
                       toast("Couldn't undo that", "⚠️");
@@ -512,7 +548,9 @@ export const continueRow = (title, items, profileId, api, extra = {}) => {
       }
     },
   };
-  return shelfRow(title, items, opts);
+  const row = shelfRow(title, items, opts);
+  if (row) row._live = true; // (patchShelf: its focused card is replaced too)
+  return row;
 };
 
 export const metaLine = (item) => {

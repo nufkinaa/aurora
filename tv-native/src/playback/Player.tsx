@@ -809,6 +809,13 @@ export default function Player({
   // whatever was captured when they were created.
   const itemRef = useRef<Item | null>(null);
   const curRef = useRef(0); // CONTENT time
+  // Nothing is saved until playback has MOVED from where it landed (a few
+  // seconds played, or a seek): opening a title and leaving at once wrote the
+  // landing spot — four seconds before the resume point — over it, so every
+  // open-and-back walked the resume point back (cw-fix, 2026-11-19; the
+  // website's player has the same rule).
+  const landedPos = useRef<number | null>(null);
+  const movedSinceLanding = useRef(false);
   const durRef = useRef(0);
   const bufRef = useRef(0); // CONTENT time of the buffered edge
   const pausedRef = useRef(false);
@@ -3432,6 +3439,7 @@ export default function Player({
     const pos = curRef.current;
     const dur = durRef.current;
     if (!pos || !dur) return;
+    if (!movedSinceLanding.current) return;
     api.forgetState(); // what a screen read before this write is stale now
     api.saveProgress(profileId, id, pos, dur, streamMeta()).catch(() => {});
   }, [id, profileId, streamMeta]);
@@ -4347,6 +4355,10 @@ export default function Player({
     // media → content through clockBase (clock.ts), not the job's offset
     const content = toContent(clockBase.current, d.currentTime);
     curRef.current = content;
+    if (!movedSinceLanding.current) {
+      if (landedPos.current == null) landedPos.current = content;
+      else if (Math.abs(content - landedPos.current) > 2) movedSinceLanding.current = true;
+    }
     lastProgressAt.current = Date.now();
     watchClock.tick(content, {playing: reallyPlaying(), rate: rateRef.current || 1});
     if (seeking()) seekResumed(content); // [analytics] (one boolean while no seek is being timed)
