@@ -84,7 +84,8 @@ const Track = (NATIVE_ROW ? AuroraRow : Animated.View) as React.ComponentType<Re
 const keyOf = (item: HeroItem, index: number) => item.id || item.imdbId || `${item.title}-${index}`;
 // The same identity without the index, for shelfPin.ts (a title that moved
 // must still be found).
-const pinKey = (item: HeroItem) => item.id || item.imdbId || item.title;
+// (Continue Watching's cards by their series: homeMerge.ts itemKey)
+const pinKey = (item: HeroItem) => item.seriesKey || item.id || item.imdbId || item.title;
 // After a removal: past the sheet's close and its hand-back of focus, inside
 // focus.ts's 120 ms rescue (which then finds focus taken and does nothing).
 const REFOCUS_MS = 60;
@@ -208,7 +209,11 @@ function Row({
   const focusKey = useRef<string | null>(null);
   const focusItem = useRef<HeroItem | undefined>(undefined);
   const pinned = useMemo(() => {
-    const pin: Pin<HeroItem> | null = pinShelf === me && focusKey.current != null ? {key: focusKey.current, index: lastIdx.current, item: focusItem.current} : null;
+    // Continue Watching (the shelf with a ✕) never holds a title its re-read
+    // dropped: that title is finished, or its series' card is the next
+    // episode now — held, it stood beside its successor (cw-fix, 2026-11-19).
+    const pin: Pin<HeroItem> | null =
+      pinShelf === me && focusKey.current != null ? {key: focusKey.current, index: lastIdx.current, item: onRemove ? undefined : focusItem.current} : null;
     return {list: pinFocused(items || [], pinKey, pin), pin};
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items]);

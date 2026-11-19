@@ -35,7 +35,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import {useIsFocused} from '@react-navigation/native';
-import {api, audienceOf, getBaseUrl, HeroItem, Home as HomeData, HomeRow, keptHomeText, PartySummary} from '../../api';
+import {api, audienceOf, getBaseUrl, HeroItem, historyGeneration, Home as HomeData, HomeRow, keptHomeText, PartySummary} from '../../api';
 import {useApp} from '../../AppContext';
 import {useMe} from '../../navSection';
 import {openItem} from '../../openItem';
@@ -448,10 +448,15 @@ export default function Home() {
     [profileId],
   );
 
+  // the watch history the rows were read after (api.ts historyGeneration):
+  // anything played, removed or marked on this phone since — the player above
+  // all — and they are read again, however recent the last read (cw-fix)
+  const readGen = useRef(-1);
   const load = useCallback(
     (force = false) => {
-      if (!force && dataRef.current && Date.now() - lastFetch.current < 15000) return Promise.resolve();
+      if (!force && dataRef.current && Date.now() - lastFetch.current < 15000 && readGen.current === historyGeneration()) return Promise.resolve();
       lastFetch.current = Date.now();
+      readGen.current = historyGeneration();
       return api
         .home(profileId)
         .then(take)
@@ -474,7 +479,11 @@ export default function Home() {
       setTick(n => n + 1);
     });
     const c = AppState.addEventListener('change', st => {
-      if (st === 'active') setTick(n => n + 1);
+      // (back in front: watched on the TV meanwhile? read again, however recent)
+      if (st === 'active') {
+        lastFetch.current = 0;
+        setTick(n => n + 1);
+      }
     });
     return () => {
       a();

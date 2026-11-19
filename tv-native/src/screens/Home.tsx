@@ -23,7 +23,7 @@ import Row, {shelfGeom, ShelfMemory} from '../components/Row';
 import NavRail from '../components/NavRail';
 import {Empty, ErrorState} from '../components/States';
 import TrailerFrame, {HERO_TRAILER_COVER, TrailerHandle, TrailerState} from '../components/Trailer';
-import {api, artPath, ART_LADDER, audienceOf, getBaseUrl, imgSrc, ImgSource, keptHomeText, sameParties, serverCanBlur, Home as HomeData, HeroItem, HomeRow, PartySummary} from '../api';
+import {api, artPath, ART_LADDER, audienceOf, getBaseUrl, historyGeneration, imgSrc, ImgSource, keptHomeText, sameParties, serverCanBlur, Home as HomeData, HeroItem, HomeRow, PartySummary} from '../api';
 import {itemKey, Look, locksFor, mergeHome, Mode, visibleMoves} from '../homeMerge';
 import {lookOf} from '../homeLook';
 import {expectedAudience, markLaunch, Primed, primedSnapshot, saveSnapshot, snapshotHome, usable, whenSnapshot} from '../homeSnapshot';
@@ -442,9 +442,13 @@ export default function Home({
       }),
     [],
   );
+  // the watch history this Home was read after (api.ts historyGeneration):
+  // anything played, removed or marked on this TV since — the player above
+  // all — and the rows are read again, however recent the last read
+  const readGen = useRef(-1);
   useEffect(() => {
     if (!live) return;
-    const fresh = !!data && Date.now() - lastFetch.current < 15000;
+    const fresh = !!data && Date.now() - lastFetch.current < 15000 && readGen.current === historyGeneration();
     // Home shown again (BACK from a title page): the shelf that held focus,
     // and whether the rows are read again (shelfPin.ts then holds the focused
     // title where it was).
@@ -452,6 +456,7 @@ export default function Home({
     if (fresh) return;
     let on = true;
     lastFetch.current = Date.now();
+    readGen.current = historyGeneration();
     api
       .home(profileId)
       .then(h => {
@@ -1274,9 +1279,30 @@ export default function Home({
       // Said, and undone when the server did not take it (the site's card
       // does both; here the failure was swallowed and the card came back on
       // the next visit with no word why).
-      const done = () => showToast('Removed from Continue Watching', '✓');
+      const done = () => {
+        showToast('Removed from Continue Watching', '✓');
+        // the launcher's Watch Next and Aurora row lose it too (they were
+        // written only when Home next read the rows), and Home reads again
+        lastFetch.current = 0;
+        api
+          .home(profileId)
+          .then(h => syncHomeScreen(h.rows, profileId))
+          .catch(() => {});
+      };
       const back = () => {
         showToast("Couldn't remove it — it is back in Continue Watching", '⚠');
+        // (…and in the newest answer, or the next merge takes it out again)
+        const cur = freshRef.current;
+        if (cur) {
+          freshRef.current = {
+            ...cur,
+            rows: cur.rows.map(r =>
+              r.id !== 'continue' || r.items.some(i => i.id === item.id)
+                ? r
+                : {...r, items: [...r.items.slice(0, Math.max(0, at)), item, ...r.items.slice(Math.max(0, at))]},
+            ),
+          };
+        }
         setData(d =>
           d
             ? {
@@ -1452,9 +1478,25 @@ export default function Home({
   useEffect(() => {
     const sub = AppState.addEventListener('change', st => {
       if (st !== 'active' && pendingRef.current) applyFresh('away');
+      if (st === 'active') {
+        // Back in front (cw-fix, 2026-11-19): somebody may have watched on
+        // the phone or the website meanwhile — Continue Watching is read
+        // again (it waited for the next time Home came back on screen).
+        lastFetch.current = 0;
+        if (liveRef.current) setLibTick(n => n + 1);
+      } else if (st === 'background') {
+        // Left with the remote's Home button, the player's last save on its
+        // way: the launcher's Watch Next and Aurora row follow now, not at
+        // the background job's next run hours later (the read waits for that
+        // save — api.ts readHome).
+        api
+          .home(profileId)
+          .then(h => syncHomeScreen(h.rows, profileId))
+          .catch(() => {});
+      }
     });
     return () => sub.remove();
-  }, [applyFresh]);
+  }, [applyFresh, profileId]);
   // The box's copy had not been read yet when Home mounted: drawn when it
   // arrives, unless the server was faster.
   useEffect(() => {
