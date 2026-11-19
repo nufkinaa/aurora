@@ -1680,6 +1680,8 @@ const continueDeps = (state, view = null) => {
     creditsStream: (meta, prog) => streamCreditsAt(meta, prog),
     upNextDismissed: state.upNextDismissed,
     hidden: state.cwHidden || {},
+    // ("torrents": false in config.json: a stream card could not be played)
+    streamsOff: () => { try { return !require("./lib/torrentgate").enabled(); } catch { return false; } },
     // A library episode id whose file is gone: which episode its history
     // says it was (the title row it last wrote), or null.
     goneEpisode: (id) => {

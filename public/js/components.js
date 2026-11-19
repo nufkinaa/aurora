@@ -57,6 +57,14 @@ export const openItem = (item) => {
   // A synthesized card (a party to join, a download that landed) knows where
   // it goes; nothing else about it is a library item.
   if (typeof item._open === "function") return item._open();
+  // A Continue Watching card resumes where it SAYS (cw-fix, 2026-11-19): its
+  // own row came with Home's answer, and when it is newer than this tab's copy
+  // of the history (watched on the TV since) the player — which may not read
+  // the history again for a start moments after the last read — begins there.
+  if (item.id && item.progress && typeof item.progress === "object" && state.progress) {
+    const cur = state.progress[item.id];
+    if (!cur || (cur.updatedAt || 0) < (item.progress.updatedAt || 0)) state.progress[item.id] = { ...item.progress };
+  }
   // Resume a streamed title from Continue Watching: hand the stored play-item
   // straight to the player (its transcode URLs etc. aren't reconstructable from
   // the id alone).

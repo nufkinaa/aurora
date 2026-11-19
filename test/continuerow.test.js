@@ -351,3 +351,15 @@ test("cw-fix: a row only marked watched (stamp 0) neither shows nor claims a ser
   assert.deepEqual(ids(run(view)), []);
   assert.deepEqual(ids(run({ ...view, "silo-s1e1": row(3000, 3000, 100) })), ["silo-s1e3"]);
 });
+
+test("cw-fix: a server that plays no streams shows no stream card — an episode's series keeps its next one on disk", () => {
+  const s = streamEp("so", 1, 3);
+  const f = { id: "torrent|sf|0", type: "movie", title: "Dune", imdbId: "tt1160419" };
+  const view = { [s.id]: row(900, 3000, 200), [f.id]: row(900, 6000, 150), "silo-s1e2": row(3000, 3000, 100) };
+  const d = deps(view, { streamItems: { [s.id]: s, [f.id]: f } });
+  assert.deepEqual(ids(cr.pick(Object.entries(view), d)), [s.id, f.id], "streams on: as they are");
+  d.streamsOff = () => true;
+  const items = cr.pick(Object.entries(view), d);
+  assert.deepEqual(ids(items), ["silo-s1e3"], "no card that could not be played: E3 from the disk instead, the film gone");
+  assert.equal(items[0].upNext, true);
+});

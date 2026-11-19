@@ -943,6 +943,23 @@ export const renderHome = async (root) => {
     } catch {}
   });
 
+  // Back to this tab after a while (cw-fix, 2026-11-19): somebody may have
+  // watched on the TV or the phone meanwhile — Continue Watching above all is
+  // read again (it waited for the next visit to Home). Merged as any fresh
+  // answer is, so nothing on screen jumps but that row.
+  let shownAt = Date.now();
+  const onVisible = async () => {
+    if (document.visibilityState !== "visible" || !screen.isConnected || !state.profile) return;
+    if (Date.now() - shownAt < 15000) return;
+    shownAt = Date.now();
+    try {
+      const next = await api.home(state.profile.id);
+      if (screen.isConnected) takeFresh(next);
+    } catch {}
+  };
+  document.addEventListener("visibilitychange", onVisible);
+  cleanups.push(() => document.removeEventListener("visibilitychange", onVisible));
+
   // Something was recommended to this person: the row takes it in (the toast
   // is js/recommend.js watchArrivals, wherever the person is)
   const unsubHh = onMessage("household_recs", async (msg) => {

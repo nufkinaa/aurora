@@ -195,6 +195,13 @@ const resolve = (itemId, prog, deps, { keepOwned = false } = {}) => {
       }
     }
     out.creditsAt = () => (prog ? deps.creditsStream(meta, prog) : null);
+    // A server that plays no streams ("torrents": false): the card could not
+    // be played. A film's goes; an episode's series keeps its place with the
+    // next one on disk, as for an episode whose file is gone.
+    if (deps.streamsOff && deps.streamsOff()) {
+      if (!out.ser || !out.show) return null;
+      return { ...out, card: null, gone: true };
+    }
     return out;
   }
   const item = deps.libraryItem(itemId);
