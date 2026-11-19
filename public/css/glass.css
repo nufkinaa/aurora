@@ -6149,21 +6149,9 @@ html[data-look="glass"][data-lens] .nav-items,
 html[data-look="glass"][data-lens] .hero-actions .btn:not(.btn-primary) {
   --g-blur: var(--rg-lens, url(#rg-0)) var(--rg-post);
 }
-/* A desktop's pointer: the button under it takes its lens for as long as
-   the pointer is there — one small pane, only while it is pointed at;
-   nothing at rest. (Its map is drawn ahead, at an idle moment. Not on
-   focus: the app gives a button the focus when the pointer passes over
-   it, and focus stays after the pointer has gone.) */
-@media (hover: hover) and (pointer: fine) {
-  html[data-look="glass"][data-lens] .nav-logo:hover,
-  html[data-look="glass"][data-lens] .nav-profile:hover,
-  html[data-look="glass"][data-lens] .nav-gear:hover,
-  html[data-look="glass"][data-lens] .nav-dl:hover,
-  html[data-look="glass"][data-lens] .nav-remote:hover,
-  html[data-look="glass"][data-lens] .detail-actions .btn:not(.btn-primary):hover {
-    --g-blur: var(--rg-lens, url(#rg-0)) var(--rg-post);
-  }
-}
+/* (No lens under a desktop's pointer: it was tried. The app's own hover
+   look fills the button — the round ones turn white — so a lens under the
+   pointer cannot be seen.) */
 /* The player: the lens only while the film is PAUSED (.player.is-paused,
    set on the video's own play and pause — screens/player.js). Over a
    playing film what is behind the glass changes every frame and the lens

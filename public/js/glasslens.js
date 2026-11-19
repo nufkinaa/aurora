@@ -18,25 +18,13 @@
 // glass.css, which decides WHEN each is shown):
 //   - always: the bar (the desktop island, the phone tab bar) and the hero's
 //     glass button;
-//   - only under a desktop's pointer or the keyboard's focus: the round top
-//     buttons, the logo and profile pills, a title's glass buttons;
 //   - only while a film is paused: the player's dock and top pills.
-// A lens is worked out again for every frame in which what is behind it
-// moves: with one on every surface all the time that was measured — 12 %
-// more processor time on a desktop Home at rest, nearly four times as much
-// over a playing film (tools/real-glass/player-cost.js).
+// Not the small buttons. A lens is worked out again for every frame in which
+// what is behind it moves: with one on every surface all the time that was
+// measured — 12 % more processor time on a desktop Home at rest, nearly four
+// times as much over a playing film (tools/real-glass/player-cost.js).
 const ALWAYS = [".nav-items", ".hero-actions .btn:not(.btn-primary)"];
-const AT_TIMES = [
-  ".nav-logo",
-  ".nav-profile",
-  ".nav-gear",
-  ".nav-dl",
-  ".nav-remote",
-  ".detail-actions .btn:not(.btn-primary)",
-  ".player-bottom",
-  ".player-top > div",
-  ".player-top .pbtn",
-];
+const AT_TIMES = [".player-bottom", ".player-top > div", ".player-top .pbtn"];
 const SCOPE = [...ALWAYS, ...AT_TIMES].join(",");
 const FIRST = ALWAYS.join(",");
 // On a phone the stylesheet gives the lens to the tab bar alone (the More
@@ -263,8 +251,8 @@ export function initGlassLens() {
       // gone from the page (the player is built anew for every film): let go of it
       if (!el.isConnected) { ro.unobserve(el); seen.delete(el); sized.delete(el); continue; }
       if (!on) continue;
-      // what is shown all the time is fitted now; what only shows under the
-      // pointer or while a film is paused has its map drawn at an idle moment
+      // what is shown all the time is fitted now; what only shows while a
+      // film is paused has its map drawn at an idle moment
       if (el.matches(FIRST)) fit(el);
       else wait.push(el);
     }

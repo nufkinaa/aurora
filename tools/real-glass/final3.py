@@ -98,28 +98,23 @@ if __name__ == "__main__":
                  real=[("The top bar", D_BAR)], zoom=[("The bar's middle", (420, 8, 1000, 100), 2), ("The right-hand buttons", (1060, 8, 1440, 100), 2)]), "07-desktop-sky.png")
     o.save(sheet("Desktop - a film's page (a dark page): the glass buttons", L("d-title", T), L("d-title", R), 2,
                  real=[("The buttons", (330, 520, 1000, 735)), ("The top bar", D_BAR)], zoom=[("The buttons", (330, 520, 1000, 735), 2)]), "08-desktop-title.png")
-    # the pointer: the settings button at rest and under the pointer (both real glass), and a title's button
-    o.save(sheet("Desktop - under the pointer a button takes its lens (real glass on both sides)", L("d-home", R), L("d-hover", R), 2,
-                 real=[("The right-hand buttons", (1060, 8, 1440, 100))], zoom=[("The settings button", (1090, 20, 1250, 90), 4)], labels=("At rest", "The pointer on Settings")), "09-desktop-pointer.png")
-    o.save(sheet("Desktop - a title's button under the pointer (real glass on both sides)", L("d-title", R), L("d-title-hover", R), 2,
-                 real=[("The buttons", (330, 520, 1000, 735))], zoom=[("The first glass button", (420, 525, 700, 595), 3)], labels=("At rest", "The pointer on the button")), "10-desktop-title-pointer.png")
     o.save(sheet("Tablet 1024 x 768 - Home: the bar follows the logo here", L("t-home", T), L("t-home", R), 2,
-                 real=[("The top bar", (0, 8, 1024, 100))], zoom=[("The bar", (0, 8, 700, 100), 2)]), "11-tablet-1024-home.png")
+                 real=[("The top bar", (0, 8, 1024, 100))], zoom=[("The bar", (0, 8, 700, 100), 2)]), "09-tablet-1024-home.png")
     o.save(sheet("Tablet 1024 x 768 - the bar over posters", L("t-busy", T), L("t-busy", R), 2,
-                 real=[("The top bar", (0, 8, 1024, 100))], zoom=[("The bar", (0, 8, 700, 100), 2)]), "12-tablet-1024-posters.png")
+                 real=[("The top bar", (0, 8, 1024, 100))], zoom=[("The bar", (0, 8, 700, 100), 2)]), "10-tablet-1024-posters.png")
     o.save(sheet("Tablet 768 x 1024 - Home and a film's page", L("t7-home", T), L("t7-home", R), 2,
-                 real=[("The top bar", (0, 8, 768, 100))], zoom=[("The bar", (0, 8, 768, 100), 2)]), "13-tablet-768-home.png")
+                 real=[("The top bar", (0, 8, 768, 100))], zoom=[("The bar", (0, 8, 768, 100), 2)]), "11-tablet-768-home.png")
     o.save(sheet("Player, PAUSED on a bright frame (private test server): the dock and the top pills take the lens on a still frame", I("08-player-menu", "a"), I("08-player-menu", "e"), 2,
                  real=[("The top of the screen", (0, 0, 720, 130)), ("The dock", (180, 760, 1260, 880))],
-                 zoom=[("The title and Back", (20, 10, 320, 125), 3), ("The dock's left end", (190, 765, 560, 885), 3)], note=None), "14-player-paused.png")
+                 zoom=[("The title and Back", (20, 10, 320, 125), 3), ("The dock's left end", (190, 765, 560, 885), 3)], note=None), "12-player-paused.png")
     nl = L("p-busy", "nolens")
     if os.path.exists(nl):
         o.save(sheet("Phone - with the lens (Chrome, Edge, Android) and without (Safari, iPhone, Firefox)", L("p-busy", R), nl, 3,
                      real=[("The whole screen", PHONE)], zoom=[("The top buttons", P_TOP, 2), ("The tab bar", P_BAR, 2)],
-                     note="Photographed in Chrome with the lens refused: the stylesheet path Safari takes. Safari itself was not run.", labels=("With the lens", "Without")), "15-no-lens-phone.png")
+                     note="Photographed in Chrome with the lens refused: the stylesheet path Safari takes. Safari itself was not run.", labels=("With the lens", "Without")), "13-no-lens-phone.png")
         o.save(sheet("Desktop - with the lens and without", L("d-busy", R), L("d-busy", "nolens"), 2,
                      real=[("The top bar", D_BAR)], zoom=[("The bar's middle", (420, 8, 1000, 100), 2), ("The right-hand buttons", (1060, 8, 1440, 100), 2)],
-                     note="Photographed in Chrome with the lens refused. Safari itself was not run.", labels=("With the lens", "Without")), "16-no-lens-desktop.png")
+                     note="Photographed in Chrome with the lens refused. Safari itself was not run.", labels=("With the lens", "Without")), "14-no-lens-desktop.png")
         o.save(sheet("Desktop, without the lens - today beside real glass on a film's page (what Safari shows)", L("d-title", T), L("d-title", "nolens"), 2,
                      real=[("The buttons", (330, 520, 1000, 735))], zoom=[("The buttons", (330, 520, 1000, 735), 2)],
-                     note="Photographed in Chrome with the lens refused. Safari itself was not run.", labels=("Today", "Real glass, no lens")), "17-no-lens-title.png")
+                     note="Photographed in Chrome with the lens refused. Safari itself was not run.", labels=("Today", "Real glass, no lens")), "15-no-lens-title.png")

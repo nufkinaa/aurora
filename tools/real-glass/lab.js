@@ -73,7 +73,9 @@ const busy = (frac) => async (page) => {
   await page.waitForTimeout(700);
 };
 
-const hover = (sel) => async (page) => { const c = await page.evaluate((q) => { const r = document.querySelector(q).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, sel); await page.mouse.move(c[0], c[1]); await page.waitForTimeout(500); };
+// (a click on nothing first: the page then knows a mouse is in use, as in real use — a page that has seen
+// no pointer at all draws a hovered button as if the keyboard had reached it, filled white)
+const hover = (sel) => async (page) => { await page.mouse.click(3, 500); const c = await page.evaluate((q) => { const r = document.querySelector(q).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, sel); await page.mouse.move(c[0], c[1]); await page.waitForTimeout(500); };
 
 const SCENES = [
   { id: "p-home", size: "phone-390", route: "home", crops: [".nav-logo, .nav-gear, .nav-profile, .nav-dl", ".nav-items", ".hero-actions"] },

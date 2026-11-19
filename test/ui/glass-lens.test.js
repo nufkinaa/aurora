@@ -13,8 +13,7 @@
 //     at once, and every lens points at a map that exists: a url() to
 //     nothing makes Chromium draw no backdrop filter at all.
 //   - The player's chrome takes the lens only while the film is paused (a
-//     playing film changes every frame), a desktop's round button only under
-//     the pointer.
+//     playing film changes every frame); the small buttons never do.
 //   - The classic look gets no lens and no maps.
 const assert = require("node:assert/strict");
 const { suite } = require("./helpers");
@@ -135,23 +134,6 @@ ui.test("the player's chrome takes the lens only while the film is paused", asyn
   const r = await page.evaluate(rings, sel);
   assert.ok(r.length >= 2, "its rims are drawn");
   for (const x of r) assert.ok(x.placed && x.own, `the ring of ${x.name} (${x.size}) is ${x.ring}`);
-});
-
-ui.test("a desktop's pointer: a round button takes its lens under it, and gives it back", async ({ page, signIn, freshProfile, goto }) => {
-  const me = await freshProfile();
-  await signIn(me);
-  await goto("#/");
-  await lensReady(page);
-  await page.waitForFunction(() => /rg-[1-9]/.test(document.querySelector(".nav-gear").style.getPropertyValue("--rg-lens")), null, { timeout: 8000 });
-  const filter = () => page.evaluate(() => getComputedStyle(document.querySelector(".nav-gear")).backdropFilter);
-  await page.mouse.move(5, 400);
-  assert.doesNotMatch(await filter(), /url\(/, "at rest: the plain backdrop");
-  const box = await page.evaluate(() => { const r = document.querySelector(".nav-gear").getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
-  await page.mouse.move(box[0], box[1]);
-  await page.waitForFunction(() => /url\(/.test(getComputedStyle(document.querySelector(".nav-gear")).backdropFilter), null, { timeout: 4000 });
-  assert.match(await filter(), /brightness/, "under the pointer: the lens, still dimmed");
-  await page.mouse.move(5, 400);
-  await page.waitForFunction(() => !/url\(/.test(getComputedStyle(document.querySelector(".nav-gear")).backdropFilter), null, { timeout: 4000 });
 });
 
 ui.test("glass, 1024 px: the profile menu opens above the bar", { viewport: { width: 1024, height: 768 } }, async ({ page, signIn, freshProfile, goto }) => {

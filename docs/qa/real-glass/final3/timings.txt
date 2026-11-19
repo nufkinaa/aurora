@@ -1,0 +1,36 @@
+# Real glass, third pass: the measurements. a = today (origin/master's stylesheet and scripts), e = real glass,
+# n = real glass with the lens switched off, h = e with the pointer resting on Settings. Sides take turns within a batch.
+
+# The More menu's first 700 ms, phone 390x844, CPU x4, 14 runs (tools/real-glass/more-open.js)
+a frames 37 worst 71,72,71,54,37,71,54,52,54,53,54,54,53,70 median worst 54 late 1
+e frames 37 worst 36,54,53,71,36,54,53,37,71,53,53,71,54,35 median worst 53 late 1
+
+# Phone scroll and rest: perf-phone.json (tools/glass-options/perf.js, 8 runs)
+phone-390 {"a":{"scrollMean":17.8,"scrollP95":18.4,"scrollP99":18.55,"scrollWorst":19,"scrollLate":0,"scrollFrames":79,"restMean":17.8,"restP95":18.4,"restLate":0,"droppedPct":null,"compositorFrames":null,"moreFrames":37,"moreP95":18.75,"moreWorst":53,"moreLate":1},"e":{"scrollMean":17.8,"scrollP95":18.4,"scrollP99":18.6,"scrollWorst":19,"scrollLate":0,"scrollFrames":80,"restMean":17.8,"restP95":18.4,"restLate":0,"dr
+
+# Processor time of the page's processes over 8 s, ms (tools/real-glass/player-cost.js), desktop 1440x900
+# Home, not scrolled (the hero and its glass button in view)
+a 1661 1719 1814 1768 1731 1728 1683 1585 | median 1723.5
+e 1733 1864 1880 1909 1883 2074 1673 1675 | median 1872
+h 1771 1756 1951 1727 1887 2114 1727 1747 | median 1763.5
+n 1635 1687 1983 1754 1811 1712 1660 1681 | median 1699.5
+# Home, scrolled 900 px (posters under the bar)
+a 1631 1701 1827 1604 1689 1823 1614 1634 | median 1661.5
+e 1750 1884 1811 1776 1815 2043 1754 1694 | median 1793.5
+n 1660 1706 1809 1696 1635 1664 1613 1695 | median 1679.5
+# the same with the bar's lens in three steps instead of five (a try)
+a 1624 1561 1597 1694 1532 1540 1577 1618 | median 1587
+e 1657 1592 1605 1701 1703 1655 1649 1825 | median 1656
+# the same with three steps and the bevel's picture not softened (a try: it speckles)
+a 1747 1535 1648 1698 1578 1727 1844 1755 | median 1712.5
+e 1616 1646 1685 1737 1637 1592 1786 1846 | median 1665.5
+# a film PLAYING, controls up
+a 794 925 934 772 733 | median 794
+e 819 1156 740 730 755 | median 755
+# a film PAUSED, controls up, nothing of the rig asking for frames (the lens is on the player's chrome)
+a 280 274 298 265 266 | median 274
+e 430 410 417 410 411 | median 411
+
+# Desktop, Home scrolled top to bottom, 8 runs (tools/real-glass/scroll-probe.js) — another build was running: today's own side is disturbed
+a mean 20.1 worst 75 late 5 | all late: 5,3,11,0,11,7,0,3
+e mean 18.2 worst 37 late 2 | all late: 4,1,12,6,1,0,0,2
