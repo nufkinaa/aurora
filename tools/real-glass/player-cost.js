@@ -50,6 +50,10 @@ const r1 = (x) => Math.round(x * 10) / 10;
         // r = n without the rims' rings (::before): what the rings cost
         if (side === "r") await page.addStyleTag({ content: "html[data-look='glass']:root *::before { content: none !important; }" });
         await sleep(2500);
+        // PAUSED=1: the film paused on a frame, the controls up (the lens is on the player's chrome then);
+        // HOVER=1: the pointer resting on the settings button (it wears its lens under the pointer)
+        if (process.env.PAUSED) { await page.evaluate(() => window.__v.pause()); await sleep(1200); }
+        if (process.env.HOVER) { const c = await page.evaluate(() => { const r = document.querySelector(".nav-gear").getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }); await page.mouse.move(c[0], c[1]); await sleep(600); }
         // TRY=ref: every lens swapped for the plain frosted filter (still a url() filter, no map, no bend);
         // TRY=one: only the bar keeps its lens; TRY=nomap: lenses without their map picture's cost? (see notes)
         const how = side === "o" ? "one" : side === "m" ? "mid" : process.env.TRY;
@@ -64,7 +68,7 @@ const r1 = (x) => Math.round(x * 10) / 10;
         await sleep(500);
         const sys = await b.newBrowserCDPSession();
         const times = async () => Object.fromEntries((await sys.send("SystemInfo.getProcessInfo")).processInfo.map((p) => [`${p.type}:${p.id}`, p.cpuTime]));
-        const lens = await page.evaluate(() => [...document.querySelectorAll(".nav-items, .nav-logo, .nav-gear, .nav-profile, .player-bottom, .player-top > div, .player-top .pbtn")].filter((e) => /rg-[1-9]/.test(e.style.getPropertyValue("--rg-lens")) && document.documentElement.dataset.lens).length);
+        const lens = await page.evaluate(() => [...document.querySelectorAll(".nav-items, .nav-logo, .nav-gear, .nav-profile, .hero-actions .btn, .player-bottom, .player-top > div, .player-top .pbtn")].filter((e) => e.offsetWidth > 0 && /url\(/.test(getComputedStyle(e).backdropFilter)).length); // (lenses being SHOWN now)
         const q0 = await page.evaluate(() => { window.__f = []; const q = window.__v.getVideoPlaybackQuality(); return [q.totalVideoFrames, q.droppedVideoFrames]; });
         const t0 = await times();
         if (process.env.SCROLL === "touch") {

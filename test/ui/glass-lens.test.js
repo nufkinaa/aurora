@@ -12,7 +12,9 @@
 //   - The maps live in one hidden <svg>. If it leaves the page it comes back
 //     at once, and every lens points at a map that exists: a url() to
 //     nothing makes Chromium draw no backdrop filter at all.
-//   - The player's chrome never takes the lens (a film changes every frame).
+//   - The player's chrome takes the lens only while the film is paused (a
+//     playing film changes every frame), a desktop's round button only under
+//     the pointer.
 //   - The classic look gets no lens and no maps.
 const assert = require("node:assert/strict");
 const { suite } = require("./helpers");
@@ -99,18 +101,73 @@ ui.test("glass, an iPhone: no lens at all, and the tab bar keeps its dim", { vie
   assert.match(l.worn.find((x) => x.name === "nav-items").filter, /brightness/, "the tab bar is still dimmed");
 });
 
-ui.test("the player's chrome wears the rim, never the lens", async ({ page, signIn, freshProfile, goto, lib }) => {
+ui.test("the player's chrome takes the lens only while the film is paused", async ({ page, signIn, freshProfile, goto, lib }) => {
   const me = await freshProfile();
   await signIn(me);
   await goto(`#/play/${lib.film1.id}`);
   await page.waitForSelector(".player .player-bottom", { timeout: 25000 });
-  await page.waitForTimeout(800);
-  const l = await page.evaluate(lens, ".player-bottom,.player-top > div,.player-top .pbtn,.upnext,.resume-card,.quality-pill,.party-pill");
-  assert.ok(l.worn.length >= 2, "the player's chrome is up");
-  for (const x of l.worn) { assert.equal(x.id, null, `${x.name} has no map`); assert.doesNotMatch(x.filter, /url\(/, `${x.name}: no lens in its backdrop`); }
-  const r = await page.evaluate(rings, ".player-bottom,.player-top > div,.player-top .pbtn");
+  const sel = ".player-bottom,.player-top > div,.player-top .pbtn";
+  const state = () => page.evaluate((s) => ({
+    paused: document.querySelector(".player video").paused,
+    cls: document.querySelector(".player").classList.contains("is-paused"),
+    filters: [...document.querySelectorAll(s)].filter((e) => e.offsetWidth > 0).map((e) => getComputedStyle(e).backdropFilter),
+  }), sel);
+  // playing: no lens anywhere on the chrome (a film changes every frame)
+  await page.evaluate(async () => { const v = document.querySelector(".player video"); v.muted = true; await v.play().catch(() => {}); });
+  await page.waitForFunction(() => !document.querySelector(".player video").paused, null, { timeout: 15000 });
+  await page.waitForTimeout(1500); // (the maps are drawn at an idle moment: even with them there, nothing is shown)
+  let st = await state();
+  assert.equal(st.cls, false, "a playing film: .player is not .is-paused");
+  assert.ok(st.filters.length >= 2, "the player's chrome is up");
+  for (const f of st.filters) assert.doesNotMatch(f, /url\(/, "no lens over a playing film");
+  // paused: the dock wears its lens, and it is a map that exists
+  await page.evaluate(() => document.querySelector(".player video").pause());
+  await page.waitForFunction(() => document.querySelector(".player").classList.contains("is-paused"), null, { timeout: 5000 });
+  await page.waitForFunction(() => /url\(/.test(getComputedStyle(document.querySelector(".player-bottom")).backdropFilter), null, { timeout: 8000 });
+  const dock = await page.evaluate(() => { const m = /url\(#(rg-\d+)\)/.exec(document.querySelector(".player-bottom").style.getPropertyValue("--rg-lens")); return { id: m && m[1], there: !!(m && document.getElementById(m[1])), filter: getComputedStyle(document.querySelector(".player-bottom")).backdropFilter }; });
+  assert.ok(dock.id && dock.there, "the paused dock's lens is a map that exists");
+  assert.match(dock.filter, /brightness/, "and still dimmed");
+  // playing again: gone again
+  await page.evaluate(() => document.querySelector(".player video").play().catch(() => {}));
+  await page.waitForFunction(() => !document.querySelector(".player").classList.contains("is-paused"), null, { timeout: 5000 });
+  st = await state();
+  for (const f of st.filters) assert.doesNotMatch(f, /url\(/, "playing again: no lens");
+  const r = await page.evaluate(rings, sel);
   assert.ok(r.length >= 2, "its rims are drawn");
   for (const x of r) assert.ok(x.placed && x.own, `the ring of ${x.name} (${x.size}) is ${x.ring}`);
+});
+
+ui.test("a desktop's pointer: a round button takes its lens under it, and gives it back", async ({ page, signIn, freshProfile, goto }) => {
+  const me = await freshProfile();
+  await signIn(me);
+  await goto("#/");
+  await lensReady(page);
+  await page.waitForFunction(() => /rg-[1-9]/.test(document.querySelector(".nav-gear").style.getPropertyValue("--rg-lens")), null, { timeout: 8000 });
+  const filter = () => page.evaluate(() => getComputedStyle(document.querySelector(".nav-gear")).backdropFilter);
+  await page.mouse.move(5, 400);
+  assert.doesNotMatch(await filter(), /url\(/, "at rest: the plain backdrop");
+  const box = await page.evaluate(() => { const r = document.querySelector(".nav-gear").getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.mouse.move(box[0], box[1]);
+  await page.waitForFunction(() => /url\(/.test(getComputedStyle(document.querySelector(".nav-gear")).backdropFilter), null, { timeout: 4000 });
+  assert.match(await filter(), /brightness/, "under the pointer: the lens, still dimmed");
+  await page.mouse.move(5, 400);
+  await page.waitForFunction(() => !/url\(/.test(getComputedStyle(document.querySelector(".nav-gear")).backdropFilter), null, { timeout: 4000 });
+});
+
+ui.test("glass, 1024 px: the profile menu opens above the bar", { viewport: { width: 1024, height: 768 } }, async ({ page, signIn, freshProfile, goto }) => {
+  const me = await freshProfile();
+  await signIn(me);
+  await goto("#/");
+  await page.waitForTimeout(400);
+  await page.evaluate(() => document.querySelector(".nav-profile").click());
+  await page.waitForSelector(".nav-menu", { timeout: 8000 });
+  await page.waitForTimeout(400);
+  // every corner region of the menu is the menu's own (nothing of the bar paints or catches clicks over it)
+  const hits = await page.evaluate(() => {
+    const m = document.querySelector(".nav-menu"), r = m.getBoundingClientRect();
+    return [[0.1, 0.1], [0.9, 0.1], [0.5, 0.5], [0.1, 0.9], [0.9, 0.9]].map(([fx, fy]) => { const e = document.elementFromPoint(r.left + r.width * fx, r.top + r.height * fy); return !!e && (m.contains(e) || e === m); });
+  });
+  assert.deepEqual(hits, [true, true, true, true, true], "the menu is on top everywhere");
 });
 
 ui.test("the classic look: no lens, no maps", async ({ page, api, signIn, freshProfile, goto }) => {
