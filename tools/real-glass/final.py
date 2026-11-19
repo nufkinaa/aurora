@@ -93,3 +93,10 @@ if __name__ == "__main__":
             sheet.paste(t, (x, y + 50))
         y += 58 + row[0].height
     o.save(sheet, "07-edge-3x.png")
+    # what a browser without the lens shows (Safari, Firefox): lab.js with the lens refused
+    nl = os.path.join(os.path.dirname(live.rstrip("/\\")), "live", "p-busy.nolens.png")
+    if os.path.exists(nl):
+        V[:] = [("real", "Chrome, Edge, Android: with the lens"), ("nolens", "Safari, iPhone, Firefox: without")]
+        o.save(pair("Phone - the same glass with and without the lens", L("p-busy", "real"), nl, 585,
+                    [("the top buttons, enlarged", (0, 0, 1170, 190)), ("the tab bar, enlarged", (0, 2300, 1170, 2532))], k=1,
+                    note="Photographed in Chrome with the lens refused: the stylesheet path Safari takes. Safari itself was not run."), "08-no-lens.png")

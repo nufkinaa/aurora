@@ -157,8 +157,11 @@ const filterFor = (w, h, radius) => {
   if (had) { had.used = ++tick; return had.id; }
   const svg = ensureDefs();
   const c = document.createElement("canvas");
-  // a small surface's map is drawn twice as fine: its whole face is rim
-  const res = w * h <= 60000 ? 2 : 1;
+  // a small round button's map is drawn twice as fine: its whole face is
+  // rim. A bar's is not: the map is decoded again whenever the bar is
+  // painted anew (a tab lighting up), and a big one made the More menu's
+  // first frame late on a slow phone.
+  const res = w * h <= 6000 ? 2 : 1;
   c.width = w * res; c.height = h * res;
   const ctx = c.getContext("2d");
   if (!ctx) return "rg-0";
