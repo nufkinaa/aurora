@@ -134,7 +134,7 @@ const Slide = React.memo(function Slide({item, w, h, top, land, noKicker, foot, 
           ) : null}
           <View style={s.heroBtns}>
             <PrimaryButton uiId="home.hero.play" testID="phone-hero-play" icon="play" label={item.source === 'stream' ? 'Stream' : 'Play'} onPress={() => onPlay(item)} style={s.heroBtn} />
-            <GlassButton uiId="home.hero.details" testID="phone-hero-details" icon="info" label="Details" onPress={() => onDetails(item)} style={s.heroGlass} />
+            <GlassButton uiId="home.hero.details" testID="phone-hero-details" icon="info" label="Details" float onPress={() => onDetails(item)} style={s.heroGlass} />
           </View>
         </View>
       </Tap>

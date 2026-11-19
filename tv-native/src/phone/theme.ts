@@ -110,77 +110,80 @@ export const E_WELL = {
   borderWidth: 1,
   borderColor: 'rgba(170,158,255,0.4)',
 } as const;
-/* ---- Real glass ("Prism") on the same chrome (2026-11-19) ------------------
+/* ---- Real glass on the same chrome (2026-11-19, second pass) ---------------
    elia: "a look of real looking glass with chromatic aberration for the btns
    … for the nav and every glass btn across the board". The website's is at the
-   end of public/css/glass.css ("Real glass"); these are its numbers in dp. The
-   surfaces are E's (the list above) and so are the bodies (E.chrome, E.bar);
-   what changes is the EDGE — a pane now reads as a THICK piece of glass:
+   end of public/css/glass.css ("Real glass"); these are its numbers in dp —
+   its DRAWN half: React Native has no live backdrop, so nothing is bent and
+   no colour is split here. The surfaces are E's (the list above) and so are
+   the bodies (E.chrome, E.bar); what changes is the EDGE — a pane reads as a
+   THICK piece of glass:
    - no light along the top (the ruling above stands). Thick glass lit from
      above is dark just under its top edge and gathers light along its foot:
-     a soft violet pool inside the bottom rim, within 7 dp of it (no light
-     behind words);
-   - the bezel: a soft glow inside the whole rim, and ONE even hairline — E's
-     violet one, drawn by ui/GlassRim.tsx (so these surfaces carry no border);
-   - the colour fringe of a lens, DRAWN (the app has no live backdrop, nothing
-     is bent or blurred): two thin lines at the ends of a pane, warm inside
-     the left end and cool inside the right, the swapped pair just outside;
-     and the light the rim catches at two places only — a short arc on the
-     left shoulder and its answer on the right foot — each white in the
-     middle, breaking into warm at one end and cool at the other (RG_ARCS,
-     drawn by ui/GlassRim.tsx);
-   - depth: the shadow below, and the dark hairline outside.
-   All of it is still: box shadows and one small drawing per surface, nothing
-   per frame. Inset shadows need Android 10+; an older phone shows the hairline,
-   the arcs, the outside line and the depth, without the pool and the fringe's
-   inner half. */
+     a soft violet pool inside the bottom rim, within 7 dp of it;
+   - the rim itself, 1 dp: dim on top, brighter down its sides, lit along its
+     foot (RG_FRESNEL), and one small glint on the left shoulder with a
+     fainter answer on the right foot, tinted in Aurora's violet-magenta and
+     mint (RG_ARCS; RG_ARCS_S on small round things, where nothing is lit
+     above the middle) — drawn by ui/GlassRim.tsx, so these surfaces carry
+     no border;
+   - nothing rainbow is drawn round a pane (the first pass's fringe lines at
+     a pane's ends are gone);
+   - depth: a tight contact shadow, the soft one, a little violet light let
+     through below, and the dark hairline outside.
+   All of it is still: box shadows and one small drawing per surface, sized
+   from what is known at the first layout — nothing per frame, nothing that
+   arrives a frame late. Inset shadows need Android 10+; an older phone shows
+   the rim, the glint, the outside line and the depth, without the pool. */
 export const RG = {
-  warm: '255,104,96',
-  cool: '72,208,255',
+  /** Aurora's own two: the violet-magenta of its accent and the mint of its sky */
+  warm: '232,121,249',
+  cool: '94,234,212',
   pool: '168,150,255',
-  /** the one hairline all round (E's violet rim), and the small round things' */
-  line: 'rgba(176,164,255,0.26)',
-  lineThin: 'rgba(176,164,255,0.2)',
-  /** the lit ring's width (dp) */
-  ring: 1.5,
 } as const;
-/** The bezel's glow, the dark under the top edge, the light gathered along the foot (--rg-rim, less its white hairline). */
+/** The bezel's glow, the dark under the top edge, the light gathered along the foot (--rg-rim, less its hairline: the ring carries it). */
 export const RG_RIM =
-  'inset 0 0 7px 0 rgba(255,255,255,0.09), inset 0 3px 4px -2px rgba(0,0,0,0.42), inset 0 -1px 0 0 rgba(168,150,255,0.34), inset 0 -7px 9px -7px rgba(168,150,255,0.5)';
-/** The fringe at the two ends of a pane (--rg-fringe). */
-export const RG_FRINGE =
-  'inset 2px 0 1.5px -1px rgba(255,104,96,0.4), inset -2px 0 1.5px -1px rgba(72,208,255,0.4), -1.5px 0 1.5px -1px rgba(72,208,255,0.34), 1.5px 0 1.5px -1px rgba(255,104,96,0.34)';
-/** The same on small round things: a touch fainter (a 42–56 dp disc is all end). */
-export const RG_FRINGE_THIN =
-  'inset 2px 0 1.5px -1px rgba(255,104,96,0.3), inset -2px 0 1.5px -1px rgba(72,208,255,0.3), -1.5px 0 1.5px -1px rgba(72,208,255,0.26), 1.5px 0 1.5px -1px rgba(255,104,96,0.26)';
-/** Real glass's edge (--ge-edge): fringe, rim, the dark hairline outside. No border: GlassRim draws the hairline. */
+  'inset 0 0 7px 0 rgba(255,255,255,0.07), inset 0 3px 4px -2px rgba(0,0,0,0.42), inset 0 -1px 0 0 rgba(168,150,255,0.18), inset 0 -7px 9px -7px rgba(168,150,255,0.45)';
+/** The depth under what floats (--ge-shadow): a tight contact shadow, the soft one, violet light let through below. */
+export const RG_DEPTH = '0 1px 1.5px rgba(0,0,0,0.5), 0 10px 24px rgba(0,0,0,0.3), 0 8px 16px -8px rgba(168,150,255,0.22)';
+/** Real glass's edge (--ge-edge): the rim, the dark hairline outside. No border: GlassRim draws the ring. */
 export const RG_EDGE = {
-  boxShadow: `${RG_FRINGE}, ${RG_RIM}, 0 0 0 1px rgba(0,0,0,0.36)`,
+  boxShadow: `${RG_RIM}, 0 0 0 1px rgba(0,0,0,0.36)`,
 } as const;
-/** Small round things (the action circles, the player's side buttons). */
+/** Small round things (the action circles, the player's side buttons): the outside line a touch fainter, as E's. */
 export const RG_EDGE_THIN = {
-  boxShadow: `${RG_FRINGE_THIN}, ${RG_RIM}, 0 0 0 1px rgba(0,0,0,0.3)`,
+  boxShadow: `${RG_RIM}, 0 0 0 1px rgba(0,0,0,0.3)`,
 } as const;
-/** The edge with the depth under it (--ge-edge + --ge-shadow), for what floats: the tab bar, the round top buttons, the glass pill. */
+/** The edge with the depth under it (--ge-edge + --ge-shadow), for what floats: the tab bar, the round top buttons, the hero's glass pill. */
 export const RG_EDGE_FLOAT = {
-  boxShadow: `${RG_FRINGE}, ${RG_RIM}, 0 0 0 1px rgba(0,0,0,0.36), 0 10px 24px rgba(0,0,0,0.34), 0 2px 5px rgba(0,0,0,0.3)`,
+  boxShadow: `${RG_RIM}, 0 0 0 1px rgba(0,0,0,0.36), ${RG_DEPTH}`,
 } as const;
-/** The light on the rim (--rg-arc, 1:1): six round lights, each fading to nothing at `r`. A light sits
- *  at (fx * width + dx, fy * height + dy) of the pane — so the arcs stay on the two ends whatever the
- *  width, and a wide bar's top edge is never lit. First = drawn on top. */
-export const RG_ARCS = [
-  {fx: 0, dx: 2, fy: 0.3, dy: 0, r: 20, c: '255,255,255', a: 0.95},
-  {fx: 0, dx: 6, fy: 0, dy: -2, r: 26, c: RG.warm, a: 0.9},
-  {fx: 0, dx: 0, fy: 0.78, dy: 0, r: 24, c: RG.cool, a: 0.9},
-  {fx: 1, dx: -2, fy: 0.7, dy: 0, r: 20, c: '255,255,255', a: 0.8},
-  {fx: 1, dx: -6, fy: 1, dy: 2, r: 26, c: RG.cool, a: 0.85},
-  {fx: 1, dx: 0, fy: 0.22, dy: 0, r: 24, c: RG.warm, a: 0.85},
+/** The rim itself (--rg-fresnel), top to foot: [how far down, colour, how strong]. */
+export const RG_FRESNEL = [
+  [0, '255,255,255', 0.05],
+  [0.45, '255,255,255', 0.13],
+  [1, '190,180,255', 0.32],
 ] as const;
-/** The lights are the website's on a pane as tall as the tab bar (59) or taller. On a smaller one their
- *  reach shrinks with its height — at full reach a 42 dp disc was lit nearly all the way round, its top
- *  included (a ring of colour, not two arcs) — and small round things take them a little fainter. */
-export const RG_ARC_FULL_H = 59;
-export const RG_ARC_THIN = 0.8;
+/** The glint (--rg-arc, 1:1): round lights, each fading to nothing at `r`. A light sits at
+ *  (fx * width + dx, fy * height) of the pane — so they stay on the two ends whatever the width,
+ *  and a wide bar's top edge is never lit. First = drawn on top. */
+export const RG_ARCS = [
+  {fx: 0, dx: 1, fy: 0.4, r: 13, c: '255,255,255', a: 0.66},
+  {fx: 0, dx: 3, fy: 0.16, r: 15, c: RG.warm, a: 0.42},
+  {fx: 0, dx: 2, fy: 0.74, r: 15, c: RG.cool, a: 0.42},
+  {fx: 1, dx: -1, fy: 0.66, r: 12, c: '255,255,255', a: 0.42},
+  {fx: 1, dx: -3, fy: 0.9, r: 14, c: RG.cool, a: 0.34},
+] as const;
+/** On a small round button (--rg-arc-s) nothing is lit above its middle: the glint at the left
+ *  shoulder, mint below it, a trace on the right foot. */
+export const RG_ARCS_S = [
+  {fx: 0, dx: 0, fy: 0.46, r: 8, c: '255,255,255', a: 0.6},
+  {fx: 0.04, dx: 0, fy: 0.66, r: 9, c: RG.warm, a: 0.36},
+  {fx: 0.15, dx: 0, fy: 0.85, r: 10, c: RG.cool, a: 0.4},
+  {fx: 1, dx: 0, fy: 0.7, r: 8, c: '255,255,255', a: 0.3},
+] as const;
+/** A title's page has six of these side by side: the group is calmed, as the website's (its ring at 0.7). */
+export const RG_CALM = 0.7;
 /** Words on the clearest glass carry a soft shadow of their own (0 1px 3px rgba(0,0,0,.6)). */
 export const E_WORDS = {
   textShadowColor: 'rgba(0,0,0,0.6)',

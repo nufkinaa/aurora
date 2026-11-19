@@ -944,7 +944,7 @@ const s = StyleSheet.create({
   count: {color: PLAY.inkDim, fontSize: 14.4, fontWeight: '800', fontVariant: ['tabular-nums']},
   undo: {width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: PLAY.line},
   undoGlyph: {color: PLAY.ink, fontSize: 18, fontWeight: '900', marginTop: -2},
-  tool: {height: 40, paddingHorizontal: 15},
+  tool: {height: 40, paddingHorizontal: 14},
   // the stage: whatever height is left, the card as tall as fits (640 at most)
   stage: {flex: 1, minHeight: 240, alignItems: 'center', justifyContent: 'center'},
   pillRow: {position: 'absolute', top: -6, left: 0, right: 0, alignItems: 'center'},

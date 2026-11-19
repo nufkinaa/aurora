@@ -84,7 +84,7 @@ function Btn({icon, label, onPress, big, badge, on, mid, uiId, px}: {icon: Phone
       accessibilityLabel={label}
       onPress={onPress}
       style={[s.btn, {width: size, height: size, borderRadius: size / 2}, big && s.big, mid && s.mid, on && s.on]}>
-      {big || mid ? <GlassRim w={size} h={size} thin={mid} /> : null}
+      {big || mid ? <GlassRim w={size} h={size} small={mid} /> : null}
       <Icon name={icon} size={big ? 40 : 26} color="#fff" />
       {badge ? <Text style={s.badge}>{badge}</Text> : null}
     </Tap>
@@ -249,7 +249,7 @@ export default function PhoneChrome(p: ChromeProps) {
               style={row.nextWord ? s.next : [s.next, s.nextRound, {width: row.size, height: row.size, borderRadius: row.size / 2}]}
               accessibilityRole="button"
               accessibilityLabel={`Next episode — ${p.next}`}>
-              <GlassRim />
+              {row.nextWord ? <GlassRim h={40} /> : <GlassRim w={row.size} h={row.size} small />}
               <Icon name="next" size={22} color="#fff" />
               {row.nextWord ? (
                 <Text style={s.nextText} numberOfLines={1}>

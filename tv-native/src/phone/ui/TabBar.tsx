@@ -101,7 +101,7 @@ export default function TabBar() {
         ))}
       </View>
       <View style={[s.bar, {width: barW}]} accessibilityRole="tablist">
-        {/* real glass: the hairline and the two lit arcs of the rim (still; sized from what is known) */}
+        {/* real glass: the rim and its glint (still; sized from what is known) */}
         <GlassRim w={barW} h={TAB_H} />
         {ITEMS.map((it, i) => {
           const on = tab === it.tab && !moreOn;
@@ -177,7 +177,7 @@ const s = StyleSheet.create({
     padding: 6,
     gap: 2,
     backgroundColor: E.bar,
-    // real glass (theme.ts): no border — GlassRim draws the hairline; the foot's pool stays under the words
+    // real glass (theme.ts): no border — GlassRim draws the rim; the foot's pool stays under the words
     ...RG_EDGE_FLOAT,
   },
   item: {flex: 1, height: PILL_H, borderRadius: PILL_H / 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},

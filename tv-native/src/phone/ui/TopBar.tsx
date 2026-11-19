@@ -54,7 +54,7 @@ export default function TopBar({solid}: {transparent?: boolean; solid?: boolean}
       {/* .nav-logo: the mark in a 42 glass circle, level with the round ones (the site's phone
           logo since 2026-11-10: the 50 x 40 pill was wider than its neighbours) */}
       <Tap uiId="nav.home" accessibilityRole="button" accessibilityLabel="Aurora — Home" onPress={() => setTab('home')} borderless style={s.logo}>
-        <GlassRim w={42} h={42} thin />
+        <GlassRim w={42} h={42} small />
         <Image source={LOGO} style={{width: 26, height: 26}} resizeMode="contain" />
       </Tap>
       <View style={{flex: 1}} />

@@ -5,7 +5,7 @@ import React, {createContext, useContext} from 'react';
 import {ActivityIndicator, StyleSheet, Text, View, ViewStyle, StyleProp} from 'react-native';
 import Tap from './Tap';
 import Icon, {PhoneIconName} from './Icon';
-import {colors, E, E_WORDS, G_EDGE, G_FILL, radius, RG_EDGE_FLOAT, RG_EDGE_THIN} from '../theme';
+import {colors, E, E_EDGE, E_WORDS, G_EDGE, G_FILL, radius, RG_EDGE_FLOAT, RG_EDGE_THIN} from '../theme';
 import GlassRim from './GlassRim';
 
 type Base = {
@@ -48,7 +48,10 @@ export function PrimaryButton({label, icon, onPress, onLongPress, busy, disabled
   );
 }
 
-export function GlassButton({label, icon, onPress, onLongPress, busy, disabled, style, testID, uiId, small, emoji}: Base) {
+/** A glass pill. In the page, a sheet or a dialog it wears glass E's even edge. `float`: it floats
+ *  over a picture (the hero's Details) and wears real glass — the rim, the glint, the depth. A float
+ *  pill carries no border, so a caller that sets its own paddingHorizontal gives 1 dp more. */
+export function GlassButton({label, icon, onPress, onLongPress, busy, disabled, style, testID, uiId, small, emoji, float}: Base & {float?: boolean}) {
   return (
     <Tap
       uiId={uiId}
@@ -58,8 +61,8 @@ export function GlassButton({label, icon, onPress, onLongPress, busy, disabled, 
       onPress={onPress}
       onLongPress={onLongPress}
       disabled={disabled || busy}
-      style={[s.glass, small && s.glassSmall, disabled && s.disabled, style]}>
-      <GlassRim />
+      style={[s.glass, small && s.glassSmall, float && s.glassFloat, float && small && s.glassFloatSmall, disabled && s.disabled, style]}>
+      {float ? <GlassRim h={small ? 39.6 : 50} /> : null}
       {busy ? <ActivityIndicator color={colors.text} size="small" /> : icon ? <Icon name={icon} size={small ? 17 : 20} color={colors.text} /> : null}
       {emoji ? <Text style={s.emoji}>{emoji}</Text> : null}
       <Text style={[s.glassText, small && s.glassTextSmall]} numberOfLines={1}>
@@ -157,7 +160,7 @@ export function ActionCircle({
       flat
       style={width ? [s.action, {width}] : s.action}>
       <View style={[s.actionDisc, on && s.actionDiscOn]}>
-        <GlassRim w={52} h={52} thin />
+        <GlassRim w={52} h={52} small calm />
         {busy ? (
           <ActivityIndicator color={colors.text} size="small" />
         ) : icon ? (
@@ -200,7 +203,7 @@ export function IconCircle({
       onPress={onPress}
       borderless
       style={[s.iconCircle, {width: size, height: size, borderRadius: size / 2}, style]}>
-      <GlassRim thin />
+      <GlassRim w={size} h={size} small />
       {children || (icon ? <Icon name={icon} size={Math.round(size * 0.45)} color={colors.text} /> : null)}
       {badge ? <View style={s.badge} /> : null}
     </Tap>
@@ -226,17 +229,20 @@ const s = StyleSheet.create({
     height: 50,
     borderRadius: radius.pill,
     backgroundColor: E.chrome,
-    // real glass (theme.ts): no border — GlassRim draws the hairline (so the sides are 27, not 26 + a 1 dp border)
-    ...RG_EDGE_FLOAT,
+    ...E_EDGE,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 27,
+    paddingHorizontal: 26,
     gap: 10,
     overflow: 'hidden',
   },
   glassText: {color: '#ffffff', fontSize: 16, fontWeight: '700', letterSpacing: 0.16, ...E_WORDS},
-  glassSmall: {height: 39.6, paddingHorizontal: 21},
+  glassSmall: {height: 39.6, paddingHorizontal: 20},
+  // real glass (theme.ts), for the one that floats over a picture: no border — GlassRim draws the
+  // ring (so the sides are 27, not 26 + a 1 dp border: the pill is as wide as it was)
+  glassFloat: {borderWidth: 0, paddingHorizontal: 27, ...RG_EDGE_FLOAT},
+  glassFloatSmall: {paddingHorizontal: 21},
   glassTextSmall: {fontSize: 14.4, letterSpacing: 0.14},
   emoji: {fontSize: 14.4},
   // .chip / .season-pill: 40 tall, a faint fill and a hairline ring; lit: a brighter fill
