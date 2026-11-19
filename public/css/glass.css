@@ -5940,3 +5940,155 @@ html[data-look="glass"][data-fx="lite"]:root {
     --ge-fill-menu: var(--ge-sheen), linear-gradient(rgba(16, 16, 20, 0.94), rgba(16, 16, 20, 0.94));
   }
 }
+
+/* ---------- Real glass: refraction and the colour fringe of a lens (2026-11-19) ----------
+   elia: "a look of real looking glass with chromatic aberration for the
+   btns … for the nav and every glass btn across the board". The surfaces
+   are Clear's (the list above); what changes is that a pane now reads as a
+   THICK piece of glass:
+   - its rim bends what is behind it: the bezel shows, turned over, the
+     band of picture just inside it (Chromium: js/glasslens.js lays an SVG
+     lens in the backdrop filter — html[data-lens]; Safari and Firefox never
+     see a url() and keep everything else);
+   - a lens bends red more than blue: the fringe. Through the lens it is
+     real (each colour bent by its own amount). On the rim it is drawn: the
+     light the edge catches breaks into a warm end and a cool end;
+   - the light: none along the top (elia's ruling: no white band there).
+     The rim catches it at two places only, the way a rounded edge does
+     under one lamp: a short arc on the left shoulder and its answer on the
+     right foot. Thick glass lit from above is dark just under its top edge
+     and gathers light along its foot — a soft violet pool inside the
+     bottom rim, Aurora's own colour;
+   - depth: a soft glow inside the whole rim (the bezel), a shadow below.
+   One backdrop filter per surface as before, box-shadows and one masked
+   ring: nothing new is blurred, nothing runs per frame. */
+html[data-look="glass"] {
+  --rg-post: saturate(2) brightness(0.5);
+  /* the lens's two numbers (js/glasslens.js reads them): how wide the bezel
+     is, and how far apart it throws red and blue (a tenth either way) */
+  --rg-thick: 1.1;
+  --rg-spread: 0.1;
+  --rg-warm: 255, 104, 96;
+  --rg-cool: 72, 208, 255;
+  --rg-pool: 168, 150, 255;
+  --rg-rim:
+    /* the even hairline of light all round, and the bezel's soft glow */
+    inset 0 0 0 1px rgba(255, 255, 255, 0.13),
+    inset 0 0 7px 0 rgba(255, 255, 255, 0.09),
+    /* dark under the top edge: thickness, where a sheen used to be */
+    inset 0 3px 4px -2px rgba(0, 0, 0, 0.42),
+    /* the light gathered along the foot */
+    inset 0 -1px 0 0 rgba(var(--rg-pool), 0.34),
+    inset 0 -7px 9px -7px rgba(var(--rg-pool), 0.5);
+  --rg-fringe:
+    /* the fringe at the two ends of a pane: warm inside the left end, cool
+       inside the right; its other half just outside, the colours swapped */
+    inset 2px 0 1.5px -1px rgba(var(--rg-warm), 0.4),
+    inset -2px 0 1.5px -1px rgba(var(--rg-cool), 0.4),
+    -1.5px 0 1.5px -1px rgba(var(--rg-cool), 0.34),
+    1.5px 0 1.5px -1px rgba(var(--rg-warm), 0.34);
+  --ge-edge: var(--rg-fringe), var(--rg-rim), 0 0 0 1px rgba(0, 0, 0, 0.36);
+  --ge-shadow: 0 10px 24px rgba(0, 0, 0, 0.34), 0 2px 5px rgba(0, 0, 0, 0.3);
+  /* the light on the rim: two arcs, each breaking into its colours; and
+     the same on a small round button, shorter (at full reach a 42 px circle
+     was lit nearly all the way round, its top included) */
+  --rg-arc:
+    radial-gradient(circle 20px at 2px 30%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 100%),
+    radial-gradient(circle 26px at 6px -2px, rgba(var(--rg-warm), 0.9), rgba(var(--rg-warm), 0) 100%),
+    radial-gradient(circle 24px at 0 78%, rgba(var(--rg-cool), 0.9), rgba(var(--rg-cool), 0) 100%),
+    radial-gradient(circle 20px at calc(100% - 2px) 70%, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0) 100%),
+    radial-gradient(circle 26px at calc(100% - 6px) calc(100% + 2px), rgba(var(--rg-cool), 0.85), rgba(var(--rg-cool), 0) 100%),
+    radial-gradient(circle 24px at 100% 22%, rgba(var(--rg-warm), 0.85), rgba(var(--rg-warm), 0) 100%);
+  --rg-arc-s:
+    radial-gradient(circle 12.4px at 2px 30%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 100%),
+    radial-gradient(circle 16.1px at 6px -2px, rgba(var(--rg-warm), 0.9), rgba(var(--rg-warm), 0) 100%),
+    radial-gradient(circle 14.9px at 0 78%, rgba(var(--rg-cool), 0.9), rgba(var(--rg-cool), 0) 100%),
+    radial-gradient(circle 12.4px at calc(100% - 2px) 70%, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0) 100%),
+    radial-gradient(circle 16.1px at calc(100% - 6px) calc(100% + 2px), rgba(var(--rg-cool), 0.85), rgba(var(--rg-cool), 0) 100%),
+    radial-gradient(circle 14.9px at 100% 22%, rgba(var(--rg-warm), 0.85), rgba(var(--rg-warm), 0) 100%);
+}
+/* the ring that carries the arcs (a surface that is not placed gets a
+   place: nothing inside any of these is placed against something outside) */
+html[data-look="glass"] .nav-logo,
+html[data-look="glass"] .nav-profile,
+html[data-look="glass"] .nav-dl,
+html[data-look="glass"] .hero-actions .btn:not(.btn-primary),
+html[data-look="glass"] .detail-actions .btn:not(.btn-primary),
+html[data-look="glass"] .player-top > div,
+html[data-look="glass"] .player-top .pbtn {
+  position: relative;
+}
+html[data-look="glass"] .nav-items::before,
+html[data-look="glass"] .nav-logo::before,
+html[data-look="glass"] .nav-profile::before,
+html[data-look="glass"] .nav-gear::before,
+html[data-look="glass"] .nav-dl::before,
+html[data-look="glass"] .nav-remote::before,
+html[data-look="glass"] .hero-actions .btn:not(.btn-primary)::before,
+html[data-look="glass"] .detail-actions .btn:not(.btn-primary)::before,
+html[data-look="glass"] .player-bottom::before,
+html[data-look="glass"] .player-top > div::before,
+html[data-look="glass"] .player-top .pbtn::before,
+html[data-look="glass"] .upnext::before,
+html[data-look="glass"] .resume-card::before,
+html[data-look="glass"] .quality-pill::before,
+html[data-look="glass"] .party-pill::before {
+  content: "";
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: auto;
+  overflow: visible;
+  border-radius: inherit;
+  padding: 1.5px;
+  pointer-events: none;
+  background: var(--rg-arc);
+  background-repeat: no-repeat;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+/* Chromium: the lens itself (the surface's own map from js/glasslens.js;
+   #rg-0 is "frosted, straight through", there from the first moment) */
+html[data-look="glass"][data-lens] .nav-items,
+html[data-look="glass"][data-lens] .nav-logo,
+html[data-look="glass"][data-lens] .nav-profile,
+html[data-look="glass"][data-lens] .nav-gear,
+html[data-look="glass"][data-lens] .nav-dl,
+html[data-look="glass"][data-lens] .nav-remote,
+html[data-look="glass"][data-lens] .hero-actions .btn:not(.btn-primary),
+html[data-look="glass"][data-lens] .detail-actions .btn:not(.btn-primary),
+html[data-look="glass"][data-lens] .player-bottom,
+html[data-look="glass"][data-lens] .player-top > div,
+html[data-look="glass"][data-lens] .player-top .pbtn,
+html[data-look="glass"][data-lens] .upnext,
+html[data-look="glass"][data-lens] .resume-card,
+html[data-look="glass"][data-lens] .quality-pill,
+html[data-look="glass"][data-lens] .party-pill {
+  --g-blur: var(--rg-lens, url(#rg-0)) var(--rg-post);
+}
+@media (max-width: 720px) {
+  html[data-look="glass"]:root .nav-items {
+    --rg-post: saturate(2) brightness(0.47);
+  }
+}
+html[data-look="glass"] .nav-gear,
+html[data-look="glass"] .nav-dl,
+html[data-look="glass"] .nav-remote,
+html[data-look="glass"] .player-top .pbtn,
+html[data-look="glass"] .detail-actions .btn.btn-icon {
+  --rg-arc: var(--rg-arc-s);
+}
+@media (max-width: 720px) {
+  html[data-look="glass"]:root .nav-logo,
+  html[data-look="glass"]:root .nav-profile {
+    --rg-arc: var(--rg-arc-s);
+  }
+}
+/* (a phone's action tiles under a title are not glass panes — as with
+   Clear, they look as before) */
+@media (max-width: 720px) {
+  html[data-look="glass"]:root .detail-actions .btn:not(.btn-primary)::before {
+    content: none;
+  }
+}

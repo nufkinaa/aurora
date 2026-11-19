@@ -237,6 +237,9 @@ initAurora($("#nav-aurora")); // the aurora in the nav's empty stretch
 }, { timeout: 2000 });
 initScreensaver(); // idle-on-home backdrop slideshow (any input wakes)
 initPrefetch(); // the next screen's data, fetched while this one is read
+// Real glass: the lens at the rim of the chrome (Chromium only; everything
+// else of the look is plain CSS). Its own small file, after the first paint.
+import("./glasslens.js").then((m) => m.initGlassLens()).catch(() => {});
 // The connection (net.js): one usage event per tab once it is known, another
 // when it changes — so the admin can see how many sessions are on a thin
 // line. NOT a toast: lighter pictures are not worth interrupting anyone for

@@ -1,0 +1,30 @@
+/* C · Crystal: a thicker piece of glass. A wider bezel that bends more and
+   splits the colours further, a second line inside the rim, longer arcs. */
+html[data-look="glass"] {
+  --rg-thick: 1.55;
+  --rg-spread: 0.17;
+  --rg-rim:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 0 0 3px rgba(255, 255, 255, 0.05),
+    inset 0 0 12px 0 rgba(255, 255, 255, 0.13),
+    inset 0 4px 6px -2px rgba(0, 0, 0, 0.5),
+    inset 0 -1px 0 0 rgba(168, 150, 255, 0.5),
+    inset 0 -10px 12px -8px rgba(168, 150, 255, 0.7);
+  --rg-arc:
+    radial-gradient(circle 30px at 2px 30%, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0) 100%),
+    radial-gradient(circle 38px at 8px -4px, rgba(255, 104, 96, 1), rgba(255, 104, 96, 0) 100%),
+    radial-gradient(circle 34px at 0 84%, rgba(72, 208, 255, 1), rgba(72, 208, 255, 0) 100%),
+    radial-gradient(circle 30px at calc(100% - 2px) 70%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 100%),
+    radial-gradient(circle 38px at calc(100% - 8px) calc(100% + 4px), rgba(72, 208, 255, 1), rgba(72, 208, 255, 0) 100%),
+    radial-gradient(circle 34px at 100% 16%, rgba(255, 104, 96, 1), rgba(255, 104, 96, 0) 100%);
+  --ge-shadow: 0 14px 30px rgba(0, 0, 0, 0.42), 0 3px 6px rgba(0, 0, 0, 0.34);
+}
+html[data-look="glass"] .nav-items::before,
+html[data-look="glass"] .nav-logo::before,
+html[data-look="glass"] .nav-profile::before,
+html[data-look="glass"] .nav-gear::before,
+html[data-look="glass"] .nav-dl::before,
+html[data-look="glass"] .hero-actions .btn:not(.btn-primary)::before,
+html[data-look="glass"] .detail-actions .btn:not(.btn-primary)::before {
+  padding: 2px;
+}

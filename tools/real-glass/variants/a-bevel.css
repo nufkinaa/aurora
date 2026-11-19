@@ -1,0 +1,16 @@
+/* A · Bevel: the lens and a quiet, even rim; the fringe only as two thin
+   coloured lines at the ends of a pane. No light on the rim at all. */
+html[data-look="glass"] {
+  --rg-arc: none;
+  --rg-rim:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.19),
+    inset 0 0 7px 0 rgba(255, 255, 255, 0.09),
+    inset 0 3px 4px -2px rgba(0, 0, 0, 0.42),
+    inset 0 -1px 0 0 rgba(168, 150, 255, 0.34),
+    inset 0 -7px 9px -7px rgba(168, 150, 255, 0.5);
+  --rg-fringe:
+    inset 2px 0 1.5px -1px rgba(255, 104, 96, 0.62),
+    inset -2px 0 1.5px -1px rgba(72, 208, 255, 0.62),
+    -1.5px 0 1.5px -1px rgba(72, 208, 255, 0.5),
+    1.5px 0 1.5px -1px rgba(255, 104, 96, 0.5);
+}
