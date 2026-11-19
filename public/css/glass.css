@@ -5946,68 +5946,79 @@ html[data-look="glass"][data-fx="lite"]:root {
    btns … for the nav and every glass btn across the board". The surfaces
    are Clear's (the list above); what changes is that a pane now reads as a
    THICK piece of glass:
-   - its rim bends what is behind it: the bezel shows, turned over, the
-     band of picture just inside it (Chromium: js/glasslens.js lays an SVG
-     lens in the backdrop filter — html[data-lens]; Safari and Firefox never
-     see a url() and keep everything else);
-   - a lens bends red more than blue: the fringe. Through the lens it is
-     real (each colour bent by its own amount). On the rim it is drawn: the
-     light the edge catches breaks into a warm end and a cool end;
-   - the light: none along the top (elia's ruling: no white band there).
-     The rim catches it at two places only, the way a rounded edge does
-     under one lamp: a short arc on the left shoulder and its answer on the
-     right foot. Thick glass lit from above is dark just under its top edge
-     and gathers light along its foot — a soft violet pool inside the
-     bottom rim, Aurora's own colour;
-   - depth: a soft glow inside the whole rim (the bezel), a shadow below.
+   - its rim bends what is behind it: the bezel shows, turned over and
+     squeezed, a wide band of the picture inside it — the way the edge of a
+     thick lens gathers a whole view into a thin line (Chromium:
+     js/glasslens.js lays an SVG lens in the backdrop filter —
+     html[data-lens]; Safari and Firefox never see a url() and keep
+     everything else);
+   - a lens bends red more than blue: the fringe. It is real — each colour
+     bent by its own amount, inside the bezel only. Nothing rainbow is drawn
+     round a pane: over a dark page, where there is nothing to bend, the
+     glass is simply quiet;
+   - the light: none along the top (elia's ruling). The rim is dim on top
+     and brighter down its sides and along its foot, the way glass lit from
+     above shows its edge; one small glint sits on the left shoulder with a
+     faint answer on the right foot, tinted in Aurora's violet and mint;
+   - depth: dark just under the top edge, a soft violet pool inside the
+     foot, a tight contact shadow and a little violet light let through
+     onto what is below.
    One backdrop filter per surface as before, box-shadows and one masked
    ring: nothing new is blurred, nothing runs per frame. */
 html[data-look="glass"] {
   --rg-post: saturate(2) brightness(0.5);
-  /* the lens's two numbers (js/glasslens.js reads them): how wide the bezel
-     is, and how far apart it throws red and blue (a tenth either way) */
+  /* the lens's numbers (js/glasslens.js reads them from each surface): how
+     wide the bezel is, how far apart it throws red and blue (a tenth either
+     way), and in how many steps (3: red, green, blue; 5: a spectrum) */
   --rg-thick: 1.1;
   --rg-spread: 0.1;
-  --rg-warm: 255, 104, 96;
-  --rg-cool: 72, 208, 255;
+  --rg-taps: 3;
+  /* Aurora's own two: the violet-magenta of its accent and the mint of its sky */
+  --rg-warm: 232, 121, 249;
+  --rg-cool: 94, 234, 212;
   --rg-pool: 168, 150, 255;
   --rg-rim:
-    /* the even hairline of light all round, and the bezel's soft glow */
-    inset 0 0 0 1px rgba(255, 255, 255, 0.13),
-    inset 0 0 7px 0 rgba(255, 255, 255, 0.09),
+    /* a faint hairline all round (the ring below carries the rest), and the bezel's soft glow */
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+    inset 0 0 7px 0 rgba(255, 255, 255, 0.07),
     /* dark under the top edge: thickness, where a sheen used to be */
     inset 0 3px 4px -2px rgba(0, 0, 0, 0.42),
     /* the light gathered along the foot */
-    inset 0 -1px 0 0 rgba(var(--rg-pool), 0.34),
-    inset 0 -7px 9px -7px rgba(var(--rg-pool), 0.5);
-  --rg-fringe:
-    /* the fringe at the two ends of a pane: warm inside the left end, cool
-       inside the right; its other half just outside, the colours swapped */
-    inset 2px 0 1.5px -1px rgba(var(--rg-warm), 0.4),
-    inset -2px 0 1.5px -1px rgba(var(--rg-cool), 0.4),
-    -1.5px 0 1.5px -1px rgba(var(--rg-cool), 0.34),
-    1.5px 0 1.5px -1px rgba(var(--rg-warm), 0.34);
-  --ge-edge: var(--rg-fringe), var(--rg-rim), 0 0 0 1px rgba(0, 0, 0, 0.36);
-  --ge-shadow: 0 10px 24px rgba(0, 0, 0, 0.34), 0 2px 5px rgba(0, 0, 0, 0.3);
-  /* the light on the rim: two arcs, each breaking into its colours; and
-     the same on a small round button, shorter (at full reach a 42 px circle
-     was lit nearly all the way round, its top included) */
+    inset 0 -1px 0 0 rgba(var(--rg-pool), 0.18),
+    inset 0 -7px 9px -7px rgba(var(--rg-pool), 0.45);
+  --ge-edge: var(--rg-rim), 0 0 0 1px rgba(0, 0, 0, 0.36);
+  /* a tight contact shadow, the soft one, and violet light let through below */
+  --ge-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.5), 0 10px 24px rgba(0, 0, 0, 0.3), 0 8px 16px -8px rgba(var(--rg-pool), 0.22);
+  /* the rim itself: dim on top, brighter down the sides, lit along the foot */
+  --rg-fresnel: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.13) 45%, rgba(190, 180, 255, 0.32));
+  /* the glint: one small light on the left shoulder with a trace of colour
+     either side of it, and a fainter answer on the right foot */
   --rg-arc:
-    radial-gradient(circle 20px at 2px 30%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 100%),
-    radial-gradient(circle 26px at 6px -2px, rgba(var(--rg-warm), 0.9), rgba(var(--rg-warm), 0) 100%),
-    radial-gradient(circle 24px at 0 78%, rgba(var(--rg-cool), 0.9), rgba(var(--rg-cool), 0) 100%),
-    radial-gradient(circle 20px at calc(100% - 2px) 70%, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0) 100%),
-    radial-gradient(circle 26px at calc(100% - 6px) calc(100% + 2px), rgba(var(--rg-cool), 0.85), rgba(var(--rg-cool), 0) 100%),
-    radial-gradient(circle 24px at 100% 22%, rgba(var(--rg-warm), 0.85), rgba(var(--rg-warm), 0) 100%);
+    radial-gradient(circle 13px at 1px 40%, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0) 100%),
+    radial-gradient(circle 15px at 3px 16%, rgba(var(--rg-warm), 0.42), rgba(var(--rg-warm), 0) 100%),
+    radial-gradient(circle 15px at 2px 74%, rgba(var(--rg-cool), 0.42), rgba(var(--rg-cool), 0) 100%),
+    radial-gradient(circle 12px at calc(100% - 1px) 66%, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0) 100%),
+    radial-gradient(circle 14px at calc(100% - 3px) 90%, rgba(var(--rg-cool), 0.34), rgba(var(--rg-cool), 0) 100%);
+  /* on a small round button nothing is lit above its middle: the glint at
+     the left shoulder, mint below it, a trace on the right foot */
   --rg-arc-s:
-    radial-gradient(circle 12.4px at 2px 30%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 100%),
-    radial-gradient(circle 16.1px at 6px -2px, rgba(var(--rg-warm), 0.9), rgba(var(--rg-warm), 0) 100%),
-    radial-gradient(circle 14.9px at 0 78%, rgba(var(--rg-cool), 0.9), rgba(var(--rg-cool), 0) 100%),
-    radial-gradient(circle 12.4px at calc(100% - 2px) 70%, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0) 100%),
-    radial-gradient(circle 16.1px at calc(100% - 6px) calc(100% + 2px), rgba(var(--rg-cool), 0.85), rgba(var(--rg-cool), 0) 100%),
-    radial-gradient(circle 14.9px at 100% 22%, rgba(var(--rg-warm), 0.85), rgba(var(--rg-warm), 0) 100%);
+    radial-gradient(circle 8px at 0 46%, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0) 100%),
+    radial-gradient(circle 9px at 4% 66%, rgba(var(--rg-warm), 0.36), rgba(var(--rg-warm), 0) 100%),
+    radial-gradient(circle 10px at 15% 85%, rgba(var(--rg-cool), 0.4), rgba(var(--rg-cool), 0) 100%),
+    radial-gradient(circle 8px at 100% 70%, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 100%);
 }
-/* the ring that carries the arcs (a surface that is not placed gets a
+/* the big panes: a wider bezel, so the bend shows at real size; a desktop's
+   bar splits the colours in five steps, a spectrum */
+html[data-look="glass"] .nav-items,
+html[data-look="glass"] .player-bottom {
+  --rg-thick: 1.4;
+}
+@media (min-width: 721px) {
+  html[data-look="glass"] .nav-items {
+    --rg-taps: 5;
+  }
+}
+/* the ring that carries the rim (a surface that is not placed gets a
    place: nothing inside any of these is placed against something outside) */
 html[data-look="glass"] .nav-logo,
 html[data-look="glass"] .nav-profile,
@@ -6015,8 +6026,17 @@ html[data-look="glass"] .nav-dl,
 html[data-look="glass"] .hero-actions .btn:not(.btn-primary),
 html[data-look="glass"] .detail-actions .btn:not(.btn-primary),
 html[data-look="glass"] .player-top > div,
-html[data-look="glass"] .player-top .pbtn {
+html[data-look="glass"] .player-top .pbtn,
+html[data-look="glass"] .party-pill {
   position: relative;
+}
+/* (between a phone and a wide desktop the island is not placed either —
+   it follows the logo: its ring would have been the whole top bar's) */
+@media (min-width: 721px) and (max-width: 1260px) {
+  html[data-look="glass"] .nav-items {
+    position: relative;
+    left: auto;
+  }
 }
 html[data-look="glass"] .nav-items::before,
 html[data-look="glass"] .nav-logo::before,
@@ -6040,13 +6060,42 @@ html[data-look="glass"] .party-pill::before {
   z-index: auto;
   overflow: visible;
   border-radius: inherit;
-  padding: 1.5px;
+  padding: 1px;
   pointer-events: none;
-  background: var(--rg-arc);
+  background: var(--rg-arc), var(--rg-fresnel);
   background-repeat: no-repeat;
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+html[data-look="glass"] .nav-gear,
+html[data-look="glass"] .nav-dl,
+html[data-look="glass"] .nav-remote,
+html[data-look="glass"] .player-top .pbtn,
+html[data-look="glass"] .quality-pill,
+html[data-look="glass"] .party-pill {
+  --rg-arc: var(--rg-arc-s);
+}
+@media (max-width: 720px) {
+  html[data-look="glass"]:root .nav-logo,
+  html[data-look="glass"]:root .nav-profile {
+    --rg-arc: var(--rg-arc-s);
+  }
+}
+/* A title's page has up to nine of these side by side: the group is calmed
+   — a quieter rim on each, and the icon-only ones carry no glint at all. */
+html[data-look="glass"] .detail-actions .btn:not(.btn-primary)::before {
+  opacity: 0.7;
+}
+html[data-look="glass"] .detail-actions .btn.btn-icon {
+  --rg-arc: linear-gradient(transparent, transparent);
+}
+/* (a phone's action tiles under a title are not glass panes — as with
+   Clear, they look as before) */
+@media (max-width: 720px) {
+  html[data-look="glass"]:root .detail-actions .btn:not(.btn-primary)::before {
+    content: none;
+  }
 }
 /* Chromium: the lens itself (the surface's own map from js/glasslens.js;
    #rg-0 is "frosted, straight through", there from the first moment) */
@@ -6072,26 +6121,6 @@ html[data-look="glass"][data-lens] .party-pill {
     --rg-post: saturate(2) brightness(0.47);
   }
 }
-html[data-look="glass"] .nav-gear,
-html[data-look="glass"] .nav-dl,
-html[data-look="glass"] .nav-remote,
-html[data-look="glass"] .player-top .pbtn,
-html[data-look="glass"] .detail-actions .btn.btn-icon {
-  --rg-arc: var(--rg-arc-s);
-}
-@media (max-width: 720px) {
-  html[data-look="glass"]:root .nav-logo,
-  html[data-look="glass"]:root .nav-profile {
-    --rg-arc: var(--rg-arc-s);
-  }
-}
-/* (a phone's action tiles under a title are not glass panes — as with
-   Clear, they look as before) */
-@media (max-width: 720px) {
-  html[data-look="glass"]:root .detail-actions .btn:not(.btn-primary)::before {
-    content: none;
-  }
-}
 /* a pane that takes the keyboard's focus is drawn by its focus ring: the
    rim's light steps back */
 html[data-look="glass"] .nav-logo:focus-visible::before,
@@ -6101,12 +6130,33 @@ html[data-look="glass"] .nav-dl:focus-visible::before,
 html[data-look="glass"] .nav-remote:focus-visible::before,
 html[data-look="glass"] .hero-actions .btn:focus-visible::before,
 html[data-look="glass"] .detail-actions .btn:focus-visible::before,
-html[data-look="glass"] .player-top .pbtn:focus-visible::before {
+html[data-look="glass"] .player-top .pbtn:focus-visible::before,
+html[data-look="glass"] .party-pill:focus-visible::before {
   opacity: 0;
 }
 /* a browser that cannot cut the ring out of its square would paint the
-   light over the whole pane: it gets none */
+   light over the whole pane; a person who asked for more contrast, or for
+   their own colours, gets a plain edge: no ring */
 @supports not ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
+  html[data-look="glass"]:root .nav-items::before,
+  html[data-look="glass"]:root .nav-logo::before,
+  html[data-look="glass"]:root .nav-profile::before,
+  html[data-look="glass"]:root .nav-gear::before,
+  html[data-look="glass"]:root .nav-dl::before,
+  html[data-look="glass"]:root .nav-remote::before,
+  html[data-look="glass"]:root .hero-actions .btn:not(.btn-primary)::before,
+  html[data-look="glass"]:root .detail-actions .btn:not(.btn-primary)::before,
+  html[data-look="glass"]:root .player-bottom::before,
+  html[data-look="glass"]:root .player-top > div::before,
+  html[data-look="glass"]:root .player-top .pbtn::before,
+  html[data-look="glass"]:root .upnext::before,
+  html[data-look="glass"]:root .resume-card::before,
+  html[data-look="glass"]:root .quality-pill::before,
+  html[data-look="glass"]:root .party-pill::before {
+    content: none;
+  }
+}
+@media (forced-colors: active), (prefers-contrast: more) {
   html[data-look="glass"]:root .nav-items::before,
   html[data-look="glass"]:root .nav-logo::before,
   html[data-look="glass"]:root .nav-profile::before,
@@ -6130,7 +6180,8 @@ html[data-look="glass"] .player-top .pbtn:focus-visible::before {
    one of them bending the picture too, the More menu's first frame came a
    frame later at CPU x4 (71 ms against 53; with the bar alone, 54 —
    tools/real-glass/more-open.js). At 42 px there is little picture in a
-   bezel to bend; the rim's light carries the look there. */
+   bezel to bend; the rim carries the look there. (js/glasslens.js draws
+   no maps for them either.) */
 @media (max-width: 720px) {
   html[data-look="glass"][data-lens]:root .nav-logo,
   html[data-look="glass"][data-lens]:root .nav-profile,

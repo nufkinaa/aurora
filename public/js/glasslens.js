@@ -2,18 +2,17 @@
 // (glass.css, "Real glass"). A thick piece of glass bends what is behind it
 // where its edge turns away, and bends red a little more than blue — the
 // colour fringe of a real lens. Chromium can draw that: an SVG displacement
-// map inside `backdrop-filter`, once per colour channel with a slightly
-// different strength. Safari and Firefox cannot (Safari drops the WHOLE
-// backdrop filter when a url() is in it — WebKit bugs 245510, 317059), so
-// they never see a url(): the stylesheet only uses the lens under
-// html[data-lens], and only this file sets that, on Chromium alone. Everything
-// else of the look (the rim's light, the drawn fringe, the depth) is plain
-// CSS and the same everywhere.
+// map inside `backdrop-filter`, once per colour with a slightly different
+// strength. Safari and Firefox cannot (Safari drops the WHOLE backdrop
+// filter when a url() is in it — WebKit bugs 245510, 317059), so they never
+// see a url(): the stylesheet only uses the lens under html[data-lens], and
+// only this file sets that, on Chromium alone. Everything else of the look
+// (the rim, its glint, the depth) is plain CSS and the same everywhere.
 //
-// No per-frame work: a map is drawn once per SIZE of surface (a 44 px round
+// No per-frame work: a map is drawn once per SIZE of surface (a 42 px round
 // button, the tab bar…), kept, and shared by every surface of that size. The
 // browser's own ResizeObserver says when a size changes; a MutationObserver
-// (coalesced to one idle pass) finds surfaces as screens come and go.
+// (coalesced to one pass) finds surfaces as screens come and go.
 
 // what takes the lens: the same list as the "Real glass" section of glass.css
 const SCOPE = [
@@ -33,11 +32,19 @@ const SCOPE = [
   ".quality-pill",
   ".party-pill",
 ].join(",");
+// On a phone the stylesheet gives the lens to the tab bar alone (the More
+// menu's first frame — glass.css, "Phones: the lens is the tab bar's
+// alone"), and never blurs the player's chrome: no maps are drawn for the rest.
+const PHONE = "(max-width: 720px)";
+const PHONE_ONLY = ".nav-items";
 
 const NS = "http://www.w3.org/2000/svg";
 const MAX_FILTERS = 28;
-// the face of the glass is softly frosted (Clear's 3 px); its bezel is clear
+// the face of the glass is softly frosted (Clear's 3 px); its bezel less so
 const SOFT = 3;
+const BEZEL_SOFT = 1.3;
+// a size that keeps changing (a window being dragged) is fitted when it rests
+const REST_MS = 160;
 
 // Chromium, and only Chromium. Not a CSS.supports() question: Safari PARSES
 // url() in backdrop-filter and then draws nothing. iOS browsers are all
@@ -61,16 +68,25 @@ export function lensSupported(nav = typeof navigator !== "undefined" ? navigator
   }
 }
 
-// The map for one size: for every pixel, where the glass makes it look.
-// Inside the bezel (the last `bezel` px before the edge) the view is pulled
-// from further inside, more and more steeply towards the rim — a convex
-// edge. Red = across, green = down, 128 = straight through.
+// The shape of the bend. `bezel`: the last px before the edge that are the
+// bevel. `depth`: how far inside the rim itself looks.
 // thick: how wide the bezel is (1 = the look's own; glass.css --rg-thick)
 export function lensGeometry(w, h, radius, thick = 1) {
   const r = Math.max(0, Math.min(radius, w / 2, h / 2));
   const bezel = Math.max(5, Math.min(13 * thick, Math.min(w, h) * 0.2 * thick));
-  return { r, bezel, depth: bezel * 1.35 };
+  return { r, bezel, depth: bezel * 2.2 };
 }
+const smooth = (a, b, x) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+// The map for one size: for every pixel, where the glass makes it look, and
+// how much of the pixel is the bevel's.
+// t runs from 0 where the bevel begins to 1 at the rim. The view is pulled
+// inwards by depth * t²: gently at first, steeply at the rim — so the bevel
+// shows a WIDE band of the picture, turned over and squeezed (up to 3.4
+// times at the rim), the way a rounded edge does. A squeezed picture stays
+// crisp; a stretched one (a straight, shallow bevel) smears into streaks.
+// Near t = 0.23 the view stands still for a moment — a smear — so the bevel
+// only fades in after it (0.2 … 0.6): what is seen is all squeezed.
+// put(x, y, across, down, veil): 128 = straight through; veil 255 = all bevel.
 export function lensMap(w, h, radius, put, res = 1, thick = 1) {
   const { r, bezel } = lensGeometry(w, h, radius, thick);
   for (let py = 0; py < h * res; py++) {
@@ -89,55 +105,28 @@ export function lensMap(w, h, radius, put, res = 1, thick = 1) {
         ny = nx ? 0 : d === dt ? -1 : 1;
       }
       const t = d >= bezel ? 0 : 1 - Math.max(0, d) / bezel;
-      // a bevel: the rim shows, turned over, the band just inside it — the
-      // flipped picture at the edge of a thick piece of glass. (A curved
-      // profile has a spot where the picture stands still and smears into
-      // streaks; a straight one does not.)
-      const m = t;
-      // blue: how much of the pixel is the bezel's (1 at the rim, 0 inside)
-      const k = Math.min(1, t * 1.25);
-      put(px, py, 128 - 127 * nx * m, 128 - 127 * ny * m, 255 * k * k * (3 - 2 * k));
+      const m = t * t;
+      put(px, py, 128 - 127 * nx * m, 128 - 127 * ny * m, 255 * smooth(0.2, 0.6, t));
     }
   }
 }
 
-// the look's two numbers, read once from the stylesheet (glass.css
-// --rg-thick, --rg-spread) so the design lives in one place
-const look = { thick: 1, spread: 0.09 };
-const readLook = () => {
-  try {
-    const cs = getComputedStyle(document.documentElement);
-    const n = (name, def, lo, hi) => { const v = parseFloat(cs.getPropertyValue(name)); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : def; };
-    look.thick = n("--rg-thick", 1, 0.5, 2);
-    look.spread = n("--rg-spread", 0.09, 0, 0.3);
-  } catch {}
-};
+// How the colours are told apart: `taps` copies of the picture, each bent a
+// little less than the one before, each giving its share of red, green and
+// blue (every colour adds up to one). 3: red, green, blue. 5: a spectrum —
+// red, yellow, green, cyan, blue — for a pane wide enough to show it.
+export function lensTaps(taps, spread) {
+  const share = taps >= 5
+    ? [[0.5, 0, 0], [0.5, 0.25, 0], [0, 0.5, 0], [0, 0.25, 0.5], [0, 0, 0.5]]
+    : [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  const n = share.length;
+  return share.map((rgb, i) => ({ k: 1 + spread * (1 - (2 * i) / (n - 1)), rgb }));
+}
 
 let defs = null;
 const filters = new Map(); // key -> { id, used }
 let serial = 0;
 let tick = 0;
-
-const ensureDefs = () => {
-  if (defs && defs.isConnected) return defs;
-  defs = document.createElementNS(NS, "svg");
-  defs.id = "rg-defs";
-  defs.setAttribute("aria-hidden", "true");
-  defs.setAttribute("width", "0");
-  defs.setAttribute("height", "0");
-  defs.style.cssText = "position:absolute;width:0;height:0;overflow:hidden;pointer-events:none";
-  // what a surface uses until its own map is ready: straight through
-  const f = document.createElementNS(NS, "filter");
-  f.id = "rg-0";
-  const o = document.createElementNS(NS, "feGaussianBlur");
-  o.setAttribute("in", "SourceGraphic");
-  o.setAttribute("stdDeviation", String(SOFT));
-  f.append(o);
-  defs.append(f);
-  document.body.append(defs);
-  filters.clear();
-  return defs;
-};
 
 const fe = (name, attrs) => {
   const n = document.createElementNS(NS, name);
@@ -145,54 +134,63 @@ const fe = (name, attrs) => {
   return n;
 };
 
-const ONLY = {
-  r: "1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0",
-  g: "0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0",
-  b: "0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0",
+const ensureDefs = () => {
+  if (defs && defs.isConnected) return defs;
+  defs = fe("svg", { id: "rg-defs", "aria-hidden": "true", width: "0", height: "0" });
+  defs.style.cssText = "position:absolute;width:0;height:0;overflow:hidden;pointer-events:none";
+  // what a surface uses until its own map is ready: frosted, straight through
+  const f = fe("filter", { id: "rg-0" });
+  f.append(fe("feGaussianBlur", { in: "SourceGraphic", stdDeviation: String(SOFT) }));
+  defs.append(f);
+  document.body.append(defs);
+  filters.clear();
+  return defs;
 };
 
-const filterFor = (w, h, radius) => {
-  const key = `${w}x${h}r${Math.round(radius)}`;
+// the bevel catches a little more light than the face
+const LIT = 1.04, LIFT = 0.01;
+
+const filterFor = (w, h, radius, look) => {
+  const key = `${w}x${h}r${Math.round(radius)}t${look.thick}s${look.spread}n${look.taps}`;
   const had = filters.get(key);
   if (had) { had.used = ++tick; return had.id; }
   const svg = ensureDefs();
-  const c = document.createElement("canvas");
   // a small round button's map is drawn twice as fine: its whole face is
   // rim. A bar's is not: the map is decoded again whenever the bar is
-  // painted anew (a tab lighting up), and a big one made the More menu's
-  // first frame late on a slow phone.
+  // painted anew (a tab lighting up).
   const res = w * h <= 6000 ? 2 : 1;
-  c.width = w * res; c.height = h * res;
+  const W = w * res, H = h * res;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
   const ctx = c.getContext("2d");
   if (!ctx) return "rg-0";
-  const im = ctx.createImageData(w * res, h * res);
-  lensMap(w, h, radius, (px, py, rr, gg, bb) => {
-    const o = (py * w * res + px) * 4;
-    im.data[o] = rr; im.data[o + 1] = gg; im.data[o + 2] = bb; im.data[o + 3] = 255;
+  const im = ctx.createImageData(W, H);
+  lensMap(w, h, radius, (px, py, rr, gg, veil) => {
+    const o = (py * W + px) * 4;
+    im.data[o] = rr; im.data[o + 1] = gg; im.data[o + 2] = veil; im.data[o + 3] = 255;
   }, res, look.thick);
   ctx.putImageData(im, 0, 0);
   const id = `rg-${++serial}`;
   const { depth } = lensGeometry(w, h, radius, look.thick);
-  // the fringe: red bends most, blue least (a tenth either way)
-  const spread = look.spread;
   const f = fe("filter", { id, x: "0", y: "0", width: "100%", height: "100%", "color-interpolation-filters": "sRGB" });
   f.append(fe("feImage", { href: c.toDataURL("image/png"), x: "0", y: "0", width: String(w), height: String(h), preserveAspectRatio: "none", result: "map" }));
-  // (the bezel's picture a touch soft: a mirror-sharp one reads as noise)
-  f.append(fe("feGaussianBlur", { in: "SourceGraphic", stdDeviation: "0.7", result: "crisp" }));
-  for (const [ch, k] of [["r", 1 + spread], ["g", 1], ["b", 1 - spread]]) {
-    f.append(fe("feDisplacementMap", { in: "crisp", in2: "map", scale: String(Math.round(depth * 2 * k * 100) / 100), xChannelSelector: "R", yChannelSelector: "G", result: `d${ch}` }));
-    f.append(fe("feColorMatrix", { in: `d${ch}`, type: "matrix", values: ONLY[ch], result: ch }));
-  }
-  f.append(fe("feBlend", { in: "r", in2: "g", mode: "screen", result: "rg" }));
-  f.append(fe("feBlend", { in: "rg", in2: "b", mode: "screen", result: "bent" }));
-  // the bezel catches more light than the face
-  const lift = fe("feComponentTransfer", { in: "bent", result: "lit" });
-  for (const ch of ["R", "G", "B"]) lift.append(fe(`feFunc${ch}`, { type: "linear", slope: "1.15", intercept: "0.015" }));
-  f.append(lift);
-  // the face: softly frosted; the bezel (the map's blue) laid over it
+  // (the bevel's picture a touch soft: squeezed pixel-sharp, it speckles)
+  f.append(fe("feGaussianBlur", { in: "SourceGraphic", stdDeviation: String(BEZEL_SOFT), result: "crisp" }));
+  let sum = null;
+  lensTaps(look.taps, look.spread).forEach((tap, i) => {
+    f.append(fe("feDisplacementMap", { in: "crisp", in2: "map", scale: String(Math.round(depth * 2 * tap.k * 100) / 100), xChannelSelector: "R", yChannelSelector: "G", result: `bent${i}` }));
+    const [r, g, b] = tap.rgb.map((v) => [Math.round(v * LIT * 1000) / 1000, v ? Math.round(v * LIFT * 1000) / 1000 : 0]);
+    f.append(fe("feColorMatrix", { in: `bent${i}`, type: "matrix", values: `${r[0]} 0 0 0 ${r[1]}  0 ${g[0]} 0 0 ${g[1]}  0 0 ${b[0]} 0 ${b[1]}  0 0 0 1 0`, result: `part${i}` }));
+    if (sum == null) sum = `part${i}`;
+    else {
+      f.append(fe("feComposite", { in: sum, in2: `part${i}`, operator: "arithmetic", k1: "0", k2: "1", k3: "1", k4: "0", result: `sum${i}` }));
+      sum = `sum${i}`;
+    }
+  });
+  // the face: softly frosted; the bevel (the map's third number) laid over it
   f.append(fe("feGaussianBlur", { in: "SourceGraphic", stdDeviation: String(SOFT), result: "soft" }));
-  f.append(fe("feColorMatrix", { in: "map", type: "matrix", values: "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 1 0 0", result: "mask" }));
-  f.append(fe("feComposite", { in: "lit", in2: "mask", operator: "in", result: "rim" }));
+  f.append(fe("feColorMatrix", { in: "map", type: "matrix", values: "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 1 0 0", result: "veil" }));
+  f.append(fe("feComposite", { in: sum, in2: "veil", operator: "in", result: "rim" }));
   const merge = fe("feMerge", {});
   merge.append(fe("feMergeNode", { in: "soft" }), fe("feMergeNode", { in: "rim" }));
   f.append(merge);
@@ -216,12 +214,19 @@ const prune = () => {
   }
 };
 
+const num = (cs, name, def, lo, hi) => { const v = parseFloat(cs.getPropertyValue(name)); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : def; };
+
+let phone = null;
+const plain = (el) => { if (el.style.getPropertyValue("--rg-lens")) el.style.removeProperty("--rg-lens"); };
+// a surface's own lens (or none): its size, its corner, the look's numbers on it
 const apply = (el) => {
   if (!el.isConnected) return;
+  if (phone && phone.matches && !el.matches(PHONE_ONLY)) return plain(el);
   const w = Math.round(el.offsetWidth), h = Math.round(el.offsetHeight);
-  if (w < 28 || h < 28 || w * h > 1400 * 220) { el.style.removeProperty("--rg-lens"); return; }
-  const radius = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
-  const want = `url(#${filterFor(w, h, radius)})`;
+  if (w < 28 || h < 28 || w * h > 1400 * 220) return plain(el);
+  const cs = getComputedStyle(el);
+  const look = { thick: num(cs, "--rg-thick", 1, 0.5, 2), spread: num(cs, "--rg-spread", 0.1, 0, 0.3), taps: num(cs, "--rg-taps", 3, 3, 5) >= 5 ? 5 : 3 };
+  const want = `url(#${filterFor(w, h, parseFloat(cs.borderTopLeftRadius) || 0, look)})`;
   if (el.style.getPropertyValue("--rg-lens") !== want) el.style.setProperty("--rg-lens", want);
 };
 
@@ -233,13 +238,39 @@ export function initGlassLens() {
   started = true;
   if (!lensSupported() || typeof ResizeObserver === "undefined" || typeof MutationObserver === "undefined") return;
   const root = document.documentElement;
-  const seen = new WeakSet();
+  const media = (q) => (typeof matchMedia === "function" ? matchMedia(q) : null);
+  phone = media(PHONE);
+  let seen = new WeakSet();
+  const sized = new WeakMap(); // surface -> the size its lens was drawn for
   const dirty = new Set();
-  let raf = 0;
-  const flush = () => { raf = 0; const all = [...dirty]; dirty.clear(); if (on) for (const el of all) apply(el); };
+  let raf = 0, rest = 0;
+  const flush = () => {
+    raf = 0; rest = 0;
+    const all = [...dirty];
+    dirty.clear();
+    for (const el of all) {
+      // gone from the page (the player is built anew for every film): let go of it
+      if (!el.isConnected) { ro.unobserve(el); seen.delete(el); sized.delete(el); continue; }
+      if (!on) continue;
+      apply(el);
+      sized.set(el, `${el.offsetWidth}x${el.offsetHeight}`);
+    }
+  };
   const ro = new ResizeObserver((entries) => {
-    for (const e of entries) dirty.add(e.target);
-    if (!raf) raf = requestAnimationFrame(flush);
+    let again = false;
+    for (const e of entries) {
+      const el = e.target;
+      dirty.add(el);
+      // a surface that already wears a lens and changed size (the window is
+      // being dragged): plain frosted glass until the size rests, then its
+      // new lens — not a new map for every width on the way
+      if (on && el.isConnected && sized.has(el) && sized.get(el) !== `${el.offsetWidth}x${el.offsetHeight}` && el.style.getPropertyValue("--rg-lens")) {
+        el.style.setProperty("--rg-lens", "url(#rg-0)");
+        again = true;
+      }
+    }
+    if (again) { clearTimeout(rest); rest = setTimeout(flush, REST_MS); if (raf) { cancelAnimationFrame(raf); raf = 0; } }
+    else if (!raf && !rest) raf = requestAnimationFrame(flush);
   });
   const scan = () => {
     if (!on) return;
@@ -249,23 +280,31 @@ export function initGlassLens() {
       ro.observe(el);
     }
   };
+  const all = () => { for (const el of document.querySelectorAll(SCOPE)) { apply(el); sized.set(el, `${el.offsetWidth}x${el.offsetHeight}`); } };
   let pending = 0;
   const later = () => {
+    // The maps live in one hidden <svg>. If something takes it out of the
+    // page, every lens points at nothing and Chromium then draws NO backdrop
+    // filter at all — the dim that holds the words goes with it. Put back
+    // at once, and every surface fitted again.
+    if (on && defs && !defs.isConnected) { ensureDefs(); all(); }
     if (pending) return;
     pending = setTimeout(() => { pending = 0; scan(); }, 80);
   };
-  // (reduced transparency, and a TV's browser — where glass.css drops the
-  // blur — get no lens either)
-  const reduce = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-transparency: reduce), (hover: none) and (pointer: coarse) and (min-width: 1200px)") : null;
+  // (reduced transparency, a TV's browser — where glass.css drops the blur —
+  // and a person who asked for more contrast or their own colours: no lens)
+  const quiet = media("(prefers-reduced-transparency: reduce), (hover: none) and (pointer: coarse) and (min-width: 1200px), (prefers-contrast: more), (forced-colors: active)");
   const decide = () => {
-    const want = root.dataset.look === "glass" && root.dataset.fx !== "lite" && !(reduce && reduce.matches);
+    const want = root.dataset.look === "glass" && root.dataset.fx !== "lite" && !(quiet && quiet.matches);
     if (want === on) return;
     on = want;
-    if (on) { readLook(); ensureDefs(); root.dataset.lens = "1"; scan(); for (const el of document.querySelectorAll(SCOPE)) apply(el); }
+    if (on) { ensureDefs(); root.dataset.lens = "1"; scan(); all(); }
     else delete root.dataset.lens;
   };
   new MutationObserver(decide).observe(root, { attributes: true, attributeFilter: ["data-look", "data-fx"] });
-  if (reduce && reduce.addEventListener) reduce.addEventListener("change", decide);
+  if (quiet && quiet.addEventListener) quiet.addEventListener("change", decide);
+  // a phone turned on its side, a window made narrow: which surfaces take the lens changes
+  if (phone && phone.addEventListener) phone.addEventListener("change", () => { if (on) all(); });
   new MutationObserver(later).observe(document.body, { childList: true, subtree: true });
   decide();
 }
