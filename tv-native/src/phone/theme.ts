@@ -158,9 +158,11 @@ export const RG_SPLIT =
 /** The same, calmer (--rg-split-calm): where many sit side by side (a title's action circles) and on the small round buttons. */
 export const RG_SPLIT_CALM =
   'inset 1px 0 0 0 rgba(232,121,249,0.22), inset -1px 0 0 0 rgba(94,234,212,0.22), -1px 0 0 0 rgba(94,234,212,0.13), 1px 0 0 0 rgba(232,121,249,0.13)';
-/** The convex body (--rg-body), laid over the pane's own colour: a shade from above the top, a little violet light from below the foot. No light from the top. */
+/** The convex body (--rg-body), laid over the pane's own colour: a shade under the top edge, a little violet light from below the foot. No light from the top.
+ *  (The website's shade is centred above the pane, at 50% -20%. Android drops a negative centre and paints the shade in the pane's middle — seen on the
+ *  Pixel 9 emulator — so here it hangs from the top edge itself: the same cap of shade, a touch deeper since the app has no lens to give the pane thickness.) */
 export const RG_BODY =
-  'radial-gradient(ellipse 120% 55% at 50% -20%, rgba(0,0,0,0.26) 0%, rgba(0,0,0,0) 62%), radial-gradient(ellipse 120% 60% at 50% 118%, rgba(168,150,255,0.16) 0%, rgba(168,150,255,0) 60%)';
+  'radial-gradient(ellipse 70% 38% at 50% 0%, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 100%), radial-gradient(ellipse 120% 60% at 50% 118%, rgba(168,150,255,0.16) 0%, rgba(168,150,255,0) 60%)';
 /** Real glass's edge (--ge-edge) and body: the split, the rim, the dark hairline outside. No border: GlassRim draws the ring. */
 export const RG_EDGE = {
   boxShadow: `${RG_SPLIT}, ${RG_RIM}, 0 0 0 1px rgba(0,0,0,0.36)`,
