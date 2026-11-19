@@ -693,7 +693,13 @@ router.post("/api/profiles/:id/progress", gate, (req, res) => {
   // admin's "nobody watched for 45 days" counts real play only, not opening)
   const prevRow = (profiles.getProgress(req.params.id) || {})[itemId];
   const prev = prevRow ? { position: prevRow.position, finished: !!prevRow.finished } : null;
-  profiles.setProgress(req.params.id, itemId, position, duration, item);
+  // `at`: when a late save (a queued offline one) was really made; `undo`:
+  // the Undo of a ✕ on Continue Watching (profiles.setProgress)
+  const at = typeof req.body.at === "number" && Number.isFinite(req.body.at) && req.body.at > 0 ? req.body.at : null;
+  const saved = profiles.setProgress(req.params.id, itemId, position, duration, item, { at, undo: req.body.undo === true });
+  // (older than what the history already holds: nothing was written, and
+  // nothing downstream is told of a play that is not the newest)
+  if (saved === false) return res.json({ ok: true, stale: true });
   res.json({ ok: true });
   untouchedLib().notePlay(req.params.id, itemId, prev, position, item);
   // a title with no Hebrew subtitles played by somebody who watches with
