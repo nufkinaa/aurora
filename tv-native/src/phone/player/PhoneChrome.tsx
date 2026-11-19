@@ -16,7 +16,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Tap from '../ui/Tap';
 import Icon, {PhoneIconName} from '../ui/Icon';
 import {phoneNative} from '../native';
-import {E, E_WELL, E_WORDS, RG_EDGE, RG_EDGE_THIN} from '../theme';
+import {E, E_WELL, E_WORDS, RG_BODY, RG_EDGE, RG_EDGE_THIN} from '../theme';
 import GlassRim from '../ui/GlassRim';
 import PlayOnTvSlot from '../remote/PlayOnTvSlot'; // [play-on-tv]
 // [scrub-previews] the picture above the scrub point while the bar is dragged
@@ -286,7 +286,7 @@ const s = StyleSheet.create({
   big: {backgroundColor: E.chrome, ...RG_EDGE},
   mid: {backgroundColor: E.chrome, ...RG_EDGE_THIN},
   // lit: Aurora's violet capsule laid over the body
-  on: {...E_WELL, backgroundColor: E.chrome, experimental_backgroundImage: 'linear-gradient(rgba(120,104,240,0.2), rgba(120,104,240,0.2))'},
+  on: {...E_WELL, backgroundColor: E.chrome, experimental_backgroundImage: `${RG_BODY}, linear-gradient(rgba(120,104,240,0.2), rgba(120,104,240,0.2))`},
   badge: {position: 'absolute', bottom: 4, color: '#fff', fontSize: 9, fontWeight: '900'},
   next: {flexDirection: 'row', alignItems: 'center', gap: 4, height: 40, paddingHorizontal: 15, borderRadius: 20, backgroundColor: E.chrome, ...RG_EDGE, overflow: 'hidden', marginLeft: 4},
   nextText: {color: '#fff', fontSize: 14, fontWeight: '800', ...E_WORDS},

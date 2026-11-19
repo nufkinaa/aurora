@@ -127,8 +127,14 @@ export const E_WELL = {
      mint (RG_ARCS; RG_ARCS_S on small round things, where nothing is lit
      above the middle) — drawn by ui/GlassRim.tsx, so these surfaces carry
      no border;
-   - nothing rainbow is drawn round a pane (the first pass's fringe lines at
-     a pane's ends are gone);
+   - the colour split a lens leaves on an edge, standing still (RG_SPLIT): one
+     sharp dp of violet inside the left end of a pane and of mint inside the
+     right, their other halves just outside, swapped. Only sideways, so they
+     are crescents — widest at 9 and 3 o'clock, nothing at the top or the
+     foot, a hair on a bar's straight run;
+   - the body is not flat (RG_BODY): darker towards its top, a little of the
+     light it gathers towards its foot — two still gradients over the pane's
+     own colour;
    - depth: a tight contact shadow, the soft one, a little violet light let
      through below, and the dark hairline outside.
    All of it is still: box shadows and one small drawing per surface, sized
@@ -146,23 +152,35 @@ export const RG_RIM =
   'inset 0 0 7px 0 rgba(255,255,255,0.07), inset 0 3px 4px -2px rgba(0,0,0,0.42), inset 0 -1px 0 0 rgba(168,150,255,0.18), inset 0 -7px 9px -7px rgba(168,150,255,0.45)';
 /** The depth under what floats (--ge-shadow): a tight contact shadow, the soft one, violet light let through below. */
 export const RG_DEPTH = '0 1px 1.5px rgba(0,0,0,0.5), 0 10px 24px rgba(0,0,0,0.3), 0 8px 16px -8px rgba(168,150,255,0.22)';
-/** Real glass's edge (--ge-edge): the rim, the dark hairline outside. No border: GlassRim draws the ring. */
+/** The still colour split (--rg-split): sideways only — violet inside the left end, mint inside the right, their other halves outside, swapped. */
+export const RG_SPLIT =
+  'inset 1px 0 0 0 rgba(232,121,249,0.36), inset -1px 0 0 0 rgba(94,234,212,0.36), -1px 0 0 0 rgba(94,234,212,0.22), 1px 0 0 0 rgba(232,121,249,0.22)';
+/** The same, calmer (--rg-split-calm): where many sit side by side (a title's action circles) and on the small round buttons. */
+export const RG_SPLIT_CALM =
+  'inset 1px 0 0 0 rgba(232,121,249,0.22), inset -1px 0 0 0 rgba(94,234,212,0.22), -1px 0 0 0 rgba(94,234,212,0.13), 1px 0 0 0 rgba(232,121,249,0.13)';
+/** The convex body (--rg-body), laid over the pane's own colour: a shade from above the top, a little violet light from below the foot. No light from the top. */
+export const RG_BODY =
+  'radial-gradient(ellipse 120% 55% at 50% -20%, rgba(0,0,0,0.26) 0%, rgba(0,0,0,0) 62%), radial-gradient(ellipse 120% 60% at 50% 118%, rgba(168,150,255,0.16) 0%, rgba(168,150,255,0) 60%)';
+/** Real glass's edge (--ge-edge) and body: the split, the rim, the dark hairline outside. No border: GlassRim draws the ring. */
 export const RG_EDGE = {
-  boxShadow: `${RG_RIM}, 0 0 0 1px rgba(0,0,0,0.36)`,
+  boxShadow: `${RG_SPLIT}, ${RG_RIM}, 0 0 0 1px rgba(0,0,0,0.36)`,
+  experimental_backgroundImage: RG_BODY,
 } as const;
-/** Small round things (the action circles, the player's side buttons): the outside line a touch fainter, as E's. */
+/** Small round things (the action circles, the player's side buttons): the calmer split, the outside line a touch fainter, as E's. */
 export const RG_EDGE_THIN = {
-  boxShadow: `${RG_RIM}, 0 0 0 1px rgba(0,0,0,0.3)`,
+  boxShadow: `${RG_SPLIT_CALM}, ${RG_RIM}, 0 0 0 1px rgba(0,0,0,0.3)`,
+  experimental_backgroundImage: RG_BODY,
 } as const;
 /** The edge with the depth under it (--ge-edge + --ge-shadow), for what floats: the tab bar, the round top buttons, the hero's glass pill. */
 export const RG_EDGE_FLOAT = {
-  boxShadow: `${RG_RIM}, 0 0 0 1px rgba(0,0,0,0.36), ${RG_DEPTH}`,
+  boxShadow: `${RG_SPLIT}, ${RG_RIM}, 0 0 0 1px rgba(0,0,0,0.36), ${RG_DEPTH}`,
+  experimental_backgroundImage: RG_BODY,
 } as const;
 /** The rim itself (--rg-fresnel), top to foot: [how far down, colour, how strong]. */
 export const RG_FRESNEL = [
   [0, '255,255,255', 0.05],
   [0.45, '255,255,255', 0.13],
-  [1, '190,180,255', 0.32],
+  [1, '190,180,255', 0.45],
 ] as const;
 /** The glint (--rg-arc, 1:1): round lights, each fading to nothing at `r`. A light sits at
  *  (fx * width + dx, fy * height) of the pane — so they stay on the two ends whatever the width,
@@ -174,13 +192,15 @@ export const RG_ARCS = [
   {fx: 1, dx: -1, fy: 0.66, r: 12, c: '255,255,255', a: 0.42},
   {fx: 1, dx: -3, fy: 0.9, r: 14, c: RG.cool, a: 0.34},
 ] as const;
-/** On a small round button (--rg-arc-s) nothing is lit above its middle: the glint at the left
- *  shoulder, mint below it, a trace on the right foot. */
+/** On a small round button (--rg-arc-s, 1:1) nothing is lit above its middle: the glint at the left
+ *  shoulder, violet and mint below it, an answer on the right foot — strong enough to be seen at the
+ *  button's real size. */
 export const RG_ARCS_S = [
-  {fx: 0, dx: 0, fy: 0.46, r: 8, c: '255,255,255', a: 0.6},
-  {fx: 0.04, dx: 0, fy: 0.66, r: 9, c: RG.warm, a: 0.36},
-  {fx: 0.15, dx: 0, fy: 0.85, r: 10, c: RG.cool, a: 0.4},
-  {fx: 1, dx: 0, fy: 0.7, r: 8, c: '255,255,255', a: 0.3},
+  {fx: 0, dx: 0, fy: 0.46, r: 10, c: '255,255,255', a: 0.8},
+  {fx: 0.04, dx: 0, fy: 0.66, r: 9, c: RG.warm, a: 0.4},
+  {fx: 0.15, dx: 0, fy: 0.88, r: 11, c: RG.cool, a: 0.46},
+  {fx: 1, dx: 0, fy: 0.7, r: 9, c: '255,255,255', a: 0.42},
+  {fx: 0.88, dx: 0, fy: 0.9, r: 10, c: RG.warm, a: 0.34},
 ] as const;
 /** A title's page has six of these side by side: the group is calmed, as the website's (its ring at 0.7). */
 export const RG_CALM = 0.7;
