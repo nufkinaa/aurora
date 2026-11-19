@@ -27,8 +27,8 @@ Sheets: `final5/` (same names as `final4/`, plus `01b-phone-bright`).
 
 The surfaces are the ones that took "Clear": what floats over pictures. A pane now reads as a thick piece of glass:
 
-- **The bar's rim bends the picture** (Chrome, Edge, Android's browsers). The last 15 px or so before the edge of the top bar and of the phone tab bar are a bevel. It shows, turned over and squeezed, a wide band of the picture inside it. The face stays softly frosted, so words read as before.
-- **The colour fringe there is real.** Red is bent more than green and blue less, inside the bevel only: a tenth either way on a phone, 0.12 on a desktop's bar, in three steps. Along the top edge the bevel shows at half strength, so over a white poster nothing reads as a line of light there.
+- **The lens bends the picture across its whole face** (Chrome, Edge, Android's browsers): see the fifth pass above. The last 15 px or so before the edge of the top bar and of the phone tab bar are a bevel that shows the band inside it turned over and squeezed. The face is only lightly frosted (1.4 px), and the dim holds the words.
+- **The colour split is real**, on the face and in the bevel: two copies of the picture, bent 12 % more and 12 % less, the far one giving red and half the green, the near one blue and the other half.
 - **Every pane keeps a still colour split.** One sharp pixel of violet inside the left end of a pane and of mint inside the right, their other halves just outside, swapped. They are crescents: widest at 9 and 3 o'clock, nothing at the top or the foot. Inside / outside strength: 0.36 / 0.22 on bars and text buttons, 0.5 / 0.22 on the small round buttons, 0.30 / 0.18 on a title's icon-only circles.
 - **Every pane has a body.** It is darker towards its top and carries a little violet light towards its foot, so it is not a flat fill.
 - **The rim is dim on top and lit along the foot**, with one small glint on the left shoulder and a fainter answer on the right foot. On a small round button nothing is lit above its middle. There is no light along the top (elia's ruling).
@@ -67,7 +67,7 @@ Measured as the processor time the page's processes use in 8 seconds (`tools/rea
 
 - **The desktop bar's lens now costs under 4 % at rest** (it was 8 % with five colour steps). The medians sit inside today's own run-to-run range, which is about 10 % wide; they are not equal to today's.
 - **Working the bevel out only in its own strips was tried and made it worse**: 16 % with the hero in view and 8.5 % scrolled, against 3.7 % and 3.9 % for one chain over the whole pane. What a lens costs while the picture behind it moves goes with the number of steps in the filter, not with the area they cover, and four strips are four chains. It was taken out.
-- **A paused film.** The film stands still, but the page behind the player does not: the sky's two washes (`html::before` and `::after`, the animations `wash-hi` and `wash-lo`) and the "new" dot's breathing (`g-breathe`) keep the browser drawing frames, with no script involved, and a lens is worked out again for each. The controls do not hide while a film is paused, so the lens now rests after ten seconds of nothing moving (`.player.glass-rest`); any motion brings it back. After that a paused film costs what it costs today.
+- **A paused film** (fourth pass; the fifth keeps the frost and the dim while resting and drops only the bend, so nothing jumps). The film stands still, but the page behind the player does not: the sky's two washes (`html::before` and `::after`, the animations `wash-hi` and `wash-lo`) and the "new" dot's breathing (`g-breathe`) keep the browser drawing frames, with no script involved, and a lens is worked out again for each. The controls do not hide while a film is paused, so the lens now rests after ten seconds of nothing moving (`.player.glass-rest`); any motion brings it back. After that a paused film costs what it costs today.
 
 On a phone (390 × 844, CPU ×4, `final4/perf-phone.json`):
 
@@ -79,21 +79,21 @@ On a phone (390 × 844, CPU ×4, `final4/perf-phone.json`):
 
 ## Words on the glass
 
-Measured again with `tools/glass-options/contrast.js` (the dimmest 1 % behind each word, over a white poster, a bright poster, mid grey, white text, a bright sky band and black; a white frame for the player), with the body's two gradients in place. Every real-glass surface reads the same as today, to a tenth:
+Measured with `tools/glass-options/contrast.js` on the fifth pass (the dimmest 1 % behind each word, over a white poster, a bright poster, mid grey, white text, a bright sky band and black; a white frame for the paused player), with the lighter frost and the whole-face lens in place:
 
 | surface | lowest, today | lowest, real glass |
 |---|---:|---:|
 | phone tab bar, words / chosen tab | 6.3 / 5.4 | 6.3 / 5.4 |
 | phone top buttons | 5.8 | 5.8 |
 | desktop and tablet top bar, words / chosen tab | 5.3 / 5.1 | 5.3 / 5.1 |
-| glass buttons on a title's page, quiet words | 5.7 | 5.7 |
-| the player's dock and pills | 4.7 | 4.7 |
+| the paused player's dock: words / second voice | 4.7 / 5.1 | 6.0 / 5.2 |
+| the player on a phone (no lens) | 4.7 | 4.7 |
 
-The cells under 4.5:1 are on surfaces this work did not touch (a chip's count, the season bar and a Settings pane's icons over a sky painted as one bright band), with the same numbers on both sides.
+The paused player's lens is a step dimmer than the bar's (0.44): with less frost a bright frame's sharp edges passed under the clock (4.4:1 at 0.5). The cells under 4.5:1 are on surfaces this work did not touch (a chip's count, the season bar over a sky painted as one bright band), the same on both sides.
 
 ## How it is made
 
-**The lens** (`public/js/glasslens.js`, Chromium only) is an SVG filter inside `backdrop-filter`: a displacement map, applied once per colour step with a slightly different strength, laid over a 3 px frosted copy of the backdrop. A map is drawn once per size of surface, at half the surface's size. The maps of surfaces that only show their lens at times are drawn at an idle moment. `ResizeObserver` says when a size changes; a window being dragged is fitted when it rests. Nothing runs per frame.
+**The lens** (`public/js/glasslens.js`, Chromium only) is an SVG filter inside `backdrop-filter`: a plain 1.4 px `blur()`, then a displacement map applied once per colour copy with a slightly different strength (two copies), the copies added together. The map is handed to the filter as a `data:` image, so a Content-Security-Policy whose `img-src` left out `data:` would break it. A map is drawn once per size of surface, at half the surface's size. The maps of surfaces that only show their lens at times are drawn at an idle moment. `ResizeObserver` says when a size changes; a window being dragged is fitted when it rests. Nothing runs per frame.
 
 **The rest** (`public/css/glass.css`, the last section, "Real glass") is plain CSS and the same in every browser: box shadows for the split, the depth and the pool, two still gradients for the body, and one masked 1 px ring (`::before`) for the rim and its glint. `screens/player.js` sets `.is-paused` on the player on the video's own play and pause.
 

@@ -25,3 +25,6 @@ a frames 38 worst 54,35,36,35,35,35,36,36,35,36,36,35,37,35 median worst 36 late
 e frames 38 worst 36,35,35,36,36,54,35,35,35,54,36,35,53,36 median worst 36 late 1
 # Phone scroll and rest (perf-phone.json)
 phone-390 {"a":{"scrollMean":17.8,"scrollP95":18.1,"scrollP99":18.2,"scrollWorst":18,"scrollLate":0,"scrollFrames":78,"restMean":17.8,"restP95":18.1,"restLate":0,"droppedPct":null,"compositorFrames":null,"moreFrames":38,"moreP95":18.35,"moreWorst":35,"moreLate":1},"e":{"scrollMean":17.8,"scrollP95":18.1,"scrollP99":18.299999999999997,"scrollWorst":18,"scrollLate":0,"scrollFrames":79,"restMean":17.8,"restP95":18.1,"restLate":0,"droppedPct":null,"compositorFrames":null,"moreFrames":38,"moreP95":18.3,"moreWorst":35.5,"moreLate":1}}
+# paused, after ten seconds, with the resting glass keeping its frost and dim (sixth fix)
+a 293 241 236 235 232 
+e 234 245 222 247 238 

@@ -128,7 +128,9 @@ ui.test("the player's chrome takes the lens only while the film is paused", asyn
   assert.match(dock.filter, /brightness/, "and still dimmed");
   // ten seconds of nothing moving: the lens rests (the page behind the player still draws frames)
   await page.evaluate(() => document.querySelector(".player").classList.add("glass-rest"));
-  assert.doesNotMatch(await page.evaluate(() => getComputedStyle(document.querySelector(".player-bottom")).backdropFilter), /url\(/, "resting: the plain backdrop");
+  const rest = await page.evaluate(() => getComputedStyle(document.querySelector(".player-bottom")).backdropFilter);
+  assert.doesNotMatch(rest, /url\(/, "resting: no bend");
+  assert.equal(rest.replace(/url\([^)]*\)\s*/, ""), dock.filter.replace(/url\([^)]*\)\s*/, ""), "resting: the same frost and the same dim, so nothing jumps");
   await page.mouse.move(300, 300); await page.mouse.move(320, 320);
   await page.waitForFunction(() => !document.querySelector(".player").classList.contains("glass-rest"), null, { timeout: 4000 });
   // playing again: gone again

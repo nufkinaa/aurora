@@ -107,6 +107,15 @@ test("the stylesheet shows a url() backdrop only under html[data-lens], and the 
   }
   // the small buttons never take it (nothing but the lists above is in a lens rule)
   for (const x of [".nav-gear", ".nav-dl", ".nav-remote", ".nav-logo", ".nav-profile", ".detail-actions"]) assert.ok(!new RegExp(`\[data-lens\][^{]*\${x}[^{]*\{[^}]*--rg-lens`).test(css), `${x} has no lens`);
+  // the map is a data: image (a CSP img-src without data: would break the lens): said where it is made
+  assert.match(js, /toDataURL\("image\/png"\)/);
+  assert.match(js, /img-src left out data:/);
+  // a resting paused player keeps its frost and its dim: only the url() goes
+  assert.match(css, /\.player\.is-paused\.glass-rest \.player-bottom,[\s\S]{0,400}--g-blur: blur\(var\(--rg-soft\)\) saturate\(2\) brightness\(0\.44\);/);
+  // a closed player arms no timers: its last `pause` arrives after the clean-up
+  const player = fs.readFileSync(path.join(__dirname, "..", "public", "js", "screens", "player.js"), "utf-8");
+  const sc = player.slice(player.indexOf("const showControls = () => {"));
+  assert.ok(sc.indexOf("if (exited) return;") > 0 && sc.indexOf("if (exited) return;") < sc.indexOf("overlay.classList.remove("), "showControls does nothing once the player has been closed");
   // never over a PLAYING film: every lens rule on the player's chrome is under .player.is-paused
   for (const m of css.matchAll(/\[data-lens\]([^{,]*\.(?:player-bottom|player-top|upnext|resume-card|quality-pill|party-pill)[^{,]*)/g)) assert.match(m[1], /\.player\.is-paused/, `a lens over a playing film: ${m[0]}`);
   // and no light along the top of a pane: no positive-y white inset line in the rim

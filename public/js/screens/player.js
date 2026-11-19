@@ -3596,6 +3596,9 @@ export const renderPlayer = async (root, { id }) => {
   const GLASS_REST_MS = 10000;
   let glassRestTimer = 0;
   const showControls = () => {
+    // (the player has been closed: its last `pause` arrives after the clean-up —
+    // new timers here would hold the closed player and its <video> for ten seconds)
+    if (exited) return;
     overlay.classList.remove("controls-hidden", "hide-cursor", "glass-rest");
     clearTimeout(controlsTimer);
     controlsTimer = setTimeout(hideControls, CONTROLS_IDLE_MS);

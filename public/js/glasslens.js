@@ -192,6 +192,9 @@ const filterFor = (w, h, radius, look) => {
   // docs/qa/real-glass/README.md). The picture bent once per colour copy, the
   // copies put together. Nothing else: its little softening is a plain
   // blur() in the stylesheet, ahead of this filter.
+  // NOTE: the map reaches the filter as a data: image. A Content-Security-
+  // Policy whose img-src left out data: would leave every lens without its
+  // map (test/glasslens.test.js keeps this note honest).
   const f = fe("filter", { id, x: "0", y: "0", width: "100%", height: "100%", "color-interpolation-filters": "sRGB" });
   f.append(fe("feImage", { href: c.toDataURL("image/png"), x: "0", y: "0", width: String(w), height: String(h), preserveAspectRatio: "none", result: "map" }));
   let sum = null;

@@ -6051,6 +6051,13 @@ html[data-look="glass"] {
 html[data-look="glass"] .nav-items {
   --rg-thick: 1.4;
 }
+/* (a desktop's bar: the view set a little less to one side — at 9 the
+   posters' lettering stood doubled right behind "Calendar" and "New") */
+@media (min-width: 721px) {
+  html[data-look="glass"] .nav-items {
+    --rg-shift: 6.5;
+  }
+}
 /* the bar's body gathers a little more light along its foot */
 html[data-look="glass"] .nav-items {
   --rg-body:
@@ -6162,6 +6169,13 @@ html[data-look="glass"][data-lens] .nav-items,
 html[data-look="glass"][data-lens] .hero-actions .btn:not(.btn-primary) {
   --g-blur: blur(var(--rg-soft)) var(--rg-lens, url(#rg-0)) var(--rg-post);
 }
+@media (min-width: 721px) {
+  html[data-look="glass"][data-lens] .player.is-paused.glass-rest .player-bottom,
+  html[data-look="glass"][data-lens] .player.is-paused.glass-rest .player-top > div,
+  html[data-look="glass"][data-lens] .player.is-paused.glass-rest .player-top .pbtn {
+    --g-blur: blur(var(--rg-soft)) saturate(2) brightness(0.44);
+  }
+}
 /* (No lens under a desktop's pointer: it was tried. The app's own hover
    look fills the button — the round ones turn white — so a lens under the
    pointer cannot be seen.) */
@@ -6171,7 +6185,9 @@ html[data-look="glass"][data-lens] .hero-actions .btn:not(.btn-primary) {
    is worked out again each time: with it the page's processes used 2.8 s
    of processor time in 8 s of playing against 0.74 s without
    (tools/real-glass/player-cost.js). And it rests after ten seconds of
-   nothing moving (.glass-rest): the film stands still, but the page behind
+   nothing moving (.glass-rest: the same frost and the same dim, only the
+   bend goes — the controls stay up while a film is paused, and nothing
+   may jump in front of the person): the film stands still, but the page behind
    the player does not — the sky's two washes (html::before, ::after) and the
    "new" dot's breathing keep the browser drawing frames, and a lens is
    worked out again for each. A phone never blurs the player's chrome, so it
