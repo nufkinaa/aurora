@@ -13,7 +13,8 @@ import {openProfileMenu} from '../profileMenu';
 import {useDevices} from '../remote/controller';
 import {pushPhone} from '../nav';
 import {setTab} from '../tabs';
-import {E, E_EDGE_FLOAT, GUTTER} from '../theme';
+import {E, GUTTER, RG_EDGE_FLOAT} from '../theme';
+import GlassRim from './GlassRim';
 import Tap from './Tap';
 import {BarBand, StatusScrim} from './Scrims';
 
@@ -53,6 +54,7 @@ export default function TopBar({solid}: {transparent?: boolean; solid?: boolean}
       {/* .nav-logo: the mark in a 42 glass circle, level with the round ones (the site's phone
           logo since 2026-11-10: the 50 x 40 pill was wider than its neighbours) */}
       <Tap uiId="nav.home" accessibilityRole="button" accessibilityLabel="Aurora — Home" onPress={() => setTab('home')} borderless style={s.logo}>
+        <GlassRim w={42} h={42} thin />
         <Image source={LOGO} style={{width: 26, height: 26}} resizeMode="contain" />
       </Tap>
       <View style={{flex: 1}} />
@@ -77,6 +79,6 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: E.chrome,
-    ...E_EDGE_FLOAT,
+    ...RG_EDGE_FLOAT,
   },
 });

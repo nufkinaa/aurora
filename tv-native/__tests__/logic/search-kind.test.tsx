@@ -15,6 +15,8 @@ jest.mock('../../src/components/Focusable', () => mockHost('Focusable'));
 jest.mock('../../src/components/Icon', () => mockHost('Icon'));
 jest.mock('../../src/phone/ui/Tap', () => mockHost('Tap'));
 jest.mock('../../src/phone/ui/Icon', () => mockHost('PhoneIcon'));
+// (the glass buttons' rim draws with react-native-svg, which needs the real React Native)
+jest.mock('../../src/phone/ui/GlassRim', () => mockHost('GlassRim'));
 
 import {kindSpoken, suggestionKind} from '../../src/searchKind';
 import Chip from '../../src/components/Chip';

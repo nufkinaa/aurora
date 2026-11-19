@@ -1,0 +1,192 @@
+<!doctype html>
+<!-- The phone app's chrome, drawn in a browser from the app's own style values
+     (tv-native/src/phone/theme.ts and the StyleSheets of ui/TabBar.tsx,
+     ui/TopBar.tsx, ui/Buttons.tsx). NOT a photograph of a phone: there was no
+     device when the look was built. shoot.js fills window.DATA (the two
+     themes: origin/master's and the working tree's) and takes the pictures.
+     A css px here is a dp there; React Native's boxShadow strings are CSS
+     box-shadow strings; the rim is the same SVG ui/GlassRim.tsx draws. -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #101117; color: #fff; font-family: Roboto, "Segoe UI", Arial, sans-serif; }
+  #sheet { width: 870px; padding: 16px; }
+  h1 { font-size: 15px; font-weight: 800; margin: 0 0 2px; }
+  .cap { font-size: 11.5px; color: #aab0c4; margin: 0 0 12px; line-height: 1.4; }
+  .cols { display: grid; grid-template-columns: 411px 411px; gap: 16px; }
+  .colhead { font-size: 13px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #c9cee0; margin: 10px 0 6px; }
+  .lab { font-size: 10.5px; color: #8c93a8; margin: 6px 0 4px; }
+  .scene { position: relative; width: 411px; overflow: hidden; border-radius: 6px; }
+  .strip { display: flex; gap: 3px; width: 411px; }
+  .crop { position: relative; overflow: hidden; border-radius: 6px; flex: none; }
+  .crop > .zoom { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+
+  /* the two grounds */
+  .bg { position: absolute; inset: 0; }
+  .bg.sky { background:
+      radial-gradient(60% 50% at 20% 0%, rgba(108,88,255,.28), transparent 70%),
+      radial-gradient(50% 40% at 90% 10%, rgba(54,197,214,.16), transparent 70%),
+      #070811; }
+  .bg.bright { background: #f4efe6; }
+  .bg.bright i { position: absolute; display: block; }
+  .word { position: absolute; font-weight: 900; letter-spacing: -.02em; white-space: nowrap; }
+
+  /* the app's pieces (numbers: the StyleSheets) */
+  .pane { position: relative; }
+  .rim { position: absolute; left: 0; top: 0; pointer-events: none; display: block; }
+  .topbar { position: absolute; left: 16px; right: 16px; height: 42px; display: flex; align-items: center; }
+  .right { display: flex; align-items: center; gap: 10px; }
+  .circle { display: flex; align-items: center; justify-content: center; border-radius: 999px; }
+  .avatar { width: 30px; height: 30px; border-radius: 15px; background: linear-gradient(135deg, #ffb86b, #ff6b8b); color: #fff; font-weight: 800; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+  .tabwrap { position: absolute; left: 0; right: 0; display: flex; justify-content: center; }
+  .tabbar { height: 59px; width: 387px; border-radius: 29.5px; display: flex; align-items: center; padding: 6px; gap: 2px; }
+  .tab { position: relative; flex: 1; height: 47px; border-radius: 23.5px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .tab.search { flex: none; width: 40px; }
+  .tab .well { position: absolute; inset: 0; border-radius: 23.5px; }
+  .tab span { position: relative; font-size: 12.16px; font-weight: 700; line-height: 18.24px; color: #fff; }
+  .btns { position: absolute; left: 16px; display: flex; gap: 12px; }
+  .btn { height: 50px; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 10px; overflow: hidden; font-size: 16px; font-weight: 700; letter-spacing: .16px; }
+  .btn.primary { background: #fff; color: #0b0c14; padding: 0 26px; }
+  .actions { position: absolute; left: 16px; display: flex; }
+  .action { width: 76px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .disc { width: 52px; height: 52px; border-radius: 26px; display: flex; align-items: center; justify-content: center; }
+  .action span { color: rgba(243,244,248,.8); font-size: 11.2px; font-weight: 600; line-height: 13.44px; letter-spacing: .11px; text-align: center; }
+  .bright .action span, .action span.onbright { color: rgba(243,244,248,.8); }
+  svg.ic { display: block; position: relative; }
+</style>
+</head>
+<body>
+<div id="sheet"></div>
+<script>
+const D = window.DATA;
+const P = {
+  play: 'M8 5v14l11-7z',
+  info: 'M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z',
+  plus: 'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z',
+  check: 'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z',
+  download: 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z',
+  share: 'M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z',
+  star: 'M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z',
+  tv: 'M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z',
+};
+const GEAR = 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z';
+const icon = (name, size, color = '#f3f4f8') => `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}"><path d="${P[name]}"/></svg>`;
+const line = (d, circle, size, w) => `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="#f3f4f8" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"><circle cx="${circle[0]}" cy="${circle[1]}" r="${circle[2]}"/><path d="${d}"/></svg>`;
+
+let uid = 0;
+/** ui/GlassRim.tsx, the same drawing: the hairline, then the six lights (last first). */
+function rim(T, w, h, thin) {
+  const n = ++uid;
+  const rad = Math.min(h / 2, w / 2);
+  const box = sw => `x="${sw / 2}" y="${sw / 2}" width="${w - sw}" height="${h - sw}" rx="${Math.max(0, rad - sw / 2)}" ry="${Math.max(0, rad - sw / 2)}" fill="none" stroke-width="${sw}"`;
+  const A = T.RG_ARCS;
+  const reach = Math.min(1, h / T.RG_ARC_FULL_H), dim = thin ? T.RG_ARC_THIN : 1;
+  const defs = A.map((a, i) => `<radialGradient id="g${n}_${i}" gradientUnits="userSpaceOnUse" cx="${a.fx * w + a.dx}" cy="${a.fy * h + a.dy}" fx="${a.fx * w + a.dx}" fy="${a.fy * h + a.dy}" r="${a.r * reach}"><stop offset="0" stop-color="rgb(${a.c})" stop-opacity="${a.a * dim}"/><stop offset="1" stop-color="rgb(${a.c})" stop-opacity="0"/></radialGradient>`).join('');
+  const arcs = A.map((_, i) => i).reverse().map(i => `<rect ${box(T.RG.ring)} stroke="url(#g${n}_${i})"/>`).join('');
+  return `<svg class="rim" width="${w}" height="${h}"><defs>${defs}</defs><rect ${box(1)} stroke="${thin ? T.RG.lineThin : T.RG.line}"/>${arcs}</svg>`;
+}
+const css = o => Object.entries(o).map(([k, v]) => `${k}:${v}`).join(';');
+const edgeE = e => ({border: `${e.borderWidth}px solid ${e.borderColor}`, 'box-shadow': e.boxShadow});
+const words = T => `text-shadow:${T.E_WORDS.textShadowOffset.width}px ${T.E_WORDS.textShadowOffset.height}px ${T.E_WORDS.textShadowRadius}px ${T.E_WORDS.textShadowColor}`;
+
+/** A surface: today's E edge, or real glass's (no border, the shadows, the rim). */
+function pane(T, real, kind, w, h, cls, inner, extra = '') {
+  const body = kind === 'bar' ? T.E.bar : T.E.chrome;
+  let st;
+  if (!real) st = {background: body, ...edgeE(kind === 'disc' ? T.E_EDGE_THIN : kind === 'glass' ? T.E_EDGE : T.E_EDGE_FLOAT)};
+  else st = {background: body, 'box-shadow': (kind === 'disc' ? T.RG_EDGE_THIN : T.RG_EDGE_FLOAT).boxShadow};
+  const size = w ? `width:${w}px;height:${h}px;` : '';
+  return `<div class="pane ${cls}" data-rim="${real ? (kind === 'disc' || kind === 'circle' ? 'thin' : 'full') : ''}" style="${size}${css(st)};${extra}">${real && w ? rim(T, w, h, kind === 'disc' || kind === 'circle') : ''}${inner}</div>`;
+}
+
+function topBar(T, real, top) {
+  const logo = pane(T, real, 'circle', 42, 42, 'circle', `<img src="${D.logo}" width="26" height="26" style="position:relative">`);
+  const tv = pane(T, real, 'circle', 42, 42, 'circle', icon('tv', 19));
+  const gear = pane(T, real, 'circle', 42, 42, 'circle', line(GEAR, [12, 12, 3], 19, 2));
+  const me = pane(T, real, 'circle', 40, 40, 'circle', `<div class="avatar" style="position:relative">E</div>`);
+  return `<div class="topbar" style="top:${top}px">${logo}<div style="flex:1"></div><div class="right">${tv}${gear}${me}</div></div>`;
+}
+function tabBar(T, real, bottom) {
+  const well = `<div class="well" style="background:${T.E_WELL.backgroundColor};border:${T.E_WELL.borderWidth}px solid ${T.E_WELL.borderColor}"></div>`;
+  const tabs = ['Home', 'Movies', 'Shows', 'My List', 'More'].map((w, i) => `<div class="tab">${i === 0 ? well : ''}<span style="${words(T)}">${w}</span></div>`).join('');
+  const search = `<div class="tab search">${line('M21 21l-4.3-4.3', [11, 11, 7], 18, 2.4)}</div>`;
+  return `<div class="tabwrap" style="bottom:${bottom}px">${pane(T, real, 'bar', 387, 59, 'tabbar', tabs + search)}</div>`;
+}
+function heroButtons(T, real, top) {
+  const play = `<div class="btn primary">${icon('play', 20, '#0b0c14')}<span>Play</span></div>`;
+  // today: 26 at the sides inside a 1 dp border; real glass: 27 and no border — the same width
+  const glass = pane(T, real, 'glass', 0, 0, 'btn', `${icon('info', 20)}<span style="position:relative;${words(T)}">Details</span>`, `padding:0 ${real ? 27 : 26}px`);
+  return `<div class="btns" style="top:${top}px">${play}${glass}</div>`;
+}
+function actions(T, real, top) {
+  const items = [['check', 'My List', true], ['download', 'Download'], ['share', 'Share'], ['star', 'Rate'], ['tv', 'Play on TV']];
+  return `<div class="actions" style="top:${top}px">${items.map(([ic, w, on]) => `<div class="action">${pane(T, real, 'disc', 52, 52, 'disc', icon(ic, 22), on ? 'background:#6c58ff;' + (real ? '' : 'border-color:#6c58ff') : '')}<span>${w}</span></div>`).join('')}</div>`;
+}
+
+/** A busy, bright, poster-like ground: flat colours, white areas, hard edges, words. */
+function bright(h) {
+  const cols = ['#ffffff', '#ffd84d', '#ff6b4a', '#f4efe6', '#35c4f0', '#ffffff', '#ff9ec2', '#7be07a', '#ffffff', '#ffb347', '#4f7dff', '#fff6d0'];
+  let s = '';
+  const cw = 411 / 6;
+  for (let r = 0; r * 86 < h; r++) for (let c = 0; c < 6; c++) s += `<i style="left:${c * cw}px;top:${r * 86}px;width:${cw + 0.5}px;height:86px;background:${cols[(c * 5 + r * 7) % cols.length]}"></i>`;
+  for (let k = 0; k * 61 < h; k++) s += `<i style="left:${(k * 97) % 330}px;top:${k * 61 + 18}px;width:${90 + (k % 3) * 40}px;height:9px;background:${k % 2 ? '#141414' : '#ffffff'}"></i>`;
+  for (let k = 0; k * 74 < h; k++) s += `<div class="word" style="left:${(k * 131) % 240 - 10}px;top:${k * 74 + 30}px;font-size:${30 + (k % 2) * 12}px;color:${k % 2 ? '#101010' : '#ffffff'}">${['SUMMER NIGHTS', 'The Long Road', 'PRISM', 'After Hours'][k % 4]}</div>`;
+  return `<div class="bg bright">${s}</div>`;
+}
+/** The app's dark sky, with a shelf of dim posters. */
+function sky(h, shelfTop) {
+  let s = '';
+  const tones = ['#2a2f52', '#3b2a4f', '#1f3b4a', '#4a2f2f'];
+  if (shelfTop != null) for (let c = 0; c < 4; c++) s += `<i style="position:absolute;left:${16 + c * 123}px;top:${shelfTop}px;width:114px;height:171px;border-radius:12px;background:linear-gradient(160deg, ${tones[c]}, #10121f)"></i>`;
+  return `<div class="bg sky">${s}</div>`;
+}
+
+const SCENES = {
+  home: {
+    h: 236,
+    draw: (T, real, ground) => (ground === 'bright' ? bright(236) : sky(236, 96)) + topBar(T, real, 14) + tabBar(T, real, 14),
+    strips: [
+      {lab: 'the tab bar’s two ends, 3×', crops: [{x: 6, y: 160, w: 68, h: 65}, {x: 337, y: 160, w: 68, h: 65}]},
+      {lab: 'the logo and the round buttons, 3×', crops: [{x: 8, y: 10, w: 58, h: 50}, {x: 329, y: 10, w: 78, h: 50}]},
+    ],
+  },
+  title: {
+    h: 200,
+    draw: (T, real, ground) => (ground === 'bright' ? bright(200) : sky(200, null)) + heroButtons(T, real, 22) + actions(T, real, 100),
+    strips: [
+      {lab: 'the glass button beside the white one, 3×', crops: [{x: 92, y: 12, w: 136, h: 72}]},
+      {lab: 'two action circles (the first is on), 3× — in the app this row sits on the page’s dark ground; the bright one is a stress test', crops: [{x: 16, y: 92, w: 136, h: 84}]},
+    ],
+  },
+};
+
+function column(T, real, sc, ground) {
+  const scene = sc.draw(T, real, ground);
+  let out = `<div class="scene" style="height:${sc.h}px">${scene}</div>`;
+  for (const st of sc.strips) {
+    out += `<div class="lab">${st.lab}</div><div class="strip">` + st.crops.map(c => `<div class="crop" style="width:${c.w * 3}px;height:${c.h * 3}px"><div class="zoom" style="width:411px;height:${sc.h}px;transform:scale(3) translate(${-c.x}px,${-c.y}px)">${sc.draw(T, real, ground)}</div></div>`).join('') + '</div>';
+  }
+  return out;
+}
+
+function render(page) {
+  const sc = SCENES[page];
+  const titles = {home: 'Aurora phone app — the tab bar and the top buttons', title: 'Aurora phone app — the glass button and the title page’s action circles'};
+  let html = `<h1>${titles[page]}</h1><p class="cap">Drawn in a browser (Chrome, 411 dp wide, scale 2.625) from the app’s own style values — theme.ts and the StyleSheets — not photographed on a phone. Left: today (origin/master). Right: real glass. The 3× strips are the same drawing enlarged.</p>`;
+  for (const ground of ['bright', 'sky']) {
+    html += `<div class="cols"><div><div class="colhead">Today · ${ground === 'bright' ? 'over a bright, busy picture' : 'over the app’s dark sky'}</div>${column(D.today, false, sc, ground)}</div><div><div class="colhead">Real glass · ${ground === 'bright' ? 'over a bright, busy picture' : 'over the app’s dark sky'}</div>${column(D.real, true, sc, ground)}</div></div>`;
+  }
+  document.getElementById('sheet').innerHTML = html;
+  // a pane whose size was not given (the glass pill): measure it, then lay its rim — as GlassRim does on layout
+  document.querySelectorAll('.pane[data-rim]:not([data-rim=""])').forEach(el => {
+    if (el.querySelector(':scope > svg.rim')) return;
+    const w = el.offsetWidth, h = el.offsetHeight;
+    el.insertAdjacentHTML('afterbegin', rim(D.real, w, h, el.dataset.rim === 'thin'));
+  });
+}
+window.render = render;
+</script>
+</body>
+</html>

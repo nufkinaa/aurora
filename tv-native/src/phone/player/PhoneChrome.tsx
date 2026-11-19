@@ -16,7 +16,8 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Tap from '../ui/Tap';
 import Icon, {PhoneIconName} from '../ui/Icon';
 import {phoneNative} from '../native';
-import {E, E_EDGE, E_EDGE_THIN, E_WELL, E_WORDS} from '../theme';
+import {E, E_WELL, E_WORDS, RG_EDGE, RG_EDGE_THIN} from '../theme';
+import GlassRim from '../ui/GlassRim';
 import PlayOnTvSlot from '../remote/PlayOnTvSlot'; // [play-on-tv]
 // [scrub-previews] the picture above the scrub point while the bar is dragged
 import ScrubThumb, {ScrubPics, thumbOuterWidth} from '../../playback/ScrubThumb';
@@ -83,6 +84,7 @@ function Btn({icon, label, onPress, big, badge, on, mid, uiId, px}: {icon: Phone
       accessibilityLabel={label}
       onPress={onPress}
       style={[s.btn, {width: size, height: size, borderRadius: size / 2}, big && s.big, mid && s.mid, on && s.on]}>
+      {big || mid ? <GlassRim w={size} h={size} thin={mid} /> : null}
       <Icon name={icon} size={big ? 40 : 26} color="#fff" />
       {badge ? <Text style={s.badge}>{badge}</Text> : null}
     </Tap>
@@ -247,6 +249,7 @@ export default function PhoneChrome(p: ChromeProps) {
               style={row.nextWord ? s.next : [s.next, s.nextRound, {width: row.size, height: row.size, borderRadius: row.size / 2}]}
               accessibilityRole="button"
               accessibilityLabel={`Next episode — ${p.next}`}>
+              <GlassRim />
               <Icon name="next" size={22} color="#fff" />
               {row.nextWord ? (
                 <Text style={s.nextText} numberOfLines={1}>
@@ -280,12 +283,12 @@ const s = StyleSheet.create({
   btn: {alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
   // glass E over the video (the website's phone player: never blurred, 62 % of black
   // holds the words alone; the strong edge)
-  big: {backgroundColor: E.chrome, ...E_EDGE},
-  mid: {backgroundColor: E.chrome, ...E_EDGE_THIN},
+  big: {backgroundColor: E.chrome, ...RG_EDGE},
+  mid: {backgroundColor: E.chrome, ...RG_EDGE_THIN},
   // lit: Aurora's violet capsule laid over the body
   on: {...E_WELL, backgroundColor: E.chrome, experimental_backgroundImage: 'linear-gradient(rgba(120,104,240,0.2), rgba(120,104,240,0.2))'},
   badge: {position: 'absolute', bottom: 4, color: '#fff', fontSize: 9, fontWeight: '900'},
-  next: {flexDirection: 'row', alignItems: 'center', gap: 4, height: 40, paddingHorizontal: 14, borderRadius: 20, backgroundColor: E.chrome, ...E_EDGE, overflow: 'hidden', marginLeft: 4},
+  next: {flexDirection: 'row', alignItems: 'center', gap: 4, height: 40, paddingHorizontal: 15, borderRadius: 20, backgroundColor: E.chrome, ...RG_EDGE, overflow: 'hidden', marginLeft: 4},
   nextText: {color: '#fff', fontSize: 14, fontWeight: '800', ...E_WORDS},
   nextRound: {paddingHorizontal: 0, justifyContent: 'center'},
   lockOnly: {position: 'absolute'},

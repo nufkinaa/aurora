@@ -134,7 +134,7 @@ const Slide = React.memo(function Slide({item, w, h, top, land, noKicker, foot, 
           ) : null}
           <View style={s.heroBtns}>
             <PrimaryButton uiId="home.hero.play" testID="phone-hero-play" icon="play" label={item.source === 'stream' ? 'Stream' : 'Play'} onPress={() => onPlay(item)} style={s.heroBtn} />
-            <GlassButton uiId="home.hero.details" testID="phone-hero-details" icon="info" label="Details" onPress={() => onDetails(item)} style={s.heroBtn} />
+            <GlassButton uiId="home.hero.details" testID="phone-hero-details" icon="info" label="Details" onPress={() => onDetails(item)} style={s.heroGlass} />
           </View>
         </View>
       </Tap>
@@ -693,6 +693,8 @@ const s = StyleSheet.create({
   // (wraps: with the phone's font turned up, Details goes under Play instead of off the edge)
   heroBtns: {flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 12},
   heroBtn: {paddingHorizontal: 26},
+  // (real glass carries no border: its hairline is drawn — 27 keeps the pill as wide as it was)
+  heroGlass: {paddingHorizontal: 27},
   // .hero-dots: 7 dp dots 18 apart, the one on 22 wide and lit, 19 above the foot
   dots: {position: 'absolute', bottom: 19, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 18},
   dot: {width: 7, height: 7, borderRadius: 3.5, backgroundColor: 'rgba(255,255,255,0.36)'},

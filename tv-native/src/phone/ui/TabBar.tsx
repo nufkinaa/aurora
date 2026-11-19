@@ -16,7 +16,8 @@ import {navRef} from '../../rootNav';
 import {setTab, Tab, useTab} from '../tabs';
 import {openMore, useMoreShown} from '../moreMenu';
 import {phoneNative} from '../native';
-import {E, E_EDGE_FLOAT, E_WELL, E_WORDS, GUTTER, TAB_H, TAB_INSET, TAB_SIDE} from '../theme';
+import {E, E_WELL, E_WORDS, GUTTER, RG_EDGE_FLOAT, TAB_H, TAB_INSET, TAB_SIDE} from '../theme';
+import GlassRim from './GlassRim';
 import {BASE_FONT, fitTabs, guessWidth, tabSlots} from './tabFit';
 
 const ITEMS: {tab: Tab; label: string; uiId: string}[] = [
@@ -100,6 +101,8 @@ export default function TabBar() {
         ))}
       </View>
       <View style={[s.bar, {width: barW}]} accessibilityRole="tablist">
+        {/* real glass: the hairline and the two lit arcs of the rim (still; sized from what is known) */}
+        <GlassRim w={barW} h={TAB_H} />
         {ITEMS.map((it, i) => {
           const on = tab === it.tab && !moreOn;
           return (
@@ -174,7 +177,8 @@ const s = StyleSheet.create({
     padding: 6,
     gap: 2,
     backgroundColor: E.bar,
-    ...E_EDGE_FLOAT,
+    // real glass (theme.ts): no border — GlassRim draws the hairline; the foot's pool stays under the words
+    ...RG_EDGE_FLOAT,
   },
   item: {flex: 1, height: PILL_H, borderRadius: PILL_H / 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
   // .nav-item.active: Aurora's violet capsule with its own line (glass E keeps the colour)
