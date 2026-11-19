@@ -9,6 +9,7 @@
 // a little so posters are under the bar — there the living sky and the
 // pictures are what is behind the glass. SCROLL=1: while the page is
 // scrolled up and down the whole time by script; SCROLL=touch: by a finger.
+// TOP=1: Home not scrolled (the hero and its glass button in view).
 //
 //   node tools/real-glass/player-cost.js [runs=4] [a,e,n] [seconds=10]
 //   a = today's stylesheet and script, e = this worktree, n = e with the lens off, r = n with no ::before at all,
@@ -29,12 +30,15 @@ const r1 = (x) => Math.round(x * 10) / 10;
       // a browser of its own each time: its GPU process's time is this run's alone
       const b = await launch();
       try {
-        const h = await openPage(b, { size: process.env.SIZE || "desktop", side: side === "a" ? "before" : "after", freeze: false, extra: side === "n" || side === "r" ? { "aurora-lens": "off" } : {} });
+        const h = await openPage(b, { size: process.env.SIZE || "desktop", side: side === "a" ? "before" : "after", freeze: false, extra: side === "n" || side === "r" ? { "aurora-lens": "off" } : {} }); // (h = e with the pointer resting on Settings)
         const { page } = h;
         if (process.env.RES) await page.addInitScript((r) => { window.__rgRes = r; }, Number(process.env.RES)); // (a try: how fine the maps are drawn)
+        // CSS="…": a stylesheet laid over side e (a try at other numbers), before the lens starts
+        if (process.env.CSS && side === "e") await page.addInitScript((css) => { addEventListener("DOMContentLoaded", () => { const st = document.createElement("style"); st.textContent = css; document.head.append(st); }); }, process.env.CSS);
+        if (process.env.NORAF) await page.addInitScript(() => { window.__noraf = true; });
         const home = process.env.WHERE === "home";
         await go(h, home ? "home" : `#/play/${h.inst.lib.film1}`);
-        if (home) { await page.waitForSelector(".row .card", { timeout: 30000 }); await page.evaluate(() => scrollTo(0, 900)); }
+        if (home) { await page.waitForSelector(".row .card", { timeout: 30000 }); if (!process.env.TOP) await page.evaluate(() => scrollTo(0, 900)); }
         else await page.waitForSelector(".player video", { timeout: 25000 });
         await page.evaluate(async ([home, scroll]) => {
           const v = document.querySelector(".player video") || { getVideoPlaybackQuality: () => ({ totalVideoFrames: 0, droppedVideoFrames: 0 }), paused: true };
@@ -45,7 +49,8 @@ const r1 = (x) => Math.round(x * 10) / 10;
           if (scroll === "1") { let y = 900, dir = 12; setInterval(() => { y += dir; if (y > 2600 || y < 600) dir = -dir; scrollTo(0, y); }, 16); }
           window.__f = []; let last = 0;
           const loop = (t) => { if (last) window.__f.push(t - last); last = t; requestAnimationFrame(loop); };
-          requestAnimationFrame(loop);
+          // (NORAF=1: nothing of ours asks for frames — a paused film then draws none at all)
+          if (!window.__noraf) requestAnimationFrame(loop);
         }, [home, process.env.SCROLL || ""]);
         // r = n without the rims' rings (::before): what the rings cost
         if (side === "r") await page.addStyleTag({ content: "html[data-look='glass']:root *::before { content: none !important; }" });
@@ -53,7 +58,7 @@ const r1 = (x) => Math.round(x * 10) / 10;
         // PAUSED=1: the film paused on a frame, the controls up (the lens is on the player's chrome then);
         // HOVER=1: the pointer resting on the settings button (it wears its lens under the pointer)
         if (process.env.PAUSED) { await page.evaluate(() => window.__v.pause()); await sleep(1200); }
-        if (process.env.HOVER) { const c = await page.evaluate(() => { const r = document.querySelector(".nav-gear").getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }); await page.mouse.move(c[0], c[1]); await sleep(600); }
+        if (process.env.HOVER || side === "h") { const c = await page.evaluate(() => { const r = document.querySelector(".nav-gear").getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }); await page.mouse.move(c[0], c[1]); await sleep(600); }
         // TRY=ref: every lens swapped for the plain frosted filter (still a url() filter, no map, no bend);
         // TRY=one: only the bar keeps its lens; TRY=nomap: lenses without their map picture's cost? (see notes)
         const how = side === "o" ? "one" : side === "m" ? "mid" : process.env.TRY;
@@ -80,7 +85,7 @@ const r1 = (x) => Math.round(x * 10) / 10;
         const t1 = await times();
         const out = await page.evaluate(() => { const q = window.__v.getVideoPlaybackQuality(); return { f: window.__f, q: [q.totalVideoFrames, q.droppedVideoFrames], playing: !window.__v.paused }; });
         const sum = (type) => Object.keys(t1).filter((k) => k.startsWith(type)).reduce((a, k) => a + (t1[k] - (t0[k] || 0)), 0);
-        const one = { lens, playing: out.playing, frames: out.f.length, mean: r1(out.f.reduce((a, c) => a + c, 0) / out.f.length), late: out.f.filter((v) => v > 25).length, video: out.q[0] - q0[0], dropped: out.q[1] - q0[1], gpuMs: Math.round(sum("gpu") * 1000), rendererMs: Math.round(sum("renderer") * 1000) };
+        const one = { lens, playing: out.playing, frames: out.f.length, mean: r1(out.f.reduce((a, c) => a + c, 0) / Math.max(1, out.f.length)), late: out.f.filter((v) => v > 25).length, video: out.q[0] - q0[0], dropped: out.q[1] - q0[1], gpuMs: Math.round(sum("gpu") * 1000), rendererMs: Math.round(sum("renderer") * 1000) };
         res[side].push(one);
         console.log(side, JSON.stringify(one));
       } finally { await b.close(); }

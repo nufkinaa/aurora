@@ -73,6 +73,8 @@ const busy = (frac) => async (page) => {
   await page.waitForTimeout(700);
 };
 
+const hover = (sel) => async (page) => { const c = await page.evaluate((q) => { const r = document.querySelector(q).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, sel); await page.mouse.move(c[0], c[1]); await page.waitForTimeout(500); };
+
 const SCENES = [
   { id: "p-home", size: "phone-390", route: "home", crops: [".nav-logo, .nav-gear, .nav-profile, .nav-dl", ".nav-items", ".hero-actions"] },
   { id: "p-busy", size: "phone-390", route: "home", stage: [busy(0.5)], crops: [".nav-logo, .nav-gear, .nav-profile, .nav-dl", ".nav-items"] },
@@ -89,6 +91,9 @@ const SCENES = [
   { id: "t-busy", size: "tablet", route: "home", stage: [busy(0.15)], crops: [".nav"] },
   { id: "t7-home", size: "tablet-768", route: "home", crops: [".nav", ".hero-actions"] },
   { id: "t7-title", size: "tablet-768", route: "libfilm", crops: [".detail-actions", ".nav"] },
+  // a desktop's pointer resting on a round button, and on a title's button (they take their lens under it)
+  { id: "d-hover", size: "desktop", route: "home", stage: [hover(".nav-gear")], crops: [".nav"] },
+  { id: "d-title-hover", size: "desktop", route: "libfilm", stage: [hover(".detail-actions .btn:not(.btn-primary)")], crops: [".detail-actions"] },
 ];
 
 const main = async () => {
