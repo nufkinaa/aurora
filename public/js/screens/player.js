@@ -3589,10 +3589,18 @@ export const renderPlayer = async (root, { id }) => {
   // 2.4s of nothing moving and the chrome steps aside; any motion — mouse,
   // finger, wheel, key, remote — brings it straight back.
   const CONTROLS_IDLE_MS = 2400;
+  // (The glass's lens on a paused film rests after ten seconds of nothing
+  // moving — glass.css "Real glass": the page behind the player still draws
+  // frames, and the lens would be worked out again for each. Any motion
+  // brings it back with the controls.)
+  const GLASS_REST_MS = 10000;
+  let glassRestTimer = 0;
   const showControls = () => {
-    overlay.classList.remove("controls-hidden", "hide-cursor");
+    overlay.classList.remove("controls-hidden", "hide-cursor", "glass-rest");
     clearTimeout(controlsTimer);
     controlsTimer = setTimeout(hideControls, CONTROLS_IDLE_MS);
+    clearTimeout(glassRestTimer);
+    glassRestTimer = setTimeout(() => { if (video.paused) overlay.classList.add("glass-rest"); }, GLASS_REST_MS);
     liftCues(true);
   };
   const hideControls = () => {
@@ -7995,6 +8003,7 @@ export const renderPlayer = async (root, { id }) => {
     clearTimeout(seekDebounce);
     clearTimeout(hlsRecoverTimer);
     clearTimeout(controlsTimer);
+    clearTimeout(glassRestTimer);
     clearTimeout(franchiseAsk); // (a timer holds the whole player until it fires)
     clearInterval(filmEndTimer);
     franchiseAtEnd = null;

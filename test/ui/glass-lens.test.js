@@ -126,6 +126,11 @@ ui.test("the player's chrome takes the lens only while the film is paused", asyn
   const dock = await page.evaluate(() => { const m = /url\(#(rg-\d+)\)/.exec(document.querySelector(".player-bottom").style.getPropertyValue("--rg-lens")); return { id: m && m[1], there: !!(m && document.getElementById(m[1])), filter: getComputedStyle(document.querySelector(".player-bottom")).backdropFilter }; });
   assert.ok(dock.id && dock.there, "the paused dock's lens is a map that exists");
   assert.match(dock.filter, /brightness/, "and still dimmed");
+  // ten seconds of nothing moving: the lens rests (the page behind the player still draws frames)
+  await page.evaluate(() => document.querySelector(".player").classList.add("glass-rest"));
+  assert.doesNotMatch(await page.evaluate(() => getComputedStyle(document.querySelector(".player-bottom")).backdropFilter), /url\(/, "resting: the plain backdrop");
+  await page.mouse.move(300, 300); await page.mouse.move(320, 320);
+  await page.waitForFunction(() => !document.querySelector(".player").classList.contains("glass-rest"), null, { timeout: 4000 });
   // playing again: gone again
   await page.evaluate(() => document.querySelector(".player video").play().catch(() => {}));
   await page.waitForFunction(() => !document.querySelector(".player").classList.contains("is-paused"), null, { timeout: 5000 });
@@ -136,7 +141,7 @@ ui.test("the player's chrome takes the lens only while the film is paused", asyn
   for (const x of r) assert.ok(x.placed && x.own, `the ring of ${x.name} (${x.size}) is ${x.ring}`);
 });
 
-ui.test("glass, 1024 px: the profile menu opens above the bar", { viewport: { width: 1024, height: 768 } }, async ({ page, signIn, freshProfile, goto }) => {
+for (const [mw, mh] of [[1024, 768], [768, 1024]]) ui.test(`glass, ${mw} px: the profile menu opens above the bar`, { viewport: { width: mw, height: mh } }, async ({ page, signIn, freshProfile, goto }) => {
   const me = await freshProfile();
   await signIn(me);
   await goto("#/");

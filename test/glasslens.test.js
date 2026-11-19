@@ -56,7 +56,9 @@ test("the map: straight through on the face, pulled inwards at the rim, the same
   assert.deepEqual(px.get("60,30").map(Math.round), [128, 128, 0]);
   // the top edge, mid-way along: pulled DOWN (from further inside), fully the bezel's
   const top = px.get("60,0");
-  assert.ok(top[1] > 200 && Math.abs(top[0] - 128) < 1 && top[2] > 250, `top ${top}`);
+  assert.ok(top[1] > 200 && Math.abs(top[0] - 128) < 1, `top ${top}`);
+  // (no line of light along the top: the bevel shows there at half strength, in full along the foot)
+  assert.ok(Math.abs(top[2] - 127.5) < 1 && px.get("60,59")[2] > 250, `the veil: top ${top[2]}, foot ${px.get("60,59")[2]}`);
   // the foot: pulled up by the same amount
   const foot = px.get("60,59");
   assert.ok(Math.abs(top[1] - 128 + (foot[1] - 128)) < 1, "top and foot mirror each other");
@@ -101,7 +103,7 @@ test("the stylesheet shows a url() backdrop only under html[data-lens], and the 
   for (const x of always) assert.ok(css.includes(`html[data-look="glass"][data-lens] ${x}`), `glass.css gives ${x} the lens`);
   // the rest take it only while a film is paused — never at rest
   for (const x of atTimes) {
-    const at = `html[data-look="glass"][data-lens] .player.is-paused ${x}`;
+    const at = `html[data-look="glass"][data-lens] .player.is-paused:not(.glass-rest) ${x}`;
     assert.ok(css.includes(at), `glass.css gives ${x} the lens at its time (${at})`);
     // (at rest: the bare selector, followed straight by "," or "{", must not be in a lens rule)
     for (const end of [",", " {"]) assert.ok(!css.includes(`html[data-look="glass"][data-lens] ${x}${end}`), `${x} has no lens at rest`);

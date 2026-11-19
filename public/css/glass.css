@@ -5973,8 +5973,10 @@ html[data-look="glass"] {
   --rg-thick: 1.1;
   --rg-spread: 0.1;
   --rg-taps: 3;
-  /* (and how soft the bevel's own picture is, px) */
+  /* (how soft the bevel's own picture is, px; and 1: the bevel is worked out
+     only in its own strips, not across the face) */
   --rg-soft: 1.3;
+  --rg-zones: 1;
   /* Aurora's own two: the violet-magenta of its accent and the mint of its sky */
   --rg-warm: 232, 121, 249;
   --rg-cool: 94, 234, 212;
@@ -6000,10 +6002,16 @@ html[data-look="glass"] {
     -1px 0 0 0 rgba(var(--rg-cool), 0.22),
     1px 0 0 0 rgba(var(--rg-warm), 0.22);
   --rg-split-calm:
-    inset 1px 0 0 0 rgba(var(--rg-warm), 0.22),
-    inset -1px 0 0 0 rgba(var(--rg-cool), 0.22),
-    -1px 0 0 0 rgba(var(--rg-cool), 0.13),
-    1px 0 0 0 rgba(var(--rg-warm), 0.13);
+    inset 1px 0 0 0 rgba(var(--rg-warm), 0.3),
+    inset -1px 0 0 0 rgba(var(--rg-cool), 0.3),
+    -1px 0 0 0 rgba(var(--rg-cool), 0.18),
+    1px 0 0 0 rgba(var(--rg-warm), 0.18);
+  /* a small round button: the inside crescents stronger (there is little else on it) */
+  --rg-split-s:
+    inset 1px 0 0 0 rgba(var(--rg-warm), 0.5),
+    inset -1px 0 0 0 rgba(var(--rg-cool), 0.5),
+    -1px 0 0 0 rgba(var(--rg-cool), 0.22),
+    1px 0 0 0 rgba(var(--rg-warm), 0.22);
   --ge-edge: var(--rg-split), var(--rg-rim), 0 0 0 1px rgba(0, 0, 0, 0.36);
   /* The body: a pane is not flat. Seen from the front a thick, rounded
      piece of glass is darker towards its top and carries a little of the
@@ -6039,11 +6047,20 @@ html[data-look="glass"] {
 html[data-look="glass"] .nav-items {
   --rg-thick: 1.4;
 }
+/* (a desktop's bar: the colours a little further apart, in the same three
+   steps — five made a spectrum but cost twice as much while the sky moves
+   behind the bar: docs/qa/real-glass/README.md) */
 @media (min-width: 721px) {
   html[data-look="glass"] .nav-items {
-    --rg-taps: 5;
-    --rg-spread: 0.14;
+    --rg-spread: 0.12;
   }
+}
+/* the bar's body gathers a little more light along its foot */
+html[data-look="glass"] .nav-items {
+  --rg-body:
+    radial-gradient(120% 55% at 50% -20%, rgba(0, 0, 0, 0.26), transparent 62%),
+    radial-gradient(120% 60% at 50% 118%, rgba(var(--rg-pool), 0.22), transparent 60%);
+  --g-fill: var(--rg-body), linear-gradient(rgba(8, 6, 22, 0.22), rgba(8, 6, 22, 0.22));
 }
 /* (a phone's tab bar: its bevel softer still — words passing under it
    showed turned over and sharp in the top bevel, and the colours came
@@ -6111,10 +6128,17 @@ html[data-look="glass"] .quality-pill,
 html[data-look="glass"] .party-pill {
   --rg-arc: var(--rg-arc-s);
 }
+html[data-look="glass"] .nav-gear,
+html[data-look="glass"] .nav-dl,
+html[data-look="glass"] .nav-remote,
+html[data-look="glass"] .player-top .pbtn {
+  --g-edge: var(--rg-split-s), var(--rg-rim), 0 0 0 1px rgba(0, 0, 0, 0.36);
+}
 @media (max-width: 720px) {
   html[data-look="glass"]:root .nav-logo,
   html[data-look="glass"]:root .nav-profile {
     --rg-arc: var(--rg-arc-s);
+    --g-edge: var(--rg-split-s), var(--rg-rim), 0 0 0 1px rgba(0, 0, 0, 0.36);
   }
 }
 /* A title's page has up to nine of these side by side: the group is calmed
@@ -6122,7 +6146,8 @@ html[data-look="glass"] .party-pill {
 html[data-look="glass"] .detail-actions .btn:not(.btn-primary)::before {
   opacity: 0.7;
 }
-html[data-look="glass"] .detail-actions .btn:not(.btn-primary) {
+/* (its text buttons keep the full split; the icon-only circles the calmer one) */
+html[data-look="glass"] .detail-actions .btn.btn-icon {
   --g-edge: var(--rg-split-calm), var(--rg-rim), 0 0 0 1px rgba(0, 0, 0, 0.36);
 }
 html[data-look="glass"] .detail-actions .btn.btn-icon {
@@ -6157,12 +6182,16 @@ html[data-look="glass"][data-lens] .hero-actions .btn:not(.btn-primary) {
    playing film what is behind the glass changes every frame and the lens
    is worked out again each time: with it the page's processes used 2.8 s
    of processor time in 8 s of playing against 0.74 s without
-   (tools/real-glass/player-cost.js). A still frame costs nothing. A phone
-   never blurs the player's chrome, so it has no lens there either. */
+   (tools/real-glass/player-cost.js). And it rests after ten seconds of
+   nothing moving (.glass-rest): the film stands still, but the page behind
+   the player does not — the sky's two washes (html::before, ::after) and the
+   "new" dot's breathing keep the browser drawing frames, and a lens is
+   worked out again for each. A phone never blurs the player's chrome, so it
+   has no lens there either. */
 @media (min-width: 721px) {
-  html[data-look="glass"][data-lens] .player.is-paused .player-bottom,
-  html[data-look="glass"][data-lens] .player.is-paused .player-top > div,
-  html[data-look="glass"][data-lens] .player.is-paused .player-top .pbtn {
+  html[data-look="glass"][data-lens] .player.is-paused:not(.glass-rest) .player-bottom,
+  html[data-look="glass"][data-lens] .player.is-paused:not(.glass-rest) .player-top > div,
+  html[data-look="glass"][data-lens] .player.is-paused:not(.glass-rest) .player-top .pbtn {
     --g-blur: var(--rg-lens, url(#rg-0)) var(--rg-post);
   }
 }
