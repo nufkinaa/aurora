@@ -1,8 +1,27 @@
-# Real glass (2026-11-20, fourth pass)
+# Real glass (2026-11-20, fifth pass)
 
 elia asked for "a look of real looking glass with chromatic aberration for the btns", on "the nav and every glass btn across the board". This is that look, on the website and in the Android phone app. The TV app is not touched.
 
 Two jurors scored the first pass 7 and 6.5 (a drawn rainbow outline; metal rings) and the second 7.5 (the bars read as real glass, but every surface without a lens looked almost like today, with no colour split at all). The third scored 8.5 and 8.3; this fourth pass changes values and cost only. Sheets: `final/` (first), `final2/` (second), `final3/` (third), `final4/` (this one, a short set).
+
+## Fifth pass (2026-11-20): what is behind the glass bends and splits into colours
+
+elia, on seeing the fourth pass: "It looks great and keep it but I intended for the effect of red green and blue coming out slightly from an object behind and distorti[on]". So everything below stays, and the lens now works across the whole face, not only in the bevel:
+
+- **The face bends what is behind it.** Everything is fetched from a little nearer the pane's middle (6 px just inside the bevel, nothing at the middle), and the whole view sits 9 px to one side, as glass moves what is behind it.
+- **Every edge behind the pane parts into red and blue**, the middle included: about 2 px between them at the middle, more towards the rim. Two copies of the picture, the far one giving red and half the green, the near one blue and the other half.
+- **Less frost** (1.4 px against 3), so what is behind can be made out. The dim holds the words, not the blur. The bevel shows the band inside it turned over and squeezed 1.6 times, and meets the face at a crease.
+- The filter is shorter than before: the map, two bends, two colour shares, one sum (6 steps against 10), with the little softening as a plain `blur()` ahead of it.
+
+The technique was checked against the open-source "liquid glass" recreations (rdev/liquid-glass-react, liquid-glass-js, @real-human/liquid-glass, shuding/liquid-glass, liquidGL, @ybouane/liquidglass, kube.io's write-up). All the SVG ones bend only the rim and spend three bends on the colours, so they show no split on the face at all; the face term and the sideways set are what give it. liquidGL's shader shifts red and blue and leaves green, which is what the two-copy split amounts to. None refracts a live backdrop in Safari: they bend a cloned or snapshotted page, which cannot follow a moving sky or a scroll. Nothing was taken as a dependency.
+
+Cost (`final5/timings.txt`, desktop, processor time in 8 s, 8 runs a side): Home at rest with the hero in view 1507 → 1591 ms (+5.6 %), scrolled 1515 → 1637 ms (+8 %, with the lens-off control at +4.7 % in that batch, so about +3 to +8 %); a paused film's first ten seconds 249 → 338 ms (it was 410); after ten seconds and while playing, as today. Phone: scroll 17.8 / 18.1 / 18.2 ms on both sides, no late frames, the More menu's worst frame 36 ms on both. A lens on four round top buttons as well measured +4.4 % in all against today in its own batch: no more than the bar alone, so it is affordable on a desktop now; it is not built.
+
+Words: every surface reads as today or better, to a tenth, after one fix: the paused player's lens is a step dimmer (0.44), because with less frost a bright frame's edges passed under the dock's clock (4.4:1; now 5.2:1). Layout: nothing moved in 36 cases.
+
+The phone app cannot show what is behind it without a native backdrop. It is feasible on Android 13+ without a new package (the screen's content recorded into a RenderNode, drawn again under the tab bar through a blur and a small AGSL shader with three samples a pixel; blur only on Android 12; today's look below), but it is a new native view wired through the navigation root, and video surfaces cannot be sampled. It is not cheap enough for a values pass and is not built.
+
+Sheets: `final5/` (same names as `final4/`, plus `01b-phone-bright`).
 
 ## What it is
 

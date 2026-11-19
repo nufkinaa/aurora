@@ -6180,6 +6180,9 @@ html[data-look="glass"][data-lens] .hero-actions .btn:not(.btn-primary) {
   html[data-look="glass"][data-lens] .player.is-paused:not(.glass-rest) .player-bottom,
   html[data-look="glass"][data-lens] .player.is-paused:not(.glass-rest) .player-top > div,
   html[data-look="glass"][data-lens] .player.is-paused:not(.glass-rest) .player-top .pbtn {
+    /* (a step dimmer than the bar: with less frost a bright frame's sharp edges
+       pass under the dock's second voice — the clock read 4.4:1 at 0.5) */
+    --rg-post: saturate(2) brightness(0.44);
     --g-blur: blur(var(--rg-soft)) var(--rg-lens, url(#rg-0)) var(--rg-post);
   }
 }

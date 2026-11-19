@@ -1,0 +1,27 @@
+# Real glass, fifth pass (whole-face bend and colour split). a = today, e = real glass, n = e with the lens off. Desktop 1440x900; processor time of the page's processes over 8 s, ms (tools/real-glass/player-cost.js)
+# top
+a 1459 1503 1602 1628 1501 1653 1510 1494 
+e 1609 1606 1563 1633 1545 1614 1541 1575 
+n 1468 1505 1588 1570 1525 1589 1516 1462 
+# rest
+a 1474 1497 1510 1553 1610 1653 1520 1492 
+e 1541 1548 1626 1664 1678 1647 1452 1679 
+n 1584 1587 1516 1583 1608 1544 1598 1607 
+# paused-first
+a 244 250 246 249 255 
+e 338 329 349 347 322 
+# paused-idle
+a 227 222 243 222 
+e 244 235 238 233 
+# playing
+a 615 603 602 600 598 
+e 616 609 607 619 621 
+# buttons
+a 1501 1618 1639 1648 1623 1679 1539 1528 
+e 1642 1654 1697 1790 1687 1671 1823 1717 
+# (buttons: e = as built PLUS a lens on four round top buttons, hero in view; a try, not built)
+# The More menu, phone 390x844 CPU x4, 14 runs
+a frames 38 worst 54,35,36,35,35,35,36,36,35,36,36,35,37,35 median worst 36 late 1
+e frames 38 worst 36,35,35,36,36,54,35,35,35,54,36,35,53,36 median worst 36 late 1
+# Phone scroll and rest (perf-phone.json)
+phone-390 {"a":{"scrollMean":17.8,"scrollP95":18.1,"scrollP99":18.2,"scrollWorst":18,"scrollLate":0,"scrollFrames":78,"restMean":17.8,"restP95":18.1,"restLate":0,"droppedPct":null,"compositorFrames":null,"moreFrames":38,"moreP95":18.35,"moreWorst":35,"moreLate":1},"e":{"scrollMean":17.8,"scrollP95":18.1,"scrollP99":18.299999999999997,"scrollWorst":18,"scrollLate":0,"scrollFrames":79,"restMean":17.8,"restP95":18.1,"restLate":0,"droppedPct":null,"compositorFrames":null,"moreFrames":38,"moreP95":18.3,"moreWorst":35.5,"moreLate":1}}
