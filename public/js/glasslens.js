@@ -14,14 +14,31 @@
 // browser's own ResizeObserver says when a size changes; a MutationObserver
 // (coalesced to one pass) finds surfaces as screens come and go.
 
-// What takes the lens: the same two as the "Real glass" section of glass.css
-// — the bar (the desktop island, the phone tab bar) and the hero's glass
-// button. Not the small buttons, and not the player's chrome: a lens is
-// worked out again for every frame in which what is behind it moves, and
-// with one on every surface that was measured — 12 % more processor time on
-// a desktop Home at rest, nearly four times as much over a playing film
-// (tools/real-glass/player-cost.js). They wear the rim over Clear's blur.
-const SCOPE = [".nav-items", ".hero-actions .btn:not(.btn-primary)"].join(",");
+// What takes the lens (the same lists as the "Real glass" section of
+// glass.css, which decides WHEN each is shown):
+//   - always: the bar (the desktop island, the phone tab bar) and the hero's
+//     glass button;
+//   - only under a desktop's pointer or the keyboard's focus: the round top
+//     buttons, the logo and profile pills, a title's glass buttons;
+//   - only while a film is paused: the player's dock and top pills.
+// A lens is worked out again for every frame in which what is behind it
+// moves: with one on every surface all the time that was measured — 12 %
+// more processor time on a desktop Home at rest, nearly four times as much
+// over a playing film (tools/real-glass/player-cost.js).
+const ALWAYS = [".nav-items", ".hero-actions .btn:not(.btn-primary)"];
+const AT_TIMES = [
+  ".nav-logo",
+  ".nav-profile",
+  ".nav-gear",
+  ".nav-dl",
+  ".nav-remote",
+  ".detail-actions .btn:not(.btn-primary)",
+  ".player-bottom",
+  ".player-top > div",
+  ".player-top .pbtn",
+];
+const SCOPE = [...ALWAYS, ...AT_TIMES].join(",");
+const FIRST = ALWAYS.join(",");
 // On a phone the stylesheet gives the lens to the tab bar alone (the More
 // menu's first frame — glass.css, "Phones: the lens is the tab bar's
 // alone"): no maps are drawn for the rest.
@@ -32,7 +49,6 @@ const NS = "http://www.w3.org/2000/svg";
 const MAX_FILTERS = 28;
 // the face of the glass is softly frosted (Clear's 3 px); its bezel less so
 const SOFT = 3;
-const BEZEL_SOFT = 1.3;
 // a size that keeps changing (a window being dragged) is fitted when it rests
 const REST_MS = 160;
 
@@ -142,7 +158,7 @@ const ensureDefs = () => {
 const LIT = 1.04, LIFT = 0.01;
 
 const filterFor = (w, h, radius, look) => {
-  const key = `${w}x${h}r${Math.round(radius)}t${look.thick}s${look.spread}n${look.taps}`;
+  const key = `${w}x${h}r${Math.round(radius)}t${look.thick}s${look.spread}n${look.taps}b${look.soft}`;
   const had = filters.get(key);
   if (had) { had.used = ++tick; return had.id; }
   const svg = ensureDefs();
@@ -169,7 +185,7 @@ const filterFor = (w, h, radius, look) => {
   const f = fe("filter", { id, x: "0", y: "0", width: "100%", height: "100%", "color-interpolation-filters": "sRGB" });
   f.append(fe("feImage", { href: c.toDataURL("image/png"), x: "0", y: "0", width: String(w), height: String(h), preserveAspectRatio: "none", result: "map" }));
   // (the bevel's picture a touch soft: squeezed pixel-sharp, it speckles)
-  f.append(fe("feGaussianBlur", { in: "SourceGraphic", stdDeviation: String(BEZEL_SOFT), result: "crisp" }));
+  f.append(fe("feGaussianBlur", { in: "SourceGraphic", stdDeviation: String(look.soft), result: "crisp" }));
   let sum = null;
   lensTaps(look.taps, look.spread).forEach((tap, i) => {
     f.append(fe("feDisplacementMap", { in: "crisp", in2: "map", scale: String(Math.round(depth * 2 * tap.k * 100) / 100), xChannelSelector: "R", yChannelSelector: "G", result: `bent${i}` }));
@@ -219,7 +235,7 @@ const apply = (el) => {
   const w = Math.round(el.offsetWidth), h = Math.round(el.offsetHeight);
   if (w < 28 || h < 28 || w * h > 1400 * 220) return plain(el);
   const cs = getComputedStyle(el);
-  const look = { thick: num(cs, "--rg-thick", 1, 0.5, 2), spread: num(cs, "--rg-spread", 0.1, 0, 0.3), taps: num(cs, "--rg-taps", 3, 3, 5) >= 5 ? 5 : 3 };
+  const look = { thick: num(cs, "--rg-thick", 1, 0.5, 2), spread: num(cs, "--rg-spread", 0.1, 0, 0.3), taps: num(cs, "--rg-taps", 3, 3, 5) >= 5 ? 5 : 3, soft: num(cs, "--rg-soft", 1.3, 0, 4) };
   const want = `url(#${filterFor(w, h, parseFloat(cs.borderTopLeftRadius) || 0, look)})`;
   if (el.style.getPropertyValue("--rg-lens") !== want) el.style.setProperty("--rg-lens", want);
 };
@@ -242,14 +258,20 @@ export function initGlassLens() {
     raf = 0; rest = 0;
     const all = [...dirty];
     dirty.clear();
+    const wait = [];
     for (const el of all) {
       // gone from the page (the player is built anew for every film): let go of it
       if (!el.isConnected) { ro.unobserve(el); seen.delete(el); sized.delete(el); continue; }
       if (!on) continue;
-      apply(el);
-      sized.set(el, `${el.offsetWidth}x${el.offsetHeight}`);
+      // what is shown all the time is fitted now; what only shows under the
+      // pointer or while a film is paused has its map drawn at an idle moment
+      if (el.matches(FIRST)) fit(el);
+      else wait.push(el);
     }
+    if (wait.length) idle(() => { if (on) for (const el of wait) fit(el); });
   };
+  const fit = (el) => { apply(el); sized.set(el, `${el.offsetWidth}x${el.offsetHeight}`); };
+  const idle = (fn) => (typeof requestIdleCallback === "function" ? requestIdleCallback(fn, { timeout: 1500 }) : setTimeout(fn, 200));
   const ro = new ResizeObserver((entries) => {
     let again = false;
     for (const e of entries) {
@@ -274,7 +296,7 @@ export function initGlassLens() {
       ro.observe(el);
     }
   };
-  const all = () => { for (const el of document.querySelectorAll(SCOPE)) { apply(el); sized.set(el, `${el.offsetWidth}x${el.offsetHeight}`); } };
+  const all = () => { for (const el of document.querySelectorAll(SCOPE)) fit(el); };
   let pending = 0;
   const later = () => {
     // The maps live in one hidden <svg>. If something takes it out of the

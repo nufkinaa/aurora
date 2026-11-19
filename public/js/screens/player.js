@@ -6355,10 +6355,12 @@ export const renderPlayer = async (root, { id }) => {
   });
   video.addEventListener("play", () => {
     playBtn.innerHTML = icons.pause;
+    overlay.classList.remove("is-paused"); // (the glass's lens is for a still frame only: glass.css "Real glass")
     showControls();
   });
   video.addEventListener("pause", () => {
     playBtn.innerHTML = icons.play;
+    overlay.classList.add("is-paused");
     showControls();
   });
   video.addEventListener("waiting", () => {

@@ -95,12 +95,19 @@ test("the stylesheet shows a url() backdrop only under html[data-lens], and the 
   }
   assert.ok(seen >= 1, "the lens rule is there");
   // the script's surfaces are the stylesheet's
-  const scope = /const SCOPE = \[([\s\S]*?)\]\.join/.exec(js)[1].match(/"[^"]+"/g).map((s) => s.slice(1, -1));
-  assert.ok(scope.includes(".nav-items"));
-  // never over a playing film: the lens would be worked out again every frame
-  for (const s of scope) assert.doesNotMatch(s, /player|upnext|resume-card|quality-pill|party-pill/, `${s} is the player's`);
-  assert.doesNotMatch(css, /\[data-lens\][^{,]*\.(player|upnext|resume-card|quality-pill|party-pill)/, "no lens rule on the player's chrome");
-  for (const s of scope) assert.ok(css.includes(`html[data-look="glass"][data-lens] ${s}`), `glass.css gives ${s} the lens`);
+  const list = (name) => { const from = js.indexOf(`const ${name} = [`); return js.slice(from, js.indexOf("];", from)).match(/"[^"]+"/g).map((x) => x.slice(1, -1)); };
+  const always = list("ALWAYS"), atTimes = list("AT_TIMES");
+  assert.ok(always.includes(".nav-items"));
+  for (const x of always) assert.ok(css.includes(`html[data-look="glass"][data-lens] ${x}`), `glass.css gives ${x} the lens`);
+  // the rest take it only under a pointer / the keyboard's focus, or while a film is paused — never at rest
+  for (const x of atTimes) {
+    const at = x.startsWith(".player") ? `html[data-look="glass"][data-lens] .player.is-paused ${x}` : `html[data-look="glass"][data-lens] ${x}:hover`;
+    assert.ok(css.includes(at), `glass.css gives ${x} the lens at its time (${at})`);
+    // (at rest: the bare selector, followed straight by "," or "{", must not be in a lens rule)
+    for (const end of [",", " {"]) assert.ok(!css.includes(`html[data-look="glass"][data-lens] ${x}${end}`), `${x} has no lens at rest`);
+  }
+  // never over a PLAYING film: every lens rule on the player's chrome is under .player.is-paused
+  for (const m of css.matchAll(/\[data-lens\]([^{,]*\.(?:player-bottom|player-top|upnext|resume-card|quality-pill|party-pill)[^{,]*)/g)) assert.match(m[1], /\.player\.is-paused/, `a lens over a playing film: ${m[0]}`);
   // and no light along the top of a pane: no positive-y white inset line in the rim
   const rim = /--rg-rim:([\s\S]*?);/.exec(css)[1];
   assert.doesNotMatch(rim, /inset 0 1px 0[^,]*rgba\(255, 255, 255/, "no white line along the top");

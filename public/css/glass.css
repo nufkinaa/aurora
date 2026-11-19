@@ -5973,6 +5973,8 @@ html[data-look="glass"] {
   --rg-thick: 1.1;
   --rg-spread: 0.1;
   --rg-taps: 3;
+  /* (and how soft the bevel's own picture is, px) */
+  --rg-soft: 1.3;
   /* Aurora's own two: the violet-magenta of its accent and the mint of its sky */
   --rg-warm: 232, 121, 249;
   --rg-cool: 94, 234, 212;
@@ -5986,11 +5988,35 @@ html[data-look="glass"] {
     /* the light gathered along the foot */
     inset 0 -1px 0 0 rgba(var(--rg-pool), 0.18),
     inset 0 -7px 9px -7px rgba(var(--rg-pool), 0.45);
-  --ge-edge: var(--rg-rim), 0 0 0 1px rgba(0, 0, 0, 0.36);
+  /* The colour split a lens leaves on an edge, standing still: one sharp
+     pixel of violet inside the left end of a pane and of mint inside the
+     right, their other halves just outside, swapped. Only sideways, so they
+     are crescents — widest at 9 and 3 o'clock, nothing at the top or the
+     foot, a hair on a bar's straight run. This is what every pane keeps
+     where no lens is drawn (the small buttons, Safari, the phone app). */
+  --rg-split:
+    inset 1px 0 0 0 rgba(var(--rg-warm), 0.36),
+    inset -1px 0 0 0 rgba(var(--rg-cool), 0.36),
+    -1px 0 0 0 rgba(var(--rg-cool), 0.22),
+    1px 0 0 0 rgba(var(--rg-warm), 0.22);
+  --rg-split-calm:
+    inset 1px 0 0 0 rgba(var(--rg-warm), 0.22),
+    inset -1px 0 0 0 rgba(var(--rg-cool), 0.22),
+    -1px 0 0 0 rgba(var(--rg-cool), 0.13),
+    1px 0 0 0 rgba(var(--rg-warm), 0.13);
+  --ge-edge: var(--rg-split), var(--rg-rim), 0 0 0 1px rgba(0, 0, 0, 0.36);
+  /* The body: a pane is not flat. Seen from the front a thick, rounded
+     piece of glass is darker towards its top and carries a little of the
+     light it gathers towards its foot. Two still gradients over Clear's
+     body — no light from the top. */
+  --rg-body:
+    radial-gradient(120% 55% at 50% -20%, rgba(0, 0, 0, 0.26), transparent 62%),
+    radial-gradient(120% 60% at 50% 118%, rgba(var(--rg-pool), 0.16), transparent 60%);
+  --ge-fill: var(--rg-body), linear-gradient(rgba(8, 6, 22, 0.22), rgba(8, 6, 22, 0.22));
   /* a tight contact shadow, the soft one, and violet light let through below */
   --ge-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.5), 0 10px 24px rgba(0, 0, 0, 0.3), 0 8px 16px -8px rgba(var(--rg-pool), 0.22);
   /* the rim itself: dim on top, brighter down the sides, lit along the foot */
-  --rg-fresnel: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.13) 45%, rgba(190, 180, 255, 0.32));
+  --rg-fresnel: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.13) 45%, rgba(190, 180, 255, 0.45));
   /* the glint: one small light on the left shoulder with a trace of colour
      either side of it, and a fainter answer on the right foot */
   --rg-arc:
@@ -6002,10 +6028,11 @@ html[data-look="glass"] {
   /* on a small round button nothing is lit above its middle: the glint at
      the left shoulder, mint below it, a trace on the right foot */
   --rg-arc-s:
-    radial-gradient(circle 8px at 0 46%, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0) 100%),
-    radial-gradient(circle 9px at 4% 66%, rgba(var(--rg-warm), 0.36), rgba(var(--rg-warm), 0) 100%),
-    radial-gradient(circle 10px at 15% 85%, rgba(var(--rg-cool), 0.4), rgba(var(--rg-cool), 0) 100%),
-    radial-gradient(circle 8px at 100% 70%, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 100%);
+    radial-gradient(circle 10px at 0 46%, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0) 100%),
+    radial-gradient(circle 9px at 4% 66%, rgba(var(--rg-warm), 0.4), rgba(var(--rg-warm), 0) 100%),
+    radial-gradient(circle 11px at 15% 88%, rgba(var(--rg-cool), 0.46), rgba(var(--rg-cool), 0) 100%),
+    radial-gradient(circle 9px at 100% 70%, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0) 100%),
+    radial-gradient(circle 10px at 88% 90%, rgba(var(--rg-warm), 0.34), rgba(var(--rg-warm), 0) 100%);
 }
 /* the bar: a wider bezel, so the bend shows at real size; a desktop's bar
    splits the colours in five steps, a spectrum */
@@ -6015,6 +6042,15 @@ html[data-look="glass"] .nav-items {
 @media (min-width: 721px) {
   html[data-look="glass"] .nav-items {
     --rg-taps: 5;
+    --rg-spread: 0.14;
+  }
+}
+/* (a phone's tab bar: its bevel softer still — words passing under it
+   showed turned over and sharp in the top bevel, and the colours came
+   apart in separate blobs along the foot) */
+@media (max-width: 720px) {
+  html[data-look="glass"]:root .nav-items {
+    --rg-soft: 1.8;
   }
 }
 /* the ring that carries the rim (a surface that is not placed gets a
@@ -6086,6 +6122,9 @@ html[data-look="glass"] .party-pill {
 html[data-look="glass"] .detail-actions .btn:not(.btn-primary)::before {
   opacity: 0.7;
 }
+html[data-look="glass"] .detail-actions .btn:not(.btn-primary) {
+  --g-edge: var(--rg-split-calm), var(--rg-rim), 0 0 0 1px rgba(0, 0, 0, 0.36);
+}
 html[data-look="glass"] .detail-actions .btn.btn-icon {
   --rg-arc: linear-gradient(transparent, transparent);
 }
@@ -6110,11 +6149,40 @@ html[data-look="glass"][data-lens] .nav-items,
 html[data-look="glass"][data-lens] .hero-actions .btn:not(.btn-primary) {
   --g-blur: var(--rg-lens, url(#rg-0)) var(--rg-post);
 }
-/* (The player's chrome wears the rim, not the lens. Over a film what is
-   behind the glass changes every frame, and the lens is worked out again
-   each time: with it the page's processes used 2.8 s of processor time in
-   8 s of playing against 0.74 s without — tools/real-glass/player-cost.js.
-   Clear's plain blur costs nothing extra there.) */
+/* A desktop's pointer: the button under it (or holding the keyboard's
+   focus) takes its lens for as long as it is there — one small pane, only
+   while it is looked at; nothing at rest. (Its map is drawn ahead, at an
+   idle moment.) */
+@media (hover: hover) and (pointer: fine) {
+  html[data-look="glass"][data-lens] .nav-logo:hover,
+  html[data-look="glass"][data-lens] .nav-profile:hover,
+  html[data-look="glass"][data-lens] .nav-gear:hover,
+  html[data-look="glass"][data-lens] .nav-dl:hover,
+  html[data-look="glass"][data-lens] .nav-remote:hover,
+  html[data-look="glass"][data-lens] .detail-actions .btn:not(.btn-primary):hover,
+  html[data-look="glass"][data-lens] .nav-logo:focus-visible,
+  html[data-look="glass"][data-lens] .nav-profile:focus-visible,
+  html[data-look="glass"][data-lens] .nav-gear:focus-visible,
+  html[data-look="glass"][data-lens] .nav-dl:focus-visible,
+  html[data-look="glass"][data-lens] .nav-remote:focus-visible,
+  html[data-look="glass"][data-lens] .detail-actions .btn:not(.btn-primary):focus-visible {
+    --g-blur: var(--rg-lens, url(#rg-0)) var(--rg-post);
+  }
+}
+/* The player: the lens only while the film is PAUSED (.player.is-paused,
+   set on the video's own play and pause — screens/player.js). Over a
+   playing film what is behind the glass changes every frame and the lens
+   is worked out again each time: with it the page's processes used 2.8 s
+   of processor time in 8 s of playing against 0.74 s without
+   (tools/real-glass/player-cost.js). A still frame costs nothing. A phone
+   never blurs the player's chrome, so it has no lens there either. */
+@media (min-width: 721px) {
+  html[data-look="glass"][data-lens] .player.is-paused .player-bottom,
+  html[data-look="glass"][data-lens] .player.is-paused .player-top > div,
+  html[data-look="glass"][data-lens] .player.is-paused .player-top .pbtn {
+    --g-blur: var(--rg-lens, url(#rg-0)) var(--rg-post);
+  }
+}
 @media (max-width: 720px) {
   html[data-look="glass"]:root .nav-items {
     --rg-post: saturate(2) brightness(0.47);
