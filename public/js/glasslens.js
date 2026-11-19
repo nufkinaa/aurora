@@ -36,7 +36,7 @@ const PHONE_ONLY = ".nav-items";
 const NS = "http://www.w3.org/2000/svg";
 const MAX_FILTERS = 28;
 // the face of the glass is softly frosted (Clear's 3 px); its bezel less so
-const SOFT = 3;
+const SOFT = 3; // (what a pane wears until its own map is ready: Clear's plain frost)
 // a size that keeps changing (a window being dragged) is fitted when it rests
 const REST_MS = 160;
 
@@ -63,26 +63,36 @@ export function lensSupported(nav = typeof navigator !== "undefined" ? navigator
 }
 
 // The shape of the bend. `bezel`: the last px before the edge that are the
-// bevel. `depth`: how far inside the rim itself looks.
+// bevel. `depth`: how far inside the rim itself looks. `half`: from the edge
+// to the pane's middle.
 // thick: how wide the bezel is (1 = the look's own; glass.css --rg-thick)
+const SQUEEZE = 1.6;
 export function lensGeometry(w, h, radius, thick = 1) {
   const r = Math.max(0, Math.min(radius, w / 2, h / 2));
   const bezel = Math.max(5, Math.min(13 * thick, Math.min(w, h) * 0.2 * thick));
-  return { r, bezel, depth: bezel * 2.2 };
+  return { r, bezel, depth: bezel * (1 + SQUEEZE), half: Math.min(w, h) / 2 };
 }
-const smooth = (a, b, x) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
-// The map for one size: for every pixel, where the glass makes it look, and
-// how much of the pixel is the bevel's.
-// t runs from 0 where the bevel begins to 1 at the rim. The view is pulled
-// inwards by depth * t²: gently at first, steeply at the rim — so the bevel
-// shows a WIDE band of the picture, turned over and squeezed (up to 3.4
-// times at the rim), the way a rounded edge does. A squeezed picture stays
-// crisp; a stretched one (a straight, shallow bevel) smears into streaks.
-// Near t = 0.23 the view stands still for a moment — a smear — so the bevel
-// only fades in after it (0.2 … 0.6): what is seen is all squeezed.
-// put(x, y, across, down, veil): 128 = straight through; veil 255 = all bevel.
-export function lensMap(w, h, radius, put, res = 1, thick = 1) {
-  const { r, bezel } = lensGeometry(w, h, radius, thick);
+// How far, at most, any colour is fetched from (px): what the map's numbers are a share of.
+export const lensReach = (geo, look) => geo.depth + look.face + look.shift;
+// The map for one size: for every pixel, where the glass makes it look.
+// Three things add up, as in a thick piece of glass held over a picture:
+//   - the FACE magnifies a little: everything is fetched from a bit nearer
+//     the pane's middle, most just inside the bevel (`face` px), nothing at
+//     the middle itself — shapes behind bend gently;
+//   - the whole view sits a little to one side (`shift` px, down and to the
+//     right): glass moves what is behind it. Because every colour is bent by
+//     its own amount (lensTaps), this is what parts red from blue on every
+//     edge behind the pane, the middle included;
+//   - the BEVEL (the last `bezel` px) shows, turned over and squeezed 1.6
+//     times, the band just inside it. It meets the face at a crease, as a
+//     cut bevel does: no place where the picture stands still and smears.
+// put(x, y, across, down): 128 = straight through; 0 and 255 = `reach` px either way.
+export function lensMap(w, h, radius, put, res = 1, look = { thick: 1, face: 0, shift: 0 }) {
+  const geo = lensGeometry(w, h, radius, look.thick);
+  const { r, bezel, half } = geo;
+  const reach = lensReach(geo, look);
+  // (the shift: mostly across, a little down)
+  const sx = look.shift * 0.9, sy = look.shift * 0.44;
   const W = Math.max(2, Math.round(w * res)), H = Math.max(2, Math.round(h * res));
   for (let py = 0; py < H; py++) {
     for (let px = 0; px < W; px++) {
@@ -99,25 +109,29 @@ export function lensMap(w, h, radius, put, res = 1, thick = 1) {
         nx = d === dl ? -1 : d === dr ? 1 : 0;
         ny = nx ? 0 : d === dt ? -1 : 1;
       }
-      const t = d >= bezel ? 0 : 1 - Math.max(0, d) / bezel;
-      const m = t * t;
-      // Along the TOP edge the bevel shows at half strength: over a white
-      // poster a full one read as a lighter band along the top of the bar,
-      // and nothing may read as a line of light there (elia's ruling).
-      const top = 1 - 0.5 * Math.max(0, -ny);
-      put(px, py, 128 - 127 * nx * m, 128 - 127 * ny * m, 255 * smooth(0.2, 0.6, t) * top);
+      d = Math.max(0, d);
+      // inwards, px: the face's gentle pull, and the bevel's turned-over band
+      const inward = look.face * Math.max(0, 1 - d / half) + (d < bezel ? (bezel - d) * (1 + SQUEEZE) : 0);
+      const vx = -nx * inward + sx, vy = -ny * inward + sy;
+      put(px, py, Math.max(0, Math.min(255, 128 + (127 * vx) / reach)), Math.max(0, Math.min(255, 128 + (127 * vy) / reach)));
     }
   }
 }
 
-// How the colours are told apart: `taps` copies of the picture, each bent a
-// little less than the one before, each giving its share of red, green and
-// blue (every colour adds up to one). 3: red, green, blue. 5: a spectrum —
-// red, yellow, green, cyan, blue — for a pane wide enough to show it.
+// How the colours are told apart: copies of the picture, each bent a little
+// less than the one before, each giving its share of red, green and blue
+// (every colour adds up to one).
+//   2: the far copy gives red and half the green, the near one half the
+//      green and blue — red parts from blue on every edge, green stays
+//      between them. Two bends instead of three: what a lens costs goes with
+//      the number of steps in its filter (the open-source "liquid glass"
+//      recreations all spend three; a shader-based one, liquidGL, shifts red
+//      and blue and leaves green, which is what this amounts to).
+//   3: red, green, blue.   5: a spectrum — red, yellow, green, cyan, blue.
 export function lensTaps(taps, spread) {
   const share = taps >= 5
     ? [[0.5, 0, 0], [0.5, 0.25, 0], [0, 0.5, 0], [0, 0.25, 0.5], [0, 0, 0.5]]
-    : [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    : taps >= 3 ? [[1, 0, 0], [0, 1, 0], [0, 0, 1]] : [[1, 0.5, 0], [0, 0.5, 1]];
   const n = share.length;
   return share.map((rgb, i) => ({ k: 1 + spread * (1 - (2 * i) / (n - 1)), rgb }));
 }
@@ -146,11 +160,8 @@ const ensureDefs = () => {
   return defs;
 };
 
-// the bevel catches a little more light than the face
-const LIT = 1.04, LIFT = 0.01;
-
 const filterFor = (w, h, radius, look) => {
-  const key = `${w}x${h}r${Math.round(radius)}t${look.thick}s${look.spread}n${look.taps}b${look.soft}`;
+  const key = `${w}x${h}r${Math.round(radius)}t${look.thick}s${look.spread}n${look.taps}f${look.face}o${look.shift}`;
   const had = filters.get(key);
   if (had) { had.used = ++tick; return had.id; }
   const svg = ensureDefs();
@@ -167,43 +178,33 @@ const filterFor = (w, h, radius, look) => {
   const ctx = c.getContext("2d");
   if (!ctx) return "rg-0";
   const im = ctx.createImageData(W, H);
-  lensMap(w, h, radius, (px, py, rr, gg, veil) => {
+  lensMap(w, h, radius, (px, py, rr, gg) => {
     const o = (py * W + px) * 4;
-    im.data[o] = rr; im.data[o + 1] = gg; im.data[o + 2] = veil; im.data[o + 3] = 255;
-  }, res, look.thick);
+    im.data[o] = rr; im.data[o + 1] = gg; im.data[o + 2] = 128; im.data[o + 3] = 255;
+  }, res, look);
   ctx.putImageData(im, 0, 0);
   const id = `rg-${++serial}`;
-  const { depth } = lensGeometry(w, h, radius, look.thick);
+  const reach = lensReach(lensGeometry(w, h, radius, look.thick), look);
+  // As few steps as the look allows — what a lens costs while the picture
+  // behind it moves goes with the number of steps in the filter, not with
+  // the area they cover (working the bevel out in its own strips, four
+  // chains, cost more than one chain over the whole pane: measured,
+  // docs/qa/real-glass/README.md). The picture bent once per colour copy, the
+  // copies put together. Nothing else: its little softening is a plain
+  // blur() in the stylesheet, ahead of this filter.
   const f = fe("filter", { id, x: "0", y: "0", width: "100%", height: "100%", "color-interpolation-filters": "sRGB" });
   f.append(fe("feImage", { href: c.toDataURL("image/png"), x: "0", y: "0", width: String(w), height: String(h), preserveAspectRatio: "none", result: "map" }));
-  // the face: softly frosted, the whole pane
-  f.append(fe("feGaussianBlur", { in: "SourceGraphic", stdDeviation: String(SOFT), result: "soft" }));
-  // (Working the bevel out only in its own strips — top, foot, the two ends —
-  // was tried: it made a lens COST MORE, 8.5 % against 2.9 % on a desktop Home
-  // at rest. What a lens costs while the picture behind it moves goes with
-  // the number of steps in the filter, not with the area they cover, and four
-  // strips are four chains. One chain over the whole pane, as few steps as
-  // the look allows: docs/qa/real-glass/README.md.)
-  // (the bevel's picture a touch soft: squeezed pixel-sharp, it speckles)
-  f.append(fe("feGaussianBlur", { in: "SourceGraphic", stdDeviation: String(look.soft), result: "crisp" }));
   let sum = null;
   lensTaps(look.taps, look.spread).forEach((tap, i) => {
-    f.append(fe("feDisplacementMap", { in: "crisp", in2: "map", scale: String(Math.round(depth * 2 * tap.k * 100) / 100), xChannelSelector: "R", yChannelSelector: "G", result: `bent${i}` }));
-    const [cr, cg, cb] = tap.rgb.map((v) => [Math.round(v * LIT * 1000) / 1000, v ? Math.round(v * LIFT * 1000) / 1000 : 0]);
-    f.append(fe("feColorMatrix", { in: `bent${i}`, type: "matrix", values: `${cr[0]} 0 0 0 ${cr[1]}  0 ${cg[0]} 0 0 ${cg[1]}  0 0 ${cb[0]} 0 ${cb[1]}  0 0 0 1 0`, result: `part${i}` }));
+    f.append(fe("feDisplacementMap", { in: "SourceGraphic", in2: "map", scale: String(Math.round(reach * 2 * tap.k * 100) / 100), xChannelSelector: "R", yChannelSelector: "G", result: `bent${i}` }));
+    const [cr, cg, cb] = tap.rgb.map((v) => Math.round(v * 1000) / 1000);
+    f.append(fe("feColorMatrix", { in: `bent${i}`, type: "matrix", values: `${cr} 0 0 0 0  0 ${cg} 0 0 0  0 0 ${cb} 0 0  0 0 0 1 0`, ...(sum == null ? { result: `part${i}` } : { result: `part${i}` }) }));
     if (sum == null) sum = `part${i}`;
     else {
       f.append(fe("feComposite", { in: sum, in2: `part${i}`, operator: "arithmetic", k1: "0", k2: "1", k3: "1", k4: "0", result: `sum${i}` }));
       sum = `sum${i}`;
     }
   });
-  // the veil (the map's third number): how much of each pixel is the bevel's
-  f.append(fe("feColorMatrix", { in: "map", type: "matrix", values: "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 1 0 0", result: "veil" }));
-  f.append(fe("feComposite", { in: sum, in2: "veil", operator: "in", result: "rim" }));
-  const rims = ["rim"];
-  const merge = fe("feMerge", {});
-  merge.append(fe("feMergeNode", { in: "soft" }), ...rims.map((name) => fe("feMergeNode", { in: name })));
-  f.append(merge);
   svg.append(f);
   filters.set(key, { id, used: ++tick });
   if (filters.size > MAX_FILTERS) prune();
@@ -235,7 +236,7 @@ const apply = (el) => {
   const w = Math.round(el.offsetWidth), h = Math.round(el.offsetHeight);
   if (w < 28 || h < 28 || w * h > 1400 * 220) return plain(el);
   const cs = getComputedStyle(el);
-  const look = { thick: num(cs, "--rg-thick", 1, 0.5, 2), spread: num(cs, "--rg-spread", 0.1, 0, 0.3), taps: num(cs, "--rg-taps", 3, 3, 5) >= 5 ? 5 : 3, soft: num(cs, "--rg-soft", 1.3, 0, 4) };
+  const look = { thick: num(cs, "--rg-thick", 1, 0.5, 2), spread: num(cs, "--rg-spread", 0.1, 0, 0.3), taps: Math.round(num(cs, "--rg-taps", 2, 2, 5)), face: num(cs, "--rg-face", 6, 0, 20), shift: num(cs, "--rg-shift", 7, 0, 20) };
   const want = `url(#${filterFor(w, h, parseFloat(cs.borderTopLeftRadius) || 0, look)})`;
   if (el.style.getPropertyValue("--rg-lens") !== want) el.style.setProperty("--rg-lens", want);
 };

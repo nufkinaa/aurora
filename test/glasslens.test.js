@@ -43,37 +43,34 @@ test("the lens is given to Chromium and to nothing else", async () => {
   assert.equal(lensSupported(null, null), false);
 });
 
-test("the map: straight through on the face, pulled inwards at the rim, the same both sides", async () => {
-  const { lensMap, lensGeometry } = await import("../public/js/glasslens.js");
-  const w = 120, h = 60;
+test("the map: the face pulls gently towards the middle and sits a little to one side, the bevel turns the picture over", async () => {
+  const { lensMap, lensGeometry, lensReach } = await import("../public/js/glasslens.js");
+  const w = 240, h = 60;
+  const look = { thick: 1, face: 6, shift: 9 };
+  const geo = lensGeometry(w, h, 999, 1);
+  const reach = lensReach(geo, look);
   const px = new Map();
-  lensMap(w, h, 999, (x, y, r, g, b) => px.set(`${x},${y}`, [r, g, b]));
+  lensMap(w, h, 999, (x, y, r, g) => px.set(`${x},${y}`, [((r - 128) * reach) / 127, ((g - 128) * reach) / 127]), 1, look);
   assert.equal(px.size, w * h);
-  const { bezel, r } = lensGeometry(w, h, 999);
-  assert.equal(r, 30, "a pill's corner is half its height");
-  assert.ok(bezel >= 5 && bezel <= 13);
-  // the middle of the face: no bend, not the bezel's
-  assert.deepEqual(px.get("60,30").map(Math.round), [128, 128, 0]);
-  // the top edge, mid-way along: pulled DOWN (from further inside), fully the bezel's
-  const top = px.get("60,0");
-  assert.ok(top[1] > 200 && Math.abs(top[0] - 128) < 1, `top ${top}`);
-  // (no line of light along the top: the bevel shows there at half strength, in full along the foot)
-  assert.ok(Math.abs(top[2] - 127.5) < 1 && px.get("60,59")[2] > 250, `the veil: top ${top[2]}, foot ${px.get("60,59")[2]}`);
-  // the foot: pulled up by the same amount
-  const foot = px.get("60,59");
-  assert.ok(Math.abs(top[1] - 128 + (foot[1] - 128)) < 1, "top and foot mirror each other");
-  // the two ends mirror each other too
-  const l = px.get("0,30"), rt = px.get("119,30");
-  assert.ok(l[0] > 200 && rt[0] < 56 && Math.abs(l[0] - 128 + (rt[0] - 128)) < 1, `ends ${l} ${rt}`);
-  // every value is a colour
-  for (const v of px.values()) for (const c of v) assert.ok(c >= 0 && c <= 255);
-  // a thicker look has a wider bezel
-  assert.ok(lensGeometry(w, h, 999, 1.5).bezel > bezel);
+  assert.equal(geo.r, 30, "a pill's corner is half its height");
+  // the middle of the face: only the shift (so red parts from blue there too), mostly across
+  const mid = px.get("120,30");
+  assert.ok(mid[0] > 6 && mid[0] < 9.5 && mid[1] > 2 && mid[1] < 5.5, `middle ${mid}`);
+  // without a shift the middle is straight through, and top and foot mirror each other
+  const flat = new Map();
+  lensMap(w, h, 999, (x, y, r, g) => flat.set(`${x},${y}`, [r - 128, g - 128]), 1, { thick: 1, face: 6, shift: 0 });
+  assert.ok(Math.abs(flat.get("120,30")[0]) < 1.5 && Math.abs(flat.get("120,30")[1]) < 1.5);
+  const top = flat.get("120,0"), foot = flat.get("120,59");
+  assert.ok(top[1] > 60 && foot[1] < -60 && Math.abs(top[1] + foot[1]) < 1.5, `top ${top} foot ${foot}: the rim looks inwards`);
+  // the pull grows from the middle outwards: nearer the edge, further inwards
+  assert.ok(flat.get("120,20")[1] > flat.get("120,28")[1]);
+  for (const v of px.values()) for (const c of v) assert.ok(Math.abs(c) <= reach + 1);
+  assert.ok(lensGeometry(w, h, 999, 1.5).bezel > geo.bezel);
 });
 
 test("the colours of the fringe: every colour adds up to one, red bent most, blue least", async () => {
   const { lensTaps } = await import("../public/js/glasslens.js");
-  for (const n of [3, 5]) {
+  for (const n of [2, 3, 5]) {
     const taps = lensTaps(n, 0.1);
     assert.equal(taps.length, n);
     for (const ch of [0, 1, 2]) assert.ok(Math.abs(taps.reduce((a, t) => a + t.rgb[ch], 0) - 1) < 1e-9, `channel ${ch} of ${n}`);
