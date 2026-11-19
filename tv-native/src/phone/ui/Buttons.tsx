@@ -5,7 +5,7 @@ import React, {createContext, useContext} from 'react';
 import {ActivityIndicator, StyleSheet, Text, View, ViewStyle, StyleProp} from 'react-native';
 import Tap from './Tap';
 import Icon, {PhoneIconName} from './Icon';
-import {colors, E, E_EDGE, E_WORDS, G_EDGE, G_FILL, radius, RG_EDGE_FLOAT, RG_EDGE_THIN} from '../theme';
+import {colors, E, E_EDGE, E_WORDS, G_EDGE, G_FILL, radius, RG_EDGE_FLOAT, RG_EDGE_FLOAT_S, RG_EDGE_THIN} from '../theme';
 import GlassRim from './GlassRim';
 
 type Base = {
@@ -285,7 +285,7 @@ const s = StyleSheet.create({
   iconCircle: {
     // real glass over the picture
     backgroundColor: E.chrome,
-    ...RG_EDGE_FLOAT,
+    ...RG_EDGE_FLOAT_S,
     alignItems: 'center',
     justifyContent: 'center',
   },

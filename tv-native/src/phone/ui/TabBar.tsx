@@ -16,7 +16,7 @@ import {navRef} from '../../rootNav';
 import {setTab, Tab, useTab} from '../tabs';
 import {openMore, useMoreShown} from '../moreMenu';
 import {phoneNative} from '../native';
-import {E, E_WELL, E_WORDS, GUTTER, RG_EDGE_FLOAT, TAB_H, TAB_INSET, TAB_SIDE} from '../theme';
+import {E, E_WELL, E_WORDS, GUTTER, RG_EDGE_BAR, TAB_H, TAB_INSET, TAB_SIDE} from '../theme';
 import GlassRim from './GlassRim';
 import {BASE_FONT, fitTabs, guessWidth, tabSlots} from './tabFit';
 
@@ -179,7 +179,7 @@ const s = StyleSheet.create({
     gap: 2,
     backgroundColor: E.bar,
     // real glass (theme.ts): no border — GlassRim draws the rim; the foot's pool stays under the words
-    ...RG_EDGE_FLOAT,
+    ...RG_EDGE_BAR,
   },
   item: {flex: 1, height: PILL_H, borderRadius: PILL_H / 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden'},
   // .nav-item.active: Aurora's violet capsule with its own line (glass E keeps the colour)

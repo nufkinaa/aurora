@@ -16,7 +16,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Tap from '../ui/Tap';
 import Icon, {PhoneIconName} from '../ui/Icon';
 import {phoneNative} from '../native';
-import {E, E_WELL, E_WORDS, RG_BODY, RG_EDGE, RG_EDGE_THIN} from '../theme';
+import {E, E_WELL, E_WORDS, RG_BODY, RG_EDGE, RG_EDGE_SMALL} from '../theme';
 import GlassRim from '../ui/GlassRim';
 import PlayOnTvSlot from '../remote/PlayOnTvSlot'; // [play-on-tv]
 // [scrub-previews] the picture above the scrub point while the bar is dragged
@@ -284,7 +284,7 @@ const s = StyleSheet.create({
   // glass E over the video (the website's phone player: never blurred, 62 % of black
   // holds the words alone; the strong edge)
   big: {backgroundColor: E.chrome, ...RG_EDGE},
-  mid: {backgroundColor: E.chrome, ...RG_EDGE_THIN},
+  mid: {backgroundColor: E.chrome, ...RG_EDGE_SMALL},
   // lit: Aurora's violet capsule laid over the body
   on: {...E_WELL, backgroundColor: E.chrome, experimental_backgroundImage: `${RG_BODY}, linear-gradient(rgba(120,104,240,0.2), rgba(120,104,240,0.2))`},
   badge: {position: 'absolute', bottom: 4, color: '#fff', fontSize: 9, fontWeight: '900'},

@@ -155,28 +155,49 @@ export const RG_DEPTH = '0 1px 1.5px rgba(0,0,0,0.5), 0 10px 24px rgba(0,0,0,0.3
 /** The still colour split (--rg-split): sideways only — violet inside the left end, mint inside the right, their other halves outside, swapped. */
 export const RG_SPLIT =
   'inset 1px 0 0 0 rgba(232,121,249,0.36), inset -1px 0 0 0 rgba(94,234,212,0.36), -1px 0 0 0 rgba(94,234,212,0.22), 1px 0 0 0 rgba(232,121,249,0.22)';
-/** The same, calmer (--rg-split-calm): where many sit side by side (a title's action circles) and on the small round buttons. */
+/** The same, calmer (--rg-split-calm): where many sit side by side (a title's action circles). */
 export const RG_SPLIT_CALM =
-  'inset 1px 0 0 0 rgba(232,121,249,0.22), inset -1px 0 0 0 rgba(94,234,212,0.22), -1px 0 0 0 rgba(94,234,212,0.13), 1px 0 0 0 rgba(232,121,249,0.13)';
+  'inset 1px 0 0 0 rgba(232,121,249,0.3), inset -1px 0 0 0 rgba(94,234,212,0.3), -1px 0 0 0 rgba(94,234,212,0.18), 1px 0 0 0 rgba(232,121,249,0.18)';
+/** A small round button (--rg-split-s): the inside crescents stronger — there is little else on it. */
+export const RG_SPLIT_S =
+  'inset 1px 0 0 0 rgba(232,121,249,0.5), inset -1px 0 0 0 rgba(94,234,212,0.5), -1px 0 0 0 rgba(94,234,212,0.22), 1px 0 0 0 rgba(232,121,249,0.22)';
 /** The convex body (--rg-body), laid over the pane's own colour: a shade under the top edge, a little violet light from below the foot. No light from the top.
  *  (The website's shade is centred above the pane, at 50% -20%. Android drops a negative centre and paints the shade in the pane's middle — seen on the
  *  Pixel 9 emulator — so here it hangs from the top edge itself: the same cap of shade, a touch deeper since the app has no lens to give the pane thickness.) */
 export const RG_BODY =
   'radial-gradient(ellipse 70% 38% at 50% 0%, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 100%), radial-gradient(ellipse 120% 60% at 50% 118%, rgba(168,150,255,0.16) 0%, rgba(168,150,255,0) 60%)';
+/** The tab bar's body (.nav-items' own --rg-body): it gathers a little more light along its foot. */
+export const RG_BODY_BAR =
+  'radial-gradient(ellipse 70% 38% at 50% 0%, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 100%), radial-gradient(ellipse 120% 60% at 50% 118%, rgba(168,150,255,0.22) 0%, rgba(168,150,255,0) 60%)';
 /** Real glass's edge (--ge-edge) and body: the split, the rim, the dark hairline outside. No border: GlassRim draws the ring. */
 export const RG_EDGE = {
   boxShadow: `${RG_SPLIT}, ${RG_RIM}, 0 0 0 1px rgba(0,0,0,0.36)`,
   experimental_backgroundImage: RG_BODY,
 } as const;
-/** Small round things (the action circles, the player's side buttons): the calmer split, the outside line a touch fainter, as E's. */
+/** The title page's action circles: the calmer split, the outside line a touch fainter, as E's. */
 export const RG_EDGE_THIN = {
   boxShadow: `${RG_SPLIT_CALM}, ${RG_RIM}, 0 0 0 1px rgba(0,0,0,0.3)`,
   experimental_backgroundImage: RG_BODY,
 } as const;
-/** The edge with the depth under it (--ge-edge + --ge-shadow), for what floats: the tab bar, the round top buttons, the hero's glass pill. */
+/** The player's small round buttons: the small button's split, the outside line a touch fainter, as E's. */
+export const RG_EDGE_SMALL = {
+  boxShadow: `${RG_SPLIT_S}, ${RG_RIM}, 0 0 0 1px rgba(0,0,0,0.3)`,
+  experimental_backgroundImage: RG_BODY,
+} as const;
+/** The edge with the depth under it (--ge-edge + --ge-shadow), for what floats: the hero's glass pill. */
 export const RG_EDGE_FLOAT = {
   boxShadow: `${RG_SPLIT}, ${RG_RIM}, 0 0 0 1px rgba(0,0,0,0.36), ${RG_DEPTH}`,
   experimental_backgroundImage: RG_BODY,
+} as const;
+/** The same for the round top buttons (logo, settings, profile, TVs, Back): the small button's split. */
+export const RG_EDGE_FLOAT_S = {
+  boxShadow: `${RG_SPLIT_S}, ${RG_RIM}, 0 0 0 1px rgba(0,0,0,0.36), ${RG_DEPTH}`,
+  experimental_backgroundImage: RG_BODY,
+} as const;
+/** The same for the tab bar: its own body. */
+export const RG_EDGE_BAR = {
+  boxShadow: RG_EDGE_FLOAT.boxShadow,
+  experimental_backgroundImage: RG_BODY_BAR,
 } as const;
 /** The rim itself (--rg-fresnel), top to foot: [how far down, colour, how strong]. */
 export const RG_FRESNEL = [
