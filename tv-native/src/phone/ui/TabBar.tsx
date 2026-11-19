@@ -174,7 +174,8 @@ const s = StyleSheet.create({
     borderRadius: TAB_H / 2,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 6,
+    // (7 = the 6 inside + the 1 dp border this pane no longer carries: the tabs sit where they sat)
+    padding: 7,
     gap: 2,
     backgroundColor: E.bar,
     // real glass (theme.ts): no border — GlassRim draws the rim; the foot's pool stays under the words
