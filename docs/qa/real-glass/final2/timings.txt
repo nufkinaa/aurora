@@ -1,0 +1,14 @@
+a frames 37 worst 54,53,36,36,54,54,54,70,70,53,53,54 median worst 54 late 1
+e frames 38 worst 70,54,71,54,53,53,54,53,35,52,36,52 median worst 53 late 1
+a mean 17.9 worst 35 late 1 | all late: 0,1,0,1,1,0,1,0
+e mean 17.9 worst 25 late 0 | all late: 1,0,0,0,0,1,0,1
+a mean 18.1 worst 36 late 1 | all late: 1,4,1,1
+e mean 18.3 worst 36 late 3 | all late: 3,0,3,0
+a {"lens":0,"playing":true,"frames":458,"mean":17.5,"late":0,"video":201,"dropped":0,"gpuMs":0,"rendererMs":671}
+e {"lens":4,"playing":true,"frames":460,"mean":17.4,"late":0,"video":201,"dropped":0,"gpuMs":0,"rendererMs":726}
+e {"lens":4,"playing":true,"frames":458,"mean":17.5,"late":0,"video":200,"dropped":0,"gpuMs":0,"rendererMs":921}
+a {"lens":0,"playing":true,"frames":461,"mean":17.4,"late":0,"video":200,"dropped":0,"gpuMs":0,"rendererMs":875}
+a {"lens":0,"playing":true,"frames":460,"mean":17.4,"late":0,"video":200,"dropped":0,"gpuMs":0,"rendererMs":796}
+e {"lens":4,"playing":true,"frames":461,"mean":17.4,"late":0,"video":200,"dropped":0,"gpuMs":0,"rendererMs":873}
+a over 8s: GPU process 0 ms, page 796 ms, mean frame 17.4 ms, late 0, video frames dropped 0 of 200
+e over 8s: GPU process 0 ms, page 873 ms, mean frame 17.4 ms, late 0, video frames dropped 0 of 200

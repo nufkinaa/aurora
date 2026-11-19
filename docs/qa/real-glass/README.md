@@ -1,122 +1,107 @@
-# Real glass (2026-11-19)
+# Real glass (2026-11-19, second pass)
 
 elia asked for "a look of real looking glass with chromatic aberration for the btns", on "the nav and every glass btn across the board". This is that look, on the website and in the Android phone app. The TV app is not touched.
 
+A first pass was scored 7 and 6.5 out of 10 by two jurors: it read as glass only over bright pictures, as a drawn rainbow outline over dark pages, and its small round buttons read as metal rings. This is the second pass. The first pass's sheets are in `final/`, this one's in `final2/`.
+
 ## What it is
 
-The surfaces are the ones that took "Clear" a week ago: what floats over pictures. Their body is unchanged (the picture behind is dimmed and its colour kept). What is new is that a pane now reads as a thick piece of glass:
+The surfaces are the ones that took "Clear": what floats over pictures. Their body is unchanged. A pane now reads as a thick piece of glass:
 
-- **Its rim bends the picture** (Chrome, Edge, Android's browsers). The last 6–13 px before the edge are a bevel. They show, turned over, the band of picture just inside the rim, the way the edge of a thick lens does. The face stays softly frosted, so words on it read as before.
-- **The colour fringe of a lens.** Red is bent a tenth more than green, blue a tenth less, so an edge in the picture splits into its colours inside the bevel and nowhere else.
-- **Light on the rim in two places only.** A short arc on the left shoulder and its answer on the right foot. Each arc is white in the middle and breaks into a warm end and a cool end. There is no light along the top: elia ruled that out for Clear and it stands.
-- **Depth.** The glass is dark just under its top edge and gathers a soft violet light along its foot, Aurora's own colour. A faint glow runs inside the whole rim, and the shadow below is a little deeper.
+- **The bar's rim bends the picture** (Chrome, Edge, Android's browsers). The last 15 px or so before the edge of the top bar and of the phone tab bar are a bevel. It shows, turned over and squeezed, a wide band of the picture inside it, the way the edge of a thick lens gathers a whole view into a thin line. The face stays softly frosted, so words read as before.
+- **The colour fringe is real, not drawn.** Red is bent a tenth more than green and blue a tenth less, inside the bevel only. A desktop's bar does it in five steps, a spectrum. Nothing coloured is drawn round a pane: over a dark page, where there is nothing to bend, the glass is quiet.
+- **The rim is dim on top and lit along the foot.** No light along the top (elia's ruling). One small glint sits on the left shoulder with a faint answer on the right foot, tinted in Aurora's own violet and mint. On a small round button nothing is lit above its middle.
+- **Depth.** Dark just under the top edge, a soft violet pool inside the foot, a tight contact shadow, and a little violet light let through onto what is below.
 
-## Where
+## What changed from the first pass
 
-| got real glass | unchanged |
+| the jurors said | now |
 |---|---|
-| the desktop top bar and the phone tab bar | the phone's side menu (More) |
-| the round top buttons (settings, remote, downloads), the logo pill, the profile button | every drop-down menu, sheet, dialog and toast |
-| the glass buttons on the hero and on a film's or show's page (desktop and tablet) | a phone's action tiles under a title (not glass panes, as with Clear) |
-| the player's dock and top pills, Up next, the resume card, the quality and party pills | the player's menus; the panes, chips and rows in the page |
-| the phone app: tab bar, logo, round buttons, glass pill, action circles, the player's buttons | the classic look; the TV app |
+| the bevel stretched a thin band into streaks, with a seam against the face | it squeezes a wide band (up to 3.4 times at the rim) and fades in after the point where the picture stands still |
+| the bend did not show at real size | the bar's bevel is 1.4 wide; its picture is softened 1.3 px so it does not speckle |
+| a drawn rainbow outline over dark pages | the drawn fringe lines are gone; the arcs became one small glint at about half the strength |
+| small circles read as metal rings | a 1 px rim, dim on top; nothing lit above the middle |
+| the coral was off-palette | warm is Aurora's violet-magenta (232, 121, 249), cool its mint (94, 234, 212) |
+| a flat outline | the rim runs from 5 % white on top to 32 % violet at the foot; the lens lifts the bevel by 4 %, not 15 % |
+| nine identical rims on a title's page | the group's rims are at 70 %, and the icon-only buttons carry no glint |
 
-## Three directions, and the one built (`options/`)
+## Where the lens is, and why not everywhere
 
-Each sheet shows today's glass and three directions on this PC's own server, with real posters.
+The lens is on **the bar** (the desktop and tablet island, the phone tab bar) and, from tablet width up, on **the hero's glass button**. Every other surface in the table below wears the rim over Clear's plain backdrop. That is a measured choice, not a taste:
 
-- **A · Bevel**: the lens and a quiet even rim; the fringe only as two thin coloured lines at a pane's ends.
-- **B · Prism**: the lens, plus the rim's light in two arcs that break into colour.
-- **C · Crystal**: a bevel half as wide again that splits the colours nearly twice as far, a second line inside the rim, longer arcs.
+- A lens is worked out again for every frame in which what is behind it moves. On a desktop Home at rest the sky never stands still.
+- With a lens on every button, the page's processes used **12 % more processor time at rest** than today (medians of 8 and of 6 interleaved runs, twice). With the bar's alone: the same as today.
+- Over a playing film, lenses on the player's chrome used **3.7 times** the processor time (2.76 s against 0.74 s in 8 s). The player's chrome has no lens.
+- On a phone, lenses on the round buttons made the More menu's first frame one frame late (71 ms against 53).
+- At 42 px there is next to no picture in a bezel to bend. The bar is where the bend can be seen.
 
-**B is built.** A is honest but reads as today's glass with a coloured outline; over the dark sky, where nothing is behind to bend, it barely differs from Clear. C is the most striking at first sight, but its round buttons read as chrome rings, not glass, and its fringe over a poster with words on it is the 3D-glasses effect. B keeps the bend and the fringe where they are true and adds only the light a real rim would catch.
+elia's call if he wants it otherwise: the buttons can take the lens on a desktop at that 12 %.
 
-After the choice, two things changed in B: the arcs on a small round button were shortened (at full reach a 42 px circle was lit nearly all the way round, top included), and the lens's two numbers settled at a bevel 1.1 wide and a spread of a tenth.
+| real glass | unchanged |
+|---|---|
+| the desktop top bar and the phone tab bar (rim and lens) | the phone's side menu (More) |
+| the hero's glass button (rim; lens from tablet width up) | every drop-down menu, sheet, dialog and toast |
+| the round top buttons, the logo pill, the profile button (rim) | a phone's action tiles under a title (not glass panes, as with Clear) |
+| the glass buttons on a film's or show's page, desktop and tablet (rim) | the player's menus; the panes, chips and rows in the page |
+| the player's dock and top pills, Up next, the resume card, the quality and party pills (rim) | the classic look; the TV app |
+| the phone app: tab bar, logo, round buttons, the hero's glass pill, action circles, the player's buttons (rim) | the phone app's sheets, pages and their buttons |
 
 ## How it is made
 
-**The lens** (`public/js/glasslens.js`, Chromium only). An SVG filter inside `backdrop-filter`:
-- a displacement map drawn once per size of surface, moves each pixel of the bevel to the band inside it;
-- it is applied three times, once per colour channel, with a slightly different strength (the fringe);
-- the bevel's picture is laid over a 3 px frosted copy of the backdrop (the face); the dim and the colour boost follow as before.
+**The lens** (`public/js/glasslens.js`, Chromium only) is an SVG filter inside `backdrop-filter`: a displacement map, applied once per colour step with a slightly different strength, laid over a 3 px frosted copy of the backdrop. A map is drawn once per size of surface, at half the surface's size (it is smooth, and Chromium sends a filter's picture along with every frame it draws). `ResizeObserver` says when a size changes; a window being dragged is fitted when it rests. Nothing runs per frame.
 
-On a phone only the tab bar takes the lens (see Speed); on a tablet and a desktop every surface in the table does. A map is kept and shared by every surface of the same size. The browser's `ResizeObserver` says when a size changes. Nothing runs per frame and nothing new is blurred.
+**The rest** (`public/css/glass.css`, the last section, "Real glass") is plain CSS and the same in every browser: box shadows for the depth and the pool, and one masked 1 px ring (`::before`) for the rim and its glint.
 
-**The rest** (`public/css/glass.css`, the last section, "Real glass") is plain CSS and the same in every browser: box shadows for the depth, the pool and the two fringe lines at a pane's ends, and one masked ring (`::before`) for the arcs. Some surfaces became `position: relative` for the ring; `tools/real-glass/layout-same.js` compared every element's box with today's stylesheet on six screens at four sizes: nothing moved.
+## Faults the review found, fixed
+
+- **721–1260 px:** the island is not centred there and was not placed, so its ring was the whole top bar's. It is placed now; `tools/real-glass/layout-same.js` checks that every ring is its own surface's size at six widths (and that nothing moved against today), and `test/ui/glass-lens.test.js` holds it at 1440, 1024, 768 and 390.
+- **The party pill** was not placed either; fixed the same way, and it is in the focus rule.
+- **Surfaces that left the page were still watched** (the player is built anew for every film). They are let go now.
+- **The maps' hidden `<svg>` taken out of the page** would have left every lens pointing at nothing, and Chromium then draws no backdrop filter at all, the dim included. It is put back at once and every surface fitted again; the test takes it out and looks.
+- **Maps for surfaces the stylesheet ignores** are no longer drawn; with the lens off (another look, Reduce Transparency) the maps are removed.
+- **`forced-colors` and `prefers-contrast: more`:** no lens and no ring.
 
 ## Safari, iPhone and Firefox
 
-They cannot draw the lens: Safari drops the whole backdrop filter when a `url()` is in it (WebKit bugs 245510, 317059), and Firefox draws none. So they never see one. The stylesheet uses a `url()` only under `html[data-lens]`, and only the script sets that, after checking that the browser is Chromium. Every iPhone browser is refused whatever its name, and `test/glasslens.test.js` holds both rules.
+They cannot draw the lens (Safari drops the whole backdrop filter when a `url()` is in it; WebKit bugs 245510, 317059), so they never see one: the stylesheet uses a `url()` only under `html[data-lens]`, and only the script sets that, after checking that the browser is Chromium. Every iPhone browser is refused whatever its name. `test/glasslens.test.js` and `test/ui/glass-lens.test.js` hold both rules.
 
-Their glass is everything except the bend: the rim's two arcs with their colours, the fringe lines, the dark top, the pool, the depth, over Clear's own blur and dim. `final/08-no-lens.png` shows it. There is no WebKit on this PC; this was photographed in Chrome with the lens refused, which is the same stylesheet path, but Safari itself was not run.
+Their glass is everything except the bend: the rim, the glint, the dark top, the pool, the depth, over Clear's blur and dim. `final2/15-no-lens-phone.png` and `16-no-lens-desktop.png` show it, photographed in Chrome with the lens refused. There is no WebKit on this PC: Safari itself was not run.
 
-Other fallbacks: Reduce Transparency, a TV's browser and a weak device (`data-fx="lite"`) get no lens and keep Clear's near-opaque body. A browser that cannot mask the ring gets no arcs. A person can switch the lens off with `localStorage["aurora-lens"] = "off"`.
+## Sheets (`final2/`)
 
-## Sheets (`final/`)
+Today beside real glass, the same moment twice. 01–12 and 14–16 are this PC's own server, looked at only, as the test profile; 13 is a private test server.
 
-Today beside real glass, the same moment twice.
-
-- `01-phone-home.jpg`: phone Home, the tab bar over posters and the top buttons over the picture.
-- `02-desktop-home.jpg`: desktop Home, the top bar over the hero.
-- `03-desktop-posters.jpg`: the top bar over posters.
-- `04-title-desktop.png`, `05-title-phone.png`: a film's page.
-- `06-player.png`: the player's controls and menu over a bright frame.
-- `07-edge-3x.png`: one edge enlarged, so the bend and the fringe can be seen.
-- `08-no-lens.png`: what Safari and Firefox get.
-- `app-home.png`, `app-title.png`: the phone app. These are drawn in a browser from the app's own style values. They are not photographs of a phone: no emulator was available.
-
-Scenes 01–05, 07 and 08 are this PC's own server, looked at only, as the test profile; the player is a private test server.
+- `01-phone-home`, `02-phone-bright`, `03-phone-sky`, `04-phone-title`: a phone over posters, over the brightest posters, over the dark sky alone, on a film's page.
+- `05-desktop-home`, `06-desktop-posters`, `07-desktop-sky`, `08-desktop-title`: the same on a desktop.
+- `09`–`12`: tablets, 1024 and 768 wide.
+- `13-player`: the player's controls and menu over a bright frame.
+- `14-edge`: edges enlarged.
+- `15`, `16`: with and without the lens.
+- `app-home`, `app-sky`, `app-title`, `app-sheet`, `app-player`: the phone app, photographed on the Pixel 9 emulator.
 
 ## Words on the glass
 
-Measured with `tools/glass-options/contrast.js` (the dimmest 1 % behind each word, over a white poster, a bright poster, mid grey, white text, a bright sky band and black; a white frame for the player). Every real-glass surface reads the same as with Clear, to a tenth:
-
-| surface | lowest, today | lowest, real glass |
-|---|---:|---:|
-| phone tab bar, words / chosen tab | 6.3 / 5.4 | 6.3 / 5.4 |
-| phone top buttons | 5.8 | 5.8 |
-| desktop top bar, words / chosen tab | 5.3 / 5.1 | 5.3 / 5.1 |
-| glass buttons on the hero and a title | 15.5 | 15.7 |
-| the player's dock and pills | 4.7 | 4.7 |
-
-The bend lives in the bevel, where no word is. The three cells under 4.5:1 are the same three as before, on surfaces this round did not touch (a chip's count and the season bar over a sky painted as one bright band).
+CONTRAST
 
 ## Speed
 
-Same rig as Clear's (`tools/glass-options/perf.js`): Home flung top to bottom at 3000 px/s, three seconds at rest mid-page, then the More menu's first 700 ms. Phone 390 × 844 at CPU ×4, 8 runs, medians (`final/perf-phone.json`):
-
-| phone | today | real glass |
-|---|---:|---:|
-| scroll: mean frame / p95 / p99 (ms) | 17.8 / 18.4 / 18.6 | 17.75 / 18.5 / 18.6 |
-| scroll: late frames (> 25 ms) | 0 | 0 |
-| at rest: mean / p95 (ms) | 17.7 / 18.5 | 17.75 / 18.45 |
-| More menu: frames in 700 ms / p95 / worst / late | 37 / 18.65 / 44 / 1 | 37.5 / 18.6 / 44 / 1 |
-
-Desktop 1440 × 900, the same scroll, 8 runs each (`final/scroll-desktop.txt`): mean 17.9 ms and a median of 0 late frames on both sides; one late frame in 1 run of 8 today and in 2 of 8 with real glass.
-
-**One thing was worse at first, and is fixed.** With the lens on every surface, the More menu's first frame on a phone came one frame later (71 ms against 53, 10 runs each, `tools/real-glass/more-open.js`). Taking the lens off either the tab bar or the small buttons brought it back (53 and 54). So on a phone the lens is the tab bar's alone: the round top buttons and the hero's button keep Clear's plain backdrop under the same rim. After that the menu opens as today (53 against 54 over 12 runs, and the table above).
-
-The machine is shared. Two batches taken while another build was running were noisy on both sides and are not the ones kept.
+SPEED
 
 ## The phone app
 
-React Native has no live backdrop, so there is no bend: the app wears the drawn half of the look. The tokens are in `tv-native/src/phone/theme.ts` ("Real glass", `RG_*`) and the rim is one small still drawing, `tv-native/src/phone/ui/GlassRim.tsx` (react-native-svg, already in the app). Bodies are unchanged: the tab bar keeps its 86 %.
+React Native has no live backdrop, so there is no bend: the app wears the rim, the glint and the depth. Tokens are in `tv-native/src/phone/theme.ts` (`RG_*`); the rim is one small still drawing, `tv-native/src/phone/ui/GlassRim.tsx`, with nothing measured, so nothing arrives a frame late. Bodies are unchanged: the tab bar keeps its 86 %. Only the hero's "Details" is a real-glass pill; every glass button in a sheet or a page keeps the earlier look and its width.
 
-Not seen on a device. `tsc` and the logic tests pass. To check on the Pixel emulator:
-1. The tab bar shows the dark under its top edge and the violet pool at its foot (inset shadows with negative spread are untested on Android).
-2. The ring sits exactly on the edge of the tab bar, the glass pill and the player's Next pill.
-3. No hairline popping in a frame late on the glass pill and the round buttons.
-4. The hero's Details, Taste's "Edit list" and the Next pill are as wide as before.
-5. The small round buttons show two arcs, not colour all round.
-6. Home scrolls and the player opens as smoothly as before.
-7. On Android 9, only the hairline, the arcs, the outside line and the shadow are expected.
+**On a device this time:** Pixel 9 emulator (API 37), QA build 123, against a private test server, beside QA build 121 of origin/master. The inset shadows render (dark under the top edge, the violet pool). The ring sits on the edge. Nothing was seen popping in. Layout bounds are the same as origin/master's (the hero's Details, the tab items, a sheet's Cancel and Send).
+
+Not checked: a real phone's GPU (the emulator draws in software), Android below API 37, smoothness, and a few surfaces that share the same components but were not opened (the Taste screen, the round Next, a lit player button, the TVs circle).
 
 ## Rigs (`tools/real-glass/`)
 
-- `lab.js`: the scenes, on the private instance or (with `LIVE`) on this PC's server, with an optional variant stylesheet from `variants/`.
-- `options.py`, `final.py`: the sheets.
-- `layout-same.js`: nothing moved.
+- `lab.js`: the scenes, on the private instance or (with `LIVE`) on this PC's server, with an optional variant stylesheet from `variants/` (the first pass's three directions).
+- `options.py`, `final.py`, `final2.py`: the sheets.
+- `layout-same.js`: nothing moved; every ring is its surface's.
+- `more-open.js`, `scroll-probe.js`: the More menu and a scroll, many times over.
+- `player-cost.js`: processor time over a playing film, at rest and during a scroll, with parts of the lens off.
 - `z.py`, `zoom.py`: enlargements to look at closely.
-- `more-open.js`, `scroll-probe.js`: the More menu and a scroll, many times over, with parts of the lens off.
-- Contrast and speed are `tools/glass-options/contrast.js` and `perf.js`, with "a" = origin/master.
-- `tools/real-glass-app/`: the phone app's drawing.
+- Contrast and the phone's speed table are `tools/glass-options/contrast.js` and `perf.js`, with "a" = origin/master.
+- `tools/real-glass-app/`: the phone app's sheets.
