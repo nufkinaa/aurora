@@ -240,8 +240,8 @@ function Row({
       if ((items || []).length && (!holdsFocus || holdsFocus(rowIndex ?? 0))) refocusAt.current = lastIdx.current;
     }
     // (adb logcat -s ReactNativeJS | grep "\[row\] reread") kept=held: the re-read no longer
-    // had the title, it is held where focus is (shelfPin.ts)
-    console.log(`[row] reread row=${rowIndex ?? 0} card=${p.key} at=${p.index} server=${server} kept=${server >= 0 ? 'yes' : 'held'}`);
+    // had the title, it is held where focus is (shelfPin.ts); kept=gone: Continue Watching, not held
+    console.log(`[row] reread row=${rowIndex ?? 0} card=${p.key} at=${p.index} server=${server} kept=${server >= 0 ? 'yes' : onRemove ? 'gone' : 'held'}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pinned]);
   useEffect(
