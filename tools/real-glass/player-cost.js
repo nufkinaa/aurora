@@ -1,0 +1,70 @@
+// What the glass over a PLAYING film costs: the player's chrome sits over a
+// picture that changes every frame, so its backdrop filter runs every frame.
+// A library film played for some seconds on a desktop with the controls
+// held up; measured: the page's frame times, the frames the video dropped,
+// and the processor time the browser's GPU process and the page's own
+// process used meanwhile (Chrome's SystemInfo.getProcessInfo).
+//
+// WHERE=home (and SIZE=phone-390|desktop): the same at rest on Home, scrolled
+// a little so posters are under the bar — there the living sky and the
+// pictures are what is behind the glass. SCROLL=1: while the page is
+// scrolled up and down the whole time by script; SCROLL=touch: by a finger.
+//
+//   node tools/real-glass/player-cost.js [runs=4] [a,e,n] [seconds=10]
+//   a = today's stylesheet and script, e = this worktree, n = e with the lens off
+"use strict";
+const { launch, openPage, go, sleep } = require("../glass-apple/lib");
+
+const med = (a) => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+const r1 = (x) => Math.round(x * 10) / 10;
+
+(async () => {
+  const runs = Number(process.argv[2] || 4);
+  const sides = (process.argv[3] || "a,e,n").split(",");
+  const secs = Number(process.argv[4] || 10);
+  const res = Object.fromEntries(sides.map((s) => [s, []]));
+  for (let r = 0; r < runs; r++) {
+    for (const side of sides.map((_, i) => sides[(i + r) % sides.length])) {
+      // a browser of its own each time: its GPU process's time is this run's alone
+      const b = await launch();
+      try {
+        const h = await openPage(b, { size: process.env.SIZE || "desktop", side: side === "a" ? "before" : "after", freeze: false, extra: side === "n" ? { "aurora-lens": "off" } : {} });
+        const { page } = h;
+        const home = process.env.WHERE === "home";
+        await go(h, home ? "home" : `#/play/${h.inst.lib.film1}`);
+        if (home) { await page.waitForSelector(".row .card", { timeout: 30000 }); await page.evaluate(() => scrollTo(0, 900)); }
+        else await page.waitForSelector(".player video", { timeout: 25000 });
+        await page.evaluate(async ([home, scroll]) => {
+          const v = document.querySelector(".player video") || { getVideoPlaybackQuality: () => ({ totalVideoFrames: 0, droppedVideoFrames: 0 }), paused: true };
+          window.__v = v;
+          if (!home) { v.muted = true; v.loop = true; await v.play().catch(() => {}); }
+          // the controls held up for the whole measurement
+          window.__hold = setInterval(() => document.querySelector(".player")?.classList.remove("controls-hidden"), 200);
+          if (scroll === "1") { let y = 900, dir = 12; setInterval(() => { y += dir; if (y > 2600 || y < 600) dir = -dir; scrollTo(0, y); }, 16); }
+          window.__f = []; let last = 0;
+          const loop = (t) => { if (last) window.__f.push(t - last); last = t; requestAnimationFrame(loop); };
+          requestAnimationFrame(loop);
+        }, [home, process.env.SCROLL || ""]);
+        await sleep(2500);
+        const sys = await b.newBrowserCDPSession();
+        const times = async () => Object.fromEntries((await sys.send("SystemInfo.getProcessInfo")).processInfo.map((p) => [`${p.type}:${p.id}`, p.cpuTime]));
+        const lens = await page.evaluate(() => [...document.querySelectorAll(".nav-items, .nav-logo, .nav-gear, .nav-profile, .player-bottom, .player-top > div, .player-top .pbtn")].filter((e) => /rg-[1-9]/.test(e.style.getPropertyValue("--rg-lens")) && document.documentElement.dataset.lens).length);
+        const q0 = await page.evaluate(() => { window.__f = []; const q = window.__v.getVideoPlaybackQuality(); return [q.totalVideoFrames, q.droppedVideoFrames]; });
+        const t0 = await times();
+        if (process.env.SCROLL === "touch") {
+          // a finger's scroll (the compositor's own, as on a phone), down and up, for the whole time
+          const cdp = await h.ctx.newCDPSession(page);
+          const end = Date.now() + secs * 1000;
+          for (let dir = -1; Date.now() < end; dir = -dir) await cdp.send("Input.synthesizeScrollGesture", { x: 195, y: 450, yDistance: dir * 1400, speed: 1400, gestureSourceType: "touch", repeatCount: 0 });
+        } else await sleep(secs * 1000);
+        const t1 = await times();
+        const out = await page.evaluate(() => { const q = window.__v.getVideoPlaybackQuality(); return { f: window.__f, q: [q.totalVideoFrames, q.droppedVideoFrames], playing: !window.__v.paused }; });
+        const sum = (type) => Object.keys(t1).filter((k) => k.startsWith(type)).reduce((a, k) => a + (t1[k] - (t0[k] || 0)), 0);
+        const one = { lens, playing: out.playing, frames: out.f.length, mean: r1(out.f.reduce((a, c) => a + c, 0) / out.f.length), late: out.f.filter((v) => v > 25).length, video: out.q[0] - q0[0], dropped: out.q[1] - q0[1], gpuMs: Math.round(sum("gpu") * 1000), rendererMs: Math.round(sum("renderer") * 1000) };
+        res[side].push(one);
+        console.log(side, JSON.stringify(one));
+      } finally { await b.close(); }
+    }
+  }
+  for (const s of sides) console.log(s, `over ${secs}s: GPU process ${med(res[s].map((v) => v.gpuMs))} ms, page ${med(res[s].map((v) => v.rendererMs))} ms, mean frame ${med(res[s].map((v) => v.mean))} ms, late ${med(res[s].map((v) => v.late))}, video frames dropped ${med(res[s].map((v) => v.dropped))} of ${med(res[s].map((v) => v.video))}`);
+})().catch((e) => { console.error(e); process.exit(1); });

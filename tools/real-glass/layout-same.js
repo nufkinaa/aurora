@@ -12,11 +12,26 @@ const boxes = () => [...document.querySelectorAll("body *")].filter((e) => !e.cl
   return [e.tagName + "." + String(e.className && e.className.baseVal != null ? e.className.baseVal : e.className).slice(0, 50), Math.round(r.left * 2) / 2, Math.round(r.top * 2) / 2, Math.round(r.width * 2) / 2, Math.round(r.height * 2) / 2];
 });
 
+// Every rim is its own surface's: the ring (::before) of each real-glass
+// surface is as big as the surface. (A surface that is not placed would
+// hand its ring to whatever is placed above it — at 721–1260 px the island's
+// ring was the whole top bar's.)
+const SCOPE = ".nav-items,.nav-logo,.nav-profile,.nav-gear,.nav-dl,.nav-remote,.hero-actions .btn:not(.btn-primary),.detail-actions .btn:not(.btn-primary),.player-bottom,.player-top > div,.player-top .pbtn,.upnext,.resume-card,.quality-pill,.party-pill";
+const rings = (sel) => [...document.querySelectorAll(sel)].filter((e) => e.offsetWidth > 0).map((e) => {
+  const p = getComputedStyle(e, "::before");
+  if (p.content === "none") return null;
+  const pad = p.boxSizing === "border-box" ? 0 : 1;
+  const w = parseFloat(p.width) + pad * (parseFloat(p.paddingLeft) + parseFloat(p.paddingRight)), h = parseFloat(p.height) + pad * (parseFloat(p.paddingTop) + parseFloat(p.paddingBottom));
+  // (the ring fills the surface inside its border, if it has one)
+  const ok = getComputedStyle(e).position !== "static" && Math.abs(w - e.offsetWidth) <= 2.5 && Math.abs(h - e.offsetHeight) <= 2.5;
+  return ok ? null : `${e.tagName}.${String(e.className).slice(0, 40)} ${e.offsetWidth}x${e.offsetHeight} ring ${Math.round(w)}x${Math.round(h)} ${getComputedStyle(e).position}`;
+}).filter(Boolean);
+
 (async () => {
   const b = await launch();
   let bad = 0;
   try {
-    for (const size of ["phone-390", "phone-320", "tablet-768", "desktop"]) {
+    for (const size of ["phone-390", "phone-320", "tablet-768", "tablet", "desktop-1280", "desktop"]) {
       const sides = {};
       for (const side of ["before", "after"]) {
         const h = await openPage(b, { size, side });
@@ -31,6 +46,12 @@ const boxes = () => [...document.querySelectorAll("body *")].filter((e) => !e.cl
           }
           await sleep(600);
           sides[side][route] = await h.page.evaluate(boxes);
+          if (side === "after") {
+            // (the party pill is hidden until a party is on: shown for the check)
+            const wrong = await h.page.evaluate(([f, sel]) => { document.querySelectorAll(".party-pill.hidden").forEach((n) => n.classList.remove("hidden")); return new Function("sel", `return (${f})(sel)`)(sel); }, [rings.toString(), SCOPE]);
+            for (const w of wrong) { console.log("   RING NOT ITS SURFACE'S:", size, route, w); bad++; }
+            await h.page.evaluate(() => document.querySelectorAll(".party-pill").forEach((n) => n.classList.add("hidden")));
+          }
         }
         await h.ctx.close();
       }

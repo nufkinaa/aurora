@@ -6007,10 +6007,9 @@ html[data-look="glass"] {
     radial-gradient(circle 10px at 15% 85%, rgba(var(--rg-cool), 0.4), rgba(var(--rg-cool), 0) 100%),
     radial-gradient(circle 8px at 100% 70%, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 100%);
 }
-/* the big panes: a wider bezel, so the bend shows at real size; a desktop's
-   bar splits the colours in five steps, a spectrum */
-html[data-look="glass"] .nav-items,
-html[data-look="glass"] .player-bottom {
+/* the bar: a wider bezel, so the bend shows at real size; a desktop's bar
+   splits the colours in five steps, a spectrum */
+html[data-look="glass"] .nav-items {
   --rg-thick: 1.4;
 }
 @media (min-width: 721px) {
@@ -6106,16 +6105,14 @@ html[data-look="glass"][data-lens] .nav-gear,
 html[data-look="glass"][data-lens] .nav-dl,
 html[data-look="glass"][data-lens] .nav-remote,
 html[data-look="glass"][data-lens] .hero-actions .btn:not(.btn-primary),
-html[data-look="glass"][data-lens] .detail-actions .btn:not(.btn-primary),
-html[data-look="glass"][data-lens] .player-bottom,
-html[data-look="glass"][data-lens] .player-top > div,
-html[data-look="glass"][data-lens] .player-top .pbtn,
-html[data-look="glass"][data-lens] .upnext,
-html[data-look="glass"][data-lens] .resume-card,
-html[data-look="glass"][data-lens] .quality-pill,
-html[data-look="glass"][data-lens] .party-pill {
+html[data-look="glass"][data-lens] .detail-actions .btn:not(.btn-primary) {
   --g-blur: var(--rg-lens, url(#rg-0)) var(--rg-post);
 }
+/* (The player's chrome wears the rim, not the lens. Over a film what is
+   behind the glass changes every frame, and the lens is worked out again
+   each time: with it the page's processes used 2.8 s of processor time in
+   8 s of playing against 0.74 s without — tools/real-glass/player-cost.js.
+   Clear's plain blur costs nothing extra there.) */
 @media (max-width: 720px) {
   html[data-look="glass"]:root .nav-items {
     --rg-post: saturate(2) brightness(0.47);

@@ -69,6 +69,18 @@ test("the map: straight through on the face, pulled inwards at the rim, the same
   assert.ok(lensGeometry(w, h, 999, 1.5).bezel > bezel);
 });
 
+test("the colours of the fringe: every colour adds up to one, red bent most, blue least", async () => {
+  const { lensTaps } = await import("../public/js/glasslens.js");
+  for (const n of [3, 5]) {
+    const taps = lensTaps(n, 0.1);
+    assert.equal(taps.length, n);
+    for (const ch of [0, 1, 2]) assert.ok(Math.abs(taps.reduce((a, t) => a + t.rgb[ch], 0) - 1) < 1e-9, `channel ${ch} of ${n}`);
+    assert.ok(Math.abs(taps[0].k - 1.1) < 1e-9 && Math.abs(taps[n - 1].k - 0.9) < 1e-9);
+    assert.ok(taps[0].rgb[0] > 0 && taps[0].rgb[2] === 0 && taps[n - 1].rgb[2] > 0 && taps[n - 1].rgb[0] === 0);
+    for (let i = 1; i < n; i++) assert.ok(taps[i].k < taps[i - 1].k);
+  }
+});
+
 test("the stylesheet shows a url() backdrop only under html[data-lens], and the scripts agree on the surfaces", () => {
   const css = fs.readFileSync(path.join(__dirname, "..", "public", "css", "glass.css"), "utf-8");
   const js = fs.readFileSync(path.join(__dirname, "..", "public", "js", "glasslens.js"), "utf-8");
@@ -84,7 +96,10 @@ test("the stylesheet shows a url() backdrop only under html[data-lens], and the 
   assert.ok(seen >= 1, "the lens rule is there");
   // the script's surfaces are the stylesheet's
   const scope = /const SCOPE = \[([\s\S]*?)\]\.join/.exec(js)[1].match(/"[^"]+"/g).map((s) => s.slice(1, -1));
-  assert.ok(scope.length >= 10);
+  assert.ok(scope.length >= 8);
+  // never over a playing film: the lens would be worked out again every frame
+  for (const s of scope) assert.doesNotMatch(s, /player|upnext|resume-card|quality-pill|party-pill/, `${s} is the player's`);
+  assert.doesNotMatch(css, /\[data-lens\][^{,]*\.(player|upnext|resume-card|quality-pill|party-pill)/, "no lens rule on the player's chrome");
   for (const s of scope) assert.ok(css.includes(`html[data-look="glass"][data-lens] ${s}`), `glass.css gives ${s} the lens`);
   // and no light along the top of a pane: no positive-y white inset line in the rim
   const rim = /--rg-rim:([\s\S]*?);/.exec(css)[1];

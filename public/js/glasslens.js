@@ -24,17 +24,13 @@ const SCOPE = [
   ".nav-remote",
   ".hero-actions .btn:not(.btn-primary)",
   ".detail-actions .btn:not(.btn-primary)",
-  ".player-bottom",
-  ".player-top > div",
-  ".player-top .pbtn",
-  ".upnext",
-  ".resume-card",
-  ".quality-pill",
-  ".party-pill",
 ].join(",");
+// (Not the player's chrome: over a playing film the lens would be worked out
+// again for every frame of it — tools/real-glass/player-cost.js. It wears
+// the rim over Clear's plain blur.)
 // On a phone the stylesheet gives the lens to the tab bar alone (the More
 // menu's first frame — glass.css, "Phones: the lens is the tab bar's
-// alone"), and never blurs the player's chrome: no maps are drawn for the rest.
+// alone"): no maps are drawn for the rest.
 const PHONE = "(max-width: 720px)";
 const PHONE_ONLY = ".nav-items";
 
@@ -298,8 +294,13 @@ export function initGlassLens() {
     const want = root.dataset.look === "glass" && root.dataset.fx !== "lite" && !(quiet && quiet.matches);
     if (want === on) return;
     on = want;
-    if (on) { ensureDefs(); root.dataset.lens = "1"; scan(); all(); }
-    else delete root.dataset.lens;
+    if (on) { ensureDefs(); all(); root.dataset.lens = "1"; scan(); }
+    else {
+      // (another look, or no lens wanted any more: the maps go too)
+      delete root.dataset.lens;
+      for (const el of document.querySelectorAll(SCOPE)) plain(el);
+      if (defs) { defs.remove(); defs = null; filters.clear(); }
+    }
   };
   new MutationObserver(decide).observe(root, { attributes: true, attributeFilter: ["data-look", "data-fx"] });
   if (quiet && quiet.addEventListener) quiet.addEventListener("change", decide);
