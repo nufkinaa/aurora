@@ -11,7 +11,8 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {closeProfileMenu, useProfileMenu} from '../profileMenu';
 import {useBarTop} from './TopBar';
 import Tap from './Tap';
-import {colors, RG_CALM_EDGE_SOFT, G_FILL, GUTTER} from '../theme';
+import {colors, RG_RINGED, G_FILL, GUTTER} from '../theme';
+import GlassRim from './GlassRim';
 
 export default function ProfileMenu() {
   const {shown, name, items} = useProfileMenu();
@@ -39,6 +40,7 @@ export default function ProfileMenu() {
       <Animated.View
         accessibilityViewIsModal
         style={[s.panel, {top: top + 52, width: panelW, maxHeight: maxH, transform: [{translateY: a.interpolate({inputRange: [0, 1], outputRange: [-6, 0]})}]}]}>
+        <GlassRim r={20} edge={1} />
         <View style={s.head}>
           <Text style={s.name} numberOfLines={1}>
             {name}
@@ -78,7 +80,9 @@ const s = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: 'rgba(14,16,30,0.94)',
     experimental_backgroundImage: G_FILL,
-    ...RG_CALM_EDGE_SOFT,
+    // the full glass: the nav's edge, GlassRim on the kept border (so it clips)
+    ...RG_RINGED,
+    overflow: 'hidden',
     elevation: 16,
     shadowColor: '#000',
   },

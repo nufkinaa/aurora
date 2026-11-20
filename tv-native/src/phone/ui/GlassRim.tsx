@@ -9,17 +9,24 @@
 // behind the pane, and NOTHING IS MEASURED: the height is always given, and a
 // pane whose width is not known (the hero's glass pill, the player's Next
 // pill) is drawn in percentages — so the rim is there in the pane's first
-// frame. It goes FIRST inside the pane (what the pane holds is drawn over it)
-// and only on the chrome — the tab bar, the round buttons, the hero's glass
-// pill, the player's buttons — never on a card, a row or a sheet's button.
+// frame. It goes FIRST inside the pane (what the pane holds is drawn over it).
+// The chrome wears it (the tab bar, the round buttons, the hero's glass pill,
+// the player's buttons) and, since the full glass (2026-11-20), every glass
+// surface that stands alone: the search field, a sheet, a toast, the profile
+// menu, the Remote's panes, a pane in the page. Never a row, a card or a chip
+// that comes many to a screen (theme.ts: those draw the look as border colours).
+// A pane that keeps a border (so nothing moves) has it made transparent and the
+// ring drawn on it (`edge`).
 import React, {memo} from 'react';
 import {StyleSheet, View} from 'react-native';
 import Svg, {Defs, LinearGradient, RadialGradient, Rect, Stop} from 'react-native-svg';
 import {RG_ARCS, RG_ARCS_S, RG_CALM, RG_FRESNEL} from '../theme';
 
 type Props = {
-  /** the pane's height (always known) */
-  h: number;
+  /** the pane's height. Left out (a sheet, a menu, a toast, a pane of words): drawn in percentages of
+   *  the pane's box, as an unknown width is - so the pane must clip what it holds too (overflow:
+   *  'hidden'): the ring is a 2 dp outline on the box's very edge, whose outer half the pane cuts away */
+  h?: number;
   /** the pane's width when it is known (a round button, the tab bar). Left out: the pane must be a
    *  pill that clips what it holds (overflow: 'hidden') — the ring is then a 2 dp outline on the
    *  pane's very edge, whose outer half the pane cuts away */
@@ -28,30 +35,39 @@ type Props = {
   small?: boolean;
   /** one of many side by side (a title's action circles): the whole ring quieter */
   calm?: boolean;
+  /** the pane's corner radius, when it is not a pill or a circle (a sheet, a menu, a toast, a pane) */
+  r?: number;
+  /** the pane keeps its border (its width, so nothing moves) and the ring is drawn ON it: the
+   *  border's width, the drawing laid over the pane's whole box, border included (w and h are then
+   *  the pane's outer size) */
+  edge?: number;
 };
 
-function GlassRim({w, h, small, calm}: Props) {
+function GlassRim({w, h, small, calm, r, edge}: Props) {
   const arcs = small ? RG_ARCS_S : RG_ARCS;
-  const known = w != null;
-  const rad = known ? Math.min(h / 2, (w as number) / 2) : h / 2;
-  // known width: a 1 dp outline that stays inside the box (half its width in from the edge);
-  // unknown: the box's own outline, 2 dp, the outer half clipped by the pane
+  const known = w != null && h != null;
+  const rad = r != null ? r : known ? Math.min((h as number) / 2, (w as number) / 2) : h != null ? h / 2 : 0;
+  // both known: a 1 dp outline that stays inside the box (half its width in from the edge);
+  // otherwise the box's own outline, 2 dp, the outer half cut away by the drawing's bounds
   const box = known
-    ? {x: 0.5, y: 0.5, width: (w as number) - 1, height: h - 1, rx: Math.max(0, rad - 0.5), ry: Math.max(0, rad - 0.5), strokeWidth: 1}
-    : {x: 0, y: 0, width: '100%', height: h, rx: rad, ry: rad, strokeWidth: 2};
-  // where a light sits: a number when the width is known, a percentage of it when not
-  const cx = (a: {fx: number; dx: number}) => (known ? a.fx * (w as number) + a.dx : a.fx === 0 ? a.dx : `${a.fx * 100}%`);
+    ? {x: 0.5, y: 0.5, width: (w as number) - 1, height: (h as number) - 1, rx: Math.max(0, rad - 0.5), ry: Math.max(0, rad - 0.5), strokeWidth: 1}
+    : {x: 0, y: 0, width: w != null ? w : '100%', height: h != null ? h : '100%', rx: rad, ry: rad, strokeWidth: 2};
+  // where a light sits: a number when the size is known, a percentage of it when not
+  const cx = (a: {fx: number; dx: number}) => (w != null ? a.fx * w + a.dx : a.fx === 0 ? a.dx : `${a.fx * 100}%`);
+  const cy = (a: {fy: number}) => (h != null ? a.fy * h : `${a.fy * 100}%`);
+  const at = edge ? {position: 'absolute' as const, left: -edge, top: -edge, right: -edge, bottom: -edge} : StyleSheet.absoluteFill;
   return (
-    <View style={[StyleSheet.absoluteFill, calm && s.calm]} pointerEvents="none" importantForAccessibility="no-hide-descendants">
-      <Svg width={known ? w : '100%'} height={h}>
+    <View style={[at, calm && s.calm]} pointerEvents="none" importantForAccessibility="no-hide-descendants">
+      <Svg width={w != null ? w : '100%'} height={h != null ? h : '100%'}>
         <Defs>
-          <LinearGradient id="rgf" gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={0} y2={h}>
+          {/* (a known height: in dp, as the chrome's always were; not known: the box's own height) */}
+          <LinearGradient id="rgf" gradientUnits={h != null ? 'userSpaceOnUse' : 'objectBoundingBox'} x1={0} y1={0} x2={0} y2={h != null ? h : 1}>
             {RG_FRESNEL.map(([at, c, a]) => (
               <Stop key={at} offset={at} stopColor={`rgb(${c})`} stopOpacity={a} />
             ))}
           </LinearGradient>
           {arcs.map((a, i) => (
-            <RadialGradient key={i} id={`rg${i}`} gradientUnits="userSpaceOnUse" cx={cx(a)} cy={a.fy * h} fx={cx(a)} fy={a.fy * h} r={a.r}>
+            <RadialGradient key={i} id={`rg${i}`} gradientUnits="userSpaceOnUse" cx={cx(a)} cy={cy(a)} fx={cx(a)} fy={cy(a)} r={a.r}>
               <Stop offset={0} stopColor={`rgb(${a.c})`} stopOpacity={a.a} />
               <Stop offset={1} stopColor={`rgb(${a.c})`} stopOpacity={0} />
             </RadialGradient>

@@ -25,6 +25,7 @@ jest.mock('../../src/phone/remote/RemoteIcon', () => host('RemoteIcon')());
 jest.mock('../../src/phone/remote/RemoteBackdrop', () => host('RemoteBackdrop')());
 jest.mock('../../src/phone/remote/Scrub', () => host('Scrub')());
 jest.mock('../../src/phone/remote/Touchpad', () => host('Touchpad')());
+jest.mock('../../src/phone/ui/GlassRim', () => host('GlassRim')());
 jest.mock('../../src/phone/ui/Sheet', () => {
   const R = jest.requireActual('react');
   return {__esModule: true, default: (p: {visible: boolean; children: React.ReactNode}) => (p.visible ? R.createElement('Sheet', p, p.children) : null)};

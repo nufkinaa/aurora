@@ -7,7 +7,7 @@ import React, {useEffect, useState} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import Sheet from '../ui/Sheet';
 import Tap from '../ui/Tap';
-import {colors, GUTTER, radius, RG_CALM_CHIP, edgeAll} from '../theme';
+import {colors, GUTTER, radius, RG_LINES, edgeAll} from '../theme';
 import {fmtSize, Option, sizeText, Sound, soundLabel} from './rules';
 import {MINT} from './Mark';
 
@@ -138,24 +138,24 @@ const s = StyleSheet.create({
   lead: {color: colors.textDim, fontSize: 14.4, lineHeight: 21, paddingHorizontal: GUTTER + 4, marginBottom: 10},
   label: {color: colors.text, fontSize: 14, fontWeight: '800', paddingHorizontal: GUTTER + 4, marginTop: 2, marginBottom: 6},
   chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: GUTTER, marginBottom: 10},
-  chip: {flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.chip, ...RG_CALM_CHIP},
+  chip: {flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.chip, ...RG_LINES},
   // a chosen chip says so twice: the mint tint with a mint ring inside, and a tick before its words
   chipOn: {backgroundColor: 'rgba(110,231,183,0.16)', ...edgeAll(MINT), borderWidth: 1.5},
   chipText: {color: colors.text, fontSize: 14.4, fontWeight: '700'},
   tick: {width: 14, height: 14, alignItems: 'center', justifyContent: 'center'},
   tickMark: {color: MINT, fontSize: 13, fontWeight: '900', lineHeight: 15},
-  opt: {flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, marginHorizontal: GUTTER, marginBottom: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.l, backgroundColor: colors.glass, ...RG_CALM_CHIP},
+  opt: {flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, marginHorizontal: GUTTER, marginBottom: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.l, backgroundColor: colors.glass, ...RG_LINES},
   optLabel: {color: colors.text, fontSize: 16, fontWeight: '800'},
   optNote: {color: colors.textDim, fontSize: 13, marginTop: 2, lineHeight: 18},
   optSize: {color: colors.text, fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums']},
   tag: {color: MINT, fontSize: 11, fontWeight: '900', letterSpacing: 1},
   room: {color: colors.textDim, fontSize: 13.5, paddingHorizontal: GUTTER + 4, marginTop: 4, marginBottom: 8},
-  scope: {flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, marginHorizontal: GUTTER, marginBottom: 6, paddingHorizontal: 14, borderRadius: radius.l, backgroundColor: colors.chip, ...RG_CALM_CHIP},
+  scope: {flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, marginHorizontal: GUTTER, marginBottom: 6, paddingHorizontal: 14, borderRadius: radius.l, backgroundColor: colors.chip, ...RG_LINES},
   ring: {width: 16, height: 16, borderRadius: 8, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)', alignItems: 'center', justifyContent: 'center'},
   ringOn: {backgroundColor: MINT, borderColor: MINT},
   ringTick: {color: '#0b0c14', fontSize: 11, fontWeight: '900', lineHeight: 13},
   scopeText: {color: colors.text, fontSize: 14.4, fontWeight: '700', flexShrink: 1},
   foot: {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingHorizontal: GUTTER, marginTop: 8},
-  btn: {minHeight: 44, paddingHorizontal: 18, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.glassStrong, ...RG_CALM_CHIP},
+  btn: {minHeight: 44, paddingHorizontal: 18, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.glassStrong, ...RG_LINES},
   btnText: {color: colors.text, fontSize: 15, fontWeight: '800'},
 });

@@ -8,7 +8,7 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {NativeModules, StyleSheet, Text, View} from 'react-native';
 import Sheet from '../ui/Sheet';
 import Tap from '../ui/Tap';
-import {colors, GUTTER, radius, RG_CALM_CHIP, edgeAll} from '../theme';
+import {colors, GUTTER, radius, RG_LINES, edgeAll} from '../theme';
 import {api} from '../../api';
 import {showToast} from '../../toast';
 import Mark, {AMBER, INK, MINT, RED} from './Mark';
@@ -256,15 +256,15 @@ export default function ChooseSheet() {
 
 const s = StyleSheet.create({
   chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: GUTTER, marginTop: 4, marginBottom: 6},
-  chip: {flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.chip, ...RG_CALM_CHIP},
+  chip: {flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.chip, ...RG_LINES},
   chipOn: {backgroundColor: 'rgba(110,231,183,0.16)', ...edgeAll(MINT), borderWidth: 1.5},
   chipText: {color: colors.text, fontSize: 14.4, fontWeight: '700'},
   chipTick: {color: MINT, fontSize: 13, fontWeight: '900'},
   only: {color: colors.textDim, fontSize: 14.4, fontWeight: '800', paddingHorizontal: GUTTER + 4, marginBottom: 4},
   tools: {flexDirection: 'row', gap: 8, paddingHorizontal: GUTTER, marginBottom: 8},
-  tool: {minHeight: 44, paddingHorizontal: 16, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.glassStrong, ...RG_CALM_CHIP},
+  tool: {minHeight: 44, paddingHorizontal: 16, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.glassStrong, ...RG_LINES},
   toolText: {color: colors.text, fontSize: 14, fontWeight: '800'},
-  row: {flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, marginHorizontal: GUTTER, marginBottom: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: radius.l, backgroundColor: 'rgba(255,255,255,0.05)', ...RG_CALM_CHIP},
+  row: {flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, marginHorizontal: GUTTER, marginBottom: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: radius.l, backgroundColor: 'rgba(255,255,255,0.05)', ...RG_LINES},
   rowOn: {backgroundColor: 'rgba(110,231,183,0.1)', ...edgeAll('rgba(110,231,183,0.6)'), borderWidth: 1.5},
   box: {width: 22, height: 22, borderRadius: 7, borderWidth: 1.6, borderColor: 'rgba(255,255,255,0.5)', alignItems: 'center', justifyContent: 'center'},
   boxOn: {backgroundColor: MINT, borderColor: MINT},
@@ -278,7 +278,7 @@ const s = StyleSheet.create({
   total: {color: colors.text, fontSize: 15, fontWeight: '800', paddingHorizontal: GUTTER + 4, marginTop: 8},
   room: {color: colors.textDim, fontSize: 13.5, paddingHorizontal: GUTTER + 4, marginTop: 4},
   foot: {flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingHorizontal: GUTTER, marginTop: 14},
-  btn: {minHeight: 44, paddingHorizontal: 18, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.glassStrong, ...RG_CALM_CHIP},
+  btn: {minHeight: 44, paddingHorizontal: 18, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.glassStrong, ...RG_LINES},
   save: {backgroundColor: MINT, ...edgeAll(MINT), flexGrow: 1},
   btnText: {color: colors.text, fontSize: 15, fontWeight: '800'},
 });

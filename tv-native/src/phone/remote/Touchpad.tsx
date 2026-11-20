@@ -7,7 +7,8 @@ import {Animated, Easing, PanResponder, StyleSheet, Text, View} from 'react-nati
 import Svg, {Circle, Defs, LinearGradient, Mask, Pattern, RadialGradient, Rect, Stop} from 'react-native-svg';
 import {Dir, Swipe, swipeEnd, swipeMove, swipeStart} from './remoteRules';
 import {PANE, RM} from './rmLook';
-import {colors} from '../theme';
+import {colors, edgeAll, RG_EDGE} from '../theme';
+import GlassRim from '../ui/GlassRim';
 
 const RIPPLE = 120;
 
@@ -74,6 +75,7 @@ export default function Touchpad({onPress, steerable = true, calm, short}: {onPr
       accessibilityLabel="Touchpad: swipe to move, tap to select"
       accessibilityActions={[{name: 'activate'}, {name: 'increment'}, {name: 'decrement'}]}
       onAccessibilityAction={e => onPress(e.nativeEvent.actionName === 'activate' ? 'ok' : e.nativeEvent.actionName === 'increment' ? 'down' : 'up')}>
+      <GlassRim r={32} edge={1} />
       {/* the dots, every 22: faded out under the two hints at the foot (the site's mask: from 66
           above the foot to 40 above it) */}
       {padH > 80 ? (
@@ -123,7 +125,8 @@ export default function Touchpad({onPress, steerable = true, calm, short}: {onPr
 }
 
 const s = StyleSheet.create({
-  pad: {flex: 1, minHeight: 220, borderRadius: 32, overflow: 'hidden', ...PANE, boxShadow: '0 24px 60px rgba(0,0,0,0.32)'},
+  // the full glass: the nav's edge (its split and rim, GlassRim on the kept border) and the pad's own depth
+  pad: {flex: 1, minHeight: 220, borderRadius: 32, overflow: 'hidden', ...PANE, ...edgeAll('transparent'), boxShadow: `${RG_EDGE.boxShadow}, 0 24px 60px rgba(0,0,0,0.32)`},
   // sideways on a phone (.rm-touch min-height 120)
   padShort: {minHeight: 120},
   padHeld: {backgroundColor: 'rgba(24,24,34,0.5)'},

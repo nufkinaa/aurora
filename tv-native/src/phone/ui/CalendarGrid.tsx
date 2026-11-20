@@ -30,7 +30,7 @@ import type {Calendar, CalendarCell, CalendarGrid as Grid} from '../../calendar'
 import {artSrc} from './Cards';
 import Icon from './Icon';
 import Tap from './Tap';
-import {colors, GUTTER, radius, RG_CALM_CHIP, RG_CALM_DAY, RG_CALM_DAY_HAS, RG_CALM_PANE} from '../theme';
+import {colors, edgeAll, GUTTER, radius, RG_DAY_HAS, RG_FOOT, RG_HAIR, RG_LINES, RG_PANE} from '../theme';
 
 const GAP = 4;
 const MAX_W = 560; // a tablet / an unfolded phone: the month stays a phone's size
@@ -237,7 +237,7 @@ export default function CalendarGrid({
 
 const s = StyleSheet.create({
   wrap: {alignSelf: 'center'},
-  next: {flexDirection: 'row', alignItems: 'center', gap: 11, padding: 8, paddingRight: 10, marginBottom: 18, borderRadius: radius.xl, backgroundColor: 'rgba(255,255,255,0.05)', ...RG_CALM_PANE},
+  next: {flexDirection: 'row', alignItems: 'center', gap: 11, padding: 8, paddingRight: 10, marginBottom: 18, borderRadius: radius.xl, backgroundColor: 'rgba(255,255,255,0.05)', ...RG_PANE},
   nextPic: {width: 28, height: 42, borderRadius: 6, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.08)'},
   nextText: {flex: 1, minWidth: 0},
   nextEyebrow: {fontSize: 10.5, fontWeight: '800', letterSpacing: 1.5},
@@ -251,16 +251,17 @@ const s = StyleSheet.create({
   line: {flex: 1, minWidth: 0, color: colors.textDim, fontSize: 13, fontWeight: '700'},
   lineQuiet: {color: colors.textFaint},
   nav: {flexDirection: 'row', gap: 6},
-  arrow: {width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.07)', ...RG_CALM_CHIP},
+  arrow: {width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.07)', ...RG_LINES},
   off: {opacity: 0.3},
   todayRow: {flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4, marginBottom: 12},
-  todayBtn: {paddingHorizontal: 16, minHeight: 36, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.07)', ...RG_CALM_CHIP},
+  todayBtn: {paddingHorizontal: 16, minHeight: 36, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.07)', ...RG_LINES},
   todayText: {color: colors.text, fontSize: 14, fontWeight: '800'},
   weekRow: {flexDirection: 'row', gap: GAP, marginBottom: GAP},
   wd: {color: colors.textFaint, fontSize: 11, fontWeight: '800', textAlign: 'center', marginBottom: 2},
-  cell: {borderRadius: 9, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.045)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', boxShadow: RG_CALM_DAY},
-  cellHas: {backgroundColor: '#1a1c2c', borderWidth: 0, boxShadow: undefined},
-  cellOther: {backgroundColor: 'transparent', borderColor: 'transparent', boxShadow: undefined},
+  // a plain day: the rim's dim top and sides, the lit foot as its bottom border (a border, not a shadow: 35 of them)
+  cell: {borderRadius: 9, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.045)', borderWidth: 1, ...edgeAll(RG_HAIR), borderBottomColor: RG_FOOT},
+  cellHas: {backgroundColor: '#1a1c2c', borderWidth: 0},
+  cellOther: {backgroundColor: 'transparent', ...edgeAll('transparent')},
   past: {opacity: 0.55},
   fill: {width: '100%', height: '100%'},
   artNone: {alignItems: 'center', justifyContent: 'center', backgroundColor: '#22243a', padding: 3},
@@ -276,8 +277,8 @@ const s = StyleSheet.create({
   more: {position: 'absolute', right: 3, bottom: 6, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 6, backgroundColor: 'rgba(6,7,14,0.8)'},
   moreText: {color: '#fff', fontSize: 10, fontWeight: '800'},
   ring: {position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderRadius: 9},
-  // a day that carries something: the quiet split and a lit foot, over its picture (the website's .calg-day.has::after)
-  ringHas: {boxShadow: RG_CALM_DAY_HAS},
+  // a day that carries something: the nav's split and its lit foot, over its picture (the website's .calg-day.has::after)
+  ringHas: {boxShadow: RG_DAY_HAS},
   ringToday: {borderWidth: 1.5, borderColor: 'rgba(139,123,255,0.9)'},
   ringPicked: {borderWidth: 2, borderColor: '#fff'},
   legend: {flexDirection: 'row', flexWrap: 'wrap', columnGap: 14, rowGap: 8, marginTop: 10},

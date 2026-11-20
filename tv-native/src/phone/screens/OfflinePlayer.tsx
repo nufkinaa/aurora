@@ -28,7 +28,7 @@ import {loadPrefs} from '../../storage';
 import {showToast} from '../../toast';
 import {openActions} from '../../overlay';
 import Tap from '../ui/Tap';
-import {colors} from '../theme';
+import {colors, RG_LINES} from '../theme';
 
 type Params = {OfflinePlayer: {id: string}};
 
@@ -347,7 +347,7 @@ const s = StyleSheet.create({
   center: {flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg},
   msg: {color: colors.text, fontSize: 16},
   // the end card (the streaming player's Up next card, smaller)
-  card: {position: 'absolute', right: 16, bottom: 104, maxWidth: 360, padding: 16, borderRadius: 16, backgroundColor: 'rgba(13,14,24,0.97)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)'},
+  card: {position: 'absolute', right: 16, bottom: 104, maxWidth: 360, padding: 16, borderRadius: 16, backgroundColor: 'rgba(13,14,24,0.97)', ...RG_LINES},
   cardKicker: {color: colors.accent, fontSize: 13, fontWeight: '900', letterSpacing: 2},
   cardTitle: {color: colors.text, fontSize: 17, fontWeight: '800', marginVertical: 8},
   cardBtn: {alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 18, borderRadius: 999, backgroundColor: colors.accent, overflow: 'hidden'},

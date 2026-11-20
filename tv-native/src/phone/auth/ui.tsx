@@ -25,7 +25,8 @@ import Tap from '../ui/Tap';
 import Icon from '../ui/Icon';
 import Sky from '../ui/Sky';
 import {StatusScrim} from '../ui/Scrims';
-import {colors, G_EDGE, G_FILL} from '../theme';
+import {colors, edgeAll, G_FILL, RG_LINES, RG_RINGED} from '../theme';
+import GlassRim from '../ui/GlassRim';
 
 const BEAM = require('../../assets/logo-mark.png');
 
@@ -85,6 +86,7 @@ export function AuthShell({children, footer}: {children: React.ReactNode; footer
             },
           ]}>
           <View style={[s.panel, small && s.panelSmall]}>
+            <GlassRim r={R.panel} edge={1} />
             <View style={s.brand} accessible accessibilityRole="header" accessibilityLabel="Aurora">
               <Image source={BEAM} style={s.beam} resizeMode="contain" />
               <Text style={s.brandText} allowFontScaling={false}>
@@ -366,7 +368,7 @@ export function Foot({children}: {children: React.ReactNode}) {
 export const as = StyleSheet.create({
   gap: {height: 12},
   // a big code to read out or type elsewhere (the device-code way, a pairing code)
-  codeBox: {marginTop: 4, marginBottom: 14, paddingVertical: 16, paddingHorizontal: 16, borderRadius: R.control, backgroundColor: A.fieldBg, borderWidth: 1, borderColor: A.fieldEdge},
+  codeBox: {marginTop: 4, marginBottom: 14, paddingVertical: 16, paddingHorizontal: 16, borderRadius: R.control, backgroundColor: A.fieldBg, ...RG_LINES},
   codeLabel: {color: A.dim, fontSize: 13, fontWeight: '700', letterSpacing: 0.4},
   code: {color: A.text, fontSize: 32, fontWeight: '800', letterSpacing: 5, marginVertical: 6, fontVariant: ['tabular-nums']},
   body: {color: A.dim, fontSize: 15, lineHeight: 22},
@@ -386,16 +388,18 @@ const s = StyleSheet.create({
     paddingBottom: 24,
     backgroundColor: A.panel,
     experimental_backgroundImage: G_FILL,
-    ...G_EDGE,
+    // the full glass: the nav's edge, GlassRim on the kept border (so it clips)
+    ...RG_RINGED,
+    overflow: 'hidden',
   },
   panelSmall: {paddingHorizontal: 18, paddingTop: 18, paddingBottom: 20},
   footer: {width: '100%', maxWidth: 440, marginTop: 14, paddingHorizontal: 8},
   brand: {flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20},
   beam: {width: 22, height: 22},
   brandText: {color: A.text, fontSize: 17, fontWeight: '800', letterSpacing: 0.35},
-  segs: {flexDirection: 'row', padding: 3, borderRadius: R.control, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', marginBottom: 20},
+  segs: {flexDirection: 'row', padding: 3, borderRadius: R.control, backgroundColor: 'rgba(255,255,255,0.05)', ...RG_LINES, marginBottom: 20},
   seg: {flex: 1, minHeight: 40, borderRadius: R.control - 3, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8},
-  segOn: {backgroundColor: 'rgba(255,255,255,0.13)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)'},
+  segOn: {backgroundColor: 'rgba(255,255,255,0.13)', ...RG_LINES},
   segText: {color: A.dim, fontSize: 14.5, fontWeight: '600'},
   segTextOn: {color: A.text, fontWeight: '700'},
   titleBox: {marginBottom: 18},
@@ -404,9 +408,10 @@ const s = StyleSheet.create({
   field: {marginBottom: 14},
   labelRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 24, marginBottom: 6},
   label: {color: A.label, fontSize: 14, fontWeight: '600', flexShrink: 1},
-  box: {minHeight: 50, borderRadius: R.control, flexDirection: 'row', alignItems: 'center', backgroundColor: A.fieldBg, borderWidth: 1, borderColor: A.fieldEdge},
-  boxOn: {borderColor: A.focus, borderWidth: 2, backgroundColor: 'rgba(255,255,255,0.08)'},
-  boxErr: {borderColor: A.error},
+  // a field: the nav's look as border colours (a chosen / wrong one recolours all four sides)
+  box: {minHeight: 50, borderRadius: R.control, flexDirection: 'row', alignItems: 'center', backgroundColor: A.fieldBg, ...RG_LINES},
+  boxOn: {...edgeAll(A.focus), borderWidth: 2, backgroundColor: 'rgba(255,255,255,0.08)'},
+  boxErr: edgeAll(A.error),
   input: {flex: 1, minWidth: 0, minHeight: 48, paddingHorizontal: 14, paddingVertical: 0, color: A.text, fontSize: 16, textAlign: 'left'},
   reveal: {flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 12, justifyContent: 'center'},
   revealText: {color: A.dim, fontSize: 13.5, fontWeight: '600'},
@@ -442,7 +447,7 @@ const s = StyleSheet.create({
   tickOn: {backgroundColor: A.mint, borderColor: A.mint},
   checkWords: {flex: 1},
   checkLabel: {color: A.text, fontSize: 15, lineHeight: 22},
-  choice: {flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingHorizontal: 16, paddingVertical: 12, borderRadius: R.control, backgroundColor: A.fieldBg, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', marginBottom: 10},
+  choice: {flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingHorizontal: 16, paddingVertical: 12, borderRadius: R.control, backgroundColor: A.fieldBg, ...RG_LINES, marginBottom: 10},
   choiceWords: {flex: 1},
   choiceTitle: {color: A.text, fontSize: 16, fontWeight: '700'},
   choiceLine: {color: A.dim, fontSize: 13.5, lineHeight: 19, marginTop: 2},

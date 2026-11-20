@@ -5,7 +5,8 @@ import React, {forwardRef} from 'react';
 import {StyleSheet, Text, TextInput, TextInputProps, View} from 'react-native';
 import Icon from './Icon';
 import Tap from './Tap';
-import {colors, RG_CALM_EDGE_SOFT, G_FILL} from '../theme';
+import {colors, RG_RINGED, G_FILL} from '../theme';
+import GlassRim from './GlassRim';
 
 type Props = TextInputProps & {
   onClear?: () => void;
@@ -20,6 +21,7 @@ type Props = TextInputProps & {
 const SearchBox = forwardRef<TextInput, Props>(function SearchBox({value, onClear, onMic, listening, micLabel, uiIdClear = 'search.clear', style, ...rest}, ref) {
   return (
     <View style={[s.box, style]}>
+      <GlassRim h={58} edge={1} />
       <Icon name="search" size={22} color={colors.textDim} />
       <TextInput
         ref={ref}
@@ -60,7 +62,9 @@ const s = StyleSheet.create({
     paddingRight: 12,
     backgroundColor: 'rgba(60,64,160,0.22)',
     experimental_backgroundImage: G_FILL,
-    ...RG_CALM_EDGE_SOFT,
+    // the full glass: the nav's edge, GlassRim on the kept border (its width unknown: so it clips)
+    ...RG_RINGED,
+    overflow: 'hidden',
   },
   input: {flex: 1, minWidth: 0, height: 56, padding: 0, color: colors.text, fontSize: 20, fontWeight: '600'},
   clear: {width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)'},

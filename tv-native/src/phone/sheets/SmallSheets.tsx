@@ -14,7 +14,7 @@ import Sheet from '../ui/Sheet';
 import Field from '../ui/Field';
 import {GlassButton, PrimaryButton} from '../ui/Buttons';
 import Tap from '../ui/Tap';
-import {GUTTER} from '../theme';
+import {GUTTER, RG_LINES} from '../theme';
 
 
 export function JoinPartySheet({onClose}: {onClose: () => void}) {
@@ -105,7 +105,7 @@ const s = StyleSheet.create({
   // [report trail] what comes along, and a look at it
   peekTap: {marginTop: 4, paddingVertical: 10, alignSelf: 'flex-start'},
   peekToggle: {color: 'rgba(255,255,255,0.78)', fontSize: 13.5, fontWeight: '600'},
-  peekBox: {maxHeight: 240, marginTop: 4, padding: 10, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.14)'},
+  peekBox: {maxHeight: 240, marginTop: 4, padding: 10, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)', ...RG_LINES, borderWidth: StyleSheet.hairlineWidth},
   peekText: {color: 'rgba(255,255,255,0.72)', fontSize: 11.5, lineHeight: 16, fontFamily: 'monospace'},
   row: {flexDirection: 'row', gap: 10, marginTop: 16},
 });

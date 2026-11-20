@@ -15,7 +15,7 @@ import type {OfflineWish} from '../../api';
 import Tap from '../ui/Tap';
 import Icon from '../ui/Icon';
 import {artSrc} from '../ui/Cards';
-import {colors, GUTTER, radius, RG_CALM_CHIP, RG_CALM_PANE, edgeAll, RG_CALM_ROW} from '../theme';
+import {colors, GUTTER, radius, RG_LINES, RG_PANE, edgeAll, RG_ROW} from '../theme';
 import Mark, {AMBER, INK, MINT, RED} from './Mark';
 import {cancelOffline, dismissOffline, offlinePrefs, onOfflineLanded, onOfflinePrefs, pauseOffline, removeOffline, resumeOffline, Saved, setOfflinePrefs} from './store';
 import {copyName, fmtSize, jobLook, markOf, MOVING_STATES, pctOf, Tone} from './rules';
@@ -323,7 +323,7 @@ export const s = StyleSheet.create({
   h2: {color: colors.text, fontSize: 20, fontWeight: '800', paddingHorizontal: GUTTER, marginTop: 22},
   h3: {color: colors.textDim, fontSize: 13, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase', paddingHorizontal: GUTTER, marginTop: 14, marginBottom: 8},
   sub: {color: colors.textDim, fontSize: 14, paddingHorizontal: GUTTER, marginTop: 4, marginBottom: 10},
-  row: {flexDirection: 'row', gap: 12, marginHorizontal: GUTTER, marginBottom: 8, padding: 10, borderRadius: radius.l, backgroundColor: colors.glass, ...RG_CALM_ROW},
+  row: {flexDirection: 'row', gap: 12, marginHorizontal: GUTTER, marginBottom: 8, padding: 10, borderRadius: radius.l, backgroundColor: colors.glass, ...RG_ROW},
   pic: {width: 52, height: 78, borderRadius: 8, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center'},
   wishPic: {backgroundColor: 'rgba(245,197,66,0.07)', borderWidth: 1, borderColor: 'rgba(245,197,66,0.2)'},
   wishPicBad: {backgroundColor: 'rgba(255,122,122,0.07)', borderColor: 'rgba(255,122,122,0.22)'},
@@ -334,10 +334,10 @@ export const s = StyleSheet.create({
   track: {height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.12)', overflow: 'hidden', marginTop: 8},
   fill: {height: 4, borderRadius: 2},
   actions: {flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 10},
-  btn: {minHeight: 44, paddingHorizontal: 16, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.glassStrong, ...RG_CALM_CHIP},
+  btn: {minHeight: 44, paddingHorizontal: 16, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.glassStrong, ...RG_LINES},
   btnPrimary: {backgroundColor: MINT, ...edgeAll(MINT)},
   btnText: {color: colors.text, fontSize: 14.4, fontWeight: '800'},
-  group: {marginHorizontal: GUTTER, marginBottom: 8, borderRadius: radius.l, backgroundColor: colors.glass, ...RG_CALM_PANE, overflow: 'hidden'},
+  group: {marginHorizontal: GUTTER, marginBottom: 8, borderRadius: radius.l, backgroundColor: colors.glass, ...RG_PANE, overflow: 'hidden'},
   groupHead: {flexDirection: 'row', gap: 12, padding: 10},
   ep: {flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingHorizontal: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.glassEdge},
   epTitle: {color: colors.text, fontSize: 14.4, fontWeight: '700'},
@@ -352,7 +352,7 @@ export const s = StyleSheet.create({
   emptyText: {color: colors.textDim, fontSize: 14.4, lineHeight: 21, textAlign: 'center', marginTop: 2},
   inlineBtn: {color: colors.text, fontWeight: '800', backgroundColor: colors.glassStrong},
   emptyRoom: {color: colors.textFaint, fontSize: 13, marginTop: 12},
-  foot: {marginHorizontal: GUTTER, marginTop: 14, borderRadius: radius.l, backgroundColor: colors.glass, ...RG_CALM_PANE},
+  foot: {marginHorizontal: GUTTER, marginTop: 14, borderRadius: radius.l, backgroundColor: colors.glass, ...RG_PANE},
   footRow: {flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14},
   footTitle: {color: colors.text, fontSize: 15, fontWeight: '800'},
   room: {color: colors.textDim, fontSize: 13.5},

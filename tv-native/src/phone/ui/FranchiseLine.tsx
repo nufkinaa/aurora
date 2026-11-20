@@ -8,7 +8,7 @@ import Tap from './Tap';
 import Icon from './Icon';
 import {useFranchiseFor} from '../../useFranchise';
 import {FR_WORDS} from '../../franchiseRules';
-import {colors, radius, RG_CALM_PANE} from '../theme';
+import {colors, radius, RG_PANE} from '../theme';
 
 function FranchiseLine({
   imdbId,
@@ -50,7 +50,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: radius.l,
     backgroundColor: colors.glass,
-    ...RG_CALM_PANE,
+    ...RG_PANE,
   },
   text: {flex: 1, color: colors.textDim, fontSize: 13.5, fontWeight: '700'},
   action: {color: colors.text, fontSize: 13.5, fontWeight: '800'},

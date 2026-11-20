@@ -12,6 +12,7 @@ import {METEOR_SRC} from '../../play/Burst';
 import {EASE, LINEAR, SPRING, tween, useTimers, useValue} from '../../play/anim';
 import {GLOW_SRC} from '../../play/Star';
 import {PLAY} from '../../play/tokens';
+import {RG_LINES} from '../theme';
 import {Chip, Eyebrow, In, Key, ty} from './ui';
 import {CardBack, CARD_H, CARD_W, Dial, GenreBars, NightSky, Poster, TiltCard, TypeFront, useRun, WeekBars} from './WrappedParts';
 import * as S from './storyWords';
@@ -644,7 +645,7 @@ export const cs = StyleSheet.create({
   blockNum: {color: 'rgba(232,228,255,0.8)', fontSize: 28, fontWeight: '900'},
   blockNumGold: {color: PLAY.goldHi},
   rest: {alignSelf: 'stretch', gap: 8},
-  restRow: {flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 11, paddingHorizontal: 16, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)'},
+  restRow: {flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 11, paddingHorizontal: 16, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.06)', ...RG_LINES},
   restRank: {color: 'rgba(232,228,255,0.62)', fontSize: 15, fontWeight: '900', width: 14},
   restName: {flex: 1, color: PLAY.ink, fontSize: 15, fontWeight: '800'},
   restH: {color: 'rgba(232,228,255,0.62)', fontSize: 14, fontWeight: '800', fontVariant: ['tabular-nums']},

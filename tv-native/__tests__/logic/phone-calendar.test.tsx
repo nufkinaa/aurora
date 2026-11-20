@@ -79,6 +79,7 @@ jest.mock('../../src/phone/theme', () => ({
   colors: {text: '#fff', textDim: '#ccc', textFaint: '#888', accent: '#8b7bff', accentStrong: '#6c58ff', owned: '#6fe0b0', glass: 'g', glassEdge: 'ge', chip: 'c', chipEdge: 'ce'},
   GUTTER: 16,
   radius: {l: 16, pill: 999},
+  edgeAll: (c: string) => ({borderTopColor: c, borderLeftColor: c, borderRightColor: c, borderBottomColor: c}),
 }));
 
 import CalendarScreen from '../../src/phone/screens/Calendar';

@@ -36,98 +36,6 @@ export const colors = {
   chipOn: 'rgba(255,255,255,0.16)',
 };
 
-/* ---- Real glass, everywhere: the CALM still version (2026-11-20) ------------
-   elia: "I still find some elements that were not changed to the new glass
-   look, like episode cards, the search... make sure we have changed
-   everywhere" - and the Calendar. Every other glass pane (a panel, a row, a
-   card, a chip, a sheet, a menu, a toast) takes the still half of real glass,
-   at calm values - a page of episode cards or a month of days must not get
-   busy (the website's --rg-*-calm / --g-edge*, end of public/css/glass.css):
-   - no light along the top: the old bright top border goes; the border is one
-     even faint hairline (so nothing changes size);
-   - the violet / mint split at the two ends, quiet;
-   - a shade just under the top edge and a lit violet foot line with a little
-     light gathered above it;
-   - the body a shade darker towards its top, a little violet towards its
-     foot (hung from the top edge itself, as RG_BODY: Android ignores a
-     gradient centre above the pane).
-   No GlassRim drawing here (one SVG per row would cost); GlassRim stays on
-   the chrome.
-   What draws it (measured on the Pixel 9 emulator, 2026-11-20, with
-   tools/real-glass-app/pass.sh): a list of rows wearing the rim as
-   box shadows drew a frame in 300-350 ms where today's drew one in 57 - the
-   two blurred inset shadows; without them still 81 (the sharp shadows and the
-   two radial gradients cost about the same again, each). So anything that
-   comes many to a screen - a row, a card, a chip, a glass button - draws the
-   look with what today's panes already drew: its BORDER. One faint hairline
-   along the top, the split as the left (violet-pink) and right (mint) border
-   colours, the lit foot as the bottom one; no shadow, and a row has no body
-   gradient (RG_CALM_ROW). The soft rim as shadows (RG_CALM_EDGE_SOFT: the
-   shade under the top edge, the light gathered above the foot, the split's
-   outside halves) is for a pane that stands alone: the search field, the
-   profile menu, a toast, a sheet. A chosen / owned state that recolours the
-   edge sets all four sides: edgeAll(colour) (borderColor alone does not
-   override a side's own colour). Inset shadows need Android 10+. */
-/** The quiet split (--rg-split-quiet). */
-export const RG_SPLIT_QUIET =
-  'inset 1px 0 0 0 rgba(232,121,249,0.3), inset -1px 0 0 0 rgba(94,234,212,0.3), -1px 0 0 0 rgba(94,234,212,0.16), 1px 0 0 0 rgba(232,121,249,0.16)';
-/** The calm rim (--rg-rim-calm, less its hairline: the border carries it): the shade under the top edge, the lit foot line, the light gathered above it. */
-export const RG_RIM_CALM = 'inset 0 2px 3px -2px rgba(0,0,0,0.36), inset 0 -1px 0 0 rgba(168,150,255,0.36), inset 0 -7px 9px -7px rgba(168,150,255,0.42)';
-/** The split and the lit foot as plain colours (the border sides of anything that comes many to a screen). */
-export const RG_SPLIT_L = 'rgba(232,121,249,0.3)';
-export const RG_SPLIT_R = 'rgba(94,234,212,0.3)';
-export const RG_FOOT = 'rgba(168,150,255,0.36)';
-/** One colour on all four sides of an edge: how a chosen / owned state recolours a pane that wears RG_CALM_EDGE / RG_CALM_CHIP. */
-export const edgeAll = (c: string) => ({borderTopColor: c, borderLeftColor: c, borderRightColor: c, borderBottomColor: c}) as const;
-/** The even hairline all round (the rim's inset 0 0 0 1px rgba(255,255,255,.06)), as a border colour. */
-export const RG_CALM_HAIR = 'rgba(255,255,255,0.06)';
-/** The calm body (--rg-body-calm): top shade 0.16, foot light 0.13. */
-export const RG_CALM_BODY =
-  'radial-gradient(ellipse 70% 34% at 50% 0%, rgba(0,0,0,0.16) 0%, rgba(0,0,0,0) 100%), radial-gradient(ellipse 120% 60% at 50% 118%, rgba(168,150,255,0.13) 0%, rgba(168,150,255,0) 60%)';
-/** A pane's calm edge (--g-edge): a panel, a row, a card - border colours only (the hairline, the split, the lit foot). */
-export const RG_CALM_EDGE = {
-  borderWidth: 1,
-  borderTopColor: RG_CALM_HAIR,
-  borderLeftColor: RG_SPLIT_L,
-  borderRightColor: RG_SPLIT_R,
-  borderBottomColor: RG_FOOT,
-} as const;
-/** A row of a list (Downloads, the Calendar's list, sources, saved titles): the edge alone, no body gradient - as light to draw as today's. */
-export const RG_CALM_ROW = RG_CALM_EDGE;
-/** The same with the soft rim (the shade under the top edge, the light gathered above the foot): a pane that stands alone. */
-export const RG_CALM_EDGE_SOFT = {
-  borderWidth: 1,
-  borderColor: RG_CALM_HAIR,
-  boxShadow: `${RG_SPLIT_QUIET}, ${RG_RIM_CALM}`,
-} as const;
-/** The edge with the calm body: for a pane that stands alone and had no gradient of its own. */
-export const RG_CALM_PANE = {
-  ...RG_CALM_EDGE,
-  experimental_backgroundImage: RG_CALM_BODY,
-} as const;
-/** A chip, a pill, a small round thing, a line in a sheet (--g-edge-thin): the split and the foot line, as border colours. */
-export const RG_CALM_CHIP = {
-  borderWidth: 1,
-  borderTopColor: RG_CALM_HAIR,
-  borderLeftColor: RG_SPLIT_L,
-  borderRightColor: RG_SPLIT_R,
-  borderBottomColor: 'rgba(168,150,255,0.32)',
-} as const;
-/** A sheet rising from the foot of the screen (--g-edge-thick, less its foot: that is off the screen): colours and shadow only, the sheet keeps its own border widths. */
-export const RG_CALM_SHEET = {
-  borderColor: 'rgba(255,255,255,0.07)',
-  boxShadow: `${RG_SPLIT_QUIET}, inset 0 3px 4px -2px rgba(0,0,0,0.4)`,
-} as const;
-/** A day of the Calendar's month: plain, and one that carries something (.calg-day / .calg-day.has). */
-export const RG_CALM_DAY = 'inset 0 -1px 0 0 rgba(168,150,255,0.16)';
-export const RG_CALM_DAY_HAS = `${RG_SPLIT_QUIET}, inset 0 0 0 1px rgba(255,255,255,0.05), inset 0 -1px 0 0 rgba(168,150,255,0.24)`;
-
-/** What every glass pane lays over its own colour. It was the site's white sheen from the top-left (0.09 / 0.025 / 0.06);
- *  now the calm body, over one even veil of the sheen's mean lightness - so the panes are as dark as they were. */
-export const G_FILL = `${RG_CALM_BODY}, linear-gradient(rgba(255,255,255,0.05), rgba(255,255,255,0.05))`;
-/** The pane's edge. It was the site's old --g-edge as border colours (a bright top edge, 0.38); now the calm edge. */
-export const G_EDGE = RG_CALM_EDGE;
-
 /* ---- Glass E ("Clear") on the chrome over pictures (2026-11-11) -----------
    elia chose E for the website ("I think E looks the best!!") and for the phone
    app, then narrowed it: "Not everything needs to change to this … make sure
@@ -164,13 +72,14 @@ export const E = {
  *  1 dp spread shadow, no blur; Android 9+). */
 export const E_EDGE = {
   borderWidth: 1,
-  // + the calm glass (2026-11-20): a glass button in the page (not floating over a picture) keeps E's
-  // violet rim along its top and its dark outside line (the one shadow it always had), and takes the
-  // split and the lit foot as its side and bottom border colours (these sit inside rows of a list too)
-  borderTopColor: 'rgba(176,164,255,0.26)',
-  borderLeftColor: 'rgba(232,121,249,0.34)',
-  borderRightColor: 'rgba(94,234,212,0.34)',
-  borderBottomColor: 'rgba(168,150,255,0.5)',
+  // + the full glass (2026-11-20): a glass button in the page (not floating over a picture) wears the
+  // nav's look as border colours - the rim's dim top (no violet line along it any more), the split
+  // down its two ends, the rim's lit foot - and keeps its dark outside line (the one shadow it always
+  // had); one that stands alone adds the nav's shadows and GlassRim on top of this (ui/Buttons.tsx)
+  borderTopColor: 'rgba(255,255,255,0.05)',
+  borderLeftColor: 'rgba(232,121,249,0.36)',
+  borderRightColor: 'rgba(94,234,212,0.36)',
+  borderBottomColor: 'rgba(190,180,255,0.45)',
   boxShadow: '0 0 0 1px rgba(0,0,0,0.38)',
 } as const;
 /** The player's menu: the same even rim, the outside line 0.4. (The TV app's shared player wears this one: it stays as it was.) */
@@ -322,6 +231,84 @@ export const E_WORDS = {
   textShadowOffset: {width: 0, height: 1},
   textShadowRadius: 3,
 } as const;
+
+/* ---- Real glass, everywhere, at FULL strength (2026-11-20) -------------------
+   elia, about the calm glass the panes wore first: "don't let it keep the old
+   look, it should look like the nav and the rest of the btns". So every other
+   glass surface (a panel, a row, a card, a chip, a sheet, a menu, a toast, a
+   text field, the Remote's panes) wears the nav's own numbers (the "real
+   glass" section below: RG_SPLIT, RG_RIM, RG_BODY, RG_FRESNEL, RG_ARCS):
+   - no light along the top: the top of the border is the rim's dim top
+     (RG_FRESNEL's first stop, 0.05); nothing changes size - every border keeps
+     its width, only colours, shadows and bodies change;
+   - the violet / mint split at the two ends at the nav's strength (0.36);
+   - the lit foot at the nav's rim colour (RG_FRESNEL's foot, 190,180,255 at 0.45);
+   - the nav's body (RG_BODY) where a pane had a body gradient.
+   Two ways to draw it, by how many come to a screen (measured on the Pixel 9
+   emulator, 2026-11-20: a list of rows wearing the rim as blurred inset box
+   shadows drew a frame in 300-350 ms where today's drew one in 57):
+   - what comes MANY to a screen (a row, a card, a chip, a glass button in a
+     row, a day of the Calendar) draws the look with its BORDER: the dim top,
+     the split as the left (violet-pink) and right (mint) border colours, the
+     lit foot as the bottom one; no shadow, and a list row has no body
+     gradient (RG_ROW). A chosen / owned state that recolours the edge sets all
+     four sides: edgeAll(colour) (borderColor alone does not override a side's
+     own colour);
+   - what stands ALONE (the search field, a sheet, a toast, the profile menu,
+     the Remote's panes, a pane in the page) wears the nav's edge whole
+     (RG_RINGED: the split and the rim as shadows, the dark hairline outside)
+     and GlassRim's ring and glint drawn ON its border (the border made
+     transparent, its width kept). Inset shadows need Android 10+. */
+/** The rim's dim top (RG_FRESNEL's first stop) as a border colour: the top side, and all round where nothing else is lit. */
+export const RG_HAIR = 'rgba(255,255,255,0.05)';
+/** The split and the lit foot as plain colours (the border sides of anything that comes many to a screen): RG_SPLIT's inside halves, RG_FRESNEL's foot. */
+export const RG_SPLIT_L = 'rgba(232,121,249,0.36)';
+export const RG_SPLIT_R = 'rgba(94,234,212,0.36)';
+export const RG_FOOT = 'rgba(190,180,255,0.45)';
+/** One colour on all four sides of an edge: how a chosen / owned state recolours a pane that wears RG_LINES. */
+export const edgeAll = (c: string) => ({borderTopColor: c, borderLeftColor: c, borderRightColor: c, borderBottomColor: c}) as const;
+/** The look as border colours: the dim top, the split down the two ends, the lit foot. A row, a card, a chip, a glass button in the page. */
+export const RG_LINES = {
+  borderWidth: 1,
+  borderTopColor: RG_HAIR,
+  borderLeftColor: RG_SPLIT_L,
+  borderRightColor: RG_SPLIT_R,
+  borderBottomColor: RG_FOOT,
+} as const;
+/** A row of a list (Downloads, the Calendar's list, sources, saved titles): the lines alone, no body gradient - as light to draw as today's. */
+export const RG_ROW = RG_LINES;
+/** A pane in the page that comes a few to a screen (a card of words, a group, a note): the lines and the nav's body. */
+export const RG_PANE = {
+  ...RG_LINES,
+  experimental_backgroundImage: RG_BODY,
+} as const;
+/** A surface that stands alone, with GlassRim drawn on its (kept, now transparent) border: the nav's split and rim as
+ *  shadows, the dark hairline outside it (RG_EDGE's). */
+export const RG_RINGED = {
+  borderWidth: 1,
+  ...edgeAll('transparent'),
+  boxShadow: RG_EDGE.boxShadow,
+} as const;
+/** The same for a small round button standing alone (the Remote's round keys): the small button's split (RG_EDGE_SMALL's). */
+export const RG_RINGED_S = {
+  borderWidth: 1,
+  ...edgeAll('transparent'),
+  boxShadow: RG_EDGE_SMALL.boxShadow,
+} as const;
+/** A sheet rising from the foot of the screen: the same, the sheet keeps its own border widths (no bottom side). */
+export const RG_SHEET = {
+  ...edgeAll('transparent'),
+  boxShadow: RG_EDGE.boxShadow,
+} as const;
+/** A day of the Calendar's month: a plain one carries the lit foot on its border; one that carries something wears the
+ *  split and the lit foot over its picture (.calg-day / .calg-day.has). */
+export const RG_DAY_HAS = `${RG_SPLIT}, inset 0 0 0 1px ${RG_HAIR}, inset 0 -1px 0 0 ${RG_FOOT}`;
+
+/** What every glass pane lays over its own colour. It was the site's white sheen from the top-left (0.09 / 0.025 / 0.06);
+ *  now the nav's body, over one even veil of the sheen's mean lightness - so the panes are as dark as they were. */
+export const G_FILL = `${RG_BODY}, linear-gradient(rgba(255,255,255,0.05), rgba(255,255,255,0.05))`;
+/** The pane's edge. It was the site's old --g-edge as border colours (a bright top edge, 0.38); now the look's lines. */
+export const G_EDGE = RG_LINES;
 
 export const space = {xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32};
 // the page gutter (`--page-x` = 16px at 411)

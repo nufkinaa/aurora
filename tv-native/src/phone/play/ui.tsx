@@ -22,6 +22,7 @@ import Tap from '../ui/Tap';
 import {EASE, SPRING, tween, useTimers, useValue} from '../../play/anim';
 import {GLOW_SRC, Star} from '../../play/Star';
 import {PLAY} from '../../play/tokens';
+import {RG_BODY, RG_LINES} from '../theme';
 
 export const ROOM_SRC = require('../assets/play-room.png');
 
@@ -330,7 +331,8 @@ const st = StyleSheet.create({
   },
   keySmall: {minHeight: 40, paddingHorizontal: 16, gap: 7},
   keyBig: {minHeight: 56, paddingHorizontal: 30},
-  glass: {borderWidth: 1, borderColor: PLAY.line, backgroundColor: 'rgba(20,18,44,0.72)', experimental_backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.04) 100%)'},
+  // the full glass (2026-11-20): the nav's look as border colours and its body, over one even veil of the old top-lit sheen's mean (0.1 / 0.04)
+  glass: {...RG_LINES, backgroundColor: 'rgba(20,18,44,0.72)', experimental_backgroundImage: `${RG_BODY}, linear-gradient(rgba(255,255,255,0.07), rgba(255,255,255,0.07))`},
   quiet: {backgroundColor: 'transparent'},
   // the arcade edge: a lit top line, a darker bottom (the website's inset shadows), and the glow under it
   gold: {

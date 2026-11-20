@@ -43,7 +43,8 @@ import Tap from '../ui/Tap';
 import {PrimaryButton} from '../ui/Buttons';
 import {phoneNative} from '../native';
 import {pushPhone} from '../nav';
-import {colors} from '../theme';
+import {colors, edgeAll, RG_EDGE, RG_LINES, RG_RINGED, RG_RINGED_S} from '../theme';
+import GlassRim from '../ui/GlassRim';
 
 const LAST_KEY = 'aurora.phone.remote.last';
 const VIEW_KEY = 'aurora.phone.remote.view';
@@ -62,6 +63,7 @@ type Sheet = null | 'subs' | 'audio' | 'picker' | 'more' | 'rename';
 function IconBtn({label, uiId, onPress, children}: {label: string; uiId: string; onPress: () => void; children: React.ReactNode}) {
   return (
     <Tap uiId={uiId} borderless accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={s.iconBtn}>
+      <GlassRim w={44} h={44} small edge={1} />
       {children}
     </Tap>
   );
@@ -81,6 +83,7 @@ function Chip({label, icon, on, disabled, uiId, onPress}: {label: string; icon: 
         onPress();
       }}
       style={[s.chip, on && s.chipOn, disabled && s.dim]}>
+      {on ? null : <GlassRim h={42} edge={1} />}
       {icon}
       <Text style={s.chipText}>{label}</Text>
     </Tap>
@@ -114,6 +117,8 @@ export default function Remote() {
   const [last, setLast] = useState<string | null | undefined>(undefined); // undefined: not read yet
   const [view, setViewS] = useState<'now' | 'pad'>('now');
   const [pad, setPadS] = useState<'touch' | 'buttons'>('touch');
+  // the dock's height (what it holds sets it): its glass ring is a pill of that height
+  const [dockH, setDockH] = useState(0);
   const [online, setOnline] = useState(isOpen());
   const [sheet, setSheet] = useState<Sheet>(null);
   const [calm, setCalm] = useState(false);
@@ -395,18 +400,22 @@ export default function Remote() {
       />
       <View style={[s.transport, {gap: tight ? 6 : tGap}]}>
         <Tap uiId="remote.skip" borderless accessibilityRole="button" accessibilityLabel="Back 30 seconds" onPress={() => skip(-30)} style={[s.skip, tight && s.skipShort]}>
+          <GlassRim w={tight ? 46 : 54} h={tight ? 46 : 54} small edge={1} />
           <RemoteIcon name="back" n={30} size={30} />
         </Tap>
         <Tap uiId="remote.skip" borderless accessibilityRole="button" accessibilityLabel="Back 10 seconds" onPress={() => skip(-10)} style={[s.skip, tight && s.skipShort]}>
+          <GlassRim w={tight ? 46 : 54} h={tight ? 46 : 54} small edge={1} />
           <RemoteIcon name="back" n={10} size={30} />
         </Tap>
         <Tap uiId="remote.playpause" borderless accessibilityRole="button" accessibilityLabel={paused ? 'Play' : 'Pause'} onPress={toggle} style={[s.play, tight && s.playShort]}>
           <RemoteIcon name={paused ? 'play' : 'pause'} size={tight ? 32 : 38} color="#0b0c14" />
         </Tap>
         <Tap uiId="remote.skip" borderless accessibilityRole="button" accessibilityLabel="Forward 10 seconds" onPress={() => skip(10)} style={[s.skip, tight && s.skipShort]}>
+          <GlassRim w={tight ? 46 : 54} h={tight ? 46 : 54} small edge={1} />
           <RemoteIcon name="fwd" n={10} size={30} />
         </Tap>
         <Tap uiId="remote.skip" borderless accessibilityRole="button" accessibilityLabel="Forward 30 seconds" onPress={() => skip(30)} style={[s.skip, tight && s.skipShort]}>
+          <GlassRim w={tight ? 46 : 54} h={tight ? 46 : 54} small edge={1} />
           <RemoteIcon name="fwd" n={30} size={30} />
         </Tap>
       </View>
@@ -425,6 +434,7 @@ export default function Remote() {
     dev && !n ? (
       <View style={[s.section, s.center]}>
         <View style={[s.glyph, short && s.glyphShort]}>
+          <GlassRim w={short ? 60 : 92} h={short ? 60 : 92} r={short ? 18 : 28} edge={1} />
           <RemoteIcon name="tv" size={short ? 30 : 46} color="#b3a9ff" />
         </View>
         <Text style={[s.title, s.centerText]} numberOfLines={2}>{`Nothing playing on ${dev.name}`}</Text>
@@ -462,6 +472,7 @@ export default function Remote() {
   const empty = !anyOn ? (
     <View style={[s.section, s.center]}>
       <View style={s.glyph}>
+        <GlassRim w={92} h={92} r={28} edge={1} />
         <RemoteIcon name="remote" size={46} color="#b3a9ff" />
       </View>
       <Text style={[s.title, s.centerText]}>No TV is on</Text>
@@ -487,6 +498,7 @@ export default function Remote() {
           <Touchpad onPress={k => (uiHit('remote.dpad', 'touch'), press(k))} steerable={steer} calm={calm} short={short} />
         ) : (
           <View style={[s.dpad, {width: dsize, height: dsize, borderRadius: dsize / 2}, !steer && s.dim]} pointerEvents={steer ? 'auto' : 'none'} accessibilityRole="none">
+            <GlassRim w={dsize} h={dsize} edge={1} />
             <Tap uiId="remote.dpad" borderless accessibilityRole="button" accessibilityLabel="Up" onPress={() => press('up')} style={[s.dkey, {left: dsize / 3, top: 0, width: dsize / 3, height: dsize / 3}]}>
               <RemoteIcon name="arrow" deg={0} size={26} />
             </Tap>
@@ -507,14 +519,17 @@ export default function Remote() {
       </View>
       <View style={s.keys}>
         <Tap uiId="remote.back" flat accessibilityRole="button" accessibilityLabel="Back" onPress={() => press('back')} style={[s.key, short && s.keyShort]}>
+          <GlassRim h={short ? 50 : 64} r={18} edge={1} />
           <RemoteIcon name="backKey" size={22} />
           <Text style={s.keyText}>Back</Text>
         </Tap>
         <Tap uiId="remote.playpause" flat accessibilityRole="button" accessibilityLabel="Play or pause" onPress={toggle} style={[s.key, short && s.keyShort]}>
+          <GlassRim h={short ? 50 : 64} r={18} edge={1} />
           <RemoteIcon name={paused ? 'play' : 'pause'} size={22} />
           <Text style={s.keyText}>Play/Pause</Text>
         </Tap>
         <Tap uiId="remote.home" flat accessibilityRole="button" accessibilityLabel="Home" onPress={() => press('home')} style={[s.key, short && s.keyShort]}>
+          <GlassRim h={short ? 50 : 64} r={18} edge={1} />
           <RemoteIcon name="home" size={22} />
           <Text style={s.keyText}>Home</Text>
         </Tap>
@@ -552,6 +567,7 @@ export default function Remote() {
         </IconBtn>
         <View style={s.pickWrap}>
         <Tap uiId="remote.device.open" accessibilityRole="button" accessibilityLabel={dev ? `Device: ${dev.name}. Choose another` : 'Choose a device'} onPress={() => list.length && setSheet('picker')} style={s.picker}>
+          <GlassRim h={44} edge={1} />
           <RemoteIcon name={dev ? R.deviceKind(dev) : 'tv'} size={20} color="#b3a9ff" />
           <Text style={s.pickName} numberOfLines={1}>
             {dev ? dev.name : anyOn ? 'Choose a device' : 'Your TVs'}
@@ -584,7 +600,8 @@ export default function Remote() {
         )}
       </View>
       {showDock ? (
-        <View style={[s.dock, both && s.dockBoth, short && s.dockShort, {marginBottom: (short ? 6 : 10) + insets.bottom}]}>
+        <View style={[s.dock, both && s.dockBoth, short && s.dockShort, {marginBottom: (short ? 6 : 10) + insets.bottom}]} onLayout={e => setDockH(Math.round(e.nativeEvent.layout.height))}>
+          {dockH ? <GlassRim h={dockH} edge={1} /> : null}
           {both ? null : (
             <Seg
               dock
@@ -655,9 +672,10 @@ const s = StyleSheet.create({
   // top: close · the device · more (48 | 1fr | 48, 8 apart, 8 10 4)
   top: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingBottom: 4, minHeight: 60},
   topShort: {minHeight: 44, paddingBottom: 0},
-  iconBtn: {width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', ...PANE},
+  // (full glass: a pane that stands alone wears the nav's edge - RG_RINGED / RG_RINGED_S - and GlassRim on its kept border)
+  iconBtn: {width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', ...PANE, ...RG_RINGED_S},
   pickWrap: {flex: 1, minWidth: 0, alignItems: 'center'},
-  picker: {flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingLeft: 12, paddingRight: 14, borderRadius: 999, maxWidth: '100%', ...LIFT},
+  picker: {flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingLeft: 12, paddingRight: 14, borderRadius: 999, maxWidth: '100%', ...LIFT, ...RG_RINGED, overflow: 'hidden'},
   pickName: {color: colors.text, fontSize: 15.7, fontWeight: '700', flexShrink: 1},
   dot: {width: 8, height: 8, borderRadius: 4, backgroundColor: RM.amber},
   dotLive: {backgroundColor: RM.live, boxShadow: '0 0 6px rgba(61,220,151,0.55)'},
@@ -688,16 +706,16 @@ const s = StyleSheet.create({
   titleShort: {fontSize: 20, lineHeight: 25},
   subtitle: {color: colors.textDim, fontSize: 15.2, fontWeight: '600', marginTop: 4, textAlign: 'center'},
   transport: {flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12},
-  skip: {width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', ...PANE},
+  skip: {width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', ...PANE, ...RG_RINGED_S},
   skipShort: {width: 46, height: 46, borderRadius: 23},
   play: {width: 84, height: 84, borderRadius: 42, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', boxShadow: '0 16px 36px rgba(0,0,0,0.45), 0 0 0 6px rgba(255,255,255,0.08)'},
   playShort: {width: 68, height: 68, borderRadius: 34},
   chips: {flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8},
-  chip: {flexDirection: 'row', alignItems: 'center', gap: 7, height: 42, paddingHorizontal: 15, borderRadius: 999, ...PANE},
-  chipOn: {backgroundColor: 'rgba(139,123,255,0.28)', experimental_backgroundImage: undefined, borderColor: 'rgba(139,123,255,0.6)'},
+  chip: {flexDirection: 'row', alignItems: 'center', gap: 7, height: 42, paddingHorizontal: 15, borderRadius: 999, ...PANE, ...RG_RINGED, overflow: 'hidden'},
+  chipOn: {backgroundColor: 'rgba(139,123,255,0.28)', experimental_backgroundImage: undefined, ...edgeAll('rgba(139,123,255,0.6)')},
   chipText: {color: colors.text, fontSize: 14.4, fontWeight: '700'},
   // nothing playing / no device
-  glyph: {width: 92, height: 92, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 4, ...PANE, boxShadow: '0 20px 50px rgba(0,0,0,0.35)'},
+  glyph: {width: 92, height: 92, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 4, ...PANE, ...RG_RINGED, boxShadow: `${RG_EDGE.boxShadow}, 0 20px 50px rgba(0,0,0,0.35)`},
   glyphShort: {width: 60, height: 60, borderRadius: 18},
   emptyText: {maxWidth: 300, lineHeight: 22},
   cwHead: {alignSelf: 'stretch', color: colors.textDim, fontSize: 12.5, fontWeight: '800', letterSpacing: 1.5, marginTop: 10},
@@ -715,16 +733,16 @@ const s = StyleSheet.create({
   padViewBoth: {maxWidth: 460, width: '100%', justifyContent: 'center'},
   padArea: {flex: 1, minHeight: 220, justifyContent: 'center'},
   padAreaShort: {minHeight: 120},
-  dpad: {alignSelf: 'center', ...PANE, boxShadow: '0 24px 60px rgba(0,0,0,0.32)'},
+  dpad: {alignSelf: 'center', ...PANE, ...RG_RINGED, boxShadow: `${RG_EDGE.boxShadow}, 0 24px 60px rgba(0,0,0,0.32)`},
   dkey: {position: 'absolute', alignItems: 'center', justifyContent: 'center', borderRadius: 999},
   ok: {position: 'absolute', alignItems: 'center', justifyContent: 'center', ...LIFT, boxShadow: '0 10px 22px rgba(0,0,0,0.42), 0 2px 5px rgba(0,0,0,0.3)'},
   okText: {color: colors.text, fontSize: 16.8, fontWeight: '800'},
   keys: {flexDirection: 'row', gap: 10},
-  key: {flex: 1, height: 64, borderRadius: 18, alignItems: 'center', justifyContent: 'center', gap: 3, ...PANE},
+  key: {flex: 1, height: 64, borderRadius: 18, alignItems: 'center', justifyContent: 'center', gap: 3, ...PANE, ...RG_RINGED, overflow: 'hidden'},
   keyShort: {height: 50},
   keyText: {color: colors.text, fontSize: 11.8, fontWeight: '700'},
   // segmented switches
-  seg: {flexDirection: 'row', alignSelf: 'center', padding: 4, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.28)', ...{borderWidth: 1, borderColor: 'rgba(255,255,255,0.075)', borderTopColor: 'rgba(255,255,255,0.36)'}},
+  seg: {flexDirection: 'row', alignSelf: 'center', padding: 4, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.28)', ...RG_LINES},
   segDock: {backgroundColor: 'transparent', borderWidth: 0, padding: 0, flexShrink: 1},
   segBtn: {height: 36, paddingHorizontal: 16, borderRadius: 999, alignItems: 'center', justifyContent: 'center'},
   segBtnDock: {height: 42, paddingHorizontal: 12},
@@ -732,7 +750,7 @@ const s = StyleSheet.create({
   segText: {color: RM.segOff, fontSize: 13.8, fontWeight: '700'},
   segTextOn: {color: colors.text},
   // the dock
-  dock: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginHorizontal: 16, padding: 6, borderRadius: 999, ...PANE, boxShadow: '0 16px 40px rgba(0,0,0,0.35)'},
+  dock: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginHorizontal: 16, padding: 6, borderRadius: 999, ...PANE, ...RG_RINGED, boxShadow: `${RG_EDGE.boxShadow}, 0 16px 40px rgba(0,0,0,0.35)`, overflow: 'hidden'},
   dockBoth: {alignSelf: 'center', justifyContent: 'center', minWidth: 220},
   dockShort: {padding: 5},
   vol: {flexDirection: 'row', alignItems: 'center', gap: 2},
@@ -748,5 +766,5 @@ const s = StyleSheet.create({
   delayBtnText: {color: colors.text, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums']},
   delayVal: {minWidth: 58, textAlign: 'center', color: colors.text, fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums']},
   rename: {flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 4},
-  input: {flex: 1, minWidth: 0, height: 48, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', backgroundColor: 'rgba(0,0,0,0.3)', color: colors.text, fontSize: 16},
+  input: {flex: 1, minWidth: 0, height: 48, paddingHorizontal: 14, borderRadius: 14, ...RG_LINES, backgroundColor: 'rgba(0,0,0,0.3)', color: colors.text, fontSize: 16},
 });

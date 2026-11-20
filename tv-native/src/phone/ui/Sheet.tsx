@@ -8,7 +8,8 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {Animated, Easing, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {colors, GUTTER, radius, RG_CALM_SHEET} from '../theme';
+import {colors, GUTTER, radius, RG_BODY, RG_SHEET} from '../theme';
+import GlassRim from './GlassRim';
 
 export default function Sheet({
   visible,
@@ -63,6 +64,7 @@ export default function Sheet({
             transform: [{translateY: y.interpolate({inputRange: [0, 1], outputRange: [0, 400]})}],
           },
         ]}>
+        <GlassRim r={radius.xl + 6} edge={1} />
         <View style={s.handle} />
         {title ? (
           <Text style={s.title} numberOfLines={2}>
@@ -85,13 +87,16 @@ const s = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     backgroundColor: '#141629',
-    experimental_backgroundImage: 'linear-gradient(180deg, #1b1d36 0%, #121327 100%)',
+    // the nav's body over the sheet's own dark gradient
+    experimental_backgroundImage: `${RG_BODY}, linear-gradient(180deg, #1b1d36 0%, #121327 100%)`,
     borderTopLeftRadius: radius.xl + 6,
     borderTopRightRadius: radius.xl + 6,
     borderWidth: 1,
-    // the calm glass edge: no light along the top, the quiet split down the two sides
-    ...RG_CALM_SHEET,
+    // the full glass edge (the nav's): no light along the top, its split and rim as shadows, GlassRim's
+    // ring and glint drawn on the kept (now transparent) border - so the sheet clips what it holds
+    ...RG_SHEET,
     borderBottomWidth: 0,
+    overflow: 'hidden',
     paddingTop: 10,
   },
   handle: {alignSelf: 'center', width: 40, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.28)', marginBottom: 12},

@@ -5,7 +5,7 @@ import React, {createContext, useContext} from 'react';
 import {ActivityIndicator, StyleSheet, Text, View, ViewStyle, StyleProp} from 'react-native';
 import Tap from './Tap';
 import Icon, {PhoneIconName} from './Icon';
-import {colors, E, E_EDGE, E_WORDS, G_EDGE, G_FILL, radius, RG_CALM_BODY, RG_CALM_CHIP, RG_EDGE_FLOAT, RG_EDGE_FLOAT_S, RG_EDGE_THIN} from '../theme';
+import {colors, E, E_EDGE, E_WORDS, radius, RG_BODY, RG_EDGE_FLOAT, RG_EDGE_FLOAT_S, RG_EDGE_THIN, RG_LINES, RG_RINGED} from '../theme';
 import GlassRim from './GlassRim';
 
 type Base = {
@@ -48,9 +48,12 @@ export function PrimaryButton({label, icon, onPress, onLongPress, busy, disabled
   );
 }
 
-/** A glass pill. In the page, a sheet or a dialog it wears glass E's even edge. `float`: it floats
- *  over a picture (the hero's Details) and wears real glass — the rim, the glint, the depth. A float
- *  pill carries no border, so a caller that sets its own paddingHorizontal gives 1 dp more. */
+/** A glass pill. `float`: it floats over a picture (the hero's Details) and wears real glass — the
+ *  rim, the glint, the depth. A float pill carries no border, so a caller that sets its own
+ *  paddingHorizontal gives 1 dp more. In the page, a sheet or a dialog (full glass, 2026-11-20) it
+ *  wears the nav's edge too, on its kept 1 dp border: the split, the rim and GlassRim's ring and glint
+ *  - and a `small` one (Calendar's and a series line's Play / Save, which come one to a row) the same
+ *  look drawn as border colours (E_EDGE), with no ring. */
 export function GlassButton({label, icon, onPress, onLongPress, busy, disabled, style, testID, uiId, small, emoji, float}: Base & {float?: boolean}) {
   return (
     <Tap
@@ -61,8 +64,8 @@ export function GlassButton({label, icon, onPress, onLongPress, busy, disabled, 
       onPress={onPress}
       onLongPress={onLongPress}
       disabled={disabled || busy}
-      style={[s.glass, small && s.glassSmall, float && s.glassFloat, float && small && s.glassFloatSmall, disabled && s.disabled, style]}>
-      {float ? <GlassRim h={small ? 39.6 : 50} /> : null}
+      style={[s.glass, small && s.glassSmall, !float && !small && s.glassRinged, float && s.glassFloat, float && small && s.glassFloatSmall, disabled && s.disabled, style]}>
+      {float ? <GlassRim h={small ? 39.6 : 50} /> : !small ? <GlassRim h={50} edge={1} /> : null}
       {busy ? <ActivityIndicator color={colors.text} size="small" /> : icon ? <Icon name={icon} size={small ? 17 : 20} color={colors.text} /> : null}
       {emoji ? <Text style={s.emoji}>{emoji}</Text> : null}
       <Text style={[s.glassText, small && s.glassTextSmall]} numberOfLines={1}>
@@ -230,7 +233,7 @@ const s = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: E.chrome,
     ...E_EDGE,
-    experimental_backgroundImage: RG_CALM_BODY,
+    experimental_backgroundImage: RG_BODY,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -240,6 +243,8 @@ const s = StyleSheet.create({
   },
   glassText: {color: '#ffffff', fontSize: 16, fontWeight: '700', letterSpacing: 0.16, ...E_WORDS},
   glassSmall: {height: 39.6, paddingHorizontal: 20},
+  // one that stands alone in the page: the nav's split and rim on its kept border, GlassRim's ring drawn on it
+  glassRinged: {...RG_RINGED},
   // real glass (theme.ts), for the one that floats over a picture: no border — GlassRim draws the
   // ring (so the sides are 27, not 26 + a 1 dp border: the pill is as wide as it was)
   glassFloat: {borderWidth: 0, paddingHorizontal: 27, ...RG_EDGE_FLOAT},
@@ -251,7 +256,7 @@ const s = StyleSheet.create({
     height: 40,
     borderRadius: radius.pill,
     backgroundColor: colors.chip,
-    ...RG_CALM_CHIP,
+    ...RG_LINES,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,

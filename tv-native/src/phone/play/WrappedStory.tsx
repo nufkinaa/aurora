@@ -19,6 +19,7 @@ import Burst from '../../play/Burst';
 import {EASE, LINEAR, tween, useValue} from '../../play/anim';
 import {Star} from '../../play/Star';
 import {PLAY} from '../../play/tokens';
+import {RG_LINES} from '../theme';
 import {showToast} from '../../toast';
 import {phoneNative} from '../native';
 import {setTabBarShown} from '../ui/tabBarShown';
@@ -337,7 +338,7 @@ const ss = StyleSheet.create({
   seg: {flex: 1, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.22)', overflow: 'hidden'},
   segFull: {position: 'absolute', left: 0, top: 0, bottom: 0, right: 0, backgroundColor: '#ffffff', borderRadius: 2},
   bar: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, gap: 10},
-  who: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 5, paddingRight: 14, height: 38, borderRadius: 999, borderWidth: 1, borderColor: PLAY.line, backgroundColor: 'rgba(255,255,255,0.07)', flexShrink: 1},
+  who: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 5, paddingRight: 14, height: 38, borderRadius: 999, ...RG_LINES, backgroundColor: 'rgba(255,255,255,0.07)', flexShrink: 1},
   dot: {width: 27, height: 27, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: PLAY.gold, experimental_backgroundImage: 'linear-gradient(135deg, #fff2c2 0%, #ffd166 45%, #f0a23a 100%)'},
   whoName: {color: PLAY.ink, fontSize: 15, fontWeight: '800', flexShrink: 1},
   tools: {flexDirection: 'row', alignItems: 'center', gap: 8},

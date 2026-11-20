@@ -31,6 +31,7 @@ jest.mock('react-native-svg', () => ({__esModule: true, default: 'Svg', Svg: 'Sv
 jest.mock('react-native-safe-area-context', () => ({useSafeAreaInsets: () => ({top: 24, bottom: 24, left: 0, right: 0})}));
 jest.mock('../../src/phone/ui/Cards', () => ({artSrc: () => ({src: null})}));
 jest.mock('../../src/phone/ui/Icon', () => 'Icon');
+jest.mock('../../src/phone/ui/GlassRim', () => 'GlassRim');
 jest.mock('../../src/phone/nav', () => ({pushPhone: jest.fn()}));
 jest.mock('../../src/phone/offline/store', () => ({
   cancelOffline: jest.fn(),

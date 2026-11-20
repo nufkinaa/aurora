@@ -12,7 +12,8 @@ import ChooseSheet from './offline/ChooseSheet';
 import {PILL_LIFT, usePillShown} from './offline/reach';
 import Sheet from './ui/Sheet';
 import ListRow from './ui/Row';
-import {colors, GUTTER, radius, RG_CALM_EDGE_SOFT, TAB_H, TAB_INSET} from './theme';
+import {colors, GUTTER, radius, RG_BODY, RG_RINGED, TAB_H, TAB_INSET} from './theme';
+import GlassRim from './ui/GlassRim';
 import {tabBottom} from './ui/TabBar';
 import XraySheet from './sheets/XraySheet';
 import ReplaceSheet from './sheets/ReplaceSheet';
@@ -110,6 +111,7 @@ function ToastPill({id, text, glyph, action}: {id: number; text: string; glyph?:
       accessibilityLiveRegion="polite"
       pointerEvents={action ? 'auto' : 'none'}
       style={[s.toast, {opacity: a, transform: [{translateY: a.interpolate({inputRange: [0, 1], outputRange: [12, 0]})}]}]}>
+      <GlassRim r={radius.l} edge={1} />
       {glyph ? <Text style={s.glyph}>{glyph}</Text> : null}
       <Text style={s.toastText}>{text}</Text>
       {action ? (
@@ -143,7 +145,10 @@ const s = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: radius.l,
     backgroundColor: 'rgba(22,24,44,0.96)',
-    ...RG_CALM_EDGE_SOFT,
+    // the full glass (the nav's edge and body; GlassRim on the kept border, so it clips)
+    experimental_backgroundImage: RG_BODY,
+    ...RG_RINGED,
+    overflow: 'hidden',
     elevation: 8,
   },
   glyph: {fontSize: 18},

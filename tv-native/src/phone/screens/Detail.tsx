@@ -101,7 +101,7 @@ import {wishFor, wishOn} from '../offline/wishRules';
 import {useDevices} from '../remote/controller';
 import {sendToTv} from '../remote/playOnTv'; // [play-on-tv]
 import {PLAY_ON} from '../../remote/playOnWords';
-import {colors, EP_W, G_EDGE, G_FILL, GUTTER, radius, RG_CALM_BODY, RG_CALM_CHIP, SHELF_GAP, edgeAll} from '../theme';
+import {colors, EP_W, G_EDGE, G_FILL, GUTTER, radius, RG_BODY, RG_LINES, SHELF_GAP, edgeAll} from '../theme';
 import {heroCover, showsPoster} from '../heroArt';
 
 const isStream = (it: HeroItem) => it.source === 'stream' || !it.id;
@@ -1373,7 +1373,7 @@ const s = StyleSheet.create({
     ...G_EDGE,
   },
   seasonPill: {height: 40, paddingHorizontal: 16, borderRadius: 20, justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)'},
-  seasonPillOn: {backgroundColor: 'rgba(255,255,255,0.14)', ...RG_CALM_CHIP},
+  seasonPillOn: {backgroundColor: 'rgba(255,255,255,0.14)', ...RG_LINES},
   seasonText: {color: 'rgba(243,244,248,0.82)', fontSize: 14.72, fontWeight: '700'},
   seasonTextOn: {color: '#fff'},
   pills: {paddingHorizontal: GUTTER, paddingTop: 8, paddingBottom: 4, gap: 8},
@@ -1384,7 +1384,7 @@ const s = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.04)',
     // the calm body over one even veil of the old sheen's mean lightness (it was a 135deg white sheen, 0.12 / 0.055 / 0.09)
-    experimental_backgroundImage: `${RG_CALM_BODY}, linear-gradient(rgba(255,255,255,0.08), rgba(255,255,255,0.08))`,
+    experimental_backgroundImage: `${RG_BODY}, linear-gradient(rgba(255,255,255,0.08), rgba(255,255,255,0.08))`,
     ...G_EDGE,
   },
   epOwned: edgeAll('rgba(111,224,176,0.32)'),
