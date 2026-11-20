@@ -30,7 +30,7 @@ import {PosterCard} from '../ui/Cards';
 import {useTabBarSpace} from '../ui/TabBar';
 import {onReselect, useTab} from '../tabs';
 import {phoneNative} from '../native';
-import {colors, GUTTER, radius} from '../theme';
+import {colors, GUTTER, radius, RG_CALM_PANE} from '../theme';
 
 const EMPTY: SearchAnswer = {results: [], related: [], relatedLabel: null, pending: false};
 const clip = (s: string) => (s.length > 34 ? `${s.slice(0, 33)}…` : s);
@@ -376,6 +376,6 @@ const s = StyleSheet.create({
   shelf: {paddingHorizontal: GUTTER, gap: 9, paddingBottom: 6},
   busy: {flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: GUTTER, paddingVertical: 10},
   busyText: {color: colors.textDim, fontSize: 15},
-  noteBox: {marginHorizontal: GUTTER, marginVertical: 12, padding: 16, borderRadius: radius.l, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassEdge, gap: 12},
+  noteBox: {marginHorizontal: GUTTER, marginVertical: 12, padding: 16, borderRadius: radius.l, backgroundColor: colors.glass, ...RG_CALM_PANE, gap: 12},
   noteText: {color: colors.text, fontSize: 16},
 });

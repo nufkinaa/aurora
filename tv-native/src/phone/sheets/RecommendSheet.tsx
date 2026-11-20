@@ -32,7 +32,7 @@ import {
 import Sheet from '../ui/Sheet';
 import Tap from '../ui/Tap';
 import {GlassButton, PrimaryButton} from '../ui/Buttons';
-import {colors, GUTTER, radius} from '../theme';
+import {colors, GUTTER, radius, RG_CALM_PANE} from '../theme';
 
 export default function RecommendSheet({title, imdbId, onClose}: {title: TitleLike; imdbId: string | null; onClose: () => void}) {
   const profileId = rootNav().profileId;
@@ -179,7 +179,7 @@ const s = StyleSheet.create({
   tick: {position: 'absolute', right: 4, bottom: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: colors.accentStrong, alignItems: 'center', justifyContent: 'center'},
   name: {color: colors.text, fontSize: 14, fontWeight: '700', marginTop: 6},
   why: {color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 2},
-  noteWrap: {marginHorizontal: GUTTER, marginTop: 12, borderRadius: radius.l, backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: colors.glassEdge},
+  noteWrap: {marginHorizontal: GUTTER, marginTop: 12, borderRadius: radius.l, backgroundColor: 'rgba(255,255,255,0.06)', ...RG_CALM_PANE},
   note: {color: colors.text, fontSize: 16, minHeight: 56, paddingHorizontal: 14, paddingTop: 12, textAlignVertical: 'top'},
   counter: {color: colors.textFaint, fontSize: 12, alignSelf: 'flex-end', paddingHorizontal: 12, paddingBottom: 8},
   error: {color: '#ffb3b3', fontSize: 14, paddingHorizontal: GUTTER + 4, marginTop: 10},

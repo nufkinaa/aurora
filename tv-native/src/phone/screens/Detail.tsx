@@ -101,7 +101,7 @@ import {wishFor, wishOn} from '../offline/wishRules';
 import {useDevices} from '../remote/controller';
 import {sendToTv} from '../remote/playOnTv'; // [play-on-tv]
 import {PLAY_ON} from '../../remote/playOnWords';
-import {colors, EP_W, G_EDGE, G_FILL, GUTTER, radius, SHELF_GAP} from '../theme';
+import {colors, EP_W, G_EDGE, G_FILL, GUTTER, radius, RG_CALM_BODY, RG_CALM_CHIP, SHELF_GAP} from '../theme';
 import {heroCover, showsPoster} from '../heroArt';
 
 const isStream = (it: HeroItem) => it.source === 'stream' || !it.id;
@@ -1373,7 +1373,7 @@ const s = StyleSheet.create({
     ...G_EDGE,
   },
   seasonPill: {height: 40, paddingHorizontal: 16, borderRadius: 20, justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)'},
-  seasonPillOn: {backgroundColor: 'rgba(255,255,255,0.14)', borderColor: 'rgba(255,255,255,0.08)', borderTopColor: 'rgba(255,255,255,0.35)'},
+  seasonPillOn: {backgroundColor: 'rgba(255,255,255,0.14)', ...RG_CALM_CHIP},
   seasonText: {color: 'rgba(243,244,248,0.82)', fontSize: 14.72, fontWeight: '700'},
   seasonTextOn: {color: '#fff'},
   pills: {paddingHorizontal: GUTTER, paddingTop: 8, paddingBottom: 4, gap: 8},
@@ -1383,11 +1383,12 @@ const s = StyleSheet.create({
     width: EP_W,
     borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.04)',
-    experimental_backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.055) 55%, rgba(255,255,255,0.09) 100%)',
+    // the calm body over one even veil of the old sheen's mean lightness (it was a 135deg white sheen, 0.12 / 0.055 / 0.09)
+    experimental_backgroundImage: `${RG_CALM_BODY}, linear-gradient(rgba(255,255,255,0.08), rgba(255,255,255,0.08))`,
     ...G_EDGE,
   },
-  epOwned: {borderColor: 'rgba(111,224,176,0.32)', borderTopColor: 'rgba(111,224,176,0.5)'},
-  epNext: {borderColor: 'rgba(139,123,255,0.6)', borderTopColor: 'rgba(170,160,255,0.8)'},
+  epOwned: {borderColor: 'rgba(111,224,176,0.32)'},
+  epNext: {borderColor: 'rgba(139,123,255,0.6)'},
   epStill: {width: EP_W - 2, height: Math.round(((EP_W - 2) * 9) / 16), borderTopLeftRadius: 15, borderTopRightRadius: 15, overflow: 'hidden', backgroundColor: '#141a30', alignItems: 'center', justifyContent: 'center'},
   epBar: {position: 'absolute', left: 12, right: 12, bottom: 10},
   epDl: {position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(8,9,16,0.75)', paddingVertical: 2},

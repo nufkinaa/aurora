@@ -5,7 +5,7 @@ import React, {createContext, useContext} from 'react';
 import {ActivityIndicator, StyleSheet, Text, View, ViewStyle, StyleProp} from 'react-native';
 import Tap from './Tap';
 import Icon, {PhoneIconName} from './Icon';
-import {colors, E, E_EDGE, E_WORDS, G_EDGE, G_FILL, radius, RG_EDGE_FLOAT, RG_EDGE_FLOAT_S, RG_EDGE_THIN} from '../theme';
+import {colors, E, E_EDGE, E_WORDS, G_EDGE, G_FILL, radius, RG_CALM_BODY, RG_CALM_CHIP, RG_EDGE_FLOAT, RG_EDGE_FLOAT_S, RG_EDGE_THIN} from '../theme';
 import GlassRim from './GlassRim';
 
 type Base = {
@@ -230,6 +230,7 @@ const s = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: E.chrome,
     ...E_EDGE,
+    experimental_backgroundImage: RG_CALM_BODY,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -250,15 +251,14 @@ const s = StyleSheet.create({
     height: 40,
     borderRadius: radius.pill,
     backgroundColor: colors.chip,
-    borderWidth: 1,
-    borderColor: colors.chipEdge,
+    ...RG_CALM_CHIP,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     gap: 6,
     overflow: 'hidden',
   },
-  chipOn: {backgroundColor: colors.chipOn, borderColor: 'rgba(255,255,255,0.08)', borderTopColor: 'rgba(255,255,255,0.35)'},
+  chipOn: {backgroundColor: colors.chipOn, borderColor: 'rgba(255,255,255,0.08)'},
   chipText: {color: 'rgba(243,244,248,0.82)', fontSize: 13.6, fontWeight: '700'},
   chipTextOn: {color: '#ffffff'},
   chipBig: {height: 40.8},

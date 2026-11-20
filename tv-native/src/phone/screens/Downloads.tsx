@@ -40,7 +40,7 @@ import {wishFor, wishOn} from '../offline/wishRules';
 import {useNoConnection} from '../offline/reach';
 import Mark from '../offline/Mark';
 import {EmptyPlace, JobRow, NoServerLine, RoomBlock, s as place, SavedTitles, SmartNextFoot, useLanded, WishRow} from '../offline/Place';
-import {colors, GUTTER, radius} from '../theme';
+import {colors, GUTTER, radius, RG_CALM_CHIP, RG_CALM_PANE} from '../theme';
 
 const LABEL: Record<DownloadAction, string> = {play: 'Play', title: 'Title page', retry: 'Try again', another: 'Pick another version', remove: 'Remove from this list', confirmCancel: 'Cancel'};
 
@@ -364,7 +364,7 @@ const s = StyleSheet.create({
   hint: {color: colors.textDim, fontSize: 14, paddingHorizontal: GUTTER, marginTop: 4, marginBottom: 10},
   empty: {color: colors.textDim, fontSize: 15, paddingHorizontal: GUTTER, paddingVertical: 12},
   err: {color: '#ffb3b3', fontSize: 15, paddingHorizontal: GUTTER},
-  row: {flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: GUTTER, marginBottom: 8, padding: 10, borderRadius: radius.l, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassEdge},
+  row: {flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: GUTTER, marginBottom: 8, padding: 10, borderRadius: radius.l, backgroundColor: colors.glass, ...RG_CALM_PANE},
   pic: {width: 52, height: 78, borderRadius: 8, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center'},
   title: {color: colors.text, fontSize: 15, fontWeight: '800'},
   line: {color: colors.textDim, fontSize: 13, marginTop: 3},
@@ -372,7 +372,7 @@ const s = StyleSheet.create({
   act: {color: colors.accent, fontSize: 14, fontWeight: '800'},
   placeHead: {flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: GUTTER, marginTop: 22},
   // the device button on a server row (My downloads): the mark and its words
-  dev: {flexDirection: 'row', alignSelf: 'flex-start', alignItems: 'center', gap: 8, minHeight: 44, marginTop: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.glassStrong, borderWidth: 1, borderColor: colors.glassEdge},
+  dev: {flexDirection: 'row', alignSelf: 'flex-start', alignItems: 'center', gap: 8, minHeight: 44, marginTop: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.glassStrong, ...RG_CALM_CHIP},
   devOn: {backgroundColor: 'rgba(110,231,183,0.12)', borderColor: 'rgba(110,231,183,0.45)'},
   devText: {color: colors.text, fontSize: 14, fontWeight: '800'},
 });

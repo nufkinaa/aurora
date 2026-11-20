@@ -66,7 +66,7 @@ import Icon from '../ui/Icon';
 import PageHead, {BackBar, useColumn, useSolidBar} from '../ui/PageHead';
 import {useTabBarSpace} from '../ui/TabBar';
 import Tap from '../ui/Tap';
-import {colors, GUTTER, radius} from '../theme';
+import {colors, GUTTER, radius, RG_CALM_PANE} from '../theme';
 
 const PIC_W = 52;
 // the site's .cal-badge.have / .partial / .saving / .waiting
@@ -348,7 +348,7 @@ const s = StyleSheet.create({
   day: {color: colors.textDim, fontSize: 16.3, fontWeight: '800', letterSpacing: 0.16, paddingHorizontal: GUTTER, marginTop: 22, marginBottom: 10},
   today: {color: colors.text},
   // .cal-entry at phone width: a faint fill, a hairline, 10 in, the buttons under the words
-  row: {marginHorizontal: GUTTER, marginBottom: 10, padding: 10, gap: 10, borderRadius: radius.l, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)'},
+  row: {marginHorizontal: GUTTER, marginBottom: 10, padding: 10, gap: 10, borderRadius: radius.l, backgroundColor: 'rgba(255,255,255,0.04)', ...RG_CALM_PANE},
   top: {flexDirection: 'row', alignItems: 'center', gap: 14},
   pic: {width: PIC_W, height: PIC_W * 1.5, borderRadius: 8, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center'},
   words: {flex: 1, minWidth: 0, gap: 2},

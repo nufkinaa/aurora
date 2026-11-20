@@ -36,16 +36,66 @@ export const colors = {
   chipOn: 'rgba(255,255,255,0.16)',
 };
 
-/** The site's --g-fill as a React Native gradient (glass.css): the sheen on every glass surface. */
-export const G_FILL = 'linear-gradient(135deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.025) 55%, rgba(255,255,255,0.06) 100%)';
-/** The site's --g-edge, as border colours: a bright top edge, a softer left one, a faint rest. */
-export const G_EDGE = {
+/* ---- Real glass, everywhere: the CALM still version (2026-11-20) ------------
+   elia: "I still find some elements that were not changed to the new glass
+   look, like episode cards, the search... make sure we have changed
+   everywhere" - and the Calendar. Every other glass pane (a panel, a row, a
+   card, a chip, a sheet, a menu, a toast) takes the still half of real glass,
+   at calm values - a page of episode cards or a month of days must not get
+   busy (the website's --rg-*-calm / --g-edge*, end of public/css/glass.css):
+   - no light along the top: the old bright top border goes; the border is one
+     even faint hairline (so nothing changes size);
+   - the violet / mint split at the two ends, quiet;
+   - a shade just under the top edge and a lit violet foot line with a little
+     light gathered above it;
+   - the body a shade darker towards its top, a little violet towards its
+     foot (hung from the top edge itself, as RG_BODY: Android ignores a
+     gradient centre above the pane).
+   Box shadows and gradients only - no GlassRim drawing here (one SVG per row
+   would cost); GlassRim stays on the chrome. Chips, small round things and
+   the Calendar's days carry no blurred shadow at all. Inset shadows need
+   Android 10+; an older phone shows the even hairline and the outside halves. */
+/** The quiet split (--rg-split-quiet). */
+export const RG_SPLIT_QUIET =
+  'inset 1px 0 0 0 rgba(232,121,249,0.3), inset -1px 0 0 0 rgba(94,234,212,0.3), -1px 0 0 0 rgba(94,234,212,0.16), 1px 0 0 0 rgba(232,121,249,0.16)';
+/** The calm rim (--rg-rim-calm, less its hairline: the border carries it): the shade under the top edge, the lit foot line, the light gathered above it. */
+export const RG_RIM_CALM = 'inset 0 2px 3px -2px rgba(0,0,0,0.36), inset 0 -1px 0 0 rgba(168,150,255,0.36), inset 0 -7px 9px -7px rgba(168,150,255,0.42)';
+/** The even hairline all round (the rim's inset 0 0 0 1px rgba(255,255,255,.06)), as a border colour. */
+export const RG_CALM_HAIR = 'rgba(255,255,255,0.06)';
+/** The calm body (--rg-body-calm): top shade 0.16, foot light 0.13. */
+export const RG_CALM_BODY =
+  'radial-gradient(ellipse 70% 34% at 50% 0%, rgba(0,0,0,0.16) 0%, rgba(0,0,0,0) 100%), radial-gradient(ellipse 120% 60% at 50% 118%, rgba(168,150,255,0.13) 0%, rgba(168,150,255,0) 60%)';
+/** A pane's calm edge (--g-edge): a panel, a row, a card. */
+export const RG_CALM_EDGE = {
   borderWidth: 1,
-  borderTopColor: 'rgba(255,255,255,0.38)',
-  borderLeftColor: 'rgba(255,255,255,0.16)',
-  borderRightColor: 'rgba(255,255,255,0.07)',
-  borderBottomColor: 'rgba(255,255,255,0.06)',
+  borderColor: RG_CALM_HAIR,
+  boxShadow: `${RG_SPLIT_QUIET}, ${RG_RIM_CALM}`,
 } as const;
+/** The same with the calm body: for a pane that had no gradient of its own. */
+export const RG_CALM_PANE = {
+  ...RG_CALM_EDGE,
+  experimental_backgroundImage: RG_CALM_BODY,
+} as const;
+/** A chip, a pill, a small round thing, a line in a sheet (--g-edge-thin): the split and the foot line, nothing blurred. */
+export const RG_CALM_CHIP = {
+  borderWidth: 1,
+  borderColor: RG_CALM_HAIR,
+  boxShadow: `${RG_SPLIT_QUIET}, inset 0 -1px 0 0 rgba(168,150,255,0.32)`,
+} as const;
+/** A sheet rising from the foot of the screen (--g-edge-thick, less its foot: that is off the screen): colours and shadow only, the sheet keeps its own border widths. */
+export const RG_CALM_SHEET = {
+  borderColor: 'rgba(255,255,255,0.07)',
+  boxShadow: `${RG_SPLIT_QUIET}, inset 0 3px 4px -2px rgba(0,0,0,0.4)`,
+} as const;
+/** A day of the Calendar's month: plain, and one that carries something (.calg-day / .calg-day.has). */
+export const RG_CALM_DAY = 'inset 0 -1px 0 0 rgba(168,150,255,0.16)';
+export const RG_CALM_DAY_HAS = `${RG_SPLIT_QUIET}, inset 0 0 0 1px rgba(255,255,255,0.05), inset 0 -1px 0 0 rgba(168,150,255,0.24)`;
+
+/** What every glass pane lays over its own colour. It was the site's white sheen from the top-left (0.09 / 0.025 / 0.06);
+ *  now the calm body, over one even veil of the sheen's mean lightness - so the panes are as dark as they were. */
+export const G_FILL = `${RG_CALM_BODY}, linear-gradient(rgba(255,255,255,0.05), rgba(255,255,255,0.05))`;
+/** The pane's edge. It was the site's old --g-edge as border colours (a bright top edge, 0.38); now the calm edge. */
+export const G_EDGE = RG_CALM_EDGE;
 
 /* ---- Glass E ("Clear") on the chrome over pictures (2026-11-11) -----------
    elia chose E for the website ("I think E looks the best!!") and for the phone
@@ -84,11 +134,14 @@ export const E = {
 export const E_EDGE = {
   borderWidth: 1,
   borderColor: 'rgba(176,164,255,0.26)',
-  boxShadow: '0 0 0 1px rgba(0,0,0,0.38)',
+  // + the calm rim (2026-11-20): a glass button in the page (not floating over a picture) keeps E's
+  // even violet rim and its dark outside line, and takes the quiet split, the shade and the lit foot
+  boxShadow: `${RG_SPLIT_QUIET}, ${RG_RIM_CALM}, 0 0 0 1px rgba(0,0,0,0.38)`,
 } as const;
-/** The player's menu: the same even rim, the outside line 0.4. */
+/** The player's menu: the same even rim, the outside line 0.4. (The TV app's shared player wears this one: it stays as it was.) */
 export const E_EDGE_THICK = {
-  ...E_EDGE,
+  borderWidth: 1,
+  borderColor: 'rgba(176,164,255,0.26)',
   boxShadow: '0 0 0 1px rgba(0,0,0,0.4)',
 } as const;
 /** Small round things (the action circles, the player's buttons): fainter still. */
@@ -101,7 +154,8 @@ export const E_EDGE_THIN = {
  *  buttons): drawn around the shape only (RN clips it out under the body), unlike Android's
  *  elevation, which darkens a see-through body from below. */
 export const E_EDGE_FLOAT = {
-  ...E_EDGE,
+  borderWidth: 1,
+  borderColor: 'rgba(176,164,255,0.26)',
   boxShadow: '0 0 0 1px rgba(0,0,0,0.38), 0 6px 18px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.3)',
 } as const;
 /** The chosen tab / a lit control: Aurora's violet capsule with its own line (4.8:1 over white). */

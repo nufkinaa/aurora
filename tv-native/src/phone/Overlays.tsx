@@ -12,7 +12,7 @@ import ChooseSheet from './offline/ChooseSheet';
 import {PILL_LIFT, usePillShown} from './offline/reach';
 import Sheet from './ui/Sheet';
 import ListRow from './ui/Row';
-import {colors, GUTTER, radius, TAB_H, TAB_INSET} from './theme';
+import {colors, GUTTER, radius, RG_CALM_EDGE, TAB_H, TAB_INSET} from './theme';
 import {tabBottom} from './ui/TabBar';
 import XraySheet from './sheets/XraySheet';
 import ReplaceSheet from './sheets/ReplaceSheet';
@@ -143,8 +143,7 @@ const s = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: radius.l,
     backgroundColor: 'rgba(22,24,44,0.96)',
-    borderWidth: 1,
-    borderColor: colors.glassEdge,
+    ...RG_CALM_EDGE,
     elevation: 8,
   },
   glyph: {fontSize: 18},

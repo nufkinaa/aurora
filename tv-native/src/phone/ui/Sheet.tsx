@@ -8,7 +8,7 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {Animated, Easing, Keyboard, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {colors, GUTTER, radius} from '../theme';
+import {colors, GUTTER, radius, RG_CALM_SHEET} from '../theme';
 
 export default function Sheet({
   visible,
@@ -89,7 +89,8 @@ const s = StyleSheet.create({
     borderTopLeftRadius: radius.xl + 6,
     borderTopRightRadius: radius.xl + 6,
     borderWidth: 1,
-    borderColor: colors.glassEdge,
+    // the calm glass edge: no light along the top, the quiet split down the two sides
+    ...RG_CALM_SHEET,
     borderBottomWidth: 0,
     paddingTop: 10,
   },

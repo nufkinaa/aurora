@@ -64,7 +64,7 @@ import {footFade, GreetFade, greetFade, greetShown} from '../ui/greetFade';
 import {onReselect} from '../tabs';
 import {phoneNative} from '../native';
 import {FADE_MS, LISTS} from '../lowEnd';
-import {colors, FRAME_W, GUTTER, POSTER_H, POSTER_W, radius, SHELF_GAP} from '../theme';
+import {colors, FRAME_W, GUTTER, POSTER_H, POSTER_W, radius, RG_CALM_PANE, SHELF_GAP} from '../theme';
 
 
 const HERO_DWELL_MS = 9000; // the site's billboard turn (home.js HERO_DWELL_MS)
@@ -715,7 +715,7 @@ const s = StyleSheet.create({
   greetSub: {color: colors.textDim, fontSize: 15.68, fontWeight: '600', lineHeight: 23.5, marginTop: 4},
   greetMeasure: {position: 'absolute', left: GUTTER, right: GUTTER, top: 0, opacity: 0},
   parties: {paddingHorizontal: GUTTER, marginTop: 14, gap: 8},
-  party: {flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radius.l, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassEdge},
+  party: {flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radius.l, backgroundColor: colors.glass, ...RG_CALM_PANE},
   partyIcon: {fontSize: 20},
   partyText: {flex: 1, color: colors.text, fontSize: 14},
   partyCta: {color: '#fff', fontWeight: '800', fontSize: 15, backgroundColor: colors.accentStrong, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14, overflow: 'hidden'},
@@ -724,6 +724,6 @@ const s = StyleSheet.create({
   shelf: {marginTop: 18},
   shelfTitle: {color: colors.text, fontSize: 17.6, fontWeight: '800', letterSpacing: -0.18, lineHeight: 26.4, paddingHorizontal: GUTTER},
   shelfList: {paddingHorizontal: GUTTER, paddingTop: 18},
-  showAll: {width: POSTER_W, height: POSTER_H, borderRadius: 12, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassEdge, alignItems: 'center', justifyContent: 'center', gap: 6},
+  showAll: {width: POSTER_W, height: POSTER_H, borderRadius: 12, backgroundColor: colors.glass, ...RG_CALM_PANE, alignItems: 'center', justifyContent: 'center', gap: 6},
   showAllText: {color: colors.text, fontSize: 15, fontWeight: '800'},
 });

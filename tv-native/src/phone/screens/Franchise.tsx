@@ -26,7 +26,7 @@ import {artSrc} from '../ui/Cards';
 import {BackBar, useColumn, useSolidBar} from '../ui/PageHead';
 import {useTabBarSpace} from '../ui/TabBar';
 import Tap from '../ui/Tap';
-import {colors, GUTTER, radius} from '../theme';
+import {colors, GUTTER, radius, RG_CALM_PANE} from '../theme';
 
 const THUMB_W = 56;
 const THUMB_H = 84;
@@ -196,7 +196,7 @@ const s = StyleSheet.create({
   chips: {flexDirection: 'row', alignItems: 'center', paddingHorizontal: GUTTER, paddingVertical: 12, gap: 8},
   error: {paddingHorizontal: GUTTER, paddingVertical: 12, gap: 10},
   errorText: {color: '#ff7a7a', fontSize: 15, fontWeight: '700'},
-  row: {gap: 8, marginHorizontal: GUTTER, marginBottom: 8, padding: 10, borderRadius: radius.l, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassEdge},
+  row: {gap: 8, marginHorizontal: GUTTER, marginBottom: 8, padding: 10, borderRadius: radius.l, backgroundColor: colors.glass, ...RG_CALM_PANE},
   top: {flexDirection: 'row', gap: 10, alignItems: 'center'},
   actRow: {flexDirection: 'row', paddingLeft: ACT_LEFT},
   num: {width: NUM_W, textAlign: 'center', color: colors.text, fontSize: 17, fontWeight: '900'},
