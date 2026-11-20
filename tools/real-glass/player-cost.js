@@ -36,9 +36,15 @@ const r1 = (x) => Math.round(x * 10) / 10;
         // CSS="…": a stylesheet laid over side e (a try at other numbers), before the lens starts
         if (process.env.CSS && side === "e") await page.addInitScript((css) => { addEventListener("DOMContentLoaded", () => { const st = document.createElement("style"); st.textContent = css; document.head.append(st); }); }, process.env.CSS);
         if (process.env.NORAF) await page.addInitScript(() => { window.__noraf = true; });
-        const home = process.env.WHERE === "home";
-        await go(h, home ? "home" : `#/play/${h.inst.lib.film1}`);
-        if (home) { await page.waitForSelector(".row .card", { timeout: 30000 }); if (!process.env.TOP) await page.evaluate(() => scrollTo(0, 900)); }
+        // WHERE=search: the search page, the field focused with suggestions up;
+        // WHERE=sheet: Home with a sheet open; WHERE=more: a phone's side menu open
+        const where = process.env.WHERE || "";
+        const home = ["home", "search", "sheet", "more"].includes(where);
+        await go(h, where === "search" ? "search" : home ? "home" : `#/play/${h.inst.lib.film1}`);
+        if (where === "home") { await page.waitForSelector(".row .card", { timeout: 30000 }); if (!process.env.TOP) await page.evaluate(() => scrollTo(0, 900)); }
+        else if (where === "search") { const input = await page.waitForSelector(".search-box input", { timeout: 15000 }); await input.click(); await input.type("te", { delay: 60 }); await page.waitForSelector(".suggest-list", { timeout: 8000 }).catch(() => {}); }
+        else if (where === "sheet") { await page.waitForSelector(".row .card", { timeout: 30000 }); await require("../glass-apple/targets").OPEN.sheet(page); }
+        else if (where === "more") { await page.waitForSelector(".row .card", { timeout: 30000 }); await page.click(".nav-more"); await page.waitForSelector(".nav-more-sheet", { timeout: 8000 }); }
         else await page.waitForSelector(".player video", { timeout: 25000 });
         await page.evaluate(async ([home, scroll]) => {
           const v = document.querySelector(".player video") || { getVideoPlaybackQuality: () => ({ totalVideoFrames: 0, droppedVideoFrames: 0 }), paused: true };
@@ -52,6 +58,8 @@ const r1 = (x) => Math.round(x * 10) / 10;
           // (NORAF=1: nothing of ours asks for frames — a paused film then draws none at all)
           if (!window.__noraf) requestAnimationFrame(loop);
         }, [home, process.env.SCROLL || ""]);
+        // x = e without the second pass's lenses (the side menu, the search field, a sheet): what they cost
+        if (side === "x") await page.addStyleTag({ content: `html[data-look="glass"][data-lens]:root :is(.search-box, .look-notice) { --g-blur: blur(6px) saturate(1.8) !important; } html[data-look="glass"][data-lens]:root .nav-more-sheet { -webkit-backdrop-filter: blur(6px) saturate(1.8) brightness(0.62) !important; backdrop-filter: blur(6px) saturate(1.8) brightness(0.62) !important; }` });
         // r = n without the rims' rings (::before): what the rings cost
         if (side === "r") await page.addStyleTag({ content: "html[data-look='glass']:root *::before { content: none !important; }" });
         await sleep(2500);
@@ -75,7 +83,7 @@ const r1 = (x) => Math.round(x * 10) / 10;
         await sleep(500);
         const sys = await b.newBrowserCDPSession();
         const times = async () => Object.fromEntries((await sys.send("SystemInfo.getProcessInfo")).processInfo.map((p) => [`${p.type}:${p.id}`, p.cpuTime]));
-        const lens = await page.evaluate(() => [...document.querySelectorAll(".nav-items, .nav-logo, .nav-gear, .nav-profile, .hero-actions .btn, .player-bottom, .player-top > div, .player-top .pbtn")].filter((e) => e.offsetWidth > 0 && /url\(/.test(getComputedStyle(e).backdropFilter)).length); // (lenses being SHOWN now)
+        const lens = await page.evaluate(() => [...document.querySelectorAll(".nav-items, .nav-logo, .nav-gear, .nav-profile, .hero-actions .btn, .player-bottom, .player-top > div, .player-top .pbtn, .search-box, .look-notice, .nav-more-sheet")].filter((e) => e.offsetWidth > 0 && /url\(/.test(getComputedStyle(e).backdropFilter)).length); // (lenses being SHOWN now)
         const q0 = await page.evaluate(() => { window.__f = []; const q = window.__v.getVideoPlaybackQuality(); return [q.totalVideoFrames, q.droppedVideoFrames]; });
         const t0 = await times();
         if (process.env.SCROLL === "touch") {
@@ -93,5 +101,5 @@ const r1 = (x) => Math.round(x * 10) / 10;
       } finally { await b.close(); }
     }
   }
-  for (const s of sides) console.log(s, `over ${secs}s: GPU process ${med(res[s].map((v) => v.gpuMs))} ms, page ${med(res[s].map((v) => v.rendererMs))} ms, mean frame ${med(res[s].map((v) => v.mean))} ms, late ${med(res[s].map((v) => v.late))}, video frames dropped ${med(res[s].map((v) => v.dropped))} of ${med(res[s].map((v) => v.video))}`);
+  for (const s of sides) console.log(s, `over ${secs}s: both ${med(res[s].map((v) => v.gpuMs + v.rendererMs))} ms (${res[s].map((v) => v.gpuMs + v.rendererMs).join(" ")}), GPU process ${med(res[s].map((v) => v.gpuMs))} ms, page ${med(res[s].map((v) => v.rendererMs))} ms, mean frame ${med(res[s].map((v) => v.mean))} ms, late ${med(res[s].map((v) => v.late))}, video frames dropped ${med(res[s].map((v) => v.dropped))} of ${med(res[s].map((v) => v.video))}`);
 })().catch((e) => { console.error(e); process.exit(1); });

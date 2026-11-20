@@ -98,6 +98,19 @@ test("the stylesheet shows a url() backdrop only under html[data-lens], and the 
   const always = list("ALWAYS"), atTimes = list("AT_TIMES");
   assert.ok(always.includes(".nav-items"));
   for (const x of always) assert.ok(css.includes(`html[data-look="glass"][data-lens] ${x}`), `glass.css gives ${x} the lens`);
+  // the surfaces that stand alone take it while they are there; never a repeated item
+  const whileOpen = list("WHILE_OPEN");
+  assert.ok(whileOpen.includes(".search-box") && whileOpen.includes(".nav-more-sheet"));
+  for (const x of whileOpen) assert.ok(css.includes(`html[data-look="glass"][data-lens] ${x}`), `glass.css gives ${x} the lens`);
+  for (const x of [".episode", ".dl-row", ".calg-day", ".chip", ".source-row", ".wn-card", ".pref-section"]) {
+    assert.ok(!whileOpen.includes(x) && !always.includes(x), `${x} is not given a lens by the script`);
+    // (no lens rule names it: every rule that sets --rg-lens or a url() under [data-lens])
+    for (const rule of css.replace(/\/\*[\s\S]*?\*\//g, "").split("}")) {
+      if (!/\[data-lens\]/.test(rule) || !/--rg-lens|url\(#rg-/.test(rule)) continue;
+      const sel = rule.slice(0, rule.lastIndexOf("{"));
+      assert.ok(!sel.split(",").some((one) => one.trim().split(/\s+/).pop().split(/(?=[.:\[])/).includes(x)), `${x} has no lens in the stylesheet`);
+    }
+  }
   // the rest take it only while a film is paused — never at rest
   for (const x of atTimes) {
     const at = `html[data-look="glass"][data-lens] .player.is-paused:not(.glass-rest) ${x}`;

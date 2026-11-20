@@ -90,7 +90,7 @@ const jobs = () => {
   void calBase;
   const cal = await call("GET", `/api/profiles/${GLASS}/calendar`);
   const dl = await call("GET", `/api/downloads?profile=${GLASS}`);
-  const state = { url: srv.url, port: Number(new URL(srv.url).port), pid: process.pid, show: show.id, showImdb: library.shows[0].imdbId || null, downloads: dl.length, calendarKeys: Object.keys(cal || {}) };
+  const state = { url: srv.url, root: srv.root, port: Number(new URL(srv.url).port), pid: process.pid, show: show.id, showImdb: library.shows[0].imdbId || null, downloads: dl.length, calendarKeys: Object.keys(cal || {}) };
   if (stateFile) fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
   console.log(JSON.stringify(state));
   const stop = async () => { try { await srv.stop(); } finally { process.exit(0); } };

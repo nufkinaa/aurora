@@ -18,6 +18,7 @@ const WATCH = () => {
   w.start = () => { w.frames = []; last = 0; w.on = true; requestAnimationFrame(loop); };
   w.stop = () => { w.on = false; return w.frames; };
 };
+const X_CSS = `html[data-look="glass"][data-lens]:root :is(.search-box, .look-notice) { --g-blur: blur(6px) saturate(1.8) !important; } html[data-look="glass"][data-lens]:root .nav-more-sheet { -webkit-backdrop-filter: blur(6px) saturate(1.8) brightness(0.62) !important; backdrop-filter: blur(6px) saturate(1.8) brightness(0.62) !important; }`;
 const med = (a) => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
 
 (async () => {
@@ -33,6 +34,8 @@ const med = (a) => { const s = [...a].sort((x, y) => x - y); return s[Math.floor
         await h.page.addInitScript(WATCH);
         await go(h, "home");
         await h.page.waitForSelector(".row .card", { timeout: 30000 });
+        // x: this worktree without the second pass's lenses (the side menu, the search field, a sheet)
+        if (side === "x") await h.page.addStyleTag({ content: X_CSS });
         const plain = { b: ".nav-items", t: ".nav-logo, .nav-gear, .nav-profile, .nav-dl, .hero-actions .btn" }[side];
         if (plain) await h.page.addStyleTag({ content: `${plain.split(",").map((x) => `html[data-look="glass"][data-lens]:root ${x.trim()}`).join(",")} { --g-blur: var(--ge-blur) !important; }` });
         await sleep(1500);

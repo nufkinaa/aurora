@@ -53,11 +53,52 @@ html.remote-open #offline-banner {
 html[data-look="glass"] .remote-screen {
   --rm-radius: 26px;
   --rm-body: 14, 14, 22;
-  --rm-slab: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.012) 55%, rgba(255, 255, 255, 0.028)),
+  /* (real glass, 2026-11-20: the nav's body — darker towards the top, a little
+     violet gathered at the foot — where a white sheen used to come from the top) */
+  --rm-slab: var(--rg-body, linear-gradient(transparent, transparent)),
     linear-gradient(rgba(var(--rm-body), 0.5), rgba(var(--rm-body), 0.5));
-  --rm-lift: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.09));
+  --rm-lift: linear-gradient(rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.13));
   --rm-slab-strong: var(--rm-lift), linear-gradient(rgba(var(--rm-body), 0.5), rgba(var(--rm-body), 0.5));
   --rm-edge: var(--g-edge-thick, inset 0 1px 0 rgba(255, 255, 255, 0.36), inset 0 -1px 0 rgba(255, 255, 255, 0.16), inset 0 0 0 1px rgba(255, 255, 255, 0.075));
+}
+/* Real glass (2026-11-20, glass.css "Real glass, everywhere: the nav's own
+   glass"): every pane of the remote wears the nav's ring — the Fresnel rim
+   and the glint — over the nav's split and rim (--rm-edge is the thick
+   pane's edge). The touchpad keeps its dots on ::before, so its ring is
+   its ::after; the card's ::after is its own, so its ring is its ::before. */
+html[data-look="glass"] :is(.rm-icon-btn, .rm-picker, .rm-skip, .rm-chip, .rm-idle-glyph, .rm-cw-card, .rm-seg, .rm-dpad, .rm-ok, .rm-key, .rm-dock)::before,
+html[data-look="glass"] .rm-touch::after {
+  content: "";
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: auto;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: var(--rg-arc), var(--rg-fresnel);
+  background-repeat: no-repeat;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+:where(html[data-look="glass"]) :where(.rm-icon-btn, .rm-picker, .rm-skip, .rm-chip, .rm-idle-glyph, .rm-cw-card, .rm-seg, .rm-dpad, .rm-ok, .rm-key, .rm-dock, .rm-touch) {
+  position: relative;
+}
+html[data-look="glass"] :is(.rm-icon-btn, .rm-skip, .rm-ok, .rm-idle-glyph) {
+  --rg-arc: var(--rg-arc-s);
+}
+@supports not ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
+  html[data-look="glass"]:root :is(.rm-icon-btn, .rm-picker, .rm-skip, .rm-chip, .rm-idle-glyph, .rm-cw-card, .rm-seg, .rm-dpad, .rm-ok, .rm-key, .rm-dock)::before,
+  html[data-look="glass"]:root .rm-touch::after {
+    content: none;
+  }
+}
+@media (forced-colors: active), (prefers-contrast: more) {
+  html[data-look="glass"]:root :is(.rm-icon-btn, .rm-picker, .rm-skip, .rm-chip, .rm-idle-glyph, .rm-cw-card, .rm-seg, .rm-dpad, .rm-ok, .rm-key, .rm-dock)::before,
+  html[data-look="glass"]:root .rm-touch::after {
+    content: none;
+  }
 }
 html[data-look="glass"] .rm-ok,
 html[data-look="glass"] .rm-seg-btn.on {

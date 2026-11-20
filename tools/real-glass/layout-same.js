@@ -6,6 +6,7 @@
 //   node tools/real-glass/layout-same.js
 "use strict";
 const { launch, openPage, go, sleep } = require("../glass-apple/lib");
+const { OPEN } = require("../glass-apple/targets");
 
 const boxes = () => [...document.querySelectorAll("body *")].filter((e) => !e.closest("#rg-defs") && !e.closest("canvas")).map((e) => {
   const r = e.getBoundingClientRect();
@@ -16,9 +17,13 @@ const boxes = () => [...document.querySelectorAll("body *")].filter((e) => !e.cl
 // surface is as big as the surface. (A surface that is not placed would
 // hand its ring to whatever is placed above it — at 721–1260 px the island's
 // ring was the whole top bar's.)
-const SCOPE = ".nav-items,.nav-logo,.nav-profile,.nav-gear,.nav-dl,.nav-remote,.hero-actions .btn:not(.btn-primary),.detail-actions .btn:not(.btn-primary),.player-bottom,.player-top > div,.player-top .pbtn,.upnext,.resume-card,.quality-pill,.party-pill";
-const rings = (sel) => [...document.querySelectorAll(sel)].filter((e) => e.offsetWidth > 0).map((e) => {
-  const p = getComputedStyle(e, "::before");
+const SCOPE = ".nav-items,.nav-logo,.nav-profile,.nav-gear,.nav-dl,.nav-remote,.hero-actions .btn:not(.btn-primary),.detail-actions .btn:not(.btn-primary),.player-bottom,.player-top > div,.player-top .pbtn,.upnext,.resume-card,.quality-pill,.party-pill" +
+  // (the second pass: every glass pane in the page wears the ring too)
+  ",.menu,.nav-menu,.dropdown,.suggest-list,.toast,.peek,.look-notice,.party-panel,.trailer-box,.search-box,.claim-modal,.pref-section,.pair-card,.request-sent,.dl-callout,.detail-rate,.season-island,.calg-panel,.calg-next,.wn-card,.hero-unmute,.hero-pick,.episode,.source-row-wrap,.taste-tile,.party-strip-item,.profile-tile,.chip,.cat-pill,.season-pill,.source-filter,.picker-btn,.hero-kicker,.calg-arrow,.episode-wrap > .ep-action,.btn:not(.btn-primary),.modal,.login-card";
+const rings = (sel) => [...document.querySelectorAll(sel)].filter((e) => e.offsetWidth > 0).flatMap((e) => (e.matches(".dl-row") ? ["::before", "::after"] : ["::before"]).map((which) => [e, which])).filter(([e, which]) => which === "::before" || e.matches(".dl-row")).map(([e, which]) => {
+  const p = getComputedStyle(e, which);
+  // (a pane's own pseudo-element that is not the ring: the download row's state stripe)
+  if (e.matches(".dl-row") && which === "::before") return null;
   if (p.content === "none") return null;
   const pad = p.boxSizing === "border-box" ? 0 : 1;
   const w = parseFloat(p.width) + pad * (parseFloat(p.paddingLeft) + parseFloat(p.paddingRight)), h = parseFloat(p.height) + pad * (parseFloat(p.paddingTop) + parseFloat(p.paddingBottom));
@@ -36,8 +41,14 @@ const rings = (sel) => [...document.querySelectorAll(sel)].filter((e) => e.offse
       for (const side of ["before", "after"]) {
         const h = await openPage(b, { size, side });
         sides[side] = {};
-        for (const route of ["home", "libfilm", "libshow", "film", "downloads", `#/play/${h.inst.lib.film1}`]) {
-          await go(h, route);
+        const ROUTES = ["home", "libfilm", "libshow", "film", "downloads", `#/play/${h.inst.lib.film1}`, "settings", "movies", "#/calendar", "#/calendar?grid=1", "#/new", "search", "menu", "sheet", ...(size.startsWith("phone") ? ["more"] : [])];
+        for (const route of ROUTES) {
+          // (open things: the profile menu, a sheet, the phone's side menu, the search field with suggestions)
+          if (route === "menu") { await go(h, "home"); await OPEN.profileMenu(h.page); await sleep(500); }
+          else if (route === "sheet") { await go(h, "home"); await OPEN.sheet(h.page); await sleep(500); }
+          else if (route === "more") { await go(h, "home"); await h.page.click(".nav-more"); await sleep(900); }
+          else if (route === "search") { await go(h, "search"); await OPEN.suggest(h.page); await sleep(800); }
+          else await go(h, route);
           if (route.startsWith("#/play")) {
             await h.page.waitForSelector(".player video", { timeout: 25000 });
             await h.page.evaluate(() => { const v = document.querySelector(".player video"); v.pause(); v.currentTime = 5; document.querySelector(".player").classList.remove("controls-hidden"); });

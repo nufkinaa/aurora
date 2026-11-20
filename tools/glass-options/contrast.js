@@ -67,6 +67,19 @@ for (const size of ["desktop", "phone"]) {
   EXTRA.push({ id: `playerdock.${size}`, name: `Player: the dock and the top pills (${size === "phone" ? "phone 402" : "desktop 1440"})`, size, route: play, open: playerOpen(false), roots: ".player-bottom, .player-top, .resume-card", kinds: ["frame"] });
   EXTRA.push({ id: `playermenu.${size}`, name: `Player: the Settings menu (${size === "phone" ? "phone 402" : "desktop 1440"})`, size, route: play, open: playerOpen(true), roots: ".player .menu", kinds: ["frame"] });
 }
+// The second real-glass pass (docs/qa/real-glass/full): the phone's side
+// menu, the Calendar's panes and days, the search field on a phone, and the
+// Downloads rows (those need a server with downloads: GA_INSTANCE pointing at
+// tools/real-glass-app/qa-server.js's state, shaped as instance.json).
+const openMore = async (page) => { await page.click(".nav-more"); await page.waitForSelector(".nav-more-sheet", { timeout: 8000 }); await sleep(700); };
+const { OPEN } = require("../glass-apple/targets");
+EXTRA.push({ id: "more.phone", name: "The side menu, More (phone 402)", size: "phone", route: "home", open: openMore, roots: ".nav-more-sheet", kinds: ["white", "text", "skybright", "black"], max: 40 });
+EXTRA.push({ id: "suggest.phone", name: "Search field and suggestions (phone 402)", size: "phone", route: "search", open: OPEN.suggest, roots: ".suggest-list, .search-box", kinds: ["sky", "skybright"], keepContent: true });
+for (const size of ["desktop", "phone"]) {
+  const n = size === "phone" ? "phone 402" : "desktop 1440";
+  EXTRA.push({ id: `calendar.${size}`, name: `Calendar: Next up, the day's pane, the days (${n})`, size, route: "#/calendar", roots: ".calg-next, .calg-panel, .calg-day.has", kinds: ["sky", "skybright"], keepContent: true, max: 40 });
+  EXTRA.push({ id: `downloads.${size}`, name: `Downloads rows (${n})`, size, route: "downloads", roots: ".dl-row", kinds: ["sky", "skybright"], keepContent: true, max: 40 });
+}
 const TARGETS = [...BASE, ...EXTRA];
 
 (async () => {

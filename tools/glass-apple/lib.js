@@ -16,7 +16,8 @@ const { launch, prime, sleep } = require("../webperf/lib");
 const { HELPERS } = require("./stage");
 
 const ROOT = path.resolve(__dirname, "..", "..");
-const INST = () => JSON.parse(fs.readFileSync(path.join(ROOT, "tools", "mobile-perf", ".cache", "instance.json"), "utf-8"));
+// (GA_INSTANCE: another running instance's state file, shaped as instance.json)
+const INST = () => JSON.parse(fs.readFileSync(process.env.GA_INSTANCE || path.join(ROOT, "tools", "mobile-perf", ".cache", "instance.json"), "utf-8"));
 const SCRATCH = process.env.GA_SCRATCH || path.join(process.env.TEMP || "/tmp", "aurora-agents", "glass-apple");
 
 const UA_PHONE = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36";

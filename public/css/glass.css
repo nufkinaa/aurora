@@ -6271,67 +6271,157 @@ html[data-look="glass"] .party-pill:focus-visible::before {
   }
 }
 
-/* ---------- Real glass, everywhere (2026-11-20) ----------
-   elia: "I still find some elements that were not changed to the new glass
-   look, like episode cards, the search... make sure we have changed
-   everywhere" — and the Calendar. Every pane that wears the glass tokens
-   now takes the still half of real glass: no light along its top (the old
-   hairline and sheen go), a body that is a shade darker towards the top
-   and gathers a little violet towards its foot, a lit foot line, and the
-   violet / mint split at its two ends. CALM values: a page of episode
-   cards, a menu's lines, a month of days must not get busy. No lens here
-   and no new blur — the lens stays on the bars, the hero's button and the
-   paused player; this is box-shadows and two gradients, as cheap as the
-   lines they replace. (The phone's side menu, More, wears none of these
-   tokens and stays as it is.) */
+/* ---------- Real glass, everywhere: the nav's own glass (2026-11-20, second pass) ----------
+   elia, on the calm sweep: "don't let it keep the old look, it should look
+   like the nav and the rest of the btns". So every pane that wears the
+   glass tokens takes the NAV's values, not calm ones: its colour split
+   (--rg-split), its rim (--rg-rim: dark under the top edge, the bezel's
+   soft glow, the violet pool along the foot), its body (--rg-body), its
+   contact shadow with the violet light below (--ge-shadow), and the ring
+   that carries the Fresnel rim and the glint (dim on top, lit down the
+   sides and along the foot; the glint on the left shoulder). No light
+   along the top of any pane (elia's ruling). Rows in a list keep no drop
+   shadow of their own beyond the tight contact one; nothing new is
+   blurred on them.
+   The live lens (glasslens.js) is added only where one surface stands
+   alone; never on a repeated item (an episode card, a row, a day). */
 html[data-look="glass"] {
-  --rg-body-calm:
-    radial-gradient(120% 55% at 50% -20%, rgba(0, 0, 0, 0.16), transparent 62%),
-    radial-gradient(120% 60% at 50% 118%, rgba(var(--rg-pool), 0.07), transparent 60%);
   /* (what every --g-fill* lays over its body: it was a white sheen from the top) */
-  --g-sheen: var(--rg-body-calm);
-  --rg-split-quiet:
-    inset 1px 0 0 0 rgba(var(--rg-warm), 0.3),
-    inset -1px 0 0 0 rgba(var(--rg-cool), 0.3),
-    -1px 0 0 0 rgba(var(--rg-cool), 0.16),
-    1px 0 0 0 rgba(var(--rg-warm), 0.16);
-  --rg-rim-calm:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
-    inset 0 2px 3px -2px rgba(0, 0, 0, 0.36),
-    inset 0 -1px 0 0 rgba(var(--rg-pool), 0.36),
-    inset 0 -6px 8px -7px rgba(var(--rg-pool), 0.3);
+  --g-sheen: var(--rg-body);
   /* a pane in the page, a row, a card */
-  --g-edge: var(--rg-split-quiet), var(--rg-rim-calm), 0 0 0 0.5px rgba(0, 0, 0, 0.3);
-  /* a chip, a small round thing */
-  --g-edge-thin: var(--rg-split-quiet), inset 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 -1px 0 0 rgba(var(--rg-pool), 0.32);
+  --g-edge: var(--rg-split), var(--rg-rim), 0 0 0 1px rgba(0, 0, 0, 0.36);
+  /* a chip, a pill */
+  --g-edge-thin: var(--rg-split), var(--rg-rim), 0 0 0 1px rgba(0, 0, 0, 0.3);
+  /* a small round button */
+  --g-edge-round: var(--rg-split-s), var(--rg-rim), 0 0 0 1px rgba(0, 0, 0, 0.3);
   /* a sheet, a dialog, a toast: the same, its foot a little deeper */
-  --g-edge-thick: var(--rg-split-quiet), inset 0 0 0 1px rgba(255, 255, 255, 0.07), inset 0 3px 4px -2px rgba(0, 0, 0, 0.4),
-    inset 0 -1px 0 0 rgba(var(--rg-pool), 0.26), inset 0 -12px 14px -12px rgba(var(--rg-pool), 0.26), 0 0 0 0.5px rgba(0, 0, 0, 0.3);
-  /* a drop-down menu: its outside line kept */
-  --g-edge-menu: var(--rg-split-quiet), var(--rg-rim-calm), 0 0 0 1px rgba(0, 0, 0, 0.26);
+  --g-edge-thick: var(--rg-split), var(--rg-rim), inset 0 -12px 14px -12px rgba(var(--rg-pool), 0.3), 0 0 0 1px rgba(0, 0, 0, 0.36);
+  /* a drop-down menu */
+  --g-edge-menu: var(--rg-split), var(--rg-rim), 0 0 0 1px rgba(0, 0, 0, 0.36);
+  /* what is afloat: the nav's contact shadow, the soft one, violet light below */
+  --g-shadow: var(--ge-shadow);
+  --g-shadow-menu: 0 1px 1.5px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.32), 0 10px 20px -10px rgba(var(--rg-pool), 0.26);
+  /* a row in a list: the contact shadow alone */
+  --g-shadow-row: 0 1px 1.5px rgba(0, 0, 0, 0.5);
 }
-/* the Calendar's month: a day is a small pane too — no light on top, a lit
-   foot; the days that carry something get the split (an empty day stays plain) */
+/* the rows of a list: their edge and the tight contact shadow */
+html[data-look="glass"] .episode,
+html[data-look="glass"] .source-row,
+html[data-look="glass"] .taste-tile,
+html[data-look="glass"] .party-strip-item,
+html[data-look="glass"] .dl-row {
+  box-shadow: var(--g-edge), var(--g-shadow-row);
+}
+/* the ring that carries the rim and the glint (the nav's, section "Real
+   glass" above). A pane that is not placed is given a place — at no
+   weight (:where), so a pane that is fixed, absolute or sticky stays so;
+   tools/real-glass/layout-same.js is the proof that nothing moved. */
+:where(html[data-look="glass"]) :where(
+  .menu, .nav-menu, .dropdown, .suggest-list, .toast, .peek, .look-notice, .party-panel, .trailer-box,
+  .search-box, .claim-modal, .pref-section, .pair-card, .request-sent, .dl-callout, .detail-rate,
+  .season-island, .calg-panel, .calg-next, .wn-card, .hero-unmute, .hero-pick, .episode, .source-row-wrap,
+  .taste-tile, .party-strip-item, .dl-row, .profile-tile, .chip, .cat-pill, .season-pill, .source-filter,
+  .picker-btn, .hero-kicker, .calg-arrow, .episode-wrap > .ep-action, .btn:not(.btn-primary),
+  .lf-drop, .lf-loose-row, .local-noserver, .dev-room, .dev-group, .dev-offer, .dev-foot
+) {
+  position: relative;
+}
+html[data-look="glass"] :is(
+  .menu, .nav-menu, .dropdown, .suggest-list, .toast, .peek, .look-notice, .party-panel, .trailer-box,
+  .search-box, .claim-modal, .pref-section, .pair-card, .request-sent, .dl-callout, .detail-rate,
+  .season-island, .calg-panel, .calg-next, .wn-card, .hero-unmute, .hero-pick, .episode, .source-row-wrap,
+  .taste-tile, .party-strip-item, .profile-tile, .cat-pill, .season-pill, .source-filter,
+  .picker-btn, .hero-kicker, .calg-arrow, .episode-wrap > .ep-action,
+  .lf-drop, .lf-loose-row, .local-noserver, .dev-room, .dev-group, .dev-offer, .dev-foot,
+  .modal, .login-card
+)::before,
+html[data-look="glass"] .chip:not(.offline-sheet .chip)::before,
+html[data-look="glass"] .btn:not(.btn-primary):not(.hero-actions .btn):not(.detail-actions .btn)::before,
+html[data-look="glass"] .dl-row::after {
+  content: "";
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: auto;
+  overflow: visible;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: var(--rg-arc), var(--rg-fresnel);
+  background-repeat: no-repeat;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+/* (a dialog's and the sign-in card's ring sits above their content, as their
+   corner light did; that light came from the top and is gone) */
+html[data-look="glass"] .modal::before,
+html[data-look="glass"] .login-card::before {
+  z-index: 1;
+}
+/* (the Calendar's day pane stops being sticky below 1100 px — it was made
+   static there; placed, without its sticky offset, it stays where it is) */
+@media (max-width: 1099px) {
+  html[data-look="glass"] .calg-panel {
+    position: relative;
+    top: auto;
+  }
+}
+/* (no ring where the thing is not a pane: a season's segments inside its
+   island, a genre written as plain words in an outline, a quiet toast, and
+   on a phone the plain lines of "your rating" and the action tiles under a
+   title) */
+html[data-look="glass"]:root .season-pill:not(.season-bar-trailing .season-pill)::before,
+html[data-look="glass"]:root .chip.static::before,
+html[data-look="glass"]:root .toast.quiet::before {
+  content: none;
+}
+@media (max-width: 720px) {
+  html[data-look="glass"]:root .detail-hero .detail-rate::before,
+  html[data-look="glass"]:root .detail-actions-more .btn::before {
+    content: none;
+  }
+}
+/* small round things: the round button's split and glint (nothing lit above the middle) */
+html[data-look="glass"] .calg-arrow,
+html[data-look="glass"] .episode-wrap > .ep-action,
+html[data-look="glass"] .btn.btn-icon:not(.hero-actions .btn):not(.detail-actions .btn) {
+  --rg-arc: var(--rg-arc-s);
+}
+html[data-look="glass"]:root .calg-arrow {
+  box-shadow: var(--g-edge-round);
+}
+/* an episode's side buttons (desktop and tablet: on a phone they are bare
+   icons inside the card) are small round panes of the same glass */
+@media (min-width: 721px) {
+  html[data-look="glass"] .episode-wrap > .ep-action {
+    box-shadow: var(--g-edge-round);
+  }
+}
+@media (max-width: 720px) {
+  html[data-look="glass"]:root .episode-wrap > .ep-action::before {
+    content: none;
+  }
+}
+/* the Calendar's month: a day is a small pane too — the nav's rim on the
+   days that carry something, a lit foot on the rest (an empty day stays plain) */
 html[data-look="glass"]:root .calg-day::after {
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 -1px 0 0 rgba(var(--rg-pool), 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 -1px 0 0 rgba(var(--rg-pool), 0.3);
 }
 html[data-look="glass"]:root .calg-day.has::after {
-  box-shadow: var(--rg-split-quiet), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 -1px 0 0 rgba(var(--rg-pool), 0.24);
+  box-shadow: var(--rg-split), var(--rg-rim);
 }
 html[data-look="glass"]:root .calg-day.other::after {
   box-shadow: none;
 }
 html[data-look="glass"]:root .calg-day.today::after {
-  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.75), inset 0 -1px 0 0 rgba(var(--rg-pool), 0.3);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.75), var(--rg-split), inset 0 -7px 9px -7px rgba(var(--rg-pool), 0.45);
 }
 html[data-look="glass"]:root .calg-day.sel::after {
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.95);
 }
 html[data-look="glass"]:root .calg-day:focus-visible::after {
   box-shadow: var(--focus-ring);
-}
-html[data-look="glass"]:root .calg-arrow {
-  box-shadow: var(--g-edge-thin);
 }
 /* a few panes that drew their own white top line */
 html[data-look="glass"]:root .hero-pick:hover {
@@ -6340,18 +6430,148 @@ html[data-look="glass"]:root .hero-pick:hover {
 html[data-look="glass"]:root .hh-tabs .chip.on {
   box-shadow: var(--g-edge-thin);
 }
-/* an episode's side buttons (desktop and tablet: on a phone they are bare
-   icons inside the card) are small panes of the same glass */
-@media (min-width: 721px) {
-  html[data-look="glass"] .episode-wrap > .ep-action {
-    box-shadow: var(--g-edge-thin);
-  }
+/* a pane that takes the keyboard's focus is drawn by its focus ring: the
+   rim's light steps back */
+html[data-look="glass"] :is(.chip, .cat-pill, .season-pill, .source-filter, .picker-btn, .calg-arrow, .ep-action, .btn, .episode, .profile-tile, .hero-pick):focus-visible::before {
+  opacity: 0;
 }
-/* (a phone's panes in the page a touch fuller, 69 % for 67: with the sheen
-   gone from their top the words low in an episode's card read 3.7:1 over a
-   sky painted as one bright band, where they read 3.8 before) */
+/* (a phone's panes in the page a touch fuller, 72 % for 67: the nav's body
+   gathers violet light along a pane's foot, and its rim a glow there, so the
+   words low in an episode's card read 3.9:1 over a sky painted as one bright
+   band at 70 %, where they read 4.0 with the calm glass; at 72 %, 4.0) */
 @media (max-width: 720px) {
   html[data-look="glass"]:root {
-    --g-fill-slab: var(--g-sheen), linear-gradient(rgba(var(--g-tint-slab), 0.7), rgba(var(--g-tint-slab), 0.7));
+    --g-fill-slab: var(--g-sheen), linear-gradient(rgba(var(--g-tint-slab), 0.72), rgba(var(--g-tint-slab), 0.72));
+  }
+}
+/* the phone's side menu (More): glass, as the tab bar it comes from. The
+   same place and the same rows; the panel is now a pane of the nav's glass
+   over the dimmed page (the TV's hues kept in it), with the nav's rim, the
+   glint and rounded far corners. The feather into the page goes: a pane
+   has an edge. */
+@media (max-width: 720px) {
+  html[data-look="glass"]:root .nav-more-sheet {
+    border-radius: 0 28px 28px 0;
+    background:
+      var(--rg-body),
+      linear-gradient(165deg, rgba(104, 86, 226, 0.2) 0%, rgba(10, 11, 20, 0) 46%, rgba(70, 200, 150, 0.12) 100%),
+      linear-gradient(rgba(8, 6, 22, 0.72), rgba(8, 6, 22, 0.72));
+    /* its top, foot and near side are the screen's own edges: the split and
+       the rim only down its open side (no light along the screen's top or foot) */
+    box-shadow:
+      inset -1px 0 0 0 rgba(var(--rg-cool), 0.36),
+      1px 0 0 0 rgba(var(--rg-warm), 0.22),
+      inset 0 0 7px 0 rgba(255, 255, 255, 0.07),
+      inset -7px 0 9px -7px rgba(var(--rg-pool), 0.3),
+      1px 0 0 1px rgba(0, 0, 0, 0.3),
+      var(--ge-shadow);
+    -webkit-backdrop-filter: blur(6px) saturate(1.8) brightness(0.62);
+    backdrop-filter: blur(6px) saturate(1.8) brightness(0.62);
+  }
+  html[data-look="glass"]:root .nav-more-sheet::after {
+    content: "";
+    /* (the ring's top, foot and near side lie just past the screen's edges) */
+    top: -2px;
+    bottom: -2px;
+    left: -2px;
+    right: 0;
+    width: auto;
+    z-index: 2;
+    border-radius: inherit;
+    padding: 1px;
+    background: var(--rg-arc), var(--rg-fresnel);
+    background-repeat: no-repeat;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  }
+  html[data-look="glass"]:root .nav-more-hues {
+    border-radius: inherit;
+    background:
+      radial-gradient(440px 440px at -50px -70px, rgba(104, 86, 226, 0.26), rgba(104, 86, 226, 0) 62%),
+      radial-gradient(460px 460px at -20px calc(100% + 40px), rgba(70, 200, 150, 0.16), rgba(70, 200, 150, 0) 62%);
+  }
+  /* the chosen place and you: small panes of the same glass */
+  html[data-look="glass"]:root .nav-more-item.active,
+  html[data-look="glass"]:root .nav-more-profile {
+    background: var(--rg-body), linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1));
+    box-shadow: var(--rg-split), var(--rg-rim), 0 0 0 1px rgba(0, 0, 0, 0.3);
+  }
+  html[data-look="glass"]:root .nav-more-item:focus-visible {
+    background: #fff;
+    box-shadow: var(--focus-ring);
+  }
+  html[data-look="glass"]:root .nav-more-rule {
+    background: linear-gradient(90deg, rgba(var(--rg-warm), 0.22), rgba(255, 255, 255, 0.09) 40%, rgba(255, 255, 255, 0.09) 60%, rgba(var(--rg-cool), 0.22));
+  }
+}
+/* where nothing behind is blurred or dimmed (reduced transparency, a TV's
+   browser), the side menu keeps a solid panel */
+@media (max-width: 720px) and (prefers-reduced-transparency: reduce) {
+  html[data-look="glass"]:root .nav-more-sheet {
+    background: var(--rg-body), #0a0b14;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+/* a browser that cannot cut the ring out of its square, a person who asked
+   for more contrast or their own colours: no ring */
+@supports not ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
+  html[data-look="glass"]:root :is(
+    .menu, .nav-menu, .dropdown, .suggest-list, .toast, .peek, .look-notice, .party-panel, .trailer-box,
+    .search-box, .claim-modal, .pref-section, .pair-card, .request-sent, .dl-callout, .detail-rate,
+    .season-island, .calg-panel, .calg-next, .wn-card, .hero-unmute, .hero-pick, .episode, .source-row-wrap,
+    .taste-tile, .party-strip-item, .profile-tile, .cat-pill, .season-pill, .source-filter,
+    .picker-btn, .hero-kicker, .calg-arrow, .ep-action, .modal, .login-card,
+    .lf-drop, .lf-loose-row, .local-noserver, .dev-room, .dev-group, .dev-offer, .dev-foot
+  )::before,
+  html[data-look="glass"]:root .chip:not(.offline-sheet .chip)::before,
+  html[data-look="glass"]:root .btn:not(.btn-primary):not(.hero-actions .btn):not(.detail-actions .btn)::before,
+  html[data-look="glass"]:root .dl-row::after,
+  html[data-look="glass"]:root .nav-more-sheet::after {
+    content: none;
+  }
+}
+@media (forced-colors: active), (prefers-contrast: more) {
+  html[data-look="glass"]:root :is(
+    .menu, .nav-menu, .dropdown, .suggest-list, .toast, .peek, .look-notice, .party-panel, .trailer-box,
+    .search-box, .claim-modal, .pref-section, .pair-card, .request-sent, .dl-callout, .detail-rate,
+    .season-island, .calg-panel, .calg-next, .wn-card, .hero-unmute, .hero-pick, .episode, .source-row-wrap,
+    .taste-tile, .party-strip-item, .profile-tile, .cat-pill, .season-pill, .source-filter,
+    .picker-btn, .hero-kicker, .calg-arrow, .ep-action, .modal, .login-card,
+    .lf-drop, .lf-loose-row, .local-noserver, .dev-room, .dev-group, .dev-offer, .dev-foot
+  )::before,
+  html[data-look="glass"]:root .chip:not(.offline-sheet .chip)::before,
+  html[data-look="glass"]:root .btn:not(.btn-primary):not(.hero-actions .btn):not(.detail-actions .btn)::before,
+  html[data-look="glass"]:root .dl-row::after,
+  html[data-look="glass"]:root .nav-more-sheet::after {
+    content: none;
+  }
+}
+/* The live lens (Chromium: js/glasslens.js, WHILE_OPEN) on the surfaces that
+   stand alone: the search field, a sheet while open, and the phone's side
+   menu. (Not the profile menu: its wrapper blurs the page and is its
+   backdrop root, so a lens there would bend a flat colour.) The same frost-light lens as the bar's, under
+   each one's own body (so the words read as before); never on a repeated
+   item. Measured: docs/qa/real-glass/full/README.md. */
+html[data-look="glass"][data-lens] .look-notice {
+  --g-blur: blur(var(--rg-soft)) var(--rg-lens, url(#rg-0)) saturate(1.8);
+}
+/* (the search field a little more frosted than the bar: with the bar's 1.4 px
+   a bright band of sky behind its icons read 3.9:1 on a phone, 4.0 with its
+   old blur) */
+html[data-look="glass"][data-lens] .search-box {
+  --g-blur: blur(3px) var(--rg-lens, url(#rg-0)) saturate(1.8);
+}
+/* (and its body a step fuller, 75 % for 72: the nav's rim lights the inside
+   of its edge, where the mic sits — 3.9:1 there over that band at 72 %) */
+html[data-look="glass"]:root .search-box {
+  background: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.75), rgba(var(--g-tint), 0.75));
+}
+@media (max-width: 720px) {
+  html[data-look="glass"][data-lens] .nav-more-sheet {
+    /* (frosted a little more than the bar: what is behind is a page of words) */
+    -webkit-backdrop-filter: blur(2.5px) var(--rg-lens, url(#rg-0)) saturate(1.8) brightness(0.62);
+    backdrop-filter: blur(2.5px) var(--rg-lens, url(#rg-0)) saturate(1.8) brightness(0.62);
   }
 }

@@ -30,6 +30,8 @@ const SCENES = [
   { id: "toast", route: "home", stage: [OPEN.toast] },
   { id: "sheet", route: "home", stage: [OPEN.sheet] },
   { id: "new", route: "#/new" },
+  // (phones: the side menu, More)
+  { id: "more", route: "home", phone: true, stage: [async (page) => { await page.click(".nav-more"); await page.waitForTimeout(900); }] },
 ];
 (async () => {
   const [out = "sweep", vArg = "a,e", only = ""] = process.argv.slice(2);
@@ -39,7 +41,7 @@ const SCENES = [
   try {
     for (const v of vArg.split(",")) for (const size of ["desktop", "phone-390"]) {
       const h = await openPage(b, { size, side: v === "a" ? "before" : "after", dpr: size === "desktop" ? 2 : 3 });
-      for (const s of SCENES.filter((x) => !pick || pick.includes(x.id))) {
+      for (const s of SCENES.filter((x) => (!pick || pick.includes(x.id)) && !(x.phone && size === "desktop"))) {
         try {
           await go(h, s.route);
           for (const step of s.stage || []) { await step(h.page); await sleep(250); }

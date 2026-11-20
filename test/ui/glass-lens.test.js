@@ -55,6 +55,67 @@ for (const [name, viewport] of [["1440", { width: 1440, height: 900 }], ["1024",
   });
 }
 
+// The second pass (2026-11-20): every glass pane in the page wears the nav's
+// ring — a search field and its suggestions, Settings, a show's episodes, the
+// Calendar, a sheet, the profile menu, the phone's side menu. Each ring is its
+// own pane's (a pane that was not placed is given a place at no weight).
+const PANES = ".menu,.nav-menu,.dropdown,.suggest-list,.toast,.peek,.look-notice,.party-panel,.trailer-box,.search-box,.claim-modal,.pref-section,.pair-card,.request-sent,.dl-callout,.detail-rate,.season-island,.calg-panel,.calg-next,.wn-card,.hero-unmute,.hero-pick,.episode,.source-row-wrap,.taste-tile,.party-strip-item,.profile-tile,.chip,.cat-pill,.season-pill,.source-filter,.picker-btn,.hero-kicker,.calg-arrow,.episode-wrap > .ep-action,.btn:not(.btn-primary)";
+for (const [name, viewport] of [["1440", { width: 1440, height: 900 }], ["390", { width: 390, height: 844 }]]) {
+  ui.test(`glass, ${name} px: every pane in the page wears the nav's ring, its own size`, { viewport }, async ({ page, signIn, freshProfile, goto, lib }) => {
+    const me = await freshProfile();
+    await signIn(me);
+    const show = lib.show;
+    const seen = new Set();
+    const check = async (where) => {
+      await page.waitForTimeout(400);
+      const r = await page.evaluate(rings, PANES);
+      for (const x of r) { seen.add(x.name.split(".")[1]); assert.ok(x.placed && x.own, `${where}: the ring of ${x.name} (${x.size}) is ${x.ring}${x.placed ? "" : ", and the pane is not placed"}`); }
+    };
+    await goto("#/search");
+    await page.locator(".search-box input").fill("te");
+    await page.waitForSelector(".suggest-list", { timeout: 8000 });
+    await check("search");
+    for (const route of ["#/preferences", `#/show/${show.id}`, "#/calendar"]) { await goto(route); await check(route); }
+    await goto("#/");
+    await page.evaluate(async () => (await import("/js/ui.js")).confirmSheet({ title: "Remove it?", text: "A sheet.", ok: "Remove", cancel: "Keep it" }));
+    await page.waitForSelector(".look-notice");
+    await check("a sheet");
+    for (const k of ["search-box", "suggest-list", "pref-section", "episode", "look-notice"]) assert.ok(seen.has(k), `a ring on .${k}`);
+    // what the ring draws: the nav's rim and glint, no light along the top
+    const ring = await page.evaluate(() => getComputedStyle(document.querySelector(".look-notice"), "::before").backgroundImage);
+    assert.match(ring, /radial-gradient/, "the glint");
+    assert.match(ring, /linear-gradient\(rgba\(255, 255, 255, 0\.05\)/, "the Fresnel rim starts dim at the top");
+  });
+}
+
+// The live lens on the surfaces that stand alone (WHILE_OPEN): the search
+// field, a sheet while open, the phone's side menu — never a repeated item.
+for (const [name, viewport] of [["1440", { width: 1440, height: 900 }], ["390", { width: 390, height: 844 }]]) {
+  ui.test(`glass, ${name} px: the search field and an open sheet wear a lens that exists; an episode card never does`, { viewport }, async ({ page, signIn, freshProfile, goto, lib }) => {
+    const me = await freshProfile();
+    await signIn(me);
+    await goto("#/search");
+    await lensReady(page);
+    const worn = (sel) => page.waitForFunction((sel) => { const e = document.querySelector(sel); const m = e && /url\(#(rg-[1-9]\d*)\)/.exec(e.style.getPropertyValue("--rg-lens")); return !!(m && document.getElementById(m[1]) && /url\(/.test(getComputedStyle(e).backdropFilter)); }, sel, { timeout: 8000 });
+    await worn(".search-box");
+    await goto("#/");
+    await lensReady(page);
+    await page.evaluate(async () => (await import("/js/ui.js")).confirmSheet({ title: "Remove it?", text: "A sheet.", ok: "Remove", cancel: "Keep it" }));
+    await worn(".look-notice");
+    if (name === "390") {
+      await page.keyboard.press("Escape");
+      await page.waitForSelector(".look-notice", { state: "detached", timeout: 8000 }).catch(() => {});
+      await page.locator(".nav-more").click();
+      await worn(".nav-more-sheet");
+    }
+    await goto(`#/show/${lib.show.id}`);
+    await page.waitForSelector(".episode");
+    await page.waitForTimeout(600);
+    const cards = await page.evaluate(() => [...document.querySelectorAll(".episode, .dl-row, .calg-day, .chip")].filter((e) => /url\(/.test(getComputedStyle(e).backdropFilter) || e.style.getPropertyValue("--rg-lens")).length);
+    assert.equal(cards, 0, "no repeated item wears a lens");
+  });
+}
+
 ui.test("glass, desktop Chrome: the bar and the buttons wear a lens that exists; the maps come back if they are taken out", async ({ page, signIn, freshProfile, goto }) => {
   const me = await freshProfile();
   await signIn(me);
