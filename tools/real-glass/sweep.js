@@ -22,6 +22,8 @@ const SCENES = [
   { id: "search-results", route: "#/search/Test" },
   { id: "calendar", route: "#/calendar" },
   { id: "calendar-month", route: "#/calendar?grid=1" },
+  // (the Calendar's List view: its switch, then the list)
+  { id: "calendar-list", route: "#/calendar", stage: [async (page) => { const b = page.locator('[data-ui="calendar.view"]', { hasText: "List" }); if (await b.count()) { await b.first().click(); await page.waitForTimeout(900); } }] },
   { id: "movies", route: "movies" },
   { id: "settings", route: "settings" },
   { id: "downloads", route: "downloads" },

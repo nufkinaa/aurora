@@ -6304,7 +6304,13 @@ html[data-look="glass"] {
   /* a row in a list: the contact shadow alone */
   --g-shadow-row: 0 1px 1.5px rgba(0, 0, 0, 0.5);
 }
+/* the Calendar's list: each title is a row of the same glass (it was a faint
+   white box) */
+html[data-look="glass"] .cal-entry {
+  background: var(--g-fill-slab);
+}
 /* the rows of a list: their edge and the tight contact shadow */
+html[data-look="glass"] .cal-entry,
 html[data-look="glass"] .episode,
 html[data-look="glass"] .source-row,
 html[data-look="glass"] .taste-tile,
@@ -6320,7 +6326,7 @@ html[data-look="glass"] .dl-row {
   .menu, .nav-menu, .dropdown, .suggest-list, .toast, .peek, .look-notice, .party-panel, .trailer-box,
   .search-box, .claim-modal, .pref-section, .pair-card, .request-sent, .dl-callout, .detail-rate,
   .season-island, .calg-panel, .calg-next, .wn-card, .hero-unmute, .hero-pick, .episode, .source-row-wrap,
-  .taste-tile, .party-strip-item, .dl-row, .profile-tile, .chip, .cat-pill, .season-pill, .source-filter,
+  .taste-tile, .party-strip-item, .dl-row, .profile-tile, .chip, .cat-pill, .season-pill, .source-filter, .cal-entry,
   .picker-btn, .hero-kicker, .calg-arrow, .episode-wrap > .ep-action, .btn:not(.btn-primary),
   .lf-drop, .lf-loose-row, .local-noserver, .dev-room, .dev-group, .dev-offer, .dev-foot
 ) {
@@ -6330,7 +6336,7 @@ html[data-look="glass"] :is(
   .menu, .nav-menu, .dropdown, .suggest-list, .toast, .peek, .look-notice, .party-panel, .trailer-box,
   .search-box, .claim-modal, .pref-section, .pair-card, .request-sent, .dl-callout, .detail-rate,
   .season-island, .calg-panel, .calg-next, .wn-card, .hero-unmute, .hero-pick, .episode, .source-row-wrap,
-  .taste-tile, .party-strip-item, .profile-tile, .cat-pill, .season-pill, .source-filter,
+  .taste-tile, .party-strip-item, .profile-tile, .cat-pill, .season-pill, .source-filter, .cal-entry,
   .picker-btn, .hero-kicker, .calg-arrow, .episode-wrap > .ep-action,
   .lf-drop, .lf-loose-row, .local-noserver, .dev-room, .dev-group, .dev-offer, .dev-foot,
   .modal, .login-card
@@ -6444,52 +6450,41 @@ html[data-look="glass"] :is(.chip, .cat-pill, .season-pill, .source-filter, .pic
     --g-fill-slab: var(--g-sheen), linear-gradient(rgba(var(--g-tint-slab), 0.72), rgba(var(--g-tint-slab), 0.72));
   }
 }
-/* the phone's side menu (More): glass, as the tab bar it comes from. The
-   same place and the same rows; the panel is now a pane of the nav's glass
-   over the dimmed page (the TV's hues kept in it), with the nav's rim, the
-   glint and rounded far corners. The feather into the page goes: a pane
-   has an edge. */
+/* the phone's side menu (More): the nav's glass, drawn — as the phone app
+   draws it — over the panel's own solid body: the same place and the same
+   rows, the TV's hues kept, the nav's body over them, rounded far corners,
+   and down its open side the split, the rim, a glint and the contact shadow
+   with violet light. No backdrop filter and no masked ring on a panel that
+   slides in: with either, the menu's first 700 ms had a late frame in 5 of
+   16 openings at CPU x4 (1 of 16 today); drawn like this, in none of 16
+   (tools/real-glass/more-open.js, docs/qa/real-glass/full/README.md). Its
+   top, foot and near side are the screen's own edges: no light along them. */
 @media (max-width: 720px) {
   html[data-look="glass"]:root .nav-more-sheet {
     border-radius: 0 28px 28px 0;
     background:
+      /* the glint on the open side's shoulder, a fainter answer near its foot */
+      radial-gradient(circle 14px at 100% 38%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 100%),
+      radial-gradient(circle 16px at calc(100% - 2px) 30%, rgba(var(--rg-warm), 0.22), rgba(var(--rg-warm), 0) 100%),
+      radial-gradient(circle 16px at calc(100% - 2px) 47%, rgba(var(--rg-cool), 0.22), rgba(var(--rg-cool), 0) 100%),
+      radial-gradient(circle 12px at 100% 88%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 100%),
       var(--rg-body),
       linear-gradient(165deg, rgba(104, 86, 226, 0.2) 0%, rgba(10, 11, 20, 0) 46%, rgba(70, 200, 150, 0.12) 100%),
-      linear-gradient(rgba(8, 6, 22, 0.72), rgba(8, 6, 22, 0.72));
-    /* its top, foot and near side are the screen's own edges: the split and
-       the rim only down its open side (no light along the screen's top or foot) */
+      #0a0b14;
     box-shadow:
       inset -1px 0 0 0 rgba(var(--rg-cool), 0.36),
       1px 0 0 0 rgba(var(--rg-warm), 0.22),
       inset 0 0 7px 0 rgba(255, 255, 255, 0.07),
-      inset -7px 0 9px -7px rgba(var(--rg-pool), 0.3),
-      1px 0 0 1px rgba(0, 0, 0, 0.3),
+      inset -7px 0 9px -7px rgba(var(--rg-pool), 0.45),
+      2px 0 0 0 rgba(0, 0, 0, 0.36),
       var(--ge-shadow);
-    -webkit-backdrop-filter: blur(6px) saturate(1.8) brightness(0.62);
-    backdrop-filter: blur(6px) saturate(1.8) brightness(0.62);
   }
+  /* (the feather into the page goes: a pane has an edge) */
   html[data-look="glass"]:root .nav-more-sheet::after {
-    content: "";
-    /* (the ring's top, foot and near side lie just past the screen's edges) */
-    top: -2px;
-    bottom: -2px;
-    left: -2px;
-    right: 0;
-    width: auto;
-    z-index: 2;
-    border-radius: inherit;
-    padding: 1px;
-    background: var(--rg-arc), var(--rg-fresnel);
-    background-repeat: no-repeat;
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    content: none;
   }
   html[data-look="glass"]:root .nav-more-hues {
     border-radius: inherit;
-    background:
-      radial-gradient(440px 440px at -50px -70px, rgba(104, 86, 226, 0.26), rgba(104, 86, 226, 0) 62%),
-      radial-gradient(460px 460px at -20px calc(100% + 40px), rgba(70, 200, 150, 0.16), rgba(70, 200, 150, 0) 62%);
   }
   /* the chosen place and you: small panes of the same glass */
   html[data-look="glass"]:root .nav-more-item.active,
@@ -6505,15 +6500,6 @@ html[data-look="glass"] :is(.chip, .cat-pill, .season-pill, .source-filter, .pic
     background: linear-gradient(90deg, rgba(var(--rg-warm), 0.22), rgba(255, 255, 255, 0.09) 40%, rgba(255, 255, 255, 0.09) 60%, rgba(var(--rg-cool), 0.22));
   }
 }
-/* where nothing behind is blurred or dimmed (reduced transparency, a TV's
-   browser), the side menu keeps a solid panel */
-@media (max-width: 720px) and (prefers-reduced-transparency: reduce) {
-  html[data-look="glass"]:root .nav-more-sheet {
-    background: var(--rg-body), #0a0b14;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-}
 /* a browser that cannot cut the ring out of its square, a person who asked
    for more contrast or their own colours: no ring */
 @supports not ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
@@ -6521,14 +6507,13 @@ html[data-look="glass"] :is(.chip, .cat-pill, .season-pill, .source-filter, .pic
     .menu, .nav-menu, .dropdown, .suggest-list, .toast, .peek, .look-notice, .party-panel, .trailer-box,
     .search-box, .claim-modal, .pref-section, .pair-card, .request-sent, .dl-callout, .detail-rate,
     .season-island, .calg-panel, .calg-next, .wn-card, .hero-unmute, .hero-pick, .episode, .source-row-wrap,
-    .taste-tile, .party-strip-item, .profile-tile, .cat-pill, .season-pill, .source-filter,
+    .taste-tile, .party-strip-item, .profile-tile, .cat-pill, .season-pill, .source-filter, .cal-entry,
     .picker-btn, .hero-kicker, .calg-arrow, .ep-action, .modal, .login-card,
     .lf-drop, .lf-loose-row, .local-noserver, .dev-room, .dev-group, .dev-offer, .dev-foot
   )::before,
   html[data-look="glass"]:root .chip:not(.offline-sheet .chip)::before,
   html[data-look="glass"]:root .btn:not(.btn-primary):not(.hero-actions .btn):not(.detail-actions .btn)::before,
-  html[data-look="glass"]:root .dl-row::after,
-  html[data-look="glass"]:root .nav-more-sheet::after {
+  html[data-look="glass"]:root .dl-row::after {
     content: none;
   }
 }
@@ -6537,41 +6522,35 @@ html[data-look="glass"] :is(.chip, .cat-pill, .season-pill, .source-filter, .pic
     .menu, .nav-menu, .dropdown, .suggest-list, .toast, .peek, .look-notice, .party-panel, .trailer-box,
     .search-box, .claim-modal, .pref-section, .pair-card, .request-sent, .dl-callout, .detail-rate,
     .season-island, .calg-panel, .calg-next, .wn-card, .hero-unmute, .hero-pick, .episode, .source-row-wrap,
-    .taste-tile, .party-strip-item, .profile-tile, .cat-pill, .season-pill, .source-filter,
+    .taste-tile, .party-strip-item, .profile-tile, .cat-pill, .season-pill, .source-filter, .cal-entry,
     .picker-btn, .hero-kicker, .calg-arrow, .ep-action, .modal, .login-card,
     .lf-drop, .lf-loose-row, .local-noserver, .dev-room, .dev-group, .dev-offer, .dev-foot
   )::before,
   html[data-look="glass"]:root .chip:not(.offline-sheet .chip)::before,
   html[data-look="glass"]:root .btn:not(.btn-primary):not(.hero-actions .btn):not(.detail-actions .btn)::before,
-  html[data-look="glass"]:root .dl-row::after,
-  html[data-look="glass"]:root .nav-more-sheet::after {
+  html[data-look="glass"]:root .dl-row::after {
     content: none;
   }
 }
-/* The live lens (Chromium: js/glasslens.js, WHILE_OPEN) on the surfaces that
-   stand alone: the search field, a sheet while open, and the phone's side
-   menu. (Not the profile menu: its wrapper blurs the page and is its
-   backdrop root, so a lens there would bend a flat colour.) The same frost-light lens as the bar's, under
-   each one's own body (so the words read as before); never on a repeated
-   item. Measured: docs/qa/real-glass/full/README.md. */
-html[data-look="glass"][data-lens] .look-notice {
-  --g-blur: blur(var(--rg-soft)) var(--rg-lens, url(#rg-0)) saturate(1.8);
+/* The live lens (Chromium: js/glasslens.js, WHILE_OPEN) on the one surface
+   that stands alone where it is cheap: the search field, from tablet width
+   up — the bar's lens under the field's own body. Never on a repeated item.
+   Measured (docs/qa/real-glass/full/README.md): on a desktop the search
+   page with the field's lens cost what it cost without (the runs overlap);
+   on a phone the field's lens cost +3.3 % (the runs apart) and the side
+   menu's +50 % at rest, so a phone keeps the bar's alone. Not a menu (the
+   profile menu's wrapper blurs the page and is its backdrop root: a lens
+   there would bend a flat colour) and not a sheet (+6.8 % on a desktop, the
+   runs apart, for a bend its thick body hides). */
+@media (min-width: 721px) {
+  /* (a little more frosted than the bar, 3 px for 1.4) */
+  html[data-look="glass"][data-lens] .search-box {
+    --g-blur: blur(3px) var(--rg-lens, url(#rg-0)) saturate(1.8);
+  }
 }
-/* (the search field a little more frosted than the bar: with the bar's 1.4 px
-   a bright band of sky behind its icons read 3.9:1 on a phone, 4.0 with its
-   old blur) */
-html[data-look="glass"][data-lens] .search-box {
-  --g-blur: blur(3px) var(--rg-lens, url(#rg-0)) saturate(1.8);
-}
-/* (and its body a step fuller, 75 % for 72: the nav's rim lights the inside
-   of its edge, where the mic sits — 3.9:1 there over that band at 72 %) */
+/* (the search field's body a step fuller, 75 % for 72: the nav's rim lights
+   the inside of its edge, where the mic sits — 3.9:1 there over a bright
+   band of sky on a phone at 72 %, 4.1 at 75 %; 4.0 with the calm glass) */
 html[data-look="glass"]:root .search-box {
   background: var(--g-sheen), linear-gradient(rgba(var(--g-tint), 0.75), rgba(var(--g-tint), 0.75));
-}
-@media (max-width: 720px) {
-  html[data-look="glass"][data-lens] .nav-more-sheet {
-    /* (frosted a little more than the bar: what is behind is a page of words) */
-    -webkit-backdrop-filter: blur(2.5px) var(--rg-lens, url(#rg-0)) saturate(1.8) brightness(0.62);
-    backdrop-filter: blur(2.5px) var(--rg-lens, url(#rg-0)) saturate(1.8) brightness(0.62);
-  }
 }

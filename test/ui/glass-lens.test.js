@@ -59,7 +59,7 @@ for (const [name, viewport] of [["1440", { width: 1440, height: 900 }], ["1024",
 // ring — a search field and its suggestions, Settings, a show's episodes, the
 // Calendar, a sheet, the profile menu, the phone's side menu. Each ring is its
 // own pane's (a pane that was not placed is given a place at no weight).
-const PANES = ".menu,.nav-menu,.dropdown,.suggest-list,.toast,.peek,.look-notice,.party-panel,.trailer-box,.search-box,.claim-modal,.pref-section,.pair-card,.request-sent,.dl-callout,.detail-rate,.season-island,.calg-panel,.calg-next,.wn-card,.hero-unmute,.hero-pick,.episode,.source-row-wrap,.taste-tile,.party-strip-item,.profile-tile,.chip,.cat-pill,.season-pill,.source-filter,.picker-btn,.hero-kicker,.calg-arrow,.episode-wrap > .ep-action,.btn:not(.btn-primary)";
+const PANES = ".menu,.nav-menu,.dropdown,.suggest-list,.toast,.peek,.look-notice,.party-panel,.trailer-box,.search-box,.claim-modal,.pref-section,.pair-card,.request-sent,.dl-callout,.detail-rate,.season-island,.calg-panel,.calg-next,.wn-card,.hero-unmute,.hero-pick,.episode,.source-row-wrap,.taste-tile,.party-strip-item,.profile-tile,.cal-entry,.chip,.cat-pill,.season-pill,.source-filter,.picker-btn,.hero-kicker,.calg-arrow,.episode-wrap > .ep-action,.btn:not(.btn-primary)";
 for (const [name, viewport] of [["1440", { width: 1440, height: 900 }], ["390", { width: 390, height: 844 }]]) {
   ui.test(`glass, ${name} px: every pane in the page wears the nav's ring, its own size`, { viewport }, async ({ page, signIn, freshProfile, goto, lib }) => {
     const me = await freshProfile();
@@ -88,25 +88,35 @@ for (const [name, viewport] of [["1440", { width: 1440, height: 900 }], ["390", 
   });
 }
 
-// The live lens on the surfaces that stand alone (WHILE_OPEN): the search
-// field, a sheet while open, the phone's side menu — never a repeated item.
+// The live lens on the one surface that stands alone where it is cheap
+// (WHILE_OPEN): the search field, from tablet width up. Never a repeated
+// item, never a sheet; on a phone the bar's alone (the field's and the side
+// menu's lenses cost more than the runs vary there).
 for (const [name, viewport] of [["1440", { width: 1440, height: 900 }], ["390", { width: 390, height: 844 }]]) {
-  ui.test(`glass, ${name} px: the search field and an open sheet wear a lens that exists; an episode card never does`, { viewport }, async ({ page, signIn, freshProfile, goto, lib }) => {
+  ui.test(`glass, ${name} px: ${name === "390" ? "no lens on the search field or the side menu" : "the search field wears a lens that exists"}; a sheet and an episode card never do`, { viewport }, async ({ page, signIn, freshProfile, goto, lib }) => {
     const me = await freshProfile();
     await signIn(me);
+    const filterOf = (sel) => page.evaluate((sel) => getComputedStyle(document.querySelector(sel)).backdropFilter, sel);
     await goto("#/search");
     await lensReady(page);
-    const worn = (sel) => page.waitForFunction((sel) => { const e = document.querySelector(sel); const m = e && /url\(#(rg-[1-9]\d*)\)/.exec(e.style.getPropertyValue("--rg-lens")); return !!(m && document.getElementById(m[1]) && /url\(/.test(getComputedStyle(e).backdropFilter)); }, sel, { timeout: 8000 });
-    await worn(".search-box");
+    if (name === "390") {
+      await page.waitForTimeout(600);
+      assert.doesNotMatch(await filterOf(".search-box"), /url\(/, "a phone's search field keeps its plain frost");
+    } else {
+      await page.waitForFunction(() => { const e = document.querySelector(".search-box"); const m = e && /url\(#(rg-[1-9]\d*)\)/.exec(e.style.getPropertyValue("--rg-lens")); return !!(m && document.getElementById(m[1]) && /url\(/.test(getComputedStyle(e).backdropFilter)); }, null, { timeout: 8000 });
+    }
     await goto("#/");
     await lensReady(page);
     await page.evaluate(async () => (await import("/js/ui.js")).confirmSheet({ title: "Remove it?", text: "A sheet.", ok: "Remove", cancel: "Keep it" }));
-    await worn(".look-notice");
+    await page.waitForSelector(".look-notice");
+    await page.waitForTimeout(500);
+    assert.doesNotMatch(await filterOf(".look-notice"), /url\(/, "a sheet keeps its plain frost");
     if (name === "390") {
-      await page.keyboard.press("Escape");
-      await page.waitForSelector(".look-notice", { state: "detached", timeout: 8000 }).catch(() => {});
+      await goto("#/");
       await page.locator(".nav-more").click();
-      await worn(".nav-more-sheet");
+      await page.waitForSelector(".nav-more-sheet");
+      await page.waitForTimeout(500);
+      assert.doesNotMatch(await filterOf(".nav-more-sheet"), /url\(/, "the side menu has no lens");
     }
     await goto(`#/show/${lib.show.id}`);
     await page.waitForSelector(".episode");

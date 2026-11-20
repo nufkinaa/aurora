@@ -100,7 +100,7 @@ test("the stylesheet shows a url() backdrop only under html[data-lens], and the 
   for (const x of always) assert.ok(css.includes(`html[data-look="glass"][data-lens] ${x}`), `glass.css gives ${x} the lens`);
   // the surfaces that stand alone take it while they are there; never a repeated item
   const whileOpen = list("WHILE_OPEN");
-  assert.ok(whileOpen.includes(".search-box") && whileOpen.includes(".nav-more-sheet"));
+  assert.deepEqual(whileOpen, [".search-box"], "the search field alone (the side menu and a sheet cost more than the runs vary)");
   for (const x of whileOpen) assert.ok(css.includes(`html[data-look="glass"][data-lens] ${x}`), `glass.css gives ${x} the lens`);
   for (const x of [".episode", ".dl-row", ".calg-day", ".chip", ".source-row", ".wn-card", ".pref-section"]) {
     assert.ok(!whileOpen.includes(x) && !always.includes(x), `${x} is not given a lens by the script`);

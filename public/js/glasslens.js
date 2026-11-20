@@ -24,23 +24,28 @@
 // measured — 12 % more processor time on a desktop Home at rest, nearly four
 // times as much over a playing film (tools/real-glass/player-cost.js).
 const ALWAYS = [".nav-items", ".hero-actions .btn:not(.btn-primary)"];
-//   - while it is there: a surface that stands alone and comes and goes
-//     (glass.css, "Real glass, everywhere: the nav's own glass") — the
-//     search field, the phone's side menu (More), a sheet while open. Never
-//     a repeated item (an episode card, a row, a day): one lens per surface
-//     is what is paid for every frame the sky moves behind it. (Not the
-//     profile menu: its wrapper blurs the page and is its backdrop root, so
-//     a lens there would bend a flat colour.)
-const WHILE_OPEN = [".search-box", ".nav-more-sheet", ".look-notice"];
+//   - while it is there: the search field, from tablet width up — a
+//     surface that stands alone (glass.css, "Real glass, everywhere: the
+//     nav's own glass"). Never a repeated item (an episode card, a row, a
+//     day): one lens per surface is what is paid for every frame the sky
+//     moves behind it. Measured (docs/qa/real-glass/full/README.md): the
+//     search field's costs nothing a desktop's runs can tell apart; on a
+//     phone the field's runs did not overlap (+3.3 %) and the side menu's
+//     cost half as much again (+50 % at rest, a panel the height of the
+//     screen), so a phone keeps the bar's alone. Not the profile menu (its
+//     wrapper blurs the page and is its backdrop root: a lens there would
+//     bend a flat colour) and not a sheet (+6.8 % on a desktop with a sheet
+//     open, the runs apart, for a bend its thick body hides).
+const WHILE_OPEN = [".search-box"];
 const AT_TIMES = [".player-bottom", ".player-top > div", ".player-top .pbtn"];
 const SCOPE = [...ALWAYS, ...WHILE_OPEN, ...AT_TIMES].join(",");
 const FIRST = [...ALWAYS, ...WHILE_OPEN].join(",");
 const OPENING = WHILE_OPEN.join(",");
-// On a phone the stylesheet gives the lens to the tab bar, the search field
-// and the side menu alone (the More menu's first frame — glass.css, "Phones:
-// the lens is the tab bar's alone"): no maps are drawn for the rest.
+// On a phone the stylesheet gives the lens to the tab bar alone (the More
+// menu's first frame — glass.css, "Phones: the lens is the tab bar's
+// alone"): no maps are drawn for the rest.
 const PHONE = "(max-width: 720px)";
-const PHONE_ONLY = ".nav-items, .search-box, .nav-more-sheet, .look-notice";
+const PHONE_ONLY = ".nav-items";
 
 const NS = "http://www.w3.org/2000/svg";
 const MAX_FILTERS = 28;

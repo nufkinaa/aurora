@@ -1,5 +1,7 @@
 # Real glass (2026-11-20, fifth pass)
 
+> Since then: every other glass surface takes these same full values (no calm variant any more), the phone's side menu and the Remote included, with a live lens on the search field from tablet width up. See `full/README.md`. The "Unchanged" list below is history.
+
 elia asked for "a look of real looking glass with chromatic aberration for the btns", on "the nav and every glass btn across the board". This is that look, on the website and in the Android phone app. The TV app is not touched.
 
 Two jurors scored the first pass 7 and 6.5 (a drawn rainbow outline; metal rings) and the second 7.5 (the bars read as real glass, but every surface without a lens looked almost like today, with no colour split at all). The third scored 8.5 and 8.3; this fourth pass changes values and cost only. Sheets: `final/` (first), `final2/` (second), `final3/` (third), `final4/` (this one, a short set).
