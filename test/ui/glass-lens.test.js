@@ -77,7 +77,7 @@ for (const [name, viewport] of [["1440", { width: 1440, height: 900 }], ["390", 
     await check("search");
     for (const route of ["#/preferences", `#/show/${show.id}`, "#/calendar"]) { await goto(route); await check(route); }
     await goto("#/");
-    await page.evaluate(async () => (await import("/js/ui.js")).confirmSheet({ title: "Remove it?", text: "A sheet.", ok: "Remove", cancel: "Keep it" }));
+    await page.evaluate(async () => { (await import("/js/ui.js")).confirmSheet({ title: "Remove it?", text: "A sheet.", ok: "Remove", cancel: "Keep it" }); });
     await page.waitForSelector(".look-notice");
     await check("a sheet");
     for (const k of ["search-box", "suggest-list", "pref-section", "episode", "look-notice"]) assert.ok(seen.has(k), `a ring on .${k}`);
@@ -107,12 +107,13 @@ for (const [name, viewport] of [["1440", { width: 1440, height: 900 }], ["390", 
     }
     await goto("#/");
     await lensReady(page);
-    await page.evaluate(async () => (await import("/js/ui.js")).confirmSheet({ title: "Remove it?", text: "A sheet.", ok: "Remove", cancel: "Keep it" }));
+    await page.evaluate(async () => { (await import("/js/ui.js")).confirmSheet({ title: "Remove it?", text: "A sheet.", ok: "Remove", cancel: "Keep it" }); });
     await page.waitForSelector(".look-notice");
     await page.waitForTimeout(500);
     assert.doesNotMatch(await filterOf(".look-notice"), /url\(/, "a sheet keeps its plain frost");
+    await page.getByRole("button", { name: "Keep it" }).click();
+    await page.waitForSelector(".look-notice-wrap", { state: "detached", timeout: 8000 });
     if (name === "390") {
-      await goto("#/");
       await page.locator(".nav-more").click();
       await page.waitForSelector(".nav-more-sheet");
       await page.waitForTimeout(500);
