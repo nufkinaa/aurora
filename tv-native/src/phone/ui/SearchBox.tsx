@@ -5,7 +5,7 @@ import React, {forwardRef} from 'react';
 import {StyleSheet, Text, TextInput, TextInputProps, View} from 'react-native';
 import Icon from './Icon';
 import Tap from './Tap';
-import {colors, G_EDGE, G_FILL} from '../theme';
+import {colors, RG_CALM_EDGE_SOFT, G_FILL} from '../theme';
 
 type Props = TextInputProps & {
   onClear?: () => void;
@@ -60,7 +60,7 @@ const s = StyleSheet.create({
     paddingRight: 12,
     backgroundColor: 'rgba(60,64,160,0.22)',
     experimental_backgroundImage: G_FILL,
-    ...G_EDGE,
+    ...RG_CALM_EDGE_SOFT,
   },
   input: {flex: 1, minWidth: 0, height: 56, padding: 0, color: colors.text, fontSize: 20, fontWeight: '600'},
   clear: {width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)'},

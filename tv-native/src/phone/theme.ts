@@ -53,20 +53,35 @@ export const colors = {
      gradient centre above the pane).
    Box shadows and gradients only - no GlassRim drawing here (one SVG per row
    would cost); GlassRim stays on the chrome. Chips, small round things and
-   the Calendar's days carry no blurred shadow at all. Inset shadows need
+   the Calendar's days carry no blurred shadow at all - and neither does
+   anything that comes many to a screen (a row, a card in a list, a glass
+   button inside one): on the Pixel 9 emulator a list of rows with the two
+   blurred inset shadows drew a frame in 300-350 ms where today's drew one in
+   57 (docs/qa/real-glass/sweep/README.md, "The phone app on a device"). Those
+   keep the sharp lines - the split and the lit foot (RG_RIM_FLAT); the soft
+   rim (RG_RIM_CALM) is for a pane that stands alone and does not scroll by
+   the dozen: the search field, the profile menu, a toast. Inset shadows need
    Android 10+; an older phone shows the even hairline and the outside halves. */
 /** The quiet split (--rg-split-quiet). */
 export const RG_SPLIT_QUIET =
   'inset 1px 0 0 0 rgba(232,121,249,0.3), inset -1px 0 0 0 rgba(94,234,212,0.3), -1px 0 0 0 rgba(94,234,212,0.16), 1px 0 0 0 rgba(232,121,249,0.16)';
 /** The calm rim (--rg-rim-calm, less its hairline: the border carries it): the shade under the top edge, the lit foot line, the light gathered above it. */
 export const RG_RIM_CALM = 'inset 0 2px 3px -2px rgba(0,0,0,0.36), inset 0 -1px 0 0 rgba(168,150,255,0.36), inset 0 -7px 9px -7px rgba(168,150,255,0.42)';
+/** The calm rim with nothing blurred: the lit foot line alone. For rows and cards (anything that comes many to a screen). */
+export const RG_RIM_FLAT = 'inset 0 -1px 0 0 rgba(168,150,255,0.36)';
 /** The even hairline all round (the rim's inset 0 0 0 1px rgba(255,255,255,.06)), as a border colour. */
 export const RG_CALM_HAIR = 'rgba(255,255,255,0.06)';
 /** The calm body (--rg-body-calm): top shade 0.16, foot light 0.13. */
 export const RG_CALM_BODY =
   'radial-gradient(ellipse 70% 34% at 50% 0%, rgba(0,0,0,0.16) 0%, rgba(0,0,0,0) 100%), radial-gradient(ellipse 120% 60% at 50% 118%, rgba(168,150,255,0.13) 0%, rgba(168,150,255,0) 60%)';
-/** A pane's calm edge (--g-edge): a panel, a row, a card. */
+/** A pane's calm edge (--g-edge): a panel, a row, a card - sharp lines only (the split, the lit foot). */
 export const RG_CALM_EDGE = {
+  borderWidth: 1,
+  borderColor: RG_CALM_HAIR,
+  boxShadow: `${RG_SPLIT_QUIET}, ${RG_RIM_FLAT}`,
+} as const;
+/** The same with the soft rim (the shade under the top edge, the light gathered above the foot): a pane that stands alone. */
+export const RG_CALM_EDGE_SOFT = {
   borderWidth: 1,
   borderColor: RG_CALM_HAIR,
   boxShadow: `${RG_SPLIT_QUIET}, ${RG_RIM_CALM}`,
@@ -135,8 +150,9 @@ export const E_EDGE = {
   borderWidth: 1,
   borderColor: 'rgba(176,164,255,0.26)',
   // + the calm rim (2026-11-20): a glass button in the page (not floating over a picture) keeps E's
-  // even violet rim and its dark outside line, and takes the quiet split, the shade and the lit foot
-  boxShadow: `${RG_SPLIT_QUIET}, ${RG_RIM_CALM}, 0 0 0 1px rgba(0,0,0,0.38)`,
+  // even violet rim and its dark outside line, and takes the quiet split and the lit foot (sharp lines
+  // only: these buttons sit inside rows of a list too - see RG_RIM_FLAT)
+  boxShadow: `${RG_SPLIT_QUIET}, ${RG_RIM_FLAT}, 0 0 0 1px rgba(0,0,0,0.38)`,
 } as const;
 /** The player's menu: the same even rim, the outside line 0.4. (The TV app's shared player wears this one: it stays as it was.) */
 export const E_EDGE_THICK = {

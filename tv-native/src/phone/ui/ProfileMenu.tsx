@@ -11,7 +11,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {closeProfileMenu, useProfileMenu} from '../profileMenu';
 import {useBarTop} from './TopBar';
 import Tap from './Tap';
-import {colors, G_EDGE, G_FILL, GUTTER} from '../theme';
+import {colors, RG_CALM_EDGE_SOFT, G_FILL, GUTTER} from '../theme';
 
 export default function ProfileMenu() {
   const {shown, name, items} = useProfileMenu();
@@ -78,7 +78,7 @@ const s = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: 'rgba(14,16,30,0.94)',
     experimental_backgroundImage: G_FILL,
-    ...G_EDGE,
+    ...RG_CALM_EDGE_SOFT,
     elevation: 16,
     shadowColor: '#000',
   },
