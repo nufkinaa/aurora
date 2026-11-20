@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.40 — 2026-11-20
+
+- **Full real glass, everywhere (website and Android phone app).** The calm version from 1.15.39 is gone: every glass pane now wears exactly the bars' glass - episode cards and their buttons, rows, Downloads, the search field and its suggestions, chips, Settings, menus, sheets, dialogs, messages, the Calendar (its list rows too), What's new, the Remote, and the phone's side menu. On a computer or tablet the search field bends what is behind it, like the top bar. Nothing moves, words read as clearly as before, and scrolling is as smooth as before.
+- **Aurora for Android phones 1.1.9** — the same full glass on every pane: rows, cards, chips, fields, sheets, the profile menu, the Calendar and the Remote.
+
 ## 1.15.39 — 2026-11-20
 
 - **Real glass, everywhere (website).** Every glass pane now wears the same glass as the bars: episode cards and their side buttons, the search field and its suggestions, chips and filters, Settings, the Calendar (its days, the day's pane and Next up), menus, sheets, dialogs and messages. No line along the top, a soft violet glow at the foot and a faint violet and mint edge, kept calm so long lists stay easy to read. Nothing moves, words read as clearly as before, and scrolling is as smooth as before. The phone's side menu keeps its look.
