@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.39 — 2026-11-20
+
+- **Real glass, everywhere (website).** Every glass pane now wears the same glass as the bars: episode cards and their side buttons, the search field and its suggestions, chips and filters, Settings, the Calendar (its days, the day's pane and Next up), menus, sheets, dialogs and messages. No line along the top, a soft violet glow at the foot and a faint violet and mint edge, kept calm so long lists stay easy to read. Nothing moves, words read as clearly as before, and scrolling is as smooth as before. The phone's side menu keeps its look.
+
 ## 1.15.38 — 2026-11-20
 
 - **Pull from GitHub no longer stops on package-lock.json (admin page).** A server's own `npm install` rewrites that one file, and then every pull refused with "your local changes would be overwritten". Pull, Update and restart, and Install dependencies now put package-lock.json back to the committed version (only that file; any other file changed by hand still stops the pull).

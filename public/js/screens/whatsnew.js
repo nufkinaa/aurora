@@ -21,12 +21,20 @@ import { showReportSheet } from "../report.js";
 // (The TV has the same cards: tv-native/src/screens/WhatsNew.tsx, ROUND there.
 // A card about something only a browser has says `webOnly: true` first —
 // test/whatsnew-parity.test.js leaves it out of the comparison.)
-export const ROUND = "1.15.37";
+export const ROUND = "1.15.39";
 const NEW_FROM = ROUND;
 const FEATURES = [
+  // ---- 1.15.39: real glass everywhere (website) ----
+  {
+    webOnly: true, since: ROUND, cue: "tap", glyph: "🪟",
+    title: "Real glass, everywhere",
+    what: "Episode cards, search and its suggestions, chips, the Calendar, Settings, menus, sheets and messages now wear the same glass as the bars: no line along the top, a soft violet glow at the foot and a faint violet and mint edge. Kept calm, so long lists stay easy to read.",
+    how: "Open a show's episodes, the search or the Calendar.",
+    go: { label: "Calendar", to: "#/calendar" },
+  },
   // ---- 1.15.37: real glass (website and phone app; the TV keeps its look) ----
   {
-    webOnly: true, since: ROUND, cue: "tap", glyph: "🔮",
+    webOnly: true, since: "1.15.37", cue: "tap", glyph: "🔮",
     title: "Real glass",
     what: "The bars and glass buttons now look like thick glass: the picture behind the top bar and the phone's bottom bar bends a little and its edges split into red and blue, the way a lens does. The rim catches the light at the sides and the foot, with no line along the top. The Android app has the new rim too.",
     how: "Open Home and scroll the posters under the bar.",
