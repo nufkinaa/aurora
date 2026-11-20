@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.37 — 2026-11-20
+
+- **Real glass (website and Android phone app).** The bars and glass buttons that float over pictures now look like thick glass. On the website the top bar, the phone's bottom bar, the hero's glass button and a paused film's controls bend what is behind them, and its edges split into red and blue, like a lens (Chrome, Edge and Android browsers; Safari and Firefox get the rest of the look). Every glass button has a rim that catches the light at its sides and foot in Aurora's violet and mint, a darker top, a soft violet glow below, and no line along the top. Words read as clearly as before, scrolling and playback are as smooth as before, and the TV keeps its look.
+- **Aurora for Android phones 1.1.8** — the new glass rim on the bars and round buttons.
+
 ## 1.15.36 — 2026-11-19
 
 - **Continue Watching made reliable (website, TV, phone app and the TV launcher).** Each series has one card everywhere: back from the player the row shows the next episode instead of keeping the old one beside it. The row is read after the player's last save, and again when the app or the tab comes back, so it follows every device. The TV keeps its focus on the row when a finished title leaves it. Cards show and resume from the newest spot, whichever device saved it; opening and leaving a title no longer moves the resume point back. Up next survives finished episodes leaving the disk and never offers another copy of the episode just finished. A stream titled with its year joins its library show. Minutes watched offline and sent later keep their real time (even when the phone's clock is off) instead of jumping the row back. Undo after ✕ puts the card back in its place, and stays done after a restart. The TV launcher's rows follow a ✕ and leaving with the Home button.
