@@ -41,9 +41,12 @@ type Props = {
    *  border's width, the drawing laid over the pane's whole box, border included (w and h are then
    *  the pane's outer size) */
   edge?: number;
+  /** the pane has no foot on screen (a sheet standing on the screen's lower edge): the ring runs on
+   *  past the pane's bottom, where the pane cuts it away - no lit line along the screen's edge */
+  footless?: boolean;
 };
 
-function GlassRim({w, h, small, calm, r, edge}: Props) {
+function GlassRim({w, h, small, calm, r, edge, footless}: Props) {
   const arcs = small ? RG_ARCS_S : RG_ARCS;
   const known = w != null && h != null;
   const rad = r != null ? r : known ? Math.min((h as number) / 2, (w as number) / 2) : h != null ? h / 2 : 0;
@@ -55,7 +58,8 @@ function GlassRim({w, h, small, calm, r, edge}: Props) {
   // where a light sits: a number when the size is known, a percentage of it when not
   const cx = (a: {fx: number; dx: number}) => (w != null ? a.fx * w + a.dx : a.fx === 0 ? a.dx : `${a.fx * 100}%`);
   const cy = (a: {fy: number}) => (h != null ? a.fy * h : `${a.fy * 100}%`);
-  const at = edge ? {position: 'absolute' as const, left: -edge, top: -edge, right: -edge, bottom: -edge} : StyleSheet.absoluteFill;
+  const e = edge || 0;
+  const at = edge || footless ? {position: 'absolute' as const, left: -e, top: -e, right: -e, bottom: footless ? -(e + 24) : -e} : StyleSheet.absoluteFill;
   return (
     <View style={[at, calm && s.calm]} pointerEvents="none" importantForAccessibility="no-hide-descendants">
       <Svg width={w != null ? w : '100%'} height={h != null ? h : '100%'}>

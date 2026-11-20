@@ -32,7 +32,7 @@ import {useBarTop} from '../ui/TopBar';
 import {useTabBarSpace} from '../ui/TabBar';
 import Tap from '../ui/Tap';
 import {phoneNative} from '../native';
-import {edgeAll, GUTTER, RG_LINES} from '../theme';
+import {GUTTER, RG_FIELD, RG_FIELD_ON} from '../theme';
 import Burst from '../../play/Burst';
 import {LINEAR, tween, useCalm, useInFront, useTimers, useValue} from '../../play/anim';
 import {GLOW_SRC, Star} from '../../play/Star';
@@ -618,7 +618,7 @@ const s = StyleSheet.create({
   input: {
     minHeight: 54,
     backgroundColor: 'rgba(4,4,16,0.6)',
-    ...RG_LINES,
+    ...RG_FIELD,
     borderWidth: 1.5,
     borderRadius: 16,
     color: PLAY.ink,
@@ -626,7 +626,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 17,
     paddingVertical: 13,
   },
-  inputOn: {...edgeAll(PLAY.teal), boxShadow: '0 0 0 3px rgba(58,211,230,0.18)'},
+  inputOn: {...RG_FIELD_ON(PLAY.teal), boxShadow: '0 0 0 3px rgba(58,211,230,0.18)'},
   tune: {marginTop: 4, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', gap: 12},
   switch: {flexDirection: 'row', alignSelf: 'flex-start', width: 236, maxWidth: '100%', padding: 4, borderRadius: 999, backgroundColor: 'rgba(4,4,16,0.6)', borderWidth: 1, borderColor: PLAY.line},
   switchOpt: {flex: 1, minHeight: 40, borderRadius: 999, alignItems: 'center', justifyContent: 'center', paddingVertical: 8, paddingHorizontal: 6},

@@ -43,7 +43,7 @@ import Tap from '../ui/Tap';
 import {PrimaryButton} from '../ui/Buttons';
 import {phoneNative} from '../native';
 import {pushPhone} from '../nav';
-import {colors, edgeAll, RG_EDGE, RG_LINES, RG_RINGED, RG_RINGED_S} from '../theme';
+import {colors, edgeAll, RG_EDGE, RG_FIELD, RG_LINES, RG_RINGED, RG_RINGED_S} from '../theme';
 import GlassRim from '../ui/GlassRim';
 
 const LAST_KEY = 'aurora.phone.remote.last';
@@ -766,5 +766,5 @@ const s = StyleSheet.create({
   delayBtnText: {color: colors.text, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums']},
   delayVal: {minWidth: 58, textAlign: 'center', color: colors.text, fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums']},
   rename: {flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 4},
-  input: {flex: 1, minWidth: 0, height: 48, paddingHorizontal: 14, borderRadius: 14, ...RG_LINES, backgroundColor: 'rgba(0,0,0,0.3)', color: colors.text, fontSize: 16},
+  input: {flex: 1, minWidth: 0, height: 48, paddingHorizontal: 14, borderRadius: 14, ...RG_FIELD, backgroundColor: 'rgba(0,0,0,0.3)', color: colors.text, fontSize: 16},
 });

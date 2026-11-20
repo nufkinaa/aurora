@@ -275,6 +275,16 @@ export const RG_LINES = {
   borderRightColor: RG_SPLIT_R,
   borderBottomColor: RG_FOOT,
 } as const;
+/** A text field (a TextInput): Android's text field draws ONE border colour on all four sides (it took the right side's
+ *  mint for all of them on the Pixel 9 emulator), so its border is the even dim top colour and the split and the lit foot
+ *  are sharp inset lines (no blur) just inside it. A focused field recolours its border and drops them (RG_FIELD_ON). */
+export const RG_FIELD = {
+  borderWidth: 1,
+  ...edgeAll(RG_HAIR),
+  borderColor: RG_HAIR,
+  boxShadow: `inset 1px 0 0 0 ${RG_SPLIT_L}, inset -1px 0 0 0 ${RG_SPLIT_R}, inset 0 -1px 0 0 ${RG_FOOT}`,
+} as const;
+export const RG_FIELD_ON = (c: string) => ({...edgeAll(c), borderColor: c, boxShadow: 'none'}) as const;
 /** A row of a list (Downloads, the Calendar's list, sources, saved titles): the lines alone, no body gradient - as light to draw as today's. */
 export const RG_ROW = RG_LINES;
 /** A pane in the page that comes a few to a screen (a card of words, a group, a note): the lines and the nav's body. */
@@ -295,10 +305,11 @@ export const RG_RINGED_S = {
   ...edgeAll('transparent'),
   boxShadow: RG_EDGE_SMALL.boxShadow,
 } as const;
-/** A sheet rising from the foot of the screen: the same, the sheet keeps its own border widths (no bottom side). */
+/** A sheet rising from the foot of the screen: the same less the lit foot (its foot is the screen's edge, not glass),
+ *  the sheet keeps its own border widths (no bottom side). */
 export const RG_SHEET = {
   ...edgeAll('transparent'),
-  boxShadow: RG_EDGE.boxShadow,
+  boxShadow: `${RG_SPLIT}, inset 0 0 7px 0 rgba(255,255,255,0.07), inset 0 3px 4px -2px rgba(0,0,0,0.42), 0 0 0 1px rgba(0,0,0,0.36)`,
 } as const;
 /** A day of the Calendar's month: a plain one carries the lit foot on its border; one that carries something wears the
  *  split and the lit foot over its picture (.calg-day / .calg-day.has). */

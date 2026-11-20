@@ -64,7 +64,7 @@ export default function Sheet({
             transform: [{translateY: y.interpolate({inputRange: [0, 1], outputRange: [0, 400]})}],
           },
         ]}>
-        <GlassRim r={radius.xl + 6} edge={1} />
+        <GlassRim r={radius.xl + 6} edge={1} footless />
         <View style={s.handle} />
         {title ? (
           <Text style={s.title} numberOfLines={2}>
