@@ -22,7 +22,7 @@ import Tap from '../ui/Tap';
 import Icon from '../ui/Icon';
 import {BackBar, useSolidBar} from '../ui/PageHead';
 import {useTabBarSpace} from '../ui/TabBar';
-import {colors, GUTTER, radius, RG_CALM_PANE} from '../theme';
+import {colors, GUTTER, radius, edgeAll, RG_CALM_ROW} from '../theme';
 
 const QUALITY_COLOR: Record<string, string> = {'2160p': '#c084fc', '1080p': '#60a5fa', '720p': '#34d399', '480p': '#fbbf24', SD: '#9aa1b5'};
 const DL_ACTIVE = ['pending', 'approved', 'downloading'];
@@ -272,9 +272,9 @@ const st = StyleSheet.create({
   sub: {color: colors.textDim, fontSize: 15, marginTop: 4},
   release: {color: '#ffcf8a', fontSize: 15, fontWeight: '700', marginTop: 10},
   empty: {padding: 40, alignItems: 'center'},
-  row: {marginHorizontal: GUTTER, marginBottom: 10, padding: 14, borderRadius: radius.l, backgroundColor: colors.glass, ...RG_CALM_PANE},
-  rowOwned: {borderColor: 'rgba(111,224,176,0.45)', backgroundColor: 'rgba(80,200,150,0.10)'},
-  rowBest: {borderColor: 'rgba(139,123,255,0.55)'},
+  row: {marginHorizontal: GUTTER, marginBottom: 10, padding: 14, borderRadius: radius.l, backgroundColor: colors.glass, ...RG_CALM_ROW},
+  rowOwned: {...edgeAll('rgba(111,224,176,0.45)'), backgroundColor: 'rgba(80,200,150,0.10)'},
+  rowBest: edgeAll('rgba(139,123,255,0.55)'),
   top: {flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap'},
   q: {color: '#0b0c14', fontSize: 12, fontWeight: '900', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, overflow: 'hidden'},
   best: {color: colors.accent, fontSize: 12, fontWeight: '900'},

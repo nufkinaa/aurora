@@ -258,7 +258,7 @@ const s = StyleSheet.create({
     gap: 6,
     overflow: 'hidden',
   },
-  chipOn: {backgroundColor: colors.chipOn, borderColor: 'rgba(255,255,255,0.08)'},
+  chipOn: {backgroundColor: colors.chipOn},
   chipText: {color: 'rgba(243,244,248,0.82)', fontSize: 13.6, fontWeight: '700'},
   chipTextOn: {color: '#ffffff'},
   chipBig: {height: 40.8},

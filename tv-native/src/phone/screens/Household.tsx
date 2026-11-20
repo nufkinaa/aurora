@@ -24,7 +24,7 @@ import {BackBar, useSolidBar} from '../ui/PageHead';
 import {gridColumns} from '../ui/Grid';
 import {useTabBarSpace} from '../ui/TabBar';
 import Tap from '../ui/Tap';
-import {colors, GUTTER, radius, RG_CALM_PANE} from '../theme';
+import {colors, GUTTER, radius, RG_CALM_ROW} from '../theme';
 
 type Tab = 'forYou' | 'sent';
 
@@ -164,7 +164,7 @@ const s = StyleSheet.create({
   chips: {paddingHorizontal: GUTTER, paddingVertical: 12, gap: 8},
   empty: {color: colors.textDim, fontSize: 15, padding: GUTTER},
   from: {color: colors.textDim, fontSize: 12, marginTop: 6},
-  sent: {flexDirection: 'row', gap: 12, alignItems: 'center', marginHorizontal: GUTTER, marginBottom: 8, padding: 10, borderRadius: radius.l, backgroundColor: colors.glass, ...RG_CALM_PANE},
+  sent: {flexDirection: 'row', gap: 12, alignItems: 'center', marginHorizontal: GUTTER, marginBottom: 8, padding: 10, borderRadius: radius.l, backgroundColor: colors.glass, ...RG_CALM_ROW},
   thumb: {width: 52, height: 78, borderRadius: 8, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.06)'},
   sentTitle: {color: colors.text, fontSize: 15, fontWeight: '800'},
   year: {color: colors.textDim, fontWeight: '600'},

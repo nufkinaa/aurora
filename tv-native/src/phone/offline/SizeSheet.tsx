@@ -7,7 +7,7 @@ import React, {useEffect, useState} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import Sheet from '../ui/Sheet';
 import Tap from '../ui/Tap';
-import {colors, GUTTER, radius, RG_CALM_CHIP} from '../theme';
+import {colors, GUTTER, radius, RG_CALM_CHIP, edgeAll} from '../theme';
 import {fmtSize, Option, sizeText, Sound, soundLabel} from './rules';
 import {MINT} from './Mark';
 
@@ -140,7 +140,7 @@ const s = StyleSheet.create({
   chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: GUTTER, marginBottom: 10},
   chip: {flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 14, borderRadius: 999, backgroundColor: colors.chip, ...RG_CALM_CHIP},
   // a chosen chip says so twice: the mint tint with a mint ring inside, and a tick before its words
-  chipOn: {backgroundColor: 'rgba(110,231,183,0.16)', borderColor: MINT, borderWidth: 1.5},
+  chipOn: {backgroundColor: 'rgba(110,231,183,0.16)', ...edgeAll(MINT), borderWidth: 1.5},
   chipText: {color: colors.text, fontSize: 14.4, fontWeight: '700'},
   tick: {width: 14, height: 14, alignItems: 'center', justifyContent: 'center'},
   tickMark: {color: MINT, fontSize: 13, fontWeight: '900', lineHeight: 15},
