@@ -1,0 +1,6 @@
+# Glass sweep. a = today (origin/master 1.15.38), e = the sweep.
+# Phone 390x844, CPU x4, 6 runs (tools/glass-options/perf.js)
+phone-390 {"a":{"scrollMean":17.7,"scrollP95":18.1,"scrollP99":18.55,"scrollWorst":19,"scrollLate":0,"scrollFrames":79,"restMean":17.7,"restP95":18.1,"restLate":0,"droppedPct":null,"compositorFrames":null,"moreFrames":38,"moreP95":18.1,"moreWorst":36,"moreLate":1},"e":{"scrollMean":17.8,"scrollP95":18.1,"scrollP99":18.65,"scrollWorst":19,"scrollLate":0,"scrollFrames":79,"restMean":17.8,"restP95":18.1,"restLate":0,"droppedPct":null,"compositorFrames":null,"moreFrames":38,"moreP95":18.3,"moreWorst":35.5,"moreLate":1}}
+# Desktop Home at rest, processor time over 8 s, ms, 6 runs (tools/real-glass/player-cost.js)
+a 1517 1551 1524 1665 1557 1645 
+e 1561 1636 1510 1678 1590 1557 

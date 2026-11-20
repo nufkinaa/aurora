@@ -6270,3 +6270,88 @@ html[data-look="glass"] .party-pill:focus-visible::before {
     --g-blur: var(--ge-blur);
   }
 }
+
+/* ---------- Real glass, everywhere (2026-11-20) ----------
+   elia: "I still find some elements that were not changed to the new glass
+   look, like episode cards, the search... make sure we have changed
+   everywhere" — and the Calendar. Every pane that wears the glass tokens
+   now takes the still half of real glass: no light along its top (the old
+   hairline and sheen go), a body that is a shade darker towards the top
+   and gathers a little violet towards its foot, a lit foot line, and the
+   violet / mint split at its two ends. CALM values: a page of episode
+   cards, a menu's lines, a month of days must not get busy. No lens here
+   and no new blur — the lens stays on the bars, the hero's button and the
+   paused player; this is box-shadows and two gradients, as cheap as the
+   lines they replace. (The phone's side menu, More, wears none of these
+   tokens and stays as it is.) */
+html[data-look="glass"] {
+  --rg-body-calm:
+    radial-gradient(120% 55% at 50% -20%, rgba(0, 0, 0, 0.16), transparent 62%),
+    radial-gradient(120% 60% at 50% 118%, rgba(var(--rg-pool), 0.07), transparent 60%);
+  /* (what every --g-fill* lays over its body: it was a white sheen from the top) */
+  --g-sheen: var(--rg-body-calm);
+  --rg-split-quiet:
+    inset 1px 0 0 0 rgba(var(--rg-warm), 0.3),
+    inset -1px 0 0 0 rgba(var(--rg-cool), 0.3),
+    -1px 0 0 0 rgba(var(--rg-cool), 0.16),
+    1px 0 0 0 rgba(var(--rg-warm), 0.16);
+  --rg-rim-calm:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 0 2px 3px -2px rgba(0, 0, 0, 0.36),
+    inset 0 -1px 0 0 rgba(var(--rg-pool), 0.36),
+    inset 0 -6px 8px -7px rgba(var(--rg-pool), 0.3);
+  /* a pane in the page, a row, a card */
+  --g-edge: var(--rg-split-quiet), var(--rg-rim-calm), 0 0 0 0.5px rgba(0, 0, 0, 0.3);
+  /* a chip, a small round thing */
+  --g-edge-thin: var(--rg-split-quiet), inset 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 -1px 0 0 rgba(var(--rg-pool), 0.32);
+  /* a sheet, a dialog, a toast: the same, its foot a little deeper */
+  --g-edge-thick: var(--rg-split-quiet), inset 0 0 0 1px rgba(255, 255, 255, 0.07), inset 0 3px 4px -2px rgba(0, 0, 0, 0.4),
+    inset 0 -1px 0 0 rgba(var(--rg-pool), 0.26), inset 0 -12px 14px -12px rgba(var(--rg-pool), 0.26), 0 0 0 0.5px rgba(0, 0, 0, 0.3);
+  /* a drop-down menu: its outside line kept */
+  --g-edge-menu: var(--rg-split-quiet), var(--rg-rim-calm), 0 0 0 1px rgba(0, 0, 0, 0.26);
+}
+/* the Calendar's month: a day is a small pane too — no light on top, a lit
+   foot; the days that carry something get the split (an empty day stays plain) */
+html[data-look="glass"]:root .calg-day::after {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 -1px 0 0 rgba(var(--rg-pool), 0.16);
+}
+html[data-look="glass"]:root .calg-day.has::after {
+  box-shadow: var(--rg-split-quiet), inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 -1px 0 0 rgba(var(--rg-pool), 0.24);
+}
+html[data-look="glass"]:root .calg-day.other::after {
+  box-shadow: none;
+}
+html[data-look="glass"]:root .calg-day.today::after {
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.75), inset 0 -1px 0 0 rgba(var(--rg-pool), 0.3);
+}
+html[data-look="glass"]:root .calg-day.sel::after {
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.95);
+}
+html[data-look="glass"]:root .calg-day:focus-visible::after {
+  box-shadow: var(--focus-ring);
+}
+html[data-look="glass"]:root .calg-arrow {
+  box-shadow: var(--g-edge-thin);
+}
+/* a few panes that drew their own white top line */
+html[data-look="glass"]:root .hero-pick:hover {
+  box-shadow: var(--g-edge-thin);
+}
+html[data-look="glass"]:root .hh-tabs .chip.on {
+  box-shadow: var(--g-edge-thin);
+}
+/* an episode's side buttons (desktop and tablet: on a phone they are bare
+   icons inside the card) are small panes of the same glass */
+@media (min-width: 721px) {
+  html[data-look="glass"] .episode-wrap > .ep-action {
+    box-shadow: var(--g-edge-thin);
+  }
+}
+/* (a phone's panes in the page a touch fuller, 69 % for 67: with the sheen
+   gone from their top the words low in an episode's card read 3.7:1 over a
+   sky painted as one bright band, where they read 3.8 before) */
+@media (max-width: 720px) {
+  html[data-look="glass"]:root {
+    --g-fill-slab: var(--g-sheen), linear-gradient(rgba(var(--g-tint-slab), 0.7), rgba(var(--g-tint-slab), 0.7));
+  }
+}
