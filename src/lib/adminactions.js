@@ -139,6 +139,8 @@ const ACTIONS = [
     kind: "task", exclusive: true,
     run: async (log, run) => {
       const before = await capture(git("rev-parse", "HEAD"));
+      const lockNote = await require("./updatecheck").resetLock();
+      if (lockNote) log(lockNote + "\n");
       if (!(await exec(run, git("pull", "--ff-only", "origin", "master"), { timeoutMs: 120000, env: GIT_ENV }))) throw new Error("git pull failed — nothing was restarted");
       const after = await capture(git("rev-parse", "HEAD"));
       if (before && before === after) return "Already up to date — not restarted.";
@@ -146,6 +148,8 @@ const ACTIONS = [
       if (/^package(-lock)?\.json$/m.test(changed)) {
         log("\nDependencies changed:\n");
         if (!(await exec(run, npm("install", "--omit=dev", "--no-audit", "--no-fund"), { timeoutMs: 15 * 60000 }))) throw new Error("npm install failed — not restarted; the old code is still running");
+        const lockAfter = await require("./updatecheck").resetLock();
+        if (lockAfter) log(lockAfter + "\n");
       } else log("\nDependencies unchanged — npm install skipped.\n");
       const r = restartSoon("update and restart");
       if (!r.ok) return `Updated on disk, NOT restarted: ${r.error}`;
@@ -159,13 +163,15 @@ const ACTIONS = [
   },
   {
     id: "git-pull", group: "Update", title: "Pull from GitHub",
-    about: "Fetch the new code only (fast-forward). Nothing changes until a restart.",
-    kind: "command", steps: [git("pull", "--ff-only", "origin", "master")], env: GIT_ENV, timeoutMs: 120000,
+    about: "Fetch the new code only (fast-forward). Nothing changes until a restart. A package-lock.json that npm install changed on this server is put back first, so it never blocks the pull.",
+    // (checking out that ONE committed file is a no-op when it is clean; see
+    // updatecheck.resetLock for why only this file)
+    kind: "command", steps: [git("checkout", "--", "package-lock.json"), git("pull", "--ff-only", "origin", "master")], env: GIT_ENV, timeoutMs: 120000,
   },
   {
     id: "npm-install", group: "Update", title: "Install dependencies (npm install)",
-    about: "Needed after an update that changed package.json. Skips developer-only packages.",
-    kind: "command", steps: [npm("install", "--omit=dev", "--no-audit", "--no-fund")], timeoutMs: 15 * 60000,
+    about: "Needed after an update that changed package.json. Skips developer-only packages. package-lock.json is put back afterwards, so the next pull isn't blocked.",
+    kind: "command", steps: [npm("install", "--omit=dev", "--no-audit", "--no-fund"), git("checkout", "--", "package-lock.json")], timeoutMs: 15 * 60000,
   },
   {
     id: "restart", group: "Update", title: "Restart Aurora",

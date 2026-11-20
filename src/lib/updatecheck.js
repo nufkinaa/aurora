@@ -89,25 +89,46 @@ const check = async (force = false) => {
   return result;
 };
 
+// package-lock.json is the one file a server changes by itself: `npm install`
+// rewrites it (another npm version, --omit=dev), and then every pull stops
+// with "your local changes would be overwritten" (elia, 2026-11-20, on
+// nufurora). Nobody edits it by hand on a server and the committed one is the
+// truth, so before a pull — and after an install — it is put back to the
+// committed version. ONLY this one file, a constant path: any other changed
+// file still stops the pull, as it should. Resolves a sentence, or "" when the
+// file was clean.
+const LOCK = "package-lock.json";
+const resetLock = (root = ROOT) =>
+  new Promise((resolve) => {
+    execFile("git", ["status", "--porcelain", "--", LOCK], { cwd: root, timeout: 15000, env: GIT_ENV }, (err, out) => {
+      if (err || !/^.M/m.test(String(out || ""))) return resolve("");
+      execFile("git", ["checkout", "--", LOCK], { cwd: root, timeout: 15000, env: GIT_ENV }, (err2) =>
+        resolve(err2
+          ? `Could not put ${LOCK} back: ${err2.message}`
+          : `${LOCK} had changes from npm install on this server; put back to the committed version.`),
+      );
+    });
+  });
+
 // The Pull button. --ff-only on purpose: a merge or rebase can leave a
 // conflicted half-applied tree on an unattended server — if the histories
 // diverged, fail loudly and let a human untangle it at a real terminal.
-const pull = () =>
-  new Promise((resolve) => {
+const pull = async () => {
+  const note = await resetLock();
+  return new Promise((resolve) => {
     execFile(
       "git",
       ["pull", "--ff-only", "origin", "master"],
       { cwd: ROOT, timeout: 120000, env: GIT_ENV },
       (err, out, errOut) => {
         cache = { at: 0, result: null }; // whatever happened, re-check fresh
-        const output = [String(out || "").trim(), String(errOut || "").trim()]
+        const output = [note, String(out || "").trim(), String(errOut || "").trim()]
           .filter(Boolean)
           .join("\n");
         resolve({ ok: !err, output: output.slice(0, 4000) });
       },
     );
   });
+};
 
-
-
-module.exports = { check, pull, captureBoot, _internals: { git, isAncestor } };
+module.exports = { check, pull, resetLock, captureBoot, _internals: { git, isAncestor } };

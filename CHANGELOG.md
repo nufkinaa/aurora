@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.38 — 2026-11-20
+
+- **Pull from GitHub no longer stops on package-lock.json (admin page).** A server's own `npm install` rewrites that one file, and then every pull refused with "your local changes would be overwritten". Pull, Update and restart, and Install dependencies now put package-lock.json back to the committed version (only that file; any other file changed by hand still stops the pull).
+
 ## 1.15.37 — 2026-11-20
 
 - **Real glass (website and Android phone app).** The bars and glass buttons that float over pictures now look like thick glass. On the website the top bar, the phone's bottom bar, the hero's glass button and a paused film's controls bend what is behind them, and its edges split into red and blue, like a lens (Chrome, Edge and Android browsers; Safari and Firefox get the rest of the look). Every glass button has a rim that catches the light at its sides and foot in Aurora's violet and mint, a darker top, a soft violet glow below, and no line along the top. Words read as clearly as before, scrolling and playback are as smooth as before, and the TV keeps its look.
