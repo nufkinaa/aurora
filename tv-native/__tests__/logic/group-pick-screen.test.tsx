@@ -256,18 +256,21 @@ test('Start: the choices go along; the code, the QR code and the address show; S
   await press(r, 'group.deal');
   expect(mockGroup.start).not.toHaveBeenCalled();
   expect(texts(r)).toContain(WORDS.needSomeoneTv);
-  // Dana joins on her phone: Start swiping takes the focus
+  // Dana joins on her phone: Start swiping wakes up, but the focus stays where it was
+  // (on the Mi TV an OK meant for "Vote here" once dealt the cards when someone joined)
   await act(async () => live.push(session({members: [TV, DANA], voters: 1})));
   expect(texts(r)).toContain('Dana is in');
   expect(one(r, 'group.deal').props.dim).toBe(false);
-  expect(one(r, 'group.deal').props.hasTVPreferredFocus).toBe(true);
-  expect(one(r, 'group.votehere').props.hasTVPreferredFocus).toBe(false);
+  expect(one(r, 'group.deal').props.hasTVPreferredFocus).toBe(false);
+  expect(one(r, 'group.votehere').props.hasTVPreferredFocus).toBe(true);
   mockGroup.start.mockResolvedValue({session: swiping()});
   await press(r, 'group.deal');
   await flush();
   expect(mockGroup.start).toHaveBeenCalledWith('AB7K');
   // the TV is the screen: the others' progress, the clock, the host's buttons
   expect(texts(r)).toEqual(expect.arrayContaining(['0 of 1 done', '2:30 left', '1 of 2']));
+  // the TV can still take a seat while the others swipe
+  expect(one(r, 'group.votehere').props.label).toBe(WORDS.voteHere);
   expect(one(r, 'group.extend').props.hasTVPreferredFocus).toBe(true);
   mockGroup.finish.mockResolvedValue({session: resultOf()});
   await press(r, 'group.finish');

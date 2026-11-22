@@ -626,6 +626,7 @@ export default function GroupPick({navigation, route}: Props) {
         onExtend={() => run('extend', () => groupApi.extend(session.code))}
         onFinish={() => run('finish', () => groupApi.finish(session.code))}
         onRole={() => run('screen', () => groupApi.role(session.code, 'screen'))}
+        onVoteHere={() => run('screen', () => groupApi.role(session.code, 'voter'))}
       />
     );
   } else if (session && view === 'result') {
@@ -980,6 +981,10 @@ function LobbyView({
   const voter = session.you?.role === 'voter';
   const people = peopleOf(session);
   const added = session.added.slice(-3);
+  // Where the focus starts is decided ONCE, when the lobby opens: someone joining
+  // later must not pull it from "Vote here" onto "Start swiping" (on the Mi TV an
+  // OK meant for "Vote here" dealt the cards instead).
+  const firstFocus = useRef<'deal' | 'vote' | 'add'>(host && session.voters ? 'deal' : !voter ? 'vote' : 'add').current;
   return (
     <View style={styles.lobby}>
       <View style={styles.joinPanel}>
@@ -1036,12 +1041,12 @@ function LobbyView({
           {host ? (
             <PlayKey
               uiId="group.deal"
-              ref={session.voters ? (mainRef as never) : undefined}
+              ref={firstFocus === 'deal' ? (mainRef as never) : undefined}
               kind="aurora"
               big
               star
               label={WORDS.startSwiping}
-              hasTVPreferredFocus={!!session.voters}
+              hasTVPreferredFocus={firstFocus === 'deal'}
               dim={!session.voters || busy === 'deal'}
               onPress={onDeal}
             />
@@ -1049,17 +1054,17 @@ function LobbyView({
           {!voter ? (
             <PlayKey
               uiId="group.votehere"
-              ref={host && session.voters ? undefined : (mainRef as never)}
-              kind={session.voters ? undefined : 'aurora'}
-              big={!session.voters}
+              ref={firstFocus === 'vote' ? (mainRef as never) : undefined}
+              kind={firstFocus === 'vote' ? 'aurora' : undefined}
+              big={firstFocus === 'vote'}
               glyph="✋"
               label={WORDS.voteHere}
-              hasTVPreferredFocus={!(host && session.voters)}
+              hasTVPreferredFocus={firstFocus === 'vote'}
               dim={busy === 'screen'}
               onPress={onRole}
             />
           ) : null}
-          <PlayKey uiId="group.add" ref={!host && voter ? (mainRef as never) : undefined} glyph="+" label={WORDS.addTitle} hasTVPreferredFocus={!host && voter} onPress={onAdd} />
+          <PlayKey uiId="group.add" ref={firstFocus === 'add' ? (mainRef as never) : undefined} glyph="+" label={WORDS.addTitle} hasTVPreferredFocus={firstFocus === 'add'} onPress={onAdd} />
         </View>
         {!voter ? <Text style={styles.hint}>{WORDS.voteHereLine}</Text> : null}
         {host && !session.voters ? <Text style={styles.hint}>{WORDS.needSomeoneTv}</Text> : null}
@@ -1270,6 +1275,7 @@ function WaitingView({
   onExtend,
   onFinish,
   onRole,
+  onVoteHere,
 }: {
   mainRef: FocusRef;
   session: GroupSession;
@@ -1282,6 +1288,7 @@ function WaitingView({
   onExtend: () => void;
   onFinish: () => void;
   onRole: () => void;
+  onVoteHere: () => void;
 }) {
   const host = !!session.you?.host;
   const voter = session.you?.role === 'voter';
@@ -1304,6 +1311,8 @@ function WaitingView({
         ) : null}
         {voter ? <PlayKey uiId="group.undo" ref={host ? undefined : (mainRef as never)} hasTVPreferredFocus={!host} small glyph="↶" label={WORDS.undo} dim={!canUndo} onPress={onUndo} /> : null}
         {voter ? <PlayKey uiId="group.screen" small label={WORDS.justShow} dim={busy === 'screen'} onPress={onRole} /> : null}
+        {/* the room's screen can still take a seat of its own while the others swipe */}
+        {!voter ? <PlayKey uiId="group.votehere" ref={host ? undefined : (mainRef as never)} hasTVPreferredFocus={!host} glyph="✋" label={WORDS.voteHere} dim={busy === 'screen'} onPress={onVoteHere} /> : null}
       </View>
     </View>
   );
