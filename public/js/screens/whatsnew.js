@@ -21,12 +21,20 @@ import { showReportSheet } from "../report.js";
 // (The TV has the same cards: tv-native/src/screens/WhatsNew.tsx, ROUND there.
 // A card about something only a browser has says `webOnly: true` first —
 // test/whatsnew-parity.test.js leaves it out of the comparison.)
-export const ROUND = "1.15.40";
+export const ROUND = "1.15.41";
 const NEW_FROM = ROUND;
 const FEATURES = [
+  // ---- 1.15.41: Get another version, steadier ----
+  {
+    webOnly: true, since: ROUND, cue: "tap", glyph: "🔁",
+    title: "Get another version, steadier",
+    what: "Asking for another version of a copy no longer offers a foreign voice-over (a Russian channel's re-voicing) as the best pick, and a copy in the wrong language is turned down before it replaces yours. A new version that finishes while you're still watching waits safely for you to stop. Old AVI files start faster on the TV.",
+    how: "In the player, open the menu and choose Problem with this copy.",
+    go: { label: "Go home", to: "#/" },
+  },
   // ---- 1.15.40: full real glass everywhere (website and phone app) ----
   {
-    webOnly: true, since: ROUND, cue: "tap", glyph: "🪟",
+    webOnly: true, since: "1.15.40", cue: "tap", glyph: "🪟",
     title: "Real glass, everywhere",
     what: "Episode cards, search and its suggestions, chips, the Calendar, Settings, menus, sheets, messages, the phone's side menu and the Remote now wear exactly the same glass as the bars: the violet and mint edge, the rim that catches the light, a soft violet glow at the foot. On a computer the search field bends what is behind it, like the top bar. The Android app has it too.",
     how: "Open a show's episodes, the search or the Calendar.",

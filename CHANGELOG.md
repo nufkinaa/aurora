@@ -3,6 +3,13 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.41 — 2026-11-22
+
+- **Get another version, fixed (Haven S3E7 reports).** A finished replacement waiting for someone to stop watching the old copy was swept away when the next episode landed in the same folder - and the swap then removed the old copy too. Now a waiting replacement keeps its file, and the old copy is never removed unless the new one is really there.
+- **No foreign voice-overs as the pick.** A Russian channel's voice-over (a Cyrillic name, LostFilm, Sony Sci-Fi, MVO…) is no longer counted as English for "Wrong language", never gets the ★, and is labelled "Russian voice-over"; for any other reason it goes to the foot of the list. A finished copy like that with unlabelled sound is turned down for "Wrong language" and the next copy is tried.
+- **AVI on the TV and phone app** goes through the server from the start instead of failing a direct play first (it took 33 s to a picture).
+- **Admin:** a failed replacement's reason now shows in its problem report and its Copy for Claude.
+
 ## 1.15.40 — 2026-11-20
 
 - **Full real glass, everywhere (website and Android phone app).** The calm version from 1.15.39 is gone: every glass pane now wears exactly the bars' glass - episode cards and their buttons, rows, Downloads, the search field and its suggestions, chips, Settings, menus, sheets, dialogs, messages, the Calendar (its list rows too), What's new, the Remote, and the phone's side menu. On a computer or tablet the search field bends what is behind it, like the top bar. Nothing moves, words read as clearly as before, and scrolling is as smooth as before.
