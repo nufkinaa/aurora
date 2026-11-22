@@ -1261,12 +1261,19 @@ const placeNoClobber = (tmp, dest) => {
 
 // A temp file left by a crash in the middle of a copy (its job is not
 // running any more): removed the next time a download lands in that folder.
+// "Not running" means the job is over, not only out of the engine: a "Get
+// another version" whose file is complete waits under its temp name, its slot
+// handed back, while somebody plays the old copy (media/replace.js land) — and
+// the next episode landing in the same Season folder swept that file away
+// (Haven S3E7, 2026-11-21).
 const sweepTemps = (dir, exceptJobId) => {
   let names = [];
   try { names = fs.readdirSync(dir); } catch { return; }
   for (const f of names) {
     const m = TEMP_RE.exec(f);
     if (!m || m[1] === exceptJobId || active.has(m[1])) continue;
+    const owner = findJob(m[1]);
+    if (owner && LIVE_STATUSES.includes(owner.status)) continue;
     try { fs.unlinkSync(path.join(dir, f)); console.log(`[download] removed a left-over partial copy ${f}`); } catch {}
   }
 };
@@ -2402,9 +2409,17 @@ const acceptFor = (job) => {
   if (!r && !fit) return null;
   const rk = badreleases._internals.relKey;
   const old = r && r.oldRelease ? rk(r.oldRelease) : null;
+  // A replacement for any other reason never moves on, by itself, to a
+  // voice-over the copy it replaces was not (copylang.voiceOverOf): the next
+  // copy of "Bad sound" is not a Russian channel's re-voicing.
+  const oldVo = r && r.oldRelease ? copylang.voiceOverOf({ release: r.oldRelease }) : null;
+  const voOk = (s) => {
+    const vo = copylang.voiceOverOf(s);
+    return !vo || vo === oldVo || !!(r && r.lang && (r.lang.want || []).includes(vo));
+  };
   // a copy whose NAME says it is in a language not wanted is not tried
   // (media/copylang.js judge: "same" as the copy given up on, or "other")
-  return (s) => !(old && s.release && rk(s.release) === old) && !(fit && ["same", "other"].includes(copylang.judge(s, fit)));
+  return (s) => !(old && s.release && rk(s.release) === old) && !(fit && ["same", "other"].includes(copylang.judge(s, fit))) && (!r || !!fit || voOk(s));
 };
 // The next copy for a job, from a fresh source list. A job looking for a
 // language (`langFit`) takes a copy whose name says that language first.

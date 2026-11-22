@@ -85,3 +85,53 @@ test("an empty list is an empty list, and nothing known means no sentence", () =
   assert.deepEqual(copylang.arrange([], { wanted: [], wrong: [] }), { streams: [], hidden: 0, note: null });
   assert.equal(copylang.arrange([src("Film.2026.1080p.WEB")], { wanted: [], wrong: [] }).note, null);
 });
+
+// Dor's report, Haven S3E7 (2026-11-20): "Wrong language" was answered with a
+// Russian TV channel's voice-over pack, flagged 🇷🇺 / 🇬🇧 — and so "English",
+// first on the list.
+const HAVEN_RU = "Тайны Хейвена / Haven [S01-05] (2010-2014) WEB-DLRip | Sony Sci-Fi";
+test("a voice-over release: a Cyrillic name, a voice-over studio, or MVO / DVO after the title", () => {
+  assert.equal(copylang.voiceOverOf(src(HAVEN_RU)), "ru");
+  assert.equal(copylang.voiceOverOf(src("Haven.S03.720p.WEB-DL.Sony.Sci-Fi")), "ru");
+  assert.equal(copylang.voiceOverOf(src("Film.2020.1080p.WEB-DL.LostFilm")), "ru");
+  assert.equal(copylang.voiceOverOf(src("Show S01 1080p NewStudio")), "ru");
+  assert.equal(copylang.voiceOverOf(src("Film.2020.1080p.BDRip.MVO")), "ru");
+  assert.equal(copylang.voiceOverOf(src("Film 2020 BDRip 720p DVO")), "ru");
+  assert.equal(copylang.voiceOverOf(src("Фильм / Film (2020) BDRip 720p | Кураж-Бамбей")), "ru");
+  assert.equal(copylang.voiceOverOf(src("Фільм / Film (2020) WEB-DL 1080p | Ukr")), "uk", "Ukrainian letters: a Ukrainian release");
+  // not voice-overs
+  assert.equal(copylang.voiceOverOf(src("Haven 2010 Season 3 Complete BDRip 720p x264 [i c]")), null);
+  assert.equal(copylang.voiceOverOf(src("Haven (2010) Season 3 S03 (1080p BluRay x265 HEVC 10bit DDP 5.1 EDGE2020)")), null);
+  assert.equal(copylang.voiceOverOf(src("Avo.2020.1080p.WEB")), null, "a film called Avo is not a voice-over mark");
+  assert.equal(copylang.voiceOverOf(null), null);
+});
+
+test("a voice-over is never 'right' for a language it is not, whatever its flags; never ★; labelled", () => {
+  const fit = copylang.fitFor({ copy: ["eng"], original: "en" });
+  const ru = src(HAVEN_RU, { languages: ["RU", "EN"], seeders: 90 });
+  assert.equal(copylang.judge(ru, fit), "other");
+  const out = copylang.arrange([ru, src("Haven.2010.S03E07.1080p.BluRay.x264"), src("Haven 2010 Season 3 Complete BDRip 720p x264 [i c]")], fit);
+  assert.deepEqual(out.streams.map((s) => s.release), ["Haven.2010.S03E07.1080p.BluRay.x264", "Haven 2010 Season 3 Complete BDRip 720p x264 [i c]", HAVEN_RU], "it goes to the bottom");
+  const row = out.streams[2];
+  assert.equal(row.langFit, "other");
+  assert.equal(row.langLabel, "Russian voice-over");
+  // replacing a Russian copy: a Russian voice-over is the same wrong language
+  assert.equal(copylang.judge(ru, copylang.fitFor({ copy: ["rus"], original: "en" })), "same");
+  // somebody who wants Russian: it is right
+  assert.equal(copylang.judge(ru, copylang.fitFor({ copy: ["eng"], wish: "rus", original: "en" })), "right");
+  assert.equal(copylang.arrange([ru], copylang.fitFor({ copy: ["eng"], wish: "rus", original: "en" })).streams[0].langLabel, "Russian");
+});
+
+test("any other reason: a voice-over not in this person's languages goes to the foot (a pre-release copy still last), never ★", () => {
+  const ru = src(HAVEN_RU, { recommended: true, seeders: 90 });
+  const en = src("Haven 2010 Season 3 Complete BDRip 720p x264 [i c]");
+  const cam = src("Haven.2010.S03E07.HDTS", { cam: true });
+  const out = copylang.sinkVoiceOver([ru, cam, en], ["eng", "en"]);
+  assert.deepEqual(out.map((s) => s.release), [en.release, HAVEN_RU, cam.release]);
+  assert.equal(out[1].recommended, undefined);
+  assert.equal(out[1].voiceOver, "ru");
+  assert.equal(out[1].langLabel, "Russian voice-over");
+  // a Russian speaker keeps it where it was
+  assert.deepEqual(copylang.sinkVoiceOver([ru, en], ["ru"]).map((s) => s.release), [HAVEN_RU, en.release]);
+  assert.equal(copylang.sinkVoiceOver([ru, en], ["ru"])[0].recommended, true);
+});

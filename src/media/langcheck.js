@@ -46,9 +46,15 @@ const verdict = ({ audio, release = null, want = [], wrong = [] } = {}) => {
   const tracks = Array.isArray(audio) ? audio.map(trackLangs) : [];
   const untagged = tracks.filter((l) => !l.length).length;
   const has = uniq(tracks.flat());
-  const out = (v) => ({ verdict: v, has, named, untagged });
+  const out = (v, also = []) => ({ verdict: v, has: uniq([...has, ...also]), named, untagged });
   if (!tracks.length) return out("unknown");
   if (wanted.length && has.some((l) => wanted.includes(l))) return out("right");
+  // A voice-over release (copylang.voiceOverOf: a Cyrillic name, a voice-over
+  // studio) whose tracks do not say their language: its sound starts in the
+  // voice-over's — the Haven S3E7 copy (2026-11-20), two untagged tracks,
+  // Russian first, landed for "Wrong language" as "doesn't say its language".
+  const vo = copylang.voiceOverOf({ release });
+  if (untagged > 0 && vo && wanted.length && !wanted.includes(vo)) return out("wrong", [vo]);
   const nameSaysWanted = wanted.length && named.some((l) => wanted.includes(l));
   if (untagged > 0) return out(nameSaysWanted ? "right" : "unknown");
   // every track says its language, and none is a wanted one

@@ -50,3 +50,19 @@ test("the sentences", () => {
   assert.equal(L.lines.none(["he"], 1), "No copy in Hebrew could be found — the one copy tried was in another language. Try again later.");
   assert.equal(L.lines.none([], 3), "No copy in the right language could be found — the 3 copies tried were in another language. Try again later.");
 });
+
+// Haven S3E7 (2026-11-20): a Russian voice-over pack, two untagged tracks,
+// landed for "Wrong language" as "doesn't say its language".
+test("a voice-over release whose tracks say nothing is in the voice-over's language", () => {
+  const ru = "Тайны Хейвена / Haven [S01-05] (2010-2014) WEB-DLRip | Sony Sci-Fi";
+  const v = L.verdict({ audio: [t(null), t(null)], release: ru, want: ["en"] });
+  assert.equal(v.verdict, "wrong");
+  assert.deepEqual(v.has, ["ru"], "what the person is told it was in");
+  assert.equal(L.verdict({ audio: [t("rus"), t(null)], release: ru, want: ["en"] }).verdict, "wrong");
+  // its tracks say English is there: right (the players start on the title's own language)
+  assert.equal(L.verdict({ audio: [t("rus"), t("eng")], release: ru, want: ["en"] }).verdict, "right");
+  // a Russian speaker: not wrong
+  assert.equal(L.verdict({ audio: [t(null)], release: ru, want: ["ru"] }).verdict, "unknown");
+  // nothing to look for: no verdict from the name alone
+  assert.equal(L.verdict({ audio: [t(null)], release: ru, want: [] }).verdict, "unknown");
+});

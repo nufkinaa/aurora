@@ -445,3 +445,50 @@ test("tell me when it's ready: Web Push for the person who asked, not when they 
     D.seams.readyNotice = realReady;
   }
 });
+
+// Dor's report, Haven S3E7 (2026-11-20): the copy taken for "Wrong language"
+// was a Russian TV channel's voice-over pack, its two tracks untagged (an
+// AVI): it landed as "doesn't say its language", Russian first.
+const HAVEN_RU = "Тайны Хейвена / Haven [S01-05] (2010-2014) WEB-DLRip | Sony Sci-Fi";
+test("a 'Wrong language' replacement that arrives as a voice-over with untagged tracks is not swapped in: the next copy", async () => {
+  await reset();
+  const [A, B] = ["a", "b"].map(HASH);
+  for (const h of [A, B]) engine.define(h);
+  const req = movie(A, { release: HAVEN_RU });
+  const oldPath = oldCopy(req);
+  sources[req.imdbId] = [source(A, { release: HAVEN_RU }), source(B, { release: "Film.2021.1080p.BluRay" })];
+  probes[path.join(engine.stagingDir(A), "file1.mkv")] = audio(null, null);
+  probes[path.join(engine.stagingDir(B), "file1.mkv")] = audio("eng");
+  const j = downloads.create(languageReplace(req, oldPath, { want: ["en"], wrong: [] })).job;
+  await flush();
+  await finish(A, j.id, () => jobOf(j.id).infoHash !== A);
+  const job = jobOf(j.id);
+  assert.equal(job.infoHash, B);
+  assert.equal(job.tried[0].kind, "language");
+  assert.match(job.note, /^That copy was in Russian, not English — now trying another/);
+  assert.ok(fs.existsSync(oldPath) && fs.statSync(oldPath).size === 5000, "the old copy is untouched");
+  await finish(B, j.id, () => jobOf(j.id).status === "done");
+});
+
+// …and a replacement for any other reason never moves on, by itself, to a
+// voice-over the copy it replaces was not.
+test("a 'Bad sound' replacement whose copy fails moves on to the next copy, never to a voice-over", async () => {
+  await reset();
+  const [A, B, C] = ["a", "b", "c"].map(HASH);
+  for (const h of [A, B, C]) engine.define(h);
+  const req = movie(A, { release: "Film.2021.1080p.WEB" });
+  const oldPath = oldCopy(req);
+  sources[req.imdbId] = [
+    source(A, { release: "Film.2021.1080p.WEB" }),
+    source(B, { release: HAVEN_RU, seeders: 900, languages: ["RU", "EN"] }),
+    source(C, { release: "Film.2021.1080p.BluRay", seeders: 20 }),
+  ];
+  const j = downloads.create({ ...req, label: `${req.title} — another version`, replaces: {
+    id: `r${req.imdbId.slice(-5)}`, libraryId: `lib${req.imdbId.slice(-5)}`, path: oldPath, reason: "sound", reasonLabel: "Bad sound",
+    by: PERSON, byName: "Tester", oldRelease: "Old.Release.1080p", oldInfoHash: null, titleKey: req.imdbId,
+  } }).job;
+  await flush();
+  engine.set(A, 1, null, { state: "error", error: "the torrent is broken", errorCode: 1 });
+  await runUntil(() => jobOf(j.id).infoHash !== A, 120);
+  assert.equal(jobOf(j.id).infoHash, C, "the English copy, not the better-seeded voice-over");
+});

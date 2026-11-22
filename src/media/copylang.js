@@ -15,7 +15,9 @@
 // names a language this person wants, SAME when it names only the language(s)
 // of the copy being replaced (or somebody here reported it for the language),
 // OTHER when it names another language or says it is a dub, and UNKNOWN when
-// it says nothing — which is most of them, and they stay on the list.
+// it says nothing — which is most of them, and they stay on the list. A
+// VOICE-OVER release (voiceOverOf: a Cyrillic name, a voice-over studio) is
+// in the voice-over's language, whatever its flags add.
 //
 //   right     listed first, may be ★, "English" on the row
 //   unknown   next, may be ★
@@ -75,6 +77,40 @@ const languagesOf = (s) => {
   return uniq([...flags, ...namedIn(s.release), ...namedIn(s.filename)]);
 };
 
+// A VOICE-OVER release (Dor's report, Haven S3E7, 2026-11-20: "Wrong
+// language" was answered with "Тайны Хейвена / Haven [S01-05] (2010-2014)
+// WEB-DLRip | Sony Sci-Fi" — a Russian TV channel's voice-over, its sound
+// Russian first, the English, if any, a second untagged track). Such a
+// release's NAME says what its main sound is, whatever flags it carries
+// ("🇷🇺 / 🇬🇧" made it "English" here, so it led the list):
+//   * a name written in Cyrillic — a Russian (or, with і ї є ґ, Ukrainian)
+//     tracker's release;
+//   * a voice-over studio or channel (LostFilm, NewStudio, Кураж-Бамбей,
+//     Sony Sci-Fi, …), anywhere in the name — no film is called that;
+//   * the Russian trackers' marks for the kind of voice-over — MVO
+//     (multi-voice), DVO (two voices), AVO (one author), "дубляж" — after the
+//     film's own title.
+// → its language (ISO 639-1), or null.
+const CYRILLIC = /[Ѐ-ӿ]/;
+const UKRAINIAN = /[іїєґІЇЄҐ]/;
+const STUDIOS = /(?:^|[^a-z0-9])(?:lostfilm|newstudio|novafilm|baibako|alexfilm|coldfilm|hdrezka|jaskier|amedia|ideafilm|kuraj[\s._-]*bambey|kurazh[\s._-]*bambey|sony[\s._-]*sci[\s._-]*fi|viruse[\s._-]*project|gears[\s._-]*media|rudub|kerob)(?:$|[^a-z0-9])/i;
+const VO_MARKS = /^(?:mvo|dvo|avo)$/i;
+const voiceOverOf = (s) => {
+  if (!s) return null;
+  for (const name of [s.release, s.filename]) {
+    const line = String(name || "");
+    if (!line) continue;
+    if (CYRILLIC.test(line)) return UKRAINIAN.test(line) ? "uk" : "ru";
+    if (STUDIOS.test(line)) return "ru";
+    const { tokens, from } = tokensOf(line);
+    const start = from > 0 ? from : tokens.findIndex((t) => TECH.test(t));
+    if (start >= 0 && tokens.slice(start).some((t) => VO_MARKS.test(t))) return "ru";
+  }
+  return null;
+};
+// "Russian voice-over"
+const voiceOverLabel = (code) => `${nameOf(code)} voice-over`;
+
 // What this request is after:
 //   wanted  the languages to look for, in order
 //   wrong   the languages of the copy being replaced — what the person just
@@ -93,7 +129,14 @@ const fitFor = ({ copy = [], wish = null, original = null } = {}) => {
 // right | same | other | unknown — the header above.
 const judge = (s, fit) => {
   const langs = languagesOf(s);
-  if (langs.some((l) => fit.wanted.includes(l))) return "right";
+  // a voice-over in a language not wanted is never "right", whatever its
+  // flags say: its sound starts in the voice-over's language
+  const vo = voiceOverOf(s);
+  if (vo && !fit.wanted.includes(vo)) {
+    if (fit.wrong.includes(vo) || (s.badHere && s.badHere.reason === "language")) return "same";
+    return "other";
+  }
+  if (vo || langs.some((l) => fit.wanted.includes(l))) return "right";
   if (s && s.badHere && s.badHere.reason === "language") return "same";
   if (langs.length && langs.every((l) => fit.wrong.includes(l))) return "same";
   if (langs.length || (s && s.dubbed)) return "other";
@@ -123,9 +166,10 @@ const arrange = (streams, fit) => {
     const v = judge(s, fit);
     if (v === "same") { hidden++; continue; }
     const langs = languagesOf(s);
+    const vo = voiceOverOf(s);
     const label = v === "right"
-      ? nameOf(langs.find((l) => fit.wanted.includes(l)))
-      : v === "other" ? (langs.length ? namesOf(langs) : null) : null;
+      ? nameOf(vo && fit.wanted.includes(vo) ? vo : langs.find((l) => fit.wanted.includes(l)))
+      : v === "other" ? (vo ? voiceOverLabel(vo) : langs.length ? namesOf(langs) : null) : null;
     const c = { ...s, langFit: v, langLabel: label };
     delete c.recommended;
     // the language wanted here is no dub, whatever a flag made of it
@@ -145,4 +189,20 @@ const arrange = (streams, fit) => {
   return { streams: list, hidden, note };
 };
 
-module.exports = { languagesOf, fitFor, judge, arrange, nameOf, namesOf, wordsIn };
+// Any other "Get another version" reason (bad sound, bad picture…): a
+// voice-over in a language this person does not watch in (`wanted`: their
+// audio language and the title's own) goes below every other copy — a
+// pre-release copy stays last — never ★, and says what it is on the row.
+const sinkVoiceOver = (streams, wanted = []) => {
+  const want = uniq((wanted || []).map(iso1));
+  const rows = (streams || []).map((s, i) => {
+    const vo = voiceOverOf(s);
+    if (!vo || want.includes(vo)) return { s, i, r: tierOf(s) === 2 ? 2 : 0 };
+    const c = { ...s, voiceOver: vo, langLabel: s.langLabel || voiceOverLabel(vo) };
+    delete c.recommended;
+    return { s: c, i, r: tierOf(s) === 2 ? 2 : 1 };
+  });
+  return rows.sort((a, b) => a.r - b.r || a.i - b.i).map(({ s }) => s);
+};
+
+module.exports = { languagesOf, fitFor, judge, arrange, nameOf, namesOf, wordsIn, voiceOverOf, voiceOverLabel, sinkVoiceOver };

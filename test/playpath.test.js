@@ -80,6 +80,9 @@ const HI10P = file({ video: { codec: "h264", bitDepth: 10, profile: "High 10" } 
 const DV_P5 = file({ container: "mp4", video: { codec: "hevc", bitDepth: 10, hdr: "dolby-vision", dvProfile: 5, dvCompat: 0 }, audio: [{ index: 0, codec: "eac3", channels: 6, atmos: true }] });
 const DV_P8 = file({ video: { codec: "hevc", bitDepth: 10, hdr: "dolby-vision", dvProfile: 8, dvCompat: 1 }, audio: [{ index: 0, codec: "eac3", channels: 6 }] });
 const MPEG2_AVI = file({ container: "avi", width: 720, height: 576, video: { codec: "mpeg2", bitDepth: 8, fps: 25 }, audio: [{ index: 0, codec: "mp2", channels: 2 }] });
+// the Haven S3E7 WEB-DLRip (2026-11-21): XviD + AC-3 in AVI, two untagged tracks
+const XVID_AVI = file({ container: "avi", width: 720, height: 400, video: { codec: "mpeg4", bitDepth: 8, fps: 23.976 }, audio: [{ index: 0, codec: "ac3", channels: 2 }, { index: 1, codec: "ac3", channels: 2 }] });
+const H264_AVI = file({ container: "avi", video: { codec: "h264" }, audio: [{ index: 0, codec: "mp3", channels: 2 }] });
 const UHD_H264_120 = file({ width: 3840, height: 2160, video: { codec: "h264", fps: 120 } });
 const VC1 = file({ video: { codec: "vc1" } });
 
@@ -131,7 +134,13 @@ test("the table: file × device", () => {
     // Dolby Vision profile 8: its HDR10 layer on the Mi TV
     [DV_P8, MITV, "direct/direct/passthrough"],
     // old formats
-    [MPEG2_AVI, MITV, "direct/direct/decode"],
+    // AVI on ExoPlayer: never the file as it is (media3's AVI reader failed
+    // the Haven WEB-DLRip on a Mi Box before its first frame) — the picture
+    // copied when it can be, else encoded
+    [MPEG2_AVI, MITV, "transcode/encode/decode"],
+    [XVID_AVI, MITV, "transcode/encode/passthrough"],
+    [H264_AVI, MITV, "remux/copy/decode"],
+    [H264_AVI, CHROME, "remux/copy/decode"],
     [MPEG2_AVI, CHROME, "transcode/encode/convert"],
     [VC1, MITV, "transcode/encode/decode"],
     // over the decoder's limits
@@ -323,4 +332,15 @@ test("the Android phone app reports as its own client, and is judged like the TV
   const phone = avcaps.normalize({ ...JSON.parse(JSON.stringify(MITV)), client: "phone", model: "Google Pixel 9" });
   assert.equal(phone.client, "phone");
   assert.equal(avcaps.normalize({ ...JSON.parse(JSON.stringify(MITV)), client: "watch" }), null);
+});
+
+test("AVI on the TV and the phone goes the server's way, and says why; the same file in MKV still plays as it is", () => {
+  const r = d(XVID_AVI, MITV);
+  assert.equal(r.mode, "transcode");
+  assert.equal(r.container, false);
+  assert.ok(r.why.some((w) => /avi is not opened directly by this player/.test(w)), r.why.join(" | "));
+  const phone = avcaps.normalize({ ...JSON.parse(JSON.stringify(MITV)), client: "phone", containers: { mp4: true, mkv: true, avi: true } });
+  assert.equal(d(H264_AVI, phone).mode, "remux");
+  assert.equal(d({ ...H264_AVI, container: "mkv" }, MITV).mode, "direct", "only the AVI container is the problem");
+  assert.equal(d({ ...XVID_AVI, container: "mkv" }, MITV).mode, "direct");
 });

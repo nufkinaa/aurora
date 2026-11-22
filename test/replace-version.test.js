@@ -773,3 +773,94 @@ test("it is a person's download like any other: the per-account limit (3 at once
   await flush();
   assert.equal(D.active.has(job.id), true, "it starts once one of the three is done");
 });
+
+// Haven S3E7 (Dor, 2026-11-21): "Bad sound → Get another version" on an
+// episode while it played. The finished file waits hidden beside the old copy
+// with its download slot handed back — and another download landing in the
+// same Season folder (the next episode, which smart downloads fetch while an
+// episode plays) swept that hidden file away as a crash's left-over, because
+// only a job IN THE ENGINE kept its temp file. The swap then removed the old
+// copy first and found nothing to put in its place: the job failed and the
+// episode was gone from the library.
+test("a waiting replacement's hidden file survives another download landing in the same folder", async () => {
+  await reset();
+  const ep = seedEpisode();
+  playing.add(path.resolve(ep.file));
+  engine.define(B, { ext: ".mkv" });
+  const r = await ask(ep.id, GROWN, B, "sound");
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const jobId = r.body.job.id;
+  await flush();
+  engine.finish(B);
+  await D.poll();
+  await until(() => jobOf(jobId).replaceWait, "the replacement to wait");
+  assert.equal(D.active.has(jobId), false, "its slot is handed back while it waits");
+  // the next episode lands in the same folder meanwhile
+  const N = HASH("n");
+  engine.define(N, { ext: ".mkv" });
+  const next = downloads.create({ infoHash: N, fileIdx: 0, type: "show", imdbId: ep.imdbId, title: ep.show, season: 1, episode: 4, quality: "1080p", sizeBytes: 4096, profile: GROWN.id, profileName: GROWN.name });
+  assert.ok(next.job, JSON.stringify(next));
+  await flush();
+  engine.finish(N);
+  await D.poll();
+  await until(() => jobOf(next.job.id).status === "done", "the next episode to land");
+  assert.equal(path.dirname(jobOf(next.job.id).destPath), ep.dir, "it landed beside the waiting replacement");
+  assert.ok(fs.readdirSync(ep.dir).some((x) => x === D.tempNameFor(jobId)), "the waiting replacement's hidden file is still there");
+  playing.clear();
+  await until(() => ["done", "error"].includes(jobOf(jobId).status), "the swap once nobody plays it");
+  assert.equal(jobOf(jobId).status, "done", jobOf(jobId).error || "");
+  assert.equal(jobOf(jobId).destPath, ep.file);
+  assert.equal(fs.readFileSync(ep.file)[0], 7, "the new bytes are in the old copy's place");
+  assert.equal(scanner.idForPath(ep.file), ep.id);
+});
+
+// …and whatever takes the hidden file away (a hand, a cleanup), the swap never
+// removes the old copy without a new one to put in its place.
+test("the hidden new file gone before the swap: the old copy stays, the job fails saying so", async () => {
+  await reset();
+  const ep = seedEpisode();
+  playing.add(path.resolve(ep.file));
+  engine.define(B, { ext: ".mkv" });
+  const r = await ask(ep.id, GROWN, B, "sound");
+  const jobId = r.body.job.id;
+  await flush();
+  engine.finish(B);
+  await D.poll();
+  await until(() => jobOf(jobId).replaceWait, "the replacement to wait");
+  fs.unlinkSync(path.join(ep.dir, D.tempNameFor(jobId)));
+  playing.clear();
+  await until(() => ["done", "error"].includes(jobOf(jobId).status), "the job to end");
+  assert.equal(jobOf(jobId).status, "error");
+  assert.match(jobOf(jobId).error, /finished file went missing/);
+  assert.ok(fs.existsSync(ep.file), "the old copy is still in the library");
+  assert.equal(fs.readFileSync(ep.file)[0], 2, "…untouched");
+  assert.equal(scanner.idForPath(ep.file), ep.id);
+  assert.equal(entryOf(r.body.replacement.id).status, "failed");
+});
+
+// Dor's two reports (Haven S3E7): "Wrong language" offered a Russian TV
+// channel's voice-over pack (flagged 🇷🇺 / 🇬🇧) as the copy in English; "Bad
+// sound" offered such packs with the rest.
+test("the sheet's list: a voice-over in another language is at the foot, never ★ — for Wrong language and for any other reason", async () => {
+  await reset();
+  const ep = seedEpisode();
+  const was = R.seams.originalLanguage;
+  R.seams.originalLanguage = async () => "en";
+  try {
+    const RU = HASH("r"), EN = HASH("g");
+    const ru = "Тайны Хейвена / Haven [S01-05] (2010-2014) WEB-DLRip | Sony Sci-Fi";
+    sources[`${ep.imdbId}:1:2`] = [
+      src(RU, { release: ru, quality: "SD", seeders: 400, languages: ["RU", "EN"], recommended: true }),
+      src(EN, { release: "Haven 2010 Season 3 Complete BDRip 720p x264 [i c]", quality: "720p", seeders: 12 }),
+    ];
+    for (const reason of ["language", "sound"]) {
+      const r = await replace.sources(ep.id, GROWN, { reason });
+      assert.equal(r.status, 200);
+      assert.deepEqual(r.body.streams.map((s) => s.infoHash), [EN, RU], `${reason}: the voice-over goes to the foot`);
+      assert.deepEqual(r.body.streams.filter((s) => s.recommended).map((s) => s.infoHash), [EN], `${reason}: the ★ is the English copy`);
+      assert.equal(r.body.streams[1].langLabel, "Russian voice-over", `${reason}: the row says what it is`);
+    }
+  } finally {
+    R.seams.originalLanguage = was;
+  }
+});

@@ -163,6 +163,14 @@ const languageFit = async (s, viewer) => {
   try { original = await seams.originalLanguage(s); } catch {}
   return copylang.fitFor({ copy: tracks.map((t) => t && t.language), wish: p && p.prefs ? p.prefs.audioLang : null, original });
 };
+// The languages this person watches this title in, for any other reason: the
+// audio language they last picked and the title's own.
+const wantedLangs = async (s, viewer) => {
+  const p = viewer && viewer.id ? require("../profiles").list().find((x) => x.id === viewer.id) : null;
+  let original = null;
+  try { original = await seams.originalLanguage(s); } catch {}
+  return [p && p.prefs ? p.prefs.audioLang : null, original].filter(Boolean);
+};
 
 const liveJobFor = (libraryId) => {
   try {
@@ -288,6 +296,10 @@ const sources = async (libraryId, viewer, opts = {}) => {
     const out = copylang.arrange(streams, await languageFit(s, viewer));
     streams = out.streams;
     note = out.note;
+  } else if (streams.some((x) => copylang.voiceOverOf(x))) {
+    // any other reason: a voice-over in a language this person does not watch
+    // in goes to the foot, never ★ (Haven S3E7, 2026-11-20)
+    streams = copylang.sinkVoiceOver(streams, await wantedLangs(s, viewer));
   }
   const last = lastOf(s.libraryId, viewer);
   const lastEntry = last ? entryById(last.id) : null;
@@ -303,7 +315,7 @@ const sources = async (libraryId, viewer, opts = {}) => {
   // clean copy before one with burned-in subtitles; none at all when every
   // copy left is a cinema recording)
   if (!streams.some((x) => x.recommended)) {
-    const ok = (x) => require("./releasekind").pickable(x) && !x.badHere && !x.tried && x.langFit !== "other";
+    const ok = (x) => require("./releasekind").pickable(x) && !x.badHere && !x.tried && x.langFit !== "other" && !x.voiceOver;
     const best = streams.find((x) => ok(x) && !x.hardsub) || streams.find(ok);
     if (best) streams = streams.map((x) => (x === best ? { ...x, recommended: true } : x));
   }
@@ -464,6 +476,10 @@ const land = async (job, ctx) => {
       await sleep(seams.waitMs);
       continue;
     }
+    // Nothing to put in its place: the old copy is never removed for it (a
+    // hidden file swept or deleted while it waited — Haven S3E7, 2026-11-21:
+    // the old copy went first and the swap then failed on the missing file).
+    if (!fs.existsSync(ctx.tmp)) throw new Error("the finished file went missing before it could take the old copy's place");
     try {
       libfiles.deleteVideoFile(old, roots(), subExts, vidExts);
       break;

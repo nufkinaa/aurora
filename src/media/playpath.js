@@ -233,8 +233,16 @@ const decide = (facts, caps, opts = {}) => {
   const codec = facts.video && facts.video.codec;
   const cont = facts.container;
   const contList = cont ? (caps.containers || {})[cont] : null;
-  const containerOk = !!(cont && contList && codec && contList.includes(codec));
-  if (!containerOk) why.push(`container: ${cont || "unknown"}${contList ? ` with ${codec}` : ""} not opened here`);
+  // AVI on the TV and the phone (ExoPlayer): the box reports every container
+  // its player has a reader for, and media3's AVI reader is the weak one —
+  // the Haven S3E7 WEB-DLRip (.avi, 2026-11-21) failed on a Mi Box before its
+  // first frame (ERROR_CODE_IO_UNSPECIFIED), which no "lie" pins down, and
+  // reached a picture only through the encode after 33 s. AVI goes the
+  // server's way from the start.
+  const aviOnExo = cont === "avi" && (caps.client === "tv" || caps.client === "phone");
+  const containerOk = !aviOnExo && !!(cont && contList && codec && contList.includes(codec));
+  if (aviOnExo) why.push("container: avi is not opened directly by this player (media3's AVI reader)");
+  else if (!containerOk) why.push(`container: ${cont || "unknown"}${contList ? ` with ${codec}` : ""} not opened here`);
   const tracks = (facts.audio || []).map((t) => ({ index: t.index, ...audioVerdict(t, caps, prefs) }));
   const want = opts.track != null ? tracks.find((t) => t.index === opts.track) : tracks[0];
   const av = want || { audio: "decode", why: "no audio" };
