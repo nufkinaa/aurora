@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.42 — 2026-11-22
+
+- **Pick together, fresh every night.** Every card ever dealt to a room is remembered for everyone in it, so a title is never dealt to them again (when nothing fresh fits, the room is told plainly). Decks lead with titles nobody in the room has probably seen (watched, started, rated, on My List, followed, or answered in Swipe your taste), mix in this year's new films and series from Browse and Trending, and are shuffled much more each time.
+- **The TV votes.** A big "Vote here with the remote" key in the TV's lobby (right yes, left no, down maybe); a TV and a phone on the same profile are now two seats, "Elia (TV)" and "Elia (phone)". After "No match", anyone can deal more cards, not only the host.
+- **Aurora TV 5.9.8** and **Aurora for Android phones 1.1.10** carry the new Pick together.
+
 ## 1.15.41 — 2026-11-22
 
 - **Get another version, fixed (Haven S3E7 reports).** A finished replacement waiting for someone to stop watching the old copy was swept away when the next episode landed in the same folder - and the swap then removed the old copy too. Now a waiting replacement keeps its file, and the old copy is never removed unless the new one is really there.

@@ -21,7 +21,7 @@ const {colors, fontSize, spacing, radius} = theme;
 // one place to change: its cards say `since: ROUND`, and NEW_FROM = ROUND puts the New
 // ribbon on them alone. (The website has the same cards: public/js/screens/whatsnew.js,
 // ROUND there; its `webOnly` cards — AirPlay from an iPhone — have nothing to do on a TV.)
-export const ROUND = '5.9.7';
+export const ROUND = '5.9.8';
 const NEW_FROM = ROUND;
 const cmpVersion = (a: string, b: string) => {
   const pa = a.split('.').map(Number);
@@ -33,9 +33,18 @@ export const isNewCard = (f: {since?: string}) => !!f.since && cmpVersion(f.sinc
 
 type Feature = {since?: string; glyph: string; title: string; what: string; how: string; go?: {label: string; act: string}};
 export const FEATURES: Feature[] = [
-  // ---- 5.9.7: Continue Watching made reliable, the same card, the same words, on the website ----
+  // ---- 5.9.8: Pick together, fresh every night, the same card, the same words, on the website ----
   {
     since: ROUND,
+    glyph: '🍿',
+    title: "Pick together, fresh every night",
+    what: "Every deck is new: never a title your household was dealt before, mostly films and series nobody in the room has seen, with this year's new ones mixed in. The TV votes too: press Vote here with the remote (right yes, left no, down maybe), and a TV and a phone on the same profile each get their own seat. After No match, anyone can deal more cards.",
+    how: "Start Pick together on the TV or the website and share the code.",
+    go: {label: 'Go home', act: 'home'},
+  },
+  // ---- 5.9.7: Continue Watching made reliable, the same card, the same words, on the website ----
+  {
+    since: '5.9.7',
     glyph: '▶️',
     title: "Continue Watching, fixed",
     what: "One card per series, everywhere: back from the player it shows the next episode, never the old one beside it. It follows every device right away, keeps your spot when you open and close a title, and Undo puts a card back where it was.",

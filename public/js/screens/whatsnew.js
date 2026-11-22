@@ -21,12 +21,20 @@ import { showReportSheet } from "../report.js";
 // (The TV has the same cards: tv-native/src/screens/WhatsNew.tsx, ROUND there.
 // A card about something only a browser has says `webOnly: true` first —
 // test/whatsnew-parity.test.js leaves it out of the comparison.)
-export const ROUND = "1.15.41";
+export const ROUND = "1.15.42";
 const NEW_FROM = ROUND;
 const FEATURES = [
+  // ---- 1.15.42: Pick together, fresh every night (the same card on the TV) ----
+  {
+    since: ROUND, cue: "tap", glyph: "🍿",
+    title: "Pick together, fresh every night",
+    what: "Every deck is new: never a title your household was dealt before, mostly films and series nobody in the room has seen, with this year's new ones mixed in. The TV votes too: press Vote here with the remote (right yes, left no, down maybe), and a TV and a phone on the same profile each get their own seat. After No match, anyone can deal more cards.",
+    how: "Start Pick together on the TV or the website and share the code.",
+    go: { label: "Pick together", to: "#/group" },
+  },
   // ---- 1.15.41: Get another version, steadier ----
   {
-    webOnly: true, since: ROUND, cue: "tap", glyph: "🔁",
+    webOnly: true, since: "1.15.41", cue: "tap", glyph: "🔁",
     title: "Get another version, steadier",
     what: "Asking for another version of a copy no longer offers a foreign voice-over (a Russian channel's re-voicing) as the best pick, and a copy in the wrong language is turned down before it replaces yours. A new version that finishes while you're still watching waits safely for you to stop. Old AVI files start faster on the TV.",
     how: "In the player, open the menu and choose Problem with this copy.",
@@ -50,7 +58,7 @@ const FEATURES = [
   },
   // ---- 1.15.36: Continue Watching made reliable (the same card on the TV) ----
   {
-    since: ROUND, cue: "tap", glyph: "▶️",
+    since: "1.15.36", cue: "tap", glyph: "▶️",
     title: "Continue Watching, fixed",
     what: "One card per series, everywhere: back from the player it shows the next episode, never the old one beside it. It follows every device right away, keeps your spot when you open and close a title, and Undo puts a card back where it was.",
     how: "Open Home: Continue Watching is the first row.",
