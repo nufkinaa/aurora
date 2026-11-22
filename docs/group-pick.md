@@ -61,7 +61,7 @@ If nothing got a yes, the room sees "No match this time" and **anyone in the roo
 ## Timing
 
 - **Soft time limit** (2, 3 or 5 minutes — the starter's choice): the result comes as soon as every voter *who is here* has answered every card, or when the time is up, whichever is first. The host can add a minute or show the result early.
-- **Away**: a member with no live connection and no request for 75 seconds is away — they do not hold up "everyone is done". The same person on the same device coming back takes their place again (a reload, a phone unlocked).
+- **Away**: a member with no live connection and no request for 75 seconds is away — they do not hold up "everyone is done". The same person on the same device coming back takes their place again (a reload, a phone unlocked). After someone pressed Play that is still so — they see the pick ("Enjoy the film"); only someone new is told it is decided.
 - **Leaving** takes that person's ballot with them. The host leaving hands the session to the next voter who is here; the last one out ends it.
 - **Expiry**: a code nobody started swiping with expires after 20 minutes; a session nobody has looked at for 30 minutes ends; no session lasts more than 4 hours; an ended session still answers "ended" for 3 minutes, then the code is gone.
 
