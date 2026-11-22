@@ -55,7 +55,7 @@ for (const [vp, viewport] of [["desktop", { width: 1440, height: 900 }], ["phone
     assert.match(done, /another version: done/);
     assert.ok(!done.includes(WHY));
     await assertNoHorizontalOverflow(page);
-    await shot(page, `admin-report-failed-${vp}`, "#pane-moderation section:first-of-type");
+    await shot(page, `admin-report-failed-${vp}`, "#pane-moderation > section:first-of-type");
     // the report's own Copy for Claude carries it too
     await rows.nth(0).locator("[data-report-copy]").click();
     await page.waitForFunction(() => navigator.clipboard.readText().then((t) => t.length > 0));
@@ -63,6 +63,7 @@ for (const [vp, viewport] of [["desktop", { width: 1440, height: 900 }], ["phone
     assert.ok(text.includes(`another version: failed (${WHY})`), text);
     // …and Replaced copies still has it, as before
     await openDetails(page, "in-replaced");
-    assert.ok((await page.locator("#replacements").innerText()).includes(WHY));
+    await page.waitForFunction((why) => document.getElementById("replacements").innerText.includes(why), WHY);
   });
 }
+ui.run({ concurrency: 1 });
