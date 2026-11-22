@@ -7,7 +7,7 @@
 export const WORDS = {
   feature: 'What do we watch tonight?',
   entry: 'Pick together',
-  entryLine: 'Everyone swipes on their own phone. Aurora finds what you all want.',
+  entryLine: 'Everyone votes on their phone, or on the TV with the remote. Aurora finds what you all want.',
   startHere: 'Start',
   joinCode: 'Join with a code',
   codeLabel: 'The code on the screen',
@@ -87,7 +87,7 @@ export const WORDS = {
 export const TUTORIAL = [
   {art: 'tv', title: 'Start it on the TV', body: 'Pick a mood and how long. A code and a QR code show on the screen.'},
   {art: 'phones', title: 'Join on your phones', body: 'Scan the code or type it in. Everyone gets the same cards.'},
-  {art: 'swipe', title: 'Swipe yes, maybe or no', body: 'Each on your own phone, at the same time. Nobody sees what you said. Want something? Add it with search.'},
+  {art: 'swipe', title: 'Swipe yes, maybe or no', body: 'Each on your own phone, or on the TV with the remote, all at the same time. Nobody sees what you said. Want something? Add it with search.'},
   {art: 'result', title: 'The pick shows on the TV', body: 'Aurora finds what you all said yes to. One press plays it — or ask for something else.'},
 ];
 

@@ -373,9 +373,11 @@ const join = (actor, code, { device, role, app } = {}) => {
     wrong.set(actor.profileId, list);
     return err(404, s ? "That session has ended" : "No session with that code — check it against the screen");
   }
-  if (s.phase === "chosen") return err(409, "They have already picked — enjoy the film");
   const key = memberKey(actor.profileId, device);
   const known = s.members.get(key);
+  // (someone already in the room — a reload, a phone unlocked — comes back even after Play
+  // was pressed: they see "Enjoy", not a refusal; only a newcomer is told it is decided)
+  if (s.phase === "chosen" && !known) return err(409, "They have already picked — enjoy the film");
   if (known) {
     // the same person on the same device: back from a reload or a lost connection
     known.seenAt = now();

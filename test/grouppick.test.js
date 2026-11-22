@@ -393,6 +393,19 @@ test("session: the host leaving hands it on; the host ending it ends it for ever
   assert.equal(gp.get(s2.code, P("avi"), "z").status, 403);
 });
 
+test("session: someone in the room coming back after Play sees the pick; a newcomer is told it is decided", () => {
+  fresh();
+  const { session: s } = gp.create(P("elia", "Elia"), {}, { device: "tv", role: "screen", app: "tv" });
+  gp.join(P("dana", "Dana"), s.code, { device: "a" });
+  gp.start(s.code, P("elia"), "tv", cards(1));
+  gp.vote(s.code, P("dana"), "a", "c0", "yes");
+  assert.equal(gp.choose(s.code, P("dana"), "a", "c0").session.phase, "chosen");
+  const back = gp.join(P("dana", "Dana"), s.code, { device: "a" });
+  assert.equal(back.session.phase, "chosen", "a reload after Play");
+  assert.equal(back.session.chosen.key, "c0");
+  assert.equal(gp.join(P("avi", "Avi"), s.code, { device: "b" }).status, 409, "a newcomer");
+});
+
 test("session: rejoining on the same device takes the same place (a reload, a lost connection)", () => {
   fresh();
   const { session: s } = gp.create(P("elia", "Elia"), {}, { device: "tv", role: "screen" });

@@ -298,6 +298,19 @@ export default function GroupPick({navigation, route}: Props) {
   const hitMaybe = useValue(0);
   const flights = useRef(0);
   const [leaving, setLeaving] = useState<Leaving | null>(null);
+  // A new round starts from rest. The last answer of a round sets these moving
+  // and the deck leaves the screen under them (No match / the result), which
+  // stops them part-way: on the Mi TV round 2 opened with "No" still lit and
+  // the first card under the arrival veil.
+  useEffect(() => {
+    for (const v of [out, hitNo, hitYes, hitMaybe]) {
+      v.stopAnimation();
+      v.setValue(0);
+    }
+    pop.stopAnimation();
+    pop.setValue(1);
+    setLeaving(null);
+  }, [round, out, pop, hitNo, hitYes, hitMaybe]);
   const arrive = useCallback(
     (delay = 0) => {
       pop.stopAnimation();
@@ -1004,7 +1017,8 @@ function LobbyView({
       </View>
 
       <View style={styles.lobbyMain}>
-        <Text style={styles.joined} numberOfLines={1}>
+        {/* "Tali (TV) and Tali (phone) are in" is long: it shrinks to fit rather than being cut */}
+        <Text style={styles.joined} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
           {joinedLine(session)}
         </Text>
         <View style={styles.seatsBox}>
@@ -1070,8 +1084,8 @@ function LobbyView({
           ) : null}
           <PlayKey uiId="group.add" ref={firstFocus === 'add' ? (mainRef as never) : undefined} glyph="+" label={WORDS.addTitle} hasTVPreferredFocus={firstFocus === 'add'} onPress={onAdd} />
         </View>
+        {/* one line, not two: "Join on a phone — or vote here" only answers a press of Start swiping with nobody in */}
         {!voter ? <Text style={styles.hint}>{WORDS.voteHereLine}</Text> : null}
-        {host && !session.voters ? <Text style={styles.hint}>{WORDS.needSomeoneTv}</Text> : null}
         {!host ? <Text style={styles.hint}>{WORDS.onlyHost}</Text> : null}
       </View>
     </View>

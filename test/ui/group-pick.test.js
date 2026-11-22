@@ -217,7 +217,11 @@ ui.test("the room: a big screen and three phones pick a film together", { viewpo
         }
         if (ph.who === "dana" && n === 3) await shot(page, "tv-4-progress");
       }
-      if (ph.who !== "ben") await ph.page.waitForSelector(".gp-waiting");
+      if (ph.who !== "ben") {
+        await ph.page.waitForSelector(".gp-waiting");
+        // a guest's waiting room (no host keys) once printed the word "false"
+        assert.ok(!/false/.test(await ph.page.$eval(".gp-waiting", (n) => n.innerText)), `${ph.who}'s waiting room says "false"`);
+      }
     }
     assert.ok(dragged, "a card was answered by dragging");
     await shot(phones[0].page, "phone-4-waiting").catch(() => {});

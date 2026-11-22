@@ -73,18 +73,25 @@ const makeShow = async (showsDir, which = [1, 2, 3]) => {
 };
 
 // The film's time each time the button shows or hides, from the page itself.
+// (the button and the video are looked up on every frame, not held from the
+// first look: if the player draws them again — an encode restarting part-way
+// can — a watcher holding the first ones watches a detached node. That is the
+// likely cause of "the button was seen appearing" failing twice on GitHub
+// shard 7 (2026-11-22) while waitFor had just seen the button on the screen;
+// never reproduced locally. A button that never shows still fails waitFor.)
 const watchButton = (page) => page.evaluate(() => {
   window.__skip = [];
-  const v = document.querySelector(".player video");
-  const b = document.querySelector(".player .skip-intro");
-  let shown = !b.classList.contains("hidden");
+  const btn = () => document.querySelector(".player .skip-intro");
+  const shownNow = () => { const b = btn(); return !!b && !b.classList.contains("hidden"); };
+  let shown = shownNow();
   const look = () => {
-    const now = !b.classList.contains("hidden");
+    const v = document.querySelector(".player video");
+    const now = shownNow();
     if (now !== shown) {
       shown = now;
       const el = document.querySelector(".player .scrub-row > span");
       const clock = el ? el.textContent.trim().split(":").map(Number).reduce((a, n) => a * 60 + n, 0) : null;
-      window.__skip.push({ shown: now, t: v.currentTime, clock });
+      window.__skip.push({ shown: now, t: v ? v.currentTime : NaN, clock });
     }
     window.__skipRaf = requestAnimationFrame(look);
   };

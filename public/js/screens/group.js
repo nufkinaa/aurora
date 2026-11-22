@@ -661,9 +661,10 @@ export const renderGroup = async (root, params = {}) => {
               progress || "",
               // the room's votes coming in: every seat with its own ribbon
               el("div", { class: "gp-people big pg-seats" }, ...voters.map((m) => seats.get(m.id))),
-              host && el("div", { class: "gp-actions" },
+              // (a ternary, not &&: replaceChildren writes a false out as the word "false" — a guest saw it)
+              host ? el("div", { class: "gp-actions" },
                 fk(btn({ "data-ui": "group.extend", class: KEY }, W.oneMore, () => act("extend")), "extend"),
-                fk(btn({ "data-ui": "group.finish", class: KEY_GO, "data-autofocus": "" }, W.showNow, () => act("finish")), "finish")),
+                fk(btn({ "data-ui": "group.finish", class: KEY_GO, "data-autofocus": "" }, W.showNow, () => act("finish")), "finish")) : "",
               isScreen() ? el("div", { class: "gp-code-small" }, `${W.joinTitle}: `, el("strong", {}, code), ` · ${G.hostOf(location.origin)}`) : "",
               x.you && x.you.role === "voter" ? el("div", { class: "gp-actions" }, addButton("tool")) : "",
               leaveRow());

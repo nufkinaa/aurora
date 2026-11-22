@@ -245,7 +245,8 @@ test('Start: the choices go along; the code, the QR code and the address show; S
   expect(mockGroup.create).toHaveBeenCalledWith({kind: 'movie', mood: 'funny', length: 'any', limitSec: 300}, 'screen');
   expect(live.code).toBe('AB7K');
   expect(ticket(r)).toEqual(['AB7K']);
-  expect(texts(r)).toEqual(expect.arrayContaining([WORDS.joinLine, 'nufurora.com', WORDS.waiting, WORDS.needSomeoneTv, WORDS.voteHereLine]));
+  expect(texts(r)).toEqual(expect.arrayContaining([WORDS.joinLine, 'nufurora.com', WORDS.waiting, WORDS.voteHereLine]));
+  expect(texts(r)).not.toContain(WORDS.needSomeoneTv); // one hint line in the empty lobby, not two
   expect(r.root.find(n => (n.type as unknown) === 'QRCode').props.value).toBe('https://nufurora.com/#/group/AB7K');
   // nobody in yet: the TV's own seat is the key the focus starts on (a room of one TV is never stuck)
   const deal = one(r, 'group.deal');
