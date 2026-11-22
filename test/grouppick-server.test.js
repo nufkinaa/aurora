@@ -44,6 +44,8 @@ test("group pick, end to end", { skip: !haveFfmpeg() && "ffmpeg not found", time
     const ben = await api.createProfile("Ben"); // has a password
     const noa = await api.createProfile("Noa", { open: true, kids: { maxAge: 12 } });
     const lock = await api.createProfile("Lockie", { open: true });
+    const kim = await api.createProfile("Kim", { open: true });
+    const lior = await api.createProfile("Lior", { open: true });
     await api.adminPost(`/api/admin/profiles/${lock.id}/lock`, { locked: true });
     const benH = await api.as(ben);
     const lib = await api.library();
@@ -53,6 +55,7 @@ test("group pick, end to end", { skip: !haveFfmpeg() && "ffmpeg not found", time
     assert.ok(film("film1") && film("film2") && show, "the test library has its films and its show");
     const G = (p, rest = "") => `/api/profiles/${p.id}/group${rest}`;
     let code = null;
+    let firstDeck = [];
 
     await t.test("options: the moods, lengths, kinds and limits the starter picks from", async () => {
       const o = await api.get(G(dana, "/options"));
@@ -162,6 +165,8 @@ test("group pick, end to end", { skip: !haveFfmpeg() && "ffmpeg not found", time
       assert.equal(avis.mine[`lib:${show.id}`], "yes", "adding is Avi's yes");
       assert.ok(r.session.deadline > r.session.now + 100000);
       assert.equal((await api.call("POST", G(dana, `/${code}/start`), { device: "tv1" })).status, 409);
+      firstDeck = d.map((c) => c.key);
+      assert.equal(new Set(firstDeck).size, firstDeck.length, "no title twice in a deck");
     });
 
     await t.test("everyone swipes; the result is the overlap with its why; Something else; Play", async () => {
@@ -191,25 +196,71 @@ test("group pick, end to end", { skip: !haveFfmpeg() && "ffmpeg not found", time
       assert.equal(ch.session.chosen.by, "Dana");
     });
 
+    await t.test("a later night never deals the same cards again (the household remembers what it was dealt)", async () => {
+      const r = await api.post(G(dana), { settings: { kind: "movie", mood: "any", length: "any" }, device: "tv1", role: "screen", app: "tv" });
+      const c4 = r.session.code;
+      await api.post(G(avi, "/join"), { code: c4, device: "ph-avi", app: "phone" });
+      const st = await api.call("POST", G(dana, `/${c4}/start`), { device: "tv1" });
+      if (st.status === 200) {
+        const keys = st.body.session.deck.map((c) => c.key);
+        const ids = st.body.session.deck.map((c) => c.imdbId).filter(Boolean);
+        assert.deepEqual(keys.filter((k) => firstDeck.includes(k)), [], "nothing from the first night");
+        assert.ok(!ids.includes(IDS.film1) && !keys.includes(`lib:${film("film1").id}`), "film1 was dealt before");
+      } else {
+        // the test catalogue can run dry: then the room is told so, plainly
+        assert.equal(st.status, 409);
+        assert.match(st.body.error, /dealt every title that fits/);
+      }
+      await api.post(G(dana, `/${c4}/end`), { device: "tv1" });
+    });
+
+    await t.test("the TV votes with the remote beside a phone on the same profile: two seats", async () => {
+      const r = await api.post(G(kim), { settings: { kind: "both" }, device: "tv-k", role: "screen", app: "tv" });
+      const c5 = r.session.code;
+      await api.post(G(kim, "/join"), { code: c5, device: "ph-k", app: "phone" });
+      const tv = await api.post(G(kim, `/${c5}/role`), { device: "tv-k", role: "voter" });
+      assert.equal(tv.session.voters, 2);
+      assert.deepEqual(tv.session.members.map((m) => m.label).sort(), ["Kim (TV)", "Kim (phone)"]);
+      const st = await api.post(G(kim, `/${c5}/start`), { device: "tv-k" });
+      const deck = st.session.deck;
+      assert.ok(deck.length >= 1);
+      for (const c of deck) await api.post(G(kim, `/${c5}/vote`), { device: "ph-k", key: c.key, verdict: "no" });
+      const mid = (await api.get(`${G(kim, `/${c5}`)}?device=tv-k`)).session;
+      assert.equal(mid.phase, "swiping", "the TV's seat has its own cards still");
+      assert.deepEqual(mid.mine, {});
+      for (const c of deck) await api.post(G(kim, `/${c5}/vote`), { device: "tv-k", key: c.key, verdict: c.key === deck[0].key ? "yes" : "no" });
+      const done = (await api.get(`${G(kim, `/${c5}`)}?device=ph-k`)).session;
+      assert.equal(done.phase, "result");
+      assert.equal(done.result.picks[0].why, "1 of 2 said yes · 1 no");
+      // more cards: the phone (not the host) can deal another round
+      const more = await api.call("POST", G(kim, `/${c5}/again`), { device: "ph-k" });
+      if (more.status === 200) {
+        assert.equal(more.body.session.round, 2);
+        assert.deepEqual(more.body.session.deck.map((c) => c.key).filter((k) => deck.some((d) => d.key === k)), [], "a fresh round");
+      } else assert.match(more.body.error, /dealt every title that fits|Nothing new fits/);
+      await api.post(G(kim, `/${c5}/end`), { device: "tv-k" });
+    });
+
     await t.test("a kid in the room: the deck and the adds keep to the kid's age", async () => {
-      const r = await api.post(G(dana), { settings: { kind: "both" }, device: "tv1", role: "screen", app: "tv" });
+      // people who have not been dealt anything yet (a dealt title never comes back)
+      const r = await api.post(G(lior), { settings: { kind: "both" }, device: "tv-l", role: "screen", app: "tv" });
       const c2 = r.session.code;
       await api.post(G(noa, "/join"), { code: c2, device: "ph-noa" });
-      await api.post(G(avi, "/join"), { code: c2, device: "ph-avi" });
-      const refused = await api.call("POST", G(avi, `/${c2}/add`), { device: "ph-avi", title: { id: film("film2").id } });
+      await api.post(G(lior, "/join"), { code: c2, device: "ph-lior" });
+      const refused = await api.call("POST", G(lior, `/${c2}/add`), { device: "ph-lior", title: { id: film("film2").id } });
       assert.equal(refused.status, 403);
       assert.equal(refused.body.error, "Not for everyone's age in this group");
-      const found = await api.get(`${G(avi, `/${c2}/search`)}?q=test%20film&device=ph-avi`);
+      const found = await api.get(`${G(lior, `/${c2}/search`)}?q=test%20film&device=ph-lior`);
       assert.ok(!found.results.some((x) => x.id === film("film2").id), "an 18+ film is not offered");
-      const st = await api.post(G(dana, `/${c2}/start`), { device: "tv1" });
+      const st = await api.post(G(lior, `/${c2}/start`), { device: "tv-l" });
       const keys = st.session.deck.map((c) => c.key);
       assert.ok(!keys.includes(`lib:${film("film2").id}`), "no 18+ film for a 12-year-old");
       assert.ok(keys.includes(`lib:${film("film1").id}`));
       assert.ok(keys.includes(`lib:${show.id}`), "7+ is fine for 12");
-      await api.post(G(dana, `/${c2}/end`), { device: "tv1" });
-      const ended = await api.get(`${G(avi, `/${c2}`)}?device=ph-avi`);
+      await api.post(G(lior, `/${c2}/end`), { device: "tv-l" });
+      const ended = await api.get(`${G(noa, `/${c2}`)}?device=ph-noa`);
       assert.equal(ended.session.phase, "ended");
-      assert.equal(ended.session.ended.reason, "Dana ended it");
+      assert.equal(ended.session.ended.reason, "Lior ended it");
     });
 
     await t.test("a code nobody starts with expires, and then is not found", async () => {

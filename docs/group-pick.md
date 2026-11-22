@@ -19,19 +19,23 @@ Where it lives:
 
 Household only, and only as yourself. Every route acts as the profile in its address and goes through the same gate as that profile's own data: the profile must exist, in "closed" mode the session must own it, a profile with a password needs its unlock token, an admin-locked profile is refused. A code is four characters from an alphabet without look-alikes (no I, O, 0, 1). Someone who types many wrong codes (12 in 5 minutes) is asked to wait.
 
-A **member** is a person on a device. A member is either a **voter** or a **screen**: the TV that starts a session is the screen (it shows the code, the progress and the pick) unless it is switched to "Swipe on this screen too". A browser on a big screen can be the screen as well. The **ballot belongs to the person**: the same profile on two phones is one voice, and the latest answer counts.
+A **member** is a person on a device. A member is either a **voter** or a **screen**: the TV that starts a session is the screen (it shows the code, the progress and the pick) unless someone presses **Vote here with the remote** (the TV's lobby; with nobody in yet it is the key the focus starts on). A browser on a big screen can be the screen as well ("Swipe on this screen too").
+
+**Every voting device is its own seat** (2026-11-22). The TV and a phone signed in to the same profile are two voters, shown as "Elia (TV)" and "Elia (phone)" — a household often shares one profile, and the person at the TV must be able to vote next to the one on the phone. Before, the ballot was the person's: the TV's answers and the phone's were one ballot, so once the phone had answered every card the TV had none left and could not vote at all. The cost: one person who votes on two of their own devices counts twice — the seat names make that visible, and "Only show the code and the result here" gives the TV's seat up. The deck is still built for the people (one taste per profile).
 
 ## The deck
 
 Built when the host presses **Start swiping**, for the people who are in at that moment.
 
-1. **Candidates**: the library (always), the recommender's title index (when it is in memory) and the catalogue's well-known titles (the "Swipe your taste" pool).
+1. **Candidates**: the library (always), the recommender's title index (when it is in memory), what is new and popular now (the catalogue's cached trending list and the "new" shelves of Browse, `media/discover.js` — fetched in the background when a session opens, so they are there when the host deals; a film still only in cinemas is left out) and the catalogue's well-known titles (the "Swipe your taste" pool).
+2. **Never again** (2026-11-22): every card a deck shows — the first deal, every other round, a title added during swiping — is remembered for everyone in the room, the voters and the room's screen (`data/group-dealt.json`, `lib/groupdealt.js`: which titles, for whom, when; nothing about answers). No later deck for any of them deals it again, by its library id or its IMDb id. When every title that fits the choices has been dealt before, the room is told so ("You've been dealt every title that fits these choices — try another mood, length or films / series") instead of being dealt old cards.
 2. **The starter's choices**: films, series or both; a mood (each mood is a few genres, plus the taxonomy's themes when the index knows a title's themes — "Feel-good" is Family/Animation/Romance or the feel-good / light-fun / romcom / underdog themes, and never Horror or War); a length ("Under 2 h" is a film's runtime, or a series' episode length; an unknown runtime is let through).
 3. **Kids**: if anyone in the room is a kids profile (or the starting device is in kids mode), the strictest age limit applies to the deck, to search and to adding. A title with no known age rating is out, as everywhere.
 4. **Seen**: a title *everyone* has seen is out (finished films, rated titles, what the recommender counts as watched). A title *some* have seen stays, lower down, and the card says "Dana has seen it".
 5. **Fair fit**: each voter's own fit for every candidate comes from the recommender's person model (taste, nearest liked titles, dislikes). For someone the recommender does not know yet, it is the genres they said they like and the genres of the titles they loved. Each person's fits are turned into **percentiles** among the candidates, so a person with a long history (big raw scores) does not outvote someone with a short one. The group fit is `0.6 × average + 0.4 × lowest` — a title one person would hate does not get in on the others' love. A voter with no opinion on a title counts as the middle.
 6. **On the server first**: a library title scores higher (it plays now, no download), and at least half the deck is the library while the library has enough that fits.
-7. **Variety**: a genre already in the deck counts a little less each time, so twenty cards are not twenty thrillers. Then a light shuffle keeps the strongest few near the top.
+7. **New**: at least a quarter of the deck is from this year or last while the candidates have enough of them.
+8. **Variety**: a genre already in the deck counts a little less each time, so twenty cards are not twenty thrillers; a random share of every score (0.2) changes which of the good titles come up on each deal. Then a light shuffle keeps the strongest few near the top.
 
 Twenty cards. **Added titles**: anyone in the session can add a title with the search inside the session (up to 5 each per round). In the lobby they go into the deck early (every other card from the second); during swiping they go to the end of everyone's deck. **Adding a title counts as your yes.**
 
@@ -52,7 +56,7 @@ Examples with three people: yes/yes/yes is the pick. yes/maybe/maybe (0.67) beat
 
 **The why is counted, never named**: "3 of 3 said yes", "Both of you said yes", "2 of 3 said yes · 1 maybe", "2 of 3 said yes · 1 didn't get to it". Who said no is nobody's business at a sofa; during swiping nobody sees anyone else's answers — only how far each person has got.
 
-If nothing got a yes, the room sees "No match this time" and the host can **swipe another round** (a fresh deck without the cards already shown).
+If nothing got a yes, the room sees "No match this time" and **anyone in the room** can **Deal more cards** (a fresh deck; none of the cards already shown come back). "Swipe another round" on a result is anyone's too.
 
 ## Timing
 

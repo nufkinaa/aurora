@@ -385,6 +385,7 @@ module.exports = {
   "group.tutorial.next": "wtp",
   "group.tutorial.skip": "wtp",
   "group.screen": "wt", // a big screen: swipe here too / only show the code and the result
+  "group.votehere": "wt", // the room's screen takes a seat of its own (the TV: vote with the remote)
   "taste.back": "wp",
   "taste.done": "wtp",
   "taste.edit": "wp",

@@ -85,16 +85,16 @@ const avatarOf = (m) => m.avatarImage
 const seat = (m, { phase, deck = [] }, { fresh = false, i = 0, ribbon = false, had = null } = {}) => {
   const voting = ribbon && phase === "swiping" && m.role === "voter";
   const part = m.done ? 1 : deck.length ? Math.max(0, Math.min(1, (m.answered || 0) / deck.length)) : 0;
-  // the ribbon glides from where it stood at the last paint (`had`: profile -> { part, done })
-  const was = had && had.get(m.profileId);
+  // the ribbon glides from where it stood at the last paint (`had`: seat -> { part, done })
+  const was = had && had.get(m.id);
   const fill = el("i", { style: `--p:${(was && voting ? was.part : part).toFixed(3)}` });
   // (it glides to where the person stands by then — a newer answer may have come in)
   if (voting && was && was.part !== part) requestAnimationFrame(() => requestAnimationFrame(() => {
-    const now = had.get(m.profileId);
+    const now = had.get(m.id);
     fill.style.setProperty("--p", (now ? now.part : part).toFixed(3));
   }));
   const justDone = voting && m.done && !!was && !was.done;
-  if (voting && had) had.set(m.profileId, { part, done: !!m.done });
+  if (voting && had) had.set(m.id, { part, done: !!m.done });
   const count = voting && !m.done ? el("span", { class: "gp-badge dim" }, `${m.answered}/${deck.length}`) : null;
   const node = el("div", { class: `gp-person pg-seat${m.away ? " away" : ""}${m.done ? " done" : ""}${fresh ? " is-new" : ""}`, style: `--i:${i}` },
     el("span", { class: "pg-seat-face" },
@@ -118,8 +118,8 @@ const setText = (n, t) => { if (n && n.textContent !== t) n.textContent = t; };
 const moveSeat = (node, m, { deck = [] }, had) => {
   if (!node || !node._fill) return;
   const part = m.done ? 1 : deck.length ? Math.max(0, Math.min(1, (m.answered || 0) / deck.length)) : 0;
-  const was = had && had.get(m.profileId);
-  if (had) had.set(m.profileId, { part, done: !!m.done });
+  const was = had && had.get(m.id);
+  if (had) had.set(m.id, { part, done: !!m.done });
   if (!was || was.part !== part) node._fill.style.setProperty("--p", part.toFixed(3));
   setText(node._count, `${m.answered}/${deck.length}`);
 };
@@ -587,8 +587,8 @@ export const renderGroup = async (root, params = {}) => {
             // seats: whoever is new since the last paint pops in, one after the other
             let arriving = 0;
             const seats = people.map((m) => {
-              const fresh = !seen.has(m.profileId);
-              seen.add(m.profileId);
+              const fresh = !seen.has(m.id);
+              seen.add(m.id);
               return seat(m, x, { fresh, i: fresh ? arriving++ : 0 });
             });
             // (and a chair or two left free: there is room for more)
@@ -606,6 +606,8 @@ export const renderGroup = async (root, params = {}) => {
                 el("span", {}, W.justShow)) : "",
               el("div", { class: "gp-actions" },
                 addButton(),
+                // the room's screen can take a seat of its own (someone without a phone)
+                !voterHere ? fk(btn({ "data-ui": "group.votehere", class: KEY }, W.swipeHereToo, () => act("role", { role: "voter" })), "votehere") : "",
                 host ? dealBtn : el("p", { class: "gp-dim" }, W.onlyHost)),
               host && !x.voters ? el("p", { class: "gp-dim" }, W.needSomeone) : "",
               leaveRow());
@@ -629,18 +631,18 @@ export const renderGroup = async (root, params = {}) => {
         let shape = "";
         let title = null;
         let progress = null;
-        const seats = new Map(); // profile -> its seat on the page
+        const seats = new Map(); // seat (member id) -> its seat on the page
         return {
           step: "waiting", node,
           update: (x) => {
             const host = isHost();
             const voters = G.peopleOf(x).filter((m) => m.role === "voter");
             const now = JSON.stringify([isScreen(), host, !!(x.you && x.you.role === "voter"), x.phase, (x.deck || []).length,
-              voters.map((m) => [m.profileId, m.name, m.avatar, m.avatarImage, !!m.host, !!m.away, !!m.done])]);
+              voters.map((m) => [m.id, m.name, m.avatar, m.avatarImage, !!m.host, !!m.away, !!m.done])]);
             if (now === shape && node.firstChild) {
               setText(title, isScreen() ? G.progressLine(x) || W.waiting : W.doneWaiting);
               setText(progress, G.progressLine(x));
-              for (const m of voters) moveSeat(seats.get(m.profileId), m, x, farAlong);
+              for (const m of voters) moveSeat(seats.get(m.id), m, x, farAlong);
               paintTime(node);
               return;
             }
@@ -649,7 +651,7 @@ export const renderGroup = async (root, params = {}) => {
             title = el("h1", { class: "gp-wait-title play-h2" }, isScreen() ? G.progressLine(x) || W.waiting : W.doneWaiting);
             progress = !isScreen() ? el("div", { class: "gp-progress" }, G.progressLine(x)) : null;
             seats.clear();
-            for (const m of voters) seats.set(m.profileId, seat(m, x, { ribbon: true, had: farAlong }));
+            for (const m of voters) seats.set(m.id, seat(m, x, { ribbon: true, had: farAlong }));
             node.replaceChildren(
               el("div", { class: "gp-kicker play-eyebrow" }, star(), W.feature),
               title,
@@ -657,7 +659,7 @@ export const renderGroup = async (root, params = {}) => {
               el("div", { class: "gp-time", "aria-live": "off" }, G.timeLeft(x, Date.now() - follow.receivedAt())),
               progress || "",
               // the room's votes coming in: every seat with its own ribbon
-              el("div", { class: "gp-people big pg-seats" }, ...voters.map((m) => seats.get(m.profileId))),
+              el("div", { class: "gp-people big pg-seats" }, ...voters.map((m) => seats.get(m.id))),
               host && el("div", { class: "gp-actions" },
                 fk(btn({ "data-ui": "group.extend", class: KEY }, W.oneMore, () => act("extend")), "extend"),
                 fk(btn({ "data-ui": "group.finish", class: KEY_GO, "data-autofocus": "" }, W.showNow, () => act("finish")), "finish")),
@@ -691,9 +693,9 @@ export const renderGroup = async (root, params = {}) => {
               node.replaceChildren(el("div", { class: "gp-nomatch" },
                 el("div", { class: "gp-kicker play-eyebrow" }, star(), W.feature),
                 el("h1", { class: "play-h2" }, W.noMatch),
-                el("p", { class: "gp-lead" }, W.noMatchLine),
+                el("p", { class: "gp-lead" }, W.noMatchMore),
                 el("div", { class: "gp-actions" },
-                  host ? fk(btn({ "data-ui": "group.again", class: `${KEY_GO} gp-big`, "data-autofocus": "" }, W.again, () => act("again")), "again") : el("p", { class: "gp-dim" }, W.onlyHost)),
+                  fk(btn({ "data-ui": "group.again", class: `${KEY_GO} gp-big`, "data-autofocus": "" }, W.moreCards, () => act("again")), "again")),
                 leaveRow()));
             } else {
               const c = pick.card;
@@ -720,10 +722,9 @@ export const renderGroup = async (root, params = {}) => {
                       fk(btn({ "data-ui": "group.next", class: KEY }, G.hasNextPick(x) ? W.somethingElse : r.picks.length > 1 ? W.firstPick : W.somethingElse, () => {
                         if (G.hasNextPick(x)) act("pick", { index: r.index + 1 });
                         else if (r.picks.length > 1) act("pick", { index: 0 });
-                        else if (host) act("again");
-                        else toast("That was the only one everybody could agree on", "🎬");
+                        else act("again");
                       }), "next"),
-                      host && fk(btn({ "data-ui": "group.again", class: KEY }, W.again, () => act("again")), "again")),
+                      fk(btn({ "data-ui": "group.again", class: KEY }, W.again, () => act("again")), "again")),
                     leaveRow())));
               if (reveal && !shown && r.index === 0) {
                 shown = true;
@@ -876,7 +877,7 @@ export const renderGroup = async (root, params = {}) => {
       let minisAre = null; // (drawn again only when a face, or its state, changes)
       const paintMinis = (x) => {
         const people = G.peopleOf(x).filter((m) => m.role === "voter").slice(0, 8);
-        const are = people.map((m) => [m.profileId, m.done ? 1 : 0, m.away ? 1 : 0, m.avatarImage || m.avatar || m.name || ""].join("|")).join("\n");
+        const are = people.map((m) => [m.id, m.done ? 1 : 0, m.away ? 1 : 0, m.avatarImage || m.avatar || m.name || ""].join("|")).join("\n");
         if (are === minisAre) return;
         minisAre = are;
         minis.replaceChildren(...people.map((m) => el("span", { class: `pg-mini${m.done ? " done" : ""}${m.away ? " away" : ""}` }, avatarOf(m))));

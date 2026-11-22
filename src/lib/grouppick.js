@@ -34,8 +34,13 @@
 // WHO VOTES
 //   A member is a person on a device. A member is a "voter" or a "screen":
 //   the TV that started it is a screen (it shows the code and the result)
-//   unless it is told "Swipe on the TV too". The ballot is the PERSON's: the
-//   same profile on two phones is one voice (its latest answer counts).
+//   unless it is told "Vote here with the remote". The ballot is the SEAT's
+//   (2026-11-22): every voting device is its own voice, so the TV and a phone
+//   signed in to the same profile are two voters — "Elia (TV)" and
+//   "Elia (phone)" (`label`) — which is what a household sharing one profile
+//   needs (before, the TV's answers and the phone's were one ballot: once the
+//   phone had answered, the TV had no cards left and could not vote). The
+//   deck is still built for the PEOPLE (votersOf: one taste per profile).
 //
 // TIMEOUTS (opts, all changeable for tests)
 //   lobbyMs     a code nobody started swiping with expires (20 min)
@@ -98,14 +103,43 @@ const limitOf = (v) => {
 };
 
 // ---------- reading a session ----------
+// the voting seats (member keys): one ballot each
 const voters = (s) => {
+  const out = [];
+  for (const m of s.members.values()) if (m.role === "voter") out.push(m.key);
+  return out;
+};
+// the people behind them (one taste per profile, for the deck)
+const voterPeople = (s) => {
   const out = [];
   for (const m of s.members.values()) if (m.role === "voter" && !out.includes(m.profileId)) out.push(m.profileId);
   return out;
 };
+// "Elia (TV)" / "Elia (phone)" when one profile has more than one voting seat
+const APP_WORD = { tv: "TV", phone: "phone", web: "browser" };
+const labelsOf = (s) => {
+  const seats = new Map(); // profileId -> [member]
+  for (const m of s.members.values()) {
+    if (m.role !== "voter") continue;
+    if (!seats.has(m.profileId)) seats.set(m.profileId, []);
+    seats.get(m.profileId).push(m);
+  }
+  const out = new Map();
+  for (const list of seats.values()) {
+    if (list.length < 2) continue;
+    const per = new Map();
+    for (const m of list) {
+      const word = APP_WORD[m.app] || "browser";
+      const n = (per.get(word) || 0) + 1;
+      per.set(word, n);
+      out.set(m.key, `${m.name} (${word}${n > 1 ? ` ${n}` : ""})`);
+    }
+  }
+  return out;
+};
 const isAway = (m, t = now()) => m.live <= 0 && t - m.seenAt > opts.awayMs;
-const answeredBy = (s, pid) => {
-  const b = s.ballots.get(pid);
+const answeredBy = (s, seat) => {
+  const b = s.ballots.get(seat);
   if (!b) return 0;
   let n = 0;
   for (const c of s.deck) if (b.has(c.key)) n++;
@@ -115,9 +149,9 @@ const answeredBy = (s, pid) => {
 const everyoneDone = (s, t = now()) => {
   if (!s.deck.length) return false;
   const here = new Set();
-  for (const m of s.members.values()) if (m.role === "voter" && !isAway(m, t)) here.add(m.profileId);
+  for (const m of s.members.values()) if (m.role === "voter" && !isAway(m, t)) here.add(m.key);
   if (!here.size) return false;
-  for (const pid of here) if (answeredBy(s, pid) < s.deck.length) return false;
+  for (const seat of here) if (answeredBy(s, seat) < s.deck.length) return false;
   return true;
 };
 const nameOf = (s, pid) => {
@@ -141,19 +175,21 @@ const publicCard = (s, c) => {
 const view = (s, key) => {
   const t = now();
   const me = s.members.get(key) || null;
-  const ballot = me ? s.ballots.get(me.profileId) : null;
+  const ballot = me ? s.ballots.get(me.key) : null;
+  const labels = labelsOf(s);
   const members = [...s.members.values()].map((m) => ({
     id: m.key,
     profileId: m.profileId,
     name: m.name,
+    ...(labels.has(m.key) ? { label: labels.get(m.key) } : {}),
     avatar: m.avatar,
     avatarImage: m.avatarImage,
     role: m.role,
     app: m.app,
     host: m.key === s.hostKey,
     away: isAway(m, t),
-    answered: m.role === "voter" ? answeredBy(s, m.profileId) : 0,
-    done: m.role === "voter" && s.deck.length > 0 && answeredBy(s, m.profileId) >= s.deck.length,
+    answered: m.role === "voter" ? answeredBy(s, m.key) : 0,
+    done: m.role === "voter" && s.deck.length > 0 && answeredBy(s, m.key) >= s.deck.length,
   }));
   const host = s.members.get(s.hostKey);
   const out = {
@@ -368,8 +404,8 @@ const leave = (code, actor, device) => {
   if (r.e) return r.e;
   const { s, m } = r;
   s.members.delete(m.key);
-  // their ballot goes with them when no other device of theirs is left
-  if (![...s.members.values()].some((o) => o.profileId === m.profileId && o.role === "voter")) s.ballots.delete(m.profileId);
+  // their ballot goes with them
+  s.ballots.delete(m.key);
   if (!s.members.size) {
     endSession(s, `${m.name} left`);
     return { ok: true };
@@ -415,7 +451,13 @@ const setRole = (code, actor, device, role) => {
 // Who the deck is for (the route builds the deck for these people).
 const votersOf = (code) => {
   const s = sessions.get(tidyCode(code));
-  return s ? voters(s) : [];
+  return s ? voterPeople(s) : [];
+};
+// Everyone in the room, screens too (whose evening the deck is: the
+// household's memory of what was dealt, lib/groupdealt.js).
+const peopleOf = (code) => {
+  const s = sessions.get(tidyCode(code));
+  return s ? [...new Set([...s.members.values()].map((m) => m.profileId))] : [];
 };
 const settingsOf = (code) => {
   const s = sessions.get(tidyCode(code));
@@ -447,7 +489,7 @@ const mergeAdds = (adds, cards, max) => {
 };
 
 // The host deals the deck. `cards`: groupdeck.buildDeck for votersOf(code).
-const start = (code, actor, device, cards = []) => {
+const start = (code, actor, device, cards = [], { empty = null } = {}) => {
   const r = hostAt(code, actor, device);
   if (r.e) return r.e;
   const { s } = r;
@@ -455,9 +497,12 @@ const start = (code, actor, device, cards = []) => {
   if (!voters(s).length) return err(409, "Nobody is swiping yet — join on a phone first");
   const added = s.adds.map((a) => ({ ...a.card, addedBy: a.by }));
   s.deck = mergeAdds(added, cards, opts.deckMax);
-  if (!s.deck.length) return err(409, "Nothing fits those choices — try another mood or length");
-  // adding a title is a yes from the person who added it
-  for (const a of s.adds) ballotOf(s, a.by.profileId).set(a.card.key, "yes");
+  if (!s.deck.length) return err(409, empty || "Nothing fits those choices — try another mood or length");
+  // adding a title is a yes from the seat that added it (while it still votes)
+  for (const a of s.adds) {
+    const by = s.members.get(a.by.seat);
+    if (by && by.role === "voter") ballotOf(s, by.key).set(a.card.key, "yes");
+  }
   s.adds = [];
   s.phase = "swiping";
   s.startedAt = now();
@@ -468,12 +513,14 @@ const start = (code, actor, device, cards = []) => {
 };
 
 // From the result (or a "nothing matched"): a fresh deck for another round.
-const again = (code, actor, device, cards = []) => {
-  const r = hostAt(code, actor, device);
+// Anyone in the room may ask (2026-11-22: a room whose host was the TV, or
+// was away, sat on "No match" with nobody able to deal more cards).
+const again = (code, actor, device, cards = [], { empty = null } = {}) => {
+  const r = memberAt(code, actor, device);
   if (r.e) return r.e;
   const { s } = r;
   if (s.phase !== "result") return err(409, "Not now");
-  if (!cards.length) return err(409, "Nothing new fits those choices — try another mood or length");
+  if (!cards.length) return err(409, empty || "Nothing new fits those choices — try another mood or length");
   for (const c of s.deck) s.shown.add(c.key);
   s.deck = cards.slice(0, opts.deckMax);
   s.ballots = new Map();
@@ -501,12 +548,12 @@ const vote = (code, actor, device, key, verdict) => {
   if (m.role !== "voter") return err(409, "This screen is not swiping");
   if (!s.deck.some((c) => c.key === key)) return err(400, "That card is not in the deck");
   if (verdict != null && !deck.VERDICTS.includes(verdict)) return err(400, "yes, maybe or no");
-  const b = ballotOf(s, m.profileId);
+  const b = ballotOf(s, m.key);
   if (verdict == null) b.delete(key);
   else b.set(key, verdict);
   if (everyoneDone(s)) toResult(s, "done");
   else bump(s);
-  return { ok: true, answered: answeredBy(s, m.profileId), of: s.deck.length };
+  return { ok: true, answered: answeredBy(s, m.key), of: s.deck.length };
 };
 
 // A title someone added (search inside the session). `card` is made by the
@@ -522,7 +569,7 @@ const add = (code, actor, device, card) => {
   if (inDeck || inAdds) {
     // already there: it is still this person's yes
     if (s.phase === "swiping" && m.role === "voter" && inDeck) {
-      ballotOf(s, m.profileId).set(inDeck.key, "yes");
+      ballotOf(s, m.key).set(inDeck.key, "yes");
       bump(s);
     }
     return { ok: true, already: true, key: (inDeck || inAdds.card).key };
@@ -530,13 +577,13 @@ const add = (code, actor, device, card) => {
   const mine = s.adds.filter((a) => a.by.profileId === m.profileId).length +
     s.deck.filter((c) => c.addedBy && c.addedBy.profileId === m.profileId).length;
   if (mine >= opts.maxAddsEach) return err(409, `You can add ${opts.maxAddsEach} titles a round`);
-  const by = { profileId: m.profileId, name: m.name };
+  const by = { profileId: m.profileId, name: m.name, seat: m.key };
   if (s.phase === "lobby") {
     s.adds.push({ card: { ...card, seenBy: card.seenBy || [] }, by });
   } else {
     if (s.deck.length >= opts.deckMax) return err(409, "The deck is full");
     s.deck.push({ ...card, seenBy: card.seenBy || [], addedBy: by });
-    if (m.role === "voter") ballotOf(s, m.profileId).set(card.key, "yes");
+    if (m.role === "voter") ballotOf(s, m.key).set(card.key, "yes");
   }
   bump(s);
   return { ok: true, key: card.key };
@@ -655,7 +702,7 @@ const reset = () => {
 
 module.exports = {
   create, join, get, leave, end, setSettings, setRole, start, again, vote, add, finish, extend, pickAt, choose,
-  watch, isMember, votersOf, settingsOf, shownOf, sweep, tick, startTicker, configure, count,
+  watch, isMember, votersOf, peopleOf, settingsOf, shownOf, sweep, tick, startTicker, configure, count,
   LIMITS, CODE_LEN,
   _internals: { sessions, opts, reset, memberKey, tidyCode, mergeAdds, everyoneDone, isAway, view },
 };

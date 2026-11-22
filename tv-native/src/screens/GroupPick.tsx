@@ -7,7 +7,11 @@
 // shows everyone's ribbon and the time draining; then the reveal ("The votes
 // are in…", a tie-break when the top two were level, the drop, one burst) and
 // the pick, with the server's why and its tally as stars, and one press plays
-// it. "Swipe on this screen too" makes the TV a voter as well: the Taste deck.
+// it. "Vote here with the remote" gives the TV a seat of its own (someone on
+// the sofa without a phone, or a second voter on the TV's own profile — every
+// voting device is its own seat, "Elia (TV)" beside "Elia (phone)"): the
+// Taste deck, RIGHT yes, LEFT no, DOWN maybe. With nobody in yet it is the
+// key the focus starts on, so a room of one TV is never stuck.
 //
 // What is drawn follows the session (groupPick.ts stepOf, groupPickTv.ts
 // viewOf); followGroup (groupPickApi.ts) keeps it live — socket + slow poll —
@@ -575,7 +579,7 @@ export default function GroupPick({navigation, route}: Props) {
         calm={calm}
         seen={seen}
         onDeal={() => {
-          if (!session.voters) return setErr(WORDS.needSomeone);
+          if (!session.voters) return setErr(WORDS.needSomeoneTv);
           run('deal', () => groupApi.start(session.code));
         }}
         onAdd={() => setSheet('add')}
@@ -645,13 +649,12 @@ export default function GroupPick({navigation, route}: Props) {
       <Calm
         glyph="✦"
         title={WORDS.noMatch}
-        line={isHost ? WORDS.noMatchLine : WORDS.onlyHost}
+        line={WORDS.noMatchMore}
         actions={
-          isHost ? (
-            <PlayKey uiId="group.again" ref={mainRef} kind="aurora" big glyph="↻" label={WORDS.again} hasTVPreferredFocus dim={busy === 'again'} onPress={() => run('again', () => groupApi.again(session.code))} />
-          ) : (
-            <PlayKey uiId="group.leave" ref={mainRef} label={WORDS.leave} hasTVPreferredFocus onPress={() => leave(false)} />
-          )
+          <>
+            <PlayKey uiId="group.again" ref={mainRef} kind="aurora" big glyph="↻" label={WORDS.moreCards} hasTVPreferredFocus dim={busy === 'again'} onPress={() => run('again', () => groupApi.again(session.code))} />
+            <PlayKey uiId="group.leave" label={WORDS.leave} onPress={() => leave(false)} />
+          </>
         }
       />
     );
@@ -1020,14 +1023,46 @@ function LobbyView({
           </View>
         ) : null}
 
+        {/* the TV's own seat: a big key while it only shows, a quiet one once it votes */}
+        {voter ? (
+          <View style={styles.tvVotes}>
+            <Text style={styles.tvVotesText} numberOfLines={1}>
+              {`✓  ${WORDS.tvVoting}`}
+            </Text>
+            <PlayKey uiId="group.screen" small label={WORDS.justShow} dim={busy === 'screen'} onPress={onRole} />
+          </View>
+        ) : null}
         <View style={styles.actions}>
           {host ? (
-            <PlayKey uiId="group.deal" ref={mainRef as never} kind="aurora" big star label={WORDS.startSwiping} hasTVPreferredFocus dim={!session.voters || busy === 'deal'} onPress={onDeal} />
+            <PlayKey
+              uiId="group.deal"
+              ref={session.voters ? (mainRef as never) : undefined}
+              kind="aurora"
+              big
+              star
+              label={WORDS.startSwiping}
+              hasTVPreferredFocus={!!session.voters}
+              dim={!session.voters || busy === 'deal'}
+              onPress={onDeal}
+            />
           ) : null}
-          <PlayKey uiId="group.add" ref={host ? undefined : (mainRef as never)} glyph="+" label={WORDS.addTitle} hasTVPreferredFocus={!host} onPress={onAdd} />
-          <PlayKey uiId="group.screen" glyph={voter ? '✓' : undefined} label={voter ? WORDS.justShow : WORDS.swipeHereToo} dim={busy === 'screen'} onPress={onRole} />
+          {!voter ? (
+            <PlayKey
+              uiId="group.votehere"
+              ref={host && session.voters ? undefined : (mainRef as never)}
+              kind={session.voters ? undefined : 'aurora'}
+              big={!session.voters}
+              glyph="✋"
+              label={WORDS.voteHere}
+              hasTVPreferredFocus={!(host && session.voters)}
+              dim={busy === 'screen'}
+              onPress={onRole}
+            />
+          ) : null}
+          <PlayKey uiId="group.add" ref={!host && voter ? (mainRef as never) : undefined} glyph="+" label={WORDS.addTitle} hasTVPreferredFocus={!host && voter} onPress={onAdd} />
         </View>
-        {host && !session.voters ? <Text style={styles.hint}>{WORDS.needSomeone}</Text> : null}
+        {!voter ? <Text style={styles.hint}>{WORDS.voteHereLine}</Text> : null}
+        {host && !session.voters ? <Text style={styles.hint}>{WORDS.needSomeoneTv}</Text> : null}
         {!host ? <Text style={styles.hint}>{WORDS.onlyHost}</Text> : null}
       </View>
     </View>
@@ -1362,7 +1397,7 @@ function ResultView({
           <View style={styles.actions}>
             <PlayKey uiId="group.play" ref={mainRef as never} kind="gold" big glyph="▶" label={playLabel(session)} hasTVPreferredFocus dim={busy === 'play'} onPress={() => onPlay(pick.key)} />
             {next ? <PlayKey uiId="group.next" label={next.label} dim={busy === 'next'} onPress={() => onNext(next.index)} /> : null}
-            {session.you?.host ? <PlayKey uiId="group.again" glyph="↻" label={WORDS.again} dim={busy === 'again'} onPress={onAgain} /> : null}
+            <PlayKey uiId="group.again" glyph="↻" label={WORDS.again} dim={busy === 'again'} onPress={onAgain} />
           </View>
         )}
         </Rise>
@@ -1635,6 +1670,8 @@ const styles = StyleSheet.create({
   seatsBox: {marginTop: spacing.md},
   settingsRow: {flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: spacing.lg},
   settingsText: {flexShrink: 1, color: PLAY.ink, fontSize: 16, lineHeight: 22, fontWeight: '700'},
+  tvVotes: {flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: spacing.md},
+  tvVotesText: {color: PLAY.green, fontSize: 16, lineHeight: 22, fontWeight: '800'},
   addedBox: {marginTop: spacing.md, gap: 2},
   smallCaps: {color: PLAY.inkFaint, fontSize: 13, lineHeight: 17, fontWeight: '800', letterSpacing: 1.6, marginBottom: 2},
   addedItem: {color: PLAY.ink, fontSize: 15, lineHeight: 21, fontWeight: '600'},

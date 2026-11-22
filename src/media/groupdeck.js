@@ -25,8 +25,15 @@
 //   ON THE SERVER a library title scores higher (it plays now, no download):
 //                 and at least LIB_SHARE of the deck is the library while the
 //                 library has enough that fits.
+//   NEW           at least NEW_SHARE of the deck is from this year or last
+//                 while the candidates have enough of them (2026-11-22: decks
+//                 were the same famous old titles every night).
 //   VARIED        a genre already in the deck counts a little less each time,
-//                 so twenty cards are not twenty thrillers.
+//                 so twenty cards are not twenty thrillers; a random share of
+//                 every score (JITTER) changes which good titles come up.
+//   NEVER AGAIN   what this room was dealt before is not a candidate at all
+//                 (`exclude`; the route adds the household's memory,
+//                 lib/groupdealt.js).
 //
 // THE GROUP SCORE (groupScore / results)
 //   yes = 1, maybe = 0.6, no = 0, not answered = 0.45 (a shrug)
@@ -43,6 +50,8 @@ const tax = require("./recs/taxonomy");
 
 const DECK_SIZE = 20;
 const LIB_SHARE = 0.5;
+const NEW_SHARE = 0.25;
+const JITTER = 0.2;
 const VOTE_VALUE = { yes: 1, maybe: 0.6, no: 0 };
 const MISSING = 0.45;
 const VERDICTS = ["yes", "maybe", "no"];
@@ -142,7 +151,7 @@ const keyOf = (c) => c.key || (c.id ? `lib:${c.id}` : c.imdbId);
 // exclude   Set of keys never to show (an earlier round's cards)
 // n, seed
 // -> [candidate + { key, groupFit, seenBy: [profileId] }], best first
-const buildDeck = ({ pool = [], voters = [], fitOf = () => null, seenOf = () => new Set(), settings = {}, allow = null, exclude = new Set(), n = DECK_SIZE, seed = "" } = {}) => {
+const buildDeck = ({ pool = [], voters = [], fitOf = () => null, seenOf = () => new Set(), settings = {}, allow = null, exclude = new Set(), n = DECK_SIZE, seed = "", newFrom = new Date().getFullYear() - 1 } = {}) => {
   const s = cleanSettings(settings);
   const seen = new Map(voters.map((pid) => [pid, seenOf(pid) || new Set()]));
   const seenBy = (c) => voters.filter((pid) => {
@@ -193,26 +202,32 @@ const buildDeck = ({ pool = [], voters = [], fitOf = () => null, seenOf = () => 
     let v = fit + 0.15 * quality + 0.1 * fame;
     if (c.lib) v += 0.25; // on the server: plays now
     if (voters.length) v -= 0.25 * (c.seenBy.length / voters.length);
-    v += 0.06 * rand01(seed, c.key);
+    v += JITTER * rand01(seed, c.key);
     c.groupFit = Math.round(fit * 1000) / 1000;
     c._v = v;
+    c._new = !!(c.year && c.year >= newFrom);
   }
   cands.sort((a, b) => b._v - a._v || (a.key < b.key ? -1 : 1));
 
-  // pick n: varied genres, and a share of the library while it lasts
+  // pick n: varied genres, a share of the library and of new titles while they last
   const out = [];
   const genreCount = new Map();
   const taken = new Set();
   const libLeft = cands.filter((c) => c.lib).length;
   const libWant = Math.min(libLeft, Math.ceil(n * LIB_SHARE));
+  const newWant = Math.min(cands.filter((c) => c._new).length, Math.ceil(n * NEW_SHARE));
   let libTaken = 0;
+  let newTaken = 0;
   while (out.length < n && taken.size < cands.length) {
-    const needLib = libTaken < libWant && n - out.length <= libWant - libTaken;
+    const owedLib = Math.max(0, libWant - libTaken);
+    const owedNew = Math.max(0, newWant - newTaken);
+    // no room to spare: the card must pay a share still owed
+    const must = n - out.length <= owedLib + owedNew;
     let best = null;
     let bestVal = -Infinity;
     for (const c of cands) {
       if (taken.has(c.key)) continue;
-      if (needLib && !c.lib) continue;
+      if (must && !((owedLib && c.lib) || (owedNew && c._new))) continue;
       const gs = c.genres && c.genres.length ? c.genres : ["?"];
       let rep = 0;
       for (const g of gs) rep += genreCount.get(g) || 0;
@@ -222,6 +237,7 @@ const buildDeck = ({ pool = [], voters = [], fitOf = () => null, seenOf = () => 
     if (!best) break;
     taken.add(best.key);
     if (best.lib) libTaken++;
+    if (best._new) newTaken++;
     for (const g of best.genres || []) genreCount.set(g, (genreCount.get(g) || 0) + 1);
     out.push(best);
   }
@@ -229,7 +245,7 @@ const buildDeck = ({ pool = [], voters = [], fitOf = () => null, seenOf = () => 
   // but keep the strongest few near the top (people decide early)
   return out.map((c, i) => ({ c, o: i + 4 * rand01(`${seed}|order`, c.key) }))
     .sort((a, b) => a.o - b.o)
-    .map(({ c }) => { const { _v, ...rest } = c; return rest; });
+    .map(({ c }) => { const { _v, _new, ...rest } = c; return rest; });
 };
 
 // ---------- the group score ----------
@@ -290,6 +306,6 @@ const results = ({ deck = [], voters = [], ballots = new Map() } = {}) => {
 
 module.exports = {
   buildDeck, groupScore, results, whyOf, cleanSettings, moodMatch, lengthOk,
-  MOODS, LENGTHS, KINDS, VERDICTS, DECK_SIZE, VOTE_VALUE, MISSING,
+  MOODS, LENGTHS, KINDS, VERDICTS, DECK_SIZE, VOTE_VALUE, MISSING, NEW_SHARE,
   _internals: { percentiles, rand01, keyOf },
 };

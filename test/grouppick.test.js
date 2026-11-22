@@ -128,6 +128,37 @@ test("deck: varied genres, n cards, deterministic for a seed", () => {
   assert.ok(a.filter((c) => c.genres.includes("Comedy")).length >= 3, "not ten thrillers");
 });
 
+test("deck: never deals what this room was dealt before (by key or by IMDb id)", () => {
+  const pool = [film(1), film(2), { ...film(3), id: "L3", lib: true }, film(4)];
+  const d = deck.buildDeck({ pool, voters: ["a"], settings: { kind: "movie" }, exclude: new Set([film(1).imdbId, "lib:L3"]) });
+  assert.deepEqual(d.map((c) => c.title).sort(), ["Film 2", "Film 4"]);
+  // a catalogue title dealt before stays out once it is in the library
+  const later = deck.buildDeck({ pool: [{ ...film(2), id: "L2", lib: true }], voters: ["a"], settings: { kind: "movie" }, exclude: new Set([film(2).imdbId]) });
+  assert.equal(later.length, 0);
+});
+
+test("deck: a share of new titles while there are enough, and a different deck each deal", () => {
+  const pool = [];
+  for (let i = 1; i <= 40; i++) pool.push(film(i, { year: 1990 + (i % 20), rating: 8.5, pop: 0.9 }));
+  for (let i = 41; i <= 50; i++) pool.push(film(i, { year: 2026, rating: 6.5, pop: 0.2 }));
+  const d = deck.buildDeck({ pool, voters: ["a"], settings: { kind: "movie" }, n: 20, seed: "n1", newFrom: 2025 });
+  assert.equal(d.length, 20);
+  assert.ok(d.filter((c) => c.year >= 2025).length >= Math.ceil(20 * deck.NEW_SHARE), `new cards: ${d.filter((c) => c.year >= 2025).length}`);
+  assert.ok(!("_new" in d[0]) && !("_v" in d[0]));
+  const big = [];
+  for (let i = 1; i <= 90; i++) big.push(film(i, { year: 1990, rating: 7.5, genres: [["Drama", "Comedy", "Thriller"][i % 3]] }));
+  const one = deck.buildDeck({ pool: big, voters: ["a"], settings: { kind: "movie" }, n: 20, seed: "night1", newFrom: 2025 }).map((c) => c.key);
+  const two = deck.buildDeck({ pool: big, voters: ["a"], settings: { kind: "movie" }, n: 20, seed: "night2", newFrom: 2025 }).map((c) => c.key);
+  assert.ok(one.filter((k) => two.includes(k)).length < 20, "another seed brings other titles up");
+});
+
+test("household memory: a card is remembered by every name it goes by", () => {
+  const { namesOf } = require("../src/lib/groupdealt");
+  assert.deepEqual(namesOf({ key: "lib:abc", id: "abc", imdbId: "tt0000001" }), ["lib:abc", "tt0000001"]);
+  assert.deepEqual(namesOf({ key: "tt0000002", imdbId: "tt0000002" }), ["tt0000002"]);
+  assert.deepEqual(namesOf(null), []);
+});
+
 // ---------- the sessions ----------
 let t0 = 1_700_000_000_000;
 let clockNow = t0;
@@ -176,24 +207,52 @@ test("session: a wrong code is refused, and many wrong codes slow you down", () 
   assert.equal(gp.join(P("dana", "Dana"), "ZZZZ", {}).status, 404, "the window passed");
 });
 
-test("session: ballots are private until the result; a person on two devices is one voice", () => {
+test("session: ballots are private until the result; every voting device is its own seat", () => {
   fresh();
   const { session: s } = gp.create(P("elia", "Elia"), {}, { device: "tv", role: "screen", app: "tv" });
-  gp.join(P("dana", "Dana"), s.code, { device: "a" });
-  gp.join(P("dana", "Dana"), s.code, { device: "b" });
+  gp.join(P("dana", "Dana"), s.code, { device: "a", app: "phone" });
+  gp.join(P("dana", "Dana"), s.code, { device: "b", app: "web" });
   gp.join(P("avi", "Avi"), s.code, { device: "c" });
   gp.start(s.code, P("elia"), "tv", cards(2));
   assert.equal(gp.vote(s.code, P("dana"), "a", "c0", "yes").ok, true);
-  assert.equal(gp.vote(s.code, P("dana"), "b", "c0", "no").ok, true, "the latest answer counts");
+  assert.equal(gp.vote(s.code, P("dana"), "b", "c0", "no").ok, true, "the other device answers for itself");
   assert.equal(gp.vote(s.code, P("dana"), "a", "nope", "yes").status, 400);
   assert.equal(gp.vote(s.code, P("dana"), "a", "c0", "love").status, 400);
   assert.equal(gp.vote(s.code, P("elia"), "tv", "c0", "yes").status, 409, "the screen is not swiping");
   const avi = gp.get(s.code, P("avi"), "c").session;
   assert.deepEqual(avi.mine, {});
-  assert.equal(avi.voters, 2);
+  assert.equal(avi.voters, 3, "Dana's phone and Dana's browser are two seats");
   assert.equal(avi.members.find((m) => m.name === "Dana" && m.id.endsWith("|a")).answered, 1);
+  assert.deepEqual(avi.members.filter((m) => m.label).map((m) => m.label).sort(), ["Dana (browser)", "Dana (phone)"]);
+  assert.equal(avi.members.find((m) => m.name === "Avi").label, undefined, "one seat: just the name");
   assert.ok(!("ballots" in avi) && !JSON.stringify(avi).includes("\"no\""), "nobody else's answers");
-  assert.deepEqual(gp.get(s.code, P("dana"), "a").session.mine, { c0: "no" });
+  assert.deepEqual(gp.get(s.code, P("dana"), "a").session.mine, { c0: "yes" });
+  assert.deepEqual(gp.get(s.code, P("dana"), "b").session.mine, { c0: "no" });
+});
+
+test("session: the TV votes with the remote next to a phone on the same profile (two seats, not one)", () => {
+  fresh();
+  const { session: s } = gp.create(P("elia", "Elia"), {}, { device: "tv", role: "screen", app: "tv" });
+  gp.join(P("elia", "Elia"), s.code, { device: "ph", app: "phone" });
+  // "Vote here with the remote"
+  const tv = gp.setRole(s.code, P("elia"), "tv", "voter").session;
+  assert.equal(tv.voters, 2);
+  assert.deepEqual(tv.members.map((m) => m.label).sort(), ["Elia (TV)", "Elia (phone)"]);
+  assert.deepEqual(gp.votersOf(s.code), ["elia"], "the deck is built for one person");
+  gp.start(s.code, P("elia"), "tv", cards(2));
+  // the phone answers everything first: the TV still has its own cards
+  gp.vote(s.code, P("elia"), "ph", "c0", "yes");
+  gp.vote(s.code, P("elia"), "ph", "c1", "no");
+  const mid = gp.get(s.code, P("elia"), "tv").session;
+  assert.equal(mid.phase, "swiping", "the TV has not answered yet");
+  assert.deepEqual(mid.mine, {}, "the phone's answers are not the TV's");
+  gp.vote(s.code, P("elia"), "tv", "c0", "yes");
+  gp.vote(s.code, P("elia"), "tv", "c1", "yes");
+  const r = gp.get(s.code, P("elia"), "tv").session;
+  assert.equal(r.phase, "result");
+  assert.equal(r.result.picks[0].key, "c0");
+  assert.equal(r.result.picks[0].why, "Both of you said yes");
+  assert.equal(r.result.picks[1].why, "1 of 2 said yes · 1 no");
 });
 
 test("session: the result comes the moment everyone here has answered everything", () => {
@@ -387,6 +446,21 @@ test("another round: a fresh deck, the old cards remembered, ballots cleared", (
   assert.deepEqual(r.session.mine, {});
   assert.deepEqual([...gp.shownOf(s.code)].sort(), ["c0", "c1", "n0", "n1", "n2"]);
   assert.equal(gp.again(s.code, P("elia"), "ph", cards(1)).status, 409, "only from a result");
+});
+
+test("another round: anyone in the room can deal more cards; an empty deal says why", () => {
+  fresh();
+  const { session: s } = gp.create(P("elia", "Elia"), {}, { device: "tv", role: "screen", app: "tv" });
+  gp.join(P("dana", "Dana"), s.code, { device: "a" });
+  gp.start(s.code, P("elia"), "tv", cards(1));
+  gp.vote(s.code, P("dana"), "a", "c0", "no");
+  assert.equal(gp.get(s.code, P("dana"), "a").session.result.method, "none");
+  const dry = gp.again(s.code, P("dana"), "a", [], { empty: "Nothing new" });
+  assert.equal(dry.status, 409);
+  assert.equal(dry.error, "Nothing new");
+  const r = gp.again(s.code, P("dana"), "a", cards(2, "n"));
+  assert.equal(r.session.phase, "swiping", "not only the host");
+  assert.equal(r.session.round, 2);
 });
 
 test("settings: only the host, only in the lobby", () => {

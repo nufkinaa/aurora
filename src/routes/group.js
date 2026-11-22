@@ -22,19 +22,30 @@
 //   POST /api/profiles/:id/group/:code/finish   { device }               -> { session }   host: result now
 //   POST /api/profiles/:id/group/:code/extend   { device }               -> { session }   host: one more minute
 //   POST /api/profiles/:id/group/:code/pick     { device, index }        -> { session }   "Something else"
-//   POST /api/profiles/:id/group/:code/again    { device }               -> { session }   host: another round
+//   POST /api/profiles/:id/group/:code/again    { device }               -> { session }   anyone: another round
 //   POST /api/profiles/:id/group/:code/choose   { device, key }          -> { session }   Play was pressed
 //   POST /api/profiles/:id/group/:code/leave    { device }               -> { ok }
 //   POST /api/profiles/:id/group/:code/end      { device }               -> { ok }        host
 //
 // A session is in memory only. The live socket says when it changed
 // (`group_update { code, rev }`, realtime.js); clients then ask again.
+//
+// FRESH CARDS (2026-11-22). Every card dealt is remembered for everyone in
+// the room (lib/groupdealt.js) and never dealt to any of them again — not in
+// a later round, not on a later night. The candidates are the library, the
+// recommender's index, the well-known list AND what Aurora already knows is
+// new and popular right now (the catalogue's cached trending and "new"
+// shelves, media/discover.js — warmed when a session opens, so they are there
+// by the time the host deals). When nothing fresh is left for the choices,
+// the room is told so in plain words, never handed old cards.
 "use strict";
 const express = require("express");
 const profiles = require("../profiles");
 const scanner = require("../media/scanner");
 const grouppick = require("../lib/grouppick");
 const groupdeck = require("../media/groupdeck");
+const groupdealt = require("../lib/groupdealt");
+const config = require("../config");
 const tax = require("../media/recs/taxonomy");
 const lazy = require("../lib/lazy");
 const profilesRoutes = lazy(require, "./profiles");
@@ -47,6 +58,8 @@ const tastedeckLib = lazy(require, "../media/tastedeck");
 const searchLib = lazy(require, "../media/search");
 const watchedLib = lazy(require, "../media/watched");
 const kidsLib = lazy(require, "../lib/kids");
+const discoverLib = lazy(require, "../media/discover");
+const availabilityLib = lazy(require, "../media/availability");
 
 const router = express.Router();
 const gate = (req, res, next) => profilesRoutes()._internals.gate(req, res, next);
@@ -119,6 +132,35 @@ const catalogueCands = (entries) => {
       });
     }
   }
+  // what is new and popular now: the catalogue's trending list and the
+  // shelves Browse has fetched (cached only: nothing waits on the network)
+  try {
+    const d = discoverLib();
+    const t = d.trendingCached() || { movies: [], shows: [] };
+    const now = Date.now();
+    const lists = [[t.movies || [], "movie"], [t.shows || [], "show"]];
+    let shelves = [];
+    try { shelves = d.catalogCachedItems() || []; } catch {}
+    lists.push([shelves, null]);
+    for (const [list, kind] of lists) {
+      list.forEach((m, i) => {
+        if (!m || !/^tt\d{4,12}$/.test(m.imdbId || "") || !m.poster || !m.title) return;
+        const type = kind || (m.type === "show" || m.type === "series" ? "show" : "movie");
+        // a film still only in cinemas is not one for tonight (media/availability.js;
+        // a film it knows nothing about counts as released, as on Home)
+        if (type === "movie") { try { if (!availabilityLib().isReleased({ imdbId: m.imdbId, type: "movie", year: m.year }, now)) return; } catch {} }
+        const e = entries ? entries.get(m.imdbId) : null;
+        out.push({
+          key: m.imdbId, imdbId: m.imdbId, type, title: m.title, year: m.year || null, poster: m.poster,
+          ...(m.backdrop ? { backdrop: m.backdrop } : {}),
+          genres: tax.canonGenres(m.genres || []).slice(0, 3), themes: e && e.v ? e.v.themes : null,
+          runtime: (e && e.rec.rt) || null, rating: m.rating || (e && e.rec.va) || null, lib: false,
+          pop: kind ? Math.max(0.3, 1 - i / Math.max(1, list.length)) : 0.5,
+          line: firstSentence(m.synopsis || (e && e.rec.ov) || ""),
+        });
+      });
+    }
+  } catch {}
   // the "Swipe your taste" pool: the catalogue's best-known titles
   try {
     const known = wellknownLib().all();
@@ -241,9 +283,14 @@ const cardOut = (c) => ({
   seenBy: c.seenBy || [],
 });
 
-// The deck for the people in this session right now.
+// The deck for the people in this session right now: { cards, dry }.
+// `dry`: something fits the choices, but all of it was dealt to this room
+// before — the room is told so, and nothing old is dealt again.
+const DRY = "You've been dealt every title that fits these choices — try another mood, length or films / series";
 const dealFor = (req, code, { exclude = new Set() } = {}) => {
   const voters = grouppick.votersOf(code);
+  const dealt = groupdealt.dealtFor(grouppick.peopleOf(code));
+  const used = (c) => exclude.has(c.key) || dealt.has(c.key) || (c.imdbId && (exclude.has(c.imdbId) || dealt.has(c.imdbId)));
   const settings = grouppick.settingsOf(code) || {};
   let entries = null;
   try { const recs = recsLib(); if (recs.ready()) entries = recs._internals.state.entries; } catch {}
@@ -259,7 +306,9 @@ const dealFor = (req, code, { exclude = new Set() } = {}) => {
     if (!groupdeck.moodMatch(c, settings.mood) || !groupdeck.lengthOk(c, settings.length)) continue;
     pool.push(c);
   }
-  const allowed = allow ? pool.filter(allow) : pool;
+  const fitting = allow ? pool.filter(allow) : pool;
+  const allowed = fitting.filter((c) => !used(c));
+  if (!allowed.length) return { cards: [], dry: fitting.length > 0 };
   const fits = new Map(voters.map((pid) => [pid, fitsFor(pid, allowed)]));
   const seen = new Map(voters.map((pid) => [pid, seenOf(pid)]));
   const cards = groupdeck.buildDeck({
@@ -268,10 +317,24 @@ const dealFor = (req, code, { exclude = new Set() } = {}) => {
     fitOf: (pid, c) => (fits.get(pid) && fits.get(pid).has(c.key) ? fits.get(pid).get(c.key) : null),
     seenOf: (pid) => seen.get(pid),
     settings,
-    exclude,
-    seed: `${code}|${Math.floor(Date.now() / 60000)}`,
+    seed: `${code}|${Date.now()}|${Math.random()}`,
   });
-  return cards.map(cardOut);
+  return { cards: cards.map(cardOut), dry: false };
+};
+// The deck just dealt (or a card added mid-round): remembered for everyone in the room.
+const rememberDeal = (code, cards) => {
+  try { groupdealt.remember(grouppick.peopleOf(code), cards || []); } catch {}
+};
+// The catalogue's new and popular shelves, fetched in the background while
+// the room gathers (a no-op when they are fresh, or when online lookups are off).
+const warmShelves = () => {
+  if (!config.ONLINE_METADATA) return;
+  try {
+    const d = discoverLib();
+    d.trending().catch(() => {});
+    d.catalog({ type: "movie", category: "new" }).catch(() => {});
+    d.catalog({ type: "show", category: "new" }).catch(() => {});
+  } catch {}
 };
 
 // A title someone asked to add, as a card: a library id is looked up, a
@@ -331,7 +394,9 @@ router.post("/api/profiles/:id/group/tutorial", gate, (req, res) => {
 
 router.post("/api/profiles/:id/group", gate, (req, res) => {
   const b = req.body || {};
-  send(res, grouppick.create(actorOf(req), b.settings || {}, { device: deviceOf(req), role: b.role, app: b.app }));
+  const r = grouppick.create(actorOf(req), b.settings || {}, { device: deviceOf(req), role: b.role, app: b.app });
+  if (r && r.session) warmShelves();
+  send(res, r);
 });
 
 router.post("/api/profiles/:id/group/join", gate, (req, res) => {
@@ -356,24 +421,29 @@ router.post("/api/profiles/:id/group/:code/role", gate, (req, res) => {
 const canDeal = (req, phase) => {
   const r = grouppick.get(req.params.code, actorOf(req), deviceOf(req));
   if (r.error) return r;
-  if (!r.session.you.host) return { status: 403, error: "Only the person who started it can do that" };
+  // the first deal is the host's; another round, anyone's
+  if (phase === "lobby" && !r.session.you.host) return { status: 403, error: "Only the person who started it can do that" };
   if (r.session.phase !== phase) return { status: 409, error: phase === "lobby" ? "The deck is already dealt" : "Not now" };
   return null;
 };
 router.post("/api/profiles/:id/group/:code/start", gate, (req, res) => {
   const no = canDeal(req, "lobby");
   if (no) return send(res, no);
-  let cards = [];
-  try { cards = dealFor(req, req.params.code); } catch {}
-  send(res, grouppick.start(req.params.code, actorOf(req), deviceOf(req), cards));
+  let deal = { cards: [], dry: false };
+  try { deal = dealFor(req, req.params.code); } catch {}
+  const r = grouppick.start(req.params.code, actorOf(req), deviceOf(req), deal.cards, { empty: deal.dry ? DRY : null });
+  if (r && r.session) rememberDeal(req.params.code, r.session.deck);
+  send(res, r);
 });
 
 router.post("/api/profiles/:id/group/:code/again", gate, (req, res) => {
   const no = canDeal(req, "result");
   if (no) return send(res, no);
-  let cards = [];
-  try { cards = dealFor(req, req.params.code, { exclude: grouppick.shownOf(req.params.code) }); } catch {}
-  send(res, grouppick.again(req.params.code, actorOf(req), deviceOf(req), cards));
+  let deal = { cards: [], dry: false };
+  try { deal = dealFor(req, req.params.code, { exclude: grouppick.shownOf(req.params.code) }); } catch {}
+  const r = grouppick.again(req.params.code, actorOf(req), deviceOf(req), deal.cards, { empty: deal.dry ? DRY : null });
+  if (r && r.session) rememberDeal(req.params.code, r.session.deck);
+  send(res, r);
 });
 
 router.post("/api/profiles/:id/group/:code/vote", gate, (req, res) => {
@@ -412,7 +482,9 @@ router.post("/api/profiles/:id/group/:code/add", gate, (req, res) => {
   const card = titleCard((req.body || {}).title, req, grouppick.votersOf(req.params.code));
   if (!card) return res.status(400).json({ error: "Which title?" });
   if (card.refused) return res.status(403).json({ error: "Not for everyone's age in this group" });
-  send(res, grouppick.add(req.params.code, actorOf(req), deviceOf(req), card));
+  const a = grouppick.add(req.params.code, actorOf(req), deviceOf(req), card);
+  if (a && a.ok && !a.already && r.session.phase === "swiping") rememberDeal(req.params.code, [card]);
+  send(res, a);
 });
 
 router.post("/api/profiles/:id/group/:code/finish", gate, (req, res) => {
@@ -436,5 +508,5 @@ router.post("/api/profiles/:id/group/:code/end", gate, (req, res) => {
 
 grouppick.startTicker();
 
-router._internals = { dealFor, titleCard, seenOf, fitsFor, allowFor, libraryCands, catalogueCands };
+router._internals = { dealFor, titleCard, seenOf, fitsFor, allowFor, libraryCands, catalogueCands, DRY };
 module.exports = router;

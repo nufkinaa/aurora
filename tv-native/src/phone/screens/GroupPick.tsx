@@ -185,7 +185,8 @@ function Seat({m, size = 62, fresh, calm, deck}: {m: GroupMember; size?: number;
 /** Everyone in the room, as seats; `room` adds the two dashed empty seats (there is room). */
 function Seats({session, calm, deck, room, seen, size}: {session: GroupSession; calm: boolean; deck?: number; room?: boolean; seen: React.MutableRefObject<Set<string>>; size?: number}) {
   const people = peopleOf(session);
-  const fresh = people.filter(m => !seen.current.has(m.profileId)).map(m => m.profileId);
+  // a seat per voting device (one profile can vote on the TV and on a phone): keyed by the seat
+  const fresh = people.filter(m => !seen.current.has(m.id)).map(m => m.id);
   useEffect(() => {
     for (const id of fresh) seen.current.add(id);
   });
@@ -193,7 +194,7 @@ function Seats({session, calm, deck, room, seen, size}: {session: GroupSession; 
   return (
     <View style={s.seats}>
       {people.map(m => (
-        <Seat key={m.profileId} m={m} calm={calm} fresh={fresh.includes(m.profileId)} deck={deck} size={size} />
+        <Seat key={m.id} m={m} calm={calm} fresh={fresh.includes(m.id)} deck={deck} size={size} />
       ))}
       {Array.from({length: free}, (_, i) => (
         <View key={`free${i}`} style={[s.seat, {width: (size || 62) + 18}]} importantForAccessibility="no-hide-descendants">
@@ -1188,7 +1189,7 @@ export default function GroupPick() {
                     .filter(m => m.role === 'voter')
                     .slice(0, 5)
                     .map(m => (
-                      <View key={m.profileId} style={[s.mini, m.done && s.miniDone]}>
+                      <View key={m.id} style={[s.mini, m.done && s.miniDone]}>
                         <Avatar p={{name: m.name, avatar: m.avatar || '🙂', avatarImage: m.avatarImage || null, color: ''}} size={22} round />
                       </View>
                     ))}
@@ -1265,11 +1266,9 @@ export default function GroupPick() {
             <Key uiId="group.next" label={hasNextPick(shown) ? WORDS.somethingElse : WORDS.firstPick} onPress={() => run('next', () => groupApi.pick(code, nextIndex))} disabled={busy === 'next'} calm={pcalm} style={s.grow} />
           ) : null}
         </View>
-        {isHost ? (
-          <View style={s.actionsTight}>
-            <Key uiId="group.again" label={WORDS.again} onPress={() => run('again', () => groupApi.again(code))} disabled={busy === 'again'} calm={pcalm} style={s.grow} />
-          </View>
-        ) : null}
+        <View style={s.actionsTight}>
+          <Key uiId="group.again" label={WORDS.again} onPress={() => run('again', () => groupApi.again(code))} disabled={busy === 'again'} calm={pcalm} style={s.grow} />
+        </View>
         {footer}
       </>
     ) : (
@@ -1281,11 +1280,11 @@ export default function GroupPick() {
           <Text style={[ty.h2, s.center1]} accessibilityRole="header">
             {WORDS.noMatch}
           </Text>
-          <Text style={s.help}>{WORDS.noMatchLine}</Text>
+          <Text style={s.help}>{WORDS.noMatchMore}</Text>
         </PlayCard>
         {errLine}
         <View style={s.actions}>
-          {isHost ? <Key uiId="group.again" kind="aurora" label={WORDS.again} onPress={() => run('again', () => groupApi.again(code))} disabled={busy === 'again'} calm={pcalm} style={s.grow} /> : <Text style={s.help}>{WORDS.onlyHost}</Text>}
+          <Key uiId="group.again" kind="aurora" label={WORDS.moreCards} onPress={() => run('again', () => groupApi.again(code))} disabled={busy === 'again'} calm={pcalm} style={s.grow} />
         </View>
         {footer}
       </>

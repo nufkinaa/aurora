@@ -245,18 +245,23 @@ test('Start: the choices go along; the code, the QR code and the address show; S
   expect(mockGroup.create).toHaveBeenCalledWith({kind: 'movie', mood: 'funny', length: 'any', limitSec: 300}, 'screen');
   expect(live.code).toBe('AB7K');
   expect(ticket(r)).toEqual(['AB7K']);
-  expect(texts(r)).toEqual(expect.arrayContaining([WORDS.joinLine, 'nufurora.com', WORDS.waiting, WORDS.needSomeone]));
+  expect(texts(r)).toEqual(expect.arrayContaining([WORDS.joinLine, 'nufurora.com', WORDS.waiting, WORDS.needSomeoneTv, WORDS.voteHereLine]));
   expect(r.root.find(n => (n.type as unknown) === 'QRCode').props.value).toBe('https://nufurora.com/#/group/AB7K');
+  // nobody in yet: the TV's own seat is the key the focus starts on (a room of one TV is never stuck)
   const deal = one(r, 'group.deal');
-  expect(deal.props.hasTVPreferredFocus).toBe(true);
+  expect(deal.props.hasTVPreferredFocus).toBe(false);
   expect(deal.props.dim).toBe(true);
+  expect(one(r, 'group.votehere').props.hasTVPreferredFocus).toBe(true);
+  expect(one(r, 'group.votehere').props.label).toBe(WORDS.voteHere);
   await press(r, 'group.deal');
   expect(mockGroup.start).not.toHaveBeenCalled();
-  expect(texts(r)).toContain(WORDS.needSomeone);
-  // Dana joins on her phone
+  expect(texts(r)).toContain(WORDS.needSomeoneTv);
+  // Dana joins on her phone: Start swiping takes the focus
   await act(async () => live.push(session({members: [TV, DANA], voters: 1})));
   expect(texts(r)).toContain('Dana is in');
   expect(one(r, 'group.deal').props.dim).toBe(false);
+  expect(one(r, 'group.deal').props.hasTVPreferredFocus).toBe(true);
+  expect(one(r, 'group.votehere').props.hasTVPreferredFocus).toBe(false);
   mockGroup.start.mockResolvedValue({session: swiping()});
   await press(r, 'group.deal');
   await flush();
@@ -410,11 +415,14 @@ test('a phone pressed Play: the TV, the room\'s screen, opens it by itself (a ca
   expect(nav.replace).toHaveBeenCalledWith('Detail', {item: expect.objectContaining({id: 'tt2', imdbId: 'tt2', type: 'show', source: 'stream'})});
 });
 
-test('no match: the line and another round', async () => {
+test('no match: the line and more cards — for anyone in the room, not only the host', async () => {
   await open();
   await startSession(resultOf({result: {method: 'none', index: 0, at: 0, why: 'time', picks: []}}));
-  expect(texts(r)).toEqual(expect.arrayContaining([WORDS.noMatch, WORDS.noMatchLine]));
+  expect(texts(r)).toEqual(expect.arrayContaining([WORDS.noMatch, WORDS.noMatchMore]));
   expect(one(r, 'group.again').props.hasTVPreferredFocus).toBe(true);
+  expect(one(r, 'group.again').props.label).toBe(WORDS.moreCards);
+  await act(async () => live.push(resultOf({you: {id: 'elia|tv', profileId: 'elia', role: 'screen', host: false}, result: {method: 'none', index: 0, at: 0, why: 'time', picks: []}})));
+  expect(one(r, 'group.again').props.label).toBe(WORDS.moreCards);
 });
 
 test('the TV swipes too: the deck — OK or RIGHT is Yes, LEFT No, DOWN Maybe; Undo brings the card back', async () => {
@@ -423,10 +431,12 @@ test('the TV swipes too: the deck — OK or RIGHT is Yes, LEFT No, DOWN Maybe; U
   const asVoter = (o: Partial<GroupSession> = {}) =>
     swiping({you: {id: 'elia|tv', profileId: 'elia', role: 'voter', host: true}, members: [{...TV, role: 'voter'}, DANA], voters: 2, ...o});
   mockGroup.role.mockResolvedValue({session: session({you: {id: 'elia|tv', profileId: 'elia', role: 'voter', host: true}, members: [{...TV, role: 'voter'}, DANA], voters: 2})});
-  await press(r, 'group.screen');
+  await press(r, 'group.votehere');
   await flush();
   expect(mockGroup.role).toHaveBeenCalledWith('AB7K', 'voter');
   expect(one(r, 'group.screen').props.label).toBe(WORDS.justShow);
+  expect(texts(r)).toContain(`✓  ${WORDS.tvVoting}`);
+  expect(byUi(r, 'group.votehere')).toHaveLength(0);
   await act(async () => live.push(asVoter()));
   expect(texts(r)).toEqual(expect.arrayContaining(['Alpha', '2021 · 1 h 48 · Comedy', 'Card 1 of 2', WORDS.yes, WORDS.no, WORDS.maybe]));
   // the card is the one thing in focus; OK on it is Yes

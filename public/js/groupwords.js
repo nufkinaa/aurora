@@ -73,6 +73,13 @@ export const WORDS = {
   close: 'Close',
   // phone additions
   noReach: "Couldn't reach Aurora — try again.",
+  // 2026-11-22: the TV as a voting seat, more cards
+  voteHere: 'Vote here with the remote',
+  voteHereLine: 'No phone? The TV gets its own seat: Right is yes, Left is no, Down is maybe.',
+  tvVoting: 'This TV is voting',
+  needSomeoneTv: 'Join on a phone — or vote here with the remote',
+  moreCards: 'Deal more cards',
+  noMatchMore: 'Nobody said yes to the same thing. Deal more cards — none of these come back.',
 };
 
 // The first-time explanation: four steps, each a picture and a sentence.
@@ -98,30 +105,31 @@ export const timeLeft = (s, sinceMs = 0) => {
 export const secondsLeft = (s, sinceMs = 0) =>
   s.deadline ? Math.max(0, Math.round((s.deadline - s.now - sinceMs) / 1000)) : 0;
 
-/** "2 of 3 done" — the voters who have answered every card. */
+/** A seat's name: "Dana", or "Dana (TV)" / "Dana (phone)" when one profile votes on two devices. */
+export const seatName = (m) => (m && (m.label || m.name)) || '';
+/** "2 of 3 done" — the voting seats that have answered every card (every voting device is a seat). */
 export const progressLine = (s) => {
-  const byPerson = new Map();
-  for (const m of s.members) if (m.role === 'voter') byPerson.set(m.profileId, (byPerson.get(m.profileId) || false) || m.done);
-  const of = byPerson.size;
-  const done = [...byPerson.values()].filter(Boolean).length;
-  return of ? `${done} of ${of} done` : '';
+  const seats = s.members.filter(m => m.role === 'voter');
+  const done = seats.filter(m => m.done).length;
+  return seats.length ? `${done} of ${seats.length} done` : '';
 };
-/** "3 people are in" · "Dana is in" — the lobby's count, one name per person. */
+/** "3 people are in" · "Dana is in" — the lobby's count, one name per voting seat. */
 export const joinedLine = (s) => {
   const names = [];
-  for (const m of s.members) if (m.role === 'voter' && !names.includes(m.name)) names.push(m.name);
+  for (const m of s.members) if (m.role === 'voter' && !names.includes(seatName(m))) names.push(seatName(m));
   if (!names.length) return WORDS.waiting;
   if (names.length === 1) return `${names[0]} is in`;
   if (names.length === 2) return `${names[0]} and ${names[1]} are in`;
   return `${names.length} people are in`;
 };
-/** One chip per person in the room (a person on two devices is one chip). */
+/** One seat per voting device, named as the server labels it ("Dana (TV)"); the room's
+ *  screen only when its person is not voting on another device (the person, not the TV). */
 export const peopleOf = (s) => {
+  const votes = new Set(s.members.filter(m => m.role === 'voter').map(m => m.profileId));
   const out = [];
   for (const m of s.members) {
-    const had = out.findIndex(o => o.profileId === m.profileId);
-    if (had === -1) out.push(m);
-    else if (out[had].role === 'screen' && m.role === 'voter') out[had] = m; // the person, not the TV
+    if (m.role === 'screen' && (votes.has(m.profileId) || out.some(o => o.profileId === m.profileId))) continue;
+    out.push(m.label ? {...m, name: m.label} : m);
   }
   return out;
 };

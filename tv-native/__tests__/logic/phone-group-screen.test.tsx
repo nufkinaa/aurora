@@ -485,7 +485,9 @@ test('the starter waiting: one more minute, or the result now', async () => {
   expect(mockApi.extend).toHaveBeenCalledWith('K7QM');
   await press(r, 'group.finish');
   expect(has(r, WORDS.noMatch)).toBe(true);
+  expect(has(r, WORDS.noMatchMore)).toBe(true);
   expect(byUi(r, 'group.again')).toHaveLength(1);
+  expect(has(r, WORDS.moreCards)).toBe(true);
 });
 
 const pick = (card: Session['deck'][number], why = '2 of 2 said yes') => ({

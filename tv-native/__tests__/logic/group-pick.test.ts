@@ -91,6 +91,27 @@ test('one chip per person: the person on their phone, not the TV they started it
   }
 });
 
+test('the TV voting beside a phone on the same profile: two seats, each named, each counted', () => {
+  const s = session({
+    members: [
+      member({id: 'elia|tv', profileId: 'elia', name: 'Elia', label: 'Elia (TV)', role: 'voter', app: 'tv', host: true, done: true}),
+      member({id: 'elia|ph', profileId: 'elia', name: 'Elia', label: 'Elia (phone)', role: 'voter'}),
+      member({id: 'dana|1', profileId: 'dana', name: 'Dana', role: 'screen', app: 'web'}),
+    ],
+  });
+  for (const g of [G, web]) {
+    expect(g.peopleOf(s).map(m => [m.id, m.name])).toEqual([
+      ['elia|tv', 'Elia (TV)'],
+      ['elia|ph', 'Elia (phone)'],
+      ['dana|1', 'Dana'],
+    ]);
+    expect(g.progressLine(s)).toBe('1 of 2 done');
+    expect(g.joinedLine(s)).toBe('Elia (TV) and Elia (phone) are in');
+    expect(g.seatName(s.members[1])).toBe('Elia (phone)');
+    expect(g.seatName(s.members[2])).toBe('Dana');
+  }
+});
+
 test('which step a member is on', () => {
   for (const g of [G, web]) {
     expect(g.stepOf(session())).toBe('swipe');
