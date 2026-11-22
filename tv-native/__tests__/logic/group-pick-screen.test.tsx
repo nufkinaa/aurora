@@ -440,6 +440,8 @@ test('the TV swipes too: the deck — OK or RIGHT is Yes, LEFT No, DOWN Maybe; U
   expect(one(r, 'group.screen').props.label).toBe(WORDS.justShow);
   expect(texts(r)).toContain(`✓  ${WORDS.tvVoting}`);
   expect(byUi(r, 'group.votehere')).toHaveLength(0);
+  // the key under the focus went away: Start swiping takes it (not the header's How it works)
+  expect(one(r, 'group.deal').props.hasTVPreferredFocus).toBe(true);
   await act(async () => live.push(asVoter({rev: 50, notice: 'Running out of titles none of you has seen'})));
   expect(texts(r)).toEqual(expect.arrayContaining(['Alpha', '2021 · 1 h 48 · Comedy', 'Card 1 of 2', WORDS.yes, WORDS.no, WORDS.maybe]));
   expect(texts(r)).toContain('Running out of titles none of you has seen'); // the deal's plain word

@@ -984,7 +984,11 @@ function LobbyView({
   // Where the focus starts is decided ONCE, when the lobby opens: someone joining
   // later must not pull it from "Vote here" onto "Start swiping" (on the Mi TV an
   // OK meant for "Vote here" dealt the cards instead).
-  const firstFocus = useRef<'deal' | 'vote' | 'add'>(host && session.voters ? 'deal' : !voter ? 'vote' : 'add').current;
+  // (decided again only when this TV's own seat changes: "Vote here" goes away under the
+  // focus, which then belongs on Start swiping, or Add a title)
+  const focusAt = useRef<{voter: boolean; to: 'deal' | 'vote' | 'add'} | null>(null);
+  if (!focusAt.current || focusAt.current.voter !== voter) focusAt.current = {voter, to: host && session.voters ? 'deal' : !voter ? 'vote' : 'add'};
+  const firstFocus = focusAt.current.to;
   return (
     <View style={styles.lobby}>
       <View style={styles.joinPanel}>
