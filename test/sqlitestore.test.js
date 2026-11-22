@@ -632,7 +632,7 @@ test("switched off (AURORA_SQLITE=0): each store is handed back to its JSON file
   }
 });
 
-test("writes that keep failing: unsaved and retried, then the store goes back to its JSON file; the next start imports it", { skip }, () => {
+test("writes that keep failing: unsaved and retried, then the store goes back to its JSON file; the next start imports it", { skip }, async () => {
   const dir = tmp();
   try {
     const file = path.join(dir, "uploads.json");
@@ -640,6 +640,10 @@ test("writes that keep failing: unsaved and retried, then the store goes back to
     let s = open(file, []);
     const real = s._sql.db.stmts.up;
     s._sql.db.stmts.up = { run: () => { throw Object.assign(new Error("disk I/O error"), { code: "ERR_SQLITE_ERROR" }); } };
+    // (Linux file times are coarse: without a pause the JSON file written
+    // below can look no newer than SQLite's last write, and the next start
+    // keeps SQLite's older copy - failed 3/3 in WSL, passes with the pause)
+    await new Promise((r) => setTimeout(r, 30));
     let lines;
     lines = quiet(() => {
       for (let i = 0; i < 3; i++) { s.data[0].parts[0].received = 10 + i; s.flush(); }

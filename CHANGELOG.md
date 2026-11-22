@@ -3,6 +3,12 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.43 — 2026-11-23
+
+- **Pick together, polished after a full Mi TV walk.** A second round on the TV starts clean (no "No" left lit, no dimmed first card); the long seats line fits; a guest's waiting room no longer shows the word "false"; someone already in the room who reloads after Play sees the pick instead of "They have already picked"; the empty TV lobby shows one hint; the start line and the tutorial say the TV votes with its remote too.
+- **Aurora TV 5.9.9** and **Aurora for Android phones 1.1.11** carry these.
+- Tests: the skip-intro browser test watches the live button; a store test no longer trips over Linux's coarse file times.
+
 ## 1.15.42 — 2026-11-22
 
 - **Pick together, fresh every night.** Every card ever dealt to a room is remembered for everyone in it, so a title is never dealt to them again (when nothing fresh fits, the room is told plainly). Decks lead with titles nobody in the room has probably seen (watched, started, rated, on My List, followed, or answered in Swipe your taste), mix in this year's new films and series from Browse and Trending, and are shuffled much more each time.
