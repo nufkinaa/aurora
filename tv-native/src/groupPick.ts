@@ -37,6 +37,7 @@ export type GroupMember = {
   profileId: string;
   name: string;
   label?: string; // "Dana (TV)" — when one profile votes on two devices (the server's)
+  on?: string; // "TV" / "phone" / "browser 2" — the same, the device word alone
   avatar?: string | null;
   avatarImage?: string | null;
   role: GroupRole;
@@ -207,14 +208,14 @@ export const joinedLine = (s: Pick<GroupSession, 'members'>): string => {
   if (names.length === 2) return `${names[0]} and ${names[1]} are in`;
   return `${names.length} people are in`;
 };
-/** One seat per voting device, named as the server labels it ("Dana (TV)"); the room's
- *  screen only when its person is not voting on another device (the person, not the TV). */
+/** One seat per voting device (its `on` says which: "TV", "phone"); the room's screen only
+ *  when its person is not voting on another device (the person, not the TV). */
 export const peopleOf = (s: Pick<GroupSession, 'members'>): GroupMember[] => {
   const votes = new Set(s.members.filter(m => m.role === 'voter').map(m => m.profileId));
   const out: GroupMember[] = [];
   for (const m of s.members) {
     if (m.role === 'screen' && (votes.has(m.profileId) || out.some(o => o.profileId === m.profileId))) continue;
-    out.push(m.label ? {...m, name: m.label} : m);
+    out.push(m);
   }
   return out;
 };

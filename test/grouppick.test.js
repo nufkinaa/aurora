@@ -238,6 +238,7 @@ test("session: the TV votes with the remote next to a phone on the same profile 
   const tv = gp.setRole(s.code, P("elia"), "tv", "voter").session;
   assert.equal(tv.voters, 2);
   assert.deepEqual(tv.members.map((m) => m.label).sort(), ["Elia (TV)", "Elia (phone)"]);
+  assert.deepEqual(tv.members.map((m) => m.on).sort(), ["TV", "phone"]);
   assert.deepEqual(gp.votersOf(s.code), ["elia"], "the deck is built for one person");
   gp.start(s.code, P("elia"), "tv", cards(2));
   // the phone answers everything first: the TV still has its own cards

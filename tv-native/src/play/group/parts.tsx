@@ -341,4 +341,9 @@ const s = StyleSheet.create({
 
 // (the badge words a seat shows, for the screen)
 export const seatBadge = (m: GroupMember, voting: boolean, deck: number) =>
-  m.role === 'screen' ? WORDS.screenBadge : m.away ? WORDS.awayBadge : voting && m.done ? WORDS.doneBadge : voting ? `${Math.min(m.answered || 0, deck)} of ${deck}` : m.host ? WORDS.hostBadge : '';
+  [
+    m.on || '', // "TV" / "phone": one profile voting on two devices
+    m.role === 'screen' ? WORDS.screenBadge : m.away ? WORDS.awayBadge : voting && m.done ? WORDS.doneBadge : voting ? `${Math.min(m.answered || 0, deck)} of ${deck}` : m.host ? WORDS.hostBadge : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');

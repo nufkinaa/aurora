@@ -104,6 +104,7 @@ const seat = (m, { phase, deck = [] }, { fresh = false, i = 0, ribbon = false, h
     el("span", { class: "gp-person-name", dir: "auto" }, m.name),
     voting ? el("span", { class: "pg-seat-ribbon", "aria-hidden": "true" }, fill) : "",
     el("span", { class: "pg-seat-notes" },
+      m.on && el("span", { class: "gp-badge on" }, m.on),
       m.host && el("span", { class: "gp-badge" }, W.hostBadge),
       m.role === "screen" && el("span", { class: "gp-badge" }, W.screenBadge),
       m.away && el("span", { class: "gp-badge dim" }, W.awayBadge),

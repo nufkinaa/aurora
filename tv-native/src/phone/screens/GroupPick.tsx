@@ -150,8 +150,10 @@ function Poster({card, w, h, style}: {card: Pick<GroupCard, 'poster' | 'title'>;
 function Seat({m, size = 62, fresh, calm, deck}: {m: GroupMember; size?: number; fresh?: boolean; calm: boolean; deck?: number}) {
   const voting = deck != null && m.role === 'voter';
   const part = m.done ? 1 : deck ? Math.max(0, Math.min(1, (m.answered || 0) / deck)) : 0;
-  const badge = m.role === 'screen' ? WORDS.screenBadge : m.away ? WORDS.awayBadge : voting && m.done ? WORDS.doneBadge : m.host && !voting ? WORDS.hostBadge : '';
+  const state = m.role === 'screen' ? WORDS.screenBadge : m.away ? WORDS.awayBadge : voting && m.done ? WORDS.doneBadge : m.host && !voting ? WORDS.hostBadge : '';
   const count = voting && !m.done ? `${m.answered || 0}/${deck}` : '';
+  // "TV" / "phone" first when one profile votes on two devices
+  const badge = [m.on || '', state].filter(Boolean).join(' · ');
   return (
     <In calm={calm || !fresh} pop style={[s.seat, {width: size + 18}, m.away && s.away]}>
       <View accessible accessibilityLabel={badge ? `${m.name}, ${badge}` : m.name} style={s.seatIn}>
@@ -176,7 +178,7 @@ function Seat({m, size = 62, fresh, calm, deck}: {m: GroupMember; size?: number;
             <Meter value={part} width={size} height={5} calm={calm} tint={m.done ? PLAY.green : undefined} />
           </View>
         ) : null}
-        {badge || count ? <Text style={[s.badge, voting && m.done && s.badgeDone]}>{badge || count}</Text> : null}
+        {badge || count ? <Text style={[s.badge, voting && m.done && s.badgeDone]}>{[m.on || '', state || count].filter(Boolean).join(' · ')}</Text> : null}
       </View>
     </In>
   );

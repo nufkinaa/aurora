@@ -116,6 +116,7 @@ const voterPeople = (s) => {
   return out;
 };
 // "Elia (TV)" / "Elia (phone)" when one profile has more than one voting seat
+// (`label`; `on` is the device word alone, for a seat's small line under the name)
 const APP_WORD = { tv: "TV", phone: "phone", web: "browser" };
 const labelsOf = (s) => {
   const seats = new Map(); // profileId -> [member]
@@ -132,7 +133,7 @@ const labelsOf = (s) => {
       const word = APP_WORD[m.app] || "browser";
       const n = (per.get(word) || 0) + 1;
       per.set(word, n);
-      out.set(m.key, `${m.name} (${word}${n > 1 ? ` ${n}` : ""})`);
+      out.set(m.key, { label: `${m.name} (${word}${n > 1 ? ` ${n}` : ""})`, on: `${word}${n > 1 ? ` ${n}` : ""}` });
     }
   }
   return out;
@@ -181,7 +182,7 @@ const view = (s, key) => {
     id: m.key,
     profileId: m.profileId,
     name: m.name,
-    ...(labels.has(m.key) ? { label: labels.get(m.key) } : {}),
+    ...(labels.has(m.key) ? labels.get(m.key) : {}), // { label: "Elia (TV)", on: "TV" }
     avatar: m.avatar,
     avatarImage: m.avatarImage,
     role: m.role,
