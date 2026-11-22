@@ -1876,6 +1876,7 @@ html[data-look="glass"] .screen.pg > * { animation: none; }
 /* ---------- everyone swipes ---------- */
 .pg-hand { font: 900 1.3rem/1.15 var(--play-font); letter-spacing: -0.015em; font-variant-numeric: tabular-nums; }
 .pg-group .gp-swipe-sub { margin-top: 3px; color: var(--play-ink-dim); font-size: 0.88rem; font-weight: 700; }
+.pg-group .gp-notice { font-size: 0.8rem; font-weight: 600; line-height: 1.3; }
 .pg-group .gp-swipe-head .gp-kicker { margin-bottom: 6px; }
 .pg-timerow { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 760px; margin: 12px 0 14px; flex-shrink: 0; }
 .pg-group .gp-timebar { height: 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.11); }

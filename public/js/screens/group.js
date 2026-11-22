@@ -854,8 +854,10 @@ export const renderGroup = async (root, params = {}) => {
       const undoBtn = fk(btn({ "data-ui": "group.undo", class: TOOL, disabled: "", "aria-label": W.undo }, [el("span", { class: "pg-tool-glyph", "aria-hidden": "true" }, "↶"), el("span", { class: "gp-tool-label" }, W.undo)], () => undo()), "undo");
       // which card of the hand this is (the count is of this person's own hand)
       const hand = el("div", { class: "pg-hand" });
+      // the deal's plain word (the titles none of you has seen ran short)
+      const notice = el("div", { class: "gp-swipe-sub gp-notice hidden", role: "status" });
       const head = el("div", { class: "gp-swipe-head" },
-        el("div", { class: "gp-swipe-titles" }, el("div", { class: "gp-kicker play-eyebrow" }, star(), W.feature), hand, el("div", { class: "gp-swipe-sub" }, time, " · ", progress)),
+        el("div", { class: "gp-swipe-titles" }, el("div", { class: "gp-kicker play-eyebrow" }, star(), W.feature), hand, el("div", { class: "gp-swipe-sub" }, time, " · ", progress), notice),
         el("div", { class: "gp-swipe-tools" }, undoBtn, addButton("icon")));
       // the clock as a ribbon, and beside it the room: who is still at it, who is done
       const minis = el("div", { class: "pg-minis", "aria-hidden": "true" });
@@ -1100,6 +1102,8 @@ export const renderGroup = async (root, params = {}) => {
           total = x.deck.length;
           setText(time, G.timeLeft(x, Date.now() - follow.receivedAt()));
           setText(progress, G.progressLine(x));
+          setText(notice, x.notice || "");
+          notice.classList.toggle("hidden", !x.notice);
           paintMinis(x);
           paintDeck();
           if (!queue.length && ![...local.values()].some((v) => v == null)) setTimeout(() => paint(), 0);

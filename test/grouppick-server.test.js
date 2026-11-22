@@ -46,6 +46,8 @@ test("group pick, end to end", { skip: !haveFfmpeg() && "ffmpeg not found", time
     const lock = await api.createProfile("Lockie", { open: true });
     const kim = await api.createProfile("Kim", { open: true });
     const lior = await api.createProfile("Lior", { open: true });
+    const pia = await api.createProfile("Pia", { open: true });
+    const raz = await api.createProfile("Raz", { open: true });
     await api.adminPost(`/api/admin/profiles/${lock.id}/lock`, { locked: true });
     const benH = await api.as(ben);
     const lib = await api.library();
@@ -239,6 +241,24 @@ test("group pick, end to end", { skip: !haveFfmpeg() && "ffmpeg not found", time
         assert.deepEqual(more.body.session.deck.map((c) => c.key).filter((k) => deck.some((d) => d.key === k)), [], "a fresh round");
       } else assert.match(more.body.error, /dealt every title that fits|Nothing new fits/);
       await api.post(G(kim, `/${c5}/end`), { device: "tv-k" });
+    });
+
+    await t.test("what anyone in the room has probably seen comes last (only because the unseen ran short), says who, and the room is told", async () => {
+      // Raz rated film2 and has film1 on My List: both count as "probably seen"
+      await api.post(`/api/profiles/${raz.id}/rating`, { itemId: film("film2").id, stars: 4 });
+      await api.post(`/api/profiles/${raz.id}/watchlist`, { itemId: film("film1").id, add: true });
+      const r = await api.post(G(pia), { settings: { kind: "both" }, device: "tv-p", role: "screen", app: "tv" });
+      const c6 = r.session.code;
+      await api.post(G(raz, "/join"), { code: c6, device: "ph-r", app: "phone" });
+      const st = await api.post(G(pia, `/${c6}/start`), { device: "tv-p" });
+      const d = st.session.deck;
+      const seenAt = d.map((c, i) => (c.seenBy && c.seenBy.includes("Raz") ? i : -1)).filter((i) => i >= 0);
+      const unseenAt = d.map((c, i) => (!c.seenBy ? i : -1)).filter((i) => i >= 0);
+      assert.ok(d.some((c) => c.key === `lib:${film("film1").id}` && c.seenBy && c.seenBy.includes("Raz")), "My List counts as known");
+      assert.ok(seenAt.length >= 1 && unseenAt.length >= 1, JSON.stringify(d.map((c) => [c.title, c.seenBy])));
+      assert.ok(Math.min(...seenAt) > Math.max(...unseenAt), "the seen ones are at the back");
+      assert.match(st.session.notice, /Running out of titles none of you has seen/);
+      await api.post(G(pia, `/${c6}/end`), { device: "tv-p" });
     });
 
     await t.test("a kid in the room: the deck and the adds keep to the kid's age", async () => {

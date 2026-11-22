@@ -1173,6 +1173,11 @@ export default function GroupPick() {
                   {left ? ' · ' : ''}
                   {progressLine(shown)}
                 </Text>
+                {shown.notice ? (
+                  <Text style={s.progress} numberOfLines={2} accessibilityLiveRegion="polite">
+                    {shown.notice}
+                  </Text>
+                ) : null}
               </View>
               <Tap uiId="group.undo" flat disabled={!answers.history.length} accessibilityRole="button" accessibilityLabel={WORDS.undo} onPress={takeBack} style={[s.roundTool, !answers.history.length && s.off]}>
                 <Text style={s.roundGlyph}>↶</Text>

@@ -14,8 +14,19 @@
 //                 knows them), a length ("under 2 h" — a film's runtime, a
 //                 series' episode length), and the strictest kids limit in
 //                 the room (the `allow` predicate).
-//   SEEN          a title EVERY voter has seen is out; one some have seen
-//                 stays, lower down ("Dana has seen it" on the card).
+//   SEEN          (2026-11-22, elia: "introduce new content the user has
+//                 probably not seen") a title ANYONE in the room (the voters
+//                 and the room's screen) has probably seen is out — while the
+//                 deck can still be filled without it. Only when the unseen
+//                 titles run short do the seen-by-some fill the rest, last,
+//                 each saying so ("Dana has seen it"), and the room is told
+//                 (`seenFill` on the result). A title everyone has seen is
+//                 never dealt. "Probably seen" is the route's seenOf (watch
+//                 history, Continue Watching, ratings, loves, "Not for me",
+//                 My List, follows — the recommender's own "seen" set); and a
+//                 very famous catalogue title (FAMOUS_POP: the top of the
+//                 well-known list) is presumed seen and sinks, unless the
+//                 person said "Haven't seen" to it in Swipe your taste.
 //   FAIR FIT      each voter's own fit for every candidate (the recommender's
 //                 person model, routes/group.js) is turned into a PERCENTILE
 //                 among the candidates, so a person with a long history (big
@@ -51,6 +62,7 @@ const tax = require("./recs/taxonomy");
 const DECK_SIZE = 20;
 const LIB_SHARE = 0.5;
 const NEW_SHARE = 0.25;
+const FAMOUS_POP = 0.85; // the well-known list's top ~15 %: "everyone has seen it"
 const JITTER = 0.2;
 const VOTE_VALUE = { yes: 1, maybe: 0.6, no: 0 };
 const MISSING = 0.45;
@@ -151,10 +163,14 @@ const keyOf = (c) => c.key || (c.id ? `lib:${c.id}` : c.imdbId);
 // exclude   Set of keys never to show (an earlier round's cards)
 // n, seed
 // -> [candidate + { key, groupFit, seenBy: [profileId] }], best first
-const buildDeck = ({ pool = [], voters = [], fitOf = () => null, seenOf = () => new Set(), settings = {}, allow = null, exclude = new Set(), n = DECK_SIZE, seed = "", newFrom = new Date().getFullYear() - 1 } = {}) => {
+// room      [profileId] everyone in the room (voters and screens): whose "seen" counts (default: voters)
+// unseenOf  (profileId) -> Set of imdbIds that person said "Haven't seen" to (Swipe your taste)
+const buildDeck = ({ pool = [], voters = [], room = null, fitOf = () => null, seenOf = () => new Set(), unseenOf = () => new Set(), settings = {}, allow = null, exclude = new Set(), n = DECK_SIZE, seed = "", newFrom = new Date().getFullYear() - 1 } = {}) => {
   const s = cleanSettings(settings);
-  const seen = new Map(voters.map((pid) => [pid, seenOf(pid) || new Set()]));
-  const seenBy = (c) => voters.filter((pid) => {
+  const people = room && room.length ? [...new Set([...room, ...voters])] : voters;
+  const seen = new Map(people.map((pid) => [pid, seenOf(pid) || new Set()]));
+  const unseen = new Map(people.map((pid) => [pid, unseenOf(pid) || new Set()]));
+  const seenBy = (c) => people.filter((pid) => {
     const set = seen.get(pid);
     return set.has(c.imdbId) || (c.id && set.has(c.id));
   });
@@ -166,7 +182,7 @@ const buildDeck = ({ pool = [], voters = [], fitOf = () => null, seenOf = () => 
     if (!kindOk(c, s.kind) || !moodMatch(c, s.mood) || !lengthOk(c, s.length)) continue;
     if (allow && !allow(c)) continue;
     const by = seenBy(c);
-    if (voters.length && by.length === voters.length) continue; // everyone has seen it
+    if (people.length && by.length === people.length) continue; // everyone has seen it
     keyed.set(key, { ...c, key, seenBy: by });
   }
   // one entry per title: a library copy replaces the catalogue's
@@ -176,8 +192,11 @@ const buildDeck = ({ pool = [], voters = [], fitOf = () => null, seenOf = () => 
     const had = byImdb.get(c.imdbId);
     if (!had || (c.lib && !had.lib)) byImdb.set(c.imdbId, c);
   }
-  const cands = [...keyed.values()].filter((c) => !c.imdbId || byImdb.get(c.imdbId) === c);
+  let cands = [...keyed.values()].filter((c) => !c.imdbId || byImdb.get(c.imdbId) === c);
   if (!cands.length) return [];
+  // probably seen by anyone here: out, while the unseen can fill the deck
+  const fresh = cands.filter((c) => !c.seenBy.length);
+  if (fresh.length >= n) cands = fresh;
 
   // each voter's fit as a percentile among these candidates
   const per = voters.map((pid) => percentiles(cands.map((c) => {
@@ -201,7 +220,10 @@ const buildDeck = ({ pool = [], voters = [], fitOf = () => null, seenOf = () => 
     } else fit = 0.5;
     let v = fit + 0.15 * quality + 0.1 * fame;
     if (c.lib) v += 0.25; // on the server: plays now
-    if (voters.length) v -= 0.25 * (c.seenBy.length / voters.length);
+    // (only when the unseen ran short:) the seen-by-some come last
+    if (c.seenBy.length) v -= 2;
+    // a very famous catalogue title: presumed seen, unless someone here said "Haven't seen"
+    if (c.known && !c.lib && Number.isFinite(c.pop) && c.pop >= FAMOUS_POP && !people.some((pid) => c.imdbId && unseen.get(pid).has(c.imdbId))) v -= 0.3;
     v += JITTER * rand01(seed, c.key);
     c.groupFit = Math.round(fit * 1000) / 1000;
     c._v = v;
@@ -243,9 +265,10 @@ const buildDeck = ({ pool = [], voters = [], fitOf = () => null, seenOf = () => 
   }
   // shuffle lightly so the deck does not open with all the library titles,
   // but keep the strongest few near the top (people decide early)
-  return out.map((c, i) => ({ c, o: i + 4 * rand01(`${seed}|order`, c.key) }))
+  // (a card someone has seen stays at the back)
+  return out.map((c, i) => ({ c, o: i + 4 * rand01(`${seed}|order`, c.key) + (c.seenBy.length ? 1000 : 0) }))
     .sort((a, b) => a.o - b.o)
-    .map(({ c }) => { const { _v, _new, ...rest } = c; return rest; });
+    .map(({ c }) => { const { _v, _new, known, ...rest } = c; return rest; });
 };
 
 // ---------- the group score ----------
@@ -306,6 +329,6 @@ const results = ({ deck = [], voters = [], ballots = new Map() } = {}) => {
 
 module.exports = {
   buildDeck, groupScore, results, whyOf, cleanSettings, moodMatch, lengthOk,
-  MOODS, LENGTHS, KINDS, VERDICTS, DECK_SIZE, VOTE_VALUE, MISSING, NEW_SHARE,
+  MOODS, LENGTHS, KINDS, VERDICTS, DECK_SIZE, VOTE_VALUE, MISSING, NEW_SHARE, FAMOUS_POP,
   _internals: { percentiles, rand01, keyOf },
 };

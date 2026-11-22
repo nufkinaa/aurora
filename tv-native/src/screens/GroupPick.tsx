@@ -1191,6 +1191,11 @@ function DeckView({
         {/* always there (dim with nothing to undo): a key that vanished under the focus would drop it */}
         <PlayKey uiId="group.undo" small glyph="↶" label={WORDS.undo} dim={!canUndo} onPress={onUndo} />
       </View>
+      {session.notice ? (
+        <Text style={styles.notice} numberOfLines={1}>
+          {session.notice}
+        </Text>
+      ) : null}
       <View style={styles.band}>
         <View style={styles.arena}>
           <Answer glyph="◀" label={WORDS.no} color={INK.no} hit={hits.no} side="left" />
@@ -1689,6 +1694,7 @@ const styles = StyleSheet.create({
   deckTop: {flexDirection: 'row', alignItems: 'center', gap: spacing.lg, height: 34, marginBottom: TOP_H - 34},
   hand: {color: PLAY.ink, fontSize: 15, lineHeight: 20, fontWeight: '800', fontVariant: ['tabular-nums']},
   countDim: {color: PLAY.inkFaint, fontSize: 14, lineHeight: 19, flexShrink: 1},
+  notice: {color: PLAY.inkDim, fontSize: 13, lineHeight: 17, textAlign: 'center', marginTop: 2},
   band: {flex: 1, alignItems: 'center', justifyContent: 'center'},
   arena: {flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 40},
   card: {position: 'absolute', left: 0, top: 0, borderRadius: 18, overflow: 'hidden', backgroundColor: PLAY.tile},

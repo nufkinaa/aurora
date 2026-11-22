@@ -76,6 +76,7 @@ export type GroupSession = {
   mine: Record<string, GroupVerdict>;
   deadline: number | null;
   limitSec: number;
+  notice?: string; // the deal's plain word: the titles none of the room has seen ran short
   result?: {method: 'everyone' | 'best' | 'none'; index: number; at: number; why: 'done' | 'time' | 'host'; picks: GroupPick[]};
   chosen?: {key: string; by: string; card: GroupCard} | null;
   ended?: {reason: string};

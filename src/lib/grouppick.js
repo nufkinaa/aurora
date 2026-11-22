@@ -211,6 +211,8 @@ const view = (s, key) => {
     mine: ballot ? Object.fromEntries([...ballot.entries()].filter(([k]) => s.deck.some((c) => c.key === k))) : {},
     deadline: s.phase === "swiping" ? s.deadline : null,
     limitSec: s.settings.limitSec,
+    // the deal's plain word, when there is one (the unseen titles ran short)
+    ...(s.notice && s.phase === "swiping" ? { notice: s.notice } : {}),
   };
   if (s.result) {
     out.result = {
@@ -490,7 +492,7 @@ const mergeAdds = (adds, cards, max) => {
 };
 
 // The host deals the deck. `cards`: groupdeck.buildDeck for votersOf(code).
-const start = (code, actor, device, cards = [], { empty = null } = {}) => {
+const start = (code, actor, device, cards = [], { empty = null, notice = null } = {}) => {
   const r = hostAt(code, actor, device);
   if (r.e) return r.e;
   const { s } = r;
@@ -505,6 +507,7 @@ const start = (code, actor, device, cards = [], { empty = null } = {}) => {
     if (by && by.role === "voter") ballotOf(s, by.key).set(a.card.key, "yes");
   }
   s.adds = [];
+  s.notice = notice || null;
   s.phase = "swiping";
   s.startedAt = now();
   s.deadline = now() + s.settings.limitSec * 1000;
@@ -516,7 +519,7 @@ const start = (code, actor, device, cards = [], { empty = null } = {}) => {
 // From the result (or a "nothing matched"): a fresh deck for another round.
 // Anyone in the room may ask (2026-11-22: a room whose host was the TV, or
 // was away, sat on "No match" with nobody able to deal more cards).
-const again = (code, actor, device, cards = [], { empty = null } = {}) => {
+const again = (code, actor, device, cards = [], { empty = null, notice = null } = {}) => {
   const r = memberAt(code, actor, device);
   if (r.e) return r.e;
   const { s } = r;
@@ -524,6 +527,7 @@ const again = (code, actor, device, cards = [], { empty = null } = {}) => {
   if (!cards.length) return err(409, empty || "Nothing new fits those choices — try another mood or length");
   for (const c of s.deck) s.shown.add(c.key);
   s.deck = cards.slice(0, opts.deckMax);
+  s.notice = notice || null;
   s.ballots = new Map();
   s.result = null;
   s.round++;

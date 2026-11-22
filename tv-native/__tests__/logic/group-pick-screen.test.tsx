@@ -437,8 +437,9 @@ test('the TV swipes too: the deck — OK or RIGHT is Yes, LEFT No, DOWN Maybe; U
   expect(one(r, 'group.screen').props.label).toBe(WORDS.justShow);
   expect(texts(r)).toContain(`✓  ${WORDS.tvVoting}`);
   expect(byUi(r, 'group.votehere')).toHaveLength(0);
-  await act(async () => live.push(asVoter()));
+  await act(async () => live.push(asVoter({rev: 50, notice: 'Running out of titles none of you has seen'})));
   expect(texts(r)).toEqual(expect.arrayContaining(['Alpha', '2021 · 1 h 48 · Comedy', 'Card 1 of 2', WORDS.yes, WORDS.no, WORDS.maybe]));
+  expect(texts(r)).toContain('Running out of titles none of you has seen'); // the deal's plain word
   // the card is the one thing in focus; OK on it is Yes
   const card = () => one(r, 'group.yes');
   expect(card().props.hasTVPreferredFocus).toBe(true);

@@ -152,6 +152,35 @@ test("deck: a share of new titles while there are enough, and a different deck e
   assert.ok(one.filter((k) => two.includes(k)).length < 20, "another seed brings other titles up");
 });
 
+test("deck: what anyone in the room probably saw is out while the unseen fill it; then it fills the back, saying who", () => {
+  const pool = [];
+  for (let i = 1; i <= 30; i++) pool.push(film(i, { year: 2010 }));
+  // the screen's person (not a voter) saw 1-5; a voter saw 6
+  const seen = { tv: new Set([1, 2, 3, 4, 5].map((i) => film(i).imdbId)), a: new Set([film(6).imdbId]), b: new Set() };
+  const d = deck.buildDeck({ pool, voters: ["a", "b"], room: ["tv", "a", "b"], seenOf: (pid) => seen[pid], settings: { kind: "movie" }, n: 20, seed: "s1", newFrom: 2025 });
+  assert.equal(d.length, 20);
+  assert.ok(d.every((c) => !c.seenBy.length), "24 unseen titles: nothing anyone saw is dealt");
+  // only 8 unseen: they come first, then the seen-by-some, each saying who
+  const short = pool.slice(0, 14);
+  const d2 = deck.buildDeck({ pool: short, voters: ["a", "b"], room: ["tv", "a", "b"], seenOf: (pid) => seen[pid], settings: { kind: "movie" }, n: 20, seed: "s2", newFrom: 2025 });
+  assert.equal(d2.length, 14);
+  const firstSeen = d2.findIndex((c) => c.seenBy.length);
+  assert.equal(firstSeen, 8, d2.map((c) => `${c.title}:${c.seenBy}`).join(" "));
+  assert.ok(d2.slice(8).every((c) => c.seenBy.length));
+  assert.deepEqual(d2.find((c) => c.title === "Film 6").seenBy, ["a"]);
+  // a title everyone in the room saw is never dealt
+  const all = { tv: new Set([film(1).imdbId]), a: new Set([film(1).imdbId]) };
+  assert.ok(!deck.buildDeck({ pool: [film(1), film(2)], voters: ["a"], room: ["tv", "a"], seenOf: (p) => all[p] }).some((c) => c.title === "Film 1"));
+});
+
+test("deck: a very famous catalogue title is presumed seen (sinks), unless someone said 'Haven't seen'", () => {
+  const pool = [film(1, { known: true, pop: 0.99, rating: 8.5 }), film(2, { known: true, pop: 0.3, rating: 6.5 })];
+  const order = (unseen) => deck.buildDeck({ pool, voters: ["a"], unseenOf: () => unseen, settings: { kind: "movie" }, n: 1, seed: "f" }).map((c) => c.title);
+  assert.deepEqual(order(new Set()), ["Film 2"], "the famous one is presumed seen");
+  assert.deepEqual(order(new Set([film(1).imdbId])), ["Film 1"], "said 'Haven't seen': a fine card");
+  assert.ok(!("known" in deck.buildDeck({ pool, voters: ["a"], settings: { kind: "movie" } })[0]));
+});
+
 test("household memory: a card is remembered by every name it goes by", () => {
   const { namesOf } = require("../src/lib/groupdealt");
   assert.deepEqual(namesOf({ key: "lib:abc", id: "abc", imdbId: "tt0000001" }), ["lib:abc", "tt0000001"]);

@@ -173,7 +173,7 @@ const catalogueCands = (entries) => {
       out.push({
         key: k.imdbId, imdbId: k.imdbId, type, title: k.title, year: k.year || null, poster: k.poster,
         genres: tax.canonGenres(k.genres || []).slice(0, 3), themes: e && e.v ? e.v.themes : null,
-        runtime: (e && e.rec.rt) || null, rating: k.rating || null, lib: false, pop: 1 - k.k / depth,
+        runtime: (e && e.rec.rt) || null, rating: k.rating || null, lib: false, pop: 1 - k.k / depth, known: true,
         line: firstSentence((e && e.rec.ov) || ""),
       });
     }
@@ -181,23 +181,55 @@ const catalogueCands = (entries) => {
   return out;
 };
 
-// Who has seen what: finished films, finished or rated titles, what the
-// recommender counts as consumed.
-const CONSUMED = /^(finished|rewatch|mostly|devoted|binge|marked|rated\d)$/;
+// What a person has PROBABLY SEEN (or already knows) — a Pick-together deck
+// is for discoveries (elia 2026-11-22: "introduce new content the user has
+// probably not seen"). Ids (library ids and IMDb ids) of:
+//   - anything started or watched: Continue Watching and the watch history
+//     (progress, also an episode for its series; stream plays; the title rows),
+//     finished films;
+//   - rated, loved, "Not for me" in Swipe your taste;
+//   - on My List, followed;
+//   - the recommender's own "seen" set (media/recs/person.js collectEvents:
+//     everything above, plus titles removed from rows), when it is in memory.
+// A very famous catalogue title with none of these is presumed seen too
+// (media/groupdeck.js FAMOUS_POP) unless the person said "Haven't seen" to
+// it — that is unseenOf.
 const seenOf = (pid) => {
   const out = new Set();
   const st = profiles.stateOf(pid) || {};
+  const addKey = (k) => {
+    if (!k) return;
+    const key = String(k).split(":")[0];
+    out.add(key);
+    try {
+      const it = scanner.findById(key);
+      if (it && it.showId) out.add(it.showId); // an episode: its series
+      const show = it && it.showId ? scanner.findById(it.showId) : it;
+      if (show && show.imdbId) out.add(show.imdbId);
+    } catch {}
+  };
   try {
     const w = watchedLib().watchedIndex({ progress: st.progress || {}, streamItems: st.streamItems || {} });
     for (const k of w.movies) out.add(k);
   } catch {}
-  for (const k of Object.keys(st.ratings || {})) out.add(k);
+  for (const k of Object.keys(st.progress || {})) addKey(k);
+  for (const k of Object.keys(st.titles || {})) addKey(k);
+  for (const sm of Object.values(st.streamItems || {})) if (sm && sm.imdbId) out.add(sm.imdbId);
+  for (const k of Object.keys(st.ratings || {})) addKey(k);
+  for (const t of st.likedTitles || []) { if (t && t.imdbId) out.add(t.imdbId); if (t && t.id) addKey(t.id); }
+  for (const t of st.dislikedTitles || []) if (t && t.imdbId) out.add(t.imdbId);
+  for (const e of st.watchlist || []) { const k = typeof e === "string" ? e : e && (e.imdbId || e.id); if (k) addKey(k); }
+  try { for (const f of profiles.followsOf(pid) || []) if (f && f.imdbId) out.add(f.imdbId); } catch {}
   try {
     const recs = recsLib();
-    if (recs.ready()) {
-      for (const t of recs._internals.eventsFor(pid).titles.values()) if ([...t.kinds].some((k) => CONSUMED.test(k))) out.add(t.id);
-    }
+    if (recs.ready()) for (const id of recs._internals.eventsFor(pid).seen) out.add(id);
   } catch {}
+  return out;
+};
+// "Haven't seen" in Swipe your taste: said NOT seen, so a famous title is fine for them.
+const unseenOf = (pid) => {
+  const out = new Set();
+  try { for (const t of profiles.getTasteSkipped(pid) || []) if (t && t.imdbId) out.add(t.imdbId); } catch {}
   return out;
 };
 
@@ -287,6 +319,7 @@ const cardOut = (c) => ({
 // `dry`: something fits the choices, but all of it was dealt to this room
 // before — the room is told so, and nothing old is dealt again.
 const DRY = "You've been dealt every title that fits these choices — try another mood, length or films / series";
+const SEEN_FILL = "Running out of titles none of you has seen for these choices — the last cards are ones someone here has seen";
 const dealFor = (req, code, { exclude = new Set() } = {}) => {
   const voters = grouppick.votersOf(code);
   const dealt = groupdealt.dealtFor(grouppick.peopleOf(code));
@@ -310,16 +343,23 @@ const dealFor = (req, code, { exclude = new Set() } = {}) => {
   const allowed = fitting.filter((c) => !used(c));
   if (!allowed.length) return { cards: [], dry: fitting.length > 0 };
   const fits = new Map(voters.map((pid) => [pid, fitsFor(pid, allowed)]));
-  const seen = new Map(voters.map((pid) => [pid, seenOf(pid)]));
+  // whose "seen" counts: everyone in the room, the screen's person too
+  const room = [...new Set([...voters, ...grouppick.peopleOf(code)])];
+  const seen = new Map(room.map((pid) => [pid, seenOf(pid)]));
+  const unseen = new Map(room.map((pid) => [pid, unseenOf(pid)]));
   const cards = groupdeck.buildDeck({
     pool: allowed,
     voters,
+    room,
     fitOf: (pid, c) => (fits.get(pid) && fits.get(pid).has(c.key) ? fits.get(pid).get(c.key) : null),
     seenOf: (pid) => seen.get(pid),
+    unseenOf: (pid) => unseen.get(pid),
     settings,
     seed: `${code}|${Date.now()}|${Math.random()}`,
   });
-  return { cards: cards.map(cardOut), dry: false };
+  // the unseen ran short: some cards are ones someone here has seen — said plainly
+  const seenFill = cards.filter((c) => c.seenBy && c.seenBy.length).length;
+  return { cards: cards.map(cardOut), dry: false, notice: seenFill ? SEEN_FILL : null };
 };
 // The deck just dealt (or a card added mid-round): remembered for everyone in the room.
 const rememberDeal = (code, cards) => {
@@ -431,7 +471,7 @@ router.post("/api/profiles/:id/group/:code/start", gate, (req, res) => {
   if (no) return send(res, no);
   let deal = { cards: [], dry: false };
   try { deal = dealFor(req, req.params.code); } catch {}
-  const r = grouppick.start(req.params.code, actorOf(req), deviceOf(req), deal.cards, { empty: deal.dry ? DRY : null });
+  const r = grouppick.start(req.params.code, actorOf(req), deviceOf(req), deal.cards, { empty: deal.dry ? DRY : null, notice: deal.notice || null });
   if (r && r.session) rememberDeal(req.params.code, r.session.deck);
   send(res, r);
 });
@@ -441,7 +481,7 @@ router.post("/api/profiles/:id/group/:code/again", gate, (req, res) => {
   if (no) return send(res, no);
   let deal = { cards: [], dry: false };
   try { deal = dealFor(req, req.params.code, { exclude: grouppick.shownOf(req.params.code) }); } catch {}
-  const r = grouppick.again(req.params.code, actorOf(req), deviceOf(req), deal.cards, { empty: deal.dry ? DRY : null });
+  const r = grouppick.again(req.params.code, actorOf(req), deviceOf(req), deal.cards, { empty: deal.dry ? DRY : null, notice: deal.notice || null });
   if (r && r.session) rememberDeal(req.params.code, r.session.deck);
   send(res, r);
 });
@@ -508,5 +548,5 @@ router.post("/api/profiles/:id/group/:code/end", gate, (req, res) => {
 
 grouppick.startTicker();
 
-router._internals = { dealFor, titleCard, seenOf, fitsFor, allowFor, libraryCands, catalogueCands, DRY };
+router._internals = { dealFor, titleCard, seenOf, unseenOf, fitsFor, allowFor, libraryCands, catalogueCands, DRY, SEEN_FILL };
 module.exports = router;
