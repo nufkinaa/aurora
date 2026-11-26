@@ -904,6 +904,10 @@
     /* "Tune this network drive" (lib/drives/tune.js) */
     .drv-tune { margin-top: 12px; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); }
     .drv-tune-h { font-weight: 800; margin-bottom: 2px; }
+    .cw-line { font-size: 0.86rem; margin-top: 6px; overflow-wrap: anywhere; }
+    .cw-line code, .cw-key code { font-size: 0.82rem; color: var(--text); overflow-wrap: anywhere; user-select: all; }
+    .cw-new { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); font-size: 0.86rem; }
+    .cw-key { margin-top: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .drv-tune code { font-size: 0.78rem; overflow-wrap: anywhere; color: var(--text); }
     .drv-opts { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 5px; }
     .drv-opt { font-size: 0.76rem; padding: 2px 7px; border-radius: 999px; overflow-wrap: anywhere; }
@@ -1764,6 +1768,30 @@
       </div>
         </div>
       </details>
+      <!-- [clipwave] keys for the Clipwave app (routes/clipwave.js, lib/clipwavetokens.js) -->
+      <details class="more" data-more="sv-clipwave" data-nocopy data-title="Clipwave access" data-sub="keys that let the Clipwave app read the library and cut clips" data-pill-id="cw-count">
+        <div class="more-body">
+      <div class="card">
+        <h2>Clipwave access <span class="note">a key lets Clipwave search the library, read subtitles and pull parts of the files — read only, nothing else on the server (no profiles, no history, no admin)</span></h2>
+        <div class="cw-line">In Clipwave → Settings → My server, paste this address: <code id="cw-url"></code> <button class="mini" id="cw-url-copy">Copy</button></div>
+        <div class="cw-line muted" id="cw-https"></div>
+        <div class="bar-row" style="margin-top:10px;flex-wrap:wrap;gap:8px">
+          <input type="text" id="cw-name" placeholder="Name it (e.g. Clipwave on my laptop)" maxlength="60" style="max-width:300px" />
+          <button class="mini" id="cw-create">Create key</button>
+        </div>
+        <div class="cw-new hidden" id="cw-new">
+          <b>Your new key — copy it now. It is shown only this once.</b>
+          <div class="cw-key"><code id="cw-new-key"></code> <button class="mini" id="cw-new-copy">Copy</button></div>
+        </div>
+        <div class="table-scroll" style="margin-top:10px"><table>
+          <thead><tr><th>Name</th><th>Key</th><th>Made</th><th>Last used</th><th></th></tr></thead>
+          <tbody id="cw-rows"></tbody>
+        </table></div>
+        <div class="empty-note hidden" id="cw-empty">No keys yet — create one above.</div>
+      </div>
+        </div>
+      </details>
+      <!-- [/clipwave] -->
       <details class="more" data-more="sv-maint" data-nocopy data-title="Maintenance" data-sub="rescan the library, clear caches">
         <div class="more-body">
       <div class="card">
@@ -2319,6 +2347,49 @@
       toast(`Nothing was deleted — type ${word} to confirm`);
       return false;
     };
+
+    // ---------- Clipwave access (keys for the Clipwave app: routes/clipwave.js) ----------
+    const cwCopy = (text, what) => {
+      const done = () => toast(`${what} copied`);
+      if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text).then(done, () => toast("Couldn't copy — select it and copy by hand"));
+      const ta = document.createElement("textarea");
+      ta.value = text; document.body.append(ta); ta.select();
+      try { document.execCommand("copy"); done(); } catch { toast("Couldn't copy — select it and copy by hand"); }
+      ta.remove();
+    };
+    const loadClipwave = async () => {
+      let d;
+      try { d = await json("/api/admin/clipwave/tokens"); } catch { return; }
+      if (!d || !Array.isArray(d.tokens)) return;
+      const base = (d.publicUrl || location.origin).replace(/\/+$/, "") + (d.path || "/clipwave");
+      $("#cw-url").textContent = base;
+      $("#cw-https").textContent = base.startsWith("https://") ? "" : "Clipwave needs an https:// address — use the server's public https address in place of this one.";
+      $("#cw-count").textContent = String(d.tokens.length);
+      $("#cw-empty").classList.toggle("hidden", d.tokens.length > 0);
+      $("#cw-rows").innerHTML = d.tokens.map((t) =>
+        `<tr><td>${esc(t.name)}</td><td><code>${esc(t.start)}…</code></td><td>${esc(fmtWhen(t.createdAt))}</td><td>${t.lastUsedAt ? esc(ago(t.lastUsedAt)) : "never"}</td>` +
+        `<td><button class="mini" data-cw-remove="${esc(t.id)}" data-cw-name="${esc(t.name)}">Remove</button></td></tr>`).join("");
+    };
+    $("#cw-url-copy").onclick = () => cwCopy($("#cw-url").textContent, "Address");
+    $("#cw-new-copy").onclick = () => cwCopy($("#cw-new-key").textContent, "Key");
+    $("#cw-create").onclick = async () => {
+      const name = $("#cw-name").value.trim() || "Clipwave";
+      const r = await post("/api/admin/clipwave/tokens", { name }).catch(() => null);
+      if (!r || !r.token) return toast((r && r.error) || "Couldn't make a key");
+      $("#cw-new-key").textContent = r.token;
+      $("#cw-new").classList.remove("hidden");
+      $("#cw-name").value = "";
+      loadClipwave();
+    };
+    $("#cw-rows").addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-cw-remove]");
+      if (!b) return;
+      if (!(await ask(`Remove the key "${b.dataset.cwName}"? Clipwave stops reaching the library with it at once.`))) return;
+      const r = await json(`/api/admin/clipwave/tokens/${encodeURIComponent(b.dataset.cwRemove)}`, { method: "DELETE" }).catch(() => null);
+      toast(r && r.ok ? "Key removed" : "Couldn't remove the key");
+      $("#cw-new").classList.add("hidden");
+      loadClipwave();
+    });
 
     const fmtUptime = (sec) => {
       const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
@@ -7766,6 +7837,7 @@
           return [one("TV app", tv), one("Phone app", ph)].join("\n");
         },
       },
+      "sv-clipwave": { load: () => loadClipwave(), inAll: false },
       "sv-maint": { inAll: false },
       "sv-env": {
         load: () => loadServer(),

@@ -24,6 +24,14 @@ import { showReportSheet } from "../report.js";
 export const ROUND = "1.15.42";
 const NEW_FROM = ROUND;
 const FEATURES = [
+  // ---- 1.15.44: Clipwave access (the admin's; a browser page, so web only; in this round's ribbon) ----
+  {
+    webOnly: true, since: ROUND, cue: "tap", glyph: "🎬",
+    title: "Clipwave can read the library",
+    what: "The Clipwave app can now search Aurora's library, read its subtitles and pull just the parts of a film or episode it needs to cut clips. It only reads: no profiles, no history, nothing changes.",
+    how: "For the admin: Admin panel → Server → Clipwave access → Create key, then paste the address and the key into Clipwave's Settings.",
+    go: { label: "Go home", to: "#/" },
+  },
   // ---- 1.15.42: Pick together, fresh every night (the same card on the TV) ----
   {
     since: ROUND, cue: "tap", glyph: "🍿",

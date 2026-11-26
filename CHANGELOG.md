@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.44 — 2026-11-26
+
+- **Clipwave can read the library.** A new read-only API at `/clipwave/v1` (the Clipwave Media Server API v1): search, browse, a show's episodes, a film's or episode's full facts, subtitles as SRT, the original file with Range requests, posters, and two cuts made by the server — a clip as MP4 (video copied, sound to AAC) and the whole sound track as small Opus audio. Every request needs an access key; nothing else opens it, and a key opens nothing else. Details: docs/clipwave-api.md.
+- **Admin → Server → Clipwave access:** create a key (shown once, with a Copy button), see when each was last used, remove one (it stops at once). The section also shows the address to paste into Clipwave.
+
 ## 1.15.43 — 2026-11-23
 
 - **Pick together, polished after a full Mi TV walk.** A second round on the TV starts clean (no "No" left lit, no dimmed first card); the long seats line fits; a guest's waiting room no longer shows the word "false"; someone already in the room who reloads after Play sees the pick instead of "They have already picked"; the empty TV lobby shows one hint; the start line and the tutorial say the TV votes with its remote too.

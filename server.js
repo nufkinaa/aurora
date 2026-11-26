@@ -290,6 +290,9 @@ app.use(require("./src/routes/usage"));
 app.use(require("./src/routes/nextep"));
 app.use(require("./src/routes/franchises")); // franchise order: the title page's "Part of …", the franchise page, the end card's next film (media/franchises)
 app.use(require("./src/routes/avcaps")); // what a device can play, and how a title plays on it (TV round 2026-10-19)
+// Clipwave (2026-11-26): the clip-making app reads the library through
+// /clipwave/v1 with an access key the admin makes (routes/clipwave.js)
+app.use(require("./src/routes/clipwave"));
 app.use(require("./src/routes/proxy"));
 
 // Processed profile avatars (re-encoded 256px JPEGs — see routes/profiles.js).

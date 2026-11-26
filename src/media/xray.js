@@ -373,4 +373,19 @@ const titleCasts = () => {
   return out;
 };
 
-module.exports = { get, titleCasts, _internals: { stripHtml, mergePeople, billedFirst, isAnthology, crewLine } };
+// Directors and studios of a title, from what is already on disk (sync, no
+// lookup) — the Clipwave API's credits line (routes/clipwave.js). null when
+// the title has never been looked up.
+const cachedCredits = (type, imdbId) => {
+  const t = type === "series" || type === "show" ? "series" : "movie";
+  const hit = store.data[`t|${t}|${imdbId}`];
+  if (!hit || !hit.data) return null;
+  const crew = Array.isArray(hit.data.crew) ? hit.data.crew : [];
+  const facts = Array.isArray(hit.data.facts) ? hit.data.facts : [];
+  const directors = [...new Set(crew.filter((c) => c && /^(Director|Created \/ directed by)$/.test(c.job || "")).map((c) => c.name))];
+  const studioFact = facts.find((f) => f && (f.label === "Studio" || f.label === "On"));
+  const studios = studioFact ? String(studioFact.value).split(/,\s*/).filter(Boolean) : [];
+  return { directors, studios };
+};
+
+module.exports = { get, titleCasts, cachedCredits, _internals: { stripHtml, mergePeople, billedFirst, isAnthology, crewLine } };

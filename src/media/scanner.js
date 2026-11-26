@@ -1224,7 +1224,7 @@ const boot = () => {
 // needs it waits for that (20 s at most). What does not need the library —
 // the health check, who-am-I, sign-in, the app shell — never waits.
 const READY_WAIT_MS = 20 * 1000;
-const NEEDS_LIBRARY = /^\/(api|stream|img|offline)\//;
+const NEEDS_LIBRARY = /^\/(api|stream|img|offline|clipwave)\//; // (clipwave: routes/clipwave.js)
 const NEVER_WAITS = /^\/api\/(ping|me|server-info|usage)$|^\/api\/auth\//;
 const libraryReady = (req, res, next) => {
   if (index.scannedAt || !NEEDS_LIBRARY.test(req.path) || NEVER_WAITS.test(req.path)) return next();
