@@ -45,6 +45,11 @@ for (const [vp, viewport] of [["desktop", { width: 1440, height: 900 }], ["phone
 
     await page.click("#cw-new-copy");
     await page.waitForFunction((k) => navigator.clipboard.readText().then((t) => t === k), key);
+    // Copy for Claude: the names and dates, never the key
+    await page.click('[data-copy-for="sv-clipwave"]');
+    await page.waitForFunction((n) => navigator.clipboard.readText().then((t) => t.includes(n)), `Laptop ${vp}`);
+    const md = await page.evaluate(() => navigator.clipboard.readText());
+    assert.ok(!md.includes(key) && md.includes(key.slice(0, 7)), md);
 
     // the key opens the API…
     const ping = await fetch(`${srv.url}/clipwave/v1/ping`, { headers: { Authorization: `Bearer ${key}` } });

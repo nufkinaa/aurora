@@ -1769,7 +1769,7 @@
         </div>
       </details>
       <!-- [clipwave] keys for the Clipwave app (routes/clipwave.js, lib/clipwavetokens.js) -->
-      <details class="more" data-more="sv-clipwave" data-nocopy data-title="Clipwave access" data-sub="keys that let the Clipwave app read the library and cut clips" data-pill-id="cw-count">
+      <details class="more" data-more="sv-clipwave" data-title="Clipwave access" data-sub="keys that let the Clipwave app read the library and cut clips" data-pill-id="cw-count">
         <div class="more-body">
       <div class="card">
         <h2>Clipwave access <span class="note">a key lets Clipwave search the library, read subtitles and pull parts of the files — read only, nothing else on the server (no profiles, no history, no admin)</span></h2>
@@ -7837,7 +7837,16 @@
           return [one("TV app", tv), one("Phone app", ph)].join("\n");
         },
       },
-      "sv-clipwave": { load: () => loadClipwave(), inAll: false },
+      "sv-clipwave": {
+        load: () => loadClipwave(),
+        inAll: false,
+        // names and dates only: a key is never on the page after it was shown, nor in a copy
+        copy: async () => {
+          const d = await json("/api/admin/clipwave/tokens");
+          return MD.list([["address", (d.publicUrl || location.origin).replace(/\/+$/, "") + (d.path || "/clipwave")], ["keys", `${d.tokens.length} of ${d.max}`]]) + "\n\n" +
+            MD.table(["name", "starts", "made", "last used"], d.tokens.map((t) => [t.name, `${t.start}…`, fmtWhen(t.createdAt), t.lastUsedAt ? ago(t.lastUsedAt) : "never"]));
+        },
+      },
       "sv-maint": { inAll: false },
       "sv-env": {
         load: () => loadServer(),
