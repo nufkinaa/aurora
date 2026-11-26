@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.45 — 2026-11-26
+
+- **Subtitle files saved as UTF-16 now read right** (Notepad's "Unicode", some rippers' default). They were read as Windows-1251 and showed as "яю1" with no lines, on the website, the TV and in Clipwave — found on Troy's English subtitles while testing Clipwave on the real library.
+
 ## 1.15.44 — 2026-11-26
 
 - **Clipwave can read the library.** A new read-only API at `/clipwave/v1` (the Clipwave Media Server API v1): search, browse, a show's episodes, a film's or episode's full facts, subtitles as SRT, the original file with Range requests, posters, and two cuts made by the server — a clip as MP4 (video copied, sound to AAC) and the whole sound track as small Opus audio. Every request needs an access key; nothing else opens it, and a key opens nothing else. Details: docs/clipwave-api.md.

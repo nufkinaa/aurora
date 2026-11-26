@@ -22,8 +22,33 @@ const srtToVtt = (srt) =>
 // yields real letters — Windows-1255 for Hebrew, Windows-1251 for Russian
 // (subs from the wild are often ANSI-encoded, and the same bytes are one
 // alphabet in one page and the other in the other) — and strip any BOM.
+// A UTF-16 file (Notepad's "Unicode", some rippers' default): told by its
+// byte-order mark, or — without one — by every other byte being 0 in the
+// first kilobyte of plain text. (Troy's English.srt, 2026-11-26: read as
+// Windows-1251, every player showed "яю1" and no cues.)
+const utf16Of = (buf) => {
+  if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xfe) return "utf-16le";
+  if (buf.length >= 2 && buf[0] === 0xfe && buf[1] === 0xff) return "utf-16be";
+  const n = Math.min(buf.length - (buf.length % 2), 1024);
+  if (n < 16) return null;
+  let evenZero = 0, oddZero = 0;
+  for (let i = 0; i < n; i += 2) { if (buf[i] === 0) evenZero++; if (buf[i + 1] === 0) oddZero++; }
+  const half = n / 2;
+  if (oddZero > half * 0.6 && evenZero < half * 0.05) return "utf-16le";
+  if (evenZero > half * 0.6 && oddZero < half * 0.05) return "utf-16be";
+  return null;
+};
+
 const decodeSubtitle = (buf) => {
   let text;
+  const wide = utf16Of(buf);
+  if (wide) {
+    try {
+      text = new TextDecoder(wide).decode(buf);
+      if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+      return text;
+    } catch {}
+  }
   try {
     text = new TextDecoder("utf-8", { fatal: true }).decode(buf);
   } catch {
