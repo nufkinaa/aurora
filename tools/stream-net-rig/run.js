@@ -93,6 +93,7 @@ const CPUS8 = arg("cpus8", "1") !== "0";
 // (straight from the instance, not through the line) — what a ladder prepared
 // overnight would be: the player never waits on an encoder
 const PREWARM = arg("prewarm", "");
+const TREE = arg("tree", "");
 // --at <title>=<sec>[,...]: resume there (the film's busiest 150 s: mp4=390, hevc=546, jit=218)
 const AT = Object.fromEntries(String(arg("at", "")).split(",").filter(Boolean).map((kv) => { const [k, v] = kv.split("="); return [k, Number(v)]; }));
 const CONFIG = Object.fromEntries(many("config").map((kv) => { const i = kv.indexOf("="); let v = kv.slice(i + 1); try { v = JSON.parse(v); } catch {} return [kv.slice(0, i), v]; }));
@@ -106,8 +107,18 @@ const UA = {
 
 // ---------- the instance ----------
 const startInstance = async () => {
-  const server = require("../../scripts/ui-test-server");
+  // --tree <dir>: the app from a frozen copy (e.g. master, for a "before" no later edit can touch)
+  const server = require(TREE ? path.join(TREE, "scripts", "ui-test-server.js") : "../../scripts/ui-test-server");
+  // the machine's encode speed, measured once and handed to every instance (a fresh data folder would
+  // measure it again: an x264 encode half a minute into every play, counted as an encoder start)
+  const calFile = path.join(OUT_DIR, "encode-calibration.json");
+  let cal = null;
+  try { cal = JSON.parse(fs.readFileSync(calFile, "utf8")); } catch {}
   const srv = await server.start({
+    ...(cal ? { seed: { "cache/encode-calibration.json": cal } } : {}),
+    // every video encode the server starts is logged (count-encodes.js): elia's rule is that none
+    // may run that would not have run before, so each row counts them
+    preload: [path.join(__dirname, "count-encodes.js")],
     config: {
       libraries: { movies: [path.join(MEDIA, "movies")], shows: [path.join(MEDIA, "shows")] },
       hwEncode: "off", // nufurora.com has no graphics card
@@ -141,6 +152,13 @@ const startInstance = async () => {
   const ids = {};
   for (const [k, t] of Object.entries(TITLES)) { const m = lib.movies.find((x) => x.title === t.title); if (m) ids[k] = { id: m.id, duration: m.duration, sizeBytes: m.sizeBytes }; }
   const setProgress = (profileId, itemId, position, duration) => call("POST", `/api/profiles/${profileId}/progress`, { itemId, position, duration });
+  if (!cal) {
+    const stop = srv.stop;
+    srv.stop = async () => {
+      try { const made = path.join(srv.dataDir, "cache", "encode-calibration.json"); if (fs.existsSync(made)) fs.copyFileSync(made, calFile); } catch {}
+      return stop();
+    };
+  }
   return { srv, createProfile, setProgress, ids };
 };
 
@@ -346,6 +364,7 @@ const digest = ({ t0, dump, reqs, endAt }) => {
   out.hlsErrors = h.filter((x) => x.what === "error").length;
   out.hlsFatal = h.filter((x) => x.what === "error" && x.fatal).length;
   out.hlsGaveUp = h.filter((x) => x.what === "gave-up").length;
+  out.hlsErrorList = h.filter((x) => x.what === "error").slice(0, 25).map((x) => `${x.details}${x.fatal ? "!" : ""}@${Math.round((x.t - t0) / 1000)}`);
   out.hlsLevels = h.filter((x) => x.what === "level").map((x) => `${x.h}@${Math.round((x.t - t0) / 1000)}`).join(" ");
   out.manifest = (h.find((x) => x.what === "manifest") || {}).levels || null;
   out.estKbps = h.filter((x) => x.what === "est").map((x) => x.kbps);
@@ -363,7 +382,7 @@ const digest = ({ t0, dump, reqs, endAt }) => {
 const main = async () => {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const browser = await launch({ headed: flag("headed") });
-  const meta = { at: Object.keys(AT).length ? AT : null, prewarm: PREWARM || null, label: LABEL, at: new Date().toISOString(), net: NETMODE, cc: CC, ssai: SSAI, line: LINE, flavour: FLAVOUR, sets: SETS, hls: HLS || null, config: CONFIG, chrome: browser.version(), cpus8: CPUS8 };
+  const meta = { tree: TREE || null, at: Object.keys(AT).length ? AT : null, prewarm: PREWARM || null, label: LABEL, at: new Date().toISOString(), net: NETMODE, cc: CC, ssai: SSAI, line: LINE, flavour: FLAVOUR, sets: SETS, hls: HLS || null, config: CONFIG, chrome: browser.version(), cpus8: CPUS8 };
   console.log(`rig ${LABEL}: ${PROFS.join(",")} × ${TKEYS.join(",")} × ${RUNS}  net=${NETMODE} cc=${CC} flavour=${FLAVOUR} line=${LINE} (Chrome ${meta.chrome})`);
   for (let run = 1; run <= RUNS; run++) for (const pname of PROFS) for (const tkey of TKEYS) {
     const prof = PROFILES[pname];
@@ -426,7 +445,9 @@ const main = async () => {
       { const pm = row.marks.filter((m) => /^path:/.test(m)).map((m) => m.split(":")[1].split("@")[0]); if (pm.length) row.pathMarks = pm.join(">"); }
       row.stepDowns = row.marks.filter((m) => /^step-down/.test(m)).length;
       const log = inst.srv.log();
-      row.serverEncodes = log.filter((l) => /libx264|encod/i.test(l) && /jit|ladder|spawn/i.test(l)).length;
+      const enc = log.filter((l) => /^\[rig-encode\]/.test(l));
+      row.encodeStarts = enc.length;
+      row.encodes = enc.map((l) => l.replace("[rig-encode] ", "")).slice(0, 40);
       row.serverLogTail = log.filter((l) => /\[jit\]|\[ladder\]|\[play\]/.test(l)).slice(-25);
     } catch (e) {
       row.ok = false;
@@ -438,7 +459,7 @@ const main = async () => {
     }
     row.wallSec = Math.round((Date.now() - t1) / 1000);
     fs.appendFileSync(OUT, JSON.stringify(row) + "\n");
-    console.log(`  ${pname.padEnd(7)} ${tkey.padEnd(6)} #${run} ${row.ok ? `ttff ${String(row.ttff).padStart(6)} ms  stalls ${String(row.stalls).padStart(2)} / ${String((row.stallMs / 1000).toFixed(1)).padStart(5)} s  avgH ${String(row.avgHeight).padStart(4)}  top ${Math.round(row.shareTop * 100)}%  sw ${row.switches}  ${row.mediaMbit} Mbit/s  ${(row.mediaBytes / 1e6).toFixed(0)} MB  path ${row.path} [${row.levelsUsed.join(",")}] end ${row.endPlaying ? "playing" : "STUCK"}` : `FAILED ${row.why}`}`);
+    console.log(`  ${pname.padEnd(7)} ${tkey.padEnd(6)} #${run} ${row.ok ? `ttff ${String(row.ttff).padStart(6)} ms  stalls ${String(row.stalls).padStart(2)} / ${String((row.stallMs / 1000).toFixed(1)).padStart(5)} s  avgH ${String(row.avgHeight).padStart(4)}  top ${Math.round(row.shareTop * 100)}%  sw ${row.switches}  ${row.mediaMbit} Mbit/s  ${(row.mediaBytes / 1e6).toFixed(0)} MB  enc ${row.encodeStarts}  path ${row.path} [${row.levelsUsed.join(",")}] end ${row.endPlaying ? "playing" : "STUCK"}` : `FAILED ${row.why}`}`);
   }
   await browser.close();
 };
