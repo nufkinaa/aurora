@@ -31,7 +31,15 @@ const tonemap = require("./tonemap");
 const CAPS = {
   "h264-720": { h: 720, maxrate: 2200, bufsize: 4400, audio: 128 },
   "h264-480": { h: 480, maxrate: 1000, bufsize: 2000, audio: 96 },
+  // PROTOTYPE (research-stream-efficiency, 2026-11-27): a rung for the line the
+  // 480p one does not fit. 480p is declared at 1.66 Mbit/s peak / 1.27 average,
+  // so a 1.5 Mbit/s line — or a 3 Mbit/s one losing 1 % of its packets under
+  // CUBIC — has nothing it can carry. 360p under a 500 kbit/s ceiling with 64k
+  // stereo sound: 0.85 peak / 0.65 average. Offered only with config.json
+  // "ladderLow": true (rungNames); the rebuild path's CAPS (remux.js) are untouched.
+  "h264-360": { h: 360, maxrate: 500, bufsize: 1000, audio: 64, low: true },
 };
+const rungOffered = (n) => !CAPS[n].low || !!config.LADDER_LOW;
 // The full encode ("h264": the top rung where the device cannot decode the
 // file). crf 18 like the single-rendition encode, but under a ceiling chosen
 // by its height — without one its bitrate is whatever the film needs, and a
@@ -94,7 +102,7 @@ const rungNames = ({ width, height, top = "copy", maxHeight = 0 }) => {
   const first = top === "h264" ? "h264" : "copy";
   const topDims = dimsFor(first, width, height);
   if (!topDims) return [first]; // size unknown: no honest lower rung can be named
-  const names = [first, ...Object.keys(CAPS).filter((n) => CAPS[n].h < topDims.h)];
+  const names = [first, ...Object.keys(CAPS).filter((n) => CAPS[n].h < topDims.h && rungOffered(n))];
   if (!(maxHeight > 0)) return names;
   const fits = names.filter((n) => dimsFor(n, width, height).h <= maxHeight);
   return fits.length ? fits : [names[names.length - 1]];
@@ -469,7 +477,7 @@ const master = async (entry, { key, input, http = false, query = {}, jit }) => {
     if (!encodable) return { status: 404, message: "This file cannot be re-encoded on the full timeline" };
     if (!fits("h264", true)) {
       const srcH = f && f.height > 0 ? f.height : 1080;
-      need = Object.keys(CAPS).find((n) => CAPS[n].h < srcH && fits(n, true)) || null;
+      need = Object.keys(CAPS).find((n) => CAPS[n].h < srcH && rungOffered(n) && fits(n, true)) || null;
       if (!need) {
         const soon = jit.encodeRoomSoon ? await jit.encodeRoomSoon(key, true, costFor("h264", f, hdr)) : false;
         if (!soon) return { status: 503, message: "Server is busy transcoding other streams" };
