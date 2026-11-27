@@ -37,6 +37,8 @@ const CAPS = {
 // by its height — without one its bitrate is whatever the film needs, and a
 // BANDWIDTH could not be stated honestly.
 const TOP_AUDIO = 192;
+// the copy's sound (jit.js COPY_AUDIO_KBPS: stereo AAC, the copy's only re-encode)
+const COPY_AUDIO = 128;
 const topCeiling = (outH) => (outH > 720 ? 10000 : outH > 480 ? 5000 : 2500);
 
 // A segment is at least this long (jit's table rule; only the last one may be
@@ -154,15 +156,24 @@ const encBandwidth = (r) => ({
 // time between them: the busiest segment (peak) and the whole film (avg).
 // Those bytes are the video plus everything else in the file (its own audio
 // tracks, subtitles), so they overstate the video a little; the audio we send
-// (192k AAC) and the container are added on top. An upper bound, as the
+// (128k AAC — jit.js COPY_AUDIO_KBPS) and the container are added on top. An upper bound, as the
 // attribute is defined. null when the index gave no figure.
-const copyBandwidth = (rate) =>
-  rate && rate.peak > 0 && rate.avg > 0
-    ? {
-        peak: Math.ceil((rate.peak + TOP_AUDIO * 1000) * MUX_OVERHEAD),
-        avg: Math.ceil((rate.avg + TOP_AUDIO * 1000) * MUX_OVERHEAD),
-      }
-    : null;
+// `otherBps`: what the file's OTHER streams carry (its own audio tracks,
+// bit/s, as ffprobe states them — research-stream-efficiency, 2026-11-28).
+// The copy replaces them with our one AAC track, so they are taken off: a
+// film with a 640k E-AC-3 track declared 640k more than the copy sends, and
+// a player on a line just above the film's average left the film's own
+// picture for an encode it did not need. Never more than half the measured
+// rate (a stated bit rate can be wrong; the declaration stays an upper bound
+// in every sane case). 0 / unknown: as before.
+const copyBandwidth = (rate, otherBps = 0) => {
+  if (!(rate && rate.peak > 0 && rate.avg > 0)) return null;
+  const off = otherBps > 0 ? Math.min(otherBps, rate.avg / 2) : 0;
+  return {
+    peak: Math.ceil((rate.peak - off + COPY_AUDIO * 1000) * MUX_OVERHEAD),
+    avg: Math.ceil((rate.avg - off + COPY_AUDIO * 1000) * MUX_OVERHEAD),
+  };
+};
 
 // ---------- the rungs, described ----------
 // facts: what probe() returned (or null). rate: jit's entry.rate (or null).
@@ -179,7 +190,7 @@ const describe = ({ facts, rate, top = "copy", maxHeight = 0, lower = true, anyR
   for (const name of rungNames({ width, height, top, maxHeight })) {
     const d = dimsFor(name, width, height);
     if (name === "copy") {
-      const bw = anyRate ? { peak: 0, avg: 0 } : copyBandwidth(rate);
+      const bw = anyRate ? { peak: 0, avg: 0 } : copyBandwidth(rate, facts && facts.otherBps);
       if (!bw) return [];
       out.push({ name, w: d ? d.w : 0, h: d ? d.h : 0, bandwidth: bw.peak, average: bw.avg, codecs: copyCodecs(facts), fps, level: null });
       continue;
@@ -356,6 +367,36 @@ const probe = (key, input, { http = false } = {}) => {
   return p;
 };
 
+// What the file's audio streams carry, bit/s (copyBandwidth): one ffprobe of
+// every audio stream's stated bit rate, the sum of those it states. Kept with
+// the video's facts (and on disk with them). 0 when nothing is stated or the
+// probe fails — the copy's rate is then declared as before.
+const otherStreamsBps = (input) =>
+  new Promise((resolve) => {
+    if (!config.FFPROBE) return resolve(0);
+    require("child_process").execFile(
+      config.FFPROBE,
+      ["-v", "error", "-select_streams", "a", "-show_entries", "stream=bit_rate", "-of", "csv=p=0", input],
+      { windowsHide: true, timeout: 5000, maxBuffer: 256 * 1024 },
+      (err, out) => {
+        if (err) return resolve(0);
+        let sum = 0;
+        for (const line of String(out || "").split("\n")) {
+          const n = Number(line.trim());
+          if (Number.isFinite(n) && n > 0 && n < 10e6) sum += n;
+        }
+        resolve(Math.round(sum));
+      },
+    );
+  });
+// The facts with otherBps filled in (once per file: a later call finds it set).
+const withOthers = async (key, input, f, http) => {
+  if (!f || http || f.otherBps !== undefined) return f;
+  f.otherBps = await otherStreamsBps(input);
+  try { toDisk(key, f); } catch {}
+  return f;
+};
+
 // The whole of an encoded rendition's side of a producer input: { name,
 // essential, videoArgs, audioRate, onExit }. Async only for an HDR source
 // (the tone-map support check runs once per process). `busy`: another encode
@@ -457,7 +498,7 @@ const master = async (entry, { key, input, http = false, query = {}, jit }) => {
   const audio = audioFromQuery(query.a);
   const top = query.top === "h264" ? "h264" : "copy";
   const maxHeight = Math.max(0, parseInt(query.max, 10) || 0);
-  const f = await probe(key, input, { http });
+  const f = await withOthers(key, input, await probe(key, input, { http }), http);
   const encodable = !!config.FFMPEG && !jit.encodeDeclined(key);
   const hdr = !!(f && tonemap.enabled() && tonemap.isHdr(f)); // (the dearer case, for the asking)
   // (on the graphics card an encode costs the CPU a sliver — media/hwenc.js;
@@ -589,7 +630,7 @@ module.exports = {
   _internals: {
     START_HEADROOM,
     CAPS, dimsFor, scaleFor, rateFor, rungNames, h264Level, encCodecs, copyCodecs,
-    encBandwidth, copyBandwidth, encVideoArgs, parseFacts, topCeiling, specFor,
+    encBandwidth, copyBandwidth, otherStreamsBps, withOthers, encVideoArgs, parseFacts, topCeiling, specFor,
     seedFacts: (key, f) => facts.set(key, f), // (tests: a source whose probe is already known)
     forgetMemory: () => { facts.clear(); failed.clear(); }, // (tests: a restart — the disk is kept)
     factsOnDisk: () => { const st = disk(); return st ? st.data.facts : null; },

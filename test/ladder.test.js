@@ -69,8 +69,14 @@ test("BANDWIDTH: an encode states its rate control's bound, a copy what the file
   assert.ok(L.ENC_OVERHEAD >= 1.15, "measured: the 480p rung averaged up to 14.5% over its nominal rate");
   assert.ok(e.peak > e.avg);
   const c = L.copyBandwidth(RATE);
-  assert.equal(c.peak, Math.ceil((9_000_000 + 192_000) * L.MUX_OVERHEAD));
-  assert.equal(c.avg, Math.ceil((2_000_000 + 192_000) * L.MUX_OVERHEAD));
+  // (the copy's sound is 128k stereo AAC — jit.js COPY_AUDIO_KBPS)
+  assert.equal(c.peak, Math.ceil((9_000_000 + 128_000) * L.MUX_OVERHEAD));
+  assert.equal(c.avg, Math.ceil((2_000_000 + 128_000) * L.MUX_OVERHEAD));
+  // …and the file's own audio tracks, which the copy does not send, are taken off — never more than half the rate
+  const h = L.copyBandwidth(RATE, 640_000);
+  assert.equal(h.peak, Math.ceil((9_000_000 - 640_000 + 128_000) * L.MUX_OVERHEAD));
+  assert.equal(h.avg, Math.ceil((2_000_000 - 640_000 + 128_000) * L.MUX_OVERHEAD));
+  assert.equal(L.copyBandwidth(RATE, 5_000_000).avg, Math.ceil((2_000_000 - 1_000_000 + 128_000) * L.MUX_OVERHEAD), "a stated rate past half the film's is not believed");
   assert.equal(L.copyBandwidth(null), null);
   assert.equal(L.copyBandwidth({ avg: 0, peak: 0 }), null);
   // the full encode's ceiling goes by its height
@@ -230,7 +236,7 @@ test("the copy producer's command line is what it always was", () => {
   assert.deepEqual(args.slice(0, 20), [
     "-v", "verbose", "-nostats", "-ss", "99.000", "-i", "in.mkv",
     "-map", "0:v:0", "-map", "0:a:0?", "-c:v", "copy",
-    "-c:a", "aac", "-ac", "2", "-b:a", "192k", "-af",
+    "-c:a", "aac", "-ac", "2", "-b:a", "128k", "-af",
   ]);
   // …and with the fields the ladder's routes now pass for a copy
   assert.deepEqual(J.producerArgs(run, { url: "in.mkv", extra: [], fmt: null, vtagHvc1: false, audio: 0 }, 100), args);
@@ -496,5 +502,26 @@ test("real ffmpeg: ?a= picks the file's other audio track, in a copy and in an e
     await new Promise((r) => setTimeout(r, 300));
     fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     J.setDeclinedFile(path.join(os.tmpdir(), "aurora-jit-declined-test.json"));
+  }
+});
+
+// research-stream-efficiency (2026-11-28): the file's own audio, read off the file, for the copy's honest rate
+test("otherStreamsBps: the stated bit rates of every audio track, summed; withOthers keeps it with the facts", { skip: !config.ffmpegAvailable }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ladder-others-"));
+  try {
+    const file = path.join(dir, "two-tracks.mkv");
+    execFileSync(config.FFMPEG, [
+      "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24:duration=2",
+      "-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-f", "lavfi", "-i", "sine=frequency=660:duration=2",
+      "-map", "0:v", "-map", "1:a", "-map", "2:a", "-c:v", "mpeg4", "-c:a", "ac3", "-b:a:0", "192k", "-b:a:1", "384k", file,
+    ]);
+    assert.equal(await L.otherStreamsBps(file), 576000);
+    assert.equal(await L.otherStreamsBps(path.join(dir, "missing.mkv")), 0, "a failed probe states nothing");
+    const f = await L.withOthers("k-test", file, { width: 320, height: 180 }, false);
+    assert.equal(f.otherBps, 576000);
+    assert.equal((await L.withOthers("k-test", file, { width: 1, otherBps: 5 }, false)).otherBps, 5, "set once, never asked again");
+    assert.equal((await L.withOthers("k-test", file, { width: 1 }, true)).otherBps, undefined, "a torrent's input is not probed again");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
