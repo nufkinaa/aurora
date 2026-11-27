@@ -253,3 +253,28 @@ test("a torrent source nobody shares is left for the next one: nobody after 25 s
   const list = [chosen, { infoHash: "b", fileIdx: 0, seeders: 5 }, { infoHash: "c", fileIdx: 0, seeders: 40 }, { infoHash: "d", fileIdx: 0, seeders: 90, cam: true }, { infoHash: "e", fileIdx: 0, seeders: 0 }, { infoHash: "f", fileIdx: 0, seeders: 9, badHere: true }];
   assert.deepEqual(fallbackSources(list, chosen).map((x) => x.infoHash), ["c", "b"]);
 });
+
+// ---- research-stream-efficiency (2026-11-28) ----
+test("fileNeedsBuffer: a line not known to carry 2.2x the film's average opens its own picture as a stream", async () => {
+  const { fileNeedsBuffer, FILM_PEAK_RATIO } = await load();
+  assert.equal(FILM_PEAK_RATIO, 2.2);
+  assert.equal(fileNeedsBuffer({ fileKbps: 3000, kbps: 0 }), true, "line unknown: the deep buffer");
+  assert.equal(fileNeedsBuffer({ fileKbps: 3000, kbps: 5000 }), true, "5 Mbit/s for a 3 Mbit/s film: its busy stretches need ~6.6");
+  assert.equal(fileNeedsBuffer({ fileKbps: 3000, kbps: 6700 }), false, "a little over 2.2x: the file");
+  assert.equal(fileNeedsBuffer({ fileKbps: 3000, kbps: 25000 }), false, "a fast line keeps the file");
+  assert.equal(fileNeedsBuffer({ fileKbps: 0, kbps: 1000 }), false, "film rate unknown: nothing claimed");
+  assert.equal(fileNeedsBuffer(), false);
+});
+
+test("rungNeeds: the busiest segment x1.4 until the buffer is deep, then the average x1.25", async () => {
+  const { rungNeeds, RUNG_AVG_BUFFER_SEC } = await load();
+  assert.equal(RUNG_AVG_BUFFER_SEC, 30);
+  const copy = { peak: 5_972_000, avg: 3_640_000, segSec: 10 };
+  assert.equal(rungNeeds({ ...copy, ahead: 5, est: 9_000_000 }), 5_972_000 * 1.4, "little in hand: the rule as it was");
+  assert.equal(rungNeeds({ ...copy, ahead: 60, est: 9_000_000 }), 3_640_000 * 1.25, "60 s in hand, the busiest segment fetched in 6.6 s: the average");
+  // 30 s in hand but the busiest segment would take 15 s at 4 Mbit/s: 3x that is 45 s — not deep enough
+  assert.equal(rungNeeds({ ...copy, ahead: 30, est: 4_000_000 }), 5_972_000 * 1.4);
+  assert.equal(rungNeeds({ ...copy, ahead: 50, est: 4_000_000 }), 3_640_000 * 1.25);
+  assert.equal(rungNeeds({ peak: 2_000_000, avg: 0, ahead: 100, est: 50_000_000 }), 2_800_000, "no average known: peak x1.4");
+  assert.equal(rungNeeds({ ...copy, ahead: 100, est: 0 }), 5_972_000 * 1.4, "no estimate yet: peak x1.4");
+});

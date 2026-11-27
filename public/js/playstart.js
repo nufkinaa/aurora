@@ -101,6 +101,35 @@ export const streamSaves = ({ indexBytes = 0, kbps = 0, fileKbps = 0, progressiv
   return Math.max(0, asFile - asStream);
 };
 
+// PURE. Should a film this device could play as the FILE be opened as its
+// own picture, copied into a stream, instead? (research-stream-efficiency,
+// 2026-11-28.) A file has one bitrate and the browser keeps a few seconds of
+// it ahead; a stream is held ~100 s deep by hls.js. The household's films
+// carry their busiest 30 s at a median 2.2x their average bitrate (29 films,
+// 1.7–3.8x), so only a line known to carry that much keeps the file.
+//   fileKbps  the film's average bitrate (0 = unknown: nothing is claimed)
+//   kbps      what this device's line carried the last time (0 = unknown)
+export const FILM_PEAK_RATIO = 2.2;
+export const fileNeedsBuffer = ({ fileKbps = 0, kbps = 0 } = {}) => fileKbps > 0 && (!(kbps > 0) || kbps < fileKbps * FILM_PEAK_RATIO);
+
+// PURE. What a rung of a quality ladder asks of the line before it is taken,
+// bit/s (research-stream-efficiency, 2026-11-28). A rung's BANDWIDTH is its
+// busiest segment — for the film's own copy that is the file's worst stretch,
+// 1.9x its average and more — and 1.4x THAT is what the line had to show.
+// With the buffer deep enough to ride out that busiest segment arriving at the
+// line's speed (30 s, and three times its fetch at the estimate), the AVERAGE
+// is what the line really has to carry: 1.25x it. Below that depth, the rule
+// as it was. (Measured: an earlier version that trusted the average from 20 s
+// in hand stalled 8–20 s when the line fell from 10 to 2 Mbit/s mid-scene.)
+//   peak, avg  the rung's BANDWIDTH and AVERAGE-BANDWIDTH (avg 0: unknown)
+//   ahead      seconds buffered; est  the line, bit/s; segSec  the segment length
+export const RUNG_AVG_BUFFER_SEC = 30;
+export const rungNeeds = ({ peak = 0, avg = 0, ahead = 0, est = 0, segSec = 10 } = {}) => {
+  if (!(avg > 0)) return peak * 1.4;
+  const fetchSec = est > 0 ? (peak * segSec) / est : Infinity;
+  return ahead >= Math.max(RUNG_AVG_BUFFER_SEC, 3 * fetchSec) ? avg * 1.25 : peak * 1.4;
+};
+
 // PURE. The segment of a media playlist that holds second `sec`: its URI as
 // written, or null. (hls.js starts on that one for startPosition = sec.)
 export const segmentAt = (playlistText, sec) => {

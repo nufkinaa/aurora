@@ -27,7 +27,7 @@ import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio, langOf } from "
 import { savedDelay, saveDelay } from "../subdelay.js";
 import { createAirplay } from "../airplay.js";
 import { registerPlayerTarget, takeRemoteStart, playerChanged, onDevices, getDevices, chooseDevice, playOn, ICONS as REMOTE_ICONS } from "../remote.js"; // [phone-remote]
-import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM, decodeStalled, lineTimeOnly, deadSource, nativeStartUrl } from "../playstart.js";
+import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM, decodeStalled, lineTimeOnly, deadSource, nativeStartUrl, fileNeedsBuffer, FILM_PEAK_RATIO, rungNeeds } from "../playstart.js";
 // [player-options] night mode, dialogue boost, the look of subtitles (2026-10-19)
 import { readStyle, nextChoice, styleLabel, cueCss, cueShadow, cueBackdrop, CUE_VW, CUE_MIN_PX, RAISED_PCT, SUB_STYLE_KEYS, SUB_STYLE_NAMES, SUB_COLORS } from "../subStyle.js";
 import { audioFxFor, AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES } from "../audiofx.js";
@@ -585,51 +585,43 @@ const streamBeatsFile = (item, nativeHls) => {
   return streamSaves({ indexBytes: item.index.bytes, kbps: lineKbps(), fileKbps, progressive: !nativeHls && progressiveOn() }) > STREAM_WORTH_SEC;
 };
 
-// PROTOTYPE (research-stream-efficiency, 2026-11-27) — off unless
-// localStorage["aurora-ladder-first"] = "1". THE FILM'S PEAKS ON A LINE THAT
-// IS NOT FAST. A file played as itself has one bitrate and Chrome keeps only a
-// few seconds of it ahead (measured: 2.4–6 s, on any line), so the first stretch
-// busier than the line stops the picture — and the household's films are busy:
-// over 29 of them, the busiest 30 s carry a median 2.2x the film's average
-// (docs/qa/streaming-efficiency). Unless the line is known to carry that, the
-// film starts on its quality ladder instead: the TOP rung is the file's own
-// video (a copy — the same picture), the player keeps ~100 s in hand, and a
-// lighter rung is there before the buffer runs out, not after a stall.
-export const LADDER_FIRST_PEAK = 2.2;
-const ladderFirstOn = () => { try { return localStorage.getItem("aurora-ladder-first") === "1"; } catch { return false; } };
-const ladderBeatsFile = (item, nativeHls) => {
-  if (nativeHls || !ladderFirstOn()) return false;
+// THE FILM'S BUSY STRETCHES ON A LINE THAT IS NOT KNOWN TO BE FAST
+// (research-stream-efficiency, 2026-11-28 — docs/qa/streaming-efficiency).
+// A file played as itself has one bitrate, and Chrome keeps only a few
+// seconds of it ahead (measured: 2.4–6 s, on every line from 3 to 25 Mbit/s),
+// so the first stretch busier than the line stops the picture — and the
+// household's films are busy: over 29 of them the busiest 30 s carry a median
+// 2.2x the film's average (playstart.js fileNeedsBuffer). Unless the line is
+// known to carry that, the film is opened as its jit stream instead: the
+// SAME picture, copied (only the sound is made — as for every jit stream),
+// hls.js keeps ~100 s of it in hand, and nothing is encoded: the lighter
+// renditions come only from the step-down, when the stall rule would have
+// taken the viewer there anyway. A known fast line keeps the file. Off on
+// this device with localStorage["aurora-ladder-first"] = "0".
+const copyFirstOn = () => { try { return localStorage.getItem("aurora-ladder-first") !== "0"; } catch { return true; } };
+const copyBeatsFile = (item, nativeHls) => {
+  if (nativeHls || !copyFirstOn()) return false;
   if (!item || !item.transcodeBase || !item.id || item._offline) return false;
   if (!item.video || !["h264", "hevc"].includes(item.video.codec)) return false;
   const fileKbps = item.sizeBytes && item.duration ? (item.sizeBytes * 8) / item.duration / 1000 : 0;
-  if (!(fileKbps > 0)) return false;
-  const k = lineKbps();
-  return !(k > 0) || k < fileKbps * LADDER_FIRST_PEAK;
+  return fileNeedsBuffer({ fileKbps, kbps: lineKbps() });
 };
 
-// PROTOTYPE (research-stream-efficiency) — off unless
-// localStorage["aurora-ladder-avg"] = "1". A rung's BANDWIDTH is its busiest
-// segment (the copy: the file's own worst stretch, 1.9x its average here);
-// asking a line for 1.4x THAT before taking the film's own picture kept an
-// 8 Mbit/s line on a 720p encode of a 3.2 Mbit/s film for good (measured: more
-// bytes than the 1080p copy, a worse picture, an encoder busy). With a healthy
-// buffer the average is what the line has to carry; the buffer takes the peaks.
-const ladderAvgOn = () => { try { return localStorage.getItem("aurora-ladder-avg") === "1"; } catch { return false; } };
-// …but only with enough in hand to survive the rung's BUSIEST segment arriving
-// at the line's speed — measured: at 20 s an 8 MB copy segment that started
-// loading just before the line fell to 2 Mbit/s took longer than the buffer
-// (3 stalls, 8–18 s, where the peak rule had none). So: 30 s and three times
-// that segment's fetch at the current estimate. `est` bit/s.
-const LADDER_AVG_BUFFER_SEC = 30;
-const rungNeeds = (level, ahead, est = 0) => {
-  const peak = (level && level.bitrate) || 0;
-  if (!ladderAvgOn()) return peak * 1.4;
-  const avg = (level && level.averageBitrate) || peak;
-  const segSec = (level && level.details && level.details.targetduration) || 10;
-  const fetchSec = est > 0 ? (peak * segSec) / est : Infinity;
-  // (with less in hand: exactly the rule as it was — the prototype only ever differs with a deep buffer)
-  return ahead >= Math.max(LADDER_AVG_BUFFER_SEC, 3 * fetchSec) ? avg * 1.25 : peak * 1.4;
-};
+// What a rung of a two-codec ladder asks of the line (playstart.js rungNeeds:
+// its AVERAGE once the buffer is deep, its busiest segment x1.4 otherwise —
+// research-stream-efficiency, 2026-11-28). Today's peak-only rule kept an
+// 8 Mbit/s line on a 720p ENCODE of a 3.2 Mbit/s HEVC film for good: more
+// bytes than the film's own 1080p, a worse picture, an encoder running. Off
+// on this device with localStorage["aurora-ladder-avg"] = "0".
+const ladderAvgOn = () => { try { return localStorage.getItem("aurora-ladder-avg") !== "0"; } catch { return true; } };
+const rungNeedsOf = (level, ahead, est = 0) =>
+  rungNeeds({
+    peak: (level && level.bitrate) || 0,
+    avg: ladderAvgOn() ? (level && level.averageBitrate) || 0 : 0,
+    ahead,
+    est,
+    segSec: (level && level.details && level.details.targetduration) || 10,
+  });
 
 // How a library title will most likely start on this device, worked out from
 // the same module-level rules renderPlayer decides by (never a fork of them:
@@ -663,9 +655,10 @@ export const startPlan = (item) => {
     if (audioIdx === 0 && streamBeatsFile(item, nativeHls)) {
       return { kind: "jit", ladder: false, url: jitUrlFor(item, { nativeHls, isHevc, top: "copy", useLadder: false }), nativeHls };
     }
-    // (prototype: the ladder on a line that may not carry the film's peaks — ladderBeatsFile)
-    if (audioIdx === 0 && useLadder && ladderBeatsFile(item, nativeHls)) {
-      return { kind: "jit", ladder: true, url: jitUrlFor(item, { nativeHls, isHevc, top: "copy", useLadder: true }), nativeHls };
+    // …or a line not known to carry the film's busy stretches (copyBeatsFile):
+    // the same stream, its own picture only
+    if (audioIdx === 0 && copyBeatsFile(item, nativeHls)) {
+      return { kind: "jit", ladder: false, url: jitUrlFor(item, { nativeHls, isHevc, top: "copy", useLadder: false }), nativeHls };
     }
     return { kind: "direct" };
   }
@@ -1312,7 +1305,7 @@ export const renderPlayer = async (root, { id }) => {
     } catch {}
     (hls.levels || []).forEach((l, i) => {
       if (cap >= 0 && i > cap) return;
-      if (rungNeeds(l, ahead, est) <= est) best = Math.max(best, i); // (peak x 1.4 unless the prototype is on: rungNeeds)
+      if (rungNeedsOf(l, ahead, est) <= est) best = Math.max(best, i);
     });
     return best;
   };
@@ -1335,7 +1328,7 @@ export const renderPlayer = async (root, { id }) => {
           // device (startRung): the levels top first, as the master lists them
           const top = ladderIdx(0);
           const order = ladderLevels().sort((a, b) => (a.h === 0 ? -1 : b.h === 0 ? 1 : b.h - a.h));
-          // (prototype ladderAvgOn: a known line is asked for the rung's AVERAGE — the ~100 s buffer takes its peaks)
+          // (ladderAvgOn: a known line is asked for the rung's AVERAGE — the ~100 s buffer takes its peaks)
           const pickAt = startRung(order.map((l) => ({ bandwidth: (ladderAvgOn() ? (hls.levels[l.i] || {}).averageBitrate : 0) || (hls.levels[l.i] || {}).bitrate || 0 })), lineKbps());
           i = pickAt >= 0 ? order[pickAt].i : top;
           if (i !== top) mark("start-rung", { v: order[pickAt].v, kbps: lineKbps() });
@@ -1470,7 +1463,7 @@ export const renderPlayer = async (root, { id }) => {
         const lower = ladderLevels()
           .filter((l) => l.h && (cap < 0 || l.i <= cap) && ((h.levels[l.i] || {}).bitrate || 0) < ((lv && lv.bitrate) || Infinity))
           .sort((a, b) => b.h - a.h);
-        // (prototype ladderAvgOn: a line KNOWN to carry this rung's average is not judged by the first
+        // (ladderAvgOn: a line KNOWN to carry this rung's average is not judged by the first
         // seconds of its first segment — TCP's slow start and a busy scene's segment read as a thin line,
         // and the step down to an encode nobody had started cost a stall: measured, busy window + drop)
         if (ladderAvgOn() && lineKbps() * 1000 * START_HEADROOM >= ((lv && lv.averageBitrate) || Infinity)) return;
@@ -1544,7 +1537,12 @@ export const renderPlayer = async (root, { id }) => {
         if (ladderPick === "auto") h.loadLevel = -1;
         else ladderApply(ladderPick);
       } catch {}
-      if (h.levels.length < 2) ladderOn = false;
+      // down to one rendition: an ordinary jit stream again, and the old
+      // quality logic (the stall rule's step-down) applies to it — as for a
+      // master that came with one rung (MANIFEST_PARSED above). It used to
+      // stay "a ladder" with nothing to step to: a 4K film whose encoded rungs
+      // the server declined stalled on its copy for good (measured, 8 Mbit/s).
+      if (h.levels.length < 2) { ladderOn = false; ladderAsked = false; }
     });
   };
 
@@ -1743,6 +1741,25 @@ export const renderPlayer = async (root, { id }) => {
               if (appendFailsGen !== gen) { appendFailsGen = gen; appendFails = 0; }
               if (++appendFails === APPEND_FAILS_MAX && !probing) mseAgain("append");
               return;
+            }
+            // A jit stream the server REFUSES (404 on its own picture — no usable
+            // index, see jitFallback) is never retried or rebuilt: hls.js asked
+            // for the same 404 every two seconds for as long as the viewer
+            // waited. It is left the way it came, once. (An encoded rung's 404
+            // is the ladder's business: that rung leaves the ladder, below.)
+            if (!exited && gen === hlsGen && data.response && data.response.code === 404 && jitFallback && jitFallback.url === url) {
+              const li = data.frag ? data.frag.level : data.context && data.context.level != null ? data.context.level : data.level;
+              const lvl = hls && hls.levels && li != null ? hls.levels[li] : null;
+              const lvlUrl = String((lvl && (lvl.uri || (lvl.url && lvl.url[0]))) || "");
+              if (lvl ? !/[?&]v=h264-/.test(lvlUrl) : !ladderOn) {
+                const f = jitFallback;
+                jitFallback = null;
+                const at = effTime() > 0.5 ? effTime() : startAt || 0;
+                mark("jit-refused", { at: Math.round(at), details: data.details });
+                holdNext = true;
+                f.run(at);
+                return;
+              }
             }
             // Recover from transient network/media errors instead of dying
             if (!data.fatal) return;
@@ -1963,6 +1980,16 @@ export const renderPlayer = async (root, { id }) => {
   // S7: a JIT stream has ONE full-length playlist — no offset jobs exist, so
   // anything that speaks offset-URLs (keepAlive pings) must stand down.
   let jitMode = false;
+  // Where a jit stream goes if the server refuses it AFTER it started — its
+  // segments answered 404 ("no usable index": jit declined the file the moment
+  // a producer met a keyframe the index had promised elsewhere). Rebuilding
+  // such a stream only asked for the same 404s until the error card, the
+  // picture still for good (measured: 140 s on a 1.5 Mbit/s line, a step-down
+  // from a file whose MP4 edit list the index misread). { url, run(at) }: set
+  // by tryJitSwitch (the file itself, or the offset copy/encode, as before the
+  // jit existed) and by the step-down (the capped encode it would have taken
+  // had the ladder been refused up front).
+  let jitFallback = null;
   // THE QUALITY LADDER (2026-10-08). A library title played through hls.js
   // opens the jit stream by its MASTER playlist (…/jit/master.m3u8): the
   // file's video as it is — or the full encode, where this device cannot
@@ -2216,6 +2243,38 @@ export const renderPlayer = async (root, { id }) => {
   // The change itself — the viewer's (above) or the line watcher's step back
   // up (`auto`). No message box either way: a small chip in the corner names
   // the quality for a moment, and that is all.
+  // A file this device plays as it is: no ffmpeg, no hls.js.
+  const fileDirectOk = () => !!item.videoUrl && audioIdx === 0 && !videoNeedsTranscode() && !audioNeedsRemux();
+  // …back to it, at `at` (the viewer's Original; a jit stream the server
+  // refused after it started — jitFallback). The picture holds meanwhile.
+  const backToFile = (at) => {
+    ++hlsGen;
+    clearTimeout(hlsRecoverTimer);
+    if (hls) {
+      try { hls.destroy(); } catch {}
+      hls = null;
+    }
+    usingTranscode = false;
+    jitMode = false;
+    jitFallback = null;
+    ladderAsked = false;
+    ladderOn = false;
+    ladderPick = "auto";
+    streamOffset = 0;
+    clockBase = 0;
+    windowStart = 0;
+    excuseUntil = Date.now() + 15000;
+    watchFrom = Date.now() + 6000;
+    mark("path", { path: "direct", from: at });
+    holdNext = false;
+    holdFrame();
+    landing = at > 0.5 ? at : null;
+    video.addEventListener("loadedmetadata", () => {
+      try { video.currentTime = at; } catch {}
+      tryPlay();
+    }, { once: true });
+    video.src = airSrc(item.videoUrl);
+  };
   const applyQuality = (h, { auto = false } = {}) => {
     trail("play", { e: "quality", v: h === "auto" ? "auto" : h ? `${h}p` : "original", auto: auto || undefined }); // [report trail]
     // on a TV the picture is the TV's stream: the file's own (or the full encode)
@@ -2273,34 +2332,7 @@ export const renderPlayer = async (root, { id }) => {
     holdNext = true; // whichever path below rebuilds the stream holds the frame
     // A file this device plays as it is goes back to plain direct play — the
     // server does nothing at all for it.
-    if (item.videoUrl && audioIdx === 0 && !videoNeedsTranscode() && !audioNeedsRemux()) {
-      ++hlsGen;
-      clearTimeout(hlsRecoverTimer);
-      if (hls) {
-        try { hls.destroy(); } catch {}
-        hls = null;
-      }
-      usingTranscode = false;
-      jitMode = false;
-      ladderAsked = false;
-      ladderOn = false;
-      ladderPick = "auto";
-      streamOffset = 0;
-      clockBase = 0;
-      windowStart = 0;
-      excuseUntil = Date.now() + 15000;
-      watchFrom = Date.now() + 6000;
-      mark("path", { path: "direct", from: at });
-      holdNext = false;
-      holdFrame();
-      landing = at > 0.5 ? at : null;
-      video.addEventListener("loadedmetadata", () => {
-        try { video.currentTime = at; } catch {}
-        tryPlay();
-      }, { once: true });
-      video.src = airSrc(item.videoUrl);
-      return;
-    }
+    if (fileDirectOk()) return void backToFile(at);
     // back to the untouched picture: the copy path when this device decodes
     // the file's video (jit first — every seek native), the full encode when not
     const copyOk = !copyRefused && (!item.video || !videoNeedsTranscode() || codecCopyable(item.video));
@@ -2501,7 +2533,7 @@ export const renderPlayer = async (root, { id }) => {
       // server said to, a few times, the spinner up. Only at a start (a
       // switch mid-film keeps the stream it has), and only on that answer (a
       // 503 without Retry-After is a file with no index: nothing to wait for).
-      for (let i = 0; atStart && !isTorrent && !r.ok && r.status === 503 && r.retryAfter > 0 && i < BUSY_RETRIES; i++) {
+      for (let i = 0; atStart && !(lad && lad.noWait) && !isTorrent && !r.ok && r.status === 503 && r.retryAfter > 0 && i < BUSY_RETRIES; i++) {
         const wait = Math.min(BUSY_WAIT_MAX_S, Math.max(1, r.retryAfter));
         mark("busy-wait", { n: i + 1, s: wait });
         await new Promise((res) => setTimeout(res, wait * 1000));
@@ -2536,6 +2568,12 @@ export const renderPlayer = async (root, { id }) => {
     streamOffset = 0;
     clockBase = 0;
     windowStart = 0;
+    // (refused later — see jitFallback: the file itself where it plays as it is,
+    // else the offset stream this title took before the jit existed)
+    jitFallback = {
+      url: jitUrl,
+      run: (at) => (fileDirectOk() ? backToFile(at) : startTranscodeAt(at, top === "h264" ? "h264" : "copy", { fallbackToZero: true, quiet: true, live: true })),
+    };
     startHls(jitUrl, Math.max(0, fromSec || 0), useLadder ? { pick: pinned != null ? pinned : "auto", startH } : null);
     return true;
   };
@@ -2748,12 +2786,12 @@ export const renderPlayer = async (root, { id }) => {
     mark("decision", { why: `index ${Math.round(item.index.bytes / 1e5) / 10} MB on ${lineKbps()} kbit/s → stream` });
     const jitOk = await tryJitSwitch(resumeAt, { plain: true });
     if (!jitOk) startDirect();
-  } else if (!isTorrent && audioIdx === 0 && !capH && ladderEligible() && ladderBeatsFile(item, nativeHlsOnly)) {
-    // (prototype) the film's own picture as the ladder's top rung, lighter
-    // rungs under it before they are needed (ladderBeatsFile); the file
-    // itself when the ladder cannot be had
-    mark("decision", { why: `line ${lineKbps() || "unknown"} kbit/s vs the film's busy stretches (~${Math.round((fileKbps || 0) * LADDER_FIRST_PEAK)}) → ladder` });
-    const jitOk = await tryJitSwitch(resumeAt);
+  } else if (!isTorrent && audioIdx === 0 && !capH && copyBeatsFile(item, nativeHlsOnly)) {
+    // The film's own picture as the jit stream (copyBeatsFile): a deep buffer,
+    // nothing encoded. The file itself when the server would rather not (no
+    // index, busy): no waiting for it.
+    mark("decision", { why: `line ${lineKbps() || "unknown"} kbit/s vs the film's busy stretches (~${Math.round((fileKbps || 0) * FILM_PEAK_RATIO)}) → its own picture as a stream` });
+    const jitOk = await tryJitSwitch(resumeAt, { plain: true, noWait: true });
     if (!jitOk) startDirect();
   } else {
     startDirect();
@@ -6546,6 +6584,13 @@ export const renderPlayer = async (root, { id }) => {
         holdNext = true;
         ok = await tryJitSwitch(effTime(), { startH: next });
         if (!ok) holdNext = false;
+        // refused once it has started (jitFallback): what a refusal up front gets, below
+        else if (jitFallback) jitFallback.run = (at) => {
+          capH = next;
+          startTranscodeAt(at, "h264", { quiet: true, live: true }).then((done) => {
+            if (!done && !exited) { capH = prev; autoQuality = false; }
+          });
+        };
       }
       if (!ok && !exited) {
         capH = next;
