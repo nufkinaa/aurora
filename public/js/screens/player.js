@@ -615,12 +615,20 @@ const ladderBeatsFile = (item, nativeHls) => {
 // bytes than the 1080p copy, a worse picture, an encoder busy). With a healthy
 // buffer the average is what the line has to carry; the buffer takes the peaks.
 const ladderAvgOn = () => { try { return localStorage.getItem("aurora-ladder-avg") === "1"; } catch { return false; } };
-const LADDER_AVG_BUFFER_SEC = 20;
-const rungNeeds = (level, ahead) => {
+// …but only with enough in hand to survive the rung's BUSIEST segment arriving
+// at the line's speed — measured: at 20 s an 8 MB copy segment that started
+// loading just before the line fell to 2 Mbit/s took longer than the buffer
+// (3 stalls, 8–18 s, where the peak rule had none). So: 30 s and three times
+// that segment's fetch at the current estimate. `est` bit/s.
+const LADDER_AVG_BUFFER_SEC = 30;
+const rungNeeds = (level, ahead, est = 0) => {
   const peak = (level && level.bitrate) || 0;
   if (!ladderAvgOn()) return peak * 1.4;
   const avg = (level && level.averageBitrate) || peak;
-  return ahead >= LADDER_AVG_BUFFER_SEC ? avg * 1.25 : peak * 1.1;
+  const segSec = (level && level.details && level.details.targetduration) || 10;
+  const fetchSec = est > 0 ? (peak * segSec) / est : Infinity;
+  // (with less in hand: exactly the rule as it was — the prototype only ever differs with a deep buffer)
+  return ahead >= Math.max(LADDER_AVG_BUFFER_SEC, 3 * fetchSec) ? avg * 1.25 : peak * 1.4;
 };
 
 // How a library title will most likely start on this device, worked out from
@@ -1304,7 +1312,7 @@ export const renderPlayer = async (root, { id }) => {
     } catch {}
     (hls.levels || []).forEach((l, i) => {
       if (cap >= 0 && i > cap) return;
-      if (rungNeeds(l, ahead) <= est) best = Math.max(best, i); // (peak x 1.4 unless the prototype is on: rungNeeds)
+      if (rungNeeds(l, ahead, est) <= est) best = Math.max(best, i); // (peak x 1.4 unless the prototype is on: rungNeeds)
     });
     return best;
   };
@@ -1462,6 +1470,10 @@ export const renderPlayer = async (root, { id }) => {
         const lower = ladderLevels()
           .filter((l) => l.h && (cap < 0 || l.i <= cap) && ((h.levels[l.i] || {}).bitrate || 0) < ((lv && lv.bitrate) || Infinity))
           .sort((a, b) => b.h - a.h);
+        // (prototype ladderAvgOn: a line KNOWN to carry this rung's average is not judged by the first
+        // seconds of its first segment — TCP's slow start and a busy scene's segment read as a thin line,
+        // and the step down to an encode nobody had started cost a stall: measured, busy window + drop)
+        if (ladderAvgOn() && lineKbps() * 1000 * START_HEADROOM >= ((lv && lv.averageBitrate) || Infinity)) return;
         const k = startStepDown({ eta, rate, dur: frag.duration, lower: lower.map((l) => ({ bandwidth: h.levels[l.i].bitrate })) });
         if (k < 0) return;
         mark("start-down", { from: (ladderLevels().find((l) => l.i === frag.level) || {}).v || "", to: lower[k].v, kbps: Math.round(rate / 1000), eta: Math.round(eta) });
