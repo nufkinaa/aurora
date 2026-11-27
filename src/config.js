@@ -281,6 +281,9 @@ module.exports = {
   // what remote viewers' streams go out on). Unset: 512. -1: no cap.
   TORRENT_UPLOAD_KBPS: userConfig.torrentUploadKBps != null && Number.isFinite(Number(userConfig.torrentUploadKBps)) ? Number(userConfig.torrentUploadKBps) : -1, // (default OFF = no cap, as before; owner 2026-10-18: "No cap on downloads at all" — a cap applies only when the admin sets one here)
   JIT_CACHE_GB: Number(userConfig.jitCacheGB) > 0 ? Number(userConfig.jitCacheGB) : 0,
+  // PROTOTYPE (research-stream-efficiency): the quality ladder's 360p rung
+  // (media/ladder.js CAPS "h264-360"), for lines under ~1.7 Mbit/s. Off unless true.
+  LADDER_LOW: userConfig.ladderLow === true,
   // The TV player's start-up tuning, handed to the app as it is asked for
   // (lib/tvtuning.js — checked there). Nothing set: the app's own values.
   TV_PLAYER: userConfig.tvPlayer || null,

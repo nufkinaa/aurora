@@ -127,6 +127,7 @@ const SCHEMA = {
   hwEncodeSessions: [T.int(1, 32), "what the card's probe found"],
   torrentUploadKBps: [T.num(-1, 1000000), "-1: no upload cap (the owner: no cap on downloads unless the admin sets one)"],
   jitCacheGB: [T.num(0.1, 100000), "20"],
+  ladderLow: [T.bool, "false (prototype: no 360p rung)"],
   ws: [(v) => (isObj(v) && (v.mode == null || ["log", "enforce", "off"].includes(v.mode)) ? null : 'must be { "maxPerAddress", "maxMessageKb", "mode" }'), "64 kB messages, 64 sockets per address (LAN 4x), the rate-limit mode"],
 };
 
