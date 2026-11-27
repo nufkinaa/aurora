@@ -51,6 +51,13 @@ let startfirstMod = null;
 const startfirst = () => startfirstMod || (startfirstMod = require("../lib/startfirst"));
 
 const TARGET_SEG_SEC = 6;
+// The copy's sound: the film's track made stereo AAC (the only thing a copy
+// re-encodes). 128 kbit/s since research-stream-efficiency (2026-11-28; it was
+// 192): stereo AAC-LC at 128k is what Apple's HLS spec and most services use
+// for stereo, and the 64 kbit/s saved is ~2–5 % of a thin line on every
+// second of film. In the made-segments signature (sigOf): a dir of 192k
+// segments is started afresh, never mixed with 128k ones.
+const COPY_AUDIO_KBPS = 128;
 const IDLE_MS = 150000;
 const WAIT_POLL_MS = 100;
 const SEGMENT_WAIT_MS = 90000; // torrents legitimately wait on the swarm
@@ -302,7 +309,7 @@ const producerArgs = (run, input, startSec) => [
         // hev1 is the black-screen tag — measured 2026-08-26).
         ...(input.vtagHvc1 ? ["-tag:v", "hvc1"] : []),
       ]),
-  "-c:a", "aac", "-ac", "2", "-b:a", input.enc ? input.enc.audioRate : "192k",
+  "-c:a", "aac", "-ac", "2", "-b:a", input.enc ? input.enc.audioRate : `${COPY_AUDIO_KBPS}k`,
   "-af", "volume=4dB,alimiter=limit=0.7:level=disabled:latency=true",
   "-muxdelay", "0", "-muxpreload", "0",
   // Movie time rides through, plus the same constant on every producer; with
@@ -923,7 +930,7 @@ const ffmpegId = () => {
 const sigOf = (input) => {
   const what = input && input.enc
     ? ["enc", input.enc.inputArgs || null, input.enc.videoArgs, input.enc.audioRate]
-    : ["copy", !!(input && input.vtagHvc1)];
+    : ["copy", !!(input && input.vtagHvc1), COPY_AUDIO_KBPS];
   return crypto.createHash("sha1").update(JSON.stringify([ALGO, ffmpegId(), input && input.audio > 0 ? input.audio : 0, ...what])).digest("hex").slice(0, 16);
 };
 const readMade = (dir) => {
@@ -1041,6 +1048,17 @@ const advance = (dir, job, run) => {
     // bridged too often: this is not one damaged stretch, the index does not
     // describe the file — declined as before
     if (alias.length && ++job.bridges > MAX_BRIDGES_PER_JOB) return failJob(dir, job, `the index disagrees with the file at more than ${MAX_BRIDGES_PER_JOB} places (last: ${step.damaged})`, true);
+    // …and an ENCODED rendition is never bridged (research-stream-efficiency,
+    // 2026-11-28). Its keyframes follow what the decoder calls one, which an
+    // HEVC film's open-GOP cue need not be (measured: a household 4K film, a
+    // cue at 10.457 s that decodes as no keyframe). The bridge published the
+    // same 20.9 s of film as segments 0 and 1, so this rung no longer cut
+    // where the copy does — and a player that moved onto it at that seam
+    // froze for good (2 of 3 plays at 8 Mbit/s). The copy plays such a film
+    // as before; its encoded rungs are declined (key "…|enc": a 404 from now
+    // on, and the ladder drops the rung — the step-down then takes the capped
+    // offset stream, as it always did when there was no ladder).
+    if (alias.length && job.enc) return failJob(dir, job, `${step.damaged} — an encoded rendition cannot bridge it`, true);
     if (alias.length) console.warn(`[jit] ${path.basename(dir)}: ${step.damaged} — segment${alias.length > 1 ? "s" : ""} ${alias.join(", ")} share segment ${seg}'s bytes`);
     run.cursor = members[members.length - 1] + 1;
     run.nextSeg = (alias.length ? alias[alias.length - 1] : seg) + 1;
@@ -1950,7 +1968,7 @@ module.exports = {
     dropJob, decline,
     setDeclinedFile: (f) => { declinedFile = f; declined = null; },
     TARGET_SEG_SEC, TS_OFFSET_SEC, BOUNDARY_TOL_SEC,
-    sourceRate, admitEncode, park, tables, building, MAX_TABLES, get MAX_ENCODES() { return budget.slots(); }, ENC_LEAD_MAX, ENC_LEAD_MIN, COPY_LEAD_MAX, COPY_LEAD_MIN,
+    COPY_AUDIO_KBPS, sourceRate, admitEncode, park, tables, building, MAX_TABLES, get MAX_ENCODES() { return budget.slots(); }, ENC_LEAD_MAX, ENC_LEAD_MIN, COPY_LEAD_MAX, COPY_LEAD_MIN,
     // producers and readers
     plan, noteReader, usage, aheadOf, reapable, contended, coversRun, extraCount, stopRun,
     MAX_PRODUCERS_PER_JOB, MAX_EXTRA_PRODUCERS, CLAIM_MS, READER_TTL_MS, STEAL_LEAD, BUSY_WAIT_MS, COVER_AHEAD,
