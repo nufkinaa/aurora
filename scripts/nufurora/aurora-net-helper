@@ -1,0 +1,254 @@
+#!/bin/bash
+# aurora-net-helper — the ONE root task Aurora may ask for about the network:
+# make the server send over TCP with BBR, the fq queue and no slow start after
+# a pause (what kept films playing on lossy long lines in
+# docs/qa/streaming-efficiency/REPORT.md §3.2), or put back what was there.
+# The admin's Server → "Network for streaming" (docs/network-for-streaming.md).
+#
+# Installed once by the admin, root-owned, OUTSIDE the repo (Aurora's own user
+# can write the repo; a root helper it could edit would be root for anyone):
+#   sudo install -o root -g root -m 0755 scripts/nufurora/aurora-net-helper /usr/local/sbin/aurora-net-helper
+# and allowed to Aurora's user, and to nothing else, by /etc/sudoers.d/aurora-net:
+#   elia ALL=(root) NOPASSWD: /usr/local/sbin/aurora-net-helper
+#
+# Commands (one line of JSON on stdout each time, exit 0 when ok):
+#   status   what is in force now, and whether this helper's settings are there
+#   apply    BBR + fq + no slow start after a pause, now and after a reboot
+#            (and HTTP/3's UDP buffers raised to 7.5 MB, never lowered)
+#   undo     the values from before the first apply; the settings files removed
+#   caddy-h2 Caddy serves HTTP/1.1 + HTTP/2 only (no HTTP/3: Caddy's QUIC has
+#            its own sending, which BBR does not steer). A marked block in the
+#            Caddyfile's global options; checked with `caddy validate` first,
+#            then `systemctl reload caddy` (graceful); the old file comes back
+#            if the reload fails
+#   caddy-h3 the marked block taken out again (Caddy's default: h1 h2 h3)
+# It takes no other arguments and no values from the caller. A Caddyfile that
+# already has its own `protocols` line is left alone.
+#
+# Test mode (test/nettune-helper.test.js): AURORA_NET_HELPER_TEST=1 with
+# AURORA_NET_HELPER_ROOT (a folder standing in for /) and AURORA_NET_HELPER_BIN
+# (stub ip, tc, modprobe, caddy, systemctl). Refused as root and under sudo (sudo resets the
+# environment; a root run never trusts these variables).
+set -u
+set -f # no globbing
+umask 022
+
+VERSION=1
+ACTION="${1:-}"
+
+jstr() {
+  local s
+  s=$(printf '%s' "${1:-}" | tr -d '\000-\037')
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  printf '"%s"' "$s"
+}
+out_fail() { printf '{"ok":false,"version":%d,"code":"%s","error":%s}\n' "$VERSION" "$1" "$(jstr "$2")"; exit "${3:-1}"; }
+
+R=""
+if [ "${AURORA_NET_HELPER_TEST:-}" = 1 ]; then
+  if [ "$(id -u)" = 0 ] || [ -n "${SUDO_USER:-}" ]; then out_fail testmode "test mode is refused as root" 2; fi
+  R="${AURORA_NET_HELPER_ROOT:?}"
+  PATH="${AURORA_NET_HELPER_BIN:?}:/usr/bin:/bin"
+else
+  PATH=/usr/sbin:/usr/bin:/sbin:/bin
+  [ "$(id -u)" = 0 ] || out_fail notroot "run it with sudo" 2
+  self=$(readlink -f "$0")
+  if [ "$(stat -c %u "$self")" != 0 ] || [ -n "$(find "$self" -perm /022 2>/dev/null)" ]; then
+    out_fail unsafe "the helper file must be root-owned and writable only by root" 2
+  fi
+fi
+export PATH
+
+P="$R/proc/sys"
+CONF="$R/etc/sysctl.d/90-aurora-streaming.conf"
+MODS="$R/etc/modules-load.d/aurora-bbr.conf"
+STATE="$R/var/lib/aurora-net-helper/before"
+UDP_BUF=7500000
+CADDYFILE="$R/etc/caddy/Caddyfile"
+MARK_A="# aurora-net-helper: HTTP/1.1 + HTTP/2 only (Aurora admin -> Server -> Network for streaming)"
+MARK_B="# /aurora-net-helper"
+
+# none (no Caddyfile) | mine (our block is in) | hand (its own protocols line) | default
+caddy_state() {
+  [ -f "$CADDYFILE" ] || { echo none; return; }
+  if grep -qF "$MARK_A" "$CADDYFILE"; then echo mine; return; fi
+  if grep -Eq '^[[:space:]]*protocols([[:space:]]|$)' "$CADDYFILE"; then echo hand; return; fi
+  echo default
+}
+caddy_hand_line() { grep -Em1 '^[[:space:]]*protocols([[:space:]]|$)' "$CADDYFILE" 2>/dev/null | sed 's/^[[:space:]]*//' | head -c 120; }
+# $1 = the new Caddyfile, written next to the old one (relative imports resolve
+# the same). Checked, put in place keeping the file's owner and mode, reloaded;
+# the old content comes back when the reload fails.
+caddy_install() {
+  local new="$1" keep="$CADDYFILE.aurora-old" msg
+  if ! caddy validate --config "$new" --adapter caddyfile > "$new.log" 2>&1; then
+    msg=$(grep -v '^[[:space:]]*$' "$new.log" | tail -n 1 | head -c 240)
+    rm -f "$new" "$new.log"
+    out_fail caddyinvalid "Caddy refused the new Caddyfile, nothing was changed: $msg"
+  fi
+  rm -f "$new.log"
+  cp -p "$CADDYFILE" "$keep" || { rm -f "$new"; out_fail write "could not keep a copy of the Caddyfile"; }
+  cat "$new" > "$CADDYFILE" || { cat "$keep" > "$CADDYFILE"; rm -f "$new" "$keep"; out_fail write "could not write the Caddyfile"; }
+  rm -f "$new"
+  if ! systemctl reload caddy > /dev/null 2>&1; then
+    cat "$keep" > "$CADDYFILE"
+    systemctl reload caddy > /dev/null 2>&1 || true
+    rm -f "$keep"
+    out_fail caddyreload "Caddy did not take the change; the old Caddyfile is back"
+  fi
+  rm -f "$keep"
+}
+
+rd() { local v; v=$(head -c 300 "$P/$1" 2>/dev/null | tr -d '\n' | tr -s '\t ' ' '); printf '%s' "${v% }"; }
+wr() { printf '%s\n' "$2" > "$P/$1"; }
+word() { [[ "$1" =~ ^[a-z0-9_]{1,32}$ ]]; }
+num() { [[ "$1" =~ ^[0-9]{1,12}$ ]]; }
+
+iface() { ip route show default 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}'; }
+# the queue the packets wait in: the root's own, or (multi-queue cards) its first child's
+queue_kind() {
+  local i="$1"
+  [ -n "$i" ] || return 0
+  tc qdisc show dev "$i" 2>/dev/null | awk '
+    $4=="root" { root=$2 }
+    $4=="parent" && child=="" { child=$2 }
+    END { if (root=="mq" && child!="") print child; else print root }'
+}
+# set every leaf queue of the card to $2 (fq / fq_codel); 0 when all took it
+set_queue() {
+  local i="$1" kind="$2" root parents p okq=0
+  [ -n "$i" ] || return 1
+  root=$(tc qdisc show dev "$i" 2>/dev/null | awk '$4=="root"{print $2; exit}')
+  if [ "$root" = "mq" ]; then
+    parents=$(tc qdisc show dev "$i" 2>/dev/null | awk '$4=="parent"{print $5}')
+    for p in $parents; do
+      [[ "$p" =~ ^[0-9a-f]*:[0-9a-f]+$ ]] || continue
+      tc qdisc replace dev "$i" parent "$p" "$kind" >/dev/null 2>&1 || okq=1
+    done
+  else
+    tc qdisc replace dev "$i" root "$kind" >/dev/null 2>&1 || okq=1
+  fi
+  return $okq
+}
+
+status_json() { # $1 = extra JSON fields (already formatted, leading comma)
+  local i
+  i=$(iface)
+  printf '{"ok":true,"version":%d,"cc":%s,"defaultQdisc":%s,"slowStartAfterIdle":%s,"available":%s,"rmemMax":%s,"wmemMax":%s,"iface":%s,"queue":%s,"file":%s,"saved":%s,"caddy":%s,"caddyLine":%s%s}\n' \
+    "$VERSION" "$(jstr "$(rd net/ipv4/tcp_congestion_control)")" "$(jstr "$(rd net/core/default_qdisc)")" \
+    "$(jstr "$(rd net/ipv4/tcp_slow_start_after_idle)")" "$(jstr "$(rd net/ipv4/tcp_available_congestion_control)")" \
+    "$(jstr "$(rd net/core/rmem_max)")" "$(jstr "$(rd net/core/wmem_max)")" \
+    "$(jstr "$i")" "$(jstr "$(queue_kind "$i")")" \
+    "$([ -f "$CONF" ] && echo true || echo false)" "$([ -s "$STATE" ] && echo true || echo false)" \
+    "$(jstr "$(caddy_state)")" "$(jstr "$(caddy_hand_line)")" "${1:-}"
+}
+
+case "$ACTION" in
+  status)
+    [ $# -eq 1 ] || out_fail args "status takes no arguments"
+    status_json
+    ;;
+
+  apply)
+    [ $# -eq 1 ] || out_fail args "apply takes no arguments"
+    modprobe tcp_bbr >/dev/null 2>&1 || true
+    case " $(rd net/ipv4/tcp_available_congestion_control) " in
+      *" bbr "*) ;;
+      *) out_fail nobbr "this server's kernel has no BBR (tcp_bbr did not load)" ;;
+    esac
+    i=$(iface)
+    # what was there before the FIRST apply — the way back
+    if [ ! -s "$STATE" ]; then
+      mkdir -p "$(dirname "$STATE")" || out_fail write "could not write $STATE"
+      printf 'cc=%s\nqdisc=%s\nssai=%s\nrmem=%s\nwmem=%s\nqueue=%s\n' \
+        "$(rd net/ipv4/tcp_congestion_control)" "$(rd net/core/default_qdisc)" "$(rd net/ipv4/tcp_slow_start_after_idle)" \
+        "$(rd net/core/rmem_max)" "$(rd net/core/wmem_max)" "$(queue_kind "$i")" > "$STATE.tmp" && mv -f "$STATE.tmp" "$STATE" \
+        || out_fail write "could not write $STATE"
+    fi
+    rmem=$(rd net/core/rmem_max); wmem=$(rd net/core/wmem_max)
+    num "$rmem" && [ "$rmem" -ge "$UDP_BUF" ] || rmem=$UDP_BUF
+    num "$wmem" && [ "$wmem" -ge "$UDP_BUF" ] || wmem=$UDP_BUF
+    mkdir -p "$(dirname "$CONF")" "$(dirname "$MODS")"
+    {
+      echo "# Written by aurora-net-helper (Aurora admin -> Server -> Network for streaming)."
+      echo "# Undo there, or delete this file and $MODS."
+      echo "net.core.default_qdisc = fq"
+      echo "net.ipv4.tcp_congestion_control = bbr"
+      echo "net.ipv4.tcp_slow_start_after_idle = 0"
+      echo "net.core.rmem_max = $rmem"
+      echo "net.core.wmem_max = $wmem"
+    } > "$CONF.tmp" && mv -f "$CONF.tmp" "$CONF" || out_fail write "could not write $CONF"
+    echo tcp_bbr > "$MODS" || out_fail write "could not write $MODS"
+    wr net/core/default_qdisc fq || out_fail sysctl "the kernel refused the fq queue"
+    wr net/ipv4/tcp_congestion_control bbr || out_fail sysctl "the kernel refused BBR"
+    wr net/ipv4/tcp_slow_start_after_idle 0 || out_fail sysctl "the kernel refused slow_start_after_idle"
+    wr net/core/rmem_max "$rmem" || true
+    wr net/core/wmem_max "$wmem" || true
+    qnow=true
+    set_queue "$i" fq || qnow=false
+    status_json ",\"queueNow\":$qnow"
+    ;;
+
+  undo)
+    [ $# -eq 1 ] || out_fail args "undo takes no arguments"
+    cc=cubic; qdisc=fq_codel; ssai=1; rmem=""; wmem=""; queue=fq_codel
+    if [ -s "$STATE" ]; then
+      while IFS='=' read -r k v; do
+        case "$k" in
+          cc) word "$v" && cc=$v ;;
+          qdisc) word "$v" && qdisc=$v ;;
+          ssai) [[ "$v" =~ ^[01]$ ]] && ssai=$v ;;
+          rmem) num "$v" && rmem=$v ;;
+          wmem) num "$v" && wmem=$v ;;
+          queue) word "$v" && queue=$v ;;
+        esac
+      done < "$STATE"
+    fi
+    [ "$queue" = "mq" ] && queue=$qdisc
+    rm -f "$CONF" "$MODS"
+    wr net/core/default_qdisc "$qdisc" || out_fail sysctl "the kernel refused the queue $qdisc"
+    wr net/ipv4/tcp_congestion_control "$cc" || out_fail sysctl "the kernel refused $cc"
+    wr net/ipv4/tcp_slow_start_after_idle "$ssai" || true
+    [ -n "$rmem" ] && { wr net/core/rmem_max "$rmem" || true; }
+    [ -n "$wmem" ] && { wr net/core/wmem_max "$wmem" || true; }
+    qnow=true
+    set_queue "$(iface)" "$queue" || qnow=false
+    rm -f "$STATE"
+    status_json ",\"queueNow\":$qnow"
+    ;;
+
+  caddy-h2)
+    [ $# -eq 1 ] || out_fail args "caddy-h2 takes no arguments"
+    case "$(caddy_state)" in
+      none) out_fail nocaddy "there is no Caddyfile at /etc/caddy/Caddyfile" ;;
+      hand) out_fail hand "the Caddyfile already has its own line ($(caddy_hand_line)) - change that one by hand" ;;
+      mine) status_json; exit 0 ;;
+    esac
+    new="$CADDYFILE.aurora-new"
+    first=$(awk '!/^[[:space:]]*(#|$)/ { print NR ":" $0; exit }' "$CADDYFILE")
+    firstno=${first%%:*}
+    firstline=${first#*:}
+    if [ -n "$first" ] && [[ "$firstline" =~ ^[[:space:]]*\{[[:space:]]*$ ]]; then
+      # a global options block is there: our lines go in at its top
+      awk -v n="$firstno" -v a="$MARK_A" -v b="$MARK_B" '{ print } NR == n { print "\t" a; print "\tservers {"; print "\t\tprotocols h1 h2"; print "\t}"; print "\t" b }' "$CADDYFILE" > "$new"
+    else
+      { printf '%s\n{\n\tservers {\n\t\tprotocols h1 h2\n\t}\n}\n%s\n' "$MARK_A" "$MARK_B"; cat "$CADDYFILE"; } > "$new"
+    fi
+    caddy_install "$new"
+    status_json
+    ;;
+
+  caddy-h3)
+    [ $# -eq 1 ] || out_fail args "caddy-h3 takes no arguments"
+    [ "$(caddy_state)" = mine ] || { status_json; exit 0; }
+    new="$CADDYFILE.aurora-new"
+    awk -v a="$MARK_A" -v b="$MARK_B" 'index($0, a) { skip = 1; next } skip && index($0, b) { skip = 0; next } !skip { print }' "$CADDYFILE" > "$new"
+    caddy_install "$new"
+    status_json
+    ;;
+
+  *)
+    out_fail args "use: status | apply | undo | caddy-h2 | caddy-h3"
+    ;;
+esac

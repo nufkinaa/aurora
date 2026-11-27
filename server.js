@@ -293,6 +293,7 @@ app.use(require("./src/routes/avcaps")); // what a device can play, and how a ti
 // Clipwave (2026-11-26): the clip-making app reads the library through
 // /clipwave/v1 with an access key the admin makes (routes/clipwave.js)
 app.use(require("./src/routes/clipwave"));
+app.use(require("./src/routes/nettune"));
 app.use(require("./src/routes/proxy"));
 
 // Processed profile avatars (re-encoded 256px JPEGs — see routes/profiles.js).

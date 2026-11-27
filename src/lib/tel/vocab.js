@@ -96,7 +96,7 @@ const SEGMENTS = new Set((
   "signout-everywhere signup similar sources start state stats status still stream sub subtitle subtitles suggest summary taste telemetry timeseries today torrent " +
   "torrents trailer transcode tree tv-app unban unlock update update-check upnext-dismiss usage video watch-history watchlist web web-callback web-finish " +
   "web-start websub wrapped xray errors alert-rules " +
-  "clipwave tokens " + // the Clipwave API and the admin's keys for it (routes/clipwave.js, docs/clipwave-api.md)
+  "clipwave tokens net apply undo http2 http3 " + // the Clipwave API and the admin's keys for it (routes/clipwave.js, docs/clipwave-api.md)
   "offline-wishes wish-options saved " + // a device's "save it here too" before the server has it (docs/offline-wishes.md)
   "child-mode forgot off " + // children mode, per account: /api/profiles/:id/child-mode[/off|/forgot], /api/admin/profiles/:id/child-mode (docs/children-mode.md)
   "scrub " + // the progress bar's preview pictures: /api/scrub/:id, /img/scrub/:id/:n.jpg (media/scrubsprites.js)

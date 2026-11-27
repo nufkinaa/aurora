@@ -1792,6 +1792,35 @@
         </div>
       </details>
       <!-- [/clipwave] -->
+      <!-- [net] Network for streaming (routes/nettune.js, lib/nettune.js, docs/network-for-streaming.md) -->
+      <details class="more" data-more="sv-net" data-title="Network for streaming" data-sub="how this server sends video over long or lossy connections (BBR), with one press">
+        <div class="more-body">
+      <div class="card">
+        <h2>Network for streaming <span class="note">over a long line that loses a little data, Linux's default way of sending (CUBIC) slows right down; BBR keeps the line full. Measured at 1 % loss: 2.9 → 18.8 Mbit/s of a 20 Mbit/s line</span></h2>
+        <div class="cw-line muted hidden" id="net-unsupported"></div>
+        <div class="hidden" id="net-body">
+          <div class="table-scroll"><table><tbody id="net-rows"></tbody></table></div>
+          <div class="cw-line" id="net-proto"></div>
+          <div class="cw-new hidden" id="net-setup">
+            <b>One-time setup on the server.</b> Paste this line once in an SSH window on the server — it asks for your sudo password that one time. Then press Check again; after that the buttons here need no password.
+            <div class="cw-key"><code id="net-setup-cmd"></code> <button class="mini" id="net-setup-copy">Copy</button></div>
+          </div>
+          <div class="bar-row" style="margin-top:10px;flex-wrap:wrap;gap:8px">
+            <button class="mini" id="net-apply">Turn on BBR</button>
+            <button class="mini hidden" id="net-undo">Undo</button>
+            <button class="mini" id="net-recheck">Check again</button>
+          </div>
+          <div class="cw-line" id="net-caddy"></div>
+          <div class="bar-row" style="margin-top:8px;flex-wrap:wrap;gap:8px">
+            <button class="mini hidden" id="net-h2">Use HTTP/2 for video</button>
+            <button class="mini hidden" id="net-h3">Back to HTTP/3</button>
+          </div>
+          <div class="cw-line muted" id="net-note"></div>
+        </div>
+      </div>
+        </div>
+      </details>
+      <!-- [/net] -->
       <details class="more" data-more="sv-maint" data-nocopy data-title="Maintenance" data-sub="rescan the library, clear caches">
         <div class="more-body">
       <div class="card">
@@ -2390,6 +2419,70 @@
       $("#cw-new").classList.add("hidden");
       loadClipwave();
     });
+
+    // ---------- Network for streaming (BBR through the root helper: routes/nettune.js) ----------
+    const NET_CC = { bbr: "BBR — keeps the line full when a little data is lost", cubic: "CUBIC (Linux's default) — slows right down when data is lost" };
+    const netProto = () => {
+      const e = performance.getEntriesByType("resource").filter((x) => x.name.includes("/api/admin/") && x.nextHopProtocol).pop();
+      return e ? e.nextHopProtocol : "";
+    };
+    const netLossText = (l) => {
+      if (!l) return "—";
+      const recent = l.recent ? `${l.recent.pct.toFixed(2)} % in the last ${l.recent.minutes} min` : "measuring — ready in a minute";
+      return `${recent} · ${l.sinceBoot.pct.toFixed(2)} % since the server started`;
+    };
+    const loadNet = async () => {
+      let d;
+      try { d = await json("/api/admin/net"); } catch { return; }
+      if (!d) return;
+      $("#net-unsupported").classList.toggle("hidden", !!d.supported);
+      $("#net-body").classList.toggle("hidden", !d.supported);
+      if (!d.supported) {
+        $("#net-unsupported").textContent = `Only a Linux server can change this — this one runs ${d.platform === "win32" ? "Windows" : d.platform}.`;
+        return;
+      }
+      const rows = [
+        ["Way of sending", NET_CC[d.cc] || d.cc || "unknown"],
+        ["Queue", d.queue ? (d.defaultQdisc && d.defaultQdisc !== d.queue ? `${d.queue} (after a restart: ${d.defaultQdisc})` : d.queue) : (d.defaultQdisc || "unknown")],
+        ["Speed after a pause", d.slowStartAfterIdle === 0 ? "kept" : "starts slow again"],
+        ["Data sent twice (lost on the way)", netLossText(d.loss)],
+      ];
+      $("#net-rows").innerHTML = rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join("");
+      const p = netProto();
+      $("#net-proto").textContent = p === "h3"
+        ? "This browser reaches the server over HTTP/3, which BBR does not steer — see Caddy below."
+        : p ? `This browser reaches the server over ${p === "h2" ? "HTTP/2" : p.toUpperCase()}, which BBR steers.` : "";
+      const ready = d.helper.installed && d.helper.ready !== false;
+      $("#net-setup").classList.toggle("hidden", ready && !d.helper.outdated);
+      $("#net-setup-cmd").textContent = d.setup || "";
+      $("#net-apply").classList.toggle("hidden", !!d.on);
+      $("#net-apply").disabled = !ready;
+      $("#net-undo").classList.toggle("hidden", !(ready && (d.on || d.file)));
+      const c = ready ? d.caddy : null;
+      $("#net-caddy").textContent = c === "mine" ? "Caddy: HTTP/1.1 + HTTP/2 only, so BBR steers all video."
+        : c === "default" ? "Caddy also offers HTTP/3 (its default). BBR does not steer HTTP/3: Caddy sends it its own way, which slows down on lost data much like CUBIC. With BBR on, HTTP/2 is the steadier choice for video."
+        : c === "hand" ? `Caddy: the Caddyfile has its own line "${d.caddyLine || "protocols …"}" — Aurora leaves it alone.`
+        : c === "none" ? "Caddy: there is no Caddyfile at /etc/caddy/Caddyfile, so nothing to change there." : "";
+      $("#net-h2").classList.toggle("hidden", c !== "default");
+      $("#net-h3").classList.toggle("hidden", c !== "mine");
+      $("#net-note").textContent = d.helper.outdated ? "The helper on the server is older than this Aurora — paste the setup line again."
+        : d.helper.installed && d.helper.error ? d.helper.error
+        : d.on ? "On. New connections use BBR at once; films already playing switch when they next connect."
+        : d.loss && d.loss.recent && d.loss.recent.pct > 0.3 ? "More than 0.3 % is sent twice — BBR helps a lot on this server." : "";
+    };
+    const netRun = async (verb, question) => {
+      if (!(await ask(question))) return;
+      const r = await post(`/api/admin/net/${verb}`, {}).catch(() => null);
+      if (!r || !r.ok) { toast((r && r.error) || "Couldn't change it"); return loadNet(); }
+      toast({ apply: r.queueNow ? "BBR is on" : "BBR is on — the queue follows at the next restart", undo: "Back to how it was", http2: "Caddy serves HTTP/1.1 + HTTP/2 now", http3: "Caddy offers HTTP/3 again" }[verb]);
+      loadNet();
+    };
+    $("#net-setup-copy").onclick = () => cwCopy($("#net-setup-cmd").textContent, "Setup line");
+    $("#net-recheck").onclick = () => loadNet();
+    $("#net-apply").onclick = () => netRun("apply", "Turn on BBR on this server? New connections use it at once; films already playing switch when they next connect. Undo puts it back.");
+    $("#net-undo").onclick = () => netRun("undo", "Put the server's network settings back to how they were before BBR?");
+    $("#net-h2").onclick = () => netRun("http2", "Make Caddy serve HTTP/1.1 and HTTP/2 only? Caddy checks the new Caddyfile before using it and reloads without dropping anyone; browsers move to HTTP/2 on their next connection. Back to HTTP/3 undoes it.");
+    $("#net-h3").onclick = () => netRun("http3", "Give Caddy HTTP/3 back (its default)?");
 
     const fmtUptime = (sec) => {
       const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
@@ -7845,6 +7938,18 @@
           const d = await json("/api/admin/clipwave/tokens");
           return MD.list([["address", (d.publicUrl || location.origin).replace(/\/+$/, "") + (d.path || "/clipwave")], ["keys", `${d.tokens.length} of ${d.max}`]]) + "\n\n" +
             MD.table(["name", "starts", "made", "last used"], d.tokens.map((t) => [t.name, `${t.start}…`, fmtWhen(t.createdAt), t.lastUsedAt ? ago(t.lastUsedAt) : "never"]));
+        },
+      },
+      "sv-net": {
+        load: () => loadNet(),
+        copy: async () => {
+          const d = await json("/api/admin/net");
+          if (!d.supported) return MD.list([["network for streaming", `not available on ${d.platform}`]]);
+          const l = d.loss;
+          return MD.list([["congestion control", d.cc], ["queue", d.queue || "?"], ["default queue", d.defaultQdisc], ["slow start after idle", d.slowStartAfterIdle],
+            ["sent twice lately", l && l.recent ? `${l.recent.pct} % over ${l.recent.minutes} min` : "measuring"], ["sent twice since start", l ? `${l.sinceBoot.pct} %` : null],
+            ["helper", d.helper.installed ? `v${d.helper.version}${d.helper.ready === false ? " (sudo rule missing)" : ""}${d.helper.outdated ? " (outdated)" : ""}` : "not installed"],
+            ["caddy", d.caddy === "mine" ? "HTTP/1.1 + HTTP/2 only (Aurora's block)" : d.caddy === "hand" ? `own line: ${d.caddyLine}` : d.caddy], ["this browser's protocol", netProto() || null]]);
         },
       },
       "sv-maint": { inAll: false },

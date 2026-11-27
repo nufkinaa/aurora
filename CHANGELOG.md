@@ -3,6 +3,10 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.46 — 2026-11-28
+
+- **Admin → Server → Network for streaming.** Shows how the server sends video and how much data gets lost on the way. "Turn on BBR" switches the server to the way of sending that kept films playing on lossy long connections in the streaming research (one connection at 1 % loss: 2.9 → 18.8 Mbit/s of a 20 Mbit/s line), and Undo puts it back. "Use HTTP/2 for video" makes Caddy stop offering HTTP/3 (which BBR does not steer); the new Caddyfile is checked before Caddy reloads, and "Back to HTTP/3" undoes it. A one-time setup line (shown there, with Copy) installs the small root helper that does this; after it, no password is needed. Details: docs/network-for-streaming.md.
+
 ## 1.15.45 — 2026-11-26
 
 - **Subtitle files saved as UTF-16 now read right** (Notepad's "Unicode", some rippers' default). They were read as Windows-1251 and showed as "яю1" with no lines, on the website, the TV and in Clipwave — found on Troy's English subtitles while testing Clipwave on the real library.
