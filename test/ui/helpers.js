@@ -358,9 +358,15 @@ ${file}.test.js declared ${queue.length} test(s) but never called ui.run() — n
 // what a returning device already holds (the remembered profile and, for a
 // protected one, this session's unlock token). The wall itself is tested in
 // wall.test.js. Must be called before the first goto().
-const signIn = async (page, srv, profile, { hints = true } = {}) => {
+// …and the line it remembers (`line`, kbit/s — what hls.js measured the last
+// time a film played here, public/js/screens/player.js lineKbps): a returning
+// device on this machine's own loopback knows a fast line, so a film it can
+// play as the file plays as the file (a line not known to be fast opens the
+// film as its jit stream — playstart.js fileNeedsBuffer). A test's own earlier
+// init script that sets aurora-line-kbps wins; `line: 0` leaves it unknown.
+const signIn = async (page, srv, profile, { hints = true, line = 100000 } = {}) => {
   const token = profile.password || profile.pin ? await srv.api.token(profile) : null;
-  await page.addInitScript(({ id, token, hints }) => {
+  await page.addInitScript(({ id, token, hints, line }) => {
     try {
       if (sessionStorage.getItem("ui-test-seeded")) return; // once per tab: later reloads keep what the app stored
       sessionStorage.setItem("ui-test-seeded", "1");
@@ -371,8 +377,9 @@ const signIn = async (page, srv, profile, { hints = true } = {}) => {
         localStorage.setItem("aurora-kbd-hint", "1");
         localStorage.setItem("aurora-nav-hinted", "1");
       }
+      if (line > 0 && !localStorage.getItem("aurora-line-kbps")) localStorage.setItem("aurora-line-kbps", JSON.stringify({ kbps: line, at: Date.now() }));
     } catch {}
-  }, { id: profile.id, token, hints });
+  }, { id: profile.id, token, hints, line });
 };
 
 // The screen for the current route has painted: a .screen (or the player) is

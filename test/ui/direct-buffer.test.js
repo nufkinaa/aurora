@@ -37,14 +37,14 @@ const thinBuffer = (page) => page.evaluate(() => {
   window.__fakeBuf = { t0: performance.now(), end0: v.currentTime + 7.5, rate: 0.7 };
 });
 
-const run = async ({ page, srv, signIn, freshProfile, lib }, lineKbps) => {
+const run = async ({ page, srv, signIn, freshProfile, lib }, lineKbps, path = "direct") => {
   await fakeBuffer(page, lineKbps);
   await signIn(await freshProfile());
   const capped = [];
   page.on("request", (r) => { if (/[?&]v=h264-(480|720)/.test(r.url())) capped.push(r.url().replace(srv.url, "")); });
   const marks = player.marks(page);
   await player.open(page, srv, lib.film1.id, { min: 1 });
-  assert.equal((await marks.wait((m) => m.name === "path", 5000)).path, "direct");
+  assert.equal((await marks.wait((m) => m.name === "path", 5000)).path, path);
   await page.waitForTimeout(6500); // (the watcher lets a start settle for 6 s)
   await thinBuffer(page);
   await page.waitForTimeout(12000);
@@ -58,8 +58,10 @@ ui.test("a file played as it is, a browser that keeps only a few seconds in hand
   assert.equal(await ctx.page.evaluate(() => document.querySelector(".player video").paused), false);
 });
 
+// (a line known to be thin for the file opens it as its own picture in a jit
+// stream — playstart.js fileNeedsBuffer — and the same watcher steps that down)
 ui.test("…and with the line known to be thin for that file the step-down still comes before the freeze", async (ctx) => {
-  const { capped } = await run(ctx, 1);
+  const { capped } = await run(ctx, 1, "jit");
   assert.ok(capped.length >= 1, "no smaller re-encode was asked for");
 });
 
