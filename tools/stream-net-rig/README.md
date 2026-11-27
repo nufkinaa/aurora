@@ -14,6 +14,9 @@ node tools/stream-net-rig/run.js --label x --profiles 3M,drop --titles direct,ji
 node tools/stream-net-rig/run.js --label x --cc bbr --profiles 20M-L1 --titles jit
 node tools/stream-net-rig/run.js --label x --set aurora-ladder-first=1 --config ladderLow=true ...
 node tools/stream-net-rig/run.js --label x --hls '{"maxBufferLength":120}' ...
+node tools/stream-net-rig/run.js --label x --at mp4=390,hevc=546 ...     # from each clip's busiest 150 s
+node tools/stream-net-rig/run.js --label x --prewarm all ...              # the lower rungs made before the play
+node tools/stream-net-rig/run.js --label y --port-base 47250 ...          # a second rig beside the first
 node tools/stream-net-rig/report.js base                    # one table
 node tools/stream-net-rig/report.js base x                  # before -> after, cell by cell
 node tools/stream-net-rig/clipstats.js <film> --limit 1800  # a file's bitrate peaks and keyframe spacing
@@ -69,8 +72,9 @@ All 70 ms round trip (Israel ⇄ Germany is 72 ms, measured to nufurora.com).
 ## The films (`TITLES` in run.js)
 
 12-minute stream copies (from minute 20) of four of the household's films, in
-`E:/aurora-agents/research-stream-efficiency/media` (`--media` to change): `direct`
-(MP4 H.264 + AAC 5.1, plays as the file in Chrome), `jit` (MKV H.264 + AC-3 →
+`E:/aurora-agents/research-stream-efficiency/media` (`--media` to change): `mp4`
+(MP4 H.264 + AAC 5.1, plays as the file in Chrome; `direct` is an older cut of it
+with an MP4 edit list, which jit declines — kept only to reproduce that), `jit` (MKV H.264 + AC-3 →
 repackaged, H.264 ladder), `hevc` (MKV HEVC 10-bit + E-AC-3 → repackaged, HEVC
 top + H.264 rungs), `uhd` (4K HEVC + AAC, plays as the file). The instance is held
 to the 8 real cores of this i7-10700K (affinity 0x5555) with `hwEncode: "off"`,
@@ -80,6 +84,8 @@ like the 8-core VPS without a graphics card.
 
 - Chrome only (desktop and its phone emulation). `--flavour iphone` drives the
   player's native-HLS path through **Chrome's** HLS player, not Safari's.
-- One play per cell unless `--runs`: the machine is shared; repeat a cell
-  before believing a small difference.
+- One play per cell unless `--runs`: lossy lines vary from play to play; repeat
+  a cell before believing a small difference.
+- Two rigs side by side (`--port-base`) share the 8 cores: encode-heavy cells
+  (the 4K film's live rungs) must run alone.
 - WSL's own virtual NIC and the relays add < 1 ms; the netem link is the line.
