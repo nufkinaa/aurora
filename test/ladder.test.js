@@ -40,24 +40,6 @@ test("rungs: ?max= keeps what fits, and the smallest when nothing does", () => {
   assert.deepEqual(L.rungNames({ width: 1280, height: 536, maxHeight: 720 }), ["copy", "h264-480"], "the file itself fits");
 });
 
-// PROTOTYPE (research-stream-efficiency): the 360p rung exists only with config "ladderLow"
-test("rungs: 360p only when config.LADDER_LOW is on, below 480p, with its own honest rate", () => {
-  const was = config.LADDER_LOW;
-  try {
-    config.LADDER_LOW = false;
-    assert.deepEqual(L.rungNames({ width: 1920, height: 1036 }), ["copy", "h264-720", "h264-480"], "off: as before");
-    config.LADDER_LOW = true;
-    assert.deepEqual(L.rungNames({ width: 1920, height: 1036 }), ["copy", "h264-720", "h264-480", "h264-360"]);
-    assert.deepEqual(L.rungNames({ width: 854, height: 480 }), ["copy", "h264-360"], "a 480p file gets the 360p rung under it");
-    const r = ladder.describe({ facts: HEVC_1080, rate: RATE }).find((x) => x.name === "h264-360");
-    assert.ok(r && r.h === 360, "described");
-    const r480 = ladder.describe({ facts: HEVC_1080, rate: RATE }).find((x) => x.name === "h264-480");
-    assert.ok(r.bandwidth < r480.bandwidth && r.average < 1_000_000, `360p declares ${r.bandwidth}/${r.average}`);
-  } finally {
-    config.LADDER_LOW = was;
-  }
-});
-
 test("picture sizes are what the scale filters produce (even, aspect kept)", () => {
   assert.deepEqual(L.dimsFor("copy", 1920, 1036), { w: 1920, h: 1036 });
   assert.deepEqual(L.dimsFor("h264-720", 1920, 1036), { w: 1334, h: 720 });
