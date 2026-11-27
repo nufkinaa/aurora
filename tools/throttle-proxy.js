@@ -278,6 +278,8 @@ const start = (opts = {}) =>
         port,
         describe,
         stats: () => ({ ...totals }),
+        // the line's speed changed (a rig's mid-play drop): kbit/s, server -> client
+        setDown: (kbps) => { down.rate = (kbps || 0) * 125; down.window = windowFor(down.rate); },
         close: () =>
           new Promise((done) => {
             for (const s of sockets) s.destroy();

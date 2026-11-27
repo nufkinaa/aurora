@@ -42,6 +42,7 @@ tools/ttff/.media/
 tools/ttff/.runs/
 .aurora-owner.json
 tools/stall-rig/.runs/
+tools/stream-net-rig/.runs/
 tools/dl-rig/.runs/
 tools/overnight-rig/.runs/
 
