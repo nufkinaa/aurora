@@ -31,21 +31,24 @@ if (process.platform === "win32" && arg("cpus8", "1") !== "0") {
   try { require("child_process").execFileSync("powershell", ["-NoProfile", "-Command", `(Get-Process -Id ${process.pid}).ProcessorAffinity = ${0x5555}`], { stdio: "pipe", windowsHide: true }); } catch {}
 }
 
-const ff = (args, { time = false } = {}) => {
+const ff = (args, { time = false, cwd = undefined } = {}) => {
   const t0 = process.hrtime.bigint();
-  const r = spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", ...args], { encoding: "utf8", maxBuffer: 1 << 26, windowsHide: true });
+  const r = spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", ...args], { encoding: "utf8", maxBuffer: 1 << 26, windowsHide: true, cwd });
   const ms = Number(process.hrtime.bigint() - t0) / 1e6;
   if (r.status !== 0) throw new Error(`ffmpeg: ${r.stderr}`);
   return time ? ms : r.stderr;
 };
 const probe = (f) => JSON.parse(spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=bit_rate,duration:stream=width,height", "-select_streams", "v:0", "-of", "json", f], { encoding: "utf8" }).stdout);
 
-// the reference: the source minute, video only, as it is (a copy)
+// the reference: the source minute, video only
 const ref = path.join(TMP, "ref.mkv");
-if (!fs.existsSync(ref)) ff(["-ss", String(AT), "-i", SRC, "-t", String(SEC), "-map", "0:v:0", "-c", "copy", ref]);
+// (decoded once to a lossless file: every candidate and the score then start from the very same frames)
+if (!fs.existsSync(ref)) ff(["-ss", String(AT), "-i", SRC, "-t", String(SEC), "-map", "0:v:0", "-an", "-c:v", "libx264", "-preset", "ultrafast", "-qp", "0", "-pix_fmt", "yuv420p", ref]);
 const rp = probe(ref);
 const W = rp.streams[0].width, H = rp.streams[0].height;
-const refKbps = Math.round(Number(rp.format.bit_rate) / 1000);
+// (the source's own rate over the same minute, read from the original file)
+const srcProbe = JSON.parse(spawnSync("ffprobe", ["-v", "error", "-read_intervals", `${AT}%+${SEC}`, "-select_streams", "v:0", "-show_entries", "packet=size", "-of", "csv=p=0", SRC], { encoding: "utf8", maxBuffer: 1 << 28 }).stdout.trim().split(/\s+/).reduce((a, b) => a + Number(b || 0), 0));
+const refKbps = Math.round((srcProbe * 8) / SEC / 1000);
 
 // The candidates. `h`: output height; `args`: the encoder (video only).
 const x264 = (preset, crf, max, buf, extra = []) => ["-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-maxrate", `${max}k`, "-bufsize", `${buf}k`, "-pix_fmt", "yuv420p", "-profile:v", "high", ...extra];
@@ -77,8 +80,8 @@ const results = { src: path.basename(SRC), at: AT, sec: SEC, threads: THREADS, s
 const vmaf = (dist) => {
   // the rung scaled up to the source's size (bicubic, as a player would), then scored
   const log = path.join(TMP, "vmaf.json");
-  const logArg = log.replace(/\\/g, "/").replace(/^([A-Za-z]):/, "$1\\\\:");
-  ff(["-i", dist, "-i", ref, "-lavfi", `[0:v]scale=${W}:${H}:flags=bicubic,setpts=PTS-STARTPTS[d];[1:v]setpts=PTS-STARTPTS[r];[d][r]libvmaf=log_fmt=json:log_path='${logArg}':n_threads=${THREADS}`, "-f", "null", "-"]);
+  // (a relative path, ffmpeg run from TMP: a drive letter's colon cannot be quoted reliably in a filtergraph)
+  ff(["-i", dist, "-i", ref, "-lavfi", `[0:v]scale=${W}:${H}:flags=bicubic,setpts=PTS-STARTPTS[d];[1:v]setpts=PTS-STARTPTS[r];[d][r]libvmaf=log_fmt=json:log_path=vmaf.json:n_threads=${THREADS}`, "-f", "null", "-"], { cwd: TMP });
   const j = JSON.parse(fs.readFileSync(log, "utf8"));
   const pooled = j.pooled_metrics && j.pooled_metrics.vmaf;
   const frames = (j.frames || []).map((f) => f.metrics.vmaf).sort((a, b) => a - b);

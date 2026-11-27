@@ -3,13 +3,16 @@
 //   node tools/stream-net-rig/report.js base                 one table: profile × title
 //   node tools/stream-net-rig/report.js base proto1          before → after, cell by cell
 //   node tools/stream-net-rig/report.js base --csv           the rows, flat
+//   … --data                                                 from docs/qa/streaming-efficiency/data
 // Several runs of a cell: medians (stall seconds, ttff) and the worst "end".
 "use strict";
 const fs = require("fs");
 const path = require("path");
 const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 const csv = process.argv.includes("--csv");
-const load = (label) => fs.readFileSync(path.join(__dirname, ".runs", `${label}.jsonl`), "utf8").split(/\r?\n/).filter(Boolean).map((l) => JSON.parse(l));
+// --data: the copies kept with the report (docs/qa/streaming-efficiency/data) instead of .runs
+const DIR = process.argv.includes("--data") ? path.join(__dirname, "..", "..", "docs", "qa", "streaming-efficiency", "data") : path.join(__dirname, ".runs");
+const load = (label) => fs.readFileSync(path.join(DIR, `${label}.jsonl`), "utf8").split(/\r?\n/).filter(Boolean).map((l) => JSON.parse(l));
 const med = (xs) => { const s = xs.filter((x) => x != null && Number.isFinite(x)).sort((a, b) => a - b); return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : null; };
 const ORDER = ["25M", "8M", "5M", "3M", "1.5M", "20M-L1", "8M-L1", "3M-L1", "8M-L2", "drop", "drop-L1"];
 const cells = (rows) => {
