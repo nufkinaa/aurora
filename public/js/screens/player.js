@@ -585,6 +585,44 @@ const streamBeatsFile = (item, nativeHls) => {
   return streamSaves({ indexBytes: item.index.bytes, kbps: lineKbps(), fileKbps, progressive: !nativeHls && progressiveOn() }) > STREAM_WORTH_SEC;
 };
 
+// PROTOTYPE (research-stream-efficiency, 2026-11-27) — off unless
+// localStorage["aurora-ladder-first"] = "1". THE FILM'S PEAKS ON A LINE THAT
+// IS NOT FAST. A file played as itself has one bitrate and Chrome keeps only a
+// few seconds of it ahead (measured: 2.4–6 s, on any line), so the first stretch
+// busier than the line stops the picture — and the household's films are busy:
+// over 29 of them, the busiest 30 s carry a median 2.2x the film's average
+// (docs/qa/streaming-efficiency). Unless the line is known to carry that, the
+// film starts on its quality ladder instead: the TOP rung is the file's own
+// video (a copy — the same picture), the player keeps ~100 s in hand, and a
+// lighter rung is there before the buffer runs out, not after a stall.
+export const LADDER_FIRST_PEAK = 2.2;
+const ladderFirstOn = () => { try { return localStorage.getItem("aurora-ladder-first") === "1"; } catch { return false; } };
+const ladderBeatsFile = (item, nativeHls) => {
+  if (nativeHls || !ladderFirstOn()) return false;
+  if (!item || !item.transcodeBase || !item.id || item._offline) return false;
+  if (!item.video || !["h264", "hevc"].includes(item.video.codec)) return false;
+  const fileKbps = item.sizeBytes && item.duration ? (item.sizeBytes * 8) / item.duration / 1000 : 0;
+  if (!(fileKbps > 0)) return false;
+  const k = lineKbps();
+  return !(k > 0) || k < fileKbps * LADDER_FIRST_PEAK;
+};
+
+// PROTOTYPE (research-stream-efficiency) — off unless
+// localStorage["aurora-ladder-avg"] = "1". A rung's BANDWIDTH is its busiest
+// segment (the copy: the file's own worst stretch, 1.9x its average here);
+// asking a line for 1.4x THAT before taking the film's own picture kept an
+// 8 Mbit/s line on a 720p encode of a 3.2 Mbit/s film for good (measured: more
+// bytes than the 1080p copy, a worse picture, an encoder busy). With a healthy
+// buffer the average is what the line has to carry; the buffer takes the peaks.
+const ladderAvgOn = () => { try { return localStorage.getItem("aurora-ladder-avg") === "1"; } catch { return false; } };
+const LADDER_AVG_BUFFER_SEC = 20;
+const rungNeeds = (level, ahead) => {
+  const peak = (level && level.bitrate) || 0;
+  if (!ladderAvgOn()) return peak * 1.4;
+  const avg = (level && level.averageBitrate) || peak;
+  return ahead >= LADDER_AVG_BUFFER_SEC ? avg * 1.25 : peak * 1.1;
+};
+
 // How a library title will most likely start on this device, worked out from
 // the same module-level rules renderPlayer decides by (never a fork of them:
 // a wrong guess here costs one wasted request, nothing else).
@@ -616,6 +654,10 @@ export const startPlan = (item) => {
     // the file itself — unless its index is the wait (streamBeatsFile)
     if (audioIdx === 0 && streamBeatsFile(item, nativeHls)) {
       return { kind: "jit", ladder: false, url: jitUrlFor(item, { nativeHls, isHevc, top: "copy", useLadder: false }), nativeHls };
+    }
+    // (prototype: the ladder on a line that may not carry the film's peaks — ladderBeatsFile)
+    if (audioIdx === 0 && useLadder && ladderBeatsFile(item, nativeHls)) {
+      return { kind: "jit", ladder: true, url: jitUrlFor(item, { nativeHls, isHevc, top: "copy", useLadder: true }), nativeHls };
     }
     return { kind: "direct" };
   }
@@ -1254,9 +1296,15 @@ export const renderPlayer = async (root, { id }) => {
     const est = (hls && hls.bandwidthEstimate) || 0;
     const cap = ladderCapIdx();
     let best = 0;
+    let ahead = 0;
+    try {
+      for (let i = 0; i < video.buffered.length; i++) {
+        if (video.buffered.start(i) <= video.currentTime + 0.5 && video.buffered.end(i) > video.currentTime) ahead = video.buffered.end(i) - video.currentTime;
+      }
+    } catch {}
     (hls.levels || []).forEach((l, i) => {
       if (cap >= 0 && i > cap) return;
-      if ((l.bitrate || 0) * 1.4 <= est) best = Math.max(best, i);
+      if (rungNeeds(l, ahead) <= est) best = Math.max(best, i); // (peak x 1.4 unless the prototype is on: rungNeeds)
     });
     return best;
   };
@@ -1279,7 +1327,8 @@ export const renderPlayer = async (root, { id }) => {
           // device (startRung): the levels top first, as the master lists them
           const top = ladderIdx(0);
           const order = ladderLevels().sort((a, b) => (a.h === 0 ? -1 : b.h === 0 ? 1 : b.h - a.h));
-          const pickAt = startRung(order.map((l) => ({ bandwidth: (hls.levels[l.i] || {}).bitrate || 0 })), lineKbps());
+          // (prototype ladderAvgOn: a known line is asked for the rung's AVERAGE — the ~100 s buffer takes its peaks)
+          const pickAt = startRung(order.map((l) => ({ bandwidth: (ladderAvgOn() ? (hls.levels[l.i] || {}).averageBitrate : 0) || (hls.levels[l.i] || {}).bitrate || 0 })), lineKbps());
           i = pickAt >= 0 ? order[pickAt].i : top;
           if (i !== top) mark("start-rung", { v: order[pickAt].v, kbps: lineKbps() });
         }
@@ -2686,6 +2735,13 @@ export const renderPlayer = async (root, { id }) => {
     // untouched; the file itself if the stream cannot be had.
     mark("decision", { why: `index ${Math.round(item.index.bytes / 1e5) / 10} MB on ${lineKbps()} kbit/s → stream` });
     const jitOk = await tryJitSwitch(resumeAt, { plain: true });
+    if (!jitOk) startDirect();
+  } else if (!isTorrent && audioIdx === 0 && !capH && ladderEligible() && ladderBeatsFile(item, nativeHlsOnly)) {
+    // (prototype) the film's own picture as the ladder's top rung, lighter
+    // rungs under it before they are needed (ladderBeatsFile); the file
+    // itself when the ladder cannot be had
+    mark("decision", { why: `line ${lineKbps() || "unknown"} kbit/s vs the film's busy stretches (~${Math.round((fileKbps || 0) * LADDER_FIRST_PEAK)}) → ladder` });
+    const jitOk = await tryJitSwitch(resumeAt);
     if (!jitOk) startDirect();
   } else {
     startDirect();
