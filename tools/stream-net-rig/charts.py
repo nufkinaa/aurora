@@ -91,6 +91,11 @@ def load_runs(label):
     return [json.loads(x) for x in open(p, encoding="utf-8") if x.strip()]
 
 
+# the 4K film on 8 Mbit/s froze for good in 2 of 3 plays with or without the change
+# (a jit/ladder bug at a keyframe gap, REPORT section 5 item 6): not a line effect, left out
+SKIP = {("8M", "uhd")}
+
+
 def stall_chart(before, after, name, title, profiles, titles):
     a = load_runs(before)
     b = load_runs(after)
@@ -105,6 +110,8 @@ def stall_chart(before, after, name, title, profiles, titles):
     labels, xa, xb = [], [], []
     for prof in profiles:
         for t in titles:
+            if (prof, t) in SKIP:
+                continue
             va, vb = cell(a, prof, t), cell(b, prof, t)
             if va is None or vb is None:
                 continue
@@ -138,7 +145,7 @@ def timeline_chart(label_a, label_b, prof, t, name, title):
         xs = [p[0] for p in tl]
         axes[0].step(xs, [p[2] for p in tl], where="post", color=color, linewidth=2, label=lab)
         axes[1].step(xs, [p[1] for p in tl], where="post", color=color, linewidth=2, label=lab)
-        for p in tl:
+        for p in tl[:-1]:  # (the last bucket is the end of the watch, not a freeze)
             if p[3]:
                 axes[0].axvspan(p[0], p[0] + 5, color=color, alpha=0.12, linewidth=0)
     sched = r.get("prof", {}).get("schedule") or []
@@ -148,7 +155,7 @@ def timeline_chart(label_a, label_b, prof, t, name, title):
     axes[0].set_ylabel("film in hand (s)")
     axes[1].set_ylabel("picture height")
     axes[1].set_xlabel("seconds after Play (dashed: the line changes speed; shaded: frozen)")
-    axes[0].legend(frameon=False, loc="upper right")
+    axes[0].legend(frameon=False, loc="upper left")
     axes[0].set_title(title, loc="left", fontsize=11)
     save(fig, name)
 
@@ -162,6 +169,6 @@ if __name__ == "__main__":
         # stall:<before>:<after>:<file.png>  or  timeline:<before>:<after>:<profile>:<title>:<file.png>
         parts = spec.split(":")
         if parts[0] == "stall":
-            stall_chart(parts[1], parts[2], parts[3], "Time stalled, same line, same film", ["8M", "5M", "3M", "1.5M", "3M-L1", "20M-L1", "drop"], ["direct", "jit", "hevc"])
+            stall_chart(parts[1], parts[2], parts[3], "Time stalled, same line, same film", ["25M", "8M", "5M", "3M", "1.5M", "3M-L1", "20M-L1", "8M-L2", "drop"], ["mp4", "jit", "hevc", "uhd"])
         elif parts[0] == "timeline":
-            timeline_chart(parts[1], parts[2], parts[3], parts[4], parts[5], f"{parts[4]} film, line {parts[3]}")
+            timeline_chart(parts[1], parts[2], parts[3], parts[4], parts[5], f"{parts[4]} film, line {parts[3]}" + (" (from its busiest stretch)" if "busy" in parts[1] else ""))
