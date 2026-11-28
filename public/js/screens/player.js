@@ -549,8 +549,12 @@ const lineFirstLoader = (Base) => {
       let watch = null;
       const stopWatch = () => { if (watch) { clearInterval(watch); watch = null; } };
       const url = String((context && context.url) || "");
-      const copy = /\/jit\//.test(url) && !/[?&]v=h264-/.test(url);
-      if (copy && callbacks && callbacks.onTimeout) {
+      const jit = /\/jit\//.test(url);
+      const copy = jit && !/[?&]v=h264-/.test(url);
+      // (an encoded rung's segment leaves the server whole once it is made, so a
+      // silence inside its body is the line's too; only its first byte may
+      // legitimately wait on its encoder)
+      if (jit && callbacks && callbacks.onTimeout) {
         let seen = 0;
         let since = performance.now();
         watch = setInterval(() => {
@@ -559,7 +563,7 @@ const lineFirstLoader = (Base) => {
           const now = performance.now();
           const got = st.loaded || 0;
           if (got !== seen) { seen = got; since = now; return; }
-          if (now - since < (got > 0 ? LOAD_SILENT_BODY_MS : LOAD_SILENT_NONE_MS)) return;
+          if (got > 0 ? now - since < LOAD_SILENT_BODY_MS : !copy || now - since < LOAD_SILENT_NONE_MS) return;
           over = true;
           stopWatch();
           try { this.abortInternal(); } catch {}
@@ -621,13 +625,16 @@ const patientAbrFor = (Hls) => {
         return rule.apply(this, a);
       };
     }
-    // a seek does not step down onto an encode the line does not need (playstart.js seekHold)
+    // a seek — or a buffer an outage or a seek emptied — does not step down
+    // onto an encode the line does not need (playstart.js seekHold: the line,
+    // as measured, carries the rung by its average and brings its segment in
+    // 4 s; a line that has really dropped has an estimate that says so)
     get nextAutoLevel() {
       const pick = super.nextAutoLevel;
       try {
         const h = this.hls;
         const m = h && h.media;
-        if (!m || !m.seeking || !h.levels) return pick;
+        if (!m || !h.levels) return pick;
         const cur = h.loadLevel;
         return seekHold({
           seeking: true,
