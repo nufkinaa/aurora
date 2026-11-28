@@ -38,7 +38,7 @@ const CAPS = {
 // BANDWIDTH could not be stated honestly.
 const TOP_AUDIO = 192;
 // the copy's sound (jit.js COPY_AUDIO_KBPS: stereo AAC, the copy's only re-encode)
-const COPY_AUDIO = 128;
+const COPY_AUDIO = 192;
 const topCeiling = (outH) => (outH > 720 ? 10000 : outH > 480 ? 5000 : 2500);
 
 // A segment is at least this long (jit's table rule; only the last one may be
@@ -156,7 +156,7 @@ const encBandwidth = (r) => ({
 // time between them: the busiest segment (peak) and the whole film (avg).
 // Those bytes are the video plus everything else in the file (its own audio
 // tracks, subtitles), so they overstate the video a little; the audio we send
-// (128k AAC — jit.js COPY_AUDIO_KBPS) and the container are added on top. An upper bound, as the
+// (192k AAC — jit.js COPY_AUDIO_KBPS) and the container are added on top. An upper bound, as the
 // attribute is defined. null when the index gave no figure.
 // `otherBps`: what the file's OTHER streams carry (its own audio tracks,
 // bit/s, as ffprobe states them — research-stream-efficiency, 2026-11-28).

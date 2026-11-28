@@ -51,13 +51,10 @@ let startfirstMod = null;
 const startfirst = () => startfirstMod || (startfirstMod = require("../lib/startfirst"));
 
 const TARGET_SEG_SEC = 6;
-// The copy's sound: the film's track made stereo AAC (the only thing a copy
-// re-encodes). 128 kbit/s since research-stream-efficiency (2026-11-28; it was
-// 192): stereo AAC-LC at 128k is what Apple's HLS spec and most services use
-// for stereo, and the 64 kbit/s saved is ~2–5 % of a thin line on every
-// second of film. In the made-segments signature (sigOf): a dir of 192k
-// segments is started afresh, never mixed with 128k ones.
-const COPY_AUDIO_KBPS = 128;
+// The copy's sound: the film's track made stereo AAC at 192 kbit/s (the copy's
+// only re-encode — kept as it always was: elia 2026-11-28, "don't make the
+// sound smaller").
+const COPY_AUDIO_KBPS = 192;
 const IDLE_MS = 150000;
 const WAIT_POLL_MS = 100;
 const SEGMENT_WAIT_MS = 90000; // torrents legitimately wait on the swarm
@@ -930,7 +927,7 @@ const ffmpegId = () => {
 const sigOf = (input) => {
   const what = input && input.enc
     ? ["enc", input.enc.inputArgs || null, input.enc.videoArgs, input.enc.audioRate]
-    : ["copy", !!(input && input.vtagHvc1), COPY_AUDIO_KBPS];
+    : ["copy", !!(input && input.vtagHvc1)];
   return crypto.createHash("sha1").update(JSON.stringify([ALGO, ffmpegId(), input && input.audio > 0 ? input.audio : 0, ...what])).digest("hex").slice(0, 16);
 };
 const readMade = (dir) => {
