@@ -597,7 +597,20 @@ export default function Home({
     },
     [navigation],
   );
-  useHomeScreenLinks(openFromLauncher);
+  // the player asks for the title first thing (its item, with this box's
+  // play decision): asked now, while Home draws, the player finds it in
+  // api.ts's memo instead of waiting a round trip for it
+  const warmFromLauncher = useCallback(
+    (action: 'play' | 'detail', item: HeroItem) => {
+      if (action !== 'play' || item.source === 'stream' || String(item.id).startsWith('torrent|')) return;
+      if (item.type === 'show') return; // a show's page decides the episode
+      api.item(item.id, profileId || undefined).catch(() => {});
+      // the row is "Continue watching": a resume, landed on a keyframe (playback/keyframes.ts)
+      api.keyframes(item.id).catch(() => {});
+    },
+    [profileId],
+  );
+  useHomeScreenLinks(openFromLauncher, warmFromLauncher);
   const heroPlay = useCallback(
     (item: HeroItem) => {
       if (!canNavigate(navigation)) return;

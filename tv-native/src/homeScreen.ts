@@ -363,9 +363,22 @@ const launch = {last: null as string | null, run: 0};
 export const shouldOpenInitial = (url: string | null, st: {last: string | null; run: number}, run: number): boolean =>
   !!url && (url !== st.last || run !== st.run);
 
+/** How long after Home's first frame the link the app was opened with is
+ *  pushed. It was a fixed 600 ms from Home's mount ("a breath, so the
+ *  navigator under Home is ready to take a push") — Home is itself a screen
+ *  of that navigator, mounted, so it takes a push as soon as it has drawn
+ *  once; the 600 ms was half a second of every start from the launcher's row
+ *  (Mi TV, streaming round 2: launcher press to picture 4.4-4.7 s). */
+export const LINK_OPEN_AFTER_FRAME_MS = 50;
+
 /** Home listens for the launcher's links: the one the app was opened with
- *  (shouldOpenInitial), and any that arrive while it is already open. */
-export function useHomeScreenLinks(open: (action: 'play' | 'detail', item: HeroItem) => void) {
+ *  (shouldOpenInitial), and any that arrive while it is already open.
+ *  `warm` is told at once, before the push, so what the title's first
+ *  screen asks for is already on its way (Home: the item, for the player). */
+export function useHomeScreenLinks(
+  open: (action: 'play' | 'detail', item: HeroItem) => void,
+  warm?: (action: 'play' | 'detail', item: HeroItem) => void,
+) {
   useEffect(() => {
     let on = true;
     {
@@ -375,18 +388,26 @@ export function useHomeScreenLinks(open: (action: 'play' | 'detail', item: HeroI
           launch.last = u;
           launch.run = appRun;
           const p = parse(u);
-          // a breath, so the navigator under Home is ready to take a push
-          if (on && p) setTimeout(() => on && open(p.action, p.item), 600);
+          if (!on || !p) return;
+          try {
+            warm?.(p.action, p.item);
+          } catch {}
+          // after Home has drawn once (see LINK_OPEN_AFTER_FRAME_MS)
+          requestAnimationFrame(() => setTimeout(() => on && open(p.action, p.item), LINK_OPEN_AFTER_FRAME_MS));
         })
         .catch(() => {});
     }
     const sub = Linking.addEventListener('url', e => {
       const p = parse(e.url);
-      if (p) open(p.action, p.item);
+      if (!p) return;
+      try {
+        warm?.(p.action, p.item);
+      } catch {}
+      open(p.action, p.item);
     });
     return () => {
       on = false;
       sub.remove();
     };
-  }, [open]);
+  }, [open, warm]);
 }
