@@ -4126,7 +4126,8 @@ export const renderPlayer = async (root, { id }) => {
         : seekPreview != null
           ? seekPreview
           : effTime();
-    seekTo(base + dir * step, { viewer: true });
+    // (landed at once — a skip inside the buffer: the picture shows where it went)
+    const landed = seekTo(base + dir * step, { viewer: true }) === "now" ? effTime() : null;
 
     const amount =
       skipAccum >= 60
@@ -4141,9 +4142,10 @@ export const renderPlayer = async (root, { id }) => {
       if (!scrubDragging && !scrubHover) scrubTip.classList.add("hidden");
     }, 700);
     // the picture where the skips are headed (when there are pictures)
-    if (scrubIdx && pendingSeek != null && !scrubDragging) {
+    const headed = pendingSeek != null ? pendingSeek : landed;
+    if (scrubIdx && headed != null && !scrubDragging) {
       const d = totalDuration();
-      if (d) showScrubTip(pendingSeek / d, pendingSeek);
+      if (d) showScrubTip(headed / d, headed);
     }
 
     updateScrubber();
@@ -5319,7 +5321,7 @@ export const renderPlayer = async (root, { id }) => {
     // server-side, so skip-spam used to fire a request per press.
     pendingSeek = target;
     clearTimeout(seekDebounce);
-    if (viewer && (!usingTranscode || jitMode) && !party.current && (click || seekBuffered(target))) return commitSeek(click);
+    if (viewer && (!usingTranscode || jitMode) && !party.current && (click || seekBuffered(target))) { commitSeek(click); return "now"; }
     updateScrubber();
     // 250ms: long enough to coalesce a remote's auto-repeat burst, short
     // enough that a single deliberate click feels immediate (was 450 — part
