@@ -584,6 +584,7 @@ const lineFirstLoader = (Base) => {
 // fragment's own first-byte timeout (60 s) still applies.
 // (how long after the viewer's seek its refill counts as one — see refillHold)
 const SEEK_REFILL_MS = 45000;
+const SEEK_SNAP_MAX_S = 8; // (the seek-snap prototype, off)
 let PatientAbr = null;
 const patientAbrFor = (Hls) => {
   if (PatientAbr) return PatientAbr;
@@ -5148,7 +5149,7 @@ export const renderPlayer = async (root, { id }) => {
   // The last seek handed to the element itself ({ target, at }) — read by the
   // "stream ended early" recovery, which must go where the viewer asked.
   let lastNativeSeek = null;
-  const commitSeek = () => {
+  const commitSeek = (click = false) => {
     seekDebounce = null;
     if (pendingSeek == null) return;
     const target = pendingSeek;
@@ -5257,9 +5258,27 @@ export const renderPlayer = async (root, { id }) => {
         return;
       }
     }
-    lastNativeSeek = { target, at: Date.now() };
-    video.currentTime = Math.max(0, target - clockBase);
+    const at = seekSnapped(target, click);
+    lastNativeSeek = { target: at, at: Date.now() };
+    video.currentTime = Math.max(0, at - clockBase);
     updateScrubber();
+  };
+  // PROTOTYPE, OFF (for elia: docs/qa/streaming-round-2/web.md, "for elia").
+  // A click on the timeline outside what is buffered lands on the start of
+  // the segment that holds the spot (the film's keyframe before it, at most
+  // SEEK_SNAP_MAX_S earlier): the first frame then needs the head of one
+  // segment, not everything from its keyframe to the spot. Visible (the
+  // picture starts a few seconds before the click), so only with
+  // localStorage["aurora-seek-snap"] = "1".
+  const seekSnapped = (target, click) => {
+    try {
+      if (!click || !hls || !jitMode || localStorage.getItem("aurora-seek-snap") !== "1" || seekBuffered(target)) return target;
+      const lv = hls.levels && hls.levels[hls.currentLevel >= 0 ? hls.currentLevel : hls.loadLevel];
+      const frags = lv && lv.details && lv.details.fragments;
+      const f = frags && frags.find((x) => x.start <= target - clockBase && x.start + x.duration > target - clockBase);
+      if (f && target - clockBase - f.start <= SEEK_SNAP_MAX_S) return f.start + clockBase + 0.05;
+    } catch {}
+    return target;
   };
   // A seek the viewer made that costs no request (2026-11-28, stream round 2):
   // the target is already buffered, on a stream that is not an offset job.
@@ -5292,7 +5311,7 @@ export const renderPlayer = async (root, { id }) => {
     // server-side, so skip-spam used to fire a request per press.
     pendingSeek = target;
     clearTimeout(seekDebounce);
-    if (viewer && (!usingTranscode || jitMode) && !party.current && (click || seekBuffered(target))) return commitSeek();
+    if (viewer && (!usingTranscode || jitMode) && !party.current && (click || seekBuffered(target))) return commitSeek(click);
     updateScrubber();
     // 250ms: long enough to coalesce a remote's auto-repeat burst, short
     // enough that a single deliberate click feels immediate (was 450 — part
