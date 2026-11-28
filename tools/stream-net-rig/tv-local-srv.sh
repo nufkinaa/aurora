@@ -57,7 +57,53 @@ if [ -n "$file" ] && [ -f "$D/media/$file" ]; then
     printf 'HTTP/1.1 200 OK\r\nContent-Type: %s\r\nAccept-Ranges: bytes\r\nContent-Length: %s\r\nConnection: close\r\n\r\n' "$ct" "$total"
   fi
   [ "$method" = HEAD ] && exit 0
-  exec dd if="$f" iflag=skip_bytes,count_bytes skip="$s" count="$len" bs=262144 status=none
+  # A shaped line (streaming round 2): $D/rate holds kbit/s; 0 or no file = disk
+  # speed. Read again for every 64 KB, so a line can drop and come back mid-film.
+  # Paced to the clock, not by a fixed sleep per chunk: the dd calls' own time
+  # does not slow the line below its rate. (A model of a line's rate only — no
+  # latency, no loss: that is the PC's netem rig, which cannot reach the TV fast.)
+  rate=$(cat "$D/rate" 2>/dev/null)
+  if [ -z "$rate" ] || [ "$rate" -le 0 ] 2>/dev/null; then
+    exec dd if="$f" iflag=skip_bytes,count_bytes skip="$s" count="$len" bs=262144 status=none
+  fi
+  # (the TV's sh does 32-bit arithmetic: time is kept as ms since the line's
+  # start, and what was sent as 64 KB chunks)
+  # (%N's first three digits are the ms; "1" in front keeps a leading 0 from reading as octal)
+  ms_now() { set -- $(date '+%s %N'); m=${2%??????}; echo $(( ($1 - S0) * 1000 + 1$m - 1000 - N0 )); }
+  set -- $(date '+%s %N'); S0=$1; m=${2%??????}; N0=$((1$m - 1000))
+  pos=$s
+  left=$len
+  chunks=0
+  cur=$rate
+  base=0
+  while [ "$left" -gt 0 ]; do
+    n=65536
+    [ "$left" -lt "$n" ] && n=$left
+    dd if="$f" iflag=skip_bytes,count_bytes skip="$pos" count="$n" bs="$n" status=none || exit 0
+    pos=$((pos + n))
+    left=$((left - n))
+    chunks=$((chunks + 1))
+    rate=$(cat "$D/rate" 2>/dev/null)
+    [ -z "$rate" ] && rate=0
+    if [ "$rate" -le 0 ]; then
+      exec dd if="$f" iflag=skip_bytes,count_bytes skip="$pos" count="$left" bs=262144 status=none
+    fi
+    now=$(ms_now)
+    if [ "$rate" != "$cur" ]; then
+      cur=$rate
+      chunks=0
+      base=$now
+      continue
+    fi
+    # where the clock should be for what has been sent: a 64 KB chunk is
+    # 524288 bits = 524288 / rate ms (written so it cannot overflow 32 bits)
+    due=$(( base + chunks * 5243 / (rate / 100) ))
+    ahead=$((due - now))
+    if [ "$ahead" -gt 2 ]; then
+      sleep "$((ahead / 1000)).$(printf %03d $((ahead % 1000)))"
+    fi
+  done
+  exit 0
 fi
 # not ours: the request as it came (asked to close after its answer, so a
 # connection that carried it is never reused for a film), then the rest

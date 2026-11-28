@@ -6,6 +6,7 @@
 #   tv-local.sh start <pc-ip> <pc-port> [<item id>=<file pushed to the TV> ...]
 #   tv-local.sh stop
 #   tv-local.sh push <local file> <name on the TV>      (slow: the TV's Wi-Fi)
+#   tv-local.sh rate <kbit/s>                           (a paced line for those films; 0 = disk)
 #
 # Each connection runs tv-local-srv.sh: a /stream/video/<id> request whose film
 # was pushed to the TV is answered from the TV's storage (disk speed — a "LAN"
@@ -50,5 +51,11 @@ case "${1:-}" in
   push)
     T=3600 adb_ push "${2:?file}" "$D/media/${3:?name}"
     ;;
-  *) echo "usage: $0 start <pc-ip> <pc-port> [id=file ...] | stop | push <file> <name>" >&2; exit 2 ;;
+  rate)
+    # a shaped line for the films served from the TV: kbit/s, 0 = disk speed
+    # (tv-local-srv.sh reads it every 64 KB, so it can change mid-play)
+    adb_ shell "echo ${2:?kbit/s} > $D/rate"
+    echo "tv-local: line ${2} kbit/s"
+    ;;
+  *) echo "usage: $0 start <pc-ip> <pc-port> [id=file ...] | stop | push <file> <name> | rate <kbit/s>" >&2; exit 2 ;;
 esac
