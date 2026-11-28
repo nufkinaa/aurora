@@ -4023,7 +4023,7 @@ export const renderPlayer = async (root, { id }) => {
         : seekPreview != null
           ? seekPreview
           : effTime();
-    seekTo(base + dir * step);
+    seekTo(base + dir * step, { viewer: true });
 
     const amount =
       skipAccum >= 60
@@ -5167,7 +5167,23 @@ export const renderPlayer = async (root, { id }) => {
     video.currentTime = Math.max(0, target - clockBase);
     updateScrubber();
   };
-  const seekTo = (sec) => {
+  // A seek the viewer made that costs no request (2026-11-28, stream round 2):
+  // the target is already buffered, on a stream that is not an offset job.
+  // Landing there is setting the clock, so the 250 ms that coalesce a burst
+  // of presses (each committed seek used to abort a fetch) buy nothing — an
+  // in-buffer skip took 440–660 ms to show its frame on the rig, now ~the
+  // decoder's own time. A scrubber click or release is one deliberate press:
+  // it lands at once too. Not in a watch party (its seeks are timed against
+  // the others), not on an offset transcode (its seeks restart a job).
+  const seekBuffered = (target) => {
+    try {
+      const t = target - clockBase;
+      const b = video.buffered;
+      for (let i = 0; i < b.length; i++) if (b.start(i) <= t + 0.1 && b.end(i) >= t + 0.5) return true;
+    } catch {}
+    return false;
+  };
+  const seekTo = (sec, { viewer = false, click = false } = {}) => {
     if (seekLocked()) return; // scrubber retargets wait for the landing too
     // (stall recovery) a seek is the viewer's own business: whatever was being
     // timed or held is void
@@ -5180,8 +5196,9 @@ export const renderPlayer = async (root, { id }) => {
     // seek aborts the open stream and re-anchors torrent piece priorities
     // server-side, so skip-spam used to fire a request per press.
     pendingSeek = target;
-    updateScrubber();
     clearTimeout(seekDebounce);
+    if (viewer && !usingTranscode && !party.current && (click || seekBuffered(target))) return commitSeek();
+    updateScrubber();
     // 250ms: long enough to coalesce a remote's auto-repeat burst, short
     // enough that a single deliberate click feels immediate (was 450 — part
     // of the answer to "why does a skip take so long", 2026-08-26).
@@ -5281,7 +5298,7 @@ export const renderPlayer = async (root, { id }) => {
     scrubDragging = false;
     lastHapticT = null;
     scrubTip.classList.add("hidden");
-    if (scrubDragMoved) seekTo(scrubFrac(e) * totalDuration());
+    if (scrubDragMoved) seekTo(scrubFrac(e) * totalDuration(), { viewer: true, click: true });
   });
   scrubber.addEventListener("pointercancel", () => {
     if (!scrubDragging) return;
@@ -5306,7 +5323,7 @@ export const renderPlayer = async (root, { id }) => {
       return;
     }
     const d = totalDuration();
-    if (d) seekTo(scrubFrac(e) * d);
+    if (d) seekTo(scrubFrac(e) * d, { viewer: true, click: true });
   });
 
   // Hover tooltip with the time under the cursor
