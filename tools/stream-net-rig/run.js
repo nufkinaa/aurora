@@ -259,7 +259,7 @@ const PROBE = () => {
       for (let i = 0; i < v.buffered.length; i++) if (v.buffered.start(i) <= v.currentTime + 0.3 && v.buffered.end(i) > v.currentTime) ahead = v.buffered.end(i) - v.currentTime;
       const q = v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality() : null;
       if (q && dropped0 == null) dropped0 = q.droppedVideoFrames;
-      rec.samples.push({ t: Math.round(now()), ct: +v.currentTime.toFixed(3), p: v.paused ? 1 : 0, sk: v.seeking ? 1 : 0, rs: v.readyState, ah: +ahead.toFixed(1), h: v.videoHeight, df: q ? q.droppedVideoFrames - dropped0 : 0, tf: q ? q.totalVideoFrames : 0, src: (v.currentSrc || "").slice(-60) });
+      rec.samples.push({ t: Math.round(now()), ct: +v.currentTime.toFixed(3), p: v.paused ? 1 : 0, sk: v.seeking ? 1 : 0, rs: v.readyState, ah: +ahead.toFixed(1), h: v.videoHeight, df: q ? q.droppedVideoFrames - dropped0 : 0, tf: q ? q.totalVideoFrames : 0, src: (v.currentSrc || "").slice(-60), err: v.error ? v.error.code : 0, card: document.querySelector(".player-error, .player .error-card") ? 1 : 0 });
     }, 250);
   };
   const create = Document.prototype.createElement;
@@ -345,6 +345,9 @@ const digest = ({ t0, dump, reqs, endAt }) => {
   const tail = after.filter((s) => s.t >= endAt - 15000);
   out.endPlaying = tail.length > 4 && tail[tail.length - 1].ct - tail[0].ct > 8;
   out.endHeight = after.length ? after[after.length - 1].h : 0;
+  // how it ended: the last sample (paused, readyState, a media error code, an error card on screen)
+  { const e = after[after.length - 1]; if (e) out.endState = { paused: e.p, readyState: e.rs, mediaError: e.err || 0, card: e.card || 0, src: e.src }; }
+  out.pausedSec = +(after.filter((s) => s.p).length * 0.25).toFixed(1);
   // the bytes that crossed the line for the film after the click
   const media = reqs.filter((r) => r.start >= t0 - 50 && (r.kind === "segment" || r.kind === "video" || r.kind === "playlist"));
   out.mediaBytes = media.reduce((s, r) => s + r.bytes, 0);

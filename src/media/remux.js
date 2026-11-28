@@ -56,14 +56,16 @@ const RETIRED_MS = 5000;
 // start the same ffmpeg again — on a file damaged a few seconds past the
 // offset, that was a new encoder every few seconds for as long as the player
 // kept asking (36 and 47 encoder starts in 150 s, tools/stream-net-rig,
-// 2026-11-28), and the picture never moved on. Twice in a row is the answer
-// for a while: the request is refused, and the player goes its own way.
+// 2026-11-28), and the picture never moved on. Now a poll never starts a job
+// that has failed there (only a viewer's deliberate move — `seek` — may try
+// it once more), and twice in a row is the answer for a while: the request is
+// refused, and the player goes its own way.
 const failed = new Map(); // dir -> { n, at }
 const FAIL_LIMIT = 2;
 const FAIL_MS = 10 * 60 * 1000;
-const failedHere = (dir, now = Date.now()) => {
+const failedHere = (dir, { seek = false, now = Date.now() } = {}) => {
   const f = failed.get(dir);
-  return !!f && f.n >= FAIL_LIMIT && now - f.at < FAIL_MS;
+  return !!f && f.n >= (seek ? FAIL_LIMIT : 1) && now - f.at < FAIL_MS;
 };
 const noteFailed = (dir, now = Date.now()) => {
   const f = failed.get(dir);
@@ -507,9 +509,10 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
     jobs.delete(dir);
   }
 
-  // (failed here twice in a row: not again for a while — see `failed`)
-  // (404, as for anything this file cannot be served as: the player does not ask again)
-  if (failedHere(dir)) return Promise.reject(Object.assign(new Error("This part of the file could not be prepared — it failed twice"), { status: 404 }));
+  // (failed here: never again for a poll, and after twice not for a seek
+  // either, for a while — see `failed`; a 404, as for anything this file
+  // cannot be served as: the player does not ask again)
+  if (failedHere(dir, { seek })) return Promise.reject(Object.assign(new Error("This part of the file could not be prepared — it failed here"), { status: 404 }));
 
   // Hard cap on simultaneous h264 transcodes — refuse rather than spawning
   // another libx264 and freezing the machine. The jobs THIS request is taking
