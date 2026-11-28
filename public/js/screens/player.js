@@ -27,7 +27,7 @@ import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio, langOf } from "
 import { savedDelay, saveDelay } from "../subdelay.js";
 import { createAirplay } from "../airplay.js";
 import { registerPlayerTarget, takeRemoteStart, playerChanged, onDevices, getDevices, chooseDevice, playOn, ICONS as REMOTE_ICONS } from "../remote.js"; // [phone-remote]
-import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM, decodeStalled, lineTimeOnly, deadSource, nativeStartUrl, fileNeedsBuffer, FILM_PEAK_RATIO, rungNeeds } from "../playstart.js";
+import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM, decodeStalled, lineTimeOnly, deadSource, nativeStartUrl, fileNeedsBuffer, FILM_PEAK_RATIO, rungNeeds, seekHold } from "../playstart.js";
 // [player-options] night mode, dialogue boost, the look of subtitles (2026-10-19)
 import { readStyle, nextChoice, styleLabel, cueCss, cueShadow, cueBackdrop, CUE_VW, CUE_MIN_PX, RAISED_PCT, SUB_STYLE_KEYS, SUB_STYLE_NAMES, SUB_COLORS } from "../subStyle.js";
 import { audioFxFor, AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES } from "../audiofx.js";
@@ -559,6 +559,29 @@ const patientAbrFor = (Hls) => {
         try { lineTimeOnly(f.stats); } catch {}
         return rule.apply(this, a);
       };
+    }
+    // a seek does not step down onto an encode the line does not need (playstart.js seekHold)
+    get nextAutoLevel() {
+      const pick = super.nextAutoLevel;
+      try {
+        const h = this.hls;
+        const m = h && h.media;
+        if (!m || !m.seeking || !h.levels) return pick;
+        const cur = h.loadLevel;
+        return seekHold({
+          seeking: true,
+          cur,
+          pick,
+          est: h.bandwidthEstimate || 0,
+          cap: h.autoLevelCapping,
+          levels: h.levels.map((l) => ({ avg: l.averageBitrate || 0, peak: l.bitrate || 0, encoded: /[?&]v=h264-/.test(String(l.uri || l.url || "")) })),
+        });
+      } catch {
+        return pick;
+      }
+    }
+    set nextAutoLevel(v) {
+      super.nextAutoLevel = v;
     }
   };
   return PatientAbr;

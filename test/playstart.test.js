@@ -278,3 +278,39 @@ test("rungNeeds: the busiest segment x1.4 until the buffer is deep, then the ave
   assert.equal(rungNeeds({ peak: 2_000_000, avg: 0, ahead: 100, est: 50_000_000 }), 2_800_000, "no average known: peak x1.4");
   assert.equal(rungNeeds({ ...copy, ahead: 100, est: 0 }), 5_972_000 * 1.4, "no estimate yet: peak x1.4");
 });
+
+test("seekHold: a seek keeps its rung instead of stepping onto an encode the line does not need", async () => {
+  const { seekHold, SEEK_HOLD_HEADROOM } = await load();
+  assert.equal(SEEK_HOLD_HEADROOM, 1.25);
+  // hls.js order: 480p, 720p (encodes), the copy on top
+  const levels = [
+    { avg: 1_271_360, peak: 1_658_027, encoded: true },
+    { avg: 2_700_480, peak: 3_551_147, encoded: true },
+    { avg: 1_900_000, peak: 4_500_000, encoded: false },
+  ];
+  // 8 Mbit/s measured, the copy averages 1.9: hls.js's empty-buffer rule picked 720p — held on the copy
+  assert.equal(seekHold({ seeking: true, cur: 2, pick: 1, est: 7_400_000, levels }), 2);
+  assert.equal(seekHold({ seeking: true, cur: 2, pick: 0, est: 7_400_000, levels }), 2);
+  // a line that does not carry the copy's average with room: hls.js's pick stands
+  assert.equal(seekHold({ seeking: true, cur: 2, pick: 1, est: 2_000_000, levels }), 1);
+  assert.equal(seekHold({ seeking: true, cur: 2, pick: 1, est: 1_900_000 * 1.25 - 1, levels }), 1);
+  assert.equal(seekHold({ seeking: true, cur: 2, pick: 1, est: 1_900_000 * 1.25, levels }), 2);
+  // not seeking, a step UP, no change, nothing known: as hls.js said
+  assert.equal(seekHold({ seeking: false, cur: 2, pick: 1, est: 9e6, levels }), 1);
+  assert.equal(seekHold({ seeking: true, cur: 1, pick: 2, est: 9e6, levels }), 2);
+  assert.equal(seekHold({ seeking: true, cur: 2, pick: 2, est: 9e6, levels }), 2);
+  assert.equal(seekHold({ seeking: true, cur: -1, pick: 1, est: 9e6, levels }), 1);
+  assert.equal(seekHold(), -1);
+  // the 720p encode held over the 480p one when the line carries 720p's average
+  assert.equal(seekHold({ seeking: true, cur: 1, pick: 0, est: 4_000_000, levels }), 1);
+  assert.equal(seekHold({ seeking: true, cur: 1, pick: 0, est: 3_000_000, levels }), 0);
+  // a rung that is not an encode below (a two-copy ladder): hls.js's choice
+  const copies = [{ avg: 1e6, peak: 2e6, encoded: false }, { avg: 3e6, peak: 6e6, encoded: false }];
+  assert.equal(seekHold({ seeking: true, cur: 1, pick: 0, est: 9e6, levels: copies }), 0);
+  // above the viewer's cap (data saver): hls.js's choice
+  assert.equal(seekHold({ seeking: true, cur: 2, pick: 1, est: 9e6, cap: 1, levels }), 1);
+  // no average written: the peak, with the same headroom
+  const noAvg = [{ peak: 1e6, encoded: true }, { peak: 4_000_000 }];
+  assert.equal(seekHold({ seeking: true, cur: 1, pick: 0, est: 5_000_000, levels: noAvg }), 1);
+  assert.equal(seekHold({ seeking: true, cur: 1, pick: 0, est: 4_900_000, levels: noAvg }), 0);
+});

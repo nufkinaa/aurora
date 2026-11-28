@@ -130,6 +130,34 @@ export const rungNeeds = ({ peak = 0, avg = 0, ahead = 0, est = 0, segSec = 10 }
   return ahead >= Math.max(RUNG_AVG_BUFFER_SEC, 3 * fetchSec) ? avg * 1.25 : peak * 1.4;
 };
 
+// PURE. A SEEK ON A LADDER WHOSE LOWER RUNGS ARE ENCODES (2026-11-28, stream
+// round 2). After a seek the buffer is empty, and hls.js's rule for an empty
+// buffer asks that a WHOLE next segment come within 4 s (maxStarvationDelay).
+// jit segments are 6–16 s long, so on a line that carries the film several
+// times over it still picks a lighter rung — and here a lighter rung is a
+// live encode: an encoder started (two ffmpegs: the fast first segment and the
+// hand-over), a segment the server has to make before the first byte, a
+// smaller picture and a quality chip, all because the viewer skipped ahead.
+// Measured on the rig (8 Mbit/s, a 1.9 Mbit/s film): a far seek took 5.2 s to
+// show its frame and started 4 encoders. The segment is also played as it
+// arrives (progressive), so what a seek waits on is the start of it, not the
+// whole. So: during a seek, a step down onto an ENCODED rung is not taken
+// while the line, as measured, carries the rung being left on AVERAGE with
+// SEEK_HOLD_HEADROOM to spare. A line that does not carry it falls through to
+// hls.js as before (a real thin line still steps down).
+//   levels: [{ avg, peak, encoded }] in hls.js's order; cur: the level being
+//   loaded; pick: hls.js's choice; est: bits/s; cap: autoLevelCapping (-1 none)
+export const SEEK_HOLD_HEADROOM = 1.25;
+export const seekHold = ({ seeking = false, cur = -1, pick = -1, levels = [], est = 0, cap = -1 } = {}) => {
+  if (!seeking || !(cur >= 0) || !(pick >= 0) || pick >= cur) return pick;
+  if (cap >= 0 && cur > cap) return pick;
+  const lc = levels[cur];
+  const lp = levels[pick];
+  if (!lc || !lp || !lp.encoded) return pick;
+  const need = (lc.avg > 0 ? lc.avg : lc.peak) * SEEK_HOLD_HEADROOM;
+  return need > 0 && est >= need ? cur : pick;
+};
+
 // PURE. The segment of a media playlist that holds second `sec`: its URI as
 // written, or null. (hls.js starts on that one for startPosition = sec.)
 export const segmentAt = (playlistText, sec) => {
