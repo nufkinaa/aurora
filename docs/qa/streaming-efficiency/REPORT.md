@@ -236,6 +236,21 @@ TV follow-up (exact repro, private server only): `node tools/stream-net-rig/tv-i
 out first: the app's stall nudge itself re-seeking a progressive MKV/MP4 source (each nudge is followed by the next
 stall ~7 s later), and the proxy (a Node relay in every TV play here, even "pass-through").
 
+**Correction (2026-11-28, branch `fix-tv-stalls`): the TV's "LAN" here was a ~2 Mbit/s line.** This PC reaches the
+Mi TV through its second Wi-Fi card (Intel AC-9462 on the TV's network, 35 % signal, 15–22 Mbit/s link rate): raw
+TCP from the PC to the TV carries **~2 Mbit/s** (20 MB in 83 s; `adb push` 0.25 MB/s), below the clips' own rates
+(HEVC 3.2 Mbit/s on average and ~4.4 at the 546 s resume spot, MP4 3.0, the H.264 MKV 1.9). During a resume the
+server sent the TV's one open request exactly 1 MB every 4 s (`req-log.js`), ExoPlayer's video renderer ran dry
+(media3 EventLogger: `rendererReady video false` → `BUFFERING`, no load error), and the nudge was a seek inside
+what was already buffered (no new request) that only let it start again on the 2.5 s start threshold instead of the
+5 s rebuffer one. The same stalls with no Node relay at all (`tv-instance.js --direct`). With the film's bytes
+served from the TV's own storage (`tv-local.sh`, a stand-in for a real LAN) the same busy HEVC stretch resumed
+mid-way, the MP4 and the H.264 MKV from their start, and the HEVC from its start played their first minute with no
+stall, 3 plays each. The original film's stop "at 0 s" was not the decode watchdog: that file has 2 MB of zeros 5 s
+in (bytes 2,137,121–4,194,304, a missing piece), ExoPlayer's Matroska reader throws "No valid varint length mask
+found" there, and after two reloads the error ladder started a full encode; since `fix-tv-stalls` it goes to the
+server's copy (no encode) — at once when the reload fails again at the same spot.
+
 ### Tests
 
 - Root suite (`npm test`, rebased on master 1.15.46 + `061f87e5`), on the final code: **3033 / 3033**. New root tests:
