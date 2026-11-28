@@ -1748,10 +1748,12 @@ export const renderPlayer = async (root, { id }) => {
             // waited. It is left the way it came, once. (An encoded rung's 404
             // is the ladder's business: that rung leaves the ladder, below.)
             if (!exited && gen === hlsGen && data.response && data.response.code === 404 && jitFallback && jitFallback.url === url) {
-              const li = data.frag ? data.frag.level : data.context && data.context.level != null ? data.context.level : data.level;
-              const lvl = hls && hls.levels && li != null ? hls.levels[li] : null;
-              const lvlUrl = String((lvl && (lvl.uri || (lvl.url && lvl.url[0]))) || "");
-              if (lvl ? !/[?&]v=h264-/.test(lvlUrl) : !ladderOn) {
+              // (by the failed request's own address: a rung the ladder has just
+              // dropped shifts every level index after it — measured, a 404 on a
+              // declined 720p rung read as the copy's own, and the film left its
+              // stream for the file)
+              const failed = String(data.url || (data.context && data.context.url) || (data.frag && (data.frag.url || data.frag.relurl)) || "");
+              if (failed ? !/[?&]v=h264-/.test(failed) : !ladderOn) {
                 const f = jitFallback;
                 jitFallback = null;
                 const at = effTime() > 0.5 ? effTime() : startAt || 0;
