@@ -625,8 +625,8 @@ const patientAbrFor = (Hls) => {
     }
     // a seek — or a buffer an outage or a seek emptied — does not step down
     // onto an encode the line does not need (playstart.js seekHold: the line,
-    // as measured, carries the rung by its average and brings a segment of it,
-    // at its busiest, within 6 s; a line that has really dropped has an
+    // as measured, carries the rung by its average and brings its segment in
+    // 4 s, on a one-codec ladder; a line that has really dropped has an
     // estimate that says so)
     get nextAutoLevel() {
       const pick = super.nextAutoLevel;
@@ -642,7 +642,7 @@ const patientAbrFor = (Hls) => {
           est: h.bandwidthEstimate || 0,
           cap: h.autoLevelCapping,
           fragSec: fragSecAt(h, cur, m.currentTime),
-          levels: h.levels.map((l) => ({ avg: l.averageBitrate || 0, peak: l.bitrate || 0, encoded: /[?&]v=h264-/.test(String(l.uri || l.url || "")) })),
+          levels: h.levels.map((l) => ({ avg: l.averageBitrate || 0, peak: l.bitrate || 0, encoded: /[?&]v=h264-/.test(String(l.uri || l.url || "")), codec: String(l.videoCodec || "").slice(0, 4) })),
         });
       } catch {
         return pick;

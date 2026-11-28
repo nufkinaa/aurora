@@ -147,27 +147,28 @@ export const rungNeeds = ({ peak = 0, avg = 0, ahead = 0, est = 0, segSec = 10 }
 // hls.js as before (a real thin line still steps down).
 //   levels: [{ avg, peak, encoded }] in hls.js's order; cur: the level being
 //   loaded; pick: hls.js's choice; est: bits/s; cap: autoLevelCapping (-1 none)
-// …and only while a segment of that rung, at its BUSIEST rate, comes within
-// SEEK_HOLD_FETCH_S (hls.js asks 4 s; a seek's segment is played as it comes,
-// so 6). The 1.9 Mbit/s film's copy (4.5 Mbit/s peak, 7.7-s segments) on an
-// 8 Mbit/s line: 4.7 s — held, no encoder. A 3.2 Mbit/s HEVC copy (6 Mbit/s
-// peak, 9-s segments) on that line: 7 s — holding it made its far seek SLOWER
-// than the encode (rig: 3.9 s → 10–14 s; a seek there also fetches the whole
-// previous segment, docs/qa/streaming-round-2/web.md), so that one stays
-// hls.js's choice.
-//   fragSec: the segment length (s)
+// …and only while a segment of that rung, at its average, comes in hls.js's
+// own 4 s (maxStarvationDelay; hls.js judges by the BUSIEST segment, which
+// is what sent a 1.9 Mbit/s film's seek onto an encode on an 8 Mbit/s line),
+// and only on a ladder of ONE codec. An HEVC copy over H.264 rungs is left to
+// the rules it has today: held there (by its average or by its peak), its far
+// seek on 8 Mbit/s took 10–14 s on the copy's busy segments where the encode
+// took 3.9 (a far seek there also fetches the whole previous segment —
+// docs/qa/streaming-round-2/web.md).
+//   levels: [{ avg, peak, encoded, codec }]; fragSec: the segment length (s)
 export const SEEK_HOLD_HEADROOM = 1.25;
-export const SEEK_HOLD_FETCH_S = 6;
+export const SEEK_HOLD_FETCH_S = 4;
 export const seekHold = ({ seeking = false, cur = -1, pick = -1, levels = [], est = 0, cap = -1, fragSec = 0 } = {}) => {
   if (!seeking || !(cur >= 0) || !(pick >= 0) || pick >= cur) return pick;
   if (cap >= 0 && cur > cap) return pick;
   const lc = levels[cur];
   const lp = levels[pick];
   if (!lc || !lp || !lp.encoded) return pick;
+  if (lc.codec && lp.codec && lc.codec !== lp.codec) return pick;
   const rate = lc.avg > 0 ? lc.avg : lc.peak;
   const need = rate * SEEK_HOLD_HEADROOM;
   if (!(need > 0) || est < need) return pick;
-  if (fragSec > 0 && ((lc.peak || rate) * fragSec) / est > SEEK_HOLD_FETCH_S) return pick;
+  if (fragSec > 0 && (rate * fragSec) / est > SEEK_HOLD_FETCH_S) return pick;
   return cur;
 };
 
