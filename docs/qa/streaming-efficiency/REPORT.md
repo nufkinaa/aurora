@@ -238,8 +238,7 @@ stall ~7 s later), and the proxy (a Node relay in every TV play here, even "pass
 
 ### Tests
 
-- Root suite (`npm test`, after the rebase on master 1.15.46 + `061f87e5`): **3031 / 3031**; after the last server
-  change the 36 files that reach `remux.js` / `routes/stream.js`: **322 / 322**. New root tests:
+- Root suite (`npm test`, rebased on master 1.15.46 + `061f87e5`), on the final code: **3033 / 3033**. New root tests:
   `test/playstart.test.js` (fileNeedsBuffer, rungNeeds), `test/ladder.test.js` (the copy's rate, a real ffprobe of a
   two-track file), `test/tvtuning*.test.js` (2500), `test/remux-failed-twice.test.js` (real ffmpeg: a poll after a
   failure starts nothing, a seek tries once more, then 404).
