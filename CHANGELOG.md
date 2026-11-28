@@ -3,6 +3,11 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.48 — 2026-11-28 (TV 5.9.10)
+
+- **TV: a film with a damaged spot keeps playing.** When a file played as itself fails at the same spot twice (damaged bytes in the file, such as a missing download piece), the TV now moves to the server's copy of the picture (no encode) right away. A file that keeps failing also tries the copy before the full encode. On the Mi TV with the damaged 2.5-hour film: 34 s stalled and an encoder start before, 19 s and none after.
+- The TV's earlier "LAN" stalls (resume, H.264) were the test PC's ~2 Mbit/s Wi-Fi link to the TV, not the app: from a fast source every case played its first minute with no stall, 3 of 3. docs/qa/streaming-efficiency/REPORT.md has the correction.
+
 ## 1.15.47 — 2026-11-28
 
 - **Fewer stops on a slow or busy line (website).** A film the browser can play as its file now opens as the same picture sent as a stream when the line isn't known to be fast enough for the film's busiest scenes. The browser then keeps about 100 s ahead instead of a few seconds. Nothing extra is encoded: the picture is copied as it is, and the sound stays 192k.

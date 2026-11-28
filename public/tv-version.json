@@ -1,4 +1,4 @@
 {
-  "versionName": "5.9.9",
-  "notes": "Pick together, polished: a clean second round on the TV, the seats line fits, and the start says the TV votes with its remote. Please update."
+  "versionName": "5.9.10",
+  "notes": "Films with a damaged spot in the file now keep playing: the TV moves to the server's copy of the picture instead of stopping or waiting for a new encode. Please update."
 }
