@@ -65,4 +65,30 @@ ui.test("a click on the timeline lands at once", async ({ page, srv, signIn, fre
   await player.advancing(page);
 });
 
+ui.test("a segment that gets no answer is asked for again within seconds, on the same rung", async ({ page, srv, signIn, freshProfile, lib }) => {
+  await signIn(await freshProfile());
+  // the first ask for the film's third segment goes unanswered for good (a
+  // connection that died under it); every later ask is let through
+  const asks = [];
+  const mk = player.marks(page);
+  await page.route(/\/jit\/seg00002\.ts/, (route) => {
+    asks.push({ t: Date.now(), url: route.request().url() });
+    if (asks.length === 1) return; // never answered
+    return route.continue();
+  });
+  await player.open(page, srv, lib.film2.id, { min: 1 });
+  const until = Date.now() + 30000;
+  while (asks.length < 2 && Date.now() < until) await page.waitForTimeout(250);
+  assert.ok(asks.length >= 2, `the unanswered segment was never asked for again (hls.js's own timeout is 60 s): ${asks.length} ask(s), ${asks.map((a) => a.url.replace(/^.*\/jit\//, "")).join(" ")}`);
+  const gap = asks[1].t - asks[0].t;
+  assert.ok(gap >= 7000 && gap < 13000, `asked again ${gap} ms after the first ask`);
+  const rung = (u) => (/[?&]v=([^&]+)/.exec(u) || [])[1] || "copy";
+  assert.equal(rung(asks[1].url), rung(asks[0].url), "the same rendition, not a lighter one");
+  // …before the player had to step down for want of it (a lighter rung is an encode)
+  assert.equal(mk.named("step-down").length, 0, `stepped down: ${JSON.stringify(mk.named("step-down"))}`);
+  // and the film plays through that stretch
+  await page.waitForFunction(() => document.querySelector(".player video").currentTime > 25, null, { timeout: 60000 });
+  await player.advancing(page);
+});
+
 ui.run();

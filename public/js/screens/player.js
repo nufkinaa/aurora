@@ -514,6 +514,25 @@ const preLoaderFor = (Hls) => {
 // A fragment loader that tells hls.js about the line, not the server (see
 // lineTimeOnly): its load's start moves up when its first byte comes, before
 // hls.js's own rules look at it. One class per loader class.
+//
+// A LOAD THAT HAS GONE SILENT (2026-11-28, stream round 2). A segment whose
+// connection died under it — Wi-Fi gone and back, a router that restarted and
+// forgot the connection, a phone that changed networks — gets no reset and
+// no more bytes: hls.js waited out its whole 60 s timeout (set that long for
+// encodes that take a while to make) and then, having sampled a 60-second
+// "first byte", believed the line had become that slow and stepped down onto
+// a lighter rung: an encode, for a line that was fine again. Measured on the
+// rig: a 10-s network change on an 8 Mbit/s line, 60 s without a request,
+// then the 480p encode. So the loader watches its own progress: bytes that
+// stop for 6 s, or none at all after 8 s
+// on the film's own (copied) picture — which the server makes in well under
+// a second — and it gives the request up as a timeout, at once, on a stream
+// that has the time to ask again (hls.js asks again on a new request: the
+// same segment, the same rung). The dead wait is not the line's: the load's
+// numbers are cleared first, so hls.js learns nothing from it (its estimate
+// and its first-byte time stay what the line really did).
+const LOAD_SILENT_BODY_MS = 6000;
+const LOAD_SILENT_NONE_MS = 8000;
 const lineLoaders = new WeakMap();
 const lineFirstLoader = (Base) => {
   if (lineLoaders.has(Base)) return lineLoaders.get(Base);
@@ -521,8 +540,34 @@ const lineFirstLoader = (Base) => {
     load(context, config, callbacks) {
       const shift = () => { try { lineTimeOnly(this.stats); } catch {} };
       const wrapped = { ...callbacks };
-      if (callbacks && callbacks.onProgress) wrapped.onProgress = (...a) => { shift(); return callbacks.onProgress(...a); };
-      if (callbacks && callbacks.onSuccess) wrapped.onSuccess = (...a) => { shift(); return callbacks.onSuccess(...a); };
+      let over = false; // given up as silent: whatever the base loader says later is not heard
+      const quiet = (f) => (f ? (...a) => { if (!over) return f(...a); } : f);
+      for (const k of ["onError", "onTimeout", "onAbort"]) if (callbacks && callbacks[k]) wrapped[k] = quiet((...a) => { stopWatch(); return callbacks[k](...a); });
+      if (callbacks && callbacks.onProgress) wrapped.onProgress = quiet((...a) => { shift(); return callbacks.onProgress(...a); });
+      if (callbacks && callbacks.onSuccess) wrapped.onSuccess = quiet((...a) => { stopWatch(); shift(); return callbacks.onSuccess(...a); });
+      // the watch: only the film's own segments (an encoded rung's first byte is its encoder's business)
+      let watch = null;
+      const stopWatch = () => { if (watch) { clearInterval(watch); watch = null; } };
+      const url = String((context && context.url) || "");
+      const copy = /\/jit\//.test(url) && !/[?&]v=h264-/.test(url);
+      if (copy && callbacks && callbacks.onTimeout) {
+        let seen = 0;
+        let since = performance.now();
+        watch = setInterval(() => {
+          const st = this.stats;
+          if (over || !st || st.aborted || (st.loading && st.loading.end)) return stopWatch();
+          const now = performance.now();
+          const got = st.loaded || 0;
+          if (got !== seen) { seen = got; since = now; return; }
+          if (now - since < (got > 0 ? LOAD_SILENT_BODY_MS : LOAD_SILENT_NONE_MS)) return;
+          over = true;
+          stopWatch();
+          try { this.abortInternal(); } catch {}
+          // nothing learnt from a dead wait: no bytes, a first byte of a moment
+          try { st.loaded = 0; st.loading.first = 0; st.loading.start = now - 50; } catch {}
+          try { callbacks.onTimeout(st, context, null); } catch {}
+        }, 1000);
+      }
       return super.load(context, config, wrapped);
     }
   };
@@ -1768,9 +1813,19 @@ export const renderPlayer = async (root, { id }) => {
             levelLoadingTimeOut: 60000,
             levelLoadingMaxRetry: 8,
             levelLoadingRetryDelay: 2000,
-            fragLoadingTimeOut: 60000,
-            fragLoadingMaxRetry: 8,
-            fragLoadingRetryDelay: 2000,
+            // (fragLoadingTimeOut 60 s / MaxRetry 8 / RetryDelay 2 s, as a policy:
+            // the legacy keys set the same 2-s wait before asking again after a
+            // TIMEOUT too, where hls.js's own default asks again at once — and
+            // a load the line let go silent (lineFirstLoader) is one to ask
+            // again at once, on a new request)
+            fragLoadPolicy: {
+              default: {
+                maxTimeToFirstByteMs: 60000,
+                maxLoadTimeMs: 60000,
+                timeoutRetry: { maxNumRetry: 8, retryDelayMs: 0, maxRetryDelayMs: 0 },
+                errorRetry: { maxNumRetry: 8, retryDelayMs: 2000, maxRetryDelayMs: 8000 },
+              },
+            },
           });
           // The line, not the server: a segment's first-byte wait beyond a
           // round trip was the server making it (an encode, a swarm), and
