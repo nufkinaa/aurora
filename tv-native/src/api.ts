@@ -1816,6 +1816,18 @@ export const api = {
   forgetState: () => {
     lastState = null;
   },
+  // A position this app has just saved, written into the state it keeps (in
+  // place of forgetting it all): the one row it changed is the one row that
+  // was stale. The player starting the NEXT episode reads the same state
+  // without another round trip for it (streaming round 2), and a title opened
+  // again a moment later still resumes where it was just left. The row's other
+  // fields stay as the server said (resumePoint's end rule needs only these two).
+  noteProgress: (profileId: string, itemId: string, position: number, duration: number) => {
+    if (!lastState || lastState.profileId !== profileId) return;
+    const st = lastState.st as ProfileState;
+    const was = (st.progress && st.progress[itemId]) || {};
+    lastState = {...lastState, st: {...st, progress: {...(st.progress || {}), [itemId]: {...was, position, duration}}}};
+  },
   // The player's start-up tuning, as this server's admin set it (the
   // server's lib/tvtuning.js). {} — or no answer at all, from a server that
   // predates it — keeps the app's own values. See playback/tuning.ts.

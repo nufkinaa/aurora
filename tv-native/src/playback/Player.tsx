@@ -3474,7 +3474,8 @@ export default function Player({
     const dur = durRef.current;
     if (!pos || !dur) return;
     if (!movedSinceLanding.current) return;
-    api.forgetState(); // what a screen read before this write is stale now
+    // what a screen read before this write is stale in this one row: written into it
+    api.noteProgress(profileId, id, pos, dur);
     api.saveProgress(profileId, id, pos, dur, streamMeta()).catch(() => {});
   }, [id, profileId, streamMeta]);
 
@@ -3975,8 +3976,8 @@ export default function Player({
 
   // THE NEXT EPISODE, WARMED while its card is up (streaming round 2): the
   // next player opens by asking for its item (memoised by api.ts for 45 s)
-  // and then reads the file's first bytes — asked now, the item is in the
-  // memo and the server has the file's head off its disk (a drive that slept
+  // and the profile's state, then reads the file's first bytes — asked now,
+  // both are here when it mounts and the server has the file's head off its disk (a drive that slept
   // through a long episode wakes now, not when the viewer is waiting). One
   // small request each, once per episode; nothing else changes.
   const warmedNext = useRef<string | null>(null);
@@ -3984,6 +3985,10 @@ export default function Player({
     (n: NextEp) => {
       if (n.kind !== 'library' || warmedNext.current === n.id) return;
       warmedNext.current = n.id;
+      console.log(`[player] warming the next episode ${n.id}`);
+      // the profile's state too: the next player starts from it if it is under
+      // half a minute old (the countdown is 15 s), instead of asking again
+      api.state(profileId).catch(() => {});
       api
         .item(n.id, profileId)
         .then(it => {
