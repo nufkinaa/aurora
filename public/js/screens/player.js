@@ -585,6 +585,10 @@ const lineFirstLoader = (Base) => {
 // (how long after the viewer's seek its refill counts as one — see refillHold)
 const SEEK_REFILL_MS = 45000;
 const SEEK_SNAP_MAX_S = 8; // (the seek-snap prototype, off)
+// a file played as itself whose fetch went silent (see fileKick)
+const FILE_SILENT_MS = 4000;
+const FILE_KICK_EVERY_MS = 15000;
+const FILE_KICK_HOLD_MS = 30000;
 let PatientAbr = null;
 const patientAbrFor = (Hls) => {
   if (PatientAbr) return PatientAbr;
@@ -2367,7 +2371,10 @@ export const renderPlayer = async (root, { id }) => {
   const fileDirectOk = () => !!item.videoUrl && audioIdx === 0 && !videoNeedsTranscode() && !audioNeedsRemux();
   // …back to it, at `at` (the viewer's Original; a jit stream the server
   // refused after it started — jitFallback). The picture holds meanwhile.
-  const backToFile = (at) => {
+  // `fresh`: under a new address (a kick: the browser keeps one loader per
+  // address, and the old one may still be waiting on a dead connection)
+  let fileKicks = 0;
+  const backToFile = (at, { fresh = false } = {}) => {
     ++hlsGen;
     clearTimeout(hlsRecoverTimer);
     if (hls) {
@@ -2393,7 +2400,8 @@ export const renderPlayer = async (root, { id }) => {
       try { video.currentTime = at; } catch {}
       tryPlay();
     }, { once: true });
-    video.src = airSrc(item.videoUrl);
+    const u = item.videoUrl;
+    video.src = airSrc(fresh ? `${u}${u.includes("?") ? "&" : "?"}k=${++fileKicks}` : u);
   };
   const applyQuality = (h, { auto = false } = {}) => {
     trail("play", { e: "quality", v: h === "auto" ? "auto" : h ? `${h}p` : "original", auto: auto || undefined }); // [report trail]
@@ -6704,6 +6712,45 @@ export const renderPlayer = async (root, { id }) => {
   let lineEst = null;
   let upsLeft = 2;
   let steppedUpAt = 0;
+  // A FILE WHOSE FETCH WENT SILENT (2026-11-28, stream round 2). Played as
+  // the file itself, the browser fetches it on one connection; when that
+  // connection dies under it (Wi-Fi gone and back, a router that forgot it)
+  // no byte comes and nothing says so — the picture froze, and the stall
+  // rule read the silence as a thin line and stepped down onto an ENCODE
+  // (rig: a 10-s network change on 8 Mbit/s, 15 s frozen, then 720p and
+  // 480p encodes, 5 encoder starts, for a line that was fine). The element's
+  // own "progress" says when bytes last came. Four seconds of none while it
+  // is loading and under 4 s of picture is left (Chrome keeps 2–6 s of a
+  // file; when it holds enough it stops asking and is no longer "loading"):
+  // the file is opened again at this very
+  // spot (backToFile — the frame held, a new request on a new connection),
+  // at most every 15 s; and meanwhile no step-down.
+  let fileProgressAt = Date.now();
+  video.addEventListener("progress", () => { fileProgressAt = Date.now(); });
+  const fileAhead = () => {
+    try {
+      const b = video.buffered;
+      const t = video.currentTime;
+      for (let i = 0; i < b.length; i++) if (b.start(i) <= t + 0.25 && b.end(i) > t) return b.end(i) - t;
+    } catch {}
+    return 0;
+  };
+  const filePlaying = () => !hls && !usingTranscode && !jitMode && !!video.currentSrc && !item._local && !item._offline && !isTorrent && !onAir();
+  const fileSilent = (ms = FILE_SILENT_MS, ahead = 4) => filePlaying() && video.networkState === 2 && Date.now() - fileProgressAt >= ms && fileAhead() < ahead;
+  let fileKickAt = 0;
+  let fileKickN = 0;
+  const fileKick = setInterval(() => {
+    if (exited || !filePlaying() || video.paused || probing || seekWait || steppingDown || holdEl) return;
+    const now = Date.now();
+    if (!fileSilent() || now - fileKickAt < FILE_KICK_EVERY_MS || !fileDirectOk()) return;
+    fileKickAt = now;
+    fileProgressAt = now; // (a fresh start for the next look)
+    const at = video.currentTime || 0;
+    // the same address first; a second kick under a new one (the browser keeps
+    // one loader per address, and that one may be the dead one)
+    mark("file-kick", { at: Math.round(at), n: fileKickN + 1 });
+    backToFile(at, { fresh: fileKickN++ > 0 });
+  }, 1000);
   const stepDown = async (reason = "stalls") => {
     // on a ladder hls.js does the stepping, both ways
     if (ladderAsked) return;
@@ -6713,6 +6760,11 @@ export const renderPlayer = async (root, { id }) => {
     // which used to read as "the server can't spare an encode" and turned
     // automatic quality off for the rest of the film)
     if (onAir() || video.webkitCurrentPlaybackTargetIsWireless) return;
+    // a file whose fetch has gone SILENT is a dead connection, not a thin
+    // line: the file kick below asks again; an encode would not come sooner
+    // (…nor in the half minute after the file was opened again for that: the
+    // line is measured on the same dead sockets until they are let go)
+    if (fileSilent(3000) || (filePlaying() && Date.now() - fileKickAt < FILE_KICK_HOLD_MS)) { mark("step-down-held", { reason, silentMs: Date.now() - fileProgressAt }); return; }
     steppingDown = true;
     try {
       let kbps;
@@ -8357,6 +8409,7 @@ export const renderPlayer = async (root, { id }) => {
     document.removeEventListener("torrent-subs", onTorrentSubs);
     window.removeEventListener("keydown", onAnyInput, true);
     window.removeEventListener("online", onOnline);
+    clearInterval(fileKick);
     document.removeEventListener("nav-move", onAnyInput);
     document.removeEventListener("media-key", onAnyInput);
     if (dockRO) dockRO.disconnect();
