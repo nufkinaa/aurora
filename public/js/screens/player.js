@@ -2007,6 +2007,13 @@ export const renderPlayer = async (root, { id }) => {
   // (untested on a real phone; a file whose own codec is H.264 only, so
   // every rendition is the same codec family).
   let ladderAsked = false;
+  // The jit stream a copy-first start opened (copyBeatsFile), while it is the
+  // one playing: the line watcher treats it as the FILE it stands for — no
+  // step-down on a short buffer alone, only the stall rule (or a line known to
+  // be thin), as for the file. Its deep buffer then means fewer step-downs,
+  // never more: measured, the "short buffer" reading stepped a 5 Mbit/s
+  // busy-scene start onto the encoded rungs where the file had played on.
+  let copyFirstUrl = null;
   let ladderOn = false;
   let ladderPick = "auto";
   let ladderNative = false;
@@ -2792,7 +2799,8 @@ export const renderPlayer = async (root, { id }) => {
     // index, busy): no waiting for it.
     mark("decision", { why: `line ${lineKbps() || "unknown"} kbit/s vs the film's busy stretches (~${Math.round((fileKbps || 0) * FILM_PEAK_RATIO)}) → its own picture as a stream` });
     const jitOk = await tryJitSwitch(resumeAt, { plain: true, noWait: true });
-    if (!jitOk) startDirect();
+    if (jitOk) copyFirstUrl = stall.url;
+    else startDirect();
   } else {
     startDirect();
   }
@@ -6685,7 +6693,8 @@ export const renderPlayer = async (root, { id }) => {
       // the line as last measured on this device (lineKbps) says it is thin
       // for this file, when the step-down may still come before the freeze.
       const thinLine = () => { const k = lineKbps(); return k > 0 && fileKbps > 0 && k < fileKbps * 1.5; };
-      const starving = capH !== 480 && !atEnd && ahead < 8 && fill < 0.9 && (hls ? true : !nativeHlsOnly && thinLine());
+      const asFile = !hls || (copyFirstUrl != null && stall.url === copyFirstUrl);
+      const starving = capH !== 480 && !atEnd && ahead < 8 && fill < 0.9 && (!asFile ? true : !nativeHlsOnly && thinLine());
       if (starving) {
         thinSince = thinSince || now;
         // two seconds of it — or at once when there is almost nothing left
