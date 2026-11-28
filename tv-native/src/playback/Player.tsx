@@ -3973,11 +3973,34 @@ export default function Player({
   // player). Any press on the remote ends the run (onTV).
   const autoRun = useRef(Math.max(0, Math.floor(autoRunParam || 0)));
 
+  // THE NEXT EPISODE, WARMED while its card is up (streaming round 2): the
+  // next player opens by asking for its item (memoised by api.ts for 45 s)
+  // and then reads the file's first bytes — asked now, the item is in the
+  // memo and the server has the file's head off its disk (a drive that slept
+  // through a long episode wakes now, not when the viewer is waiting). One
+  // small request each, once per episode; nothing else changes.
+  const warmedNext = useRef<string | null>(null);
+  const warmNext = useCallback(
+    (n: NextEp) => {
+      if (n.kind !== 'library' || warmedNext.current === n.id) return;
+      warmedNext.current = n.id;
+      api
+        .item(n.id, profileId)
+        .then(it => {
+          const u = it && it.videoUrl ? assetUrl(it.videoUrl) : null;
+          if (!u || exited.current) return;
+          return fetch(u, {headers: {Range: 'bytes=0-262143', ...mediaHeaders()}}).then(() => undefined);
+        })
+        .catch(() => {});
+    },
+    [profileId],
+  );
   const showUpNext = useCallback(() => {
     if (upNextShown.current) return;
     const next = nextEpRef.current;
     if (!next) return; // not known yet, or nothing is next: later ticks ask again
     upNextShown.current = true;
+    warmNext(next);
     const inParty = !!party.current;
     const plan = planUpNext({
       next,
@@ -4009,7 +4032,7 @@ export default function Player({
         });
       }, 1000);
     }
-  }, [upNextBar]);
+  }, [upNextBar, warmNext]);
   showUpNextRef.current = showUpNext;
   // The viewer went back out of the credits: the card goes (and any countdown
   // with it) and is armed again for when the credits return — the site's rule.
