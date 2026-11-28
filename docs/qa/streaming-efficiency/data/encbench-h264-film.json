@@ -1,0 +1,130 @@
+{
+ "src": "Rig Mp4 (2005).mp4",
+ "at": 390,
+ "sec": 60,
+ "threads": 8,
+ "size": "1920x800",
+ "refKbps": 3511,
+ "rows": [
+  {
+   "name": "720p x264 superfast 2200k (today)",
+   "height": 720,
+   "kbps": 2259,
+   "vmaf": 86.65,
+   "vmafP5": 68.01,
+   "speedX": 10.77
+  },
+  {
+   "name": "480p x264 superfast 1000k (today)",
+   "height": 480,
+   "kbps": 1027,
+   "vmaf": 74.4,
+   "vmafP5": 46.77,
+   "speedX": 17.04
+  },
+  {
+   "name": "720p x264 veryfast 2200k",
+   "height": 720,
+   "kbps": 2228,
+   "vmaf": 88.58,
+   "vmafP5": 74.94,
+   "speedX": 7.58
+  },
+  {
+   "name": "720p x264 medium 2200k",
+   "height": 720,
+   "kbps": 2227,
+   "vmaf": 91.33,
+   "vmafP5": 81.93,
+   "speedX": 3.61
+  },
+  {
+   "name": "480p x264 veryfast 1000k",
+   "height": 480,
+   "kbps": 1012,
+   "vmaf": 76.98,
+   "vmafP5": 52.76,
+   "speedX": 14.19
+  },
+  {
+   "name": "480p x264 medium 1000k",
+   "height": 480,
+   "kbps": 1012,
+   "vmaf": 80.39,
+   "vmafP5": 63.4,
+   "speedX": 7.54
+  },
+  {
+   "name": "720p x264 medium 1500k",
+   "height": 720,
+   "kbps": 1518,
+   "vmaf": 84.92,
+   "vmafP5": 67.94,
+   "speedX": 3.75
+  },
+  {
+   "name": "480p x264 medium 700k",
+   "height": 480,
+   "kbps": 709,
+   "vmaf": 71.96,
+   "vmafP5": 47.51,
+   "speedX": 7.79
+  },
+  {
+   "name": "360p x264 veryfast 500k",
+   "height": 360,
+   "kbps": 501,
+   "vmaf": 62.25,
+   "vmafP5": 31.61,
+   "speedX": 17.89
+  },
+  {
+   "name": "360p x264 medium 500k",
+   "height": 360,
+   "kbps": 507,
+   "vmaf": 65.58,
+   "vmafP5": 41.31,
+   "speedX": 12.3
+  },
+  {
+   "name": "540p x264 medium 1100k",
+   "height": 540,
+   "kbps": 1113,
+   "vmaf": 81.37,
+   "vmafP5": 64.54,
+   "speedX": 6.24
+  },
+  {
+   "name": "720p x265 fast 1300k",
+   "height": 720,
+   "kbps": 1231,
+   "vmaf": 88.88,
+   "vmafP5": 77.71,
+   "speedX": 2.17
+  },
+  {
+   "name": "480p x265 fast 600k",
+   "height": 480,
+   "kbps": 572,
+   "vmaf": 76.36,
+   "vmafP5": 56.9,
+   "speedX": 3.48
+  },
+  {
+   "name": "1080p x265 fast 2000k",
+   "height": 800,
+   "kbps": 1874,
+   "vmaf": 93.96,
+   "vmafP5": 87.18,
+   "speedX": 1.84
+  },
+  {
+   "name": "1080p x264 medium 3000k",
+   "height": 800,
+   "kbps": 3008,
+   "vmaf": 95.53,
+   "vmafP5": 89.22,
+   "speedX": 3.25
+  }
+ ]
+}

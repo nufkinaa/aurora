@@ -1,7 +1,9 @@
 # Streaming that does not stop — why Netflix felt better, and what closes the gap
 
 *2026-11-27 · branch `research-stream-efficiency` (from master `31bfa397`, server 1.15.45). Research, a measuring rig,
-and prototypes that are off by default. Nothing here is released; elia decides what gets built.*
+and prototypes. **2026-11-28: elia chose what gets built — everything except more encoding on the server, and the
+sound stays as it is. It is built, on by default, rebased on master 1.15.46: see "Built" right below the summary.**
+Nothing here is released.*
 
 ## In plain words (one screen)
 
@@ -32,13 +34,230 @@ and prototypes that are off by default. Nothing here is released; elia decides w
 | | Change | Measured effect | Who does it |
 |---|---|---|---|
 | 1 | BBR on nufurora.com | lossy lines: every stall gone, full picture back (TV included, no new app) | elia, 5 min, §6 |
-| 2 | Website starts films on the ladder unless the line is known to be fast, plus a 360p rung | the file's stalls → 0 on 1.5 Mbit/s, on lossy lines and in busy scenes; first frame 3.6 → 1.1 s on 1.5 Mbit/s | code, small (prototype on the branch) |
+| 2 | Website starts films on the ladder unless the line is known to be fast, plus a 360p rung (built without the 360p rung: copy-first, see Built) | the file's stalls → 0 on 1.5 Mbit/s, on lossy lines and in busy scenes; first frame 3.6 → 1.1 s on 1.5 Mbit/s | code, small (prototype on the branch) |
 | 3 | Pick ladder rungs by their average once the buffer is deep | 8 Mbit/s: 720p → full 1080p with **38 % fewer bytes**; 4K at 4K 13 % → 60 % of the time | code, small (prototype) |
 | 4 | Fix two freezes found by the rig | two ways the picture froze for good | code, small |
-| 5 | Make the lighter rungs overnight, with a better encoder | +5–6 VMAF for the same bits, or 30–45 % fewer bits; no waiting on an encoder | code, medium |
+| 5 | Make the lighter rungs overnight, with a better encoder (not built: elia, no more encoding) | +5–6 VMAF for the same bits, or 30–45 % fewer bits; no waiting on an encoder | code, medium |
 
 Netflix's global cache network, per-shot encoding and AV1 were looked at and do not fit a one-server household (§7).
 The TV and iPhone parts could not be measured on the devices in this task; exact checks are in §8.
+
+---
+
+## Built (2026-11-28) — what is now on the branch, with its numbers
+
+elia's decision: everything that improves streaming **except more encoding on the server** ("at the end it
+just ends up being slower for the user"), and later the same day: **don't make the sound smaller**. So the
+360p rung, overnight prepared rungs, the TV's automatic step-down to an encode and the iPhone encoded ladder
+were dropped (the 360p rung's code is removed, not just switched off), and the copy's AAC stays 192k (it was
+lowered to 128k for a few hours; reverted, `4d5236fc` — the copy's sound is master's again).
+
+**The rule that held everything: no video encode may run that would not have run before.** The rig now counts
+every video encode the server starts (`tools/stream-net-rig/count-encodes.js`, preloaded into the private
+instance: every ffmpeg launched with a video encoder, boot probes excluded). The "before" is master
+(`31bfa397`, a frozen copy played by the same rig, `--tree`); the "after" is this branch. Video copies and
+remuxes into segments, and the copy's sound re-encode, are not encodes by that rule and are not counted.
+
+| # | Built | Where (files) | On by default | Off switch |
+|---|---|---|---|---|
+| 1a | A jit stream the server refuses **after** it started (its own picture answers 404 — jit declined the file's index) is left once, the way it came: the file itself, the offset stream, or — after a step-down — the capped encode the step-down would have taken had the ladder been refused up front. It used to be retried every 2 s for ever (picture frozen for good). A ladder dropped to one rendition is an ordinary jit stream again, so the stall rule applies. | `public/js/screens/player.js` (`jitFallback`, `backToFile`, the refusal check in the hls ERROR handler, the one-rung rule in the ladder's ERROR hook) | yes | — (a fix) |
+| 1b | An **encoded** rendition never "bridges" a damaged stretch of the index: its encodes are declined for that file instead (the copy still bridges, as before). The 4K film's open-GOP cue at 10.457 s decodes as no keyframe, so its 720p/480p segment 1 was segment 0's bytes again, and a player that moved onto that rung at that seam froze for good. | `src/media/jit.js` (`advance`) | yes | — (a fix) |
+| 1c | An **offset encode that dies** (ffmpeg fails on a damaged stretch) is not started again by the player's next playlist poll — that was a new encoder every few seconds, 36 and 47 of them in one 150-s play on the rig's damaged clip; only a viewer's seek may try once more, and after two failures the place answers 404 for 10 minutes. A step-down off the file onto such an encode goes **back to the file** when the encode is refused, and steps down no more for that film. | `src/media/remux.js` (`failed`, `failedHere`), `src/routes/stream.js` (`sendStreamError`), `public/js/screens/player.js` (`stepDown`: `fileIfRefused`; a refused address is a ladder rung only when it is a `/jit/` one) | yes | — (a fix) |
+| 2 | **Copy-first**: a film this browser plays as the file, on a line not known to carry 2.2× its average (unknown included), opens as its own picture copied into the **single** jit playlist — ~100 s held by hls.js, nothing encoded, no master, no lighter rendition until the existing stall rule would step down anyway (the watcher treats that stream as the file: no step-down on a short buffer alone). Busy server or no index: the file, at once. Not on native HLS (iPhone). A line known to be fast keeps the file. | `public/js/playstart.js` (`fileNeedsBuffer`), `public/js/screens/player.js` (`copyBeatsFile`, `copyFirstUrl`, `startPlan`) | yes | `localStorage["aurora-ladder-first"] = "0"` on a device |
+| 3 | **Rungs by their average with a deep buffer**: on a ladder of two codecs (HEVC copy + H.264 rungs) a rung needs 1.25× its **average** once 30 s and 3× its busiest segment's fetch are in hand (else today's busiest-segment × 1.4); a known line starts on the rung whose average fits; the start watch does not step a line known to carry that average down onto an encode. | `public/js/playstart.js` (`rungNeeds`), `public/js/screens/player.js` (`ladderBest`, `ladderApply`, start watch) | yes | `localStorage["aurora-ladder-avg"] = "0"` |
+| 4 | **Honest copy rate**: the copy rung's declared BANDWIDTH/AVERAGE-BANDWIDTH no longer count the file's own audio tracks (which the copy does not send; one ffprobe per file, kept on disk with the ladder facts), plus the 192k AAC it does send. | `src/media/ladder.js` (`copyBandwidth`, `otherStreamsBps`, `withOthers`) | yes | — |
+| 5 | ~~AAC 192k → 128k~~ — **dropped** by elia; reverted. | — | — | — |
+| 6 | A deeper hls.js forward buffer on desktop — **not built**: the rig showed no gain (below). | — | — | — |
+| 7 | **TV start buffer 1000 → 2500 ms** (server tuning, no APK), measured on the Mi TV. | `src/lib/tvtuning.js` (`DEFAULT_PLAYER`) | yes | config.json `"tvPlayer": { "startBufferMs": 1000 }` |
+
+Nothing visible changed: no new toast, control, label or look. What a viewer may notice: on a line not known to
+be fast, the first frame of a file-playable film comes from the stream (sooner on a thin line), and a 5.1 file
+played that way is heard as the stereo AAC every jit stream already sends (as on every HEVC-in-MKV film today).
+
+### The numbers — master against the branch, same rig, same lines, encoder starts counted
+
+Real Chrome through the WSL2-shaped line (§ Appendix A), 150 s watched per play, 3 plays on every deciding cell
+(medians; "encoder starts" is the sum over all plays of that cell). Before = master `31bfa397` (data
+`built-before*.jsonl`), after = this branch (`built-final*.jsonl`; the 25M 4K row is `built-final-uhd.jsonl`, played
+again after the rung-drop fix `1d7b70bf`).
+
+The deciding cells:
+
+| line | film | first frame | stalled (count) | avg height | at full height | delivered | encoder starts (all plays) | at the end |
+|---|---|--:|--:|--:|--:|--:|--:|---|
+| 25M | uhd (3×) | 0.7 → **0.7** s | 5.3 s (3) → **11 s (2)** | 833p → **713p** | 13% → **12%** | 5.2 → **4.4** Mbit/s | 14 → **9** | playing → **playing** |
+| 8M | hevc (3×) | 0.6 → **0.6** s | 0 s (0) → **0 s (0)** | 720p → **1080p** | 0% → **100%** | 4.8 → **3** Mbit/s | 5 → **0** | playing → **playing** |
+| 5M | hevc (3×) | 2.9 → **0.9** s | 0 s (0) → **0 s (0)** | 612p → **781p** | 0% → **37%** | 3.6 → **3** Mbit/s | 18 → **15** | playing → **playing** |
+| drop | hevc (3×) | 1.2 → **1.2** s | 0 s (0) → **0 s (0)** | 805p → **807p** | 54% → **52%** | 3.4 → **3.3** Mbit/s | 10 → **10** | playing → **playing** |
+
+Films that play as the file, from 6:30 (their busiest stretch), the line known to the player:
+
+| line | film | first frame | stalled (count) | avg height | at full height | delivered | encoder starts (all plays) | at the end |
+|---|---|--:|--:|--:|--:|--:|--:|---|
+| 5M | mp4 (3×) | 5.2 → **3.9** s | 0 s (0) → **0 s (0)** | 800p → **800p** | 100% → **100%** | 4.4 → **4.7** Mbit/s | 0 → **0** | playing → **playing** |
+| 3M | mp4 (3×) | 5 → **6** s | 5.7 s (3) → **4.8 s (3)** | 506p → **496p** | 8% → **5%** | 2.7 → **2.7** Mbit/s | 9 → **8** | playing → **playing** |
+
+A lossy line (1 % loss, the player told 2.7 Mbit/s):
+
+| line | film | first frame | stalled (count) | avg height | at full height | delivered | encoder starts (all plays) | at the end |
+|---|---|--:|--:|--:|--:|--:|--:|---|
+| 3M-L1 | mp4 (3×) | 1.9 → **0.8** s | 5 s (2) → **3.7 s (1)** | 521p → **514p** | 13% → **11%** | 2.1 → **2.1** Mbit/s | 8 → **9** | playing → **playing** |
+
+**Encoder starts over the deciding cells: 64 before → 51 after.** Per cell it went down or stayed, except the lossy line
+(8 → 9): both sides step down onto the 480p encode exactly once in every play (3 → 3 step-downs); each step-down
+starts 2 or 3 ffmpeg processes (the fast first segment, the hand-over to the ladder's preset, sometimes a second
+producer), and the after side happened to start 3 in all three plays. No play on the branch started an encode on a
+line where master started none.
+
+Where it is worse, said plainly — **the 4K film on 25 Mbit/s** (11 s stalled against 5 s, 713p against 833p, 9
+encoder starts against 14): this one film's index has a cue at 10.457 s that decodes as no keyframe. Master's
+encoded rungs "bridged" it — and on 8 Mbit/s that froze the picture for good (1 of 3 plays below, 2 of 3 in the
+earlier rerun; the #4b freeze). The
+branch declines encodes across a bridge (1b), so on 25 Mbit/s the film starts on the copy alone, the copy's doubled
+segment at that seam takes ~10 s, and only then does the stall rule step down (onto the offset encode, as without a
+ladder). Master happened to leave the copy for the 480p rung by its own estimate before the seam. A later fix
+belongs in jit (a copy segment that does not double at a bridge), not in the player.
+
+The rest of the lines, one play each (data `built-before.jsonl` / `built-after.jsonl` — the branch as it was in the
+first matrix, before the copy-first watcher fix `d2bbb079` and the rung-drop fix): every cell plays to the end on
+both sides, and the encoder starts are equal cell by cell except 3M jit (2 → 3: one play each, the same single
+step-down onto the 480p rung, one more ffmpeg for its hand-over).
+
+| line | film | first frame | stalled (count) | avg height | at full height | delivered | encoder starts (all plays) | at the end |
+|---|---|--:|--:|--:|--:|--:|--:|---|
+| 25M | mp4 | 0.6 → **0.6** s | 0 s (0) → **0 s (0)** | 800p → **800p** | 100% → **100%** | 3 → **3.3** Mbit/s | 0 → **0** | playing → **playing** |
+| 8M | jit | 0.5 → **0.6** s | 0 s (0) → **0 s (0)** | 800p → **800p** | 100% → **100%** | 3.5 → **3.6** Mbit/s | 0 → **0** | playing → **playing** |
+| 8M | mp4 | 0.9 → **0.9** s | 0 s (0) → **0 s (0)** | 800p → **800p** | 100% → **100%** | 3 → **3** Mbit/s | 0 → **0** | playing → **playing** |
+| 5M | mp4 | 1.1 → **0.6** s | 0 s (0) → **0 s (0)** | 800p → **800p** | 100% → **100%** | 3 → **3.3** Mbit/s | 0 → **0** | playing → **playing** |
+| 3M | hevc | 0.9 → **0.9** s | 0 s (0) → **0 s (0)** | 480p → **480p** | 0% → **0%** | 2.8 → **2.8** Mbit/s | 2 → **2** | playing → **playing** |
+| 3M | jit | 0.7 → **1.3** s | 0 s (0) → **0 s (0)** | 480p → **497p** | 0% → **5%** | 2.8 → **2.8** Mbit/s | 2 → **3** | playing → **playing** |
+| 3M | mp4 | 1.8 → **0.7** s | 0 s (0) → **0 s (0)** | 800p → **800p** | 100% → **100%** | 2.9 → **2.8** Mbit/s | 0 → **0** | playing → **playing** |
+| 1.5M | hevc | 1.1 → **1.1** s | 0.8 s (1) → **0.8 s (1)** | 480p → **480p** | 0% → **0%** | 1.4 → **1.4** Mbit/s | 1 → **1** | playing → **playing** |
+| 1.5M | jit | 1.1 → **1.1** s | 1.3 s (1) → **1 s (1)** | 480p → **480p** | 0% → **0%** | 1.4 → **1.4** Mbit/s | 2 → **2** | playing → **playing** |
+| 1.5M | mp4 | 3.6 → **1** s | 7.5 s (4) → **6.5 s (4)** | 488p → **490p** | 3% → **3%** | 1.4 → **1.4** Mbit/s | 2 → **2** | playing → **playing** |
+| drop | jit | 0.5 → **0.5** s | 0 s (0) → **0 s (0)** | 789p → **800p** | 96% → **100%** | 3.2 → **3.2** Mbit/s | 2 → **2** | playing → **playing** |
+| drop | mp4 | 0.7 → **0.7** s | 0 s (0) → **0 s (0)** | 800p → **800p** | 100% → **100%** | 3 → **2.9** Mbit/s | 0 → **0** | playing → **playing** |
+
+The two freezes, 3 plays each (before: master; after: this branch with every fix, data `built-*-repro*.jsonl`):
+
+| line | film | first frame | stalled (count) | avg height | at full height | delivered | encoder starts (all plays) | at the end |
+|---|---|--:|--:|--:|--:|--:|--:|---|
+| 8M | uhd (3×) | 0.8 → **1.8** s | 5.3 s (1) → **6 s (3)** | 720p → **753p** | 0% → **4%** | 4.8 → **3.5** Mbit/s | 17 → **7** | 1/3 stuck → **playing** |
+| 1.5M | direct (3×) | 9.5 → **9.7** s | 140 s (1) → **25.3 s (10)** | 800p → **799p** | 100% → **100%** | 0.1 → **0.6** Mbit/s | 3 → **3** | 3/3 stuck → **3/3 stuck** |
+
+### The two freezes, in words
+
+- **#4b, the 4K film at 8 Mbit/s** (its 720p rung bridged a damaged stretch of the index): master froze for good in 1
+  of these 3 plays (130 s stalled; 2 of 3 in the earlier rerun), 17 encoder starts. The branch: **3 of 3 playing**,
+  7 encoder starts — the encoded rungs are declined for this film, the copy plays, the stall rule steps down onto
+  the offset encode once. Its first frame comes ~1 s later (1.8 s): a known 8 Mbit/s line starts on the 720p rung,
+  which is refused and dropped before the copy's first segment.
+- **#4a, the damaged MP4 at 1.5 Mbit/s** (the clip whose edit list jit misreads, so every jit request for it is
+  refused): master's step-down asked the ladder, was refused, and asked again every 2 s — the picture frozen with
+  the spinner for 140 s in **3 of 3** plays, 1 encoder start each. The branch leaves the refused stream at once in
+  **3 of 3** plays (the file; then the step-down's offset encode; refused again; the file again), 1 encoder start
+  each, as master. The clip does not play through on this line on either side: it is damaged (ffmpeg reports
+  decode errors from 0:00 and its encode dies about 20 s in), and on the branch Chrome stops on a decode error at
+  0:26 and the player shows its existing error card. **What was a frozen picture for good is now an answer.**
+- Found on the way (1c): before the remux fix, this same play on the branch started the dying encode **36 and 47
+  times** in 150 s (every playlist poll restarted it; data `built-final-repro.jsonl`, the 1.5M rows). That loop is
+  master's too, wherever an offset encode dies (a TV's offset, an iPhone's transcode, a step-down) — the branch
+  ends it for everyone: `built-final-repro2.jsonl` (2 starts, the picture still frozen) → `built-final-repro3.jsonl`
+  (2 starts, back to the file) → `built-final-repro4.jsonl` (1 start, a poll never restarts a failed job).
+
+### Item 6 — a deeper hls.js forward buffer: not built
+
+The busiest-stretch 10 → 2 → 10 Mbit/s drop, 2 plays each, today's buffer (60 MB, ~100 s at these rates) against
+150 MB / 180 s (`--hls`, data `hlsbuf-*.jsonl`):
+
+| line | film | first frame | stalled (count) | avg height | at full height | delivered | encoder starts (all plays) | at the end |
+|---|---|--:|--:|--:|--:|--:|--:|---|
+| drop | hevc (2×) | 1.8 → **1.8** s | 0 s (0) → **0 s (0)** | 835p → **835p** | 59% → **59%** | 3.4 → **3.4** Mbit/s | 6 → **6** | playing → **playing** |
+| drop | mp4 (2×) | 2.2 → **2.4** s | 0 s (0) → **0 s (0)** | 800p → **800p** | 100% → **100%** | 4.8 → **6.5** Mbit/s | 0 → **0** | playing → **playing** |
+
+Already stall-free with today's buffer; the deeper one only fetched 35 % more bytes ahead (bytes a viewer who stops
+watching never uses). Phones keep their limits — nothing was changed.
+
+### Item 7 — the TV start buffer, on the Mi TV
+
+A QA build of TV 5.9.9 (`versionCode` raised to 275 for the build only, its only server a private instance of this
+branch on this PC behind `tools/throttle-proxy.js`; QA markers reverted, 0 left in the source), throwaway profile
+"Claude QA" on that private server, plays opened with the app's own deep link (`aurora://open?a=play`), first frame
+and stalls read off the app's play marks (`tools/stream-net-rig/tv-instance.js`, `tv-play.js`, `tv-report.js`;
+data `tv-*.jsonl`). `svc power stayon true` after the install; no power keys; nothing else on the TV was touched.
+
+![The QA build on the Mi TV, on the private server](tv-mitv-qa-home.png)
+
+| film | line | from | start buffer | plays | first frame | stalls in the first minute | stalled in the first minute | stalls (all) | stalled (all) |
+|---|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| hevc | pass-through | 0 s | 1000 ms | 1 | 2.1 s | 0 | 0.0 s | 0 | 0.0 s |
+| hevc | pass-through | 546 s | 1000 ms | 4 | 4.5 s | 4 | 29.1 s | 4 | 29.1 s |
+| hevc | 4 Mbit/s, 70 ms | 0 s | 1000 ms | 3 | 2.2 s | 1 | 5.1 s | 1 | 5.1 s |
+| hevc | 4 Mbit/s, 70 ms | 0 s | 2500 ms | 4 | 3.1 s | 0 | 0.0 s | 0 | 0.0 s |
+| hevc | 4 Mbit/s, 70 ms | 0 s | 5000 ms | 3 | 5.6 s | 0 | 0.0 s | 0 | 0.0 s |
+| hevc | 6 Mbit/s, 70 ms | 546 s | 1000 ms | 3 | 4.3 s | 4 | 30.3 s | 5 | 37.6 s |
+| hevc | 6 Mbit/s, 70 ms | 546 s | 2500 ms | 3 | 6.5 s | 4 | 30.4 s | 5 | 37.5 s |
+| hevc | 6 Mbit/s, 70 ms | 546 s | 5000 ms | 3 | 12.2 s | 3 | 32.9 s | 3 | 38.1 s |
+| jit | pass-through | 0 s | 1000 ms | 1 | 2.9 s | 1 | 7.4 s | 1 | 7.4 s |
+| mp4 | pass-through | 390 s | 1000 ms | 6 | 12.1 s | 3 | 22.8 s | 3 | 22.8 s |
+| mp4 | 100 Mbit/s, 4 ms | 0 s | 1000 ms | 2 | 4.2 s | 2 | 11.1 s | 2 | 11.1 s |
+| mp4 | 100 Mbit/s, 4 ms | 0 s | 5000 ms | 2 | 9.3 s | 1 | 5.9 s | 1 | 5.9 s |
+| mp4 | 4 Mbit/s, 70 ms | 0 s | 1000 ms | 3 | 4.6 s | 2 | 12.6 s | 2 | 12.8 s |
+| mp4 | 4 Mbit/s, 70 ms | 0 s | 2500 ms | 3 | 6.4 s | 2 | 11.8 s | 2 | 12.5 s |
+| mp4 | 4 Mbit/s, 70 ms | 0 s | 5000 ms | 3 | 9.8 s | 1 | 5.0 s | 2 | 10.3 s |
+| mp4 | 4 Mbit/s, 70 ms | 390 s | 1000 ms | 3 | 12.2 s | 4 | 31.5 s | 5 | 39.9 s |
+| mp4 | 4 Mbit/s, 70 ms | 390 s | 2500 ms | 3 | 15.2 s | 4 | 31.1 s | 4 | 31.6 s |
+| mp4 | 4 Mbit/s, 70 ms | 390 s | 5000 ms | 3 | 18.8 s | 3 | 28.4 s | 3 | 28.4 s |
+| mp4 | 8 Mbit/s, 70 ms | 390 s | 1000 ms | 2 | 11.6 s | 4 | 31.3 s | 5 | 39.5 s |
+| mp4 | 8 Mbit/s, 70 ms | 390 s | 2500 ms | 2 | 15.1 s | 4 | 30.7 s | 4.5 | 34.7 s |
+| mp4 | 8 Mbit/s, 70 ms | 390 s | 5000 ms | 2 | 18.7 s | 1.5 | 14.8 s | 1.5 | 14.8 s |
+| orig | pass-through | 0 s | 1000 ms | 1 | 3.0 s | 3 | 18.8 s | 3 | 18.8 s |
+| orig | pass-through | 3000 s | 1000 ms | 2 | 7.2 s | 2 | 13.9 s | 2 | 13.9 s |
+
+What it says:
+
+- **From the start of a film on a thin line** (HEVC, 4 Mbit/s, 70 ms): 1000 ms → first frame 2.2 s and an early ~5 s
+  stall in 2 of 3 plays; **2500 ms → 3.2 s, 1 of 3 (median none)**; 5000 ms → 5.6 s, none. The default is now
+  **2500 ms** (server-side, `src/lib/tvtuning.js`; config.json `tvPlayer.startBufferMs` still wins). A final check
+  at 2500: first frame 3.1 s, no stall.
+- **A resume stalls whatever the start buffer** — and on a plain LAN pass-through too: an HEVC film resumed mid-way
+  stalled 3–4 times (~7 s each) in its first minute at 1000, 2500 and 5000 ms, with `resumeAtSource` on or off; the
+  household's own original 2.5-hour HEVC film resumed at 50 min: 2 stalls (13.9 s) in the first minute on the LAN.
+  Each stall ended only when the app's own stall nudge (a small seek after ~4 s) fired. **This is a TV-app finding
+  for its own round** (not a line problem, not something a server setting fixes): see "TV follow-up" below.
+- **H.264 films stalled on the TV from their start even on the LAN** (the MP4 clip twice in its first minute at
+  100 Mbit/s; the H.264 MKV once), while the HEVC clip played clean; the original HEVC film from its start stalled
+  at 0 s and the app's decode watchdog moved it onto the transcode (`transcode=true`) — also for the TV round.
+
+TV follow-up (exact repro, private server only): `node tools/stream-net-rig/tv-instance.js --listen 47400 --cmd
+<file>`, a QA build whose only server is `http://<this PC>:47400`, then `node tools/stream-net-rig/tv-play.js --cmd
+<file> --log <its log> --title hevc --at 546 --down 0 --lat 0 --start 1000 --watch 70`; read `stall` /
+`stall-nudge` / `stall-end` marks; `adb logcat -s ReactNativeJS ExoPlayerImpl` around the stall. Suspects to rule
+out first: the app's stall nudge itself re-seeking a progressive MKV/MP4 source (each nudge is followed by the next
+stall ~7 s later), and the proxy (a Node relay in every TV play here, even "pass-through").
+
+### Tests
+
+- Root suite (`npm test`, after the rebase on master 1.15.46 + `061f87e5`): **3031 / 3031**; after the last server
+  change the 36 files that reach `remux.js` / `routes/stream.js`: **322 / 322**. New root tests:
+  `test/playstart.test.js` (fileNeedsBuffer, rungNeeds), `test/ladder.test.js` (the copy's rate, a real ffprobe of a
+  two-track file), `test/tvtuning*.test.js` (2500), `test/remux-failed-twice.test.js` (real ffmpeg: a poll after a
+  failure starts nothing, a seek tries once more, then 404).
+- Browser tests, each touched file 3× through `ui-lock --short`: `copy-first` (4), `direct-buffer`, `jit-withdrawn`,
+  `ladder-refused` (new), `stepdown-refused` (new — and red against the code before its fix), `player-hls`,
+  `player`, `player-options`, `avcaps`, `subai`, `party`, `report-trail` — all green every time.
+- GitHub UI suite (8 shards) on `ui-research-stream-efficiency`: green at `3a141030`, `2339a9ef` and `3ffb0be7`
+  (links in the hand-over); the last push is checked the same way.
+
+### What elia does
+
+1. **BBR on nufurora.com** (the biggest single gain, §3.2 / §4.1): master 1.15.46 now does it with one press —
+   Admin → Network for streaming (BBR + Caddy HTTP/2 through the root helper); §6's copy-paste is the manual way.
+2. **The TV round** (from item 7): a resume stalls 3–4 times in its first minute even on the LAN, whatever the start
+   buffer; H.264 films stall from their start on the LAN. Repro and suspects above.
+3. **The Mi TV still has the QA build** (TV 5.9.9 as versionCode 275, its only server this PC's private instance,
+   which is stopped). A release has a lower versionCode, so the in-app update will not replace it:
+   `adb uninstall com.auroratv`, then install the release APK (the household sign-in is asked for again).
 
 ---
 
