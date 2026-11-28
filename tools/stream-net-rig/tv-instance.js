@@ -72,7 +72,10 @@ const main = async () => {
   };
   console.log(`ready port=${srv.port} pid=${srv.pid} profile=${p.id} line=${await line(100000, 2)}`);
   console.log(`items ${JSON.stringify(ids)}`);
-  let seen = 0;
+  // what `marks` has handed out: the last log line it saw (the instance keeps
+  // only its last 5000 lines, so an index into them stops moving once a long
+  // session fills it — every play after that read as no marks at all)
+  let lastLine = null;
   // commands from stdin, or (--cmd <file>) from lines appended to a file — for a
   // server left running in the background between shell calls
   const CMD = arg("cmd", "");
@@ -101,8 +104,9 @@ const main = async () => {
       else if (cmd === "progress") { const it = ids[rest[0]]; await call("POST", `/api/profiles/${p.id}/progress`, { itemId: it.id, position: Number(rest[1]), duration: it.duration }); console.log("ok progress"); }
       else if (cmd === "marks") {
         const log = srv.log();
-        const out = log.slice(seen).filter((l) => /\[play\]|\[rig-tv\]|\[rig-encode\]/.test(l));
-        seen = log.length;
+        const from = lastLine == null ? 0 : log.lastIndexOf(lastLine) + 1;
+        const out = log.slice(from).filter((l) => /\[play\]|\[rig-tv\]|\[rig-encode\]/.test(l));
+        if (log.length) lastLine = log[log.length - 1];
         console.log(`marks ${JSON.stringify(out)}`);
       } else console.log(`err ${cmd}`);
     } catch (e) { console.log(`err ${e.message}`); }
