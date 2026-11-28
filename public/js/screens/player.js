@@ -1518,7 +1518,20 @@ export const renderPlayer = async (root, { id }) => {
       if (gen !== hlsGen || !ladderOn || !d) return;
       const code = d.response && d.response.code;
       if (code !== 503 && code !== 404) return;
-      const at = d.frag ? d.frag.level : d.context && d.context.level != null ? d.context.level : d.level;
+      let at = d.frag ? d.frag.level : d.context && d.context.level != null ? d.context.level : d.level;
+      // …by the failed request's own rendition (?v=…) when it names one: a rung
+      // dropped a moment ago shifts every index after it, and a 404 on the next
+      // declined rung read as the copy's — never dropped, retried for a minute
+      // with the picture frozen (measured: a 4K film whose 480p and 720p rungs
+      // the server declined, 57 s still on a 25 Mbit/s line)
+      {
+        const failed = String(d.url || (d.context && d.context.url) || (d.frag && d.frag.url) || "");
+        const v = (/[?&]v=([^&]+)/.exec(failed) || [])[1];
+        if (v) {
+          const idx = (h.levels || []).findIndex((l) => new RegExp(`[?&]v=${v.replace(/[^\w-]/g, "")}(&|$)`).test(String(l.uri || (l.url && l.url[0]) || "")));
+          if (idx >= 0) at = idx;
+        }
+      }
       const lv = ladderLevels().find((l) => l.i === at);
       if (!lv || !lv.h || h.levels.length < 2) return;
       // A rung the server offered IN PLACE of the full encode (&need=1: it
