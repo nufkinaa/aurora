@@ -24,6 +24,14 @@ import { showReportSheet } from "../report.js";
 export const ROUND = "1.15.42";
 const NEW_FROM = ROUND;
 const FEATURES = [
+  // ---- 1.15.47: fewer stops on a slow line (the website's player; web only; in this round's ribbon) ----
+  {
+    webOnly: true, since: ROUND, cue: "tap", glyph: "📶",
+    title: "Fewer stops on a slow line",
+    what: "When your internet is slow or busy, films now keep a lot more ready ahead of time, so busy scenes no longer stop the picture. It's the same picture and sound as before, and the quality stays higher for longer.",
+    how: "Nothing to do: just press Play. It works best in a browser on a computer or an Android phone.",
+    go: { label: "Go home", to: "#/" },
+  },
   // ---- 1.15.44: Clipwave access (the admin's; a browser page, so web only; in this round's ribbon) ----
   {
     webOnly: true, since: ROUND, cue: "tap", glyph: "🎬",

@@ -3,6 +3,16 @@
 Shown inside the app under Preferences → What's new. Newest first; one
 "## version — date" heading per release, plain bullets under it.
 
+## 1.15.47 — 2026-11-28
+
+- **Fewer stops on a slow or busy line (website).** A film the browser can play as its file now opens as the same picture sent as a stream when the line isn't known to be fast enough for the film's busiest scenes. The browser then keeps about 100 s ahead instead of a few seconds. Nothing extra is encoded: the picture is copied as it is, and the sound stays 192k.
+- **Quality ladder judged by the average once the buffer is deep.** With 30 s or more in hand, a rung is chosen by what it carries on average, not by its single busiest segment. On the test rig an 8 Mbit/s line now stays on the film's own 1080p instead of a 720p encode, and 5 encoder starts became 0.
+- **Two freezes fixed.** A stream the server refuses after it has started now goes back the way it came once, instead of a frozen spinner until the error card. A 4K film with a damaged spot in its index no longer freezes when the player moves to a lighter version there.
+- **A failing encode isn't restarted over and over.** Every playlist poll used to restart it: 36–47 starts in 150 s on a damaged file. Now only a viewer's seek tries it once more, and after two failures that spot is refused for 10 minutes.
+- **Honest copy rate.** The copy's declared bitrate no longer counts the file's own audio tracks, which it replaces, so a line just above the film's rate keeps the film's own picture.
+- **TV start buffer 1 s → 2.5 s** (server setting, no new app). On a thin line on the Mi TV, early stalls dropped from 2 of 3 plays to 1 of 3, for about one more second before the picture starts.
+- Encoder starts over the test cells: 64 → 51. Details: docs/qa/streaming-efficiency/REPORT.md ("Built").
+
 ## 1.15.46 — 2026-11-28
 
 - **Admin → Server → Network for streaming.** Shows how the server sends video and how much data gets lost on the way. "Turn on BBR" switches the server to the way of sending that kept films playing on lossy long connections in the streaming research (one connection at 1 % loss: 2.9 → 18.8 Mbit/s of a 20 Mbit/s line), and Undo puts it back. "Use HTTP/2 for video" makes Caddy stop offering HTTP/3 (which BBR does not steer); the new Caddyfile is checked before Caddy reloads, and "Back to HTTP/3" undoes it. A one-time setup line (shown there, with Copy) installs the small root helper that does this; after it, no password is needed. Details: docs/network-for-streaming.md.
