@@ -625,8 +625,9 @@ const patientAbrFor = (Hls) => {
     }
     // a seek — or a buffer an outage or a seek emptied — does not step down
     // onto an encode the line does not need (playstart.js seekHold: the line,
-    // as measured, carries the rung by its average and brings its segment in
-    // 4 s; a line that has really dropped has an estimate that says so)
+    // as measured, carries the rung by its average and brings a segment of it,
+    // at its busiest, within 6 s; a line that has really dropped has an
+    // estimate that says so)
     get nextAutoLevel() {
       const pick = super.nextAutoLevel;
       try {

@@ -315,14 +315,16 @@ test("seekHold: a seek keeps its rung instead of stepping onto an encode the lin
   assert.equal(seekHold({ seeking: true, cur: 1, pick: 0, est: 4_900_000, levels: noAvg }), 0);
 });
 
-test("seekHold: only while a segment of the held rung comes in 4 s at its average", async () => {
+test("seekHold: only while a segment of the held rung comes in 6 s at its busiest rate", async () => {
   const { seekHold, SEEK_HOLD_FETCH_S } = await load();
-  assert.equal(SEEK_HOLD_FETCH_S, 4);
-  const levels = [{ avg: 1_271_360, peak: 1_658_027, encoded: true }, { avg: 2_700_480, peak: 3_551_147, encoded: true }, { avg: 3_200_000, peak: 6_000_000, encoded: false }];
-  // 3.2 Mbit/s copy, 10-s segments, 7.4 Mbit/s: 4.3 s by its average — hls.js's choice stands
-  assert.equal(seekHold({ seeking: true, cur: 2, pick: 1, est: 7_400_000, levels, fragSec: 10 }), 1);
-  // 7-s segments: 3.0 s — held
-  assert.equal(seekHold({ seeking: true, cur: 2, pick: 1, est: 7_400_000, levels, fragSec: 7 }), 2);
+  assert.equal(SEEK_HOLD_FETCH_S, 6);
+  const enc = [{ avg: 1_271_360, peak: 1_658_027, encoded: true }, { avg: 2_700_480, peak: 3_551_147, encoded: true }];
+  // the HEVC copy: 3.2 average, 6 peak, 9-s segments, 7.5 Mbit/s: 7.2 s — hls.js's choice stands
+  const hevc = [...enc, { avg: 3_200_000, peak: 6_000_000, encoded: false }];
+  assert.equal(seekHold({ seeking: true, cur: 2, pick: 1, est: 7_500_000, levels: hevc, fragSec: 9 }), 1);
+  // the H.264 copy: 1.9 average, 4.5 peak, 7.7-s segments, 7.4 Mbit/s: 4.7 s — held
+  const h264 = [...enc, { avg: 1_900_000, peak: 4_500_000, encoded: false }];
+  assert.equal(seekHold({ seeking: true, cur: 2, pick: 1, est: 7_400_000, levels: h264, fragSec: 7.7 }), 2);
   // the length unknown: held, as the headroom allows
-  assert.equal(seekHold({ seeking: true, cur: 2, pick: 1, est: 7_400_000, levels }), 2);
+  assert.equal(seekHold({ seeking: true, cur: 2, pick: 1, est: 7_400_000, levels: hevc }), 2);
 });
