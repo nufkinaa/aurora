@@ -19,12 +19,15 @@ router.get("/api/admin/net", adminOnly, async (req, res) => {
   res.set("Cache-Control", "no-store");
   res.json(await nettune.status());
 });
-for (const verb of ["apply", "undo", "http2", "http3"]) {
-  router.post(`/api/admin/net/${verb}`, adminOnly, async (req, res) => {
-    const r = await nettune.run(verb);
-    if (r.error) return res.status(r.setup ? 409 : 400).json(r);
-    res.json(r);
-  });
-}
+// (each path written out: the telemetry contract reads route words from the source)
+const press = (verb) => async (req, res) => {
+  const r = await nettune.run(verb);
+  if (r.error) return res.status(r.setup ? 409 : 400).json(r);
+  res.json(r);
+};
+router.post("/api/admin/net/apply", adminOnly, press("apply"));
+router.post("/api/admin/net/undo", adminOnly, press("undo"));
+router.post("/api/admin/net/http2", adminOnly, press("http2"));
+router.post("/api/admin/net/http3", adminOnly, press("http3"));
 
 module.exports = router;
