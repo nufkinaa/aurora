@@ -7378,6 +7378,23 @@ export const renderPlayer = async (root, { id }) => {
     }
   }, 1000);
 
+  // BACK ONLINE (2026-11-28, stream round 2). Wi-Fi switched off and on
+  // again: while the device is offline every segment request fails at once,
+  // and hls.js asks again on its back-off — 2, 4, then 8 s apart — so the
+  // line could be back for up to 8 s before anything was asked (measured on
+  // the rig: 15 s offline, the picture moving again only seconds after the
+  // device was back). The moment the browser says it is online, the stream
+  // asks for what it needs from where it plays. (Not under a seek, a rebuild
+  // or AirPlay; nothing when nothing is missing.)
+  const onOnline = () => {
+    try {
+      if (exited || !hls || probing || onAir() || hls.media !== video || !(hls.levels && hls.levels.length)) return;
+      mark("online", { at: Math.round(effTime()) });
+      hls.startLoad(video.currentTime || 0);
+    } catch {}
+  };
+  window.addEventListener("online", onOnline);
+
   // ---- Media Session (2026-10-07) ----
   // The lock screen, the notification shade, a headset's buttons, a
   // keyboard's media keys and the iPhone's Dynamic Island all talk to this:
@@ -8339,6 +8356,7 @@ export const renderPlayer = async (root, { id }) => {
     document.removeEventListener("ui-back", onBack);
     document.removeEventListener("torrent-subs", onTorrentSubs);
     window.removeEventListener("keydown", onAnyInput, true);
+    window.removeEventListener("online", onOnline);
     document.removeEventListener("nav-move", onAnyInput);
     document.removeEventListener("media-key", onAnyInput);
     if (dockRO) dockRO.disconnect();
