@@ -599,6 +599,10 @@ const SEEK_EDGE_S = 0.3; // (a seek this close to its segment's end: the next on
 const FILE_SILENT_MS = 4000;
 const FILE_KICK_EVERY_MS = 15000;
 const FILE_KICK_HOLD_MS = 30000;
+// (off on this device with localStorage["aurora-seek-hold"] = "0": the trade it makes —
+// no encoder and the film's own picture, against a far seek that waits on the copy's
+// bigger segments — is elia's to confirm; docs/qa/streaming-round-2/web.md)
+const seekHoldOn = () => { try { return localStorage.getItem("aurora-seek-hold") !== "0"; } catch { return true; } };
 // the length of the segment of level `li` that holds media time `t` (0: not known)
 const fragSecAt = (h, li, t) => {
   try {
@@ -653,7 +657,7 @@ const patientAbrFor = (Hls) => {
       try {
         const h = this.hls;
         const m = h && h.media;
-        if (!m || !h.levels) return pick;
+        if (!m || !h.levels || !seekHoldOn()) return pick;
         const cur = h.loadLevel;
         return seekHold({
           seeking: true,
