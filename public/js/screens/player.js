@@ -585,6 +585,7 @@ const lineFirstLoader = (Base) => {
 // (how long after the viewer's seek its refill counts as one — see refillHold)
 const SEEK_REFILL_MS = 45000;
 const SEEK_SNAP_MAX_S = 8; // (the seek-snap prototype, off)
+const SEEK_EDGE_S = 0.3; // (a seek this close to its segment's end: the next one — see seekSnapped)
 // a file played as itself whose fetch went silent (see fileKick)
 const FILE_SILENT_MS = 4000;
 const FILE_KICK_EVERY_MS = 15000;
@@ -5280,13 +5281,26 @@ export const renderPlayer = async (root, { id }) => {
   // segment, not everything from its keyframe to the spot. Visible (the
   // picture starts a few seconds before the click), so only with
   // localStorage["aurora-seek-snap"] = "1".
+  //
+  // …and, ON, A SEEK A BREATH BEFORE A SEGMENT'S END (2026-11-28, stream round
+  // 2): hls.js takes a position within 0.25 s of a fragment's end as the NEXT
+  // fragment (maxFragLookUpTolerance), loads it, finds the spot before what it
+  // got, and goes back for the whole previous segment — two segments for one
+  // seek (rig, 8 Mbit/s: 132 kB of one, then 2.2 MB of the other, 5.8 s to the
+  // picture). A target that close to the end of its segment lands at the
+  // start of the next one instead: at most SEEK_EDGE_S later, on its keyframe.
   const seekSnapped = (target, click) => {
     try {
-      if (!click || !hls || !jitMode || localStorage.getItem("aurora-seek-snap") !== "1" || seekBuffered(target)) return target;
+      if (!hls || !jitMode || party.current || seekBuffered(target)) return target;
       const lv = hls.levels && hls.levels[hls.currentLevel >= 0 ? hls.currentLevel : hls.loadLevel];
       const frags = lv && lv.details && lv.details.fragments;
-      const f = frags && frags.find((x) => x.start <= target - clockBase && x.start + x.duration > target - clockBase);
-      if (f && target - clockBase - f.start <= SEEK_SNAP_MAX_S) return f.start + clockBase + 0.05;
+      const t = target - clockBase;
+      const k = frags ? frags.findIndex((x) => x.start <= t && x.start + x.duration > t) : -1;
+      if (k < 0) return target;
+      const f = frags[k];
+      const next = frags[k + 1];
+      if (next && f.start + f.duration - t < SEEK_EDGE_S) return next.start + clockBase + 0.02;
+      if (click && localStorage.getItem("aurora-seek-snap") === "1" && t - f.start <= SEEK_SNAP_MAX_S) return f.start + clockBase + 0.05;
     } catch {}
     return target;
   };
