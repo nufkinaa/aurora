@@ -51,6 +51,26 @@ const jobs = new Map(); // dir -> {proc, done, heavy, lastAccess}
 const retired = new Map(); // dir -> timestamp
 const RETIRED_MS = 5000;
 
+// Jobs that died on their own (ffmpeg's exit code not 0) at this exact place:
+// a failed job's dir is deleted, so the player's next playlist poll used to
+// start the same ffmpeg again — on a file damaged a few seconds past the
+// offset, that was a new encoder every few seconds for as long as the player
+// kept asking (36 and 47 encoder starts in 150 s, tools/stream-net-rig,
+// 2026-11-28), and the picture never moved on. Twice in a row is the answer
+// for a while: the request is refused, and the player goes its own way.
+const failed = new Map(); // dir -> { n, at }
+const FAIL_LIMIT = 2;
+const FAIL_MS = 10 * 60 * 1000;
+const failedHere = (dir, now = Date.now()) => {
+  const f = failed.get(dir);
+  return !!f && f.n >= FAIL_LIMIT && now - f.at < FAIL_MS;
+};
+const noteFailed = (dir, now = Date.now()) => {
+  const f = failed.get(dir);
+  failed.set(dir, { n: (f && now - f.at < FAIL_MS ? f.n : 0) + 1, at: now });
+  if (failed.size > 500) for (const [k, v] of failed) if (now - v.at >= FAIL_MS) failed.delete(k);
+};
+
 // Drop a job that a newer one replaced: kill ffmpeg, and delete its dir once the
 // process has let go of its files (a headless EVENT playlist left behind would
 // stall every future replay at its edge).
@@ -487,6 +507,9 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
     jobs.delete(dir);
   }
 
+  // (failed here twice in a row: not again for a while — see `failed`)
+  if (failedHere(dir)) return Promise.reject(new Error("This part of the file could not be prepared — it failed twice"));
+
   // Hard cap on simultaneous h264 transcodes — refuse rather than spawning
   // another libx264 and freezing the machine. The jobs THIS request is taking
   // over from don't count: they are the same viewer's old position, kept alive
@@ -647,6 +670,7 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
       // code null = killed on purpose (idle sweeper) — not a failure.
       if (code !== 0 && code !== null) {
         console.error(`Remux failed for ${videoPath}:`, stderr.slice(-300));
+        noteFailed(dir);
         // a tone-mapped job that died in its filters: this source goes back
         // to the plain encode for every later job (see tonemap.veto)
         if (vf) tonemap.veto(hdrFacts, stderr);
@@ -660,6 +684,7 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
           removeDir(dir);
         }
       } else if (code === 0) {
+        failed.delete(dir);
         console.log(`Remux complete: ${path.basename(videoPath)}`);
       }
     });
@@ -837,4 +862,4 @@ const sweepStale = async (maxAgeMs = 24 * 3600 * 1000) => {
   }
   return freed;
 };
-module.exports = { AHEAD_MAX, AHEAD_MIN, pace, ensure, touch, noteViewer, release, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, helpers, encodeLoad, sweepIdle, sweepStale, HLS_ROOT, _internals: { CAPS, capOf, isHeavy, validDir, videoArgsFor, scaleFor, maybeHdr, jobs, aheadOf, noteFetch, readEnds } };
+module.exports = { AHEAD_MAX, AHEAD_MIN, pace, ensure, touch, noteViewer, release, filePath, dirName, effectiveVcodec, vcodecFromQuery, bootSweep, liveCount, helpers, encodeLoad, sweepIdle, sweepStale, HLS_ROOT, _internals: { CAPS, capOf, isHeavy, validDir, videoArgsFor, scaleFor, maybeHdr, jobs, aheadOf, noteFetch, readEnds, failed, failedHere, noteFailed, FAIL_LIMIT, FAIL_MS } };
