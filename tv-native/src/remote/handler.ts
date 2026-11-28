@@ -30,6 +30,10 @@ export type RemotePlayer = {
   /** where a skip counts from: a seek on its way, else the clock */
   position: () => number;
   seekTo: (sec: number) => void;
+  /** the same, made at once (seekTo waits 450 ms for more presses of a burst):
+   *  a `seek` is one absolute target, a phone's scrub let go — nothing to
+   *  gather. Optional: a player without it is sent seekTo. */
+  seekNow?: (sec: number) => void;
   /** false: nothing is next */
   next: () => boolean;
   /** null = off; false: no such track */
@@ -180,7 +184,7 @@ export async function runCommand(msg: CommandMsg, ctx: HandlerCtx): Promise<Outc
       const to = numArg(a.to);
       if (to == null) return no('bad-command', MSG.badCommand);
       if (!n.canSeek) return no('cannot-seek', MSG.cannotSeek);
-      p.seekTo(clampTo(to, n.duration));
+      (p.seekNow || p.seekTo)(clampTo(to, n.duration));
       return ok();
     }
     case 'skip': {

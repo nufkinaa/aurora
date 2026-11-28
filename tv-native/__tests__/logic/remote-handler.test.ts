@@ -146,6 +146,16 @@ describe('with a film playing', () => {
     expect(calls).toEqual(['seekTo 110', 'seekTo 70', 'seekTo 0']);
   });
 
+  test('a seek is made at once when the player can (seekNow); a skip still gathers a burst (seekTo)', async () => {
+    const {calls, ctx} = setup({duration: 6000, position: 100});
+    const p = ctx.player()!;
+    p.seekNow = s => calls.push(`seekNow ${s}`) && undefined;
+    await runCommand(cmd('seek', {to: 1234.5}), ctx);
+    await runCommand(cmd('seek', {to: 99999}), ctx);
+    await runCommand(cmd('skip', {by: 10}), ctx);
+    expect(calls).toEqual(['seekNow 1234.5', 'seekNow 5999', 'seekTo 110']);
+  });
+
   test('seek / skip on something that cannot be scrubbed', async () => {
     const {calls, ctx} = setup({canSeek: false});
     expect(await runCommand(cmd('seek', {to: 10}), ctx)).toEqual({ok: false, error: 'cannot-seek', message: MSG.cannotSeek});

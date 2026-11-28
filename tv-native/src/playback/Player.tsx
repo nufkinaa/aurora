@@ -4166,6 +4166,7 @@ export default function Player({
     act: {
       toggle: () => void;
       seekTo: (sec: number) => void;
+      seekNow: (sec: number) => void;
       next: () => boolean;
       setSub: (id: string | null) => boolean;
       setAudio: (id: string) => boolean;
@@ -4217,6 +4218,12 @@ export default function Player({
         // the live refs), the target after, so the target wins
         showControls();
         seekTo(sec);
+      },
+      // a phone's scrub: one absolute target per release, nothing to gather —
+      // made at once, not after seekTo's 450 ms wait for more presses
+      seekNow: (sec: number) => {
+        showControls();
+        seekNowRef.current(sec);
       },
       next: () => {
         const n = nextEpRef.current;
@@ -4272,6 +4279,7 @@ export default function Player({
         position: () =>
           pendingSeek.current != null ? pendingSeek.current : seekPreviewRef.current != null ? seekPreviewRef.current : curRef.current || 0,
         seekTo: sec => remoteLive.current?.act.seekTo(sec),
+        seekNow: sec => remoteLive.current?.act.seekNow(sec),
         next: () => !!remoteLive.current?.act.next(),
         setSub: key => !!remoteLive.current?.act.setSub(key),
         setAudio: key => !!remoteLive.current?.act.setAudio(key),
