@@ -50,6 +50,8 @@ const summarize = (rows) => {
       enc: c.rows.reduce((n, r) => n + (r.encodeStarts || 0), 0),
       stuck: ok.filter((r) => !r.endPlaying).length,
       rebuf: med(ok.map((r) => (r.playedSec > 0 ? r.stallMs / 1000 / (r.playedSec + r.stallMs / 1000) : null))),
+      // the clock standing still outside a seek's own landing (a landing is the seek's time, not a rebuffer)
+      exSeek: med(ok.map((r) => Math.max(0, r.stallMs - (r.events || []).filter((e) => e.kind === "seek").reduce((n, e) => n + (e.seekMs || 0), 0)))),
       events: new Map(),
     };
     for (const [k, es] of c.events) {
@@ -72,14 +74,14 @@ const pct2 = (x) => (x == null ? "–" : `${(x * 100).toFixed(2)}%`);
 const num = (x) => (x == null ? "–" : String(Math.round(x * 10) / 10));
 
 console.log(`\n### Plays (${a}${b ? " → " + b : ""})\n`);
-console.log("| flavour | line | film | plays | first frame | stalled (count) | rebuffer ratio | avg height | at full height | encoder starts (all plays) | stuck at the end |");
-console.log("|---|---|---|--:|--:|--:|--:|--:|--:|--:|--:|");
+console.log("| flavour | line | film | plays | first frame | stalled (count) | stalled outside seek landings | rebuffer ratio | avg height | at full height | encoder starts (all plays) | stuck at the end |");
+console.log("|---|---|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|");
 for (const [key, s] of A) {
   const t = B ? B.get(key) : null;
   if (B && !t) continue;
   const [fl, prof, title] = key.split("|");
   const x = t || s;
-  console.log(`| ${fl} | ${prof} | ${title} | ${s.plays}${t ? " / " + t.plays : ""} | ${arrow(s.ttff, x.ttff, sec)} | ${arrow(s.stallMs, x.stallMs, sec)} (${arrow(s.stalls, x.stalls, num)}) | ${arrow(s.rebuf, x.rebuf, pct2)} | ${arrow(s.avgH, x.avgH, (h) => (h == null ? "–" : `${Math.round(h)}p`))} | ${arrow(s.top, x.top, pct)} | ${arrow(s.enc, x.enc, String)} | ${arrow(s.stuck, x.stuck, String)} |`);
+  console.log(`| ${fl} | ${prof} | ${title} | ${s.plays}${t ? " / " + t.plays : ""} | ${arrow(s.ttff, x.ttff, sec)} | ${arrow(s.stallMs, x.stallMs, sec)} (${arrow(s.stalls, x.stalls, num)}) | ${arrow(s.exSeek, x.exSeek, sec)} | ${arrow(s.rebuf, x.rebuf, pct2)} | ${arrow(s.avgH, x.avgH, (h) => (h == null ? "–" : `${Math.round(h)}p`))} | ${arrow(s.top, x.top, pct)} | ${arrow(s.enc, x.enc, String)} | ${arrow(s.stuck, x.stuck, String)} |`);
 }
 const evRows = [];
 for (const [key, s] of A) {
