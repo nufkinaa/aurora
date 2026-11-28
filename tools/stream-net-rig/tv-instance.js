@@ -50,7 +50,11 @@ const main = async () => {
   let proxy = null;
   const line = async (down, lat) => {
     if (proxy) await proxy.close();
-    proxy = await throttle.start({ listen: LISTEN, host: "0.0.0.0", to: srv.port, quiet: true, handshake: true, slowstart: true, down, up: Math.max(1000, Math.round(down / 3)), latency: lat });
+    // (down 0: a plain pass-through — no rate, no delay, no slow start — to tell the
+    // proxy's own effects from the TV's)
+    proxy = down > 0
+      ? await throttle.start({ listen: LISTEN, host: "0.0.0.0", to: srv.port, quiet: true, handshake: true, slowstart: true, down, up: Math.max(1000, Math.round(down / 3)), latency: lat })
+      : await throttle.start({ listen: LISTEN, host: "0.0.0.0", to: srv.port, quiet: true, handshake: false, slowstart: false, down: 0, up: 0, latency: 0 });
     return proxy.describe;
   };
   console.log(`ready port=${srv.port} pid=${srv.pid} profile=${p.id} line=${await line(100000, 2)}`);

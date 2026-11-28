@@ -27,6 +27,8 @@ const START = Number(arg("start", 1000));
 const REBUF = Number(arg("rebuffer", 5000));
 const WATCH = Number(arg("watch", 120));
 const LABEL = arg("label", "tv");
+// --ras 0|1: tvPlayer.resumeAtSource (the server's default is true); unset = not sent
+const RAS = arg("ras", null);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const adb = (...a) => execFileSync("adb", ["-s", DEV, ...a], { encoding: "utf8", timeout: 20000, env: { ...process.env, MSYS_NO_PATHCONV: "1" } });
 
@@ -45,7 +47,7 @@ const send = async (line, want) => {
 const main = async () => {
   const items = JSON.parse(fs.readFileSync(LOG, "utf8").split("\n").find((l) => l.startsWith("items ")).slice(6));
   const it = items[TITLE];
-  await send(`tuning ${JSON.stringify({ startBufferMs: START, rebufferMs: REBUF })}`, "ok tuning");
+  await send(`tuning ${JSON.stringify({ startBufferMs: START, rebufferMs: REBUF, ...(RAS != null ? { resumeAtSource: RAS === "1" } : {}) })}`, "ok tuning");
   await send(`line ${DOWN} ${LAT}`, "ok");
   await send(`progress ${TITLE} ${AT}`, "ok progress");
   await send("marks", "marks"); // (forget what came before)
@@ -67,7 +69,7 @@ const main = async () => {
   const stallStarts = marks.filter((l) => / stall /.test(l) && !/stall-end/.test(l)).length;
   const firstMin = stalls.filter((s) => ffMs != null && s.plusMs - s.ms <= ffMs + 60000);
   const row = {
-    label: LABEL, at: new Date().toISOString(), title: TITLE, resumeAt: AT, down: DOWN, rttMs: LAT * 2, startBufferMs: START, rebufferMs: REBUF, watchSec: WATCH,
+    label: LABEL, at: new Date().toISOString(), title: TITLE, resumeAtSource: RAS == null ? "default" : RAS === "1", resumeAt: AT, down: DOWN, rttMs: LAT * 2, startBufferMs: START, rebufferMs: REBUF, watchSec: WATCH,
     firstFrameMs: ffMs, bufSeen: buf, stalls: stalls.length, stallMarks: stallStarts, stallMs: stalls.reduce((s, x) => s + x.ms, 0),
     stallsFirstMinute: firstMin.length, stallMsFirstMinute: firstMin.reduce((s, x) => s + x.ms, 0),
     encodeStarts: marks.filter((l) => /^\[rig-encode\]/.test(l)).length, marks: marks.slice(0, 40), wallSec: Math.round((Date.now() - t0) / 1000),

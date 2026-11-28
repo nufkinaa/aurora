@@ -34,6 +34,8 @@ const cells = (rows) => {
       mbit: med(ok.map((r) => r.mediaMbit)),
       mb: med(ok.map((r) => r.mediaBytes / 1e6)),
       played: med(ok.map((r) => r.playedSec)),
+      enc: rs.some((r) => r.encodeStarts != null) ? rs.reduce((n, r) => n + (r.encodeStarts || 0), 0) : null, // every play's encoder starts, summed
+      plays: rs.length,
       watch: med(ok.map((r) => r.watchSec)),
       path: [...new Set(ok.map((r) => r.pathMarks || r.path))].join("/"),
       levels: [...new Set(ok.flatMap((r) => r.levelsUsed || []))].join(","),
@@ -57,11 +59,12 @@ if (csv) {
 } else {
   const a = new Map(cells(load(args[0])).map((x) => [`${x.profile}|${x.title}`, x]));
   const b = cells(load(args[1]));
-  console.log(`| line | film | first frame | stalled (count) | avg height | at full height | delivered | at the end |`);
-  console.log("|---|---|--:|--:|--:|--:|--:|---|");
+  const encCol = b.some((y) => y.enc != null);
+  console.log(`| line | film | first frame | stalled (count) | avg height | at full height | delivered |${encCol ? " encoder starts (all plays) |" : ""} at the end |`);
+  console.log(`|---|---|--:|--:|--:|--:|--:|${encCol ? "--:|" : ""}---|`);
   for (const y of b) {
     const x = a.get(`${y.profile}|${y.title}`);
     if (!x) continue;
-    console.log(`| ${y.profile} | ${y.title} | ${f1(x.ttff)} → **${f1(y.ttff)}** s | ${f1(x.stallSec)} s (${f1(x.stalls)}) → **${f1(y.stallSec)} s (${f1(y.stalls)})** | ${x.avgH}p → **${y.avgH}p** | ${pct(x.top)} → **${pct(y.top)}** | ${f1(x.mbit)} → **${f1(y.mbit)}** Mbit/s | ${x.end} → **${y.end}** |`);
+    console.log(`| ${y.profile} | ${y.title}${y.plays > 1 ? ` (${y.plays}×)` : ""} | ${f1(x.ttff)} → **${f1(y.ttff)}** s | ${f1(x.stallSec)} s (${f1(x.stalls)}) → **${f1(y.stallSec)} s (${f1(y.stalls)})** | ${x.avgH}p → **${y.avgH}p** | ${pct(x.top)} → **${pct(y.top)}** | ${f1(x.mbit)} → **${f1(y.mbit)}** Mbit/s |${encCol ? ` ${x.enc ?? "–"} → **${y.enc ?? "–"}** |` : ""} ${x.end} → **${y.end}** |`);
   }
 }
