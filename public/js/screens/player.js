@@ -590,6 +590,14 @@ const SEEK_EDGE_S = 0.3; // (a seek this close to its segment's end: the next on
 const FILE_SILENT_MS = 4000;
 const FILE_KICK_EVERY_MS = 15000;
 const FILE_KICK_HOLD_MS = 30000;
+// the length of the segment of level `li` that holds media time `t` (0: not known)
+const fragSecAt = (h, li, t) => {
+  try {
+    const frags = h.levels[li].details.fragments;
+    const f = frags.find((x) => x.start <= t && x.start + x.duration > t) || frags[frags.length - 1];
+    return (f && f.duration) || 0;
+  } catch { return 0; }
+};
 let PatientAbr = null;
 const patientAbrFor = (Hls) => {
   if (PatientAbr) return PatientAbr;
@@ -627,6 +635,7 @@ const patientAbrFor = (Hls) => {
           pick,
           est: h.bandwidthEstimate || 0,
           cap: h.autoLevelCapping,
+          fragSec: fragSecAt(h, cur, m.currentTime),
           levels: h.levels.map((l) => ({ avg: l.averageBitrate || 0, peak: l.bitrate || 0, encoded: /[?&]v=h264-/.test(String(l.uri || l.url || "")) })),
         });
       } catch {
@@ -1397,7 +1406,7 @@ export const renderPlayer = async (root, { id }) => {
   const refillHold = (h, cur, pick, est, ahead) => {
     if (!stall.userAt || Date.now() - stall.userAt > SEEK_REFILL_MS || ahead >= RUNG_AVG_BUFFER_SEC) return false;
     const levels = (h.levels || []).map((l) => ({ avg: l.averageBitrate || 0, peak: l.bitrate || 0, encoded: /[?&]v=h264-/.test(String(l.uri || l.url || "")) }));
-    return seekHold({ seeking: true, cur, pick, est, cap: h.autoLevelCapping, levels }) === cur;
+    return seekHold({ seeking: true, cur, pick, est, cap: h.autoLevelCapping, levels, fragSec: fragSecAt(h, cur, video.currentTime + ahead) }) === cur;
   };
   // Apply a pick to the stream that is playing: "auto" hands the choice back
   // to hls.js; a height pins that level from the next segment on (what is

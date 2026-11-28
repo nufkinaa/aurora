@@ -147,15 +147,26 @@ export const rungNeeds = ({ peak = 0, avg = 0, ahead = 0, est = 0, segSec = 10 }
 // hls.js as before (a real thin line still steps down).
 //   levels: [{ avg, peak, encoded }] in hls.js's order; cur: the level being
 //   loaded; pick: hls.js's choice; est: bits/s; cap: autoLevelCapping (-1 none)
+// …and only while a segment of that rung, at its average, comes in hls.js's
+// own 4 s (maxStarvationDelay): hls.js judges by the BUSIEST segment, which is
+// what sent a 1.9 Mbit/s film's seek onto an encode on an 8 Mbit/s line; but a
+// 3.2 Mbit/s HEVC copy's 10-s segments on that line take 4.3 s by their
+// average, and holding it made that seek SLOWER than the encode (rig: 3.9 →
+// 8.7 s) — that one stays hls.js's choice.
+//   fragSec: the segment length (s)
 export const SEEK_HOLD_HEADROOM = 1.25;
-export const seekHold = ({ seeking = false, cur = -1, pick = -1, levels = [], est = 0, cap = -1 } = {}) => {
+export const SEEK_HOLD_FETCH_S = 4;
+export const seekHold = ({ seeking = false, cur = -1, pick = -1, levels = [], est = 0, cap = -1, fragSec = 0 } = {}) => {
   if (!seeking || !(cur >= 0) || !(pick >= 0) || pick >= cur) return pick;
   if (cap >= 0 && cur > cap) return pick;
   const lc = levels[cur];
   const lp = levels[pick];
   if (!lc || !lp || !lp.encoded) return pick;
-  const need = (lc.avg > 0 ? lc.avg : lc.peak) * SEEK_HOLD_HEADROOM;
-  return need > 0 && est >= need ? cur : pick;
+  const rate = lc.avg > 0 ? lc.avg : lc.peak;
+  const need = rate * SEEK_HOLD_HEADROOM;
+  if (!(need > 0) || est < need) return pick;
+  if (fragSec > 0 && (rate * fragSec) / est > SEEK_HOLD_FETCH_S) return pick;
+  return cur;
 };
 
 // PURE. The segment of a media playlist that holds second `sec`: its URI as
