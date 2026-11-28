@@ -2,8 +2,8 @@
 // silent is asked for again in seconds (streaming round 2, 2026-11-28 —
 // docs/qa/streaming-round-2/web.md).
 //
-// The film is Test Film Two (repackaged, played by hls.js): its 60 s are all
-// buffered a moment after the start, so every skip below lands inside what
+// The film is Test Film Two (repackaged, played by hls.js): 40 s of its 60
+// are buffered a moment after the start, so the skips below land inside what
 // the browser already holds.
 const assert = require("node:assert/strict");
 const { suite, player, warmJit, FILM_SECONDS } = require("./helpers");
@@ -23,7 +23,8 @@ const armSeekClock = (page) => page.evaluate(() => {
 const lags = (page) => page.evaluate(() => window.__seekLag.slice());
 const fullyBuffered = (page) => page.waitForFunction(() => {
   const v = document.querySelector(".player video");
-  return v && v.buffered.length && v.buffered.end(v.buffered.length - 1) >= v.duration - 1 && v.buffered.start(0) <= 1;
+  // (hls.js holds 45 s ahead: the 60-s film, nearly all of it)
+  return v && v.buffered.length && v.buffered.start(0) <= v.currentTime && v.buffered.end(0) >= Math.min(v.duration - 1, v.currentTime + 40);
 }, null, { timeout: 30000 });
 
 ui.test("a skip inside what is buffered lands at once, and three in a row add up", async ({ page, srv, signIn, freshProfile, lib }) => {
@@ -63,3 +64,5 @@ ui.test("a click on the timeline lands at once", async ({ page, srv, signIn, fre
   await page.waitForFunction((want) => Math.abs(document.querySelector(".player video").currentTime - want) < 3, FILM_SECONDS * 0.7);
   await player.advancing(page);
 });
+
+ui.run();

@@ -5213,7 +5213,8 @@ export const renderPlayer = async (root, { id }) => {
   // in-buffer skip took 440–660 ms to show its frame on the rig, now ~the
   // decoder's own time. A scrubber click or release is one deliberate press:
   // it lands at once too. Not in a watch party (its seeks are timed against
-  // the others), not on an offset transcode (its seeks restart a job).
+  // the others), not on an offset transcode (its seeks restart a job; a jit
+  // stream is the whole film on one playlist, so its seeks are the clock's).
   const seekBuffered = (target) => {
     try {
       const t = target - clockBase;
@@ -5236,7 +5237,7 @@ export const renderPlayer = async (root, { id }) => {
     // server-side, so skip-spam used to fire a request per press.
     pendingSeek = target;
     clearTimeout(seekDebounce);
-    if (viewer && !usingTranscode && !party.current && (click || seekBuffered(target))) return commitSeek();
+    if (viewer && (!usingTranscode || jitMode) && !party.current && (click || seekBuffered(target))) return commitSeek();
     updateScrubber();
     // 250ms: long enough to coalesce a remote's auto-repeat burst, short
     // enough that a single deliberate click feels immediate (was 450 — part
