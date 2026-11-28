@@ -89,3 +89,47 @@ like the 8-core VPS without a graphics card.
 - Two rigs side by side (`--port-base`) share the 8 cores: encode-heavy cells
   (the 4K film's live rungs) must run alone.
 - WSL's own virtual NIC and the relays add < 1 ms; the netem link is the line.
+
+## The Mi TV rig (`tv-instance.js`, `tv-play.js`)
+
+**Measure the line to the TV before believing a "LAN" cell.** From this PC the
+TV is reached over the PC's *second* Wi-Fi card (Intel AC-9462 on the TV's
+network, 35 % signal, 15–22 Mbit/s link rate): raw TCP PC → TV carries
+**~2 Mbit/s** (20 MB in 83 s; `adb push` 0.25 MB/s). Every "pass-through" and
+"100 Mbit/s" TV cell of the streaming-efficiency report ran on that, below the
+clips' own rates (HEVC 3.2, MP4 3.0, the HEVC resume spot ~4.4 Mbit/s): the
+"resume stalls" and "H.264 stalls from the start" there were the line
+(see the correction under "TV follow-up" in `docs/qa/streaming-efficiency/REPORT.md`). `adb reverse` rides the same Wi-Fi inside
+adb and is slower still.
+
+```
+node tools/stream-net-rig/tv-instance.js --listen 47400 --direct --reqlog <log> --cmd <file> \
+     [--media2 E:/aurora-agents/fix-tv-stalls/media]
+bash tools/stream-net-rig/tv-local.sh start <pc-ip> 47400 <item id>=<file> ...   # the TV's 127.0.0.1:4000
+bash tools/stream-net-rig/tv-local.sh push <local film> <file>                    # once per film (slow)
+node tools/stream-net-rig/tv-play.js --cmd <file> --log <its log> --title thevc --at 66 --down 0 ...
+bash tools/stream-net-rig/tv-local.sh stop
+```
+
+- `--direct`: the private server itself on `<listen>` (no Node relay); the
+  shaped line (`line <kbit/s> <ms>`) is then the relay on `<listen>+1`.
+- `--reqlog <file>` (`req-log.js`): one line per `/stream/*` request (its
+  Range, status, bytes, how long it lived, finished or closed) and, every
+  second, the bytes each open response has sent — a player starved by its
+  line shows as a response that grows by the line's rate, not a closed one.
+- `tv-local.sh`: a QA build only knows `http://127.0.0.1:4000`; this puts a
+  small relay there ON the TV (toybox `nc -L` + `tv-local-srv.sh`): a
+  `/stream/video/<id>` whose film was pushed to the TV is answered from the
+  TV's own storage — the player on a fast source, a real LAN's stand-in —
+  and everything else goes to the PC's server as it came. With no
+  `<id>=<file>` pairs it is a plain relay (the PC's own line); point it at
+  `<listen>+1` for a shaped line on top.
+- `Tvs Hevc / Tvs Mp4 / Tvs Jit` (`thevc`, `tmp4`, `tjit`): stream copies cut
+  from the rig clips small enough to push — HEVC 480–720 s (its busiest part:
+  the old resume spot 546 s is ~66 s in), the first 150 s of the MP4 and the
+  H.264 MKV.
+- ExoPlayer's own log: a QA build with `debug={{enable: true}}` on `<Video>`
+  logs media3's EventLogger as `RNVExoplayer` (renderer ready/not, state,
+  loading, errors with their cause). `onProgress`'s `playableDuration` is
+  react-native-video's `getBufferedPercentage() × duration`: whole percent
+  steps (7.2 s on a 12-minute clip, 89 s on a 2.5-hour film), not the buffer.

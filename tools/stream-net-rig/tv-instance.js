@@ -20,16 +20,26 @@ const throttle = require("../throttle-proxy");
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : d; };
 const LISTEN = Number(arg("listen", 47400));
 const MEDIA = arg("media", "E:/aurora-agents/research-stream-efficiency/media");
-const TITLES = { mp4: "Rig Mp4", hevc: "Rig Hevc", jit: "Rig Jit", uhd: "Rig Uhd", orig: "Rig Orig" };
+// --direct: no relay at all — the server itself listens on <listen> (all
+// interfaces), so a play reaches it with nothing in between, to tell the
+// relay's own effects from the TV's; the shaped line (`line`) is then the
+// relay on <listen>+1 (a client pointed there gets it).
+const DIRECT = process.argv.includes("--direct");
+const TITLES = { mp4: "Rig Mp4", hevc: "Rig Hevc", jit: "Rig Jit", uhd: "Rig Uhd", orig: "Rig Orig",
+  // the short cuts for a play whose bytes come off the TV's own storage (tv-local.sh)
+  thevc: "Tvs Hevc", tmp4: "Tvs Mp4", tjit: "Tvs Jit" };
+// --media2 <dir>: a second library folder (movies/ inside), e.g. those short cuts
+const MEDIA2 = arg("media2", "");
 const tuningFile = path.join(os.tmpdir(), `rig-tv-tuning-${process.pid}.json`);
 fs.writeFileSync(tuningFile, "null");
 
 const main = async () => {
   const server = require("../../scripts/ui-test-server");
   const srv = await server.start({
-    config: { libraries: { movies: [path.join(MEDIA, "movies")], shows: [path.join(MEDIA, "shows")] }, hwEncode: "off" },
-    preload: [path.join(__dirname, "tv-tuning-preload.js"), path.join(__dirname, "count-encodes.js")],
-    env: { AURORA_RIG_TV_TUNING: tuningFile },
+    config: { libraries: { movies: [path.join(MEDIA, "movies"), ...(MEDIA2 ? [path.join(MEDIA2, "movies")] : [])], shows: [path.join(MEDIA, "shows")] }, hwEncode: "off" },
+    ...(DIRECT ? { port: LISTEN } : {}),
+    preload: [path.join(__dirname, "tv-tuning-preload.js"), path.join(__dirname, "count-encodes.js"), path.join(__dirname, "req-log.js")],
+    env: { AURORA_RIG_TV_TUNING: tuningFile, ...(arg("reqlog", "") ? { AURORA_RIG_REQLOG: arg("reqlog", "") } : {}) },
   });
   const call = async (method, url, body, headers = {}) => {
     const res = await fetch(srv.url + url, { method, headers: { ...(body !== undefined ? { "Content-Type": "application/json" } : {}), ...headers }, body: body !== undefined ? JSON.stringify(body) : undefined });
@@ -50,11 +60,14 @@ const main = async () => {
   let proxy = null;
   const line = async (down, lat) => {
     if (proxy) await proxy.close();
+    proxy = null;
+    const at = DIRECT ? LISTEN + 1 : LISTEN;
+    if (DIRECT && !(down > 0)) return `:${LISTEN} direct (no relay)`;
     // (down 0: a plain pass-through — no rate, no delay, no slow start — to tell the
     // proxy's own effects from the TV's)
     proxy = down > 0
-      ? await throttle.start({ listen: LISTEN, host: "0.0.0.0", to: srv.port, quiet: true, handshake: true, slowstart: true, down, up: Math.max(1000, Math.round(down / 3)), latency: lat })
-      : await throttle.start({ listen: LISTEN, host: "0.0.0.0", to: srv.port, quiet: true, handshake: false, slowstart: false, down: 0, up: 0, latency: 0 });
+      ? await throttle.start({ listen: at, host: "0.0.0.0", to: srv.port, quiet: true, handshake: true, slowstart: true, down, up: Math.max(1000, Math.round(down / 3)), latency: lat })
+      : await throttle.start({ listen: at, host: "0.0.0.0", to: srv.port, quiet: true, handshake: false, slowstart: false, down: 0, up: 0, latency: 0 });
     return proxy.describe;
   };
   console.log(`ready port=${srv.port} pid=${srv.pid} profile=${p.id} line=${await line(100000, 2)}`);

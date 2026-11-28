@@ -369,7 +369,8 @@ const start = async (opts = {}) => {
       fs.writeFileSync(file, Buffer.isBuffer(value) || typeof value === "string" ? value : JSON.stringify(value), "utf-8");
     }
 
-    const port = await freePort();
+    // (opts.port: a fixed port, for a rig whose device only knows that one)
+    const port = opts.port || await freePort();
     const adminPassword = `ui-test-${crypto.randomBytes(9).toString("hex")}`;
     fs.writeFileSync(path.join(root, "config.json"), JSON.stringify({
       port,
