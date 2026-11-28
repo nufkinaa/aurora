@@ -173,7 +173,7 @@ import {onPipChange, phoneNative} from '../phone/native';
 import {E as PHONE_GLASS, E_EDGE_THICK as PHONE_EDGE} from '../phone/theme';
 import {menuMaxHeight} from '../popupFit';
 import {refreshTuning, tuning, TUNING_DEFAULTS} from './tuning';
-import {againStep, CARD_RETRY_MS, REFUSED_UNDER_S, spotOf, StopKind, stopWords, watchNew, watchReset, watchTick} from './recovery';
+import {againStep, CARD_RETRY_MS, REFUSED_UNDER_S, sameSpot, spotOf, StopKind, stopWords, watchNew, watchReset, watchTick} from './recovery';
 import {Clock, clockBaseFor, clockFromHeaders, toContent, toMedia} from './clock';
 import {Cue, cueBottom, cueTextAt, parseVtt} from './cues';
 import {delaysForItem, loadDelays, roundDelay, saveDelay} from './subDelay';
@@ -4531,16 +4531,26 @@ export default function Player({
   // same source again at this spot, 0.3 s and then 2 s later; a third within
   // three minutes is not tried by itself — the card, with Try again, and a
   // quiet try every 30 s behind it. A path this device has played less than
-  // half a minute of that keeps failing gets the full encode instead (it may
-  // be refusing it after all), from the same spot.
+  // half a minute of that keeps failing gets a heavier rung instead (it may
+  // be refusing it after all), from the same spot: a file played as itself
+  // its server copy (the picture as it is — it decoded here a moment ago),
+  // the copy the full encode. A file whose reload failed again at the very
+  // spot it failed before goes to its copy at once (recovery.ts sameSpot: a
+  // damaged stretch of the file, which the copy reads past).
+  const againErr = useRef<{at: number; played: number} | null>(null);
   const recoverAgain = (why: string) => {
     if (stopCardRef.current) return; // the card is up: its quiet tries carry on
     const base = itemRef.current?.transcodeBase || stream?.transcodeBase;
     const canEncode =
       !!base &&
       (usingTranscodeRef.current ? currentV.current === 'copy' && !triedH264.current : !switchedToTranscode.current);
+    const canCopy = !!base && !isTorrent && !usingTranscodeRef.current && !switchedToTranscode.current;
     const at = spotOf({resumeAt: resumeAt.current, held: heldAt.current, cur: curRef.current});
-    const a = againStep(againTries.current, Date.now(), {played: pathPlayed.current, canEncode});
+    const here = {at, played: pathPlayed.current};
+    const same = againTries.current.length > 0 && sameSpot(againErr.current, here);
+    againErr.current = here;
+    if (same) console.log(`[player] failed again at the same spot (${at.toFixed(1)}): the file's bytes there`);
+    const a = againStep(againTries.current, Date.now(), {played: pathPlayed.current, canEncode, canCopy, sameSpot: same});
     mark('media-error', {did: a.kind, why: why.slice(0, 40), n: a.kind === 'again' ? a.n : 0, at: Math.round(at), played: Math.round(pathPlayed.current), app: APP_ID});
     if (a.kind === 'again') {
       setBuffering(true);
@@ -4551,6 +4561,17 @@ export default function Player({
         if (exited.current || gen.current !== g || probing.current) return;
         reloadSame();
       }, a.delayMs);
+      return;
+    }
+    if (a.kind === 'copy' && base) {
+      // the server's copy of this file, from this spot (as the decode
+      // watchdog's switch does, but the picture as it is: no encode). Failing
+      // to start, the film stays on its file: the watcher tries it again,
+      // then says so.
+      againTries.current.length = 0;
+      againErr.current = null;
+      switchedToTranscode.current = true;
+      startTranscodeAt(base, at, 'copy', {fallbackToZero: at < 5});
       return;
     }
     if (a.kind === 'encode' && base) {

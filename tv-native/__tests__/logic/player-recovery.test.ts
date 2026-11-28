@@ -9,6 +9,9 @@ import {
   againStep,
   CARD_RETRY_MS,
   REFUSED_UNDER_S,
+  SAME_SPOT_PLAYED_S,
+  SAME_SPOT_S,
+  sameSpot,
   spotOf,
   STALL_BUDGET_MS,
   STALL_MAX_REBUILDS,
@@ -55,6 +58,34 @@ describe('an error on a film that has been playing', () => {
     againStep(tries, T0, {played: 12, canEncode: true});
     againStep(tries, T0 + 500, {played: 12, canEncode: true});
     expect(againStep(tries, T0 + 3000, {played: 12, canEncode: true})).toEqual({kind: 'encode'});
+  });
+  it('a file played as itself, hardly played, that keeps failing: its server copy first — never straight to the encode', () => {
+    const tries: number[] = [];
+    const o = {played: 12, canEncode: true, canCopy: true};
+    againStep(tries, T0, o);
+    againStep(tries, T0 + 500, o);
+    expect(againStep(tries, T0 + 3000, o)).toEqual({kind: 'copy'});
+  });
+  it('the same spot twice (the reload played back up to it and failed there again): the copy at once, whatever was played', () => {
+    const tries: number[] = [];
+    expect(againStep(tries, T0, {played: 5, canEncode: true, canCopy: true, sameSpot: false})).toEqual({kind: 'again', delayMs: 300, n: 1});
+    expect(againStep(tries, T0 + 17000, {played: 10, canEncode: true, canCopy: true, sameSpot: true})).toEqual({kind: 'copy'});
+    // a damaged stretch an hour in: the copy too, not the card
+    const later: number[] = [T0];
+    expect(againStep(later, T0 + 20000, {played: 3000, canEncode: true, canCopy: true, sameSpot: true})).toEqual({kind: 'copy'});
+    // no copy to go to (already on one, or no transcode route): the reloads as before
+    const onCopy: number[] = [T0];
+    expect(againStep(onCopy, T0 + 20000, {played: 10, canEncode: true, canCopy: false, sameSpot: true})).toEqual({kind: 'again', delayMs: 2000, n: 2});
+    // the first error has nothing to be the same as
+    expect(againStep([], T0, {played: 10, canEncode: true, canCopy: true, sameSpot: true})).toEqual({kind: 'again', delayMs: 300, n: 1});
+  });
+  it('the same spot is the same place AFTER playing back up to it — a reload that fails at once (a server that is down) is not', () => {
+    expect(SAME_SPOT_S).toBe(3);
+    expect(SAME_SPOT_PLAYED_S).toBe(2);
+    expect(sameSpot(null, {at: 5, played: 10})).toBe(false);
+    expect(sameSpot({at: 5, played: 5}, {at: 5.4, played: 10})).toBe(true);
+    expect(sameSpot({at: 5, played: 5}, {at: 9, played: 10})).toBe(false);
+    expect(sameSpot({at: 5, played: 5}, {at: 5, played: 5.5})).toBe(false);
   });
   it('…but a path played half a minute or more is not refused here, and with no rung left it is the card', () => {
     const a: number[] = [T0, T0 + 1];
@@ -180,6 +211,12 @@ describe('the words and the wiring', () => {
     expect(recover).toBeGreaterThan(0);
     expect(recover).toBeLessThan(onError.indexOf('const looksTransient'));
     expect(onError.slice(0, recover)).toMatch(/if \(everPlayed\.current && !isTorrent\) \{\s*$/);
+  });
+  it('the copy rung is the server copy of the file from the same spot, the picture as it is', () => {
+    const r = tv.slice(tv.indexOf("if (a.kind === 'copy' && base) {"), tv.indexOf("if (a.kind === 'encode' && base) {"));
+    expect(r).toContain("startTranscodeAt(base, at, 'copy', {fallbackToZero: at < 5});");
+    expect(r).toContain('switchedToTranscode.current = true;');
+    expect(tv).toMatch(/const canCopy = !!base && !isTorrent && !usingTranscodeRef\.current && !switchedToTranscode\.current;/);
   });
   it('the switch to the encode mid-film never restarts at 0:00', () => {
     const fb = tv.slice(tv.indexOf('const fallbackToTranscode = '), tv.indexOf('const fallbackToTranscode = ') + 900);

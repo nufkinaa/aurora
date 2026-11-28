@@ -11,8 +11,17 @@
 //    minutes is not tried by itself — the card, and one more quiet try every
 //    30 s behind it while it is up. A source this device has not really
 //    played (half a minute of it) that keeps failing may be refused by the
-//    decoder after all: that one gets the full encode instead, as a copy
+//    decoder after all: that one gets the server's copy of it (its picture as
+//    it is, repackaged) — or, on the copy, the full encode — as a copy
 //    refused at its very start does (Player.tsx onError's ladder).
+//  • THE SAME SPOT TWICE: a file played as itself whose reload played back up
+//    to where it failed and failed there again — the file's own bytes there
+//    are what fails (a damaged stretch: the household's 2.5-hour HEVC film
+//    has 2 MB of zeros 5 s in, which ExoPlayer's Matroska reader cannot get
+//    past — "No valid varint length mask found", 2026-11-28), not the line
+//    or the decoder: a third read of the same bytes cannot help, and the
+//    full encode would re-make a picture this device decodes fine. The
+//    server's copy reads past such a stretch (ffmpeg resyncs).
 //  • A FROZEN PICTURE (the clock stands still while the film should be
 //    playing — buffering, an errored player, a decoder that hung): a nudge at
 //    6 s, the same source again at 20 s (two of those per five minutes), and
@@ -50,19 +59,43 @@ const prune = (list: number[], now: number, windowMs: number) => {
 
 export type AgainStep =
   | {kind: 'again'; delayMs: number; n: number}
+  | {kind: 'copy'}
   | {kind: 'encode'}
   | {kind: 'card'};
+
+/** Two errors this close together (content seconds) are at the same spot. */
+export const SAME_SPOT_S = 3;
+/** …when the film played at least this much between them (a reload that
+ *  fails at once — a server or line that is down — is not a damaged spot). */
+export const SAME_SPOT_PLAYED_S = 2;
+
+/** PURE: this error is at the spot of the one before it, after the reload
+ *  between them played back up to it (see THE SAME SPOT TWICE above). */
+export const sameSpot = (prev: {at: number; played: number} | null, now: {at: number; played: number}) =>
+  !!prev && Math.abs(now.at - prev.at) <= SAME_SPOT_S && now.played - prev.played >= SAME_SPOT_PLAYED_S;
 
 /**
  * An error on a film that has been playing. `tries` is the list of earlier
  * reloads (timestamps), kept by the caller and updated here.
  *  played     seconds this device has played of the CURRENT path (direct / copy)
  *  canEncode  a heavier rung (the full encode) is still unused for this film
+ *  canCopy    the film plays as itself and the server's copy of it is unused
+ *  sameSpot   this error is where the reload before it failed (sameSpot())
  */
-export const againStep = (tries: number[], now: number, o: {played: number; canEncode: boolean}): AgainStep => {
+export const againStep = (
+  tries: number[],
+  now: number,
+  o: {played: number; canEncode: boolean; canCopy?: boolean; sameSpot?: boolean},
+): AgainStep => {
   prune(tries, now, AGAIN_WINDOW_MS);
+  if (o.canCopy && o.sameSpot && tries.length) return {kind: 'copy'};
   if (tries.length >= AGAIN_MAX) {
-    if (o.canEncode && o.played < REFUSED_UNDER_S) return {kind: 'encode'};
+    if (o.played < REFUSED_UNDER_S) {
+      // the picture decoded here a moment ago: its copy first, never straight
+      // to an encode that re-makes it (the copy's own failures reach the encode)
+      if (o.canCopy) return {kind: 'copy'};
+      if (o.canEncode) return {kind: 'encode'};
+    }
     return {kind: 'card'};
   }
   tries.push(now);
