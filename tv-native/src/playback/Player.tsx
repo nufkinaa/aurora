@@ -2875,6 +2875,7 @@ export default function Player({
     if (pendingSeek.current == null) return;
     const target = pendingSeek.current;
     pendingSeek.current = null;
+    console.log(`[player] seek ${(curRef.current || 0).toFixed(1)} -> ${target.toFixed(1)}`);
     // [scrub-previews] the seek is made: the picture goes, the marker stays
     {
       const lv = seekLive.get();
@@ -5002,6 +5003,7 @@ export default function Player({
         showNotificationControls={PHONE}
         onLoad={onLoad}
         onReadyForDisplay={() => {
+          console.log(`[player] ready at ${(curRef.current || 0).toFixed(1)}`);
           // A resume that is still to be sought to (onLoad does it, right
           // after this first READY): the frame on screen is the film's first,
           // not the one the viewer is waiting for. The READY after the seek
@@ -5013,6 +5015,9 @@ export default function Player({
         onEnd={onEnd}
         onError={onError}
         onBuffer={({isBuffering}) => {
+          // (logcat: every rebuffer and seek wait, short ones too — the play
+          // marks only carry stalls over three seconds)
+          console.log(`[player] buffering ${isBuffering ? 'on' : 'off'} at ${(curRef.current || 0).toFixed(1)}`);
           setBuffering(isBuffering);
           noteBuffering(isBuffering);
         }}
