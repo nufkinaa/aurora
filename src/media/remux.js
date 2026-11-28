@@ -508,7 +508,8 @@ const ensureJob = (videoPath, id, { vcodec = "copy", ss = 0, seek = false, fmt =
   }
 
   // (failed here twice in a row: not again for a while — see `failed`)
-  if (failedHere(dir)) return Promise.reject(new Error("This part of the file could not be prepared — it failed twice"));
+  // (404, as for anything this file cannot be served as: the player does not ask again)
+  if (failedHere(dir)) return Promise.reject(Object.assign(new Error("This part of the file could not be prepared — it failed twice"), { status: 404 }));
 
   // Hard cap on simultaneous h264 transcodes — refuse rather than spawning
   // another libx264 and freezing the machine. The jobs THIS request is taking

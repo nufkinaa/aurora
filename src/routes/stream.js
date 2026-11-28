@@ -478,6 +478,7 @@ const sendStreamError = (res, err) => {
     res.setHeader("Retry-After", String(err.retryAfter || 5));
     return res.status(503).send(err.message);
   }
+  if (err && err.status === 404) return res.status(404).send(err.message); // (remux.js: failed twice here)
   res.status(500).send((err && err.message) || "stream failed");
 };
 

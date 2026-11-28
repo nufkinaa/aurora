@@ -45,7 +45,7 @@ test("a file ffmpeg cannot read: two tries, then refused with no ffmpeg started"
       await assert.rejects(remux.ensure(film, id, { vcodec: "h264", ss: 6, seek: true }), /Remux failed|did not start/, `try ${i} fails`);
       assert.equal(spawned, i, `try ${i} started ffmpeg`);
     }
-    await assert.rejects(remux.ensure(film, id, { vcodec: "h264", ss: 6, seek: true }), /failed twice/);
+    await assert.rejects(remux.ensure(film, id, { vcodec: "h264", ss: 6, seek: true }), (e) => /failed twice/.test(e.message) && e.status === 404, "refused as a 404: the player does not ask again");
     assert.equal(spawned, FAIL_LIMIT, "the third ask started nothing");
     await assert.rejects(remux.ensure(film, id, { vcodec: "h264", ss: 6 }), /failed twice/, "a playlist poll the same");
     assert.equal(spawned, FAIL_LIMIT);

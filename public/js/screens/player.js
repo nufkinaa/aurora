@@ -1766,7 +1766,10 @@ export const renderPlayer = async (root, { id }) => {
               // declined 720p rung read as the copy's own, and the film left its
               // stream for the file)
               const failed = String(data.url || (data.context && data.context.url) || (data.frag && (data.frag.url || data.frag.relurl)) || "");
-              if (failed ? !/[?&]v=h264-/.test(failed) : !ladderOn) {
+              // (an offset encode's own address names its height too: only a jit
+              // address is a ladder rung)
+              const rung = /\/jit\//.test(failed) && /[?&]v=h264-/.test(failed);
+              if (failed ? !rung : !ladderOn) {
                 const f = jitFallback;
                 jitFallback = null;
                 const at = effTime() > 0.5 ? effTime() : startAt || 0;
@@ -6603,6 +6606,20 @@ export const renderPlayer = async (root, { id }) => {
       // lighter level and hls.js takes it from there, back up included. The
       // capped offset job otherwise, as before.
       let ok = false;
+      // Stepped down off the FILE onto the offset encode, and that encode is
+      // then refused (its job died on a damaged stretch and its segments are
+      // gone — 404 — or it died twice there and the server will not start it
+      // again): back to the file, which was playing, and no more step-downs
+      // for this film. It used to rebuild the dead stream until the error
+      // card, the picture still (tools/stream-net-rig, a damaged MP4 on
+      // 1.5 Mbit/s, 2026-11-28).
+      const fromFile = !usingTranscode && !jitMode && !hls && fileDirectOk();
+      const fileIfRefused = () => {
+        if (fromFile && !exited) jitFallback = {
+          url: transcodeUrl(streamOffset, "h264"),
+          run: (at) => { capH = prev; autoQuality = false; backToFile(at); },
+        };
+      };
       if (ladderEligible()) {
         holdNext = true;
         ok = await tryJitSwitch(effTime(), { startH: next });
@@ -6612,12 +6629,14 @@ export const renderPlayer = async (root, { id }) => {
           capH = next;
           startTranscodeAt(at, "h264", { quiet: true, live: true }).then((done) => {
             if (!done && !exited) { capH = prev; autoQuality = false; }
+            else if (done) fileIfRefused();
           });
         };
       }
       if (!ok && !exited) {
         capH = next;
         ok = await startTranscodeAt(effTime(), "h264", { quiet: true, live: true });
+        if (ok) fileIfRefused();
       }
       if (exited) return;
       if (!ok) {
