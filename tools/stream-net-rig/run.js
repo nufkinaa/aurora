@@ -35,6 +35,8 @@
 //                  cut@60:10         the same, and every connection open at that moment stays a black
 //                                    hole for good (the viewer's network changed: a router restart, a
 //                                    phone moving to another Wi-Fi) — only new connections work
+//                  offline@60:15     the browser itself goes offline for 15 s (Wi-Fi switched off on the
+//                                    device: requests fail at once, "offline"/"online" events fire)
 //                  restart@60        the server restarts (Admin → Update → Restart; the instance runs
 //                                    under its keeper, as an installed server does)
 //                each becomes a row of `events`: seekMs (press → the first frame shown at the target),
@@ -112,7 +114,7 @@ const TREE = arg("tree", "");
 const AT = Object.fromEntries(String(arg("at", "")).split(",").filter(Boolean).map((kv) => { const [k, v] = kv.split("="); return [k, Number(v)]; }));
 const CONFIG = Object.fromEntries(many("config").map((kv) => { const i = kv.indexOf("="); let v = kv.slice(i + 1); try { v = JSON.parse(v); } catch {} return [kv.slice(0, i), v]; }));
 const EVENTS = String(arg("events", "")).split(",").map((x) => x.trim()).filter(Boolean).map((e) => {
-  const m = /^(seek|blip|cut|restart)@(\d+(?:\.\d+)?)(?::(.+))?$/.exec(e);
+  const m = /^(seek|blip|cut|restart|offline)@(\d+(?:\.\d+)?)(?::(.+))?$/.exec(e);
   if (!m) throw new Error(`--events: cannot read "${e}"`);
   return { kind: m[1], at: Number(m[2]), arg: m[3] != null ? m[3] : null };
 });
@@ -479,7 +481,7 @@ const busyLoad = (srvUrl, ids, measured, n, enc) => {
 
 // ---------- events during a play (--events) ----------
 const pageNow = (page) => page.evaluate(() => performance.timeOrigin + performance.now());
-const runEvent = async (ev, { page, line, inst, prof }) => {
+const runEvent = async (ev, { page, line, inst, prof, context }) => {
   const rec = { kind: ev.kind, at: ev.at, arg: ev.arg };
   rec.before = await page.evaluate(() => window.__rig.state()).catch(() => null);
   if (ev.kind === "seek") {
@@ -512,6 +514,14 @@ const runEvent = async (ev, { page, line, inst, prof }) => {
     await line.off();
     await sleep(Number(ev.arg || 10) * 1000);
     await line.set(prof.down);
+    rec.restoredAt = await pageNow(page);
+    return rec;
+  }
+  if (ev.kind === "offline") {
+    rec.t = await pageNow(page);
+    await context.setOffline(true);
+    await sleep(Number(ev.arg || 10) * 1000);
+    await context.setOffline(false);
     rec.restoredAt = await pageNow(page);
     return rec;
   }
@@ -549,7 +559,7 @@ const frozenRuns = (samples) => {
   if (from != null && samples.length && samples[samples.length - 1].t - from >= 500) runs.push([from, samples[samples.length - 1].t]);
   return runs;
 };
-const digestEvents = (events, dump, endAt) => {
+const digestEvents = (events, dump, endAt, reqs = []) => {
   const vids = dump.videos.filter((v) => v.inPlayer || v.frames.length);
   const samples = vids.flatMap((v) => v.samples).sort((a, b) => a.t - b.t);
   const frames = vids.flatMap((v) => v.all || []).sort((a, b) => a[0] - b[0]);
@@ -570,6 +580,9 @@ const digestEvents = (events, dump, endAt) => {
       out.seekMs = land ? Math.round(land[0] - e.t) : null;
       const moving = land && samples.find((x) => x.t > land[0] && x.ct >= e.target + 1);
       out.movingMs = moving ? Math.round(moving.t - e.t) : null;
+      // the media requests the landing waited on: rung, first byte (the server + one round trip), bytes
+      const after = reqs.filter((r) => r.start >= e.t - 20 && r.start < e.t + (out.seekMs || 15000) && (r.kind === "segment" || r.kind === "video"));
+      out.reqs = after.slice(0, 4).map((r) => ({ v: (/[?&]v=([^&]+)/.exec(r.path) || [])[1] || (r.kind === "video" ? "file" : "copy"), seg: (/seg(\d+)/.exec(r.path) || [])[1] || null, ttfb: r.ttfb ? Math.round(r.ttfb - r.start) : null, at: Math.round(r.start - e.t), kb: Math.round(r.bytes / 1000), end: r.end ? Math.round(r.end - e.t) : null }));
       const w = Math.min(e.t + 30000, nextT);
       out.stallMs = Math.round(runs.filter(([a, b]) => b > e.t && a < w).reduce((n, [a, b]) => n + Math.min(b, w) - Math.max(a, e.t), 0));
     } else if (e.t) {
@@ -609,7 +622,20 @@ const main = async () => {
       row.fileKbps = item.sizeBytes && item.duration ? Math.round((item.sizeBytes * 8) / item.duration / 1000) : null;
       if (PREWARM) { row.prewarm = await prewarm(inst.srv, item.id, PREWARM); console.log(`    prewarmed ${row.prewarm.segs} segments in ${row.prewarm.sec}s`); }
       line = await startLine(inst.srv.port, prof);
-      if (BUSY > 0) { busy = busyLoad(inst.srv.url, inst.ids, tkey, BUSY, BUSY_ENC); await sleep(8000); } // the others already playing
+      if (BUSY > 0) {
+        busy = busyLoad(inst.srv.url, inst.ids, tkey, BUSY, BUSY_ENC);
+        // the server's event loop meanwhile (its own /healthz windows)
+        busy.loop = { maxMs: 0, p99Ms: 0 };
+        const lp = setInterval(() => {
+          if (busy.stop) return clearInterval(lp);
+          fetch(`${inst.srv.url}/healthz`, { signal: AbortSignal.timeout(3000) }).then((r) => r.json()).then((j) => {
+            const l = (j && (j.loop || j.eventLoop || j.lag)) || j || {};
+            busy.loop.maxMs = Math.max(busy.loop.maxMs, Number(l.maxMs) || 0);
+            busy.loop.p99Ms = Math.max(busy.loop.p99Ms, Number(l.p99Ms) || 0);
+          }).catch(() => {});
+        }, 5000);
+        await sleep(8000); // the others already playing
+      }
       row.lineDescribe = line.describe;
       const profile = await inst.createProfile(`R${Date.now().toString(36).slice(-6)}`);
       if (AT[tkey] > 0) { await inst.setProgress(profile.id, item.id, AT[tkey], item.duration); row.at = AT[tkey]; }
@@ -652,7 +678,7 @@ const main = async () => {
         while (steps.length && el >= steps[0][0]) { const [, d] = steps.shift(); await line.set(d); }
         if (evq.length) {
           if (ffAt == null) ffAt = await page.evaluate(() => { const f = window.__rig.videos.flatMap((v) => v.frames).sort((a, b) => a.t - b.t)[0]; return f ? f.t : null; }).catch(() => null);
-          if (ffAt != null && (await pageNow(page)) - ffAt >= evq[0].at * 1000) evDone.push(await runEvent(evq.shift(), { page, line, inst, prof }));
+          if (ffAt != null && (await pageNow(page)) - ffAt >= evq[0].at * 1000) evDone.push(await runEvent(evq.shift(), { page, line, inst, prof, context }));
         }
         await sleep(evq.length ? 200 : 500);
       }
@@ -661,8 +687,8 @@ const main = async () => {
       const dump = await page.evaluate((s) => window.__rig.dump(s), since);
       const t0 = dump.clicks.length ? dump.clicks[0] : since;
       Object.assign(row, digest({ t0, dump, reqs: net.all(), endAt }));
-      if (EVENTS.length) row.events = digestEvents(evDone, dump, endAt);
-      if (busy) row.busy = { viewers: busy.viewers, segs: busy.segs, mb: +(busy.bytes / 1e6).toFixed(1), errors: busy.errors };
+      if (EVENTS.length) row.events = digestEvents(evDone, dump, endAt, net.all());
+      if (busy) row.busy = { viewers: busy.viewers, segs: busy.segs, mb: +(busy.bytes / 1e6).toFixed(1), errors: busy.errors, loop: busy.loop };
       // the player's own marks (what path it chose, any step-down)
       row.marks = net.all().filter((r) => r.kind === "mark" && r.body).map((r) => { try { const m = JSON.parse(r.body); return `${m.name}${m.path ? `:${m.path}` : ""}${m.to ? `:${m.to}` : ""}${m.v ? `:${m.v}` : ""}${m.levels ? `:${m.levels}` : ""}@${m.ms}`; } catch { return null; } }).filter(Boolean).slice(0, 40);
       { const pm = row.marks.filter((m) => /^path:/.test(m)).map((m) => m.split(":")[1].split("@")[0]); if (pm.length) row.pathMarks = pm.join(">"); }
