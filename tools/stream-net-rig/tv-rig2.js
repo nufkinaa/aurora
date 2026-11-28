@@ -103,8 +103,10 @@ const command = async (st, deviceId, cmd, args) => {
 
 // ---------------------------------------------------------------- the relay on the TV
 const D = "/data/local/tmp/aurora-qa";
-// the film readers tv-local-srv.sh runs (dd off the TV's storage)
-const readerPids = () => adb("shell", `for p in $(pidof dd); do grep -q aurora-qa/media /proc/$p/cmdline 2>/dev/null && echo $p; done`).split(/\s+/).filter(Boolean);
+// the film readers tv-local-srv.sh runs: a dd off the TV's storage (the fast
+// path execs one), or, on a paced line, the srv.sh loop that starts a dd per
+// 64 KB (stopping only the dd of the moment would not stop the line)
+const readerPids = () => adb("shell", `for p in $(pidof dd); do grep -q aurora-qa/media /proc/$p/cmdline 2>/dev/null && echo $p; done; cat ${D}/film.* 2>/dev/null; true`).split(/\s+/).filter(Boolean);
 const blip = async (b) => {
   if (b.kind === "freeze") {
     // the line goes silent without closing (a Wi-Fi drop, a router losing the flow)
@@ -140,11 +142,25 @@ const main = async () => {
   if (!it) throw new Error(`no title ${TITLE} (have ${Object.keys(items)})`);
   const lc = startLogcat();
   await sleep(800);
-  const row = { label: LABEL, at: new Date().toISOString(), title: TITLE, mode: MODE, source: SOURCE, resumeAt: AT, watchSec: WATCH };
+  const row = { progress: process.argv.includes("--progress"), label: LABEL, at: new Date().toISOString(), title: TITLE, mode: MODE, source: SOURCE, resumeAt: AT, watchSec: WATCH };
   let st = null;
   let deviceId = null;
   let t0 = 0; // TV clock: the press (cold: the launcher's START; warm: the player's mount)
-  if (MODE === "cold") {
+  // --progress: a warm resume from the profile's saved position (as the title
+  // page's Resume does), not the remote's own position
+  const VIA_PROGRESS = process.argv.includes("--progress");
+  if (VIA_PROGRESS) {
+    // a player still up would write ITS position over the one set below when
+    // the new title replaces it: the remote's stop first
+    try {
+      const pre = await connect(profile);
+      const tvd = pre.devices.find((d) => d.kind === "tv");
+      if (tvd) await command(pre, tvd.deviceId, "stop", {});
+      await sleep(1500);
+      pre.ws.close();
+    } catch {}
+  }
+  if (MODE === "cold" || VIA_PROGRESS) {
     // the resume point as the profile's progress (the deep link opens where the profile stands)
     const CMD = arg("cmd");
     if (CMD) {
@@ -153,6 +169,8 @@ const main = async () => {
 `);
       for (let i = 0; i < 40 && !/ok progress|err /.test(fs.readFileSync(LOG, "utf8").slice(before)); i++) await sleep(250);
     }
+  }
+  if (MODE === "cold") {
     adb("shell", "am", "force-stop", "com.auroratv");
     await sleep(1500);
     const link = `aurora://open?a=play&d=${encodeURIComponent(JSON.stringify({ id: it.id, title: it.title, type: "movie", videoUrl: it.videoUrl, transcodeBase: it.transcodeBase, inLibrary: true }))}`;
@@ -172,7 +190,7 @@ const main = async () => {
   if (MODE === "warm") {
     if (!deviceId) throw new Error(row.error || "no TV");
     const from = tvNow();
-    const ack = await command(st, deviceId, "play_item", { item: { id: it.id, title: it.title, type: "movie", duration: it.duration }, position: AT || null, restart: !AT });
+    const ack = await command(st, deviceId, "play_item", { item: { id: it.id, title: it.title, type: "movie", duration: it.duration }, position: VIA_PROGRESS ? null : AT || null, restart: !AT });
     row.ack = ack.ok ? "ok" : ack.error;
     const mount = await waitFor(/\[player\] first frame \+\d+ms/, 60000, from);
     t0 = mount ? mount.t - Number(/\+(\d+)ms/.exec(mount.msg)[1]) : from;

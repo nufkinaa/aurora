@@ -71,6 +71,9 @@ if [ -n "$file" ] && [ -f "$D/media/$file" ]; then
   # (%N's first three digits are the ms; "1" in front keeps a leading 0 from reading as octal)
   ms_now() { set -- $(date '+%s %N'); m=${2%??????}; echo $(( ($1 - S0) * 1000 + 1$m - 1000 - N0 )); }
   set -- $(date '+%s %N'); S0=$1; m=${2%??????}; N0=$((1$m - 1000))
+  # (this loop's pid, for the rig's blips: tv-rig2.js pauses or ends it)
+  echo $$ > "$D/film.$$"
+  trap 'rm -f "$D/film.$$"' EXIT
   pos=$s
   left=$len
   chunks=0
