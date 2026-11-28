@@ -40,7 +40,7 @@ test("tvRender reaches the TV that asks, by model; nothing set answers the measu
     const mi = await get(srv, "/api/tv/tuning?model=MiTV-AFMU0");
     assert.equal(mi.status, 200);
     assert.equal(mi.cache, "no-store");
-    const D = { startBufferMs: 1000, rebufferMs: 5000, resumeAtSource: true };
+    const D = { startBufferMs: 1000, rebufferMs: 5000, resumeAtSource: true, resumeOnKey: true, seekSnapMs: 0 };
     assert.deepEqual(mi.body, { ...D, tvRender: { cull: true, recommended: true, pool: false } });
     const other = await get(srv, "/api/tv/tuning?model=Chromecast%20HD");
     assert.deepEqual(other.body, { ...D, tvRender: { cull: true } });
@@ -53,7 +53,7 @@ test("tvRender reaches the TV that asks, by model; nothing set answers the measu
   try {
     const r = await get(bare, "/api/tv/tuning?model=MiTV-AFMU0");
     assert.equal(r.status, 200);
-    assert.deepEqual(r.body, { startBufferMs: 2500, rebufferMs: 5000, resumeAtSource: true }, "no tvPlayer: the measured start-up; no tvRender: every rendering switch as the build says");
+    assert.deepEqual(r.body, { startBufferMs: 2500, rebufferMs: 5000, resumeAtSource: true, resumeOnKey: true, seekSnapMs: 0 }, "no tvPlayer: the measured start-up; no tvRender: every rendering switch as the build says");
   } finally {
     await bare.stop();
   }

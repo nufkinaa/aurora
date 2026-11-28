@@ -174,6 +174,7 @@ import {E as PHONE_GLASS, E_EDGE_THICK as PHONE_EDGE} from '../phone/theme';
 import {menuMaxHeight} from '../popupFit';
 import {refreshTuning, tuning, TUNING_DEFAULTS} from './tuning';
 import {againStep, CARD_RETRY_MS, REFUSED_UNDER_S, sameSpot, spotOf, StopKind, stopWords, watchNew, watchReset, watchTick} from './recovery';
+import {KEYS_WAIT_MS, readKeys, resumeOnKey, seekOnKey} from './keyframes';
 import {Clock, clockBaseFor, clockFromHeaders, toContent, toMedia} from './clock';
 import {Cue, cueBottom, cueTextAt, parseVtt} from './cues';
 import {delaysForItem, loadDelays, roundDelay, saveDelay} from './subDelay';
@@ -987,6 +988,8 @@ export default function Player({
   // A direct-play source opened AT the resume point (tuning.resumeAtSource):
   // the uri it applies to, and where. Any other uri starts where it always did.
   const startAt = useRef<{uri: string; ms: number} | null>(null);
+  // [keyframes] the file's keyframe times, once known (playback/keyframes.ts)
+  const keysRef = useRef<number[] | null>(null);
   // uri, mirrored for callbacks that fire before ANY source is armed: a skip
   // pressed on the loading screen must not cancel the arming probe (see skip).
   const uriRef = useRef<string | null>(null);
@@ -1566,6 +1569,18 @@ export default function Player({
           toast("Couldn't read your watch history — resume and progress saving are off");
           st = {progress: {}} as ProfileState;
         }
+        // [keyframes] A resume lands on a keyframe (playback/keyframes.ts):
+        // the file's list is asked for now, beside the item, so it is
+        // normally in before the item is.
+        const savedPos = Number(st.progress?.[id]?.position) || 0;
+        const keysP =
+          !stream && !restart && !remoteStart?.position && savedPos > 10 && tuning().resumeOnKey
+            ? api.keyframes(id).then(readKeys).catch(() => null)
+            : null;
+        // (and for seeks, when the tuning lets them land on one: never waited for)
+        (keysP || (!stream && tuning().seekSnapMs > 0 ? api.keyframes(id).then(readKeys).catch(() => null) : null))?.then(k => {
+          if (k) keysRef.current = k;
+        });
 
         if (stream) {
           // openItem/Sources compose an episode's nav title as "Show · S2 E10",
@@ -1633,7 +1648,15 @@ export default function Player({
             return;
           }
           // `restart` (Detail's "Start over") means ignore the saved position.
-          const at = restart ? null : resumePoint(st.progress?.[id], it.duration);
+          let at = restart ? null : resumePoint(st.progress?.[id], it.duration);
+          if (at != null && keysP) {
+            // on a keyframe inside the resume's leeway — if the list comes in time
+            const keys = await Promise.race([keysP, sleep(KEYS_WAIT_MS).then(() => null)]);
+            if (!live) return;
+            const k = resumeOnKey(at, keys);
+            console.log(`[player] resume ${at} -> ${k}${k !== at ? ' (keyframe)' : keys ? ' (no keyframe near)' : ' (no list in time)'}`);
+            at = k;
+          }
           if (at != null) resumeAt.current = at;
           if (remoteStart?.position && !restart) resumeAt.current = remoteStart.position; // [phone-remote] where the phone was
           durRef.current = it.duration || 0;
@@ -2873,7 +2896,7 @@ export default function Player({
 
   const commitSeek = useCallback(async () => {
     if (pendingSeek.current == null) return;
-    const target = pendingSeek.current;
+    let target = pendingSeek.current;
     pendingSeek.current = null;
     console.log(`[player] seek ${(curRef.current || 0).toFixed(1)} -> ${target.toFixed(1)}`);
     // [scrub-previews] the seek is made: the picture goes, the marker stays
@@ -2977,6 +3000,16 @@ export default function Player({
       probing.current = false;
       setSeekWait(null);
       setSeekPreview(null);
+    }
+    // [keyframes] the server's tuning may let a seek land on a keyframe near
+    // its target (seekSnapMs; 0 = never, the default): a file played as it is
+    {
+      const snap = tuning().seekSnapMs;
+      if (snap > 0 && !usingTranscodeRef.current) {
+        const k = seekOnKey(target, keysRef.current, snap / 1000);
+        if (k !== target) console.log(`[player] seek ${target.toFixed(1)} -> keyframe ${k.toFixed(1)}`);
+        target = k;
+      }
     }
     // Native seeks are in PLAYLIST (media) time: content time minus the
     // clock base of the playlist (clock.ts).

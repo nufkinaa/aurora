@@ -1357,6 +1357,12 @@ export default function Detail({
   const movieWatched = !!movieProg?.finished;
   const movieResume =
     movieProg && !movieProg.finished && movieProg.position > 10 ? movieProg.position : 0;
+  // [keyframes] a Resume on this page: the file's keyframes asked for now, so
+  // the player lands the resume on one without waiting (playback/keyframes.ts)
+  const warmKeys = !!ownedMovieId && movieResume > 0;
+  useEffect(() => {
+    if (warmKeys && ownedMovieId) api.keyframes(ownedMovieId).catch(() => {});
+  }, [warmKeys, ownedMovieId]);
   const toggleWatched = async () => {
     if (!ownedMovieId) return;
     const dur = full?.duration || movieProg?.duration || 1;

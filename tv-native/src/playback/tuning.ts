@@ -32,6 +32,10 @@ export type Tuning = {
   startBufferMs: number;
   rebufferMs: number;
   resumeAtSource: boolean;
+  /** a resume lands on a keyframe inside its leeway (playback/keyframes.ts) */
+  resumeOnKey: boolean;
+  /** a seek lands on a keyframe this close to its target; 0 = exactly there */
+  seekSnapMs: number;
 };
 
 /** What this build does when the server says nothing. */
@@ -39,6 +43,8 @@ export const TUNING_DEFAULTS: Tuning = {
   startBufferMs: 2000,
   rebufferMs: 8000,
   resumeAtSource: false,
+  resumeOnKey: true,
+  seekSnapMs: 0,
 };
 
 /** PURE: the server's answer over the defaults; anything odd is ignored. */
@@ -55,6 +61,9 @@ export const applyTuning = (raw: unknown, base: Tuning = TUNING_DEFAULTS): Tunin
   // never resume on less than a start needs
   if (out.rebufferMs < out.startBufferMs) out.rebufferMs = out.startBufferMs;
   if (typeof r.resumeAtSource === 'boolean') out.resumeAtSource = r.resumeAtSource;
+  if (typeof r.resumeOnKey === 'boolean') out.resumeOnKey = r.resumeOnKey;
+  const snap = num(r.seekSnapMs, 0, 5000);
+  if (snap != null) out.seekSnapMs = snap;
   return out;
 };
 

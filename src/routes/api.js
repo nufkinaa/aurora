@@ -188,6 +188,18 @@ router.get("/api/tv/tuning", (req, res) => {
   res.json(require("../lib/tvtuning").current(req.query.model));
 });
 
+// A library file's keyframe times, for the TV (lib/tvkeys.js): it lands a
+// resume on one, so ExoPlayer has no frames to decode unseen before the
+// picture. {v: 1, keys: null} for anything it cannot read.
+router.get("/api/tv/keyframes/:id", async (req, res) => {
+  res.setHeader("Cache-Control", "private, max-age=3600");
+  try {
+    res.json(await require("../lib/tvkeys").forItem(req.params.id));
+  } catch {
+    res.json({ v: 1, keys: null });
+  }
+});
+
 // ---------- trailers for the TV (media/trailers.js) ----------
 // Which trailer a TV should play: Apple's HLS when the title has one, else the
 // YouTube keys for the TV to resolve itself, else none. The site keeps its

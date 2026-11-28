@@ -1822,6 +1822,13 @@ export const api = {
   // `model` (Build.MODEL) lets the admin turn the rendering switches on for one
   // kind of TV (`tvRender.models`, lib/tvtuning.js); a server that predates it
   // ignores the query.
+  // A library file's keyframe times (the server's lib/tvkeys.js): the player
+  // lands a resume on one (playback/keyframes.ts). Kept 10 minutes — a file's
+  // keyframes do not move; a server that predates the route answers 404.
+  keyframes: (id: string) =>
+    memo(`/api/tv/keyframes/${encodeURIComponent(id)}`, 600000, () =>
+      request<{v: number; keys: number[] | null}>(`/api/tv/keyframes/${encodeURIComponent(id)}`),
+    ),
   tvTuning: (model?: string | null) =>
     request<Record<string, unknown>>(`/api/tv/tuning${model ? `?model=${encodeURIComponent(String(model).slice(0, 40))}` : ''}`),
   // Hide a show's synthesized "up next" card. clearProgress can't (the card's

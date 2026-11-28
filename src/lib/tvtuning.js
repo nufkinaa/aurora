@@ -18,8 +18,17 @@
 //                                // (ExoPlayer bufferForPlaybackMs; the app's own: 2000)
 //     "rebufferMs": 5000,        // …and before playback resumes after a stall
 //                                // (bufferForPlaybackAfterRebufferMs; the app's own: 8000)
-//     "resumeAtSource": true     // a library file that plays as itself opens AT the
+//     "resumeAtSource": true,    // a library file that plays as itself opens AT the
 //                                // resume point, instead of opening at 0:00 and seeking
+//     "resumeOnKey": true,       // ...and that point is moved onto a keyframe within the
+//                                // resume's own leeway (4 s back, a few s either way):
+//                                // ExoPlayer then has nothing to decode unseen before
+//                                // the picture (Mi TV: ~0.1 s per second past a keyframe;
+//                                // a resume 9 s past one took 1.1 s longer). The app:
+//                                // tv-native src/playback/keyframes.ts; the list: lib/tvkeys.js
+//     "seekSnapMs": 0            // a SEEK lands on a keyframe this close to its target
+//                                // (0 = exactly where it was sent, as always). It moves
+//                                // where a seek lands, so it is off unless the admin sets it
 //   }
 //
 // Anything else in the object is dropped; a value out of range is dropped
@@ -57,8 +66,9 @@
 const RANGES = {
   startBufferMs: [250, 5000],
   rebufferMs: [1000, 20000],
+  seekSnapMs: [0, 5000],
 };
-const FLAGS = ["resumeAtSource"];
+const FLAGS = ["resumeAtSource", "resumeOnKey"];
 
 // PURE: whatever config.json holds -> what the app is told.
 const sanitize = (raw) => {
@@ -108,7 +118,9 @@ const renderFor = (raw, model) => {
 // its start on a 4 Mbit/s, 70 ms line, 3 plays each — 1000 ms: first frame
 // 2.2 s, an early stall (~5 s) in 2 of 3; 2500 ms: 3.2 s, in 1 of 3, median 0;
 // 5000 ms: 5.6 s, none. A second of start for most of the early stops.
-const DEFAULT_PLAYER = Object.freeze({ startBufferMs: 2500, rebufferMs: 5000, resumeAtSource: true });
+// resumeOnKey since streaming round 2 (docs/qa/streaming-round-2/tv.md): a resume
+// lands on a keyframe inside its own leeway. seekSnapMs stays 0 (see the top).
+const DEFAULT_PLAYER = Object.freeze({ startBufferMs: 2500, rebufferMs: 5000, resumeAtSource: true, resumeOnKey: true, seekSnapMs: 0 });
 
 // PURE: config.json's "tvPlayer" -> what the app is told: the defaults, with
 // every valid key config.json sets in their place.

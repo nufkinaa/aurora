@@ -100,7 +100,7 @@ const SEGMENTS = new Set((
   "offline-wishes wish-options saved " + // a device's "save it here too" before the server has it (docs/offline-wishes.md)
   "child-mode forgot off " + // children mode, per account: /api/profiles/:id/child-mode[/off|/forgot], /api/admin/profiles/:id/child-mode (docs/children-mode.md)
   "scrub " + // the progress bar's preview pictures: /api/scrub/:id, /img/scrub/:id/:n.jpg (media/scrubsprites.js)
-  "bye tuning tv " +
+  "bye tuning tv keyframes " + // (/api/tv/keyframes/:id, lib/tvkeys.js)
   "presence activity watched " + // watch time + presence (docs/watch-time.md): /api/presence/bye, /api/admin/activity, /api/profiles/:id/watched // the player's goodbye beacon (/stream/transcode/:id/jit/bye), /api/tv/tuning
   "air airplay " + // AirPlay links (/air/:token/stream/…, /api/airplay/link, /stream/airplay/:id/…)
   "stores accept ack drill encoding calibrate " +

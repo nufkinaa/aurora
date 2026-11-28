@@ -31,6 +31,10 @@ test("playback never resumes on less than it starts on", () => {
 test("switches are true or false, nothing else; unknown keys never reach the app", () => {
   assert.deepEqual(sanitize({ resumeAtSource: true }), { resumeAtSource: true });
   assert.deepEqual(sanitize({ resumeAtSource: false }), { resumeAtSource: false });
+  // streaming round 2: a resume on a keyframe (a flag), a seek's snap in ms (0..5000)
+  assert.deepEqual(sanitize({ resumeOnKey: false, seekSnapMs: 1500 }), { resumeOnKey: false, seekSnapMs: 1500 });
+  assert.deepEqual(sanitize({ resumeOnKey: "no", seekSnapMs: 9000 }), {});
+  assert.deepEqual(sanitize({ seekSnapMs: 0 }), { seekSnapMs: 0 });
   assert.deepEqual(sanitize({ resumeAtSource: "yes" }), {});
   assert.deepEqual(sanitize({ resumeAtSource: 1 }), {});
   assert.deepEqual(sanitize({ adminPassword: "x", somethingElse: 5, startBufferMs: 800 }), { startBufferMs: 800 });
@@ -68,7 +72,7 @@ test("the answer carries tvRender only when it names something", () => {
   try {
     cfg.TV_PLAYER = { startBufferMs: 1000 };
     cfg.TV_RENDER = null;
-    const D = { startBufferMs: 1000, rebufferMs: 5000, resumeAtSource: true };
+    const D = { startBufferMs: 1000, rebufferMs: 5000, resumeAtSource: true, resumeOnKey: true, seekSnapMs: 0 };
     assert.deepEqual(current("MiTV-AFMU0"), D);
     cfg.TV_RENDER = { models: { "MiTV-AFMU0": { recommended: true } } };
     assert.deepEqual(current("MiTV-AFMU0"), { ...D, tvRender: { recommended: true } });
@@ -84,7 +88,7 @@ const { playerFor, DEFAULT_PLAYER } = require("../src/lib/tvtuning");
 
 test("config.json says nothing: the TV is told the measured start-up", () => {
   // (startBufferMs 2500: the Mi TV pass of 2026-11-28 — src/lib/tvtuning.js DEFAULT_PLAYER)
-  const D = { startBufferMs: 2500, rebufferMs: 5000, resumeAtSource: true };
+  const D = { startBufferMs: 2500, rebufferMs: 5000, resumeAtSource: true, resumeOnKey: true, seekSnapMs: 0 };
   assert.deepEqual({ ...DEFAULT_PLAYER }, D);
   for (const raw of [undefined, null, {}, [], "fast", 7, true]) assert.deepEqual(playerFor(raw), D, JSON.stringify(raw));
   assert.ok(Object.isFrozen(DEFAULT_PLAYER));
@@ -92,9 +96,9 @@ test("config.json says nothing: the TV is told the measured start-up", () => {
 });
 
 test("config.json still wins key by key; an invalid key keeps the default", () => {
-  assert.deepEqual(playerFor({ resumeAtSource: false }), { startBufferMs: 2500, rebufferMs: 5000, resumeAtSource: false });
-  assert.deepEqual(playerFor({ startBufferMs: 2000, rebufferMs: 8000, resumeAtSource: false }), { startBufferMs: 2000, rebufferMs: 8000, resumeAtSource: false }, "the app's own values, back");
-  assert.deepEqual(playerFor({ startBufferMs: 3000 }), { startBufferMs: 3000, rebufferMs: 5000, resumeAtSource: true });
-  assert.deepEqual(playerFor({ startBufferMs: 100, rebufferMs: "x", resumeAtSource: 1 }), { startBufferMs: 2500, rebufferMs: 5000, resumeAtSource: true });
-  assert.deepEqual(playerFor({ startBufferMs: 5000 }), { startBufferMs: 5000, rebufferMs: 5000, resumeAtSource: true }, "never resumes on less than it starts on");
+  assert.deepEqual(playerFor({ resumeAtSource: false }), { startBufferMs: 2500, rebufferMs: 5000, resumeAtSource: false, resumeOnKey: true, seekSnapMs: 0 });
+  assert.deepEqual(playerFor({ startBufferMs: 2000, rebufferMs: 8000, resumeAtSource: false }), { startBufferMs: 2000, rebufferMs: 8000, resumeAtSource: false, resumeOnKey: true, seekSnapMs: 0 }, "the app's own values, back");
+  assert.deepEqual(playerFor({ startBufferMs: 3000 }), { startBufferMs: 3000, rebufferMs: 5000, resumeAtSource: true, resumeOnKey: true, seekSnapMs: 0 });
+  assert.deepEqual(playerFor({ startBufferMs: 100, rebufferMs: "x", resumeAtSource: 1 }), { startBufferMs: 2500, rebufferMs: 5000, resumeAtSource: true, resumeOnKey: true, seekSnapMs: 0 });
+  assert.deepEqual(playerFor({ startBufferMs: 5000 }), { startBufferMs: 5000, rebufferMs: 5000, resumeAtSource: true, resumeOnKey: true, seekSnapMs: 0 }, "never resumes on less than it starts on");
 });
