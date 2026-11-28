@@ -26,7 +26,9 @@ const evName = (e) => `${e.kind}${e.arg ? " " + e.arg : ""}`;
 const summarize = (rows) => {
   const cells = new Map();
   for (const r of rows) {
-    const key = `${r.flavour || "web"}|${r.profile}|${r.title}`;
+    // (plays with different events are different cells: a Wi-Fi drop's play is not a restart's)
+    const sig = (r.events || []).filter((e) => e.kind !== "seek").map((e) => `${e.kind}${e.arg ? " " + e.arg : ""}`).join(",");
+    const key = `${r.flavour || "web"}|${r.profile}|${r.title}${sig ? " (" + sig + ")" : ""}`;
     if (!cells.has(key)) cells.set(key, { rows: [], events: new Map() });
     const c = cells.get(key);
     c.rows.push(r);

@@ -533,6 +533,12 @@ const preLoaderFor = (Hls) => {
 // and its first-byte time stay what the line really did).
 const LOAD_SILENT_BODY_MS = 6000;
 const LOAD_SILENT_NONE_MS = 8000;
+// An encoded rung's first byte waits on its encoder (a few seconds; far more
+// on a saturated server), so its no-byte limit is longer — but not hls.js's 60
+// s: asked again, the server keeps making the segment and the new ask finds it
+// (rig: a 10-s network change on 3 Mbit/s on the 480p rung — the retry landed
+// on another dead connection and waited 60 s: 62 s frozen)
+const LOAD_SILENT_NONE_ENC_MS = 15000;
 const lineLoaders = new WeakMap();
 const lineFirstLoader = (Base) => {
   if (lineLoaders.has(Base)) return lineLoaders.get(Base);
@@ -552,8 +558,8 @@ const lineFirstLoader = (Base) => {
       const jit = /\/jit\//.test(url);
       const copy = jit && !/[?&]v=h264-/.test(url);
       // (an encoded rung's segment leaves the server whole once it is made, so a
-      // silence inside its body is the line's too; only its first byte may
-      // legitimately wait on its encoder)
+      // silence inside its body is the line's too; its first byte may wait on
+      // its encoder: LOAD_SILENT_NONE_ENC_MS)
       if (jit && callbacks && callbacks.onTimeout) {
         let seen = 0;
         let since = performance.now();
@@ -563,7 +569,7 @@ const lineFirstLoader = (Base) => {
           const now = performance.now();
           const got = st.loaded || 0;
           if (got !== seen) { seen = got; since = now; return; }
-          if (got > 0 ? now - since < LOAD_SILENT_BODY_MS : !copy || now - since < LOAD_SILENT_NONE_MS) return;
+          if (now - since < (got > 0 ? LOAD_SILENT_BODY_MS : copy ? LOAD_SILENT_NONE_MS : LOAD_SILENT_NONE_ENC_MS)) return;
           over = true;
           stopWatch();
           try { this.abortInternal(); } catch {}
