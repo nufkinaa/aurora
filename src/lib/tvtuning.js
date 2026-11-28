@@ -103,7 +103,12 @@ const renderFor = (raw, model) => {
 };
 
 // The measured start-up (see the top). Frozen: callers get copies.
-const DEFAULT_PLAYER = Object.freeze({ startBufferMs: 1000, rebufferMs: 5000, resumeAtSource: true });
+// startBufferMs 2500 since the Mi TV pass of 2026-11-28 (research-stream-
+// efficiency, docs/qa/streaming-efficiency REPORT "Built"): an HEVC film from
+// its start on a 4 Mbit/s, 70 ms line, 3 plays each — 1000 ms: first frame
+// 2.2 s, an early stall (~5 s) in 2 of 3; 2500 ms: 3.2 s, in 1 of 3, median 0;
+// 5000 ms: 5.6 s, none. A second of start for most of the early stops.
+const DEFAULT_PLAYER = Object.freeze({ startBufferMs: 2500, rebufferMs: 5000, resumeAtSource: true });
 
 // PURE: config.json's "tvPlayer" -> what the app is told: the defaults, with
 // every valid key config.json sets in their place.

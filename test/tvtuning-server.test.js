@@ -53,7 +53,7 @@ test("tvRender reaches the TV that asks, by model; nothing set answers the measu
   try {
     const r = await get(bare, "/api/tv/tuning?model=MiTV-AFMU0");
     assert.equal(r.status, 200);
-    assert.deepEqual(r.body, { startBufferMs: 1000, rebufferMs: 5000, resumeAtSource: true }, "no tvPlayer: the measured start-up; no tvRender: every rendering switch as the build says");
+    assert.deepEqual(r.body, { startBufferMs: 2500, rebufferMs: 5000, resumeAtSource: true }, "no tvPlayer: the measured start-up; no tvRender: every rendering switch as the build says");
   } finally {
     await bare.stop();
   }

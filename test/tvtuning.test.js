@@ -83,17 +83,18 @@ test("the answer carries tvRender only when it names something", () => {
 const { playerFor, DEFAULT_PLAYER } = require("../src/lib/tvtuning");
 
 test("config.json says nothing: the TV is told the measured start-up", () => {
-  const D = { startBufferMs: 1000, rebufferMs: 5000, resumeAtSource: true };
+  // (startBufferMs 2500: the Mi TV pass of 2026-11-28 — src/lib/tvtuning.js DEFAULT_PLAYER)
+  const D = { startBufferMs: 2500, rebufferMs: 5000, resumeAtSource: true };
   assert.deepEqual({ ...DEFAULT_PLAYER }, D);
   for (const raw of [undefined, null, {}, [], "fast", 7, true]) assert.deepEqual(playerFor(raw), D, JSON.stringify(raw));
   assert.ok(Object.isFrozen(DEFAULT_PLAYER));
-  const a = playerFor(null); a.startBufferMs = 9; assert.equal(DEFAULT_PLAYER.startBufferMs, 1000, "callers get a copy");
+  const a = playerFor(null); a.startBufferMs = 9; assert.equal(DEFAULT_PLAYER.startBufferMs, 2500, "callers get a copy");
 });
 
 test("config.json still wins key by key; an invalid key keeps the default", () => {
-  assert.deepEqual(playerFor({ resumeAtSource: false }), { startBufferMs: 1000, rebufferMs: 5000, resumeAtSource: false });
+  assert.deepEqual(playerFor({ resumeAtSource: false }), { startBufferMs: 2500, rebufferMs: 5000, resumeAtSource: false });
   assert.deepEqual(playerFor({ startBufferMs: 2000, rebufferMs: 8000, resumeAtSource: false }), { startBufferMs: 2000, rebufferMs: 8000, resumeAtSource: false }, "the app's own values, back");
   assert.deepEqual(playerFor({ startBufferMs: 3000 }), { startBufferMs: 3000, rebufferMs: 5000, resumeAtSource: true });
-  assert.deepEqual(playerFor({ startBufferMs: 100, rebufferMs: "x", resumeAtSource: 1 }), { startBufferMs: 1000, rebufferMs: 5000, resumeAtSource: true });
+  assert.deepEqual(playerFor({ startBufferMs: 100, rebufferMs: "x", resumeAtSource: 1 }), { startBufferMs: 2500, rebufferMs: 5000, resumeAtSource: true });
   assert.deepEqual(playerFor({ startBufferMs: 5000 }), { startBufferMs: 5000, rebufferMs: 5000, resumeAtSource: true }, "never resumes on less than it starts on");
 });

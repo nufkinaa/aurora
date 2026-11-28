@@ -20,7 +20,7 @@ const throttle = require("../throttle-proxy");
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : d; };
 const LISTEN = Number(arg("listen", 47400));
 const MEDIA = arg("media", "E:/aurora-agents/research-stream-efficiency/media");
-const TITLES = { mp4: "Rig Mp4", hevc: "Rig Hevc", jit: "Rig Jit", uhd: "Rig Uhd" };
+const TITLES = { mp4: "Rig Mp4", hevc: "Rig Hevc", jit: "Rig Jit", uhd: "Rig Uhd", orig: "Rig Orig" };
 const tuningFile = path.join(os.tmpdir(), `rig-tv-tuning-${process.pid}.json`);
 fs.writeFileSync(tuningFile, "null");
 
