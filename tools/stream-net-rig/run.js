@@ -28,6 +28,20 @@
 //                --cpus8 0 for all 16 threads)
 //   --config k=v extra instance config.json keys (repeatable; JSON values allowed)
 //   --headed     watch it
+//   --events     things that happen during the play, seconds after the FIRST FRAME, comma list:
+//                  seek@25:+10       the viewer presses → (a 10-s skip; -10 = ←)
+//                  seek@45:0.6       the viewer clicks the scrubber at 60 % of the film
+//                  blip@60:15        the line loses every packet for 15 s, both ways (Wi-Fi gone, same address)
+//                  cut@60:10         the same, and every connection open at that moment stays a black
+//                                    hole for good (the viewer's network changed: a router restart, a
+//                                    phone moving to another Wi-Fi) — only new connections work
+//                  restart@60        the server restarts (Admin → Update → Restart; the instance runs
+//                                    under its keeper, as an installed server does)
+//                each becomes a row of `events`: seekMs (press → the first frame shown at the target),
+//                stall and recovery around a line event (recoverMs: the line back → the clock moving)
+//   --busy N     N other viewers on the server during the play (each pulls another film's copy
+//                stream at 1× after a first minute ahead, straight from the instance, not
+//                through the line); --busy-enc 1 puts one of them on the 720p encode
 //
 // One fresh instance, line and browser context per play: every play is a cold
 // server and a cold page (the HTTP cache of a returning visitor is kept by
@@ -97,6 +111,13 @@ const TREE = arg("tree", "");
 // --at <title>=<sec>[,...]: resume there (the film's busiest 150 s: mp4=390, hevc=546, jit=218)
 const AT = Object.fromEntries(String(arg("at", "")).split(",").filter(Boolean).map((kv) => { const [k, v] = kv.split("="); return [k, Number(v)]; }));
 const CONFIG = Object.fromEntries(many("config").map((kv) => { const i = kv.indexOf("="); let v = kv.slice(i + 1); try { v = JSON.parse(v); } catch {} return [kv.slice(0, i), v]; }));
+const EVENTS = String(arg("events", "")).split(",").map((x) => x.trim()).filter(Boolean).map((e) => {
+  const m = /^(seek|blip|cut|restart)@(\d+(?:\.\d+)?)(?::(.+))?$/.exec(e);
+  if (!m) throw new Error(`--events: cannot read "${e}"`);
+  return { kind: m[1], at: Number(m[2]), arg: m[3] != null ? m[3] : null };
+});
+const BUSY = Number(arg("busy", 0));
+const BUSY_ENC = Number(arg("busy-enc", 0));
 const OUT_DIR = path.join(__dirname, ".runs");
 const OUT = path.join(OUT_DIR, `${LABEL}.jsonl`);
 const PRIMARY = ".detail-actions > .btn-primary";
@@ -116,6 +137,8 @@ const startInstance = async () => {
   try { cal = JSON.parse(fs.readFileSync(calFile, "utf8")); } catch {}
   const srv = await server.start({
     ...(cal ? { seed: { "cache/encode-calibration.json": cal } } : {}),
+    // a restart needs something to start it again: the keeper, as on an installed server
+    ...(EVENTS.some((e) => e.kind === "restart") ? { keeper: true } : {}),
     // every video encode the server starts is logged (count-encodes.js): elia's rule is that none
     // may run that would not have run before, so each row counts them
     preload: [path.join(__dirname, "count-encodes.js")],
@@ -232,6 +255,8 @@ const startLineOnce = async (auroraPort, prof) => {
   return {
     origin: `http://127.0.0.1:${listenPort}`,
     set: shape,
+    off: () => send("off"),
+    freeze: () => send("freeze"),
     close: async () => { try { ctl.stdin.end(); } catch {} await new Promise((r) => { const t = setTimeout(r, 20000); ctl.once("exit", () => { clearTimeout(t); r(); }); }); },
     describe: `wsl ${CC} ssai=${SSAI} down ${prof.down} up ${prof.up} rtt ${prof.rtt} loss ${prof.loss || 0}%`,
   };
@@ -243,12 +268,29 @@ const PROBE = () => {
   const now = () => performance.timeOrigin + performance.now();
   const R = (window.__rig = { clicks: [], videos: [], hls: [] });
   addEventListener("click", (e) => { if (e.isTrusted) R.clicks.push(now()); }, true);
+  R.keys = [];
+  addEventListener("keydown", (e) => { if (e.isTrusted) R.keys.push({ t: now(), key: e.key }); }, true);
+  // where the player's video is now, and what it holds ahead (for an event's row)
+  R.state = () => {
+    const v = [...document.querySelectorAll(".player video")].find((x) => x.currentSrc) || null;
+    if (!v) return null;
+    const ranges = [];
+    for (let i = 0; i < v.buffered.length; i++) ranges.push([+v.buffered.start(i).toFixed(2), +v.buffered.end(i).toFixed(2)]);
+    return { t: now(), ct: v.currentTime, dur: v.duration, paused: v.paused, ranges };
+  };
   const watch = (v) => {
     v.muted = true;
     const rec = { created: now(), events: [], frames: [], samples: [], el: v };
     R.videos.push(rec);
     for (const ev of ["loadedmetadata", "playing", "waiting", "seeking", "seeked", "pause", "error", "emptied", "ended"]) v.addEventListener(ev, () => rec.events.push({ ev, t: now(), ct: v.currentTime }));
-    const onFrame = (n, meta) => { rec.frames.push({ t: performance.timeOrigin + n, mt: meta.mediaTime, h: meta.height }); if (rec.frames.length < 10) v.requestVideoFrameCallback(onFrame); };
+    // the first ten frames in full; after them every frame's [time, media time] (a seek's
+    // landing is the first frame shown at its target)
+    rec.all = [];
+    const onFrame = (n, meta) => {
+      if (rec.frames.length < 10) rec.frames.push({ t: performance.timeOrigin + n, mt: meta.mediaTime, h: meta.height });
+      else if (rec.all.length < 40000) rec.all.push([Math.round(performance.timeOrigin + n), +meta.mediaTime.toFixed(3)]);
+      v.requestVideoFrameCallback(onFrame);
+    };
     if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(onFrame);
     let dropped0 = null;
     const iv = setInterval(() => {
@@ -292,7 +334,8 @@ const PROBE = () => {
   R.dump = (since) => ({
     clicks: R.clicks.filter((c) => c >= since),
     hls: R.hls.filter((x) => x.t >= since),
-    videos: R.videos.filter((r) => r.created >= since - 5 && r.samples.length).map((r) => ({ created: r.created, events: r.events, frames: r.frames, samples: r.samples, inPlayer: !!(r.el.closest && r.el.closest(".player")) })),
+    keys: R.keys.filter((k) => k.t >= since),
+    videos: R.videos.filter((r) => r.created >= since - 5 && r.samples.length).map((r) => ({ created: r.created, events: r.events, frames: r.frames, all: r.all, samples: r.samples, inPlayer: !!(r.el.closest && r.el.closest(".player")) })),
   });
 };
 
@@ -382,6 +425,172 @@ const digest = ({ t0, dump, reqs, endAt }) => {
   return out;
 };
 
+// ---------- other viewers (--busy) ----------
+// Each pulls another film's jit stream the way hls.js does: a minute ahead first, then at 1×,
+// straight from the instance (their lines are not this viewer's line).
+const busyLoad = (srvUrl, ids, measured, n, enc) => {
+  const st = { stop: false, viewers: [], segs: 0, bytes: 0, errors: 0 };
+  const others = Object.keys(ids).filter((k) => k !== measured && k !== "direct");
+  const one = async (key, v, from) => {
+    const id = ids[key].id;
+    const base = `${srvUrl}/stream/transcode/${encodeURIComponent(id)}/jit`;
+    try {
+      const master = await (await fetch(`${base}/master.m3u8`)).text();
+      const uris = master.split("\n").map((x) => x.trim()).filter((l) => l && !l.startsWith("#"));
+      const u = uris.find((x) => (/[?&]v=([^&]+)/.exec(x) || [])[1] === v) || uris.find((x) => !/[?&]v=h264/.test(x)) || uris[0];
+      const plUrl = new URL(u, `${base}/master.m3u8`).href;
+      const pl = (await (await fetch(plUrl)).text()).split("\n").map((x) => x.trim());
+      const segs = [];
+      let at = 0;
+      for (let i = 0; i < pl.length; i++) {
+        const m = /^#EXTINF:([\d.]+)/.exec(pl[i]);
+        if (m) {
+          const d = Number(m[1]);
+          let j = i + 1;
+          while (j < pl.length && (!pl[j] || pl[j].startsWith("#"))) j++;
+          if (j < pl.length) segs.push({ at, d, url: new URL(pl[j], plUrl).href });
+          at += d;
+          i = j;
+        }
+      }
+      const t0 = Date.now();
+      for (const sg of segs) {
+        if (st.stop) return;
+        if (sg.at + sg.d < from) continue;
+        while (!st.stop && sg.at - from - (Date.now() - t0) / 1000 > 60) await sleep(250);
+        if (st.stop) return;
+        try {
+          const r = await fetch(sg.url);
+          const b = await r.arrayBuffer();
+          if (r.status >= 400) st.errors++;
+          else { st.segs++; st.bytes += b.byteLength; }
+        } catch { st.errors++; }
+      }
+    } catch { st.errors++; }
+  };
+  for (let i = 0; i < n; i++) {
+    const key = others[i % others.length];
+    const v = enc && i === 0 ? "h264-720" : "copy";
+    st.viewers.push(`${key}:${v}@${60 * (i + 1)}`);
+    one(key, v, 60 * (i + 1));
+  }
+  return st;
+};
+
+// ---------- events during a play (--events) ----------
+const pageNow = (page) => page.evaluate(() => performance.timeOrigin + performance.now());
+const runEvent = async (ev, { page, line, inst, prof }) => {
+  const rec = { kind: ev.kind, at: ev.at, arg: ev.arg };
+  rec.before = await page.evaluate(() => window.__rig.state()).catch(() => null);
+  if (ev.kind === "seek") {
+    if (/^[+-]/.test(ev.arg)) {
+      const back = ev.arg.startsWith("-");
+      rec.t = await pageNow(page);
+      await page.keyboard.press(back ? "ArrowLeft" : "ArrowRight");
+      rec.target = rec.before ? rec.before.ct + (back ? -10 : 10) : null;
+    } else {
+      const frac = Number(ev.arg);
+      // the controls first (a pointer over the picture), then a click on the scrubber
+      const vp = page.viewportSize() || { width: 1280, height: 720 };
+      await page.mouse.move(vp.width * 0.45, vp.height * 0.5);
+      await sleep(120);
+      await page.mouse.move(vp.width * 0.5, vp.height * 0.55);
+      await sleep(250);
+      const box = await page.locator(".player .scrubber").first().boundingBox();
+      if (!box) { rec.error = "no scrubber"; return rec; }
+      const dur = rec.before && isFinite(rec.before.dur) ? rec.before.dur : null;
+      rec.t = await pageNow(page);
+      await page.mouse.click(box.x + frac * box.width, box.y + box.height / 2);
+      rec.target = dur ? frac * dur : null;
+    }
+    if (rec.before && rec.target != null) rec.inBuffer = rec.before.ranges.some(([a, b]) => a <= rec.target && b >= rec.target + 1);
+    return rec;
+  }
+  if (ev.kind === "blip" || ev.kind === "cut") {
+    rec.t = await pageNow(page);
+    if (ev.kind === "cut") rec.frozen = await line.freeze();
+    await line.off();
+    await sleep(Number(ev.arg || 10) * 1000);
+    await line.set(prof.down);
+    rec.restoredAt = await pageNow(page);
+    return rec;
+  }
+  if (ev.kind === "restart") {
+    rec.t = await pageNow(page);
+    const r = await fetch(`${inst.srv.url}/api/admin/update/restart`, { method: "POST", headers: { "X-Admin-Password": inst.srv.adminPassword, "Content-Type": "application/json" }, body: "{}" }).catch((e) => ({ status: String(e.message) }));
+    rec.status = r.status;
+    // down (the old one has let go), then up again
+    let wentDown = false;
+    const until = Date.now() + 90000;
+    while (Date.now() < until) {
+      let ok = false;
+      try { ok = (await fetch(`${inst.srv.url}/api/ping`, { signal: AbortSignal.timeout(1000) })).ok; } catch {}
+      if (!ok) wentDown = true;
+      if (ok && wentDown) break;
+      await sleep(100);
+    }
+    rec.wentDown = wentDown;
+    rec.restoredAt = await pageNow(page);
+    return rec;
+  }
+  return rec;
+};
+
+// stalls as digest() counts them, as intervals
+const frozenRuns = (samples) => {
+  const runs = [];
+  let from = null;
+  for (let i = 1; i < samples.length; i++) {
+    const a = samples[i - 1], b = samples[i];
+    if (b.t - a.t > 2000) { from = null; continue; }
+    const frozen = !b.p && b.ct - a.ct < 0.05 && Math.abs(b.ct - a.ct) < 3;
+    if (frozen) { if (from == null) from = a.t; } else if (from != null) { if (b.t - from >= 500) runs.push([from, a.t]); from = null; }
+  }
+  if (from != null && samples.length && samples[samples.length - 1].t - from >= 500) runs.push([from, samples[samples.length - 1].t]);
+  return runs;
+};
+const digestEvents = (events, dump, endAt) => {
+  const vids = dump.videos.filter((v) => v.inPlayer || v.frames.length);
+  const samples = vids.flatMap((v) => v.samples).sort((a, b) => a.t - b.t);
+  const frames = vids.flatMap((v) => v.all || []).sort((a, b) => a[0] - b[0]);
+  const runs = frozenRuns(samples);
+  return events.map((e, k) => {
+    const out = { ...e };
+    // (a seek's own window ends where the next event begins)
+    const nextT = events[k + 1] && events[k + 1].t ? events[k + 1].t : Infinity;
+    if (out.before) {
+      const b = out.before;
+      out.ct = +b.ct.toFixed(1);
+      const cover = b.ranges.filter(([x, y]) => x <= b.ct + 0.3 && y > b.ct);
+      out.ahead = cover.length ? +(Math.max(...cover.map(([, y]) => y)) - b.ct).toFixed(1) : 0;
+      delete out.before;
+    }
+    if (e.kind === "seek" && e.t && e.target != null) {
+      const land = frames.find(([t, mt]) => t > e.t && Math.abs(mt - e.target) < 1.5);
+      out.seekMs = land ? Math.round(land[0] - e.t) : null;
+      const moving = land && samples.find((x) => x.t > land[0] && x.ct >= e.target + 1);
+      out.movingMs = moving ? Math.round(moving.t - e.t) : null;
+      const w = Math.min(e.t + 30000, nextT);
+      out.stallMs = Math.round(runs.filter(([a, b]) => b > e.t && a < w).reduce((n, [a, b]) => n + Math.min(b, w) - Math.max(a, e.t), 0));
+    } else if (e.t) {
+      const end = Math.min(endAt, (e.restoredAt || e.t) + 90000);
+      const inWin = runs.filter(([a, b]) => b > e.t && a < end);
+      out.stalls = inWin.length;
+      out.stallMs = Math.round(inWin.reduce((n, [a, b]) => n + Math.min(b, end) - Math.max(a, e.t), 0));
+      if (e.restoredAt) {
+        out.outMs = Math.round(e.restoredAt - e.t);
+        const at = inWin.find(([a, b]) => a <= e.restoredAt && b >= e.restoredAt);
+        // the line back → the clock moving again (0: the buffer carried it)
+        out.recoverMs = at ? Math.round(at[1] - e.restoredAt) : 0;
+        const later = inWin.filter(([a]) => a > e.restoredAt);
+        out.stallsAfter = later.length;
+        out.stallMsAfter = Math.round(later.reduce((n, [a, b]) => n + Math.min(b, end) - a, 0));
+      }
+    }
+    return out;
+  });
+};
+
 const main = async () => {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const browser = await launch({ headed: flag("headed") });
@@ -391,7 +600,7 @@ const main = async () => {
     const prof = PROFILES[pname];
     if (!prof) throw new Error(`unknown profile ${pname}`);
     const row = { ...meta, profile: pname, title: tkey, run, prof };
-    let inst = null, line = null, context = null;
+    let inst = null, line = null, context = null, busy = null;
     const t1 = Date.now();
     try {
       inst = await startInstance();
@@ -400,6 +609,7 @@ const main = async () => {
       row.fileKbps = item.sizeBytes && item.duration ? Math.round((item.sizeBytes * 8) / item.duration / 1000) : null;
       if (PREWARM) { row.prewarm = await prewarm(inst.srv, item.id, PREWARM); console.log(`    prewarmed ${row.prewarm.segs} segments in ${row.prewarm.sec}s`); }
       line = await startLine(inst.srv.port, prof);
+      if (BUSY > 0) { busy = busyLoad(inst.srv.url, inst.ids, tkey, BUSY, BUSY_ENC); await sleep(8000); } // the others already playing
       row.lineDescribe = line.describe;
       const profile = await inst.createProfile(`R${Date.now().toString(36).slice(-6)}`);
       if (AT[tkey] > 0) { await inst.setProgress(profile.id, item.id, AT[tkey], item.duration); row.at = AT[tkey]; }
@@ -434,15 +644,25 @@ const main = async () => {
       const t0c = Date.now();
       const watchSec = Math.max(WATCH, prof.schedule ? prof.schedule[prof.schedule.length - 1][0] + 60 : 0);
       const steps = (prof.schedule || []).slice();
+      const evq = EVENTS.slice().sort((a, b) => a.at - b.at);
+      const evDone = [];
+      let ffAt = null;
       while (Date.now() - t0c < watchSec * 1000) {
         const el = (Date.now() - t0c) / 1000;
         while (steps.length && el >= steps[0][0]) { const [, d] = steps.shift(); await line.set(d); }
-        await sleep(500);
+        if (evq.length) {
+          if (ffAt == null) ffAt = await page.evaluate(() => { const f = window.__rig.videos.flatMap((v) => v.frames).sort((a, b) => a.t - b.t)[0]; return f ? f.t : null; }).catch(() => null);
+          if (ffAt != null && (await pageNow(page)) - ffAt >= evq[0].at * 1000) evDone.push(await runEvent(evq.shift(), { page, line, inst, prof }));
+        }
+        await sleep(evq.length ? 200 : 500);
       }
+      if (busy) busy.stop = true;
       const endAt = await page.evaluate(() => performance.timeOrigin + performance.now());
       const dump = await page.evaluate((s) => window.__rig.dump(s), since);
-      const t0 = dump.clicks.length ? dump.clicks[dump.clicks.length - 1] : since;
+      const t0 = dump.clicks.length ? dump.clicks[0] : since;
       Object.assign(row, digest({ t0, dump, reqs: net.all(), endAt }));
+      if (EVENTS.length) row.events = digestEvents(evDone, dump, endAt);
+      if (busy) row.busy = { viewers: busy.viewers, segs: busy.segs, mb: +(busy.bytes / 1e6).toFixed(1), errors: busy.errors };
       // the player's own marks (what path it chose, any step-down)
       row.marks = net.all().filter((r) => r.kind === "mark" && r.body).map((r) => { try { const m = JSON.parse(r.body); return `${m.name}${m.path ? `:${m.path}` : ""}${m.to ? `:${m.to}` : ""}${m.v ? `:${m.v}` : ""}${m.levels ? `:${m.levels}` : ""}@${m.ms}`; } catch { return null; } }).filter(Boolean).slice(0, 40);
       { const pm = row.marks.filter((m) => /^path:/.test(m)).map((m) => m.split(":")[1].split("@")[0]); if (pm.length) row.pathMarks = pm.join(">"); }
@@ -456,11 +676,13 @@ const main = async () => {
       row.ok = false;
       row.why = String(e.message).split("\n")[0];
     } finally {
+      if (busy) busy.stop = true;
       try { if (context) await context.close(); } catch {}
       try { if (line) await line.close(); } catch {}
       try { if (inst) await inst.srv.stop(); } catch {}
     }
     row.wallSec = Math.round((Date.now() - t1) / 1000);
+    for (const e of row.events || []) console.log(`      ${e.kind}@${e.at}${e.arg ? ":" + e.arg : ""}  ${e.kind === "seek" ? `seek ${e.seekMs} ms  moving ${e.movingMs} ms  ${e.inBuffer ? "in buffer" : "outside"}  stalled ${e.stallMs} ms` : `out ${e.outMs} ms  ahead ${e.ahead} s  recover ${e.recoverMs} ms  stalls ${e.stalls} / ${e.stallMs} ms  after ${e.stallsAfter}`}`);
     fs.appendFileSync(OUT, JSON.stringify(row) + "\n");
     console.log(`  ${pname.padEnd(7)} ${tkey.padEnd(6)} #${run} ${row.ok ? `ttff ${String(row.ttff).padStart(6)} ms  stalls ${String(row.stalls).padStart(2)} / ${String((row.stallMs / 1000).toFixed(1)).padStart(5)} s  avgH ${String(row.avgHeight).padStart(4)}  top ${Math.round(row.shareTop * 100)}%  sw ${row.switches}  ${row.mediaMbit} Mbit/s  ${(row.mediaBytes / 1e6).toFixed(0)} MB  enc ${row.encodeStarts}  path ${row.path} [${row.levelsUsed.join(",")}] end ${row.endPlaying ? "playing" : "STUCK"}` : `FAILED ${row.why}`}`);
   }

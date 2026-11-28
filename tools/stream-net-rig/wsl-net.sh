@@ -13,6 +13,7 @@
 #                              sa egress (server -> viewer): RTT/2 delay, DOWN kbit/s, LOSS %
 #                              ra egress (viewer -> server): RTT/2 delay, UP kbit/s
 #                            queue: about 250 ms at the rate (a home router's buffer)
+#   off                      every packet on the shaped link lost, both ways (Wi-Fi gone; "shape" brings it back)
 #   cc cubic|bbr             the server namespace's TCP congestion control
 #   ssai 0|1                 net.ipv4.tcp_slow_start_after_idle in the server namespace
 #   show                     the qdiscs and the sysctls
@@ -68,6 +69,11 @@ case "$cmd" in
     ip netns exec $NS tc qdisc replace dev sa$SLOT root netem delay ${HALF}ms rate ${DOWN}kbit loss ${LOSS}% limit $LD
     tc qdisc replace dev ra$SLOT root netem delay ${HALF}ms rate ${UP}kbit limit $LU
     echo "shape: down ${DOWN} kbit/s, up ${UP} kbit/s, rtt ${RTT} ms, loss ${LOSS}% (limits $LD/$LU pkts)"
+    ;;
+  off)
+    ip netns exec $NS tc qdisc replace dev sa$SLOT root netem loss 100%
+    tc qdisc replace dev ra$SLOT root netem loss 100%
+    echo "off: every packet lost both ways"
     ;;
   cc)
     ip netns exec $NS sysctl -q -w net.ipv4.tcp_congestion_control="$1"

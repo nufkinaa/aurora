@@ -16,6 +16,10 @@
 //   shape DOWN UP RTT LOSS     (kbit/s, kbit/s, ms, %)
 //   cc cubic|bbr
 //   ssai 0|1
+//   off                        every packet of the shaped link lost, both ways ("shape" restores it)
+//   freeze                     every connection open NOW goes silent for good — no data, no reset,
+//                              never closed (a viewer whose network changed under it: its old
+//                              connections are black holes; new ones work once the line is back)
 //   quit
 // stdin closing is a quit: everything it built is taken down again.
 "use strict";
@@ -38,15 +42,21 @@ const SUB_B = `10.77.${SLOT * 2 + 1}`;
 const sh = (...a) => execFileSync("sh", [NET, ...a.map(String)], { encoding: "utf8", env: { ...process.env, SLOT } }).trim();
 const winHost = execFileSync("sh", ["-c", "ip route | awk '/default/ {print $3; exit}'"], { encoding: "utf8" }).trim();
 
-const relay = (lhost, lport, thost, tport) =>
+// relay A's live connection pairs (for "freeze")
+const live = new Set();
+const frozen = [];
+const relay = (lhost, lport, thost, tport, track = false) =>
   new Promise((resolve, reject) => {
     const s = net.createServer((c) => {
       c.setNoDelay(true);
       const u = net.connect(tport, thost);
       u.setNoDelay(true);
-      const kill = (e) => { if (e && process.env.NETCTL_DEBUG) console.error(`relay ${lport}: ${e.message}`); c.destroy(); u.destroy(); };
+      const pair = { c, u };
+      const kill = (e) => { if (e && process.env.NETCTL_DEBUG) console.error(`relay ${lport}: ${e.message}`); live.delete(pair); if (pair.frozen) return; c.destroy(); u.destroy(); };
       c.on("error", kill);
       u.on("error", kill);
+      c.on("close", () => live.delete(pair));
+      if (track) live.add(pair);
       c.pipe(u);
       u.pipe(c);
     });
@@ -74,7 +84,7 @@ const main = async () => {
   // The viewer's port FIRST: if it is taken, nothing of anyone's line is touched
   // ("up" removes and re-creates this slot's namespace — two rigs on one port
   // used to take each other's line down mid-play).
-  await relay("0.0.0.0", LISTEN, `${SUB_A}.2`, PB);
+  await relay("0.0.0.0", LISTEN, `${SUB_A}.2`, PB, true);
   sh("up");
   upDone = true;
   sh("shape", 100000, 100000, 2, 0);
@@ -87,7 +97,20 @@ const main = async () => {
     const [cmd, ...rest] = line.trim().split(/\s+/);
     try {
       if (cmd === "quit") return process.exit(0);
-      if (cmd === "shape" || cmd === "cc" || cmd === "ssai") console.log(`ok ${sh(cmd, ...rest)}`);
+      if (cmd === "shape" || cmd === "cc" || cmd === "ssai" || cmd === "off") console.log(`ok ${sh(cmd, ...rest)}`);
+      else if (cmd === "freeze") {
+        // the browser keeps its end open and hears nothing more on it; the server's end is
+        // left open too (a far server does not know the viewer moved either)
+        let n = 0;
+        for (const p of live) {
+          p.frozen = true;
+          try { p.c.unpipe(p.u); p.u.unpipe(p.c); p.c.pause(); p.u.pause(); } catch {}
+          frozen.push(p);
+          n++;
+        }
+        live.clear();
+        console.log(`ok freeze ${n}`);
+      }
       else if (cmd === "show") console.log(`ok ${sh("show").replace(/\n/g, " | ")}`);
       else console.log(`err unknown ${cmd}`);
     } catch (e) {
