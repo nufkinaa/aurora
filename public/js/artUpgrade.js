@@ -242,7 +242,19 @@ const cover = (job, to, where, from, next) => new Promise((resolve) => {
       if (soft) l.classList.add("in");
       l.style.opacity = "1";
     }
-    timers.push(setTimeout(settle, soft ? FADE_MS + 30 : 90));
+    // The element takes the sharp picture only under a layer at full strength.
+    // The fade's own end says when; a timer alone could come early on a busy
+    // machine (the fade starts at the next frame, which may be late) and the
+    // swap would show as a small step under a half-faded layer.
+    if (soft) layers[0].addEventListener("transitionend", (e) => { if (e.propertyName === "opacity") ready(); });
+    timers.push(setTimeout(ready, soft ? FADE_MS + 30 : 90));
+  };
+  let tries = 0;
+  const ready = () => {
+    if (stage) return;
+    const o = Number(getComputedStyle(layers[0]).opacity);
+    if (o >= 0.99 || ++tries > 25) settle();
+    else timers.push(setTimeout(ready, 60));
   };
   requestAnimationFrame(() => requestAnimationFrame(() => { if (!stage) timers.push(setTimeout(come, PRE_MS)); }));
   // (whatever happens to frames and timers, the layer does not stay)
