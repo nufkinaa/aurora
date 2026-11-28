@@ -532,6 +532,7 @@ const preLoaderFor = (Hls) => {
 // numbers are cleared first, so hls.js learns nothing from it (its estimate
 // and its first-byte time stay what the line really did).
 const LOAD_SILENT_BODY_MS = 6000;
+const LOAD_GONE_QUIET_MS = 2000; // (no bytes this long: hls.js's emergency switch stands aside — see PatientAbr)
 const LOAD_SILENT_NONE_MS = 8000;
 // An encoded rung's first byte waits on its encoder (a few seconds; far more
 // on a saturated server), so its no-byte limit is longer — but not hls.js's 60
@@ -620,6 +621,19 @@ const patientAbrFor = (Hls) => {
         const f = this.fragCurrent;
         const l = f && f.stats && f.stats.loading;
         if (l && !(l.first > 0)) return undefined; // nothing has come yet: the server is still making it
+        // Bytes that have STOPPED (2026-11-28, stream round 2): an outage, not a
+        // slow line — the loader's own watch gives that load up and asks again
+        // (lineFirstLoader). Judged here, the stall read as a line of a few
+        // hundred kbit/s, and the emergency switch reset hls.js's estimate to a
+        // lighter rung's rate: an encode, for a line that came back as it was
+        // (rig: Wi-Fi off 15 s on 8 Mbit/s — the estimate 7.4 → 3.0 Mbit/s, the
+        // 480p and 720p encodes, 4 encoder starts a play).
+        try {
+          const st = f.stats;
+          const t = performance.now();
+          if (st.__seen !== st.loaded) { st.__seen = st.loaded; st.__at = t; }
+          else if (t - (st.__at || t) >= LOAD_GONE_QUIET_MS) return undefined;
+        } catch {}
         // (the first byte has just come: the wait before it was the server's, not
         // the line's — the loader moves the load's start on its first chunk, and
         // this look can come between the answer and that chunk: measured, a
