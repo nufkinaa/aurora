@@ -27,7 +27,7 @@ import { normPick, pickOf, bestTrackIndex, audioPick, sameAudio, langOf } from "
 import { savedDelay, saveDelay } from "../subdelay.js";
 import { createAirplay } from "../airplay.js";
 import { registerPlayerTarget, takeRemoteStart, playerChanged, onDevices, getDevices, chooseDevice, playOn, ICONS as REMOTE_ICONS } from "../remote.js"; // [phone-remote]
-import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM, decodeStalled, lineTimeOnly, deadSource, nativeStartUrl, fileNeedsBuffer, FILM_PEAK_RATIO, rungNeeds, seekHold } from "../playstart.js";
+import { masterVariants as variantsOf, startRung, startStepDown, startStepUp, segmentAt, streamSaves, STREAM_WORTH_SEC, START_HEADROOM, decodeStalled, lineTimeOnly, deadSource, nativeStartUrl, fileNeedsBuffer, FILM_PEAK_RATIO, rungNeeds, seekHold, RUNG_AVG_BUFFER_SEC } from "../playstart.js";
 // [player-options] night mode, dialogue boost, the look of subtitles (2026-10-19)
 import { readStyle, nextChoice, styleLabel, cueCss, cueShadow, cueBackdrop, CUE_VW, CUE_MIN_PX, RAISED_PCT, SUB_STYLE_KEYS, SUB_STYLE_NAMES, SUB_COLORS } from "../subStyle.js";
 import { audioFxFor, AUDIO_FX_KEYS, AUDIO_FX_NAMES, AUDIO_FX_NOTES } from "../audiofx.js";
@@ -537,6 +537,8 @@ const lineFirstLoader = (Base) => {
 // up after 3.5 s for 480p, which the one encoder could not make (503), then
 // asked for again: the seek took 7.9 s where the segment took 3.5. The
 // fragment's own first-byte timeout (60 s) still applies.
+// (how long after the viewer's seek its refill counts as one — see refillHold)
+const SEEK_REFILL_MS = 45000;
 let PatientAbr = null;
 const patientAbrFor = (Hls) => {
   if (PatientAbr) return PatientAbr;
@@ -1332,6 +1334,20 @@ export const renderPlayer = async (root, { id }) => {
     });
     return best;
   };
+  // AFTER A SEEK, until the buffer is deep again (2026-11-28, stream round 2):
+  // the buffer a seek empties is not a thin line. With little in hand the
+  // rule above judges a rung by its busiest segment x1.4, so every far seek
+  // on a two-codec ladder stepped from the film's own HEVC picture onto an
+  // H.264 ENCODE (measured: 4 encoders and a 4.8-s landing on 8 Mbit/s for a
+  // 3.2 Mbit/s film). While the refill after the viewer's own seek is under
+  // way, a step down onto an encoded rung waits as long as the measured line
+  // carries the rung it is on by its average (playstart.js seekHold, the
+  // same rule hls.js's own choice gets during the seek).
+  const refillHold = (h, cur, pick, est, ahead) => {
+    if (!stall.userAt || Date.now() - stall.userAt > SEEK_REFILL_MS || ahead >= RUNG_AVG_BUFFER_SEC) return false;
+    const levels = (h.levels || []).map((l) => ({ avg: l.averageBitrate || 0, peak: l.bitrate || 0, encoded: /[?&]v=h264-/.test(String(l.uri || l.url || "")) }));
+    return seekHold({ seeking: true, cur, pick, est, cap: h.autoLevelCapping, levels }) === cur;
+  };
   // Apply a pick to the stream that is playing: "auto" hands the choice back
   // to hls.js; a height pins that level from the next segment on (what is
   // already buffered past it is dropped, so the change shows within seconds).
@@ -1417,7 +1433,7 @@ export const renderPlayer = async (root, { id }) => {
         if (best > cur && ahead > 8 && now - movedAt > 15000) {
           movedAt = now;
           h.loadLevel = best;
-        } else if (best < cur && est < (lv.bitrate || 0) * 1.1) {
+        } else if (best < cur && est < (lv.bitrate || 0) * 1.1 && !refillHold(h, cur, best, est, ahead)) {
           movedAt = now;
           h.loadLevel = best;
         }
